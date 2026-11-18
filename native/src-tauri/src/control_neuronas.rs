@@ -214,12 +214,19 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     // El `de` y el NOMBRE del indicador salen de `aceptados.json`, nunca de lo que diga la página.
     #[cfg(target_os = "android")]
     let (de, nombre, nivel, color) = match apertura_nativa(&app, sobre.as_ref(), &nivel) {
-        Ok(a) => (a.de, a.nombre, a.nivel, a.color),
+        Ok(a) => {
+            *origen_nombre() = a.nombre_origen; // CTL1117K · S4: va a la línea `control-indicador`
+            (a.de, a.nombre, a.nivel, a.color)
+        }
         Err(m) => {
             anotar(&app, "sesion-rechazada", &format!("de=- motivo={m}"));
             return Err(m.into());
         }
     };
+    #[cfg(not(target_os = "android"))]
+    {
+        *origen_nombre() = "pagina"; // CTL1117K · S4: sin entrada nativa el nombre es el que dice la página
+    }
     #[cfg(not(target_os = "android"))]
     let color = crate::control_ajustes::color_por_defecto(&de); // CTL1117H: sin entrada nativa no hay color firmado
     #[cfg(not(target_os = "android"))]
@@ -270,7 +277,10 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     match r {
         Ok((de8, nivel)) => {
             *ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()) = None; // IND1115F: ya no hay nada que explicar
-            anotar(&app, "sesion-abierta", &format!("de={de8} nivel={nivel}"));
+            // CTL1117K · S2: el alcance que rige en este aparato (`total` | `protegido`) queda en la cadena y en el registro de enlaces.
+            let alcance = crate::control_ajustes::actuales(&app).alcance;
+            anotar(&app, "sesion-abierta", &format!("de={de8} nivel={nivel} alcance={}", l::alcance_de_registro(&alcance)));
+            crate::ble::nota(None, "control-sesion", &l::linea_inicio_sesion(&de8, &nivel, &alcance));
             Ok(token)
         }
         Err(e) => {
@@ -330,7 +340,7 @@ fn nota_fin_sesion(app: &AppHandle, de8: &str, motivo: &str) {
 
 #[cfg(target_os = "android")]
 fn nota_fin_sesion_con(_app: &AppHandle, de8: &str, motivo: &str, e: Option<&crate::control_neuronas_android::EstadoKotlin>) {
-    let k = e.map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms });
+    let k = e.map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms, cancel_propias: e.cancel_propias });
     crate::ble::nota(None, "control-sesion", &l::linea_fin_sesion(de8, motivo, k.as_ref()));
 }
 
@@ -343,7 +353,7 @@ pub fn control_fondo_nota(app: AppHandle, webview: tauri::Webview, detalle: Stri
         return Ok(());
     }
     #[cfg(target_os = "android")]
-    let k = crate::control_neuronas_android::es::estado(&app).map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms });
+    let k = crate::control_neuronas_android::es::estado(&app).map(|e| l::DatosKotlin { latido_ms: pared_ms().saturating_sub(e.t_ms), mostrando: e.mostrando, en_fondo: e.en_fondo, medida: e.fondo.clone(), reanudos: e.reanudos, pausada: e.pausada, cuadro_ms: e.cuadro_ms, cancel_propias: e.cancel_propias });
     #[cfg(not(target_os = "android"))]
     let k: Option<l::DatosKotlin> = None;
     crate::ble::nota(None, "control-fondo", &l::linea_fondo(&detalle, k.as_ref()));
@@ -544,7 +554,7 @@ pub fn iniciar(app: &AppHandle) {
                 tics += 1;
                 if tics % 30 == 0 {
                     if let Some(k) = crate::control_neuronas_android::es::estado(&h) {
-                        crate::ble::nota(None, "control-pulso", &format!("pulso latido-ms={} pausa={} cuadro-ms={} fondo={} indicador={} toques={}", p.saturating_sub(k.t_ms).min(9_999_999), if k.pausada { "si" } else { "no" }, k.cuadro_ms.clamp(-1, 9_999_999), if k.en_fondo { "si" } else { "no" }, if crate::control_ajustes::actuales(&h).indicador == "oculto" { "oculto" } else { "punto" }, if crate::control_ajustes::actuales(&h).ver_toques { "si" } else { "no" }));
+                        crate::ble::nota(None, "control-pulso", &format!("pulso latido-ms={} pausa={} cuadro-ms={} fondo={} indicador={} toques={} cancel-propias={} alcance={}", p.saturating_sub(k.t_ms).min(9_999_999), if k.pausada { "si" } else { "no" }, k.cuadro_ms.clamp(-1, 9_999_999), if k.en_fondo { "si" } else { "no" }, if crate::control_ajustes::actuales(&h).indicador == "oculto" { "oculto" } else { "punto" }, if crate::control_ajustes::actuales(&h).ver_toques { "si" } else { "no" }, k.cancel_propias.min(9_999_999), l::alcance_de_registro(&crate::control_ajustes::actuales(&h).alcance)));
                     }
                 }
             }
@@ -688,6 +698,10 @@ fn sondear_plataforma(app: &AppHandle) {
             quitar_indicador(app);
             anotar(app, "sesion-parada", &format!("de={} motivo={m}", antes.clone().unwrap_or_default()));
             nota_fin_sesion_con(app, &antes.unwrap_or_default(), &m, e.as_ref()); // CTL1117C
+            // CTL1117K · S4: «Revocar» del panel del punto: Kotlin ya apagó su interruptor; por el camino de siempre (`control_neuronas_parar`) se anota y se repite (apagar no pide nada).
+            if l::motivo_apaga(&m) {
+                apagar_interruptor(app, &m);
+            }
             let _ = app.emit(EVENTO_PARADA, serde_json::json!({ "motivo": m }));
         }
         Cambio::Pausada => {
@@ -731,7 +745,7 @@ fn detalle_sin_permisos(app: &AppHandle) -> String {
     let e = a::es::estado(app);
     let r = a::espera_sin_permisos(e.as_ref());
     guardar_rechazo(r.falta.clone(), &r.paso, "", 0);
-    diagnostico(&r, "permisos");
+    diagnostico(&r, "permisos", None);
     a::detalle_rechazo(&r)
 }
 
@@ -742,9 +756,13 @@ fn detalle_sin_permisos(_app: &AppHandle) -> String {
 
 /// (IND1115F) La línea nativa de cada intento, en el mismo registro que se espeja a la otra neurona.
 #[cfg(target_os = "android")]
-fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str) {
+fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str, nombre: Option<&str>) {
     let hilo = std::thread::current().name().unwrap_or("sin-nombre").to_string();
-    crate::ble::nota(None, "control-indicador", &crate::control_neuronas_android::linea_diagnostico(pedir, &hilo, r));
+    let mut linea = crate::control_neuronas_android::linea_diagnostico(pedir, &hilo, r);
+    if let Some(n) = nombre {
+        linea.push_str(&crate::control_neuronas_android::sufijo_nombre(n, *origen_nombre())); // CTL1117K · S4
+    }
+    crate::ble::nota(None, "control-indicador", &linea);
 }
 
 #[cfg(desktop)]
@@ -814,13 +832,13 @@ fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> R
         *sesion_indicador() = None;
         let r = a::Espera { paso: "peticion-no-escrita".into(), falta: a::es::estado(app).map(|e| e.falta).unwrap_or_default(), ..Default::default() };
         guardar_rechazo(r.falta.clone(), &r.paso, "", 0);
-        diagnostico(&r, "mostrar");
+        diagnostico(&r, "mostrar", Some(nombre));
         return Err(a::detalle_rechazo(&r));
     }
     // Kotlin confirma con su latido: hasta 4 s (arrancar el servicio y poner la superposición), y antes si dice
     // que no pudo. Aquí se duerme el hilo de este comando; Kotlin trabaja en el suyo (IND1115F).
     let r = a::esperar(&id, 4_000, 100, || a::es::estado(app), |ms| std::thread::sleep(std::time::Duration::from_millis(ms)), pared_ms);
-    diagnostico(&r, "mostrar");
+    diagnostico(&r, "mostrar", Some(nombre));
     if r.visible {
         return Ok(());
     }
@@ -897,6 +915,12 @@ pub(crate) enum ModoPuerta {
 
 /// FSG1116 · A2: comprueba la `abrir-sesion` firmada contra `aceptados.json` (lo escribe solo Kotlin con el «Sí»
 /// del diálogo nativo). Las aperturas vistas no se olvidan al cerrar una sesión: una vieja no abre otra.
+/// (CTL1117K · S4) De dónde salió el nombre del controlador de la sesión que se está abriendo (`aceptados` | `pagina` | `defecto`).
+fn origen_nombre() -> std::sync::MutexGuard<'static, &'static str> {
+    static O: Mutex<&'static str> = Mutex::new("defecto");
+    O.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 #[cfg(target_os = "android")]
 fn apertura_nativa(app: &AppHandle, sobre: Option<&serde_json::Value>, nivel_pagina: &str) -> Result<crate::control_entrada_logica::Apertura, &'static str> {
     use crate::control_entrada_logica as e;

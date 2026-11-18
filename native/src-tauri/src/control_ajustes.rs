@@ -2,6 +2,8 @@
 //!
 //! · `indicador` = `punto` (por defecto) | `oculto`: el punto de la esquina es opcional; la NOTIFICACIÓN siempre está.
 //! · `ver_toques` = `true` (por defecto) | `false`: la onda del color del controlador en cada toque remoto.
+//! · `alcance` = `total` (por defecto; ausente o desconocido también es `total`) | `protegido` (CTL1117K · S2): hasta dónde llega el control en ESTE
+//!   aparato. `total`: la regla G no niega ninguna ventana ni app (solo el aparato bloqueado y un consentimiento abierto); `protegido`: la regla G de siempre.
 //! Solo la página principal los cambia (`control_ajustes_poner`); ninguna orden remota llega aquí. Se guardan por aparato en
 //! `control-ajustes.json` y, en Android, Kotlin los vuelve a leer cuando Rust se lo pide (petición `ajustes`).
 //! El color de una neurona es `#rrggbb` en minúsculas; el por defecto sale de su id (misma cuenta en `color-publico.ts`).
@@ -13,12 +15,18 @@ use serde_json::{json, Value};
 pub struct Ajustes {
     pub indicador: String,
     pub ver_toques: bool,
+    /// (CTL1117K · S2) `total` | `protegido`.
+    pub alcance: String,
 }
 
 impl Default for Ajustes {
     fn default() -> Self {
-        Ajustes { indicador: "punto".into(), ver_toques: true }
+        Ajustes { indicador: "punto".into(), ver_toques: true, alcance: "total".into() }
     }
+}
+
+fn alcance_valido(s: &str) -> bool {
+    matches!(s, "total" | "protegido")
 }
 
 fn indicador_valido(s: &str) -> bool {
@@ -35,6 +43,8 @@ pub fn leer(texto: &str) -> Ajustes {
         if let Some(t) = v.get("ver_toques").and_then(|x| x.as_bool()) {
             a.ver_toques = t;
         }
+        // Un valor ausente o desconocido se lee como `total` (la regla del dueño); solo `protegido` restringe.
+        a.alcance = crate::control_entrada_logica::alcance_efectivo(v.get("alcance").and_then(|x| x.as_str()).unwrap_or("")).into();
     }
     a
 }
@@ -47,6 +57,7 @@ pub fn aplicar(actual: &Ajustes, parcial: &Value) -> Result<Ajustes, &'static st
         match k.as_str() {
             "indicador" => a.indicador = v.as_str().filter(|i| indicador_valido(i)).ok_or("indicador")?.to_string(),
             "ver_toques" => a.ver_toques = v.as_bool().ok_or("ver_toques")?,
+            "alcance" => a.alcance = v.as_str().filter(|x| alcance_valido(x)).ok_or("alcance")?.to_string(),
             _ => return Err("campo"),
         }
     }
@@ -54,7 +65,7 @@ pub fn aplicar(actual: &Ajustes, parcial: &Value) -> Result<Ajustes, &'static st
 }
 
 pub fn a_texto(a: &Ajustes) -> String {
-    json!({ "indicador": a.indicador, "ver_toques": a.ver_toques }).to_string()
+    json!({ "indicador": a.indicador, "ver_toques": a.ver_toques, "alcance": a.alcance }).to_string()
 }
 
 /// `^#[0-9a-f]{6}$`
@@ -115,7 +126,7 @@ pub(crate) fn actuales(app: &tauri::AppHandle) -> Ajustes {
 pub fn control_ajustes_leer(app: tauri::AppHandle, webview: tauri::Webview) -> Result<Value, String> {
     crate::control_neuronas::pagina_ok(&app, &webview)?;
     let a = actuales(&app);
-    Ok(json!({ "indicador": a.indicador, "ver_toques": a.ver_toques }))
+    Ok(json!({ "indicador": a.indicador, "ver_toques": a.ver_toques, "alcance": a.alcance }))
 }
 
 /// Cambia (parcialmente) los ajustes de ESTE aparato. Solo la página principal; nunca una orden remota.
@@ -132,7 +143,7 @@ pub fn control_ajustes_poner(app: tauri::AppHandle, webview: tauri::Webview, par
     #[cfg(target_os = "android")]
     let _ = crate::control_neuronas_android::es::pedir(&app, "ajustes", "", "");
     crate::control_neuronas::nota_ajustes(&app, &nuevo);
-    Ok(json!({ "indicador": nuevo.indicador, "ver_toques": nuevo.ver_toques }))
+    Ok(json!({ "indicador": nuevo.indicador, "ver_toques": nuevo.ver_toques, "alcance": nuevo.alcance }))
 }
 
 #[cfg(test)]
@@ -159,15 +170,33 @@ mod pruebas {
 
     #[test]
     fn los_ajustes_tienen_defecto_y_solo_aceptan_valores_validos() {
-        assert_eq!(leer(""), Ajustes { indicador: "punto".into(), ver_toques: true });
+        assert_eq!(leer(""), Ajustes { indicador: "punto".into(), ver_toques: true, alcance: "total".into() });
         assert_eq!(leer("{\"indicador\":\"raro\",\"ver_toques\":\"si\"}"), Ajustes::default());
         let a = aplicar(&Ajustes::default(), &json!({ "indicador": "oculto" })).unwrap();
-        assert_eq!(a, Ajustes { indicador: "oculto".into(), ver_toques: true });
+        assert_eq!(a, Ajustes { indicador: "oculto".into(), ver_toques: true, alcance: "total".into() });
         assert_eq!(leer(&a_texto(&a)), a);
-        assert_eq!(aplicar(&a, &json!({ "ver_toques": false })).unwrap(), Ajustes { indicador: "oculto".into(), ver_toques: false });
+        assert_eq!(aplicar(&a, &json!({ "ver_toques": false })).unwrap(), Ajustes { indicador: "oculto".into(), ver_toques: false, alcance: "total".into() });
         for malo in [json!({ "indicador": "grande" }), json!({ "ver_toques": 1 }), json!({ "color": "#000000" }), json!("punto"), json!({ "indicador": "punto", "x": 1 })] {
             assert!(aplicar(&a, &malo).is_err(), "{malo}");
         }
+    }
+
+    #[test]
+    fn ctl1117k_el_alcance_vale_total_por_defecto_y_solo_acepta_total_o_protegido() {
+        assert_eq!(Ajustes::default().alcance, "total");
+        for texto in ["", "{}", "no es json", "{\"alcance\":\"raro\"}", "{\"alcance\":3}", "{\"alcance\":null}"] {
+            assert_eq!(leer(texto).alcance, "total", "{texto}");
+        }
+        assert_eq!(leer("{\"alcance\":\"protegido\"}").alcance, "protegido");
+        let p = aplicar(&Ajustes::default(), &json!({ "alcance": "protegido" })).unwrap();
+        assert_eq!(p.alcance, "protegido");
+        assert_eq!(leer(&a_texto(&p)), p, "se guarda y se lee igual junto a indicador y ver_toques");
+        assert_eq!(aplicar(&p, &json!({ "alcance": "total" })).unwrap().alcance, "total");
+        for malo in [json!({ "alcance": "TOTAL" }), json!({ "alcance": true }), json!({ "alcance": "" }), json!({ "alcance": "total", "otro": 1 })] {
+            assert!(aplicar(&p, &malo).is_err(), "{malo}");
+        }
+        // Un cambio de otro campo no toca el alcance.
+        assert_eq!(aplicar(&p, &json!({ "indicador": "oculto" })).unwrap().alcance, "protegido");
     }
 
     #[test]

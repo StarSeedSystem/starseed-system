@@ -29,7 +29,8 @@ pub const PREFIJO_PETICION: &str = "peticion-";
 pub const LATIDO_MAX_MS: u64 = 6_000;
 /// Motivos de «terminada» que escribe Kotlin (lista cerrada: cualquier otro se lee como «indicador-perdido»).
 /// (CTL1117G) «notificacion-descartada» ya no es una parada: descartar el aviso fijo lo repone (decisión del dueño).
-pub const MOTIVOS: [&str; 3] = ["la-persona-desde-la-notificacion", "la-persona-desde-la-superposicion", "no-se-pudo-mostrar"];
+/// (CTL1117K · S4) `revocado`: la persona pulsó «Revocar» en el panel del punto (el mismo motivo de `control_neuronas_parar("revocado")`).
+pub const MOTIVOS: [&str; 4] = ["la-persona-desde-la-notificacion", "la-persona-desde-la-superposicion", "no-se-pudo-mostrar", "revocado"];
 
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
@@ -69,6 +70,10 @@ pub struct EstadoKotlin {
     pub reanuda_motivo: String,
     pub pausa_ms: u64,
     pub ignorados: u32,
+    /// (CTL1117K) Cancelaciones de gestos causadas por nuestro código (no por un dedo) y la causa de la última (`despacho-rechazado`,
+    /// `obsoleta`, `cortada`, `inmediata`). Solo diagnóstico: entran en `fin`, `control-fondo` y `control-pulso`.
+    pub cancel_propias: u32,
+    pub cancel_ultima: String,
     pub cuadro_ms: i64,
     /// (CTL1117G) Veces que el servicio repuso el aviso fijo, la última causa (`descartado`, `ausente`) y el error de la última reposición.
     pub avisos: u32,
@@ -199,6 +204,16 @@ where
         dormir(cada_ms);
         transcurrido += cada_ms;
     }
+}
+
+/// (CTL1117K · S4) Lo que se añade a la línea `control-indicador` de «mostrar»: cuántos caracteres tiene el nombre del controlador que enseña
+/// el punto (nunca el nombre) y de dónde sale: `aceptados` (la lista nativa), `pagina` o `defecto` («otra neurona», la lista no traía nombre).
+pub fn sufijo_nombre(nombre: &str, origen: &str) -> String {
+    let o = match origen {
+        "aceptados" | "pagina" | "defecto" => origen,
+        _ => "defecto",
+    };
+    format!(" nombre-len={} nombre-origen={}", nombre.chars().count().min(999), o)
 }
 
 /// Texto corto y seguro (minúsculas, sin espacios) para registro y respuesta.
@@ -526,5 +541,26 @@ mod pruebas {
     fn el_estado_viejo_de_kotlin_sin_los_campos_nuevos_se_sigue_leyendo() {
         let e = leer(r#"{"v":1,"t_ms":5,"encendido":true,"notificaciones":true,"superposicion":true,"falta":[]}"#).unwrap();
         assert!(posible(Some(&e)) && e.intento.is_empty() && e.paso.is_empty());
+    }
+
+    #[test]
+    fn ctl1117k_el_sufijo_del_nombre_dice_la_longitud_y_el_origen_pero_nunca_el_nombre() {
+        assert_eq!(sufijo_nombre("Mac de Alex", "aceptados"), " nombre-len=11 nombre-origen=aceptados");
+        assert_eq!(sufijo_nombre("otra neurona", "defecto"), " nombre-len=12 nombre-origen=defecto");
+        assert_eq!(sufijo_nombre("ñandú", "pagina"), " nombre-len=5 nombre-origen=pagina");
+        // Un origen raro no se cuela en el registro; el nombre vacío (el punto saldría sin texto) se ve como longitud 0.
+        assert_eq!(sufijo_nombre("", "<b>\nx"), " nombre-len=0 nombre-origen=defecto");
+        assert!(!sufijo_nombre("Mac de Alex", "aceptados").contains("Mac"));
+    }
+
+    #[test]
+    fn ctl1117k_revocado_es_un_motivo_de_parada_nativa_y_apaga_el_interruptor() {
+        let e = kotlin(serde_json::json!({ "mostrando": true, "sesion": "s1", "t_ms": 5, "terminada": { "sesion": "s1", "motivo": "revocado", "t_ms": 5 } }));
+        assert_eq!(terminada_para(Some(&e), "s1"), Some("revocado"));
+        assert!(crate::control_neuronas_logica::motivo_apaga("revocado"));
+        // El estado de Kotlin con los contadores nuevos se lee; sin ellos, a cero.
+        let e = leer(r#"{"v":1,"cancel_propias":4,"cancel_ultima":"inmediata","alcance":"total"}"#).unwrap();
+        assert_eq!((e.cancel_propias, e.cancel_ultima.as_str()), (4, "inmediata"));
+        assert_eq!(leer(r#"{"v":1}"#).unwrap().cancel_propias, 0);
     }
 }

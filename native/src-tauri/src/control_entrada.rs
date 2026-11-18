@@ -75,6 +75,8 @@ pub fn capacidades_json(k: Option<&Value>) -> Value {
             "texto": servicio,
         },
         "falta": falta,
+        // CTL1117K · S2: hasta dónde llega el control en ESTE aparato; quien manda lo enseña. Sin dato de Kotlin, `total` (la regla del dueño).
+        "alcance": l::alcance_efectivo(k.and_then(|k| k.get("alcance")).and_then(|x| x.as_str()).unwrap_or("")),
     })
 }
 
@@ -399,6 +401,14 @@ mod pruebas {
         assert_eq!(c["entrada"]["brillo"], false);
         assert_eq!(c["pantalla"]["accesibilidad"], false, "sin el interruptor de la persona no hay pantalla");
         assert_eq!(c["falta"], json!(["consentimiento-pantalla", "escribir-ajustes"]));
+    }
+
+    #[test]
+    fn ctl1117k_la_tableta_dice_su_alcance_y_sin_dato_o_con_un_valor_raro_es_total() {
+        assert_eq!(capacidades_json(None)["alcance"], "total");
+        for (k, esperado) in [(json!({}), "total"), (json!({ "alcance": "total" }), "total"), (json!({ "alcance": "protegido" }), "protegido"), (json!({ "alcance": "x" }), "total"), (json!({ "alcance": 7 }), "total")] {
+            assert_eq!(capacidades_json(Some(&k))["alcance"], esperado, "{k}");
+        }
     }
 
     #[test]

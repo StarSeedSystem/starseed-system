@@ -370,4 +370,32 @@ mod pruebas {
         // Un toque propio ignorado se cuenta; uno de la persona sigue pausando.
         assert!(KOTLIN.contains("ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() } else ControlEntradaNativo.ignorado()"));
     }
+
+    #[test]
+    fn ctl1117k_el_panel_del_punto_vuelve_a_medir_la_ventana_y_revoca_con_dos_pasos() {
+        let k = KOTLIN;
+        // S4 · el nombre: la ventana se vuelve a medir al abrir o plegar el panel, y el texto tiene ancho propio.
+        assert!(k.contains("private fun reajustarVentana()") && k.contains("updateViewLayout(v, lp)"));
+        assert!(k.contains("paramsPastilla = pPastilla") && k.contains("t.minWidth = dp(190)") && k.contains("t.maxWidth = dp(280)"));
+        let a = k.find("private fun alternarPanel()").unwrap();
+        assert!(k[a..a + 700].contains("reajustarVentana()"));
+        // «Revocar» → «¿Revocar? Sí · No», 3 s; solo el «Sí» quita algo.
+        assert!(k.contains("setOnClickListener { pedirConfirmarRevocar() }") && k.contains("text = \"  ¿Revocar?\"") && k.contains("text = \"  Sí  \"") && k.contains("text = \"  No  \""));
+        assert!(k.contains("principal.postDelayed(cancelarRevocarTras, 3_000L)"));
+        let p = k.find("private fun pedirConfirmarRevocar()").unwrap();
+        let fin = k[p..].find("private fun cancelarRevocar()").unwrap();
+        assert!(!k[p..p + fin].contains("terminar(") && !k[p..p + fin].contains("apagarInterruptor"), "el primer toque no quita nada");
+        let r = k.find("private fun revocar()").unwrap();
+        let cuerpo = &k[r..r + 400];
+        assert!(cuerpo.contains("ControlNeuronasNativo.apagarInterruptor()") && cuerpo.contains("terminar(\"revocado\")"));
+        // Es el mismo motivo y el mismo apagado que usa la página (`control_neuronas_parar("revocado")`) y que la petición `apagar`.
+        assert!(rs::MOTIVOS.contains(&"revocado") && crate::control_neuronas_logica::MOTIVOS_QUE_APAGAN.contains(&"revocado"));
+        assert!(k.contains("fun apagarInterruptor()") && k.contains("\"apagar\" -> {\n                    apagarInterruptor()"));
+        // La notificación sigue con sus acciones de siempre («Terminar» y «Pausar»/«Reanudar») y sin «Revocar».
+        let av = k.find("private fun aviso(): Notification").unwrap();
+        let fin_av = k[av..].find("private var avisoDesde").unwrap();
+        let aviso = &k[av..av + fin_av];
+        assert!(!aviso.contains("Revocar"));
+        assert_eq!(aviso.matches("addAction(").count(), 3, "Terminar, Reanudar y Pausar: como estaban");
+    }
 }

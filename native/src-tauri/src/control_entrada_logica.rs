@@ -365,6 +365,11 @@ pub struct Apertura {
     pub nivel: String,
     /// (CTL1117H) El color público que FIRMÓ el controlador (`#rrggbb`) o, si falta o no vale, el por defecto de su huella.
     pub color: String,
+    /// (CTL1117K) De dónde sale `nombre`: `aceptados` (lo que la persona aceptó en el diálogo nativo) o `defecto` («otra neurona», porque la
+    /// lista no traía nombre). `pagina` solo lo pone quien abre sin entrada nativa (escritorio). Va a la línea `control-indicador`.
+    pub nombre_origen: &'static str,
+    /// (CTL1117K) El código de 12 caracteres del controlador (el mismo del diálogo de aceptación): el panel del punto lo enseña junto al nombre.
+    pub codigo: String,
 }
 
 /// FSG1116 · A2: la orden firmada `abrir-sesion` de un controlador ACEPTADO aquí, en hora y no repetida. Sin ella
@@ -389,12 +394,13 @@ pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &
         _ => return Err((Motivo::Sesion, "nivel")),
     };
     anotar_vista(&f, vistos);
-    let nombre = {
+    let (nombre, nombre_origen) = {
         let n: String = f.aceptado.nombre.chars().filter(|c| !c.is_control()).take(40).collect();
-        if n.trim().is_empty() { "otra neurona".to_string() } else { n.trim().to_string() }
+        if n.trim().is_empty() { ("otra neurona".to_string(), "defecto") } else { (n.trim().to_string(), "aceptados") }
     };
     let color = crate::control_ajustes::color_o_defecto(color_firmado.as_deref(), &f.de);
-    Ok(Apertura { de: f.de, nombre, nivel: nivel.into(), color })
+    let codigo = codigo_de(&f.de, &f.aceptado.cuenta);
+    Ok(Apertura { de: f.de, nombre, nivel: nivel.into(), color, nombre_origen, codigo })
 }
 
 /// Comprueba el sobre contra los aceptados, la sesión (token y nivel) y el reloj. Devuelve la orden o el
@@ -522,6 +528,63 @@ pub fn regla_g(ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: 
         None => v.actividad, // una actividad de quien no se sabe: no se toca
         Some(p) => protegidos.iter().any(|x| p == *x) || (v.actividad && (p == propio || sistema.iter().any(|x| p == *x))),
     })
+}
+
+/// (CTL1117K · S2) El alcance del control en el aparato controlado: `total` (por defecto; un valor ausente o desconocido también lo es)
+/// o `protegido`. Lo guarda la página DE ESE aparato junto a los demás ajustes locales (`control_ajustes.rs`); ninguna orden remota lo cambia.
+pub fn alcance_efectivo(a: &str) -> &'static str {
+    if a == "protegido" { "protegido" } else { "total" }
+}
+
+/// (CTL1117K · S2) La regla G con el alcance. `total` (decisión del dueño, 17-11): no niega ninguna ventana ni app (StarSeed OS, Ajustes,
+/// tiendas, instaladores, diálogos del sistema, campos de contraseña); solo se niega con el aparato BLOQUEADO o con un consentimiento de
+/// este control abierto (`congelada`: nada remoto puede pulsar un «Sí»). `protegido` es `regla_g` tal cual. Kotlin repite esta función
+/// (`reglaGTotal` + `ventanaProtegida`); una prueba compara las cláusulas.
+pub fn regla_g_con_alcance(alcance: &str, ventanas: &[VentanaG], propio: &str, bloqueada: bool, congelada: bool, contrasena: bool) -> bool {
+    if alcance_efectivo(alcance) == "total" {
+        return bloqueada || congelada;
+    }
+    regla_g(ventanas, propio, bloqueada, congelada, contrasena)
+}
+
+/// (CTL1117K) Ventana, en ms, en la que una cancelación llega TAN pronto tras despachar un trozo que no puede ser un dedo: es Android
+/// rechazando el gesto (continuación inválida, gesto que no cabe…). Medido en la ronda .52: `desde-gesto-ms=2` y `=3`.
+pub const CANCELACION_INMEDIATA_MS: i64 = 25;
+/// (CTL1117K) Cuántas cancelaciones «inmediatas» seguidas (sin un solo trozo completado entre medias) se perdonan; la siguiente cuenta
+/// como un dedo: un dedo apoyado en el cristal haría que Android cancelara cada trozo al instante y nunca pausaría.
+pub const CANCELACIONES_PROPIAS_SEGUIDAS_MAX: u32 = 2;
+
+/// (CTL1117K) Lo que se sabe de una cancelación que Android avisa (`GestureResultCallback.onCancelled`) o de un despacho que falló.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CancelacionVista {
+    /// `dispatchGesture` devolvió false o lanzó una excepción (nada llegó a Android).
+    pub rechazado_al_despachar: bool,
+    /// El aviso es de un despacho que ya no es el último (hay uno más nuevo): no es de lo que está en el aire.
+    pub obsoleta: bool,
+    /// NUESTRO código cortó o soltó el gesto a propósito (`cortar`, `soltarTodo`, una pausa, la regla G, un consentimiento).
+    pub pedida_por_nosotros: bool,
+    /// Ms entre despachar el trozo y recibir el aviso.
+    pub ms_desde_despacho: i64,
+    /// Cancelaciones propias «inmediatas» seguidas hasta ahora.
+    pub inmediatas_seguidas: u32,
+}
+
+/// (CTL1117K) ¿La cancelación la causó NUESTRO código? `Some(causa)` = sí (no es un dedo: no pausa); `None` = sin causa nuestra, cuenta como
+/// toque local y pausa. Una causa de las cuatro, por este orden. El dedo de verdad sigue pausando por la ventana que oye ACTION_OUTSIDE.
+pub fn causa_cancelacion_propia(c: &CancelacionVista) -> Option<&'static str> {
+    if c.rechazado_al_despachar {
+        return Some("despacho-rechazado");
+    }
+    if c.obsoleta {
+        return Some("obsoleta");
+    }
+    if c.pedida_por_nosotros {
+        return Some("cortada");
+    }
+    if c.ms_desde_despacho <= CANCELACION_INMEDIATA_MS && c.inmediatas_seguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX {
+        return Some("inmediata");
+    }
+    None
 }
 
 /// (CTL1117A) Lo ÚNICO que se deja pasar desde una ventana protegida (regla G): la tecla Inicio, para salir de Ajustes o
@@ -991,6 +1054,64 @@ mod pruebas {
     }
 
     #[test]
+    fn ctl1117k_el_alcance_total_no_niega_ninguna_ventana_y_protegido_es_la_regla_g_de_siempre() {
+        let propio = "app.starseed.os";
+        let v = |p: &'static str, actividad: bool| VentanaG { paquete: Some(p), actividad, foco: true };
+        // Sin valor o con un valor desconocido: total.
+        for a in ["", "total", "TOTAL", "raro", "protegido "] {
+            assert_eq!(alcance_efectivo(a), "total", "{a:?}");
+        }
+        assert_eq!(alcance_efectivo("protegido"), "protegido");
+        // La lista entera de la regla G: con `total` ninguna ventana niega (propia, Ajustes, instaladores, permisos, systemui, sin raíz, sin ventanas).
+        let (protegidos, sistema) = regla_g_listas();
+        let mut todas: Vec<&str> = protegidos.iter().chain(sistema.iter()).copied().collect();
+        todas.push(propio);
+        for p in todas {
+            assert!(regla_g(&[v(p, true)], propio, false, false, false), "{p} sigue protegido en `protegido`");
+            assert!(regla_g_con_alcance("protegido", &[v(p, true)], propio, false, false, false), "{p}");
+            assert!(!regla_g_con_alcance("total", &[v(p, true)], propio, false, false, false), "{p} no se niega en `total`");
+        }
+        assert!(!regla_g_con_alcance("total", &[], propio, false, false, false));
+        assert!(!regla_g_con_alcance("total", &[VentanaG { paquete: None, actividad: true, foco: false }], propio, false, false, false));
+        // Un campo de contraseña recibe entrada en `total`; en `protegido` se niega.
+        assert!(!regla_g_con_alcance("total", &[v("com.example.notas", true)], propio, false, false, true));
+        assert!(regla_g_con_alcance("protegido", &[v("com.example.notas", true)], propio, false, false, true));
+        // Lo que NO cambia con ningún alcance: el aparato bloqueado y un consentimiento de este control abierto.
+        for a in ["total", "protegido"] {
+            assert!(regla_g_con_alcance(a, &[v("com.example.notas", true)], propio, true, false, false), "{a}: bloqueado");
+            assert!(regla_g_con_alcance(a, &[v("com.example.notas", true)], propio, false, true, false), "{a}: congelada");
+            assert!(!regla_g_con_alcance(a, &[v("com.example.notas", true)], propio, false, false, false), "{a}: una app cualquiera pasa");
+        }
+        // `protegido` == regla_g en cualquier combinación (byte a byte con hoy).
+        for (b, c, k) in [(false, false, false), (true, false, false), (false, true, false), (false, false, true)] {
+            for vs in [vec![], vec![v("com.android.settings", true)], vec![v(propio, true)], vec![v("com.example.notas", true)]] {
+                assert_eq!(regla_g_con_alcance("protegido", &vs, propio, b, c, k), regla_g(&vs, propio, b, c, k));
+            }
+        }
+    }
+
+    #[test]
+    fn ctl1117k_una_cancelacion_causada_por_nuestro_codigo_no_es_un_dedo() {
+        let base = CancelacionVista { rechazado_al_despachar: false, obsoleta: false, pedida_por_nosotros: false, ms_desde_despacho: 120, inmediatas_seguidas: 0 };
+        // Sin causa nuestra y a mitad del trozo: es un dedo (pausa).
+        assert_eq!(causa_cancelacion_propia(&base), None);
+        // Cada causa nuestra, por separado.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { rechazado_al_despachar: true, ..base }), Some("despacho-rechazado"));
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { obsoleta: true, ..base }), Some("obsoleta"));
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { pedida_por_nosotros: true, ..base }), Some("cortada"));
+        // Las medidas de la ronda .52: 2 y 3 ms tras despachar → de Android, no de un dedo.
+        for ms in [0, 2, 3, 25] {
+            assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: ms, ..base }), Some("inmediata"), "{ms}");
+        }
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 26, ..base }), None);
+        // Pero un dedo apoyado cancelaría cada trozo al instante: tras dos seguidas, la siguiente cuenta como dedo.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 3, inmediatas_seguidas: 1, ..base }), Some("inmediata"));
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { ms_desde_despacho: 3, inmediatas_seguidas: CANCELACIONES_PROPIAS_SEGUIDAS_MAX, ..base }), None);
+        // Un despacho rechazado, una obsoleta o una cortada por nosotros no dependen del contador de seguidas.
+        assert_eq!(causa_cancelacion_propia(&CancelacionVista { rechazado_al_despachar: true, inmediatas_seguidas: 9, ..base }), Some("despacho-rechazado"));
+    }
+
+    #[test]
     fn ctl1117e_systemui_sin_foco_no_niega_inicio_y_con_foco_si() {
         let propio = "app.starseed.os";
         let w = |p: Option<&'static str>, actividad: bool, foco: bool| VentanaG { paquete: p, actividad, foco };
@@ -1169,7 +1290,7 @@ mod pruebas {
         // Sin aceptado aquí (lo que la página diga no cuenta): no.
         assert_eq!(verificar_apertura(&s, &[], "controlar", AHORA, &mut v).unwrap_err().0, Motivo::NoAutorizado);
         let ap = verificar_apertura(&s, &[a.clone()], "controlar", AHORA, &mut v).unwrap();
-        assert_eq!(ap, Apertura { de: a.huella.clone(), nombre: "Mac de Alex".into(), nivel: "controlar".into(), color: crate::control_ajustes::color_por_defecto(&a.huella) });
+        assert_eq!(ap, Apertura { de: a.huella.clone(), nombre: "Mac de Alex".into(), nivel: "controlar".into(), color: crate::control_ajustes::color_por_defecto(&a.huella), nombre_origen: "aceptados", codigo: codigo_de(&a.huella, &a.cuenta) });
         // La misma apertura otra vez (o con la sesión ya cerrada): no.
         assert_eq!(verificar_apertura(&s, &[a.clone()], "controlar", AHORA + 10, &mut v).unwrap_err(), (Motivo::Firma, "repetida"));
         // La página puede bajar el nivel firmado, nunca subirlo.

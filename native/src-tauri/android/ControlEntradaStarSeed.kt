@@ -86,6 +86,32 @@ object ControlEntradaNativo {
     }
 
     /**
+     * CTL1117K · S2: el alcance. `total` (por defecto; un valor ausente o desconocido también) no niega ninguna ventana ni app: solo el aparato
+     * bloqueado o un consentimiento de este control abierto (`congelada`). `protegido` es `reglaG` tal cual. La MISMA decisión que
+     * `alcance_efectivo` y `regla_g_con_alcance` de control_entrada_logica.rs (una prueba de Rust compara las cláusulas).
+     */
+    fun alcanceEfectivo(a: String): String = if (a == "protegido") "protegido" else "total"
+    fun reglaGTotal(bloqueada: Boolean, congelada: Boolean): Boolean = bloqueada || congelada
+
+    /**
+     * CTL1117K: ¿la cancelación de un gesto la causó NUESTRO código (y no un dedo)? Devuelve la causa o null (sin causa nuestra: es un toque
+     * local y pausa). La MISMA decisión que `causa_cancelacion_propia` de control_entrada_logica.rs, cláusula a cláusula y en el mismo orden.
+     */
+    const val CANCELACION_INMEDIATA_MS = 25L
+    const val CANCELACIONES_PROPIAS_SEGUIDAS_MAX = 2
+    fun causaCancelacionPropia(rechazado: Boolean, obsoleta: Boolean, pedida: Boolean, msDesdeDespacho: Long, inmediatasSeguidas: Int): String? {
+        if (rechazado) return "despacho-rechazado"
+        if (obsoleta) return "obsoleta"
+        if (pedida) return "cortada"
+        if (msDesdeDespacho <= CANCELACION_INMEDIATA_MS && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return "inmediata"
+        return null
+    }
+    /** CTL1117K: cuántas cancelaciones de esta sesión causó nuestro código y la causa de la última (van a `estado.json` → `fin`, `control-fondo`, `control-pulso`). */
+    @Volatile var cancelPropias = 0
+    @Volatile var cancelUltima = ""
+    fun cancelacionPropia(causa: String) { cancelPropias++; cancelUltima = causa }
+
+    /**
      * CTL1117A · la ÚNICA excepción de la regla G (decisión del dueño, 16-11): la tecla INICIO pasa desde una ventana
      * protegida para salir de Ajustes o de una tienda. LISTA POSITIVA (ante la duda, se niega): solo si TODAS las ventanas
      * protegidas a la vista son de la propia app o de `ReglaGLista.SALIDA`. Con un diálogo de permisos, un instalador,
@@ -318,13 +344,27 @@ object ControlEntradaNativo {
 
     // ───────────── diálogos nativos (la persona decide; nada se acepta solo) ─────────────
 
+    /**
+     * CTL1117K · S2: lo que de verdad concede aceptar un controlador, según el alcance de ESTE aparato. Con `total` (el de fábrica) es TODO: ver la
+     * pantalla y manejar toda la tableta, cualquier app incluida; con `protegido`, lo de siempre con las zonas protegidas fuera.
+     */
+    fun textoAceptar(): String =
+        if (ControlNeuronasNativo.alcance == "total")
+            "Aceptado, podrá VER TODA LA PANTALLA y MANEJAR TODA LA TABLETA —toques, teclas, volumen, brillo y texto— en cualquier app, también en StarSeed OS, Ajustes, las tiendas y los campos de contraseña, mientras veas el punto y la notificación fija."
+        else
+            "Aceptado, podrá mandar toques, teclas, volumen, brillo y texto en tus apps (no en Ajustes, tiendas, permisos ni contraseñas) mientras veas el punto y la notificación fija."
+
+    fun textoVerPantalla(): String =
+        if (ControlNeuronasNativo.alcance == "total") "podrá ver TODA la pantalla (cualquier app, también lo que escribas)."
+        else "podrá ver la pantalla."
+
     private fun dialogoAceptar(a: Activity, spki: String, cuenta: String, nombre: String, codigo: String, huella: String) {
         val g = Guarda()
         val b = AlertDialog.Builder(a)
             .setTitle("¿Dejar que «$nombre» toque y escriba en esta tableta?")
             .setMessage(
                 "Código de ese aparato: $codigo\n\nCompáralo con el que enseña ese aparato en StarSeed OS. Si no coincide, di que No.\n\n" +
-                    "Aceptado, podrá mandar toques, teclas, volumen, brillo y texto mientras veas el borde rojo y la notificación. " +
+                    textoAceptar() + " " +
                     "Tocar la pantalla lo pausa. La lista se vacía al apagar «Dejar que tus otras neuronas controlen esta tableta»."
             )
             .setPositiveButton("Sí, aceptar") { _, _ ->
@@ -348,8 +388,8 @@ object ControlEntradaNativo {
         val b = AlertDialog.Builder(a)
             .setTitle("¿Ver esta pantalla sin preguntar en cada sesión?")
             .setMessage(
-                "Mientras otra neurona de tu cuenta, que aceptaste aquí, controle esta tableta con el borde rojo a la vista, " +
-                    "podrá ver la pantalla sin que Android te lo vuelva a preguntar. Los cuadros no se guardan. " +
+                "Mientras otra neurona de tu cuenta, que aceptaste aquí, controle esta tableta con el aviso a la vista, " +
+                    textoVerPantalla() + " Android no te lo volverá a preguntar. Los cuadros no se guardan. " +
                     "Puedes apagarlo cuando quieras (se apaga solo al apagar el control)."
             )
             .setPositiveButton("Sí, dejar ver") { _, _ -> if (g.valida() && ControlNeuronasNativo.encendido()) guardarSinPreguntar(true) } // FSG1116 · C1
@@ -382,14 +422,15 @@ object ControlEntradaNativo {
     private fun responder(p: JSONObject): JSONObject? {
         val srv = ServicioControlEntrada.instancia
         return when (p.optString("tipo")) {
-            "capacidades" -> JSONObject()
+            "capacidades" -> { ControlNeuronasNativo.leerAjustes(); JSONObject() // CTL1117K: el alcance vigente, también antes de abrir sesión
+                .put("alcance", ControlNeuronasNativo.alcance)
                 .put("servicio", srv != null)
                 .put("captura", Build.VERSION.SDK_INT >= 30)
                 .put("max_dedos", if (Build.VERSION.SDK_INT >= 24) GestureDescription.getMaxStrokeCount() else 0)
                 .put("sin_preguntar", sinPreguntar() && ControlNeuronasNativo.encendido())
                 .put("proyeccion", ProyeccionPantalla.concedida()) // PENC1: el «Sí» de ESTA sesión, nunca guardado
                 .put("escribir_ajustes", Settings.System.canWrite(app))
-                .put("restringido", srv == null && ajustesRestringidos())
+                .put("restringido", srv == null && ajustesRestringidos()) }
             "estado-aparato" -> estadoAparato()
             "abrir-ajuste" -> abrirAjuste(p.optString("cual"))
             "aceptar-controlador" -> {
@@ -613,6 +654,8 @@ class ServicioControlEntrada : AccessibilityService() {
 
     private fun ventanaProtegida(): Boolean {
         val bloqueada = try { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked } catch (_: Throwable) { true }
+        // CTL1117K · S2: con `total` ninguna ventana ni app se niega (ni StarSeed OS, ni Ajustes, ni una contraseña): solo bloqueado o un consentimiento abierto.
+        if (ControlNeuronasNativo.alcance == "total") return ControlEntradaNativo.reglaGTotal(bloqueada, ControlEntradaNativo.congelado())
         val vs = ArrayList<Pair<String?, Boolean>>()
         try {
             for (w in windows ?: emptyList<AccessibilityWindowInfo>()) {
@@ -727,7 +770,7 @@ class ServicioControlEntrada : AccessibilityService() {
     private fun texto(t: String): JSONObject {
         val raiz = rootInActiveWindow ?: return rechazo("sin-servicio").put("detalle", "sin-ventana")
         val foco = raiz.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        if (foco != null && foco.isPassword) return rechazo("regla-g") // nunca texto en un campo de contraseña
+        if (foco != null && foco.isPassword && ControlNeuronasNativo.alcance != "total") return rechazo("regla-g") // en `protegido`, nunca texto en un campo de contraseña (CTL1117K: en `total` sí)
         if (foco == null || !foco.isEditable) return rechazo("sin-servicio").put("detalle", "sin-campo")
         val previo = if (foco.isShowingHintText) "" else (foco.text?.toString() ?: "")
         val a = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, previo + t) }
@@ -765,6 +808,13 @@ class ServicioControlEntrada : AccessibilityService() {
     private val ultimoPunto = HashMap<Int, FloatArray>()
     private val soltar = Runnable { soltarTodo() }
 
+    // CTL1117K · cada despacho lleva un número; el aviso de uno que ya no es el último es «obsoleto». `cancelPedida` = nuestro código cortó o soltó el gesto
+    // en el aire a propósito (cortar, soltarTodo, pausa, regla G, consentimiento). `inmediatasSeguidas` = cancelaciones «inmediatas» perdonadas sin un trozo completado.
+    private var idDespacho = 0L
+    private var despachoMs = 0L
+    private var cancelPedida = false
+    private var inmediatasSeguidas = 0
+
     /** ¿Hay un gesto remoto en el aire o dedos abajo? (la guarda del «Sí» lo mira). */
     fun ocupado(): Boolean = despachando || enCurso.isNotEmpty()
 
@@ -779,7 +829,7 @@ class ServicioControlEntrada : AccessibilityService() {
     fun cortar() {
         cola.clear()
         actual = null
-        if (despachando) { cortarPendiente = true; return }
+        if (despachando) { cortarPendiente = true; cancelPedida = true; return }
         soltarTodo()
     }
 
@@ -864,17 +914,21 @@ class ServicioControlEntrada : AccessibilityService() {
         val ultimo = b >= o.total
         if (!hay) { terminado(nuevos, puntos, ultimo); return }
         despachando = true
+        val mio = ++idDespacho // CTL1117K
+        cancelPedida = false
         val ahora = System.currentTimeMillis()
+        despachoMs = ahora
         ControlEntradaNativo.ultimoGestoRemoto = ahora
         ControlEntradaNativo.gestoPropioHasta = ahora + durMax + ControlEntradaNativo.COLA_GESTO_MS // M1: el toque que se oye es nuestro, y no más (CTL1117F: con cola)
         val ok = try {
             dispatchGesture(g.build(), object : GestureResultCallback() {
-                override fun onCompleted(x: GestureDescription?) { terminado(nuevos, puntos, ultimo) }
-                // M1: Android cancela un gesto inyectado cuando la persona toca la pantalla: eso es un toque local.
-                override fun onCancelled(x: GestureDescription?) { cancelado() }
+                override fun onCompleted(x: GestureDescription?) { if (mio == idDespacho) { inmediatasSeguidas = 0; terminado(nuevos, puntos, ultimo) } }
+                // M1: Android cancela un gesto inyectado cuando la persona toca la pantalla: eso es un toque local… salvo que lo haya causado nuestro
+                // código (CTL1117K: un despacho rechazado, uno que ya no es el último, un corte nuestro o un rechazo inmediato de Android).
+                override fun onCancelled(x: GestureDescription?) { cancelado(mio, false) }
             }, principal)
         } catch (_: Exception) { false }
-        if (!ok) cancelado()
+        if (!ok) cancelado(mio, true)
         // CTL1117H: la onda del controlador donde empieza (y la estela hasta donde acaba) cada dedo; solo en el primer trozo de la orden.
         else if (trozo == 0) try { for (d in o.dedos) { val i0 = d.en(0L); val i1 = d.en(minOf(d.fin, o.total)); ControlToques.toque(this, i0[0], i0[1], i1[0], i1[1]) } } catch (_: Throwable) {}
     }
@@ -891,7 +945,28 @@ class ServicioControlEntrada : AccessibilityService() {
         bombear()
     }
 
-    private fun cancelado() {
+    /**
+     * CTL1117K: Android avisa de una cancelación (o el despacho falló). Si la causó nuestro código (`causaCancelacionPropia`) NO es un dedo: no se
+     * pausa, se cuenta, se descarta limpio ese trozo (Android ya levantó los dedos al cancelar) y la cola sigue. Sin causa nuestra, es un toque local
+     * (como antes). El dedo de verdad sigue pausando de inmediato por la ventana que oye ACTION_OUTSIDE.
+     */
+    private fun cancelado(mio: Long, rechazado: Boolean) {
+        val obsoleta = mio != idDespacho
+        val ms = System.currentTimeMillis() - despachoMs
+        val causa = ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas)
+        if (causa != null) {
+            ControlEntradaNativo.cancelacionPropia(causa)
+            if (causa == "inmediata") inmediatasSeguidas++
+            if (obsoleta) return // el aviso es de un despacho viejo: lo que está en el aire es de otro, no se toca
+            despachando = false
+            cortarPendiente = false
+            cancelPedida = false
+            enCurso.clear(); ultimoPunto.clear()
+            actual = null
+            principal.removeCallbacks(soltar)
+            bombear() // la cola sigue (si la tiró un corte nuestro, está vacía; si hay pausa, bombear la tira)
+            return
+        }
         despachando = false
         cortarPendiente = false
         enCurso.clear(); ultimoPunto.clear()
@@ -905,7 +980,7 @@ class ServicioControlEntrada : AccessibilityService() {
     /** Levanta los dedos que sigan abajo (sin una orden nueva en 5 s, al cortar, al terminar la sesión o al irse el servicio). */
     private fun soltarTodo() {
         principal.removeCallbacks(soltar)
-        if (despachando) { cortarPendiente = true; return }
+        if (despachando) { cortarPendiente = true; cancelPedida = true; return }
         if (enCurso.isEmpty()) { ultimoPunto.clear(); return }
         val b = GestureDescription.Builder()
         for ((id, s) in enCurso) {
@@ -915,9 +990,14 @@ class ServicioControlEntrada : AccessibilityService() {
         enCurso.clear()
         ultimoPunto.clear()
         despachando = true
+        val mio = ++idDespacho // CTL1117K
+        cancelPedida = false
+        despachoMs = System.currentTimeMillis()
+        // Al acabar (o cancelarse) la suelta, si mientras tanto llegó algo a la cola, sigue: antes quedaba parada hasta la orden siguiente.
+        val alAcabar: () -> Unit = { if (mio == idDespacho) { despachando = false; if (cola.isNotEmpty() || actual != null) bombear() } }
         try { dispatchGesture(b.build(), object : GestureResultCallback() {
-            override fun onCompleted(g: GestureDescription?) { despachando = false }
-            override fun onCancelled(g: GestureDescription?) { despachando = false }
+            override fun onCompleted(g: GestureDescription?) { alAcabar() }
+            override fun onCancelled(g: GestureDescription?) { alAcabar() }
         }, principal) } catch (_: Exception) { despachando = false }
     }
 

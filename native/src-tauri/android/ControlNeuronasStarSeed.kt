@@ -124,6 +124,8 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     @Volatile var lista: List<Controlador> = emptyList()
     @Volatile var indicador = "punto" // "punto" (el punto de la esquina) | "oculto" (solo el aviso fijo; la notificación SIEMPRE está)
     @Volatile var verToques = true // la onda del color del controlador en cada toque remoto
+    /** CTL1117K · S2: hasta dónde llega el control en ESTE aparato: "total" (por defecto; un valor ausente o desconocido también) o "protegido" (la regla G de siempre). */
+    @Volatile var alcance = "total"
     @Volatile var pausaManual = false // la pausa del botón «Pausar»: solo «Reanudar» la quita (la de un toque local se quita sola a los 3 s)
     private var terminada: JSONObject? = null
     // IND1115F: en qué paso quedó el último intento de «mostrar» y por qué (Rust lo lee para decir QUÉ falló).
@@ -138,13 +140,16 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     fun leerAjustes() {
         var ind = "punto"
         var toques = true
+        var alc = "total"
         try {
             val j = JSONObject(File(dir, "ajustes.json").readText())
             if (j.optString("indicador") == "oculto") ind = "oculto"
             toques = j.optBoolean("ver_toques", true)
+            alc = ControlEntradaNativo.alcanceEfectivo(j.optString("alcance", ""))
         } catch (_: Exception) {}
         indicador = ind
         verToques = toques
+        alcance = alc
     }
 
     /** `#rrggbb` válido o el rojo de siempre; nunca lanza. */
@@ -164,6 +169,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
         }
         o.startWatching()
         observador = o
+        leerAjustes() // CTL1117K: el alcance vigente desde el arranque (antes solo se leía al abrir sesión)
         principal.post { atender(); escribirEstado() }
     }
 
@@ -196,9 +202,8 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                 // ORD1114V: la persona quitó el permiso en la página: se apaga al instante, sin diálogo (apagar
                 // nunca pide nada; encender solo con el «Sí» del diálogo nativo de abajo).
                 "apagar" -> {
-                    escribirAtomico(File(dir, INTERRUPTOR), JSONObject().put("encendido", false).put("t_ms", System.currentTimeMillis()).toString())
+                    apagarInterruptor()
                     if (mostrando) ServicioControlNeuronas.quitar(app)
-                    ControlEntradaNativo.alApagar() // AND1115K
                     escribirEstado()
                 }
             }
@@ -206,6 +211,15 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
     }
 
     // ─────────────────────────────── Interruptor y permisos ───────────────────────────────
+
+    /**
+     * ORD1114V / CTL1117K: apagar el interruptor NATIVO (apagar nunca pide nada) y vaciar la lista de controladores. Lo usan la petición `apagar` de Rust
+     * (la persona quitó el permiso en la página) y «Revocar» del panel del punto (la persona lo quita aquí); no toca la sesión.
+     */
+    fun apagarInterruptor() {
+        escribirAtomico(File(dir, INTERRUPTOR), JSONObject().put("encendido", false).put("t_ms", System.currentTimeMillis()).toString())
+        ControlEntradaNativo.alApagar() // AND1115K
+    }
 
     fun encendido(): Boolean = try {
         JSONObject(File(dir, INTERRUPTOR).readText()).optBoolean("encendido", false)
@@ -263,8 +277,9 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
         val b = AlertDialog.Builder(a)
             .setTitle("¿Dejar que tus otras neuronas controlen esta tableta?")
             .setMessage(
-                "Solo aparatos de tu cuenta que hayas aceptado. Mientras alguno la controle verás una notificación fija y un borde rojo, " +
-                    "y podrás terminar con un toque. Tocar la pantalla lo pausa. Cada orden queda en el registro de este aparato.\n\n" +
+                "Solo aparatos de tu cuenta que hayas aceptado, uno a uno, con su código. " +
+                    (if (alcance == "total") "Cada uno que aceptes podrá ver toda la pantalla y manejar toda esta tableta, cualquier app incluida. " else "Cada uno que aceptes podrá tocar y escribir en tus apps (no en Ajustes, tiendas ni contraseñas). ") +
+                    "Mientras alguno la controle verás una notificación fija y un punto de color, y podrás terminar con un toque. Tocar la pantalla lo pausa. Cada orden queda en el registro de este aparato.\n\n" +
                     "Para eso Android te pedirá permitir las notificaciones y «Mostrar sobre otras apps»."
             )
             .setPositiveButton("Sí, dejar") { _, _ ->
@@ -359,6 +374,9 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
             .put("reanuda_motivo", reanudaMotivo)
             .put("pausa_ms", if (pausada && pausaInicioMs > 0) System.currentTimeMillis() - pausaInicioMs else pausaDurMs)
             .put("ignorados", ControlEntradaNativo.ignorados)
+            .put("cancel_propias", ControlEntradaNativo.cancelPropias) // CTL1117K: cancelaciones de gestos que causó nuestro código, no un dedo
+            .put("cancel_ultima", ControlEntradaNativo.cancelUltima)
+            .put("alcance", alcance)
             .put("avisos", avisos) // CTL1117G
             .put("aviso_motivo", avisoMotivo)
             .put("aviso_error", avisoError)
@@ -546,7 +564,12 @@ class ServicioControlNeuronas : Service() {
     private var panel: LinearLayout? = null
     private var textoPanel: TextView? = null
     private var botonPausa: TextView? = null
-    private val plegarPanel = Runnable { panel?.visibility = View.GONE }
+    private var paramsPastilla: WindowManager.LayoutParams? = null // CTL1117K · S4: para volver a medir la ventana cuando el panel se abre o se pliega
+    private var filaBotones: LinearLayout? = null
+    private var filaConfirma: LinearLayout? = null
+    private val plegarPanel = Runnable { cancelarRevocar(); panel?.visibility = View.GONE; reajustarVentana() }
+    /** CTL1117K · S4: «Revocar» pide confirmación 3 s («¿Revocar? Sí · No»); pasados, o con «No», vuelve a «Revocar». */
+    private val cancelarRevocarTras = Runnable { cancelarRevocar(); principal.removeCallbacks(plegarPanel); principal.postDelayed(plegarPanel, 5_000L) }
     private val latido = object : Runnable {
         override fun run() {
             if (!ControlNeuronasNativo.mostrando) return
@@ -586,6 +609,8 @@ class ServicioControlNeuronas : Service() {
         ControlNeuronasNativo.lista = listOf(Controlador(nombre, nivel, color, System.currentTimeMillis()))
         ControlNeuronasNativo.pausada = false
         ControlNeuronasNativo.pausaManual = false
+        ControlEntradaNativo.cancelPropias = 0 // CTL1117K: el contador es de esta sesión
+        ControlEntradaNativo.cancelUltima = ""
         ControlNeuronasNativo.paso = "servicio-recibido"
         var donde = "aviso"
         val ok = try {
@@ -641,11 +666,11 @@ class ServicioControlNeuronas : Service() {
         @Suppress("DEPRECATION")
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CANAL) else Notification.Builder(this)
         val estilo = Notification.InboxStyle().setBigContentTitle(if (pausada) "Control en pausa" else "Controlada por $n")
-        for (c in ControlNeuronasNativo.lista) estilo.addLine("● ${c.nombre} · ${if (c.nivel == "controlar") "controla" else "ve"} · desde ${hora(c.desdeMs)}")
+        for (c in ControlNeuronasNativo.lista) estilo.addLine("● ${c.nombre} · ${if (c.nivel == "controlar") "controla" else "ve"} · desde ${hora(c.desdeMs)}" + (if (ControlNeuronasNativo.alcance == "total") " · control total" else " · protegido"))
         if (pausada) estilo.addLine("En pausa: no puede mandar nada hasta que reanudes.")
         b.setSmallIcon(applicationInfo.icon)
             .setContentTitle(if (pausada) "Control en pausa" else "● Controlada por $n")
-            .setContentText(if (pausada) "$n no puede mandar nada hasta que reanudes." else "$n manda órdenes a esta tableta. Tocar la pantalla lo pausa.")
+            .setContentText(if (pausada) "$n no puede mandar nada hasta que reanudes." else if (ControlNeuronasNativo.alcance == "total") "$n ve y maneja TODA esta tableta, cualquier app. Tocar la pantalla lo pausa." else "$n manda órdenes a esta tableta (no en Ajustes ni tiendas). Tocar la pantalla lo pausa.")
             .setStyle(estilo)
             .setColor(ControlNeuronasNativo.colorInt())
             .setOngoing(true)
@@ -696,7 +721,8 @@ class ServicioControlNeuronas : Service() {
     private fun refrescarAviso() {
         try { getSystemService(NotificationManager::class.java)?.notify(ID, aviso()) } catch (_: Exception) {}
         val c = ControlNeuronasNativo.lista.firstOrNull()
-        textoPanel?.text = if (ControlNeuronasNativo.pausada) "${ControlNeuronasNativo.nombre}\nEn pausa" else "${ControlNeuronasNativo.nombre}\n${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())}"
+        val alc = if (ControlNeuronasNativo.alcance == "total") "control total" else "protegido"
+        textoPanel?.text = if (ControlNeuronasNativo.pausada) "${ControlNeuronasNativo.nombre}\nEn pausa · $alc" else "${ControlNeuronasNativo.nombre}\n${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())} · $alc"
         botonPausa?.text = if (ControlNeuronasNativo.pausada) "  Reanudar  " else "  Pausar  "
     }
 
@@ -711,10 +737,54 @@ class ServicioControlNeuronas : Service() {
     private fun alternarPanel() {
         val p = panel ?: return
         principal.removeCallbacks(plegarPanel)
-        if (p.visibility == View.VISIBLE) { p.visibility = View.GONE; return }
+        if (p.visibility == View.VISIBLE) { cancelarRevocar(); p.visibility = View.GONE; reajustarVentana(); return }
         refrescarAviso()
         p.visibility = View.VISIBLE
+        reajustarVentana()
         principal.postDelayed(plegarPanel, 5_000L)
+    }
+
+    /**
+     * CTL1117K · S4: la ventana del punto es WRAP_CONTENT y se creó con el panel en GONE (28 dp de ancho). Al abrir el panel, la ventana tiene que
+     * volver a medirse: sin esto, en algunos Android (One UI) el nombre del controlador queda recortado por el tamaño viejo de la ventana.
+     */
+    private fun reajustarVentana() {
+        val v = pastilla ?: return
+        val lp = paramsPastilla ?: return
+        try {
+            v.requestLayout()
+            getSystemService(WindowManager::class.java)?.updateViewLayout(v, lp)
+        } catch (_: Throwable) { /* sin esto el panel puede verse recortado, pero nada se rompe */ }
+    }
+
+    /** CTL1117K · S4: primer toque de «Revocar»: enseña «¿Revocar? Sí · No» durante 3 s. Nada se quita todavía. */
+    private fun pedirConfirmarRevocar() {
+        val fb = filaBotones ?: return
+        val fc = filaConfirma ?: return
+        fb.visibility = View.GONE
+        fc.visibility = View.VISIBLE
+        principal.removeCallbacks(plegarPanel)
+        principal.removeCallbacks(cancelarRevocarTras)
+        principal.postDelayed(cancelarRevocarTras, 3_000L)
+        reajustarVentana()
+    }
+
+    private fun cancelarRevocar() {
+        principal.removeCallbacks(cancelarRevocarTras)
+        filaConfirma?.visibility = View.GONE
+        filaBotones?.visibility = View.VISIBLE
+        reajustarVentana()
+    }
+
+    /**
+     * CTL1117K · S4: «Sí» de «¿Revocar?». Termina la sesión con el motivo `revocado` (el mismo que usa `control_neuronas_parar("revocado")` de Rust: la ventana de
+     * quien manda dice «La persona quitó el permiso de control en el aparato») y apaga el interruptor nativo de ESTE aparato, vaciando la lista de aceptados.
+     * Solo apaga: encender de nuevo exige otra vez el diálogo nativo con su «Sí». Rust lo ve por `terminada` y repite la parada y el apagado por su camino.
+     */
+    private fun revocar() {
+        principal.removeCallbacks(cancelarRevocarTras)
+        ControlNeuronasNativo.apagarInterruptor()
+        terminar("revocado")
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -755,15 +825,28 @@ class ServicioControlNeuronas : Service() {
             text = "  Terminar  "; setTextColor(Color.WHITE); textSize = 13f
             setOnClickListener { terminar("la-persona-desde-la-superposicion") }
         }
+        val revocarB = TextView(this).apply {
+            text = "  Revocar  "; setTextColor(Color.WHITE); textSize = 13f
+            setOnClickListener { pedirConfirmarRevocar() } // CTL1117K · S4: primer paso; nada se quita hasta el «Sí»
+        }
         val botones = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        botones.addView(pausarB); botones.addView(terminarB)
+        botones.addView(pausarB); botones.addView(terminarB); botones.addView(revocarB)
+        val confirma = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; visibility = View.GONE }
+        confirma.addView(TextView(this).apply { text = "  ¿Revocar?"; setTextColor(Color.WHITE); textSize = 13f })
+        confirma.addView(TextView(this).apply { text = "  Sí  "; setTextColor(Color.WHITE); textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD); setOnClickListener { revocar() } })
+        confirma.addView(TextView(this).apply { text = "  No  "; setTextColor(Color.WHITE); textSize = 13f; setOnClickListener { cancelarRevocar() } })
         val pan = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.argb(235, 24, 24, 32)); setStroke(dp(2), ControlNeuronasNativo.colorInt()) }
             setPadding(dp(10), dp(8), dp(10), dp(8))
             visibility = View.GONE
         }
-        pan.addView(t); pan.addView(botones)
+        // CTL1117K · S4: el nombre en varias líneas, con un ancho mínimo y máximo propios (no depende del tamaño que tuviera la ventana al crearse).
+        t.setSingleLine(false)
+        t.maxLines = 3
+        t.minWidth = dp(190)
+        t.maxWidth = dp(280)
+        pan.addView(t); pan.addView(botones); pan.addView(confirma)
         fila.addView(pan)
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
         fila.setOnTouchListener { _, ev ->
@@ -781,9 +864,12 @@ class ServicioControlNeuronas : Service() {
         pPastilla.y = dp(8)
         wm.addView(fila, pPastilla)
         pastilla = fila
+        paramsPastilla = pPastilla
         panel = pan
         textoPanel = t
         botonPausa = pausarB
+        filaBotones = botones
+        filaConfirma = confirma
         refrescarAviso()
         // IND1115F: justo después de `addView` la vista aún no está «unida a la ventana»; si `addView` no lanzó, está puesta.
         return pastilla != null
@@ -794,6 +880,7 @@ class ServicioControlNeuronas : Service() {
         principal.removeCallbacks(plegarPanel)
         pastilla?.let { try { wm.removeView(it) } catch (_: Exception) {} }
         pastilla = null; panel = null; textoPanel = null; botonPausa = null
+        paramsPastilla = null; filaBotones = null; filaConfirma = null // CTL1117K
     }
 
     private fun pausaLocal() {
@@ -865,6 +952,7 @@ class ServicioControlNeuronas : Service() {
         principal.removeCallbacks(latido)
         ControlFondo.soltar(ControlNeuronasNativo.actividadActual())
         principal.removeCallbacks(reanudarSola) // CTL1117A
+        principal.removeCallbacks(cancelarRevocarTras) // CTL1117K
         ServicioControlEntrada.instancia?.parar() // AND1115K: sin indicador no hay dedos abajo ni captura
         if (ControlNeuronasNativo.mostrando) {
             ControlNeuronasNativo.mostrando = false

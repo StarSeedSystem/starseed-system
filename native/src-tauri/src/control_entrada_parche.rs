@@ -60,7 +60,7 @@ pub const XML_TEXTOS: &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <!-- AND1115K: lo escribe native/src-tauri/build.rs. -->
 <resources>
     <string name="starseed_control_accesibilidad_nombre">StarSeed OS · control entre tus neuronas</string>
-    <string name="starseed_control_accesibilidad_descripcion">Deja que otra neurona de tu cuenta, que aceptaste en esta tableta con su código, toque, escriba y vea la pantalla mientras ves el borde rojo y la notificación fija. No hace nada si no hay una sesión de control abierta. Solo actúa con tu permiso en esta tableta.</string>
+    <string name="starseed_control_accesibilidad_descripcion">Deja que otra neurona de tu cuenta, que aceptaste en esta tableta con su código, vea la pantalla y toque y escriba en TODA la tableta (cualquier app, también Ajustes, las tiendas y las contraseñas, salvo que elijas «Protegido» en los ajustes de Control entre mis neuronas) mientras ves el punto de color y la notificación fija. No hace nada si no hay una sesión de control abierta. Solo actúa con tu permiso en esta tableta.</string>
 </resources>
 "#;
 
@@ -504,7 +504,7 @@ mod pruebas {
     #[test]
     fn m1_m2_m3_pausa_y_cuadros() {
         // M1: Android cancela el gesto inyectado cuando la persona toca: eso pausa. Lo propio se oye 150 ms, no 500.
-        assert!(KOTLIN.contains("override fun onCancelled(x: GestureDescription?) { cancelado() }"));
+        assert!(KOTLIN.contains("override fun onCancelled(x: GestureDescription?) { cancelado(mio, false) }"));
         assert!(KOTLIN.contains("ControlNeuronasNativo.pausarLocal?.invoke()") && !KOTLIN.contains("+ 500"));
         // M2/M3: ningún cuadro tras parar, en pausa o bloqueada; el que se escribía cuando llegó el parar, se borra.
         for k in [KOTLIN, KOTLIN_PROYECCION] {
@@ -589,5 +589,92 @@ mod pruebas {
         assert_eq!(KOTLIN.matches("gestoPropioHasta = ").count(), 3, "solo la declaración y los dos sitios donde se despacha y termina un trozo");
         assert!(KOTLIN.contains("motivoPausa = \"gesto-cancelado\""));
         assert!(KOTLIN.contains("ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis()") && KOTLIN_PROYECCION.contains("ControlEntradaNativo.ultimoCuadroMs = System.currentTimeMillis()"));
+    }
+
+    // ───────────── CTL1117K ─────────────
+
+    #[test]
+    fn ctl1117k_kotlin_repite_la_causa_de_la_cancelacion_propia_clausula_a_clausula_y_en_el_mismo_orden() {
+        let k = KOTLIN;
+        assert!(k.contains(&format!("const val CANCELACION_INMEDIATA_MS = {}L", l::CANCELACION_INMEDIATA_MS)));
+        assert!(k.contains(&format!("const val CANCELACIONES_PROPIAS_SEGUIDAS_MAX = {}", l::CANCELACIONES_PROPIAS_SEGUIDAS_MAX)));
+        let f = k.find("fun causaCancelacionPropia(").unwrap();
+        let cuerpo = &k[f..f + 700];
+        let orden = [
+            "if (rechazado) return \"despacho-rechazado\"",
+            "if (obsoleta) return \"obsoleta\"",
+            "if (pedida) return \"cortada\"",
+            "if (msDesdeDespacho <= CANCELACION_INMEDIATA_MS && inmediatasSeguidas < CANCELACIONES_PROPIAS_SEGUIDAS_MAX) return \"inmediata\"",
+            "return null",
+        ];
+        let mut desde = 0;
+        for c in orden {
+            let i = cuerpo[desde..].find(c).unwrap_or_else(|| panic!("falta o desordenada: {c}"));
+            desde += i + c.len();
+        }
+        // Lo mismo que Rust: las cuatro causas existen allí con los mismos nombres.
+        let rs = include_str!("control_entrada_logica.rs");
+        for causa in ["despacho-rechazado", "obsoleta", "cortada", "inmediata"] {
+            assert!(rs.contains(&format!("Some(\"{causa}\")")), "{causa}");
+        }
+    }
+
+    #[test]
+    fn ctl1117k_una_cancelacion_nuestra_no_pausa_y_la_sin_causa_sigue_siendo_un_dedo() {
+        let k = KOTLIN;
+        let c = k.find("private fun cancelado(mio: Long, rechazado: Boolean)").unwrap();
+        let fin = c + k[c..].find("/** Levanta los dedos").unwrap();
+        let cuerpo = &k[c..fin];
+        assert!(cuerpo.contains("ControlEntradaNativo.causaCancelacionPropia(rechazado, obsoleta, cancelPedida, ms, inmediatasSeguidas)"));
+        // La rama nuestra: se cuenta, no se pausa, se descarta ese trozo y la cola sigue.
+        let nuestra = &cuerpo[..cuerpo.find("ControlEntradaNativo.toqueLocal()").unwrap()];
+        assert!(nuestra.contains("ControlEntradaNativo.cancelacionPropia(causa)") && nuestra.contains("bombear()") && nuestra.contains("enCurso.clear(); ultimoPunto.clear()"));
+        assert!(!nuestra.contains("pausarLocal") && !nuestra.contains("motivoPausa"), "una cancelación nuestra nunca pausa");
+        assert!(nuestra.contains("if (obsoleta) return"), "el aviso de un despacho viejo no toca lo que está en el aire");
+        // La rama sin causa: exactamente lo de antes (toque local + pausa).
+        assert!(cuerpo.contains("ControlEntradaNativo.toqueLocal()") && cuerpo.contains("motivoPausa = \"gesto-cancelado\"") && cuerpo.contains("ControlNeuronasNativo.pausarLocal?.invoke()"));
+        // Todo despacho lleva su número; un despacho que falla (false o excepción) también pasa por `cancelado`.
+        assert_eq!(k.matches("++idDespacho").count(), 2, "el trozo y la suelta");
+        assert!(k.contains("if (!ok) cancelado(mio, true)") && k.contains("override fun onCancelled(x: GestureDescription?) { cancelado(mio, false) }"));
+        assert!(k.contains("if (mio == idDespacho) { inmediatasSeguidas = 0; terminado(nuevos, puntos, ultimo) }"), "completar un trozo borra la racha de inmediatas");
+        // Cortar o soltar con un gesto en el aire lo marca como pedido por nosotros.
+        assert_eq!(k.matches("cortarPendiente = true; cancelPedida = true").count(), 2);
+        // El dedo de verdad: la ventana que oye ACTION_OUTSIDE sigue igual.
+        assert!(crate::control_neuronas_parche::KOTLIN.contains("if (!ControlEntradaNativo.esGestoPropio()) { ControlEntradaNativo.toqueLocal(); pausaLocal(); esperarSilencio() } else ControlEntradaNativo.ignorado()"));
+    }
+
+    #[test]
+    fn ctl1117k_el_alcance_en_kotlin_total_no_niega_nada_y_protegido_es_la_regla_g_de_siempre() {
+        let k = KOTLIN;
+        assert!(k.contains("fun reglaGTotal(bloqueada: Boolean, congelada: Boolean): Boolean = bloqueada || congelada"));
+        assert!(k.contains("fun alcanceEfectivo(a: String): String = if (a == \"protegido\") \"protegido\" else \"total\""));
+        // `ventanaProtegida`: con `total`, solo bloqueado o consentimiento abierto; el resto de la función (la regla G de hoy) sigue después.
+        let v = k.find("private fun ventanaProtegida()").unwrap();
+        let fin_v = k.find("/** CTL1117C · FALLO 2: por qué se negó").unwrap();
+        let cuerpo = &k[v..fin_v];
+        let total = cuerpo.find("if (ControlNeuronasNativo.alcance == \"total\") return ControlEntradaNativo.reglaGTotal(bloqueada, ControlEntradaNativo.congelado())").unwrap();
+        assert!(total < cuerpo.find("ArrayList<Pair<String?, Boolean>>()").unwrap() && total < cuerpo.find("ControlEntradaNativo.reglaG(vs").unwrap());
+        // El texto en un campo de contraseña solo se niega en `protegido`.
+        assert!(k.contains("if (foco != null && foco.isPassword && ControlNeuronasNativo.alcance != \"total\") return rechazo(\"regla-g\")"));
+        // La respuesta de capacidades lleva el alcance vigente (releído) y la lista de claves de Rust sabe qué hace con él.
+        assert!(k.contains(".put(\"alcance\", ControlNeuronasNativo.alcance)") && k.contains("ControlNeuronasNativo.leerAjustes(); JSONObject()"));
+        let n = crate::control_neuronas_parche::KOTLIN;
+        assert!(n.contains("alc = ControlEntradaNativo.alcanceEfectivo(j.optString(\"alcance\", \"\"))") && n.contains("@Volatile var alcance = \"total\""));
+        // Los textos que describen lo que concede aceptar a un controlador dicen la verdad de `total`.
+        for t in ["VER TODA LA PANTALLA", "MANEJAR TODA LA TABLETA", "también en StarSeed OS, Ajustes, las tiendas y los campos de contraseña"] {
+            assert!(k.contains(t), "{t}");
+        }
+        assert!(n.contains("ve y maneja TODA esta tableta") && n.contains("podrá ver toda la pantalla y manejar toda esta tableta") && n.contains("control total"));
+        assert!(XML_TEXTOS.contains("TODA la tableta") && !XML_TEXTOS.contains("borde rojo"));
+    }
+
+    #[test]
+    fn ctl1117k_el_estado_lleva_las_cancelaciones_propias_y_el_alcance() {
+        let n = crate::control_neuronas_parche::KOTLIN;
+        for campo in ["\"cancel_propias\"", "\"cancel_ultima\"", "\"alcance\""] {
+            assert!(n.contains(campo), "{campo}");
+        }
+        // El contador es de la sesión: se pone a cero al empezarla.
+        assert!(n.contains("ControlEntradaNativo.cancelPropias = 0"));
     }
 }

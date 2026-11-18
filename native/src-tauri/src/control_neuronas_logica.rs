@@ -364,6 +364,8 @@ pub struct DatosKotlin {
     /// (CTL1117F) Pausa local puesta ahora y ms desde el último cuadro que Kotlin publicó (-1 = ninguno): solo en `control-fondo`.
     pub pausada: bool,
     pub cuadro_ms: i64,
+    /// (CTL1117K) Cancelaciones de gestos que causó NUESTRO código (no un dedo) en esta sesión: entran en `fin`, `control-fondo` y `control-pulso`.
+    pub cancel_propias: u32,
 }
 
 fn si_no(b: bool) -> &'static str {
@@ -377,7 +379,7 @@ fn solo_clave(s: &str, max: usize) -> String {
 impl DatosKotlin {
     fn texto(&self) -> String {
         let m = clave_de_motivo(&self.medida);
-        format!("latido-ms={} mostrando={} kotlin-en-fondo={} medida={} reanudos={}", self.latido_ms.min(9_999_999), si_no(self.mostrando), si_no(self.en_fondo), if m.is_empty() { "ninguna" } else { &m }, self.reanudos)
+        format!("latido-ms={} mostrando={} kotlin-en-fondo={} medida={} reanudos={} cancel-propias={}", self.latido_ms.min(9_999_999), si_no(self.mostrando), si_no(self.en_fondo), if m.is_empty() { "ninguna" } else { &m }, self.reanudos, self.cancel_propias.min(9_999_999))
     }
 }
 
@@ -444,6 +446,18 @@ pub fn linea_hueco(hueco_pared_ms: u64, hueco_mono_ms: u64) -> Option<String> {
         return None;
     }
     Some(format!("hueco hueco-pared-ms={} hueco-mono-ms={}", hueco_pared_ms.min(99_999_999), hueco_mono_ms.min(99_999_999)))
+}
+
+/// (CTL1117K · S2) El alcance tal como se escribe en el registro: solo `total` o `protegido`.
+pub fn alcance_de_registro(a: &str) -> &'static str {
+    crate::control_entrada_logica::alcance_efectivo(a)
+}
+
+/// (CTL1117K · S2) La línea de INICIO de sesión: `inicio de=… nivel=… alcance=total|protegido` (el alcance que rige en este aparato, solo `total` o `protegido`).
+pub fn linea_inicio_sesion(de8: &str, nivel: &str, alcance: &str) -> String {
+    let de: String = de8.chars().filter(|c| c.is_ascii_hexdigit()).take(8).collect();
+    let nivel = if nivel == "controlar" { "controlar" } else { "ver" };
+    format!("inicio de={} nivel={} alcance={}", if de.is_empty() { "-" } else { &de }, nivel, crate::control_entrada_logica::alcance_efectivo(alcance))
 }
 
 /// `fin de=… motivo=… latido-ms=… mostrando=… kotlin-en-fondo=… medida=… reanudos=…` (sin Kotlin, solo `de` y `motivo`).
@@ -569,10 +583,10 @@ mod pruebas {
 
     #[test]
     fn ctl1117c_las_lineas_de_fin_y_de_fondo_son_acotadas_y_sin_contenido() {
-        let k = DatosKotlin { latido_ms: 7_400, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 12, pausada: false, cuadro_ms: 340 };
+        let k = DatosKotlin { latido_ms: 7_400, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 12, pausada: false, cuadro_ms: 340, cancel_propias: 7 };
         assert_eq!(
             linea_fin_sesion("0011AABB<x>", "Sin-Indicador", Some(&k)),
-            "fin de=0011AABB motivo=sin-indicador latido-ms=7400 mostrando=si kotlin-en-fondo=si medida=webview-activo reanudos=12"
+            "fin de=0011AABB motivo=sin-indicador latido-ms=7400 mostrando=si kotlin-en-fondo=si medida=webview-activo reanudos=12 cancel-propias=7"
         );
         assert_eq!(linea_fin_sesion("", "!!", None), "fin de=- motivo=otro");
         let l = linea_fondo("inicio-fondo estado=oculta <script>alert(1)</script> deriva-ms=840\nx", Some(&k));
@@ -580,6 +594,14 @@ mod pruebas {
         assert!(linea_fondo(&"a".repeat(900), None).len() <= 170);
         let sin = DatosKotlin { medida: String::new(), ..k };
         assert!(linea_fondo("x", Some(&sin)).contains("medida=ninguna"));
+    }
+
+    #[test]
+    fn ctl1117k_la_linea_de_inicio_dice_el_alcance_y_solo_total_o_protegido() {
+        assert_eq!(linea_inicio_sesion("0011AABB<x>", "controlar", "total"), "inicio de=0011AABB nivel=controlar alcance=total");
+        assert_eq!(linea_inicio_sesion("0011aabb", "ver", "protegido"), "inicio de=0011aabb nivel=ver alcance=protegido");
+        // Un alcance o un nivel raros no se cuelan en el registro: alcance desconocido = total, nivel desconocido = ver.
+        assert_eq!(linea_inicio_sesion("", "<b>", "raro\nx"), "inicio de=- nivel=ver alcance=total");
     }
 
     #[test]
@@ -793,7 +815,7 @@ mod pruebas {
         let sin_gesto = DatosPausa { desde_gesto_ms: -1, ..d.clone() };
         assert!(linea_pausa_entra(&sin_gesto).contains("desde-gesto-ms=-1"));
         // `control-fondo` suma `pausa=` y `cuadro-ms=`.
-        let k = DatosKotlin { latido_ms: 10, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 4, pausada: true, cuadro_ms: -1 };
+        let k = DatosKotlin { latido_ms: 10, mostrando: true, en_fondo: true, medida: "webview-activo".into(), reanudos: 4, pausada: true, cuadro_ms: -1, cancel_propias: 0 };
         assert!(linea_fondo("sigue-en-fondo", Some(&k)).ends_with("pausa=si cuadro-ms=-1"));
         assert!(!linea_fin_sesion("0011AABB", "caducada", Some(&k)).contains("cuadro-ms"));
     }
