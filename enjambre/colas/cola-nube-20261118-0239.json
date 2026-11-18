@@ -1,0 +1,62 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario (parte 3 de 3)",
+   "archivos": [
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 3 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-te: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/mando/areas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-te",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-corregir-te-d2"
+   ]
+  },
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-mejorar-con-d3",
+   "titulo": "Refinar mensajes de error con contraste visual y contextual en componentes críticos (parte 3 de 3)",
+   "archivos": [
+    "src/components/ui/error-message.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Refinar mensajes de error con contraste visual y contextual en componentes críticos. ## Objetivo\nMejorar la legibilidad y el impacto emocional de los mensajes de error en la interfaz, enfocándose en componentes que manejan interacciones críticas del usuario. Esto incluye ajustes de contraste, jerarquía visual y mensajes más descriptivos que reduzcan la frustración y guíen al usuario hacia soluciones.\n\n## Acciones propuestas\n\n1. **Auditar mensajes de error actual**\n   - Revisar componentes con alta frecuencia de uso y errores reportados.\n   - Identificar mensajes con bajo contraste o ambigüedad.\n\n2. **Implementar sistema de estilos para errores**\n   - Crear variables de diseño  Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 3 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-mejorar-con: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/ui/error-message.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-mejorar-con",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-mejorar-con-d2"
+   ]
+  },
+  {
+   "id": "IMA20",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "El menú de texto también se abre en campos editables cuando hay texto seleccionado",
+   "archivos": [
+    "src/components/traduccion/menu-texto.tsx",
+    "src/components/traduccion/__tests__/menu-texto-editable.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `menu-texto.tsx` completo (`abreMenuTexto` :60; `esEditable` :52; el oyente `contextmenu` en `MenuTexto`) y su prueba `__tests__/menu-texto.test.tsx`. Cambio MÍNIMO (≤25 líneas): en un campo editable, el menú propio se abre SOLO si hay una selección no vacía (`seleccion.length > 0`) y no es `type=password`; sin selección en un editable sigue mandando el menú del navegador (comportamiento actual); con Mayúsculas sigue mandando el del navegador. `ContextoMenuTexto` gana el campo opcional `editable: boolean` (aditivo) para que una entrada decida si se ve («Reemplazar por la traducción» solo con `editable`). NO rompas ninguna de las pruebas existentes de `menu-texto.test.tsx`. PRUEBAS nuevas: editable con selección abre; editable sin selección no; password no; `ctx.editable` correcto.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA19"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "IMA20",
+   "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "IMG-agentes-reimaginada-profunda-mejorar-con-d3"
+  ]
+ }
+}
