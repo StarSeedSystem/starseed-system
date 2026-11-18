@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "LNX1118WC",
+   "ola": "LNX1118W",
+   "titulo": "Linux: la ventana se recupera sola si WebKit falla al cargar (y renderizado seguro en gráficas viejas)",
+   "archivos": [
+    "native/src-tauri/src/lib.rs",
+    "native/src-tauri/src/arranque_linux.rs"
+   ],
+   "depende": [],
+   "prompt": "Tras reiniciar la Maggabox, la app abrió con «WebKit encountered an internal error» y se quedó así. Tarea: (1) en Linux, al arrancar y antes de crear la ventana, si la persona no definió WEBKIT_DISABLE_DMABUF_RENDERER, ponla a 1 cuando la gráfica sea vieja o no se pueda comprobar (lógica pura que decide a partir del texto de /sys/class/drm o lspci; con pruebas); (2) si la carga principal falla (evento de carga con error o página de error interno de WebKit), reintentar con espera creciente cuando haya red y, si a los 3 intentos sigue mal, cargar la interfaz incluida en la app y escribir una línea `arranque webview-fallo intento=N causa=…` en enlaces.log; (3) la decisión de reintentos en una función pura con pruebas. No cambies nada en macOS, Windows ni Android. Evidencia (Maggabox, Debian 13 Xfce X11, Mac mini 2011 con Intel HD 3000 + Radeon HD 6630M, AppImage 0.5.1-prueba.55, 18-11 23:10 UTC): ~/.local/share/app.starseed.os/enlaces.log dice «[capas] no se pudo leer la web publicada (curl terminó con exit status: 1 (curl: /tmp/.mount_StarSe…/usr/lib/libcrypt…» y «llamada webrtc-linux faltan=webrtcbin,nicesrc,dtlssrtpenc,opusenc,vp8enc,rtpvp8pay» aunque el sistema tiene gstreamer1.0-nice y gstreamer1.0-plugins-bad; tras reiniciar, la ventana mostró «WebKit encountered an internal error» (~/.xsession-errors: WebLoaderStrategy.cpp(640) internallyFailedLoadTimerFired). Alex (18-11): lo que hoy se instala o configura a mano en el nodo Linux debe venir por defecto con StarSeed OS. Reglas: código en native/src-tauri; lógica pura con pruebas (cargo test del módulo); no cambies los topes de tiempo del CI (canal-pruebas-flujo.test.ts los vigila); nada se ejecuta como root sin el diálogo del sistema que acepta la persona; español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "LNX1118WC"
+  ]
+ }
+}
