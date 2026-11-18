@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "AN04abs",
+   "ola": "AUD1117",
+   "titulo": "Llamadas: una caída corta del Bluetooth no cuelga la llamada · lo que faltó: src/lib/llamadas/carriles.ts",
+   "archivos": [
+    "src/lib/llamadas/carriles.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de AN04ab, que ya está integrada (sha 5e884a4b09fb). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/llamadas/carriles.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Llamadas: una caída corta del Bluetooth no cuelga la llamada\n\n--- encargo original, como contexto ---\nLee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: con un solo carril (solo Bluetooth o solo llamada directa) y un corte del enlace de hasta 90 s, la llamada pasa a «Reconectando…» y vuelve sola al volver el enlace, sin colgar; pasados 90 s termina con un motivo visible. Con otro carril vivo, el relevo sigue como hoy. Los 15 s y 20 s actuales quedan como el momento en que se enseña «Reconectando…», no como el fin. Prueba: caso nuevo con un enlace que cae 60 s y vuelve (sigue viva) y otro que cae 95 s (termina con motivo), con reloj inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44238985590`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44238985590:refs/remotes/origin/nube/44238985590\"` y `git cherry-pick --no-commit e653eee15949 5fa763dbfdf9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con ",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/44238985590",
+   "depende_de": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "AN04abs"
+  ]
+ }
+}
