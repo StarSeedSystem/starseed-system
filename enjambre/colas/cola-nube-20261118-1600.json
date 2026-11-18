@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "MRI4b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa: las ofertas de internet de la red aparecen como capa y el panel vive en los ajustes del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/components/mesh/mapa-senales/ajustes-centro.tsx` (ya muestra el radar público: `describirRadarPublico`) añade, en un bloque aditivo `// MAP1116`, `PanelRedCompartida` (import dinámico) y los datos de `sugerirComparticion` con las puertas reales (`src/lib/malla/cristal/usar-cristal.ts`; si no hay puertas, el texto dice «este aparato no declara salida a internet»). En `src/lib/senales/geo/capas.ts` añade UNA capa del grupo `oferta` («Internet que ofrece la red») alimentada solo por lo que los dueños anuncian (`offersPublic` de los faros: `src/ai/astraura/mesh/signals.ts:344-379`) y por filas publicadas con medio `internet`; sin anuncios → «sin fuente: nadie lo anuncia aún». No cambies capas existentes (≤40 líneas por archivo). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo src/components/mesh/mapa-senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI4b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI3b",
+    "MRA9"
+   ]
+  },
+  {
+   "id": "SIN1116F",
+   "titulo": "Dirección de la síntesis desde el chat",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/peticiones_reglas.py",
+    "scripts/puente/test_peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-autonoma-contexto-1116.md. §3.6. En el bot: /sintesis (la lanza ya), /sintesis estado (el hito actual y el retraso), /sintesis contexto (resumen y enlace del contexto vivo); «aprobar <n>», «rechazar <n>», «ya existe <n>» y «encarga <n>» actualizan el libro de recomendaciones, y «encarga» crea el encargo o la ola. Los «recuerda…» sobre la síntesis entran como reglas en su prompt. Botones en línea opcionales. Pruebas sin red.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116B",
+    "SIN1116E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "MRI4b",
+   "SIN1116F"
+  ]
+ }
+}
