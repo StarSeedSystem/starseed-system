@@ -45,6 +45,7 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+import { MontajeIdioma } from "@/components/traduccion/montaje-idioma";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -120,8 +121,9 @@ export default function AppGlobals() {
       <InstalacionesPendientes />
       {/* TRD1020E: menú global del clic derecho sobre textos. */}
       <MenuTexto />
-      {/* TRD1020G: las cuatro entradas «Traducir…» del menú + ventanita y aviso de progreso. */}
-      <TraducirTexto />
+       {/* TRD1020G: las cuatro entradas «Traducir…» del menú + ventanita y aviso de progreso. */}
+       <TraducirTexto />
+       <MontajeIdioma />
       {/* Ola 1019V: clic derecho global de variaciones + anfitrión de la ventana «Variaciones públicas». */}
       <ClicDerechoGlobal />
       <VariacionesHost />
