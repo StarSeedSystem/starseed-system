@@ -38,6 +38,7 @@ CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram
 PAUSA_SEGUNDOS = 5
 INFORME_CADA_SEGUNDOS = 3 * 3600
 TOPE_OPUS = int(os.environ.get("STARSEED_DIRECTOR_TOPE_OPUS", "40"))
+TOPE_CONTEXTO_PRESIDENTE = 16000
 AVISO_SALDO = (
     "La cuenta de Claude Code de la Mac no tiene saldo: inicia sesión con "
     "tu suscripción (claude → /login)"
@@ -119,15 +120,105 @@ def _registrar_opus(estado):
     estado["opus_hoy"] = estado.get("opus_hoy", 0) + 1
 
 
+def armar_contexto(partes, tope):
+    """PURA. Arma el contexto concatenando partes con sus topes, respetando el tope total.
+
+    `partes`: lista de tuplas (titulo, texto, tope_parte).
+    Cada parte se recorta a su tope_parte; si el total supera `tope`, se recorta
+    por orden de prioridad (las primeras partes conservan su tope, las últimas
+    ceden espacio).
+    """
+    if tope <= 0 or not partes:
+        return ""
+
+    # Filtrar partes vacías y recortar cada una a su tope
+    partes_validas = []
+    for titulo, texto, tope_parte in partes:
+        if not texto:
+            continue
+        recortado = texto[:tope_parte]
+        partes_validas.append((titulo, recortado))
+
+    if not partes_validas:
+        return ""
+
+    # Calcular longitud de cada parte con su cabecera y separador "\n\n"
+    separador = "\n\n"
+    longitudes = []
+    for titulo, texto in partes_validas:
+        cabecera = f"=== {titulo} ===\n"
+        longitudes.append(len(cabecera) + len(texto))
+
+    total = sum(longitudes) + len(separador) * (len(partes_validas) - 1)
+    if total <= tope:
+        # Todo cabe
+        return separador.join(f"=== {titulo} ===\n{texto}" for titulo, texto in partes_validas)
+
+    # No cabe: recortar desde el final manteniendo prioridad
+    resultado = []
+    restante = tope
+    for i, (titulo, texto) in enumerate(partes_validas):
+        cabecera = f"=== {titulo} ===\n"
+        largo_cabecera = len(cabecera)
+        # Espacio para separador si no es la última
+        sep_si_hay_mas = len(separador) if i < len(partes_validas) - 1 else 0
+        # Las partes siguientes necesitan al menos su cabecera + separador
+        min_siguientes = sum(
+            len(f"=== {t} ===\n") + len(separador) for t, _ in partes_validas[i + 1:]
+        )
+        if restante <= largo_cabecera + sep_si_hay_mas:
+            break
+        disponible = restante - largo_cabecera - sep_si_hay_mas - min_siguientes
+        if disponible <= 0:
+            break
+        trozo = texto[:max(0, disponible)]
+        resultado.append(cabecera + trozo)
+        restante -= largo_cabecera + len(trozo) + sep_si_hay_mas
+        if restante <= 0:
+            break
+
+    return separador.join(resultado)
+
+
 def _contexto():
-    partes = []
-    for nombre in ("PUENTE-DE-MANDO.md", "memory/orquestacion-economica.md"):
-        ruta = RAIZ / nombre
-        try:
-            partes.append(ruta.read_text(encoding="utf-8")[:4000])
-        except OSError:
-            pass
-    return "\n\n".join(partes)
+    """Arma el contexto completo para el Director presidente por prioridad."""
+    partes = [
+        ("RELEVO", _leer_archivo("starseed_memory_root/relevo/relevo.md"), 4000),
+        ("PLAN ACTIVO", _leer_archivo("starseed_memory_root/pruebas/plan-activo.md"), 4000),
+        ("REGISTRO PRUEBAS", _leer_archivo_final("starseed_memory_root/pruebas/registro-pruebas.md", 4000), 4000),
+        ("ÚLTIMAS 20 LÍNEAS REGISTRO", _ultimas_lineas_registro(), 2000),
+        ("PUENTE DE MANDO", _leer_archivo("PUENTE-DE-MANDO.md"), 4000),
+        ("ORQUESTACIÓN ECONÓMICA", _leer_archivo("memory/orquestacion-economica.md"), 4000),
+    ]
+    return armar_contexto(partes, TOPE_CONTEXTO_PRESIDENTE)
+
+
+def _leer_archivo(ruta_rel):
+    """Lee un archivo completo; devuelve '' si no existe."""
+    try:
+        return (RAIZ / ruta_rel).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _leer_archivo_final(ruta_rel, tope_parte):
+    """Lee un archivo y si es más largo que tope_parte devuelve su final (últimos tope_parte chars)."""
+    try:
+        texto = (RAIZ / ruta_rel).read_text(encoding="utf-8")
+        if len(texto) > tope_parte:
+            return texto[-tope_parte:]
+        return texto
+    except OSError:
+        return ""
+
+
+def _ultimas_lineas_registro():
+    """Devuelve las últimas 20 líneas de registro.jsonl o '' si no existe."""
+    try:
+        lineas = (RAIZ / "starseed_memory_root/pruebas/registro.jsonl").read_text(encoding="utf-8").splitlines()
+        return "\n".join(lineas[-20:])
+    except OSError:
+        return ""
 
 
 def _fallo(mensaje, canal, detalle, raiz=None):
