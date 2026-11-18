@@ -121,11 +121,7 @@ import {
   subscribeGuideButtonVisible,
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
-import {
-  EVENTOS_INTERACCION,
-  RESPIRO_APERTURA_MS,
-  puedeAbrirGuiaSola,
-} from "@/lib/onboarding/guia-temporizador";
+import { useTimeoutInteraction } from "@/hooks/use-timeout-interaction";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { GUIA_VERSION, copiarGuiaLocalACuenta, marcarGuiaVista, temasNuevosPara, versionGuiaVistaEnCuenta } from "@/lib/onboarding/guia-vista";
 import {
@@ -438,56 +434,6 @@ export function AuroraGuide() {
   // ¿Estamos ya en el tour (modo elegido)? Si no, se muestra la pregunta inicial.
   const inTour = open && mode !== null;
 
-  // ── montaje + decisión de primera ejecución ────────────────────────────────
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window === "undefined") return;
-    // (2026-09-29 · persistencia entre medios) «Ya la vi» es un dato de la CUENTA: la decisión
-    // espera a que el pull inicial haya traído las marcas (y el intro de Aurora, que también
-    // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
-    // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
-    // abrir a demanda), y en cuanto responda se decide.
-    let temporizador: ReturnType<typeof setTimeout> | undefined;
-    // Rearma la apertura de primera visita: cada interacción la empuja otro
-    // respiro; al expirar, SOLO abre si la persona lleva el respiro quieto.
-    const armarAutoApertura = () => {
-      if (temporizador) clearTimeout(temporizador);
-      temporizador = setTimeout(() => {
-        temporizador = undefined;
-        rearmarAutoRef.current = null;
-        if (puedeAbrirGuiaSola(ultimaInteraccionRef.current, Date.now(), RESPIRO_APERTURA_MS)) {
-          setOpen(true);
-        }
-      }, RESPIRO_APERTURA_MS);
-      rearmarAutoRef.current = armarAutoApertura;
-    };
-    const decidir = () => {
-      // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
-      const seen = copiarGuiaLocalACuenta();
-      // Ya la vio, pero en una versión anterior: UNA vez, el aviso discreto de novedades.
-      if (seen) {
-        const pendientes = temasNuevosPara(versionGuiaVistaEnCuenta());
-        if (pendientes.length > 0) setNovedades(pendientes);
-      }
-      // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
-      // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
-      // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
-      let introDone = false;
-      try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
-      if (!seen && introDone) {
-        // Primera visita (tras el intro): arranca sola tras el respiro — pero
-        // cada interacción lo rearma, así que no interrumpe a quien navega.
-        armarAutoApertura();
-      }
-    };
-    const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
-    return () => {
-      cancelarEspera();
-      if (temporizador) clearTimeout(temporizador);
-      rearmarAutoRef.current = null;
-    };
-  }, []);
-
   // ── reabrir bajo demanda: evento + helper global ───────────────────────────
   // `inicio`: una posición, el id de un paso o de un tema; sin él, la guía RETOMA por donde se quedó
   // (`guia-progreso.ts`, compartido con la introducción de la ventana de acceso) o empieza por el principio.
@@ -504,6 +450,61 @@ export function AuroraGuide() {
     setMuted(false);
     setOpen(true);
   }, []);
+
+  // Un solo respiro rearmable para las dos aperturas automáticas (primera
+  // visita y turno del rito). El hook escucha las interacciones y lo rearma;
+  // los marcadores dicen cuál de las dos está esperando.
+  const autoPrimeraVisitaRef = useRef(false);
+  const turnoGuiaRef = useRef(false);
+  const { reiniciar: reiniciarRespiro } = useTimeoutInteraction({
+    activo: !open,
+    alCumplirRespiro: () => {
+      if (autoPrimeraVisitaRef.current) {
+        autoPrimeraVisitaRef.current = false;
+        setOpen(true);
+        return;
+      }
+      if (turnoGuiaRef.current) {
+        turnoGuiaRef.current = false;
+        openGuide(0);
+      }
+    },
+  });
+
+  // ── montaje + decisión de primera ejecución ────────────────────────────────
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window === "undefined") return;
+    // (2026-09-29 · persistencia entre medios) «Ya la vi» es un dato de la CUENTA: la decisión
+    // espera a que el pull inicial haya traído las marcas (y el intro de Aurora, que también
+    // viaja con la cuenta). Sin esa espera, un medio recién abierto no sabía nada y abría la guía
+    // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
+    // abrir a demanda), y en cuanto responda se decide.
+    const decidir = () => {
+      // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
+      const seen = copiarGuiaLocalACuenta();
+      // Ya la vio, pero en una versión anterior: UNA vez, el aviso discreto de novedades.
+      if (seen) {
+        const pendientes = temasNuevosPara(versionGuiaVistaEnCuenta());
+        if (pendientes.length > 0) setNovedades(pendientes);
+      }
+      // No competir con la presentación breve de Aurora (AuroraIntro): el tour de
+      // interfaz solo arranca solo DESPUÉS de que el intro se haya completado, para
+      // no solapar dos ventanas la primera vez. El tour sigue disponible a demanda.
+      let introDone = false;
+      try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
+      if (!seen && introDone) {
+        // Primera visita (tras el intro): arranca sola tras el respiro — pero
+        // cada interacción lo rearma, así que no interrumpe a quien navega.
+        autoPrimeraVisitaRef.current = true;
+        reiniciarRespiro();
+      }
+    };
+    const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
+    return () => {
+      cancelarEspera();
+    };
+  }, [reiniciarRespiro]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -528,11 +529,8 @@ export function AuroraGuide() {
   // viva: saltaría a otro paso encima de lo que la persona está leyendo.
   useEffect(() => {
     if (!open) return;
-    if (temporizadorTurnoRef.current) {
-      clearTimeout(temporizadorTurnoRef.current);
-      temporizadorTurnoRef.current = null;
-    }
-    rearmarTurnoRef.current = null;
+    autoPrimeraVisitaRef.current = false;
+    turnoGuiaRef.current = false;
   }, [open]);
 
   // (Ola 247 · 2026-09-05) TURNO DE LA GUÍA, por el DIRECTOR del rito y no por
@@ -554,44 +552,12 @@ export function AuroraGuide() {
   // guía solo se abre sola durante un respiro de silencio. Marcador de la
   // última interacción + las dos aperturas automáticas rearmables (primera
   // visita y turno del rito «guia»).
-  const ultimaInteraccionRef = useRef(0);
-  const rearmarAutoRef = useRef<(() => void) | null>(null);
-  const rearmarTurnoRef = useRef<(() => void) | null>(null);
-  const temporizadorTurnoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Seguir las interacciones y rearmar con ellas lo pendiente. Capture: el
-  // desplazamiento dentro de contenedores también cuenta como interacción.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    ultimaInteraccionRef.current = Date.now();
-    const marcar = () => {
-      ultimaInteraccionRef.current = Date.now();
-      rearmarAutoRef.current?.();
-      rearmarTurnoRef.current?.();
-    };
-    for (const tipo of EVENTOS_INTERACCION) {
-      window.addEventListener(tipo, marcar, { capture: true, passive: true });
-    }
-    return () => {
-      for (const tipo of EVENTOS_INTERACCION) {
-        window.removeEventListener(tipo, marcar, { capture: true });
-      }
-    };
-  }, []);
+  // (IMG-…-d2 · parte 2) El marcador de la última interacción y los oyentes
+  // viven en `useTimeoutInteraction`; aquí solo queda la etapa ya atendida.
   const etapaGuiaAtendidaRef = useRef(false);
   useEffect(() => {
-    // Rearma la apertura del turno del rito con cada interacción (misma regla:
-    // solo abre durante un respiro de silencio).
-    const armarTurno = () => {
-      if (temporizadorTurnoRef.current) clearTimeout(temporizadorTurnoRef.current);
-      temporizadorTurnoRef.current = setTimeout(() => {
-        temporizadorTurnoRef.current = null;
-        rearmarTurnoRef.current = null;
-        if (puedeAbrirGuiaSola(ultimaInteraccionRef.current, Date.now(), RESPIRO_APERTURA_MS)) {
-          openGuide(0);
-        }
-      }, RESPIRO_APERTURA_MS);
-      rearmarTurnoRef.current = armarTurno;
-    };
+    // Encender el respiro del turno deja que el hook lo rearme con cada
+    // interacción: solo abre durante un silencio real de la persona.
     const atenderGuia = () => {
       if (etapaGuiaAtendidaRef.current) return;
       // El turno decide primero: sin rito en «guia», no hacemos nada.
@@ -607,19 +573,16 @@ export function AuroraGuide() {
         return;
       }
       etapaGuiaAtendidaRef.current = true;
-      armarTurno();
+      turnoGuiaRef.current = true;
+      reiniciarRespiro();
     };
     atenderGuia();
     const desuscribir = suscribirRito(atenderGuia);
     return () => {
       desuscribir();
-      if (temporizadorTurnoRef.current) {
-        clearTimeout(temporizadorTurnoRef.current);
-        temporizadorTurnoRef.current = null;
-      }
-      rearmarTurnoRef.current = null;
+      turnoGuiaRef.current = false;
     };
-  }, [pathname, router, openGuide]);
+  }, [pathname, router, openGuide, reiniciarRespiro]);
 
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
   const markSeen = useCallback(() => {
