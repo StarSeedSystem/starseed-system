@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116F",
+   "titulo": "Dirección de la síntesis desde el chat",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/peticiones_reglas.py",
+    "scripts/puente/test_peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-autonoma-contexto-1116.md. §3.6. En el bot: /sintesis (la lanza ya), /sintesis estado (el hito actual y el retraso), /sintesis contexto (resumen y enlace del contexto vivo); «aprobar <n>», «rechazar <n>», «ya existe <n>» y «encarga <n>» actualizan el libro de recomendaciones, y «encarga» crea el encargo o la ola. Los «recuerda…» sobre la síntesis entran como reglas en su prompt. Botones en línea opcionales. Pruebas sin red.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116B",
+    "SIN1116E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "SIN1116F"
+  ]
+ }
+}
