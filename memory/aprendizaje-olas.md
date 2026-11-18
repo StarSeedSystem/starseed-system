@@ -7502,3 +7502,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json (ya estaba)
 - `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json (ya estaba)
 - `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json (ya estaba)
+
+## 2026-11-18 11:49 · mg-oracle-1118-0446
+
+**Lo que se pidió.** plural simplificado
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (IMA8, INT20, ASW13, TU22, IMA10). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMA8` — no escribió nada
+- `INT20` — no escribió nada
+- `ASW13` — no escribió nada
+- `TU22` — no escribió nada
+- `IMA10` — no escribió nada
