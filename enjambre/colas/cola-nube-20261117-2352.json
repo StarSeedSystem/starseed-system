@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "TU21",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Aplicación del Traductor: pestañas Texto, Conversación y Sin internet",
+   "archivos": [
+    "src/components/traductor/traductor-app.tsx",
+    "src/components/traductor/__tests__/traductor-app.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contenedor con las tres pestañas, estilo cristal del OS (mira `src/components/camera/camera-app.tsx` para el marco), que construye el servicio real: motores `navegador` (`motorNavegador`), `libretranslate` (`crearClienteLibreTranslate`, solo si `puedeLibreTranslate`), `astraura` (`motorAstraura`; ver cómo lo cablea `traducir-texto.tsx` y reutiliza su llamada), `paquete-local` (TU7) y el modo privado desde `leer(...)` de `preferencias.ts`. Texto visible en español, sin «Mando». Carga diferida de lo pesado. PRUEBAS: monta con motores falsos y cambia de pestaña; con modo privado no entra Astraura.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "TU18"
+   ],
+   "dependencias_ya_en_main": [
+    "TU17",
+    "TU19",
+    "TU20-d2"
+   ]
+  },
+  {
+   "id": "INT14",
+   "ola": "INT1116A",
+   "titulo": "Leer lo que el aparato sabe de su conexión (navegador y marca nativa opcional)",
+   "archivos": [
+    "src/lib/malla/internet/lector-conexion.ts",
+    "src/lib/malla/internet/__tests__/lector-conexion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). Lee `src/ai/astraura/mesh/connectivity.ts` (`NetworkInformationLike`, `netInfo`) y NO lo dupliques: reutiliza su tipo si lo exporta. Escribe primero las pruebas. `leerConexion(entorno: { navigator?: { connection?: NetworkInformationLike } | null; nativa?: { medida?: () => boolean | null } | null }): { tipo?: string; saveData?: boolean; effectiveType?: string; nativaMedida: boolean | null }`. `nativa.medida` es la marca de red de pago del lado nativo (Android `isActiveNetworkMetered`): HOY NO EXISTE en el puente, así que la entrada es opcional y si falta, `nativaMedida` es null; deja un comentario «falta en el puente nativo: ver §8.2 del contrato». Nunca lanza; ante `connection` ausente (Safari, Firefox) devuelve solo `nativaMedida`. Añade `suscribirConexion(entorno, alCambiar): () => void` que escucha `change` de `navigator.connection` y devuelve la baja (no hace nada si no hay `connection`).\nPRUEBAS: con y sin `connection`; marca nativa true/false/ausente/que lanza; suscribir y dar de baja.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT01"
+   ]
+  },
+  {
+   "id": "INT17",
+   "ola": "INT1116A",
+   "titulo": "Conectar la sugerencia con la sección: la conexión de pago se ofrece, nunca se aplica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/seccion-internet.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/seccion-internet-sugerencia.test.tsx"
+   ],
+   "depende": [
+    "INT14"
+   ],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `seccion-internet.tsx` (INT12). Cambio ACOTADO (≤50 líneas): dentro de la sección, calcula `clasificacion` con `leerConexion` (INT14) + `clasificarConexion` (INT01) en un efecto (primer render: desconocida; se re-evalúa con `suscribirConexion`), llama a `debeSugerir` (INT15) con la negativa guardada en el aparato (clave `starseed.malla.internet.sugerencia.v1`, leída y escrita con try/catch) y monta `<SugerenciaModoBanco />` (INT16). `onActivar` pone `banco.activo = true` en los ajustes (y nada más: NO toca `compartirConOtros` ni ningún modo mesh); `onAhoraNo` guarda `registrarNegativa`. Si la persona ya declaró la conexión como no de pago, no se sugiere. PRUEBAS: con `cellular` se ofrece y NO cambia ningún ajuste hasta pulsar «Activar»; «Activar» solo enciende el banco; «Ahora no» oculta y no vuelve a salir al re-renderizar; cambiar la conexión a wifi oculta el aviso; declarar «no es de pago» lo oculta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12",
+    "INT15",
+    "INT16"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "TU21",
+   "INT17",
+   "INT14"
+  ]
+ }
+}
