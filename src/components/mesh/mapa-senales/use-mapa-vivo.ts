@@ -30,6 +30,30 @@ import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptio
 import { adaptarBluetooth, type EntradaBluetooth } from "@/lib/senales/espectro/adaptadores/bluetooth";
 import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/modelo";
 import { useSenalesPublicadas, type EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
+import type { Medio, OrigenDato, CapaRed, Compatibilidad, Vinculo } from "@/lib/senales/espectro/modelo";
+
+/** Convierte una señal de enlace directo (DetectedSignal con starseed.via === "direct-link") a SenalEspectro. */
+function senalDirectLinkToEspectro(s: DetectedSignal): SenalEspectro {
+  const calidad = s.quality;
+  const rttMetric = s.metrics.find((m) => m.label === "Latencia");
+  const rttMs = rttMetric ? Number.parseFloat(rttMetric.value.replace(" ms", "")) : null;
+  return {
+    id: s.id,
+    medio: "malla",
+    banda: "enlace directo",
+    frecuenciaKhz: null,
+    anchoKhz: null,
+    fuerzaDbm: null,
+    calidad,
+    origen: rttMs != null ? "medida" : "estimada",
+    capa: "propia",
+    fuente: "enlace directo sin internet",
+    medidoEn: s.lastHeard,
+    zona: null,
+    vinculo: s.starseed?.sourceId ? { tipo: "neurona", id: s.starseed.sourceId } : undefined,
+    compatibles: [],
+  };
+}
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
@@ -136,7 +160,9 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
 
   // Construir el campo red: combinar señales propias (extras de vivo) con publicadas
   const red = useMemo<MapaVivoRed>(() => {
-    const senalesPropias = vivo.extras.filter((s) => s.starseed?.via === "direct-link");
+    const senalesPropias = vivo.extras
+      .filter((s) => s.starseed?.via === "direct-link")
+      .map(senalDirectLinkToEspectro);
     const todas = [...publicadas.senales, ...senalesPropias];
     const otrasCuentas = new Set(publicadas.senales.map((s) => s.vinculo?.id).filter((id): id is string => !!id)).size;
     let motivo = publicadas.motivo;
