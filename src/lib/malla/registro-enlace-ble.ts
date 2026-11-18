@@ -30,7 +30,9 @@ export type TipoEventoEnlace =
   /** (ARC1110A) Hitos de un archivo (solo id y tamaños): `anuncio-enviado|…|primer-trozo|completo|verificado|fallo`. */
   | "archivo"
   /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
-  | "canal-rapido";
+  | "canal-rapido"
+  /** (AUD1117 · F4) El enlace envía latidos y no recibe ni un byte: `mudo=si` / `mudo=no`. */
+  | "mudo";
 
 export interface EventoEnlaceBle {
   seq: number;
