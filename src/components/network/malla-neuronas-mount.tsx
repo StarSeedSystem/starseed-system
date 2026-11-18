@@ -53,6 +53,12 @@ const SolicitudSincronizacionFlotante = dynamic(
 
 // (2026-11-10 · PTA1110A) Indicador global «Internet por: …» y panel «Actividad de la malla».
 const IndicadorRutaMalla = dynamic(() => import("@/components/malla/indicador-ruta-malla").then((m) => m.IndicadorRutaMalla), { ssr: false });
+// (2026-11-18 · AUD1117 F5) Anfitrión web de apps: transmite a la ventana remota del cliente
+// la app que otra neurona de la MISMA cuenta pide (ver `architecture/apps-en-la-malla.md` §9).
+const MontajeAnfitrion = dynamic(
+  () => import("@/components/apps-remotas/montaje-anfitrion").then((m) => m.MontajeAnfitrion),
+  { ssr: false },
+);
 
 /** Arranca un motor cargado a demanda y devuelve su parada (si la tiene). */
 function useMotorPerezoso(cargar: () => Promise<() => void | (() => void)>) {
@@ -135,6 +141,8 @@ function MallaNeuronasEngine() {
       <SolicitudSincronizacionFlotante />
       <EtiquetaSinInternet />
       <IndicadorRutaMalla /> {/* PTA1110A */}
+      {/* (AUD1117 · F5) Anfitrión de apps: responde a `ventana.pedir` del cliente de apps remotas. */}
+      <MontajeAnfitrion />
     </>
   );
 }
