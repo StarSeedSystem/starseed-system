@@ -33,6 +33,16 @@ fn cerrojo() -> MutexGuard<'static, ()> {
 /// Una confirmación de orden a la vez (una página no puede apilar diálogos).
 static CONFIRMANDO: AtomicBool = AtomicBool::new(false);
 
+/// CTL1117M (dirección): cuántos diálogos nativos de consentimiento de esta app están abiertos AHORA (interruptor del control,
+/// aceptar un controlador, confirmar una orden). Mientras haya uno, la entrada remota se niega en cualquier alcance: ninguna
+/// orden contesta un «Sí» de este control (contrato control-remoto-entre-neuronas, «lo que no cambia»). En Android es `congelado()`.
+static DIALOGOS_ABIERTOS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[allow(dead_code)] // lo lee la entrada de macOS
+pub fn dialogo_abierto() -> bool {
+    DIALOGOS_ABIERTOS.load(Ordering::SeqCst) > 0
+}
+
 fn mono_ms() -> u64 {
     static A: OnceLock<Instant> = OnceLock::new();
     A.get_or_init(Instant::now).elapsed().as_millis() as u64
@@ -113,7 +123,10 @@ pub async fn dialogo(app: &AppHandle, titulo: &str, texto: String, si: &str, no:
         .title(titulo.to_string())
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom(si.into(), no.into()));
-    tauri::async_runtime::spawn_blocking(move || d.blocking_show()).await.unwrap_or(false)
+    DIALOGOS_ABIERTOS.fetch_add(1, Ordering::SeqCst); // CTL1117M (dirección): se cuenta ANTES de enseñarlo
+    let dijo = tauri::async_runtime::spawn_blocking(move || d.blocking_show()).await.unwrap_or(false);
+    DIALOGOS_ABIERTOS.fetch_sub(1, Ordering::SeqCst);
+    dijo
 }
 
 /// Confirma UNA orden con su texto y sus clases. Una a la vez; la página que navega mientras tanto

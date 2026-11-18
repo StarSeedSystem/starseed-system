@@ -283,6 +283,11 @@ fn ejecutar(app: &AppHandle, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Opti
     if bloqueada() {
         return Err((l::Motivo::ReglaG, None));
     }
+    // CTL1117M (dirección): con un diálogo de consentimiento de esta app abierto, nada entra, tampoco con alcance `total`:
+    // ningún clic ni tecla remotos contestan el «Sí» del interruptor ni el de aceptar a otro controlador.
+    if crate::acceso_equipo::dialogo_abierto() {
+        return Err((l::Motivo::ReglaG, None));
+    }
     if !accesibilidad_ok() {
         return Err((l::Motivo::SinServicio, Some(m::FALTA_ACCESIBILIDAD)));
     }
