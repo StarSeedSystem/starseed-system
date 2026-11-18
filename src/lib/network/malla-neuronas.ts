@@ -52,8 +52,11 @@ import { ensureMesh, getSharedMesh, capaMeshCompartiendo, setupConcienciaSync } 
 import type { MeshHandle, PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import { resumirRuta, type RutaEnlace } from "@/lib/network/estadisticas-enlace";
 import { resumenIce, type ResumenIce } from "@/lib/network/estadisticas-ice";
-import { preferenciaCapasGuardada, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
+import { CLAVE_INTELIGENCIA, preferenciaCapasGuardada, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
+import { anunciar, type CapacidadesNodo } from "@/lib/network/capacidades-nodo";
+import { crearTransporteMesh } from "@/lib/network/conciencia-colectiva";
+import { detenerPublicacionFichaPropia, sincronizarPublicacionFicha } from "@/lib/network/ficha-propia";
 import { urlPuenteLocal } from "@/ai/providers/astraura-158";
 // (Ola 368) Snapshot BARATO de "qué fuentes están listas ahora" — módulo sin
 // dependencias pesadas (ver su cabecera), así que importarlo aquí no crea
@@ -112,6 +115,8 @@ export const RADAR_REENVIO_MS = 5 * 60_000;
 const BEACON_CONSIDERADO_RECIENTE_MS = 30 * 60_000;
 /** Versión estática del OS para la ficha (ver `package.json`; no auto-sincronizada). */
 const OS_VERSION = "0.3.0";
+/** Aviso que emite el enrutador al guardar las capas (AUD1117: reaccionar al interruptor). */
+const EVENTO_CAPAS_MALLA = "starseed:astraura-intelligence";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                              */
@@ -650,6 +655,7 @@ export function useMallaNeuronas(deps?: {
 
   const meshRef = useRef<MeshHandle | null>(null);
   const concienciaRef = useRef<(() => void) | null>(null);
+  const publicacionSyncRef = useRef<(() => void) | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
   // (RDV13) Control del radar compartido: cuándo se construyó el último resumen
   // local y qué se compartió al final (huella + momento).
@@ -757,12 +763,42 @@ export function useMallaNeuronas(deps?: {
         unsubPeer();
         conciencia?.unsubscribe();
       };
+
+      // (AUD1117) La ficha propia la publica la MALLA, no el panel: con la capa
+      // mesh encendida arranca una sola vez, y se detiene en cuanto se apaga.
+      // El transporte es el mesh compartido; la medida se toma en `ficha-propia`.
+      const sincronizarPublicacion = () => {
+        const plataforma = typeof navigator !== "undefined" ? navigator.platform : "";
+        sincronizarPublicacionFicha(
+          capaMeshCompartiendo(),
+          { id: ids.neuronDeviceId, platform: plataforma },
+          {
+            publicarMalla: (ficha: CapacidadesNodo) => {
+              if (cancelado) return;
+              crearTransporteMesh(mesh).publicar(anunciar(ficha));
+            },
+          },
+        );
+      };
+      const alCambiarAlmacen = (e: StorageEvent) => {
+        if (e.key === CLAVE_INTELIGENCIA) sincronizarPublicacion();
+      };
+      sincronizarPublicacion();
+      window.addEventListener(EVENTO_CAPAS_MALLA, sincronizarPublicacion);
+      window.addEventListener("storage", alCambiarAlmacen);
+      publicacionSyncRef.current = () => {
+        window.removeEventListener(EVENTO_CAPAS_MALLA, sincronizarPublicacion);
+        window.removeEventListener("storage", alCambiarAlmacen);
+        detenerPublicacionFichaPropia();
+      };
     })();
 
     const nearbyUnsub = deps?.subscribeNearby?.((b) => setCercanas(b));
 
     return () => {
       cancelado = true;
+      publicacionSyncRef.current?.();
+      publicacionSyncRef.current = null;
       concienciaRef.current?.();
       concienciaRef.current = null;
       nearbyUnsub?.();
