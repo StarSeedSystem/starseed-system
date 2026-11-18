@@ -30,6 +30,30 @@ def _leer_archivo_env(ruta: Path) -> dict[str, str]:
     return datos
 
 
+def _leer_clave_desde_archivo(nombre: str, ruta: str | Path) -> str | None:
+    """Lee una clave específica desde un archivo de entorno.
+    
+    Devuelve None si el archivo no existe, la clave no está presente, o el valor está vacío.
+    """
+    try:
+        datos = _leer_archivo_env(Path(ruta))
+        valor = datos.get(nombre)
+        if valor == "":
+            return None
+        return valor
+    except OSError:
+        return None
+
+
+def _leer_clave_multifuente(nombre: str, rutas: list[str | Path]) -> str | None:
+    """Lee una clave desde múltiples archivos en orden; devuelve la primera encontrada."""
+    for ruta in rutas:
+        valor = _leer_clave_desde_archivo(nombre, ruta)
+        if valor is not None:
+            return valor
+    return None
+
+
 _CACHE: dict[str, str] | None = None
 _CACHE_RUTA: Path | None = None
 
