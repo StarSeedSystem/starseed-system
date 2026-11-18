@@ -151,6 +151,14 @@ def es_fallo_hermes(texto) -> bool:
     return len(bajo) < 600 and any(m in bajo for m in _FALLOS_HERMES)
 
 
+def es_fallo_tiempo_agotado(texto) -> bool:
+    """PURA. La salida contiene «[tiempo agotado]» (marca de _corren al matar por timeout).
+    Igual que es_fallo_hermes: solo en salidas cortas (< 600 chars) para no confundir
+    con una respuesta larga que mencione la frase por casualidad."""
+    bajo = (texto or "").lower()
+    return len(bajo) < 600 and "[tiempo agotado]" in bajo
+
+
 def id_sesion_pausada(salida, por_defecto=None):
     """PURA. El id de sesión que nombra el aviso (`hermes sessions discard <id>`), o `por_defecto`."""
     texto = salida or ""
