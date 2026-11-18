@@ -1,0 +1,104 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116Cs",
+   "titulo": "Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield) · lo que faltó: scripts/puente/test_salud_directores.py",
+   "archivos": [
+    "scripts/puente/test_salud_directores.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116C, que ya está integrada (sha 8dc3f59bd69c). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_salud_directores.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield)\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §2.4 y §3.3. Verificado en el A1: higgsfield da «[Errno 2] No such file or directory: 'account'» (argv mal: el binario no va primero), notebooklm da «name 'subprocess' is not defined» y el escalado da «sin canal de envío». En realidad `higgsfield account` y NotebookLM funcionan. (1) Arregla las tres averías. (2) Una excepción de programación (NameError, TypeError, ImportError, FileNotFoundError del argv) cuenta como avería del sanador: no se avisa «X cayó», se marca «sin comprobar», salud_directores abre en el acto cola-auto-salud con la traza saneada y se avisa al Mando. (3) Todo aviso de caída enviado lleva después su «✓ resuelto (causa · arreglo)»; manda hoy uno para Higgsfield: falsa alarma del sanador, Higgsfield estaba bien. (4) Prueba que ejecuta cada comprobación con su constructor de argv real contra un binario falso que registra los argumentos. (5) La unidad versionada fija HOME y PATH; el despliegue retira /etc/systemd/system/starseed-sanador.service.d/path.conf.",
+   "ola": "SIN1116",
+   "adelantar": "2026-11-16 19:30 · Maggasukha (chat de producción): «arregla todo, que se autorrepare y se dirija por MetaGenesis»",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "ola": "ASW1116A",
+   "revisor_quitadas": [
+    "ASW08"
+   ],
+   "id": "ASW13-d1",
+   "titulo": "Widget nuevo: Astraura con la Protomolécula, el diseño que toca y los ajustes (parte 1 de 3)",
+   "archivos": [
+    "src/components/widgets-libres/familias/astraura-libre-proto.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Escribe primero las pruebas. En `astraura-libre.tsx` SOLO añade la palabra `export` delante de `Preguntar` (:90) y `SUGERENCIAS` (:28) y deja todo lo demás (el widget viejo sigue existiendo como estaba; tras esta tarea nada lo monta salvo sus pruebas). El archivo nuevo `astraura-libre-proto.tsx` (≤120 líneas): `AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: DashboardWidget; onUpdateSettings?: (patch: Record<string, unknown>) => void })`: envuelve en `WidgetLibre` (como :163) y, con la `clase` que da (o `useClaseForzada()`), calcula `tamanoDe(clase)`; lee el registro de chat como en el widget viejo (:135-146), usa `useEstadoAstraura` (ASW05), `useDisenoAstraura` (ASW07) y `resolverDiseno` (ASW06) con `{ tamano, tactil: esTactil(useDispositivo()), hayVoz: voz, hayConversacion: hilo.length > 0 }`, monta el diseño resultante (ASW09-12) pasándole `PropsDiseno` completo (`preguntar: <Preguntar …/>`, `botonVoz` el `Accion` de :148-153 y `sugerencias: SUGERENCIAS`) y, arriba a la derecha, el `SelectorDisenoAstraura` (ASW08) con `degradado`. El tamaño de la forma sale del alto y ancho disponibles (`Math.min(ancho, alto)` por una fracción distinta en cada diseño, tope 170). Conserva la etiqueta del widget de :164. PRUEBAS (mocks como en `familias/__tests__/familias-libres.test.tsx:238`): sin elección, `auto` en tamaño grande con conversación monta «Conversación»; la elección guardada manda; el estado del puente cambia la forma; el chat vacío dice «Aún no habéis hablado»; elegir otro diseño llama a `onUpdateSettings({ astrauraDiseno })`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 1 DE 3 (la dirección dividió ASW13: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/widgets-libres/familias/astraura-libre-proto.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ASW13",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "ASW05",
+    "ASW07",
+    "ASW09",
+    "ASW10",
+    "ASW11",
+    "ASW12"
+   ]
+  },
+  {
+   "id": "IMA21",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar y entradas nuevas montadas en el menú: Traducir y reemplazar",
+   "archivos": [
+    "src/components/traduccion/montaje-idioma.tsx",
+    "src/components/traduccion/__tests__/montaje-idioma.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `MontajeIdioma` (cliente) que, al montarse, registra con `registrarEntradaMenuTexto` las entradas de IMA17 y la nueva «Reemplazar por la traducción» (visible con `ctx.editable` y selección): traduce la selección con el MISMO traductor y motores que `traducir-texto.tsx` (importa de ahí `puedeLibreTranslate` y `nombreMotor`; no lo modifiques; el idioma destino es el del perfil como allí, vía `leer` de `preferencias.ts`), captura la selección ANTES de abrir el menú con `capturarSeleccionEditable` (IMA19) y reemplaza al terminar; si falla dice por qué y no toca el texto; muestra un aviso con «Deshacer». Respeta el modo privado (`crearTraductor({privado})`). Montaje: NO toques `app-globals.tsx` (no está en `archivos`): deja el montaje como comentario `// montar junto a <TraducirTexto /> en src/app/(app)/app-globals.tsx` al final del componente, PRUEBAS: con motores falsos reemplaza el texto de un textarea y «Deshacer» lo devuelve; si el motor falla no cambia nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA17",
+    "IMA18",
+    "IMA19",
+    "IMA20"
+   ]
+  },
+  {
+   "id": "MRI4b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa: las ofertas de internet de la red aparecen como capa y el panel vive en los ajustes del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/components/mesh/mapa-senales/ajustes-centro.tsx` (ya muestra el radar público: `describirRadarPublico`) añade, en un bloque aditivo `// MAP1116`, `PanelRedCompartida` (import dinámico) y los datos de `sugerirComparticion` con las puertas reales (`src/lib/malla/cristal/usar-cristal.ts`; si no hay puertas, el texto dice «este aparato no declara salida a internet»). En `src/lib/senales/geo/capas.ts` añade UNA capa del grupo `oferta` («Internet que ofrece la red») alimentada solo por lo que los dueños anuncian (`offersPublic` de los faros: `src/ai/astraura/mesh/signals.ts:344-379`) y por filas publicadas con medio `internet`; sin anuncios → «sin fuente: nadie lo anuncia aún». No cambies capas existentes (≤40 líneas por archivo). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo src/components/mesh/mapa-senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI4b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI3b",
+    "MRA9"
+   ]
+  },
+  {
+   "id": "SIN1116F",
+   "titulo": "Dirección de la síntesis desde el chat",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/peticiones_reglas.py",
+    "scripts/puente/test_peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/sintesis-autonoma-contexto-1116.md. §3.6. En el bot: /sintesis (la lanza ya), /sintesis estado (el hito actual y el retraso), /sintesis contexto (resumen y enlace del contexto vivo); «aprobar <n>», «rechazar <n>», «ya existe <n>» y «encarga <n>» actualizan el libro de recomendaciones, y «encarga» crea el encargo o la ola. Los «recuerda…» sobre la síntesis entran como reglas en su prompt. Botones en línea opcionales. Pruebas sin red.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116B",
+    "SIN1116E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "ASW13-d1",
+   "SIN1116Cs",
+   "SIN1116F",
+   "IMA21",
+   "MRI4b"
+  ]
+ }
+}
