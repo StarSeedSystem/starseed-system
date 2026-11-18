@@ -9,6 +9,11 @@ import type { WidgetType } from "../dashboard-types";
 // DEFAULT_MANIFEST {minW:2,minH:2} y el usuario puede encogerlo
 // hasta romperle la maquetación (Ola 305).
 // ════════════════════════════════════════════════════════════════
+//
+// NOTA: TRADUCTOR usa categoría "ia" en el manifiesto, pero
+// widget-function-style.ts (catálogo del diálogo de añadir) lo mapea
+// a "utility". Esa discrepancia se resuelve en TU25; no tocar aquí.
+// ════════════════════════════════════════════════════════════════
 
 // Lista exhaustiva de valores de WidgetType, derivada de la unión literal
 // de dashboard-types.ts. Si alguien añade un tipo nuevo y lo olvida aquí,
@@ -79,6 +84,20 @@ describe("WIDGET_MANIFEST completitud", () => {
         for (const clave of Object.keys(WIDGET_MANIFEST)) {
             expect(unicos.has(clave as WidgetType)).toBe(true);
         }
+    });
+});
+
+describe("TRADUCTOR en el manifiesto", () => {
+    it("declara su entrada con los valores acordados", () => {
+        expect(WIDGET_MANIFEST.TRADUCTOR).toEqual({
+            label: "Traductor",
+            category: "ia",
+            w: 3,
+            h: 3,
+            minW: 2,
+            minH: 2,
+            relevance: 70,
+        });
     });
 });
 
