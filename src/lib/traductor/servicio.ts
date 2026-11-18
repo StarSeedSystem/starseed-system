@@ -1,4 +1,4 @@
-import type { ParIdiomas, IdMotor } from "./tipos";
+import type { ParIdiomas, IdMotor, ResultadoTraductor } from "./tipos";
 export type { ResultadoTraductor } from "./tipos";
 import { detectarIdioma, type DeteccionIdioma } from "./detectar";
 import { motoresDeEsteTexto, type MotorConPrivacidad } from "./motores-traductor";
