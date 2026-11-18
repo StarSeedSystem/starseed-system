@@ -56,7 +56,7 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "MEMORIES", "BRAINS", "VAULTS", "DOCUMENTS", "RECENT_GALLERY",
     "CAMERA_QUICK", "AI_GENERATED",
     // ── Sexta oleada ──
-    "CLOCK_DATE", "TASKS_QUICK", "QUICK_NOTES", "AURORA_LAST", "BADGES",
+    "CLOCK_DATE", "TRADUCTOR", "TASKS_QUICK", "QUICK_NOTES", "AURORA_LAST", "BADGES",
     "NETWORK_FEED_MINI",
     // ── Protomolécula (ola 1010P) ──
     "PROTOMOLECULA",

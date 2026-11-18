@@ -119,7 +119,8 @@ export type WidgetType =
     // ── Vídeo con HyperFrames (ola 1018H) ──
     | 'ESTUDIO_VIDEO'        // Creatividad — estudio de vídeo (capas, línea de tiempo y vista previa con el servicio local)
     // ── OpenUI (ola 1104R) ──
-    | 'RESPUESTA_VIVA';      // Respuestas — widget «Respuesta viva» para escritorios y páginas de publicación
+    | 'RESPUESTA_VIVA'      // Respuestas — widget «Respuesta viva» para escritorios y páginas de publicación
+    | 'TRADUCTOR';          // Utilidades — traductor de textos (3×3, par de idiomas, motor, historial)
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).

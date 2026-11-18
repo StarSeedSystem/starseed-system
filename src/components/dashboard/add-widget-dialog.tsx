@@ -11,7 +11,7 @@ import {
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
     Music, Waves, AudioWaveform, Satellite, SlidersHorizontal, Orbit,
     CalendarDays, Users, Globe2, BookMarked, Vault, FolderOpen,
-    Clock, StickyNote, Award, Layers, Flame,
+    Clock, StickyNote, Award, Layers, Flame, Languages,
     type LucideIcon
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -435,6 +435,13 @@ export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         icon: <Clock className="h-5 w-5 text-amber-400" />,
         primaryCategory: 'utilidades', secondaryCategories: ['sistema'],
         tags: ['reloj', 'hora', 'fecha', 'analógico', 'zona horaria', 'tiempo'], isPopular: true,
+    },
+    {
+        type: 'TRADUCTOR', title: 'Traductor',
+        description: 'Traduce textos entre idiomas con motor local o en la nube, aviso de privacidad y lectura en voz alta.',
+        icon: <Languages className="h-5 w-5 text-amber-400" />,
+        primaryCategory: 'utilidades', secondaryCategories: ['sistema', 'ia'],
+        tags: ['traductor', 'idiomas', 'traducción', 'voz', 'privacidad'], isPopular: true,
     },
     {
         type: 'TASKS_QUICK', title: 'Tareas',
