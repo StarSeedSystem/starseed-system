@@ -124,7 +124,13 @@ _PAUSA_DEBILES = (
 _PAUSA_MAX_CHARS = 1500
 _ID_SESION = re.compile(r"hermes\s+sessions\s+discard\s+([A-Za-z0-9][A-Za-z0-9_\-]*)", re.IGNORECASE)
 _ID_SESION_SUELTO = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]+)\b")
-_FALLOS_HERMES = ("kept failing over", "every provider in the fallback chain", "invalid api key")
+_FALLOS_HERMES = (
+    "kept failing over",
+    "every provider in the fallback chain",
+    "invalid api key",
+    "gateway connection failed",
+    "no local fallback",
+)
 
 
 def es_pausa_hermes(rc, salida) -> bool:
