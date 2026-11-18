@@ -191,7 +191,6 @@ adiós,Adiós`;
 
     it("líneas vacías se ignoran", () => {
         const csv = `clave,traducción
-
 hola,Hola
 
 mundo,Mundo`;
@@ -209,5 +208,74 @@ mundo,Mundo`;
         const resultado = desdeCsv(csv, ",");
         expect(resultado.entradas.hola).toBe("Hola");
         expect(resultado.entradas.mundo).toBe("Mundo");
+    });
+
+    it("descarta filas con clave vacía y valor presente", () => {
+        const csv = `clave,traducción
+,valor sin clave
+hola,Hola`;
+
+        const resultado = desdeCsv(csv, ",");
+        expect(resultado.entradas.hola).toBe("Hola");
+        expect(resultado.descartadas.some(d => d.motivo.includes("clave vacía") || d.motivo.includes("clave vacia"))).toBe(true);
+    });
+
+    it("maneja comillas escapadas seguidas de separador sin espacio", () => {
+        const csv = `clave,traducción
+"valor \"con comillas",siguiente
+normal,valor`;
+
+        const resultado = desdeCsv(csv, ",");
+        expect(resultado.entradas["valor \"con comillas"]).toBe("siguiente");
+        expect(resultado.entradas.normal).toBe("valor");
+    });
+
+    it("descarta valores vacíos (string vacío)", () => {
+        const csv = `clave,traducción
+hola,
+mundo,Mundo`;
+
+        const resultado = desdeCsv(csv, ",");
+        expect(resultado.entradas.mundo).toBe("Mundo");
+        expect(resultado.descartadas.some(d => d.motivo.includes("vacío") || d.motivo.includes("vacio"))).toBe(true);
+    });
+
+    it("TSV con BOM inicial y tabuladores", () => {
+        const tsvConBom = "\uFEFFclave\ttraducción\nhola\tHola";
+        const resultado = desdeCsv(tsvConBom, "\t");
+        expect(resultado.entradas.hola).toBe("Hola");
+    });
+
+    it("CSV con cabecera 'key' en minúsculas", () => {
+        const csv = `key,value
+hola,Hola`;
+        const resultado = desdeCsv(csv, ",");
+        expect(resultado.entradas.hola).toBe("Hola");
+    });
+
+    it("JSON anidado con 4+ niveles se aplana correctamente", () => {
+        const json = `{
+            "a": {
+                "b": {
+                    "c": {
+                        "d": "profundo"
+                    }
+                }
+            }
+        }`;
+        const resultado = desdeJsonAnidado(json);
+        expect(resultado.entradas["a.b.c.d"]).toBe("profundo");
+    });
+
+    it("JSON anidado con arrays descarta el array y procesa lo demás", () => {
+        const json = `{
+            "valido": "texto",
+            "conArray": ["a", "b"],
+            "anidado": { "tambien": "ok" }
+        }`;
+        const resultado = desdeJsonAnidado(json);
+        expect(resultado.entradas.valido).toBe("texto");
+        expect(resultado.entradas["anidado.tambien"]).toBe("ok");
+        expect(resultado.descartadas.some(d => d.motivo.includes("no es texto"))).toBe(true);
     });
 });
