@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "DIR1118R",
+   "ola": "DIR1118",
+   "titulo": "Director presidente: un error de conexión de Hermes no se publica como respuesta",
+   "archivos": [
+    "scripts/puente/motores_director.py",
+    "scripts/puente/test_motores_director_dir1118r.py"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 a las 05:46 el Director presidente publicó como respuesta el texto «Error: Gateway connection failed; no local fallback» que devolvió `hermes -z` y marcó la entrega como «respondido». En scripts/puente/motores_director.py, la tupla _FALLOS_HERMES (hoy: \"kept failing over\", \"every provider in the fallback chain\", \"invalid api key\") decide con es_fallo_hermes(texto) si lo que devolvió Hermes es un fallo y no una respuesta. Tarea: añade \"gateway connection failed\" y \"no local fallback\" (en minúsculas, como las demás) para que ese texto cuente como fallo y el presidente pruebe el siguiente motor o deje el mensaje en cola. No cambies nada más. Escribe scripts/puente/test_motores_director_dir1118r.py (unittest, sin red): es_fallo_hermes devuelve True para «Error: Gateway connection failed; no local fallback» y para «no local fallback», y False para una respuesta normal de dos líneas. Verificación: python3 -m pytest -q scripts/puente/test_motores_director_dir1118r.py scripts/puente/test_cartero_director.py. Español neutro en comentarios."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "DIR1118R"
+  ]
+ }
+}
