@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
@@ -602,6 +603,10 @@ class SanadorSesiones:
     def listar(self) -> list[str]:
         return list(self._sesiones.keys())
 
+    def _es_bug_sanador(self, exc: Exception) -> bool:
+        """Detecta si una excepción es un bug del sanador (excepción de programación)."""
+        return isinstance(exc, (NameError, TypeError, ImportError, FileNotFoundError))
+
     def comprobar(self, nombre: str) -> dict[str, Any]:
         """Ejecuta la comprobación de una sesión."""
         if nombre not in self._sesiones:
@@ -611,6 +616,8 @@ class SanadorSesiones:
         except Exception as e:
             if _es_fallo_red(e):
                 return {"ok": False, "motivo": f"red: {e}", "es_red": True}
+            if self._es_bug_sanador(e):
+                return {"ok": False, "motivo": f"error en comprobación: {e}", "es_bug_sanador": True}
             return {"ok": False, "motivo": f"error en comprobación: {e}"}
 
     def reparar(self, nombre: str, enviar_fn: EnviarFn | None = None) -> dict[str, Any]:

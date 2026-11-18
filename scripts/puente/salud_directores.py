@@ -192,6 +192,24 @@ class SaludDirectores:
             return {"accion": "viva", "fallos_seguidos": 0}
         return self._incidente(estado, sesion, s, comprobacion, reparacion, registros)
 
+    def _es_bug_sanador(self, comprobacion: dict[str, Any]) -> bool:
+        """Detecta si la comprobación indica un bug del sanador (excepción de programación)."""
+        if comprobacion.get("es_bug_sanador"):
+            return True
+        motivo = str(comprobacion.get("motivo", ""))
+        # Heurística: buscar patrones de excepciones de programación en el motivo
+        patrones_bug = [
+            "name 'subprocess' is not defined",
+            "cannot import name",
+            "'NoneType' object is not subscriptable",
+            "[Errno 2] No such file or directory: 'account'",
+            "NameError",
+            "ImportError",
+            "TypeError",
+            "FileNotFoundError",
+        ]
+        return any(p in motivo for p in patrones_bug)
+
     def _incidente(self, estado: dict[str, Any], sesion: str, s: dict[str, Any],
                    comprobacion: dict[str, Any], reparacion: dict[str, Any] | None,
                    registros: str | list[str]) -> dict[str, Any]:
@@ -204,11 +222,18 @@ class SaludDirectores:
         if ya.get("tarea_id"):
             self._guardar(estado)
             return {"accion": "ya_abierta", "id": ya["tarea_id"], "firma": fir}
-        causa = ""
-        if fir not in estado["firmas"]:
+        
+        # Detectar bug del sanador (excepción de programación)
+        if self._es_bug_sanador(comprobacion):
+            causa = "bug-sanador"
+            s["estado_bug"] = "sin_comprobar"
+        elif fir not in estado["firmas"]:
             causa = "firma-nueva"
         elif int(s.get("fallos_seguidos", 0)) >= MAX_FALLOS_SESION:
             causa = "dos-seguidas"
+        else:
+            causa = ""
+        
         if not causa:
             self._guardar(estado)
             return {"accion": "espera", "fallos_seguidos": s["fallos_seguidos"], "firma": fir}
@@ -221,17 +246,31 @@ class SaludDirectores:
         ahora = self.ahora_fn()
         tid = "SAL%s-%s" % (ahora.strftime("%m%d"), fir[:6].upper())
         reg = recortar(registros)
-        prompt = (
-            "Tarea automática de salud (%s, causa %s): la sesión «%s» falló su comprobación y "
-            "las recetas del sanador no la levantaron. Firma de error: %s. Mensaje normalizado: "
-            "«%s». Diagnostica la CAUSA y parchea; no toques archivos ajenos a la sesión; no "
-            "muestres claves (usa nombres de variables de entorno). Archivos implicados: %s. "
-            "Registros recortados y sin secretos:\n```\n%s\n```\nPruebas que deben pasar: "
-            "python3 scripts/puente/test_salud_directores.py y python3 "
-            "scripts/puente/test_sanador_sesiones.py."
-            % (ahora.strftime("%Y-%m-%d %H:%M"), causa, sesion, fir, normalizar(mensaje),
-               ", ".join(ARCHIVOS_SESION), "\n".join(reg) or "(sin registros)")
-        )
+        if causa == "bug-sanador":
+            prompt = (
+                "Tarea automática de salud (%s, causa %s): la sesión «%s» falló su comprobación por un "
+                "BUG DEL SANADOR (excepción de programación: NameError, ImportError, TypeError o "
+                "FileNotFoundError del argv). NO ES UNA CAÍDA DEL SERVICIO. Firma de error: %s. "
+                "Mensaje normalizado: «%s». Diagnostica el bug en el sanador y corrige el código; "
+                "no toques archivos ajenos a la sesión; no muestres claves (usa nombres de variables "
+                "de entorno). Archivos implicados: %s. Registros recortados y sin secretos:\n```\n%s\n```\n"
+                "Pruebas que deben pasar: python3 scripts/puente/test_salud_directores.py y python3 "
+                "scripts/puente/test_sanador_sesiones.py."
+                % (ahora.strftime("%Y-%m-%d %H:%M"), causa, sesion, fir, normalizar(mensaje),
+                   ", ".join(ARCHIVOS_SESION), "\n".join(reg) or "(sin registros)")
+            )
+        else:
+            prompt = (
+                "Tarea automática de salud (%s, causa %s): la sesión «%s» falló su comprobación y "
+                "las recetas del sanador no la levantaron. Firma de error: %s. Mensaje normalizado: "
+                "«%s». Diagnostica la CAUSA y parchea; no toques archivos ajenos a la sesión; no "
+                "muestres claves (usa nombres de variables de entorno). Archivos implicados: %s. "
+                "Registros recortados y sin secretos:\n```\n%s\n```\nPruebas que deben pasar: "
+                "python3 scripts/puente/test_salud_directores.py y python3 "
+                "scripts/puente/test_sanador_sesiones.py."
+                % (ahora.strftime("%Y-%m-%d %H:%M"), causa, sesion, fir, normalizar(mensaje),
+                   ", ".join(ARCHIVOS_SESION), "\n".join(reg) or "(sin registros)")
+            )
         tarea = {
             "id": tid, "ola": OLA_SALUD, "titulo": "Reparar sesión %s: %s" % (sesion, normalizar(mensaje)[:70]),
             "archivos": list(ARCHIVOS_SESION), "depende": [], "origen": "salud-directores",
