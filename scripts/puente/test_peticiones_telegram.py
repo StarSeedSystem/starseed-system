@@ -202,6 +202,110 @@ def test_interpretar_valida_y_limpia_plan_modelo():
     assert tipos == ["infographic", "audio", "video", "slide-deck"]
 
 
+# ── PET1116B: nuevos tipos de petición y URLs como fuentes ──
+
+def test_por_reglas_encargo():
+    """por_reglas detecta 'encargo' por palabras clave."""
+    msg = "Encargo: desarrolla el sistema de diseño con 3 frentes"
+    plan = por_reglas(msg)
+    assert plan["tipo"] == "encargo"
+    assert plan["fuente"] == "cuaderno"
+    assert plan["artefactos"] == []
+
+
+def test_por_reglas_alcance_con_youtube():
+    """por_reglas detecta 'alcance' y extrae URL de YouTube como fuente."""
+    msg = "Alcance: analiza el canal https://youtu.be/kM7lnhS_uE8 y redacta mensaje de contacto"
+    plan = por_reglas(msg)
+    assert plan["tipo"] == "alcance"
+    assert plan["fuente"] == "youtube"
+    assert "https://youtu.be/kM7lnhS_uE8" in plan["urls"]["youtube"]
+
+
+def test_por_reglas_descartar():
+    """por_reglas detecta 'descartar' por palabras clave."""
+    msg = "Descarta el tema del rallador del cuaderno de producción"
+    plan = por_reglas(msg)
+    assert plan["tipo"] == "descartar"
+    assert plan["fuente"] == "cuaderno"
+
+
+def test_por_reglas_notebooklm_con_youtube():
+    """por_reglas detecta notebooklm con URL de YouTube como fuente."""
+    msg = "Infografía de este enlace: https://youtu.be/kM7lnhS_uE8"
+    plan = por_reglas(msg)
+    assert plan["tipo"] == "notebooklm"
+    assert plan["fuente"] == "youtube"
+    assert "https://youtu.be/kM7lnhS_uE8" in plan["urls"]["youtube"]
+    assert plan["artefactos"] == [{"tipo": "infographic", "indicaciones": ""}]
+
+
+def test_por_reglas_drive_url():
+    """por_reglas extrae ID de Drive de la URL."""
+    msg = "Presentación de este Doc: https://drive.google.com/file/d/1abcDEF234ghiJKL567mnoPQ/view"
+    plan = por_reglas(msg)
+    assert plan["fuente"] == "drive"
+    assert plan["drive_id"] == "1abcDEF234ghiJKL567mnoPQ"
+    assert "1abcDEF234ghiJKL567mnoPQ" in plan["urls"]["drive"]
+
+
+def test_por_reglas_web_url():
+    """por_reglas extrae URLs web que no son YouTube ni Drive."""
+    msg = "Analiza este artículo: https://example.com/articulo"
+    plan = por_reglas(msg)
+    assert plan["fuente"] == "cuaderno"
+    assert "https://example.com/articulo" in plan["urls"]["web"]
+
+
+def test_validar_plan_nuevos_tipos():
+    """validar_plan acepta los nuevos tipos de petición."""
+    from peticiones_reglas import validar_plan
+    
+    for tipo in ("encargo", "alcance", "descartar", "notebooklm", "respuesta"):
+        ok, err = validar_plan({"tipo": tipo, "fuente": "cuaderno", "artefactos": []})
+        assert ok, f"Tipo {tipo} debería ser válido: {err}"
+    
+    ok, err = validar_plan({"tipo": "invalido", "fuente": "cuaderno", "artefactos": []})
+    assert not ok
+    assert "inválido" in err
+
+
+def test_interpretar_devuelve_tipo_encargo():
+    """interpretar devuelve tipo 'encargo' cuando el modelo lo indica."""
+    def mock_llm(mensajes, max_tokens=600):
+        return json.dumps({
+            "tipo": "encargo",
+            "fuente": "cuaderno",
+            "artefactos": [],
+            "resumen": "encargo de prueba"
+        }), "modelo-test"
+    
+    with patch("peticiones_telegram.llm", mock_llm):
+        plan = interpretar("Encargo: desarrolla el sistema de diseño")
+    
+    assert plan["tipo"] == "encargo"
+    assert plan["fuente"] == "cuaderno"
+
+
+def test_interpretar_devuelve_tipo_alcance():
+    """interpretar devuelve tipo 'alcance' con URLs de YouTube."""
+    def mock_llm(mensajes, max_tokens=600):
+        return json.dumps({
+            "tipo": "alcance",
+            "fuente": "youtube",
+            "urls": {"youtube": ["https://youtu.be/test123"], "drive": [], "web": []},
+            "artefactos": [],
+            "resumen": "alcance de prueba"
+        }), "modelo-test"
+    
+    with patch("peticiones_telegram.llm", mock_llm):
+        plan = interpretar("Analiza este canal https://youtu.be/test123")
+    
+    assert plan["tipo"] == "alcance"
+    assert plan["fuente"] == "youtube"
+    assert "https://youtu.be/test123" in plan["urls"]["youtube"]
+
+
 def test_cola_durable_sobrevive_reinicio(tmp_path):
     """Cola se guarda en disco y se recupera tras reinicio (simulado)."""
     original_cola = mod.COLA

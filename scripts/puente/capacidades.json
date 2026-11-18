@@ -1,0 +1,132 @@
+{
+ "version": 1,
+ "timestamp": "2026-11-18T06:43:25.130770",
+ "notebooklm": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "cuadernos": true,
+  "investigacion_profunda": false,
+  "formatos": []
+ },
+ "drive": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "archivos": false,
+  "carpetas": false
+ },
+ "docs": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "documentos": false
+ },
+ "youtube_notebooklm": {
+  "disponible": false,
+  "estado": "requiere_notebooklm",
+  "detalle": "NotebookLM caído",
+  "transcripcion": false,
+  "add_source": false
+ },
+ "higgsfield": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "solo_propuesta": true,
+  "modelos": []
+ },
+ "agentes_alcance": {
+  "disponible": true,
+  "estado": "vivo",
+  "detalle": "ALC1113 - investigación canal, Codex, red de resonancia",
+  "funciones": [
+   "investigar_canal_youtube",
+   "investigacion_profunda",
+   "codex",
+   "red_resonancia",
+   "generar_informe",
+   "ficha_contacto",
+   "mensaje_pendiente_aprobacion"
+  ]
+ },
+ "mac_blender": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "solo_con_mac_viva": true
+ },
+ "mac_hyperframes": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "solo_con_mac_viva": true
+ },
+ "enjambre_olas": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "para_codigo": true,
+  "puertas": [
+   "alcance",
+   "cableado",
+   "tsc",
+   "vitest",
+   "revision",
+   "integracion"
+  ]
+ },
+ "mando": {
+  "disponible": false,
+  "estado": "desconocido",
+  "detalle": "",
+  "genesis_local": false,
+  "puente_ides": false
+ },
+ "modelos_llm": {
+  "freellmapi": {
+   "disponible": false,
+   "modelos": [],
+   "ultimo_exito": null
+  },
+  "nim": {
+   "disponible": false,
+   "modelos": [
+    "minimax-m3.1-flash",
+    "nemotron-3.5-lightning"
+   ],
+   "max_tokens_alto": true,
+   "ultimo_exito": null
+  },
+  "openrouter_free": {
+   "disponible": false,
+   "modelos": [
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+    "google/gemma-2-9b-it:free",
+    "qwen/qwen-2.5-7b-instruct:free"
+   ],
+   "ultimo_exito": null
+  },
+  "hermes": {
+   "disponible": false,
+   "modelos": [
+    "hermes"
+   ],
+   "pasarela_mac": true,
+   "ultimo_exito": null
+  },
+  "fallos_consecutivos": {
+   "minimax-m3.1-flash": 2,
+   "nemotron-3.5-lightning": 2,
+   "openrouter_free": 2,
+   "hermes": 2
+  },
+  "orden_rutas": [
+   "freellmapi",
+   "nim",
+   "openrouter_free",
+   "hermes"
+  ]
+ }
+}

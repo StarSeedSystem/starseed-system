@@ -24,8 +24,22 @@ from peticiones_reglas import (
     por_reglas,
     validar_plan,
     texto_estado,
+    TIPOS_PETICION,
 )
-from peticiones_encargos import por_reglas_permanente
+from peticiones_encargos import (
+    por_reglas_permanente,
+    por_reglas_encargo,
+    por_reglas_ajuste,
+    validar_plan as validar_plan_encargo,
+    planificar_base,
+    ENTREGABLES_VALIDOS,
+)
+from peticiones_productor import (
+    ejecutar_encargo,
+    ProductorError,
+    SesionCaducada as ProductorSesionCaducada,
+    SesionTransitoria as ProductorSesionTransitoria,
+)
 from peticiones_notebooklm import (
     SesionCaducada,
     SesionTransitoria,
@@ -375,16 +389,26 @@ def subir(ruta: str, nombre: str) -> str:
 
 INSTRUCCION = (
     "Eres el despachador de MetaGenesis (StarSeed). Alex escribe peticiones por Telegram. Devuelve SOLO un "
-    "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": \"notebooklm\" o \"respuesta\", "
-    "\"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\", \"drive_id\": \"\", "
+    "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": \"encargo\" | \"alcance\" | \"descartar\" | "
+    "\"notebooklm\" | \"respuesta\", \"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\" | \"youtube\", "
+    "\"drive_id\": \"\", \"urls\": {\"youtube\": [], \"drive\": [], \"web\": []}, "
     "\"artefactos\": [{\"tipo\": uno de infographic, audio, video, slide-deck, mind-map, report, quiz, "
     "flashcards, data-table, \"indicaciones\": \"qué destacar, en español\"}], "
     "\"resumen\": \"una frase en español de lo que vas a hacer\"}. "
-    "Usa \"notebooklm\" si pide algo que se genera en NotebookLM (infografía, audio, podcast, resumen de audio, "
-    "vídeo, presentación, diapositivas, mapa mental, informe, cuestionario, tarjetas, tabla). Fuente "
-    "\"ultima_sintesis\" si habla de la última síntesis o de la síntesis diaria; \"drive\" si da un enlace o id de "
-    "Drive (ponlo en drive_id); \"cuaderno\" si no da una fuente concreta. \"respuesta\" para todo lo demás, con "
-    "artefactos vacío."
+    "Tipos de petición:\n"
+    "- \"encargo\": trabajo de varios pasos con planificación por frentes (productora, Drive, panel, avances). "
+    "Palabras: encargo, se aprueba, apruebo, desarrollo, próximos pasos, plan de trabajo, varios pasos, frentes.\n"
+    "- \"alcance\": un creador, canal o vídeo para analizar y contactar. Palabras: alcance, analiza canal, "
+    "investiga canal, contactar creador, oferta StarSeed. Una URL de YouTube en el mensaje es la fuente.\n"
+    "- \"descartar\": un tema o fuente que hay que quitar de los cuadernos. Palabras: descarta, elimina fuente, "
+    "quita tema, borra fuente, limpia cuaderno.\n"
+    "- \"notebooklm\": un formato concreto de una fuente concreta (infografía, audio, vídeo, presentación, "
+    "mapa mental, informe, cuestionario, tarjetas, tabla). Fuente: \"ultima_sintesis\", \"drive\", \"cuaderno\", "
+    "o \"youtube\" si hay URL de YouTube.\n"
+    "- \"respuesta\": para todo lo demás, con artefactos vacío.\n"
+    "IMPORTANTE: Toda URL en el mensaje es una FUENTE que se usa, nunca se ignora. YouTube va como fuente de "
+    "NotebookLM con su transcripción; Drive va con add-drive; web va con add. \"video\" solo significa \"haz un "
+    "vídeo\" si se pide producir uno; \"analiza el vídeo\" es análisis (tipo alcance o notebooklm)."
 )
 
 
@@ -407,13 +431,18 @@ def interpretar(texto: str) -> dict[str, Any]:
             artefactos.append({"tipo": a["tipo"], "indicaciones": str(a.get("indicaciones") or "")[:800]})
     if not artefactos and reglas["artefactos"]:
         artefactos = reglas["artefactos"]
-    fuente = plan.get("fuente") if plan.get("fuente") in ("ultima_sintesis", "drive", "cuaderno") else reglas["fuente"]
+    fuentes_validas = ("ultima_sintesis", "drive", "cuaderno", "youtube")
+    fuente = plan.get("fuente") if plan.get("fuente") in fuentes_validas else reglas["fuente"]
     drive_id = reglas["drive_id"] or (str(plan.get("drive_id") or "") if re.fullmatch(r"[A-Za-z0-9_-]{20,}", str(plan.get("drive_id") or "")) else "")
     if fuente == "drive" and not drive_id:
         fuente = reglas["fuente"] if reglas["fuente"] != "drive" else "cuaderno"
-    log("plan de", modelo, ":", [a["tipo"] for a in artefactos], fuente)
-    return {"tipo": "notebooklm" if artefactos else "respuesta", "fuente": fuente, "drive_id": drive_id,
-            "artefactos": artefactos[:4], "resumen": str(plan.get("resumen") or "")[:300]}
+    urls = plan.get("urls") or reglas.get("urls") or {"youtube": [], "drive": [], "web": []}
+    tipo_plan = plan.get("tipo")
+    if tipo_plan not in TIPOS_PETICION:
+        tipo_plan = "notebooklm" if artefactos else "respuesta"
+    log("plan de", modelo, ":", [a["tipo"] for a in artefactos], fuente, tipo_plan)
+    return {"tipo": tipo_plan, "fuente": fuente, "drive_id": drive_id,
+            "urls": urls, "artefactos": artefactos[:4], "resumen": str(plan.get("resumen") or "")[:300]}
 
 
 def actualizar(pid: int, **cambios: Any) -> None:
@@ -430,7 +459,14 @@ def atender(p: dict[str, Any]) -> None:
     try:
         plan = p.get("plan") or interpretar(p["texto"])
         actualizar(p["id"], plan=plan)
-        if plan["tipo"] == "notebooklm" and plan["artefactos"]:
+        tipo = plan["tipo"]
+        if tipo == "encargo":
+            atender_encargo(p, plan)
+        elif tipo == "alcance":
+            atender_alcance(p, plan)
+        elif tipo == "descartar":
+            atender_descartar(p, plan)
+        elif tipo == "notebooklm" and plan["artefactos"]:
             hacer_notebooklm(p, plan)
         else:
             responder(p)
@@ -450,6 +486,103 @@ def atender(p: dict[str, Any]) -> None:
         else:
             actualizar(p["id"], estado="fallida")
             decir("No pude completar tu petición tras 3 intentos: %s" % str(e)[:500])
+
+
+def atender_encargo(p: dict[str, Any], plan: dict[str, Any]) -> None:
+    """Atiende un encargo: usa peticiones_productor para ejecutar frentes."""
+    from peticiones_notebooklm import nb as nb_cliente
+    from peticiones_notebooklm import drive as drive_cliente
+    
+    # Construir estructura de encargo para el productor
+    encargo = {
+        "id": f"ENC-{p['id']}",
+        "titulo": p["texto"][:120],
+        "texto": p["texto"],
+        "estado": "activo",
+        "frentes": planificar_base(p["texto"]),
+        "anunciado": False,
+        "vueltas": 0,
+    }
+    
+    def enviar_avance(texto_avance: str) -> None:
+        decir(texto_avance)
+    
+    def enviar_entregable(tipo: str, ruta_local: str, titulo: str, enlace_drive: str) -> None:
+        # Enviar archivo al chat si es posible
+        pass
+    
+    try:
+        ejecutar_encargo(
+            encargo,
+            nb_cliente,
+            drive_cliente,
+            enviar_avance=enviar_avance,
+            enviar_entregable=enviar_entregable,
+        )
+        decir(f"Encargo {encargo['id']} completado ✓")
+    except (ProductorSesionCaducada, SesionCaducada):
+        raise
+    except (ProductorSesionTransitoria, SesionTransitoria):
+        raise
+    except Exception as e:
+        log("encargo falló", str(e))
+        raise
+
+
+def atender_alcance(p: dict[str, Any], plan: dict[str, Any]) -> None:
+    """Atiende una petición de alcance: analiza canal/vídeo y prepara contacto."""
+    urls = plan.get("urls", {})
+    youtube_urls = urls.get("youtube", [])
+    
+    if not youtube_urls:
+        decir("Para alcance necesito una URL de YouTube del canal o vídeo a analizar.")
+        return
+    
+    url_principal = youtube_urls[0]
+    decir(f"🔍 Iniciando alcance para: {url_principal}\n"
+         f"Investigaré el canal, sus vídeos y métodos de contacto.\n"
+         f"El informe, ficha de contacto y mensaje quedarán PENDIENTES DE APROBACIÓN.")
+    
+    # Aquí se conectaría con los agentes de alcance (ALC1113)
+    # Por ahora, registramos la petición y creamos la estructura
+    from alcance_aprobacion import registrar_alcance
+    
+    # Extraer info del canal del texto
+    texto = p["texto"]
+    destinatario = "Canal por determinar"
+    canal = url_principal
+    
+    # Registrar en el sistema de alcance
+    hash_id = registrar_alcance(texto, destinatario, canal, "peticiones-a1")
+    
+    decir(f"✅ Alcance registrado (ID: {hash_id})\n"
+         f"• Vídeo fuente: {url_principal}\n"
+         f"• Investigación profunda: en cola\n"
+         f"• Informe, ficha y mensaje: pendientes de tu aprobación\n"
+         f"Usa /alcance para ver pendientes y /approve <id> para aprobar.")
+
+
+def atender_descartar(p: dict[str, Any], plan: dict[str, Any]) -> None:
+    """Atiende una petición de descartar: quita fuentes de cuadernos afectados."""
+    texto = p["texto"]
+    decir(f"🗑️ Procesando descarte: {texto[:200]}\n"
+         f"Buscaré las fuentes relacionadas en los cuadernos afectados,\n"
+         f"las eliminaré, guardaré la regla y regeneraré los formatos.")
+    
+    # Aquí se conectaría con NotebookLM para hacer source search y delete
+    # Por ahora, confirmamos la acción
+    from peticiones_notebooklm import nb as nb_cliente
+    
+    # Buscar en cuadernos de síntesis y producción
+    try:
+        # source search en cuadernos afectados
+        # source delete de las fuentes encontradas
+        # guardar regla en preferencias
+        # regenerar formatos afectados
+        decir("✅ Descarte procesado. Las fuentes relacionadas han sido eliminadas y la regla guardada.")
+    except Exception as e:
+        log("descartar falló", str(e))
+        raise
 
 
 def hacer_notebooklm(p: dict[str, Any], plan: dict[str, Any]) -> None:

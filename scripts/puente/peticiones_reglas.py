@@ -25,6 +25,9 @@ INDICACIONES: dict[str, str] = {
              "accionables para la producción audiovisual de StarSeed.",
 }
 
+# Tipos de petición de alto nivel (no son artefactos de NotebookLM)
+TIPOS_PETICION: tuple[str, ...] = ("encargo", "alcance", "descartar", "notebooklm", "respuesta")
+
 CLAVES_TIPO: list[tuple[str, str]] = [
     ("infographic", r"infogr[aá]f"),
     ("audio", r"\baudio|podcast"),
@@ -37,12 +40,23 @@ CLAVES_TIPO: list[tuple[str, str]] = [
     ("data-table", r"tabla de datos"),
 ]
 
+# Palabras clave para detectar tipos de petición
+CLAVES_PETICION: list[tuple[str, str]] = [
+    ("encargo", r"encargo|se aprueba|apruebo|desarroll|pr[oó]ximos pasos|plan de trabajo|varios pasos|frentes"),
+    ("alcance", r"alcance|analiza.*canal|investiga.*canal|contactar.*creador|contactar.*canal|oferta.*starseed"),
+    ("descartar", r"descartar|descarta|elimina.*fuente|quita.*tema|borra.*fuente|limpia.*cuaderno"),
+    ("notebooklm", r"infogr[aá]f|audio|podcast|\bv[ií]deo\b|presentaci[oó]n|diapositiva|slides|mapa mental|\binforme\b|\breporte\b|cuestionario|\bquiz|tarjetas|flashcards|tabla de datos"),
+]
+
 AYUDA = (
     "Soy MetaGenesis desde el A1 (funciono sin la Mac y sin Claude).\n"
     "Pídeme en lenguaje normal, por ejemplo:\n"
     "• «Infografía y audio tipo podcast de la última síntesis»\n"
     "• «Mapa mental del cuaderno de producción»\n"
     "• «Presentación de este Doc: <enlace de Drive>»\n"
+    "• «Encargo: desarrolla el sistema de diseño con 3 frentes»\n"
+    "• «Alcance: analiza el canal @NickSaraev y redacta mensaje de contacto»\n"
+    "• «Descarta: el tema del rallador de la síntesis del 16»\n"
     "• Cualquier pregunta: te respondo con modelos gratuitos.\n"
     "/estado: sesión de NotebookLM y cola de peticiones."
 )
@@ -55,21 +69,70 @@ RENOVAR = (
 )
 
 
+# URLs como fuentes: YouTube, Drive, web
+URL_YOUTUBE = re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})")
+URL_DRIVE = re.compile(r"/d/([A-Za-z0-9_-]{20,})")
+URL_WEB = re.compile(r"https?://[^\s]+")
+
+
+def _extraer_urls(texto: str) -> dict[str, list[str]]:
+    """Extrae URLs del texto y las clasifica por tipo."""
+    urls = {"youtube": [], "drive": [], "web": []}
+    for m in URL_YOUTUBE.finditer(texto):
+        urls["youtube"].append(f"https://youtu.be/{m.group(1)}")
+    for m in URL_DRIVE.finditer(texto):
+        urls["drive"].append(m.group(1))
+    # URLs web que no son YouTube ni Drive
+    for m in URL_WEB.finditer(texto):
+        url = m.group(0)
+        if "youtube.com" not in url and "youtu.be" not in url and "/d/" not in url:
+            urls["web"].append(url)
+    return urls
+
+
+def _detectar_tipo_peticion(texto: str) -> str:
+    """Detecta el tipo de petición por palabras clave."""
+    t = texto.lower()
+    for tipo, patron in CLAVES_PETICION:
+        if re.search(patron, t):
+            return tipo
+    return "respuesta"
+
+
 def por_reglas(texto: str) -> dict[str, Any]:
     """Interpretación por palabras clave (sin modelo). Devuelve plan dict."""
     t = texto.lower()
+    urls = _extraer_urls(texto)
+    
+    # Detectar tipo de petición
+    tipo_peticion = _detectar_tipo_peticion(texto)
+    
+    # Artefactos NotebookLM (solo para tipo "notebooklm")
     artefactos = [{"tipo": k, "indicaciones": ""} for k, patron in CLAVES_TIPO if re.search(patron, t)]
-    m = re.search(r"/d/([A-Za-z0-9_-]{20,})", texto)
-    if m:
+    
+    # Determinar fuente principal
+    if urls["drive"]:
         fuente = "drive"
+        drive_id = urls["drive"][0]
+    elif urls["youtube"]:
+        fuente = "youtube"
+        drive_id = ""
     elif re.search(r"s[ií]ntesis", t):
         fuente = "ultima_sintesis"
+        drive_id = ""
     else:
         fuente = "cuaderno"
+        drive_id = ""
+    
+    # Para "alcance", la URL de YouTube es la fuente principal
+    if tipo_peticion == "alcance" and urls["youtube"]:
+        fuente = "youtube"
+    
     return {
-        "tipo": "notebooklm" if artefactos else "respuesta",
+        "tipo": tipo_peticion,
         "fuente": fuente,
-        "drive_id": m.group(1) if m else "",
+        "drive_id": drive_id,
+        "urls": urls,
         "artefactos": artefactos,
         "resumen": "",
     }
@@ -79,9 +142,10 @@ def validar_plan(plan: dict[str, Any]) -> tuple[bool, str]:
     """Valida un plan del modelo. Devuelve (ok, error_msg)."""
     if not isinstance(plan, dict):
         return False, "plan no es un dict"
-    if plan.get("tipo") not in ("notebooklm", "respuesta"):
+    if plan.get("tipo") not in TIPOS_PETICION:
         return False, f"tipo de plan inválido: {plan.get('tipo')}"
-    if plan.get("fuente") not in ("ultima_sintesis", "drive", "cuaderno"):
+    fuentes_validas = ("ultima_sintesis", "drive", "cuaderno", "youtube")
+    if plan.get("fuente") not in fuentes_validas:
         return False, f"fuente inválida: {plan.get('fuente')}"
     if plan["fuente"] == "drive" and not plan.get("drive_id"):
         return False, "fuente drive requiere drive_id"
