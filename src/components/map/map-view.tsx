@@ -414,13 +414,27 @@ export function MapView({ className, extension }: { className?: string; extensio
         if (!ready || !L || !map) return;
         const def = BASE_LAYER_BY_ID[baseId] ?? BASE_LAYERS[0];
         try {
-            if (baseLayerRef.current) map.removeLayer(baseLayerRef.current);
+            if (baseLayerRef.current) {
+                try { baseLayerRef.current.off(); } catch { /* noop */ }
+                map.removeLayer(baseLayerRef.current);
+            }
             const layer = L.tileLayer(def.url, {
                 attribution: def.attribution,
                 maxZoom: def.maxZoom,
                 zIndex: 1, // base SIEMPRE debajo de las superposiciones de clima
                 ...(def.subdomains ? { subdomains: def.subdomains } : {}),
             });
+            // (AUD1117) La extensión sabe si la base geográfica se pudo pintar. Al terminar la carga:
+            // «ok» si alguna tesela se pintó; «fallo» solo si NINGUNA cargó y hubo errores (sin red o
+            // teselas caídas). Una tesela suelta que falle no convierte el mapa en un esquema.
+            const avisar = extRef.current?.onBaseEstado;
+            let errores = 0;
+            let cargadas = 0;
+            layer.on("loading", () => { errores = 0; cargadas = 0; avisar?.("cargando"); });
+            layer.on("tileerror", () => { errores += 1; });
+            layer.on("tileload", () => { cargadas += 1; });
+            layer.on("load", () => avisar?.(errores > 0 && cargadas === 0 ? "fallo" : "ok"));
+            avisar?.("cargando");
             layer.addTo(map);
             baseLayerRef.current = layer;
         } catch { /* noop */ }
