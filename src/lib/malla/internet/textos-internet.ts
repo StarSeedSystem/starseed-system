@@ -1,4 +1,4 @@
-import type { TextosInternet } from './tipos';
+import { TextosInternet } from './tipos';
 
 function formatearMbGb(mb: number): string {
   if (mb < 1000) {
@@ -8,7 +8,7 @@ function formatearMbGb(mb: number): string {
   return `${gb.toFixed(1).replace('.', ',')} GB`;
 }
 
-export const TEXTOS_INTERNET: TextosInternet = {
+export const TEXTOS_INTERNET: typeof TextosInternet = {
   bancoTitulo: 'Modo banco',
   bancoAyuda: 'Sirve para cuando el internet es limitado y se reparte una cantidad de datos entre las neuronas',
   racionDiaria: 'Ración diaria',

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from '../textos-internet';
-import type { TextosInternet } from '../tipos';
+import { TextosInternet } from '../tipos';
 
 describe('TEXTOS_INTERNET', () => {
   it('exporta un objeto con todas las claves de TextosInternet', () => {
-    const claves: (keyof TextosInternet)[] = [
+    const claves: (keyof typeof TextosInternet)[] = [
       'bancoTitulo',
       'bancoAyuda',
       'racionDiaria',
