@@ -1183,6 +1183,16 @@ def recibir(upd: dict[str, Any]) -> None:
         )
         return
     
+    # SIN1116F: Comandos de síntesis
+    if texto.startswith("/sintesis"):
+        _comando_sintesis(texto)
+        return
+    
+    # SIN1116F: Comandos de recomendaciones (aprobar, rechazar, ya existe, encarga)
+    if texto.startswith(("aprobar ", "rechazar ", "ya existe ", "encarga ")):
+        _comando_recomendacion(texto)
+        return
+    
     # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
@@ -1649,6 +1659,293 @@ def _comando_renovar(sesion: str) -> None:
             f"Intentado: {', '.join(resultado.get('recetas', [])) or 'recetas del sanador'}\n"
             f"Revisa los logs en starseed_memory_root/salud/sesiones.jsonl"
         )
+
+
+# SIN1116F: Comandos de síntesis
+def _comando_sintesis(texto: str) -> None:
+    """Maneja /sintesis, /sintesis estado, /sintesis contexto."""
+    partes = texto.split()
+    if len(partes) == 1:
+        # /sintesis - lanzar síntesis inmediatamente
+        _sintesis_lanzar()
+    elif partes[1] == "estado":
+        _sintesis_estado()
+    elif partes[1] == "contexto":
+        _sintesis_contexto()
+    else:
+        decir(
+            "Uso: /sintesis [estado|contexto]\n"
+            "  /sintesis          — Lanza la síntesis ahora\n"
+            "  /sintesis estado   — Hito actual y retraso\n"
+            "  /sintesis contexto — Resumen del paquete de hoy y enlace al contexto vivo"
+        )
+
+
+def _sintesis_lanzar() -> None:
+    """Lanza la síntesis inmediatamente ejecutando el agente."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import agente_sintesis as AS
+    except ImportError:
+        decir("❌ Agente de síntesis no disponible.")
+        return
+    
+    raiz = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    decir("🚀 Lanzando síntesis diaria...")
+    try:
+        resultado = AS.ciclo(raiz, seco=False)
+        if resultado.get("ok"):
+            if resultado.get("sintesis_path"):
+                decir(f"✅ Síntesis completada y guardada en: {resultado['sintesis_path']}")
+            else:
+                decir("✅ Ciclo de síntesis completado (sin entrega, puede ser fase de recolección/redacción).")
+        else:
+            decir(f"⚠️ Síntesis no entregada: {resultado.get('accion', 'motivo desconocido')}")
+    except Exception as e:
+        log("Error lanzando síntesis:", traceback.format_exc()[-800:])
+        decir(f"❌ Error lanzando síntesis: {str(e)[:300]}")
+
+
+def _sintesis_estado() -> None:
+    """Muestra el hito actual y el retraso de la síntesis."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import agente_sintesis as AS
+    except ImportError:
+        decir("❌ Agente de síntesis no disponible.")
+        return
+    
+    raiz = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    try:
+        estado = AS.cargar_estado(raiz)
+        fecha = estado.get("fecha")
+        fase = estado.get("fase", "recolectar")
+        entregada = estado.get("entregada", False)
+        tareas_encoladas = estado.get("tareas_encoladas", {})
+        sintesis_path = estado.get("sintesis_path")
+        puntuacion = estado.get("puntuacion")
+        
+        # Determinar hora actual en CDMX
+        try:
+            import zoneinfo
+            tz = zoneinfo.ZoneInfo(AS.ZONA)
+            from datetime import datetime, timezone
+            ahora_cdmx = datetime.now(timezone.utc).astimezone(tz)
+            hora_actual = ahora_cdmx.hour + ahora_cdmx.minute / 60.0
+            fecha_hoy = ahora_cdmx.date().isoformat()
+        except Exception:
+            from datetime import datetime, timezone
+            ahora_cdmx = datetime.now(timezone.utc)
+            hora_actual = ahora_cdmx.hour + ahora_cdmx.minute / 60.0
+            fecha_hoy = ahora_cdmx.date().isoformat()
+        
+        # Fases y horas objetivo
+        fases_info = {
+            "recolectar": {"hora": AS.HORAS_RECOLECTAR, "nombre": "Recolección (00:30)"},
+            "redactar": {"hora": AS.HORAS_REDACTAR, "nombre": "Redacción (06:30)"},
+            "entregar": {"hora": AS.HORAS_ENTREGAR, "nombre": "Entrega (07:54)"},
+        }
+        
+        fase_actual_info = fases_info.get(fase, fases_info["recolectar"])
+        hora_objetivo = fase_actual_info["hora"]
+        nombre_fase = fase_actual_info["nombre"]
+        
+        # Calcular retraso
+        retraso = ""
+        if not entregada and hora_actual > hora_objetivo:
+            minutos_retraso = int((hora_actual - hora_objetivo) * 60)
+            if minutos_retraso >= 60:
+                horas = minutos_retraso // 60
+                mins = minutos_retraso % 60
+                retraso = f" — ⚠️ RETRASADA {horas}h {mins}min (objetivo: {int(hora_objetivo):02d}:{int((hora_objetivo%1)*60):02d})"
+            else:
+                retraso = f" — ⚠️ RETRASADA {minutos_retraso}min (objetivo: {int(hora_objetivo):02d}:{int((hora_objetivo%1)*60):02d})"
+        elif not entregada:
+            minutos_falta = int((hora_objetivo - hora_actual) * 60)
+            retraso = f" — en curso (objetivo: {int(hora_objetivo):02d}:{int((hora_objetivo%1)*60):02d}, faltan {minutos_falta} min)"
+        else:
+            retraso = " — ✅ ENTREGADA"
+        
+        # Próximos hitos
+        if not entregada:
+            if fase == "recolectar":
+                proximo = "Redacción a las 06:30"
+            elif fase == "redactar":
+                proximo = "Entrega a las 07:54"
+            else:
+                proximo = "Entrega inminente"
+        else:
+            proximo = "Próxima síntesis mañana a las 00:30"
+        
+        lineas = [
+            f"📊 Estado de la síntesis diaria ({fecha_hoy})",
+            f"",
+            f"• Fase actual: {nombre_fase}{retraso}",
+            f"• Próximo hito: {proximo}",
+            f"• Tareas encoladas hoy: {tareas_encoladas.get(fecha_hoy, 0)}",
+        ]
+        
+        if sintesis_path:
+            lineas.append(f"• Última síntesis: {sintesis_path}")
+        if puntuacion is not None:
+            lineas.append(f"• Puntuación Jev: {puntuacion}/10")
+        
+        decir("\n".join(lineas))
+        
+    except Exception as e:
+        log("Error obteniendo estado de síntesis:", traceback.format_exc()[-800:])
+        decir(f"❌ Error obteniendo estado: {str(e)[:300]}")
+
+
+def _sintesis_contexto() -> None:
+    """Muestra resumen del paquete de hoy y enlace al contexto vivo."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import contexto_sintesis as CS
+    except ImportError:
+        decir("❌ Módulo de contexto de síntesis no disponible.")
+        return
+    
+    raiz = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    try:
+        from datetime import datetime, timezone
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo("America/Mexico_City")
+        hoy = datetime.now(timezone.utc).astimezone(tz).date().isoformat()
+    except Exception:
+        from datetime import datetime, timezone
+        hoy = datetime.now(timezone.utc).date().isoformat()
+    
+    try:
+        decir("📦 Generando contexto de síntesis...")
+        ctx = CS.contexto_vivo(raiz, hoy)
+        
+        fecha = ctx.get("fecha", hoy)
+        previas = ctx.get("sintesis_previas", [])
+        mananas = ctx.get("mananas", [])
+        resumen_actividad = ctx.get("resumen_actividad", {})
+        imaginacion = ctx.get("imaginacion", [])
+        informes = ctx.get("informes", [])
+        recomendaciones = ctx.get("recomendaciones", [])
+        
+        lineas = [
+            f"📋 Contexto vivo de síntesis — {fecha}",
+            f"",
+            f"• Síntesis previas incluidas: {len(previas)}",
+            f"• Tareas para mañana (rotación): {len(mananas)}",
+            f"• Áreas de actividad: {len(resumen_actividad.get('areas', [])) if isinstance(resumen_actividad, dict) else 0}",
+            f"• Informes de agentes: {len(informes)}",
+            f"• Resultados de imaginación: {len(imaginacion)}",
+            f"• Recomendaciones en el libro: {len(recomendaciones)}",
+        ]
+        
+        # Enlace al contexto vivo en Drive
+        lineas.append(f"")
+        lineas.append(f"🔗 Contexto vivo completo en Drive (se sube al generar la síntesis)")
+        lineas.append(f"   Carpeta: Síntesis diarias / Contexto vivo {fecha}")
+        
+        decir("\n".join(lineas))
+        
+    except Exception as e:
+        log("Error generando contexto de síntesis:", traceback.format_exc()[-800:])
+        decir(f"❌ Error generando contexto: {str(e)[:300]}")
+
+
+# SIN1116F: Comandos de recomendaciones
+def _comando_recomendacion(texto: str) -> None:
+    """Maneja aprobar <id>, rechazar <id>, ya existe <id>, encarga <id>."""
+    # Determinar la acción (puede ser de 1 o 2 palabras: "ya existe")
+    accion = None
+    rec_id = None
+    
+    for prefijo in ("aprobar ", "rechazar ", "ya existe ", "encarga "):
+        if texto.startswith(prefijo):
+            accion = prefijo.rstrip()
+            rec_id = texto[len(prefijo):].strip()
+            break
+    
+    if accion is None or not rec_id:
+        decir("Uso: aprobar|rechazar|ya existe|encarga <id-recomendacion>")
+        return
+    
+    accion = accion.lower()
+    
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import libro_recomendaciones as LR
+    except ImportError:
+        decir("❌ Libro de recomendaciones no disponible.")
+        return
+    
+    # Verificar que la recomendación existe
+    rec = LR.obtener_recomendacion(rec_id)
+    if not rec:
+        decir(f"❌ Recomendación «{rec_id}» no encontrada.")
+        return
+    
+    mapa_acciones = {
+        "aprobar": ("aprobada", "✅ Aprobada"),
+        "rechazar": ("rechazada", "❌ Rechazada"),
+        "ya existe": ("ya_existe", "⏭️ Ya existe"),
+        "encarga": ("encargada", "📋 Encargada"),
+    }
+    
+    if accion not in mapa_acciones:
+        decir(f"❌ Acción «{accion}» no válida. Usa: aprobar, rechazar, ya existe, encarga")
+        return
+    
+    nuevo_estado, mensaje_accion = mapa_acciones[accion]
+    
+    # Actualizar estado
+    actualizada = LR.actualizar_estado(rec_id, nuevo_estado)
+    if not actualizada:
+        decir(f"❌ No se pudo actualizar la recomendación «{rec_id}».")
+        return
+    
+    # Si es encarga, intentar crear el encargo
+    if accion == "encarga":
+        _crear_encargo_desde_recomendacion(actualizada)
+        decir(f"{mensaje_accion} y encargo creado: {rec_id}\n"
+             f"  Texto: {actualizada['texto'][:100]}...\n"
+             f"  Área: {actualizada['area']} | Pieza base: {actualizada['pieza_base']}")
+    else:
+        decir(f"{mensaje_accion}: {rec_id}\n"
+             f"  Texto: {actualizada['texto'][:100]}...\n"
+             f"  Área: {actualizada['area']} | Pieza base: {actualizada['pieza_base']}\n"
+             f"  Estado anterior: {rec['estado']} → Nuevo: {actualizada['estado']}")
+
+
+def _crear_encargo_desde_recomendacion(recomendacion: dict[str, Any]) -> None:
+    """Crea un encargo o ola basado en una recomendación aprobada."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+        import peticiones_encargos as PE
+    except ImportError:
+        log("peticiones_encargos no disponible para crear encargo")
+        return
+    
+    # Construir texto de encargo a partir de la recomendación
+    texto_encargo = (
+        f"Encargo desde síntesis: {recomendacion['texto']}\n"
+        f"Área: {recomendacion['area']}\n"
+        f"Pieza base: {recomendacion['pieza_base']}\n"
+        f"ID recomendación: {recomendacion['id']}"
+    )
+    
+    # Usar el productor para planificar y ejecutar
+    try:
+        frentes = PE.planificar_base(texto_encargo)
+        log(f"Encargo creado desde recomendación {recomendacion['id']} con {len(frentes)} frentes")
+    except Exception as e:
+        log(f"Error planificando encargo desde recomendación: {e}")
 
 
 def _reportar_peticion_fallida(tipo: str, texto_peticion: str, error: str) -> None:

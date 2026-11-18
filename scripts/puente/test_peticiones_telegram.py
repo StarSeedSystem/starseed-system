@@ -1688,3 +1688,258 @@ def test_renovar_no_manda_a_claude():
     from peticiones_reglas import RENOVAR
 
     assert "claude" not in RENOVAR.lower()
+
+
+# ── SIN1116F: Tests para comandos de síntesis /sintesis ──
+
+def _setup_sintesis_test(tmp_path, monkeypatch):
+    """Configuración común para tests de comandos de síntesis."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    return respuestas
+
+
+def test_comando_sintesis_lanza_sintesis(tmp_path, monkeypatch):
+    """/sintesis lanza la síntesis inmediatamente."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    # Mock del agente de síntesis
+    mock_ciclo = MagicMock(return_value={"ok": True, "sintesis_path": "/tmp/sintesis-2026-11-16.md"})
+    monkeypatch.setattr("agente_sintesis.ciclo", mock_ciclo)
+    monkeypatch.setattr("agente_sintesis.RAIZ", str(tmp_path))
+    
+    recibir({"update_id": 1, "message": {"chat": {"id": "123456"}, "text": "/sintesis"}})
+    
+    assert len(respuestas) == 2  # "Lanzando..." + resultado
+    assert "Lanzando síntesis" in respuestas[0]
+    assert "completada" in respuestas[1].lower() or "síntesis" in respuestas[1].lower()
+    mock_ciclo.assert_called_once()
+
+
+def test_comando_sintesis_estado_muestra_hito_y_retraso(tmp_path, monkeypatch):
+    """/sintesis estado muestra el hito actual y el retraso."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    # Mock del estado de síntesis
+    mock_cargar_estado = MagicMock(return_value={
+        "version": 1,
+        "fecha": "2026-11-16",
+        "fase": "redactar",
+        "ultimo_ciclo": "2026-11-16T06:30:00Z",
+        "ciclos": 3,
+        "entregada": False,
+        "tareas_encoladas": {"2026-11-16": 7},
+        "sintesis_path": None,
+        "puntuacion": None,
+        "respaldo": False
+    })
+    monkeypatch.setattr("agente_sintesis.cargar_estado", mock_cargar_estado)
+    monkeypatch.setattr("agente_sintesis.RAIZ", str(tmp_path))
+    monkeypatch.setattr("agente_sintesis._fecha_cdmx", lambda ahora=None: "2026-11-16")
+    monkeypatch.setattr("agente_sintesis._hora_cdmx", lambda ahora=None: 8.5)  # 08:30 CDMX
+    monkeypatch.setattr("agente_sintesis._fase_actual", lambda ahora: "entregar")
+    
+    recibir({"update_id": 2, "message": {"chat": {"id": "123456"}, "text": "/sintesis estado"}})
+    
+    assert len(respuestas) == 1
+    texto = respuestas[0]
+    assert "hito" in texto.lower() or "fase" in texto.lower()
+    assert "retraso" in texto.lower() or "retrasada" in texto.lower() or "08:30" in texto or "09:00" in texto
+
+
+def test_comando_sintesis_contexto_muestra_resumen_y_enlace(tmp_path, monkeypatch):
+    """/sintesis contexto muestra resumen del paquete de hoy y enlace al contexto vivo."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    # Mock del contexto de síntesis
+    mock_contexto = MagicMock(return_value={
+        "fecha": "2026-11-16",
+        "sintesis_previas": [{"fecha": "2026-11-15", "texto": "Síntesis previa..."}],
+        "mananas": ["Tarea 1", "Tarea 2"],
+        "resumen_actividad": {"areas": ["ia", "diseno"]},
+        "imaginacion": [{"agente": "investigador-ia", "ruta": "starseed_memory_root/imaginacion/agentes/sintesis-2026-11-16-ia.json"}],
+        "informes": [{"titulo": "Informe IA", "texto": "Contenido..."}],
+        "recomendaciones": [{"id": "rec-abc123", "texto": "Recomendación 1", "estado": "propuesta"}],
+    })
+    monkeypatch.setattr("contexto_sintesis.contexto_vivo", mock_contexto)
+    
+    recibir({"update_id": 3, "message": {"chat": {"id": "123456"}, "text": "/sintesis contexto"}})
+    
+    assert len(respuestas) == 2  # "Generando..." + resultado
+    assert "Generando contexto" in respuestas[0]
+    texto = respuestas[1]
+    assert "contexto" in texto.lower()
+    assert "2026-11-16" in texto
+    assert "drive" in texto.lower() or "enlace" in texto.lower() or "contexto vivo" in texto.lower()
+
+
+def test_comando_sintesis_subcomando_desconocido(tmp_path, monkeypatch):
+    """/sintesis con subcomando desconocido muestra ayuda."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    recibir({"update_id": 4, "message": {"chat": {"id": "123456"}, "text": "/sintesis desconocido"}})
+    
+    assert len(respuestas) == 1
+    texto = respuestas[0]
+    assert "uso" in texto.lower() or "ayuda" in texto.lower() or "comandos" in texto.lower()
+    assert "estado" in texto
+    assert "contexto" in texto
+
+
+# ── SIN1116F: Tests para aprobar/rechazar/ya existe/encarga ──
+
+def test_comando_aprobar_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """aprobar <n> actualiza el estado de la recomendación a 'aprobada'."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    # Configurar libro de recomendaciones
+    import libro_recomendaciones as L
+    monkeypatch.setattr(L, "RUTA_RECOMENDACIONES", str(tmp_path / "recomendaciones.jsonl"))
+    
+    # Crear recomendación de prueba
+    rec = L.crear_recomendacion(
+        "Integrar NotebookLM con la síntesis diaria",
+        "ia",
+        "sintesis_autonoma",
+        "rec-test001"
+    )
+    assert rec["estado"] == "propuesta"
+    
+    # Ejecutar comando aprobar
+    recibir({"update_id": 5, "message": {"chat": {"id": "123456"}, "text": "aprobar rec-test001"}})
+    
+    # Verificar respuesta
+    assert len(respuestas) >= 1
+    assert any("aprobada" in r.lower() or "aprobado" in r.lower() for r in respuestas)
+    
+    # Verificar estado actualizado
+    actualizada = L.obtener_recomendacion("rec-test001")
+    assert actualizada["estado"] == "aprobada"
+
+
+def test_comando_rechazar_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """rechazar <n> actualiza el estado de la recomendación a 'rechazada'."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    import libro_recomendaciones as L
+    monkeypatch.setattr(L, "RUTA_RECOMENDACIONES", str(tmp_path / "recomendaciones.jsonl"))
+    
+    rec = L.crear_recomendacion(
+        "Mejorar filtro de novedad con LEANN",
+        "ia",
+        "filtro_novedad",
+        "rec-test002"
+    )
+    
+    recibir({"update_id": 6, "message": {"chat": {"id": "123456"}, "text": "rechazar rec-test002"}})
+    
+    assert len(respuestas) >= 1
+    assert any("rechazada" in r.lower() or "rechazado" in r.lower() for r in respuestas)
+    
+    actualizada = L.obtener_recomendacion("rec-test002")
+    assert actualizada["estado"] == "rechazada"
+
+
+def test_comando_ya_existe_recomendacion_actualiza_libro(tmp_path, monkeypatch):
+    """ya existe <n> actualiza el estado de la recomendación a 'ya_existe'."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    import libro_recomendaciones as L
+    monkeypatch.setattr(L, "RUTA_RECOMENDACIONES", str(tmp_path / "recomendaciones.jsonl"))
+    
+    rec = L.crear_recomendacion(
+        "Añadir tests a sintesis_telegram",
+        "testing",
+        "sintesis_telegram",
+        "rec-test003"
+    )
+    
+    recibir({"update_id": 7, "message": {"chat": {"id": "123456"}, "text": "ya existe rec-test003"}})
+    
+    assert len(respuestas) >= 1
+    assert any("ya existe" in r.lower() or "ya_existe" in r.lower() for r in respuestas)
+    
+    actualizada = L.obtener_recomendacion("rec-test003")
+    assert actualizada["estado"] == "ya_existe"
+
+
+def test_comando_encarga_recomendacion_actualiza_libro_y_crea_encargo(tmp_path, monkeypatch):
+    """encarga <n> actualiza el estado a 'encargada' y crea el encargo/ola."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    import libro_recomendaciones as L
+    monkeypatch.setattr(L, "RUTA_RECOMENDACIONES", str(tmp_path / "recomendaciones.jsonl"))
+    
+    # Mock para no crear encargo real
+    mock_planificar = MagicMock(return_value=[{"frente": "test", "tareas": []}])
+    monkeypatch.setattr("peticiones_encargos.planificar_base", mock_planificar)
+    
+    rec = L.crear_recomendacion(
+        "Desarrollar sistema de diseño con 3 frentes",
+        "diseno",
+        "sistema_diseno",
+        "rec-test004"
+    )
+    
+    recibir({"update_id": 8, "message": {"chat": {"id": "123456"}, "text": "encarga rec-test004"}})
+    
+    assert len(respuestas) >= 1
+    assert any("encargada" in r.lower() or "encargo" in r.lower() for r in respuestas)
+    
+    actualizada = L.obtener_recomendacion("rec-test004")
+    assert actualizada["estado"] == "encargada"
+
+
+def test_comando_aprobar_recomendacion_inexistente(tmp_path, monkeypatch):
+    """aprobar con ID inexistente da error."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    recibir({"update_id": 9, "message": {"chat": {"id": "123456"}, "text": "aprobar rec-inexistente"}})
+    
+    assert len(respuestas) >= 1
+    assert any("no encontrada" in r.lower() or "no existe" in r.lower() for r in respuestas)
+
+
+# ── SIN1116F: Tests para 'recuerda...' como reglas de síntesis ──
+
+def test_recuerda_sintesis_se_guarda_como_regla(tmp_path, monkeypatch):
+    """Mensajes 'recuerda...' sobre síntesis se guardan como reglas en el prompt."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    # Mock para procesamiento normal
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    # Enviar mensaje con regla de síntesis
+    recibir({"update_id": 10, "message": {"chat": {"id": "123456"}, "text": "Recuerda: en la síntesis siempre incluye la sección de alcance"}})
+    
+    # Debe haber respondido "Recibido ✓" ANTES de procesar
+    assert any("Recibido" in r for r in respuestas)
+    
+    # Debe haber encolado el mensaje
+    cola = mod.leer_json(mod.COLA, [])
+    assert len(cola) == 1
+    assert cola[0]["texto"] == "Recuerda: en la síntesis siempre incluye la sección de alcance"
+    
+    # Debe haber procesado la regla y confirmado
+    assert any("Preferencia guardada" in r or "Rutina registrada" in r for r in respuestas)
+
+
+def test_recuerda_sintesis_con_cada_dia_se_guarda_como_rutina(tmp_path, monkeypatch):
+    """'Recuerda cada día...' sobre síntesis se guarda como rutina."""
+    respuestas = _setup_sintesis_test(tmp_path, monkeypatch)
+    
+    monkeypatch.setattr(mod, "por_reglas", lambda x: {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [], "resumen": ""})
+    monkeypatch.setattr(mod, "llm", lambda *a, **k: ("", ""))
+    
+    recibir({"update_id": 11, "message": {"chat": {"id": "123456"}, "text": "Recuerda cada día: la síntesis debe incluir las recomendaciones de ayer"}})
+    
+    assert any("Recibido" in r for r in respuestas)
+    assert any("Rutina registrada" in r for r in respuestas)
+    assert any("cada día" in r.lower() for r in respuestas)
