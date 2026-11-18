@@ -90,12 +90,12 @@ def _pedir(url, cuerpo=None):
 
 
 def _leer_env(ruta=RUTA_ENV):
-    """Lee pares K=V de un archivo de entorno; el entorno del proceso manda.
-    Usa entorno.leer_clave para aceptar «export NOMBRE=…» y comillas (SIN1116A)."""
+    """Lee pares K=V del archivo `ruta`; el entorno del proceso manda.
+    Acepta «export NOMBRE=…» y comillas vía entorno (SIN1116A)."""
     import entorno as E
     datos = {}
     for nombre in CLAVES + CLAVES_RELEVO:
-        valor = os.environ.get(nombre) or E.leer_clave(nombre)
+        valor = os.environ.get(nombre) or E._leer_clave_desde_archivo(nombre, ruta)
         if valor:
             datos[nombre] = valor
     return datos
