@@ -119,8 +119,17 @@ def escribir_json(ruta: str, datos: Any) -> None:
 # --- Preferencias y rutinas permanentes (PSF1113B) ---
 
 def _leer_preferencias() -> dict[str, Any]:
-    """Lee las preferencias permanentes desde preferencias.json."""
-    return leer_json(PREFERENCIAS, {})
+    """Lee las preferencias permanentes desde preferencias.json.
+    
+    Acepta tanto dict (formato actual) como lista (formato herramienta provisional).
+    La lista se convierte a dict con claves preferencia_n.
+    """
+    datos = leer_json(PREFERENCIAS, {})
+    if isinstance(datos, list):
+        return {f"preferencia_{i}": v for i, v in enumerate(datos)}
+    if isinstance(datos, dict):
+        return datos
+    return {}
 
 
 def _guardar_preferencia(clave: str, valor: str) -> None:
@@ -833,6 +842,17 @@ def texto_ayuda() -> str:
     return linea_chat() + "\n" + AYUDA
 
 
+def _registrar_mensaje_recibido(texto: str) -> None:
+    """Registra el texto del mensaje en archivo privado (600) sin claves."""
+    log_path = os.path.join(DIR, "mensajes_recibidos.log")
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.datetime.now().isoformat()} {texto}\n")
+        os.chmod(log_path, 0o600)
+    except OSError:
+        pass
+
+
 def recibir(upd: dict[str, Any]) -> None:
     m = upd.get("message") or {}
     if str((m.get("chat") or {}).get("id")) != CHAT:
@@ -842,6 +862,10 @@ def recibir(upd: dict[str, Any]) -> None:
     if not texto:
         decir("Por ahora atiendo mensajes de texto.")
         return
+    
+    update_id = upd["update_id"]
+    
+    # Comandos directos: responden inmediatamente, SIN encolar ni "Recibido ✓"
     if texto.startswith("/estado"):
         decir(texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {})))
         return
@@ -920,20 +944,31 @@ def recibir(upd: dict[str, Any]) -> None:
         )
         return
     
-    # PSF1113B: Detectar y procesar reglas permanentes (recuerda/cada día/siempre/para cada/a partir de ahora)
-    # Si es una regla permanente, guardarla y confirmar, PERO seguir procesando como petición normal
-    if por_reglas_permanente(texto) == "regla_permanente":
-        _responder_con_regla_permanente(texto)
-        # NO return: continuar para procesar también como encargo/petición normal
-    
+    # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
-        if any(p["id"] == upd["update_id"] for p in cola):
-            return
-        cola.append({"id": upd["update_id"], "texto": texto, "recibida": time.time(), "estado": "nueva", "intentos": 0})
-        escribir_json(COLA, cola[-200:])
+        if not any(p["id"] == update_id for p in cola):
+            cola.append({"id": update_id, "texto": texto, "recibida": time.time(), "estado": "nueva", "intentos": 0})
+            escribir_json(COLA, cola[-200:])
     decir("Recibido ✓ Lo atiende MetaGenesis en el A1, sin la Mac ni Claude.")
     hay_trabajo.set()
+    
+    # Registrar texto del mensaje (sin claves) en archivo privado
+    _registrar_mensaje_recibido(texto)
+    
+    # Procesar reglas permanentes en try/except: un fallo NO pierde el mensaje
+    try:
+        # PSF1113B: Detectar y procesar reglas permanentes (recuerda/cada día/siempre/para cada/a partir de ahora)
+        # Si es una regla permanente, guardarla y confirmar, PERO seguir procesando como petición normal
+        if por_reglas_permanente(texto) == "regla_permanente":
+            _responder_con_regla_permanente(texto)
+            # NO return: continuar para procesar también como encargo/petición normal
+    
+    except Exception as e:
+        # PET1116E: Fallo en procesado -> marcar petición para reintento y avisar en chat
+        log("recibir procesado falló:", traceback.format_exc()[-800:])
+        actualizar(update_id, estado="reintentar")
+        decir(f"⚠️ Error procesando tu mensaje (reintentará): {str(e)[:200]}")
 
 
 def escuchar() -> None:
