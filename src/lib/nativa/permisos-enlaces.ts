@@ -154,14 +154,24 @@ export function textoEnlace(e: Enlace | null): string {
   }
 }
 
+<<<<<<< HEAD
 /* ───────────── Lo que le falta al control remoto de una neurona (`control_capacidades().falta`) ───────────── */
 
 export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac" | "wayland" | "sin-pantalla-x11" | "entrada-x11" | "webrtc-linux", Enlace> = {
+=======
+/* ───────────── Lo que le falta al control remoto (`control_capacidades().falta`): tableta Android y Mac ───────────── */
+
+export const ENLACES_CONTROL: Record<
+  "servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac",
+  Enlace
+> = {
+>>>>>>> 5fa763dbf (AUD1117 · AN04a: Llamadas: una caída corta del Bluetooth no cuelga la llamada)
   "servicio-accesibilidad": ANDROID.accesibilidad!,
   "ajustes-restringidos": f(
     "Pulsa ⋮ (arriba a la derecha) › «Permitir ajustes restringidos» y confirma con tu huella o PIN. Si ⋮ no sale, vuelve a «Accesibilidad», intenta activar StarSeed OS una vez (saldrá en gris) y regresa aquí: Android lo muestra después del primer intento.",
   ),
   "escribir-ajustes": ANDROID["escribir-ajustes"]!,
+<<<<<<< HEAD
   "consentimiento-pantalla": { nivel: "aviso", pantalla: "Diálogo de StarSeed OS en este aparato", pulsa: "Lee el aviso y pulsa «Sí» solo si quieres que tus otras neuronas vean la pantalla sin preguntar." },  // CTL1117M: lo que le falta a un Mac controlado; los dos los concede la persona en Ajustes del Sistema.
   "grabacion-pantalla": MACOS.pantalla!,
   "accesibilidad-mac": MACOS.accesibilidad!,
@@ -171,4 +181,9 @@ export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restrin
   // CTL1118M: no es un permiso; es un paquete del sistema. La orden exacta para Debian/Ubuntu (en otras distribuciones, los paquetes equivalentes de GStreamer).
   "webrtc-linux": sin("Terminal del equipo Linux (como administrador)", "Ejecuta: su -c 'apt-get install -y gstreamer1.0-nice gstreamer1.0-plugins-bad' y vuelve a abrir StarSeed OS. Sin esto la pantalla va por la malla, más lenta que por vídeo."),
   "entrada-x11": sin("Servidor gráfico (X11) del equipo Linux", "Falta la extensión XTEST del servidor X: instala o activa el servidor X estándar (Xorg) de tu distribución. Mientras tanto solo se ve la pantalla."),
+=======
+  "consentimiento-pantalla": { nivel: "aviso", pantalla: "Diálogo de StarSeed OS en este aparato", pulsa: "Lee el aviso y pulsa «Sí» solo si quieres que tus otras neuronas vean la pantalla sin preguntar." },
+  "grabacion-pantalla": MACOS.pantalla!,
+  "accesibilidad-mac": MACOS.accesibilidad!,
+>>>>>>> 5fa763dbf (AUD1117 · AN04a: Llamadas: una caída corta del Bluetooth no cuelga la llamada)
 };
