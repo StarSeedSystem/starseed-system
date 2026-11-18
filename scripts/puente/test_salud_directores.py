@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import salud_directores as SD
@@ -259,6 +260,83 @@ class SaludDirectoresTest(unittest.TestCase):
         sesiones_petic = estado.get("sesiones_peticiones", {})
         self.assertIn("sesion", sesiones_petic)
         self.assertGreaterEqual(sesiones_petic["sesion"]["fallos_seguidos"], 1)
+
+    # ── Tests para corrección de argv higgsfield (§3.3 SIN1116C) ───────────────
+
+    def test_higgsfield_account_status_argv(self):
+        """La comprobación de higgsfield usa 'account status' como argv correcto."""
+        argv_capturado = []
+
+        def fake_run(*args, **kwargs):
+            from unittest.mock import MagicMock
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_result.stdout = ""
+            mock_result.stderr = ""
+            if args and isinstance(args[0], list):
+                argv_capturado.extend(args[0])
+            return mock_result
+
+        import sanador_sesiones as SS
+
+        original_resolver = SS._resolver_binario
+        original_subprocess_run = SS.subprocess.run
+
+        SS._resolver_binario = lambda nombre: "/fake/higgsfield"
+        SS.subprocess.run = fake_run
+
+        try:
+            resultado = SS._receta_higgsfield_check()
+            self.assertTrue(resultado.get("ok"), f"Resultado: {resultado}")
+            self.assertEqual(argv_capturado[0], "/fake/higgsfield", f"argv: {argv_capturado}")
+            self.assertEqual(argv_capturado[1], "account", f"argv: {argv_capturado}")
+            self.assertEqual(argv_capturado[2], "status", f"argv: {argv_capturado}")
+        finally:
+            SS._resolver_binario = original_resolver
+            SS.subprocess.run = original_subprocess_run
+
+    # ── Tests para escalado con entorno.leer_clave (§3.3 SIN1116C) ───────────
+
+    def test_escalado_carga_credenciales_desde_archivo(self):
+        """El escalado carga credenciales desde ~/.starseed/env usando el patrón correcto."""
+        import tempfile
+        import entorno as Ent
+        t = tempfile.TemporaryDirectory()
+        raiz = Path(t.name)
+
+        env_file = raiz / ".starseed" / "env"
+        env_file.parent.mkdir(parents=True)
+        env_file.write_text('export TELEGRAM_SINTESIS_BOT_TOKEN="test_token_123"\nexport TELEGRAM_SINTESIS_CHAT_ID="-1001234567890"\n', encoding="utf-8")
+
+        try:
+            cache = Ent._cargar_cache(env_file)
+            self.assertEqual(cache.get("TELEGRAM_SINTESIS_BOT_TOKEN"), "test_token_123")
+            self.assertEqual(cache.get("TELEGRAM_SINTESIS_CHAT_ID"), "-1001234567890")
+        finally:
+            t.cleanup()
+
+    # ── Test para notebooklm subprocess handling ─────────────────────────────────
+
+    def test_notebooklm_comprobacion_mananea_nameerror(self):
+        """La comprobación de notebooklm maneja NameError como avería del sanador."""
+        import tempfile
+        import sanador_sesiones as SS
+        t = tempfile.TemporaryDirectory()
+        raiz = Path(t.name)
+        salud_dir = raiz / "starseed_memory_root" / "salud"
+        salud_dir.mkdir(parents=True)
+        estado_file = salud_dir / "directores.json"
+
+        def comprobacion_aleatoria():
+            raise NameError("name 'subprocess' is not defined")
+
+        s = SS.SanadorSesiones(estado_file=estado_file, log_file=salud_dir / "sesiones.jsonl")
+        s.registrar("notebooklm", comprobacion_aleatoria, [])
+        resultado = s.comprobar("notebooklm")
+
+        self.assertFalse(resultado.get("ok"))
+        self.assertTrue(resultado.get("sin_comprobar"), f"Resultado: {resultado}")
+        t.cleanup()
 
 
 if __name__ == "__main__":

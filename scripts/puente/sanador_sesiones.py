@@ -361,12 +361,12 @@ def _receta_google_oauth_refresh() -> dict[str, Any]:
 
 
 def _receta_higgsfield_check() -> dict[str, Any]:
-    """Solo comprobación: higgsfield account."""
+    """Solo comprobación: higgsfield account status."""
     binario = _resolver_binario("higgsfield")
     if binario is None:
         return {"ok": False, "motivo": "higgsfield no instalado", "no_instalado": True}
     try:
-        resultado = _ejecutar_binario(binario, ["account"], timeout=30)
+        resultado = _ejecutar_binario(binario, ["account", "status"], timeout=30)
         if resultado.get("returncode") == 0:
             return {"ok": True, "detalle": "higgsfield ok"}
         return {"ok": False, "motivo": f"higgsfield: {(resultado.get('stdout','')+resultado.get('stderr',''))[:200]}"}

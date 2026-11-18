@@ -249,7 +249,7 @@ def receta_google_oauth(alias: str, renovar: Callable[[str], dict[str, Any]],
 
 
 def comprobar_higgsfield(ejecutar: Ejecutar = _ejecutar_binario_higgsfield) -> dict[str, Any]:
-    rc, salida = ejecutar(["account"], 30)
+    rc, salida = ejecutar(["account", "status"], 30)
     if rc == 0:
         return {"ok": True, "detalle": "higgsfield ok"}
     no_instalado = "no instalado" in salida or "no encontrado" in salida

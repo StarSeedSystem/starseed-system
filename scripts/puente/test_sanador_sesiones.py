@@ -724,20 +724,21 @@ class SanadorSesionesTest(unittest.TestCase):
     # ── Tests para argv construction contra binario falso ──────────────────────
 
     def test_higgsfield_argv_construction(self):
-        """La comprobación de higgsfield construye argv correctamente: [binario, 'account']."""
+        """La comprobación de higgsfield construye argv correctamente: [binario, 'account', 'status']."""
         argv_capturado = []
-        
+
         def fake_higgsfield_binario(args: list[str], timeout: int = 30) -> tuple[int, str]:
             argv_capturado.extend(args)
             return 0, "ok"
-        
+
         # Usar el módulo sanador_recetas directamente
         import sanador_recetas as SR
         resultado = SR.comprobar_higgsfield(ejecutar=fake_higgsfield_binario)
-        
+
         self.assertTrue(resultado.get("ok"))
-        self.assertEqual(len(argv_capturado), 1)
+        self.assertEqual(len(argv_capturado), 2)
         self.assertEqual(argv_capturado[0], "account")
+        self.assertEqual(argv_capturado[1], "status")
 
     def test_notebooklm_argv_construction(self):
         """La comprobación de notebooklm construye argv correctamente para auth check y list."""
