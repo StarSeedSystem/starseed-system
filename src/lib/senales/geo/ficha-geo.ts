@@ -6,7 +6,7 @@
 
 import type { Dato, FichaMapa, SeccionFicha } from "@/lib/senales/tipos-vivo";
 import { TEXTO_ESTADO } from "@/lib/senales/aparatos";
-import { ETIQUETA_CONCIENCIA } from "./capas";
+import { CLASES_ALMACENAMIENTO, ETIQUETA_CHIP, ETIQUETA_CONCIENCIA, claseAlmacenamiento } from "./capas";
 import type { MarcaGeo } from "./marcas";
 import { haceCuanto, posicionEsViva } from "./modelo-geo";
 
@@ -30,6 +30,45 @@ export function datoDesconocido(etiqueta: string, fuente: string, nota: string):
 }
 
 const pct = (q: number) => `${Math.round(q * 100)} %`;
+
+/** Banda de almacenamiento publicada, o null si la medida no cae en la tabla. */
+function bandaDeAlmacenamiento(gb: number): string | null {
+  const clase = claseAlmacenamiento(gb);
+  return CLASES_ALMACENAMIENTO.find((c) => c === clase) ?? null;
+}
+
+/** GPU, almacenamiento libre y tipo de chip de la ficha; sin dato queda como hueco, nunca como cero. */
+function datosHardware(m: MarcaGeo, hora: string | undefined): Dato[] {
+  const h = m.hardware;
+  const sinDato = (etiqueta: string, motivo: string): Dato => datoDesconocido(etiqueta, h.fuente, motivo);
+  const filas: Dato[] = [];
+
+  const gpu = typeof h.gpu === "string" ? h.gpu.trim() : "";
+  filas.push(gpu
+    ? { etiqueta: "GPU", valor: gpu, fuente: h.fuente, estado: "declarado", nota: hora }
+    : sinDato("GPU", "esa neurona no anuncia su GPU"));
+
+  const gb = h.almacenamientoLibreGb;
+  if (typeof gb === "number" && Number.isFinite(gb) && gb >= 0) {
+    const banda = bandaDeAlmacenamiento(gb);
+    filas.push({
+      etiqueta: "Almacenamiento libre",
+      valor: `${gb} GB libres${banda ? ` · ${banda}` : ""}`,
+      fuente: h.fuente,
+      estado: "declarado",
+      nota: hora,
+    });
+  } else {
+    filas.push(sinDato("Almacenamiento libre", "esa neurona no anuncia su almacenamiento libre"));
+  }
+
+  const chip = h.chip ? (ETIQUETA_CHIP as Record<string, string | undefined>)[h.chip] : undefined;
+  filas.push(chip
+    ? { etiqueta: "Tipo de chip", valor: chip, fuente: h.fuente, estado: "declarado", nota: hora }
+    : sinDato("Tipo de chip", "esa neurona no anuncia su tipo de chip"));
+
+  return filas;
+}
 
 function seccionPosicion(m: MarcaGeo, ahora: number): SeccionFicha {
   const p = m.posicion;
@@ -101,6 +140,7 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
       h.ramClase && h.ramClase !== "desconocida"
         ? { etiqueta: "Memoria (RAM)", valor: h.ramClase, fuente: h.fuente, estado: "declarado", nota: hora }
         : sinFicha("Memoria (RAM)"),
+      ...datosHardware(m, hora),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
       datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
