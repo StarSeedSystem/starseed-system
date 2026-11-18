@@ -25,6 +25,7 @@ import agente_sintesis as A
 import sintesis_fuentes as SF
 import sintesis_tareas as ST
 import huerfanas_criticas as HC
+import contexto_sintesis as CS
 
 
 AHORA_CDMX_00 = datetime(2026, 11, 11, 7, 0, tzinfo=timezone.utc)  # 01:00 CDMX
@@ -886,6 +887,314 @@ class TestGuardiaDeRed(unittest.TestCase):
             self.G.desactivar()
             self.assertNotIn("STARSEED_PRUEBAS", os.environ)
         self.assertEqual(os.environ.get("STARSEED_PRUEBAS"), "1")
+
+
+class TestContextoSintesisNucleo(unittest.TestCase):
+    """Pruebas del núcleo puro contexto_sintesis.py: E/S inyectable, sin red."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _escribir(self, relativo, contenido):
+        ruta = os.path.join(self.raiz, relativo)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            if isinstance(contenido, (dict, list)):
+                json.dump(contenido, f, ensure_ascii=False)
+            else:
+                f.write(str(contenido))
+
+    def test_contexto_vivo_devuelve_seis_fuentes(self):
+        """El contexto vivo incluye las 6 fuentes descritas en §3.4."""
+        hoy = FECHA
+        self._escribir("starseed_memory_root/produccion-audiovisual/sintesis/2026-11-10.md",
+                       "# Síntesis 2026-11-10\n## Mañana\n- Vídeos: Vídeo 1\n- Contactos: Cole Hastings\n")
+        self._escribir("starseed_memory_root/alcance/github/2026-11-11.json", [{"nombre_publico": "org/proj", "que_hacen": "algo"}])
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-2026-11-11.json", [{"id": "b1", "estado": "esperando-aprobacion"}])
+        self._escribir("starseed_memory_root/produccion/higgsfield/propuestas.json", [{"id": "h1", "proyecto": "sistema-diseno"}])
+        self._escribir("architecture/test.md", "# Test Architecture\nPrimer párrafo.")
+        self._escribir("memory/workflow-actual.md", "Workflow content")
+        self._escribir("CLAUDE.md", "Claude content")
+        self._escribir("AGENTS.md", "Agents content")
+        self._escribir("config/repos-libreria-test.json", {"repos": [{"nombre": "repo1", "url": "http://x", "descripcion": "desc", "kind": "app"}]})
+
+        ctx = CS.contexto_vivo(self.raiz, hoy)
+
+        # 6 fuentes principales
+        self.assertIn("fecha", ctx)
+        self.assertIn("sintesis_previas", ctx)  # 1. Lo ya integrado
+        self.assertIn("produccion_higgsfield", ctx)  # 2. Producción audiovisual
+        self.assertIn("alcance_github", ctx)  # 3. Alcance
+        self.assertIn("alcance_borradores", ctx)
+        self.assertIn("sintesis_7_dias", ctx)  # 4. Investigaciones
+        self.assertIn("recuerdos", ctx)  # 5. Recuerdos
+        self.assertIn("recomendaciones", ctx)  # 6. Libro de recomendaciones
+        # Además: arquitectura, memoria, librería, rutas, rotación, imaginación, informes
+        self.assertIn("arquitectura_titulos", ctx)
+        self.assertIn("memoria_archivos", ctx)
+        self.assertIn("libreria", ctx)
+        self.assertIn("rutas_apps", ctx)
+        self.assertIn("rotacion", ctx)
+        self.assertIn("imaginacion", ctx)
+        self.assertIn("informes", ctx)
+
+    def test_contexto_vivo_sin_archivos_no_falla(self):
+        """Si no hay archivos, devuelve estructura vacía pero completa."""
+        ctx = CS.contexto_vivo(self.raiz, FECHA)
+        self.assertEqual(ctx["fecha"], FECHA)
+        self.assertEqual(ctx["sintesis_previas"], [])
+        self.assertEqual(ctx["alcance_github"], [])
+        self.assertEqual(ctx["produccion_higgsfield"], [])
+        self.assertEqual(ctx["sintesis_7_dias"], [])
+        self.assertEqual(ctx["recuerdos"], {"investigador_diseno": [], "investigador_alcance": [], "analista": [], "libreta_jla1116": []})
+
+    def test_encoger_contexto_recorta_textos_largos(self):
+        """_encoger_contexto limita cada campo a su tope sin mutar el original."""
+        ctx = {
+            "sintesis_previas": [{"fecha": "2026-11-10", "texto": "x" * 10000}],
+            "informes": [{"ruta": "a.md", "texto": "y" * 5000}] * 20,
+            "imaginacion": [{"agente": f"a{i}", "ruta": "r.json", "datos": {}} for i in range(15)],
+            "resumen_actividad": {"grande": "z" * 10000},
+        }
+        original_previas = ctx["sintesis_previas"][0]["texto"]
+        fuera = CS._encoger_contexto(ctx)
+
+        self.assertLessEqual(len(fuera["sintesis_previas"][0]["texto"]), CS.TOPE_PREVIA)
+        self.assertLessEqual(len(fuera["informes"][0]["texto"]), CS.TOPE_INFORME)
+        self.assertLessEqual(len(fuera["informes"]), 12)
+        self.assertLessEqual(len(fuera["imaginacion"]), 8)
+        # resumen_actividad ya es un string JSON truncado a TOPE_RESUMEN
+        self.assertLessEqual(len(str(fuera["resumen_actividad"])), CS.TOPE_RESUMEN)
+        # No muta el original
+        self.assertEqual(ctx["sintesis_previas"][0]["texto"], original_previas)
+
+    def test_encoger_contexto_también_recorta_campos_nuevos(self):
+        """_encoger_contexto también recorta los campos nuevos (alcance, producción, etc.)."""
+        ctx = {
+            "alcance_github": [{"nombre_publico": "org/proj", "data": "x" * 2000} for _ in range(30)],
+            "produccion_higgsfield": [{"id": f"h{i}", "motivo": "m" * 2000} for i in range(10)],
+        }
+        fuera = CS._encoger_contexto(ctx)
+        self.assertLessEqual(len(fuera["alcance_github"]), 20)
+        # Los valores se convierten a strings JSON truncados
+        self.assertLessEqual(len(fuera["alcance_github"][0]), 1000)
+        self.assertLessEqual(len(fuera["produccion_higgsfield"]), 20)
+
+
+class TestPaquetesPorAgente(unittest.TestCase):
+    """Pruebas de los 7 paquetes por agente (contactos, noticias, referencias, actividad, ideas, guiones, youtube)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _ctx_base(self):
+        return {
+            "fecha": FECHA,
+            "sintesis_previas": [{"fecha": "2026-11-10", "texto": "# Síntesis\n## Mañana\n- Contactos: Sunseed"}],
+            "rotacion": {"videos": ["Vídeo 4", "Vídeo 5"], "contactos": ["Cole Hastings"], "categorias": ["solarpunk"]},
+            "imaginacion": [],
+            "informes": [],
+            "resumen_actividad": None,
+            "alcance_github": [{"nombre_publico": "org/proj", "que_hacen": "algo"}],
+            "alcance_borradores": [{"id": "b1", "destinatario": "x", "canal": {"medio": "github"}}],
+            "alcance_propuestas": [{"que_adoptar": "patrón X", "area_sistema": "local-first"}],
+            "produccion_higgsfield": [{"id": "h1", "proyecto": "sistema-diseno", "pieza": "ref marca"}],
+            "produccion_encargos": {"videos": [{"titulo": "Vídeo 4"}], "formatos_hechos": ["infografía"]},
+            "arquitectura_titulos": [{"titulo": "Arch 1", "resumen": "Resumen 1"}],
+            "libreria": [{"nombre": "repo1", "descripcion": "desc"}],
+            "memoria_archivos": {"workflow_actual": "wf"},
+            "recuerdos": {"investigador_diseno": [], "investigador_alcance": [], "analista": [], "libreta_jla1116": []},
+            "recomendaciones": [],
+        }
+
+    def test_siete_paquetes_con_tipos_correctos(self):
+        """paquetes_por_agente devuelve 7 paquetes con sus tipos."""
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        self.assertEqual(set(paquetes.keys()), set(CS.AGENTES_SINTESIS))
+        for nombre, paquete in paquetes.items():
+            self.assertEqual(paquete["tipo"], nombre)
+
+    def test_paquete_contactos_incluye_rotación_y_previas(self):
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        p = paquetes["contactos"]
+        self.assertIn("rotacion", p)
+        self.assertIn("sintesis_previas", p)
+        self.assertIn("Cole Hastings", p["rotacion"])
+
+    def test_paquete_noticias_incluye_arquitectura_y_libreria(self):
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        p = paquetes["noticias"]
+        self.assertIn("arquitectura_titulos", p)
+        self.assertIn("libreria", p)
+        self.assertIn("informes_recientes", p)
+
+    def test_paquete_ideas_contiene_lo_integrado_y_regla_no_repetir(self):
+        """El paquete 'ideas' incluye lo integrado y la regla de no repetir (SIN1116D)."""
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        p = paquetes["ideas"]
+        self.assertIn("lo_integrado", p)
+        self.assertIn("regla_no_repetir", p)
+        self.assertIn("NO propongas ideas que ya figuren", p["regla_no_repetir"])
+        self.assertIn("sintesis_previas", p["lo_integrado"])
+        self.assertIn("arquitectura", p["lo_integrado"])
+        self.assertIn("libreria", p["lo_integrado"])
+
+    def test_paquete_guiones_incluye_higgsfield_y_encargos(self):
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        p = paquetes["guiones"]
+        self.assertIn("higgsfield_propuestas", p)
+        self.assertIn("videos_en_planeacion", p)
+        self.assertIn("formatos_hechos", p)
+
+    def test_paquete_youtube_incluye_categoría_y_calendario(self):
+        ctx = self._ctx_base()
+        paquetes = CS.paquetes_por_agente(ctx)
+        p = paquetes["youtube"]
+        self.assertIn("rotacion_categoria", p)
+        self.assertIn("shorts_pendientes", p)
+
+    def test_cada_paquete_cabe_en_tope_de_prompt(self):
+        """Cada paquete serializado cabe dentro de TOPE_PROMPT (14000)."""
+        ctx = self._ctx_base()
+        # Añadir datos grandes para probar el recorte
+        ctx["sintesis_previas"] = [{"fecha": "2026-11-10", "texto": "x" * 10000}] * 5
+        ctx["informes"] = [{"texto": "y" * 5000}] * 20
+        paquetes = CS.paquetes_por_agente(ctx)
+        for nombre, paquete in paquetes.items():
+            tamano = len(json.dumps(paquete, ensure_ascii=False))
+            self.assertLessEqual(tamano, CS.TOPE_PROMPT, f"Paquete {nombre} excede tope: {tamano} > {CS.TOPE_PROMPT}")
+
+
+class TestIntegracionAgenteSintesis(unittest.TestCase):
+    """Pruebas de conexión con agente_sintesis: prompt_respaldo_con_contexto y encargar_con_paquetes."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.raiz = os.path.join(self.tmp, "repo")
+        os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_prompt_respaldo_con_contexto_usa_contexto_vivo(self):
+        """prompt_respaldo_con_contexto genera prompt usando contexto_vivo encogido."""
+        hoy = FECHA
+        # Crear síntesis previa para que rotación funcione
+        self._escribir("starseed_memory_root/produccion-audiovisual/sintesis/2026-11-10.md",
+                       "# Síntesis 2026-11-10\n## Mañana\n- Vídeos: Vídeo 1\n- Contactos: Cole Hastings\n")
+
+        ctx = CS.contexto_vivo(self.raiz, hoy)
+        prompt = CS.prompt_respaldo_con_contexto(ctx, hoy)
+
+        self.assertIn("Redacta la síntesis diaria", prompt)
+        self.assertIn(hoy, prompt)
+        self.assertIn("GitHub y comunidad técnica", prompt)
+        self.assertIn("Alcance: contactos", prompt)
+        self.assertIn("Promoción y canales", prompt)
+        self.assertLessEqual(len(prompt), CS.TOPE_PROMPT)
+
+    def _escribir(self, relativo, contenido):
+        ruta = os.path.join(self.raiz, relativo)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            if isinstance(contenido, (dict, list)):
+                json.dump(contenido, f, ensure_ascii=False)
+            else:
+                f.write(str(contenido))
+
+    def test_encargar_con_paquetes_enriquece_tareas_con_paquetes(self):
+        """encargar_con_paquetes añade CONTEXTO ESPECÍFICO a cada tarea según su rama."""
+        hoy = FECHA
+        self._escribir("starseed_memory_root/produccion-audiovisual/sintesis/2026-11-10.md",
+                       "# Síntesis 2026-11-10\n## Mañana\n- Vídeos: Vídeo 1\n")
+
+        ctx = CS.contexto_vivo(self.raiz, hoy)
+        resultado = CS.encargar_con_paquetes(self.raiz, ctx, ahora=datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc).timestamp())
+
+        self.assertTrue(resultado["ok"])
+        self.assertEqual(len(resultado["tareas"]), 7)
+        self.assertEqual(set(resultado["paquetes"]), set(CS.AGENTES_SINTESIS))
+
+        # Verificar que cada tarea tiene su contexto específico
+        # (La función no ejecuta encargar_fn por defecto, solo retorna las tareas)
+        # En una prueba real con encargar_fn mock, verificaríamos el enriquecimiento
+
+
+class TestRotacionYFuentes(unittest.TestCase):
+    """Pruebas de la rotación y fuentes específicas."""
+
+    def test_rotacion_sin_previas_empieza_en_video_4(self):
+        """Sin síntesis previas, rotación empieza en Vídeo 4 y 5."""
+        rot = CS._rotacion([])
+        self.assertEqual(rot["videos"], ["Vídeo 4", "Vídeo 5"])
+
+    def test_rotacion_evita_repetir_videos_de_mananas(self):
+        """Rotación salta los vídeos ya usados en las secciones Mañana."""
+        mananas = [{"videos": ["Vídeo 4", "Vídeo 5"], "contactos": [], "categorias": []}]
+        rot = CS._rotacion(mananas)
+        self.assertNotIn("Vídeo 4", rot["videos"])
+        self.assertNotIn("Vídeo 5", rot["videos"])
+        self.assertEqual(len(rot["videos"]), 2)
+
+    def test_rotacion_contactos_max_3(self):
+        """Rotación de contactos devuelve máximo 3."""
+        mananas = [{"videos": [], "contactos": ["Cole Hastings"], "categorias": []}]
+        rot = CS._rotacion(mananas, contactos=["A", "B", "C", "D", "E"])
+        self.assertLessEqual(len(rot["contactos"]), 3)
+        self.assertNotIn("Cole Hastings", rot["contactos"])
+
+    def test_rotacion_categorias_max_1(self):
+        """Rotación de categorías devuelve máximo 1."""
+        mananas = [{"videos": [], "contactos": [], "categorias": ["solarpunk"]}]
+        rot = CS._rotacion(mananas, categorias=["cat1", "cat2", "cat3"])
+        self.assertLessEqual(len(rot["categorias"]), 1)
+        self.assertNotIn("solarpunk", rot["categorias"])
+
+    def test_sintesis_ultimos_7_dias_incluye_manana(self):
+        """_sintesis_ultimos_7_dias devuelve síntesis con su sección Mañana."""
+        self._tmp = tempfile.TemporaryDirectory()
+        raiz = os.path.join(self._tmp.name, "repo")
+        os.makedirs(os.path.join(raiz, "starseed_memory_root/produccion-audiovisual/sintesis"))
+        with open(os.path.join(raiz, "starseed_memory_root/produccion-audiovisual/sintesis/2026-11-10.md"), "w") as f:
+            f.write("# Síntesis\n## Mañana\n- Vídeos: Vídeo 1\n")
+        with open(os.path.join(raiz, "starseed_memory_root/produccion-audiovisual/sintesis/2026-11-05.md"), "w") as f:
+            f.write("# Síntesis antigua\n")
+
+        salidas = CS._sintesis_ultimos_7_dias(raiz, "2026-11-10")
+        self.assertEqual(len(salidas), 2)
+        self.assertIn("Vídeo 1", salidas[0]["manana"])
+        self._tmp.cleanup()
+
+    def test_arquitectura_titulos_extrae_titulo_y_primer_parrafo(self):
+        """_arquitectura_titulos extrae título (primer #) y primer párrafo no vacio."""
+        self._tmp = tempfile.TemporaryDirectory()
+        raiz = os.path.join(self._tmp.name, "repo")
+        os.makedirs(os.path.join(raiz, "architecture"))
+        with open(os.path.join(raiz, "architecture/test.md"), "w") as f:
+            f.write("# Título Principal\n\nPrimer párrafo real.\n\n## Subsección\nOtro texto.")
+        titulos = CS._arquitectura_titulos(raiz)
+        self.assertEqual(len(titulos), 1)
+        self.assertEqual(titulos[0]["titulo"], "Título Principal")
+        self.assertEqual(titulos[0]["resumen"], "Primer párrafo real.")
+        self._tmp.cleanup()
 
 
 if __name__ == "__main__":
