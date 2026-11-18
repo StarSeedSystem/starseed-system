@@ -472,11 +472,15 @@ class TestMedir(unittest.TestCase):
         traído; si la recogida muere, la tarea queda «bloqueada» sin que nadie rompiera nada.
         Espeja el patrón de test_conftest_pytest.py para este archivo.
         """
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        env = os.environ.copy()
+        env["PYTHONPATH"] = repo_root + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
         r = subprocess.run(
             [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
-             os.path.join("scripts", "puente", os.path.basename(__file__))],
-            cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            capture_output=True, text=True, timeout=120,
+             os.path.basename(__file__)],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            capture_output=True, text=True, timeout=30,
+            env=env,
         )
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertNotIn("ModuleNotFoundError", r.stdout + r.stderr)
