@@ -23,11 +23,11 @@ import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
 import { InterruptorModoBanco } from "./internet/interruptor-modo-banco";
 import { SugerenciaModoBanco } from "./internet/sugerencia-modo-banco";
-import { TextosInternet } from "@/lib/malla/internet/tipos";
 import { getAjustesBanco, setAjustesBanco, AJUSTES_BANCO_EVENT, calcularRestanteHoyMb } from "@/lib/malla/internet/ajustes-banco";
 import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/internet/tipos";
 import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 import { SeccionInternet } from "./internet/seccion-internet";
+import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from "@/lib/malla/internet/textos-internet";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -132,7 +132,7 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
 
-export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre, textosInternet }: {
+export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
   centro: CentroNeurona;
   /** Id de esta neurona en el registro de la cuenta; sin él se usa el del dispositivo. */
   neuronaId: string | null;
@@ -140,8 +140,6 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   onVerPublicos: (v: boolean) => void;
   /** Se llama al guardar un nombre nuevo (para pintarlo al momento). */
   onNombre: (nombre: string) => void;
-  /** Textos del módulo internet (INT12). Si falta, la sección «Internet compartido» queda oculta — la tarea INT20 lo conecta. */
-  textosInternet?: typeof TextosInternet;
 }) {
   const { privacidad: p, internetPublico } = useMeshPrivacidad();
   const { ajustes: banco, restanteHoyMb } = useAjustesBanco();
@@ -193,20 +191,6 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo guardar el nombre");
     }
-  };
-
-  const textosBanco = {
-    bancoTitulo: TextosInternet.bancoTitulo,
-    bancoAyuda: TextosInternet.bancoAyuda,
-    quedaHoy: TextosInternet.quedaHoy,
-    agotadoHoy: TextosInternet.agotadoHoy,
-  };
-
-  const textosSugerencia = {
-    sugerirTitulo: TextosInternet.sugerirTitulo,
-    sugerirCuerpo: TextosInternet.sugerirCuerpo,
-    sugerirActivar: TextosInternet.sugerirActivar,
-    sugerirAhoraNo: TextosInternet.sugerirAhoraNo,
   };
 
   return (
@@ -279,31 +263,22 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
             const next = { ...banco, activo };
             setAjustesBanco(next);
           }}
-          textos={textosBanco}
+          textos={TEXTOS_INTERNET}
           restanteHoyMb={restanteHoyMb}
         />
         <SugerenciaModoBanco
           visible={!banco.activo && (ultimaNegativa == null || Date.now() - ultimaNegativa >= 24 * 60 * 60 * 1000)}
           onActivar={() => setAjustesBanco({ ...banco, activo: true })}
           onAhoraNo={() => setUltimaNegativa(Date.now())}
-          textos={textosSugerencia}
+          textos={TEXTOS_INTERNET}
         />
       </div>
 
-      {textosInternet && (
-        <SeccionInternet
-          textos={textosInternet}
-          extra={{
-            desde: "Desde",
-            hasta: "Hasta",
-            limite: "Límite",
-            compartirConOtros: "Compartir con otros",
-            declararDePago: "Declarar de pago",
-            declararNoDePago: "Declarar no de pago",
-          }}
-          clasificacion={clasificacion}
-        />
-      )}
+      <SeccionInternet
+        textos={TEXTOS_INTERNET}
+        extra={TEXTOS_EXTRA_INTERNET}
+        clasificacion={clasificacion}
+      />
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Así te ven las demás cuentas</p>

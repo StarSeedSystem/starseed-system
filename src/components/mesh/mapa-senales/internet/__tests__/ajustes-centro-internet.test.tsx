@@ -87,25 +87,48 @@ const propsBase = {
 };
 
 describe("AjustesNeurona — sección Internet compartido", () => {
-  it("renderiza el bloque «Internet compartido» una vez cuando textosInternet está disponible", async () => {
-    const { TextosInternet } = await import("@/lib/malla/internet/tipos");
+  it("renderiza el bloque «Internet compartido» siempre usando los textos del módulo", async () => {
     const { clasificarConexion } = await import("@/lib/malla/internet/conexion-limitada");
     vi.mocked(clasificarConexion).mockReturnValue({ estado: "no-limitada", fuente: "navegador", motivo: "WiFi" });
     Object.defineProperty(navigator, "connection", {
       value: { type: "wifi", saveData: false, effectiveType: "4g", addEventListener: vi.fn(), removeEventListener: vi.fn() },
       configurable: true,
     });
-    render(<AjustesNeurona {...propsBase} textosInternet={TextosInternet} />);
+    render(<AjustesNeurona {...propsBase} />);
     await waitFor(() => {
       const secciones = screen.getAllByRole("region", { name: /internet compartido/i });
       expect(secciones).toHaveLength(1);
     });
   });
 
-  it("no renderiza el bloque «Internet compartido» cuando textosInternet está ausente", () => {
+  it("muestra «Modo banco» y «Modo mesh» con textos del módulo", async () => {
+    const { clasificarConexion } = await import("@/lib/malla/internet/conexion-limitada");
+    vi.mocked(clasificarConexion).mockReturnValue({ estado: "no-limitada", fuente: "navegador", motivo: "WiFi" });
+    Object.defineProperty(navigator, "connection", {
+      value: { type: "wifi", saveData: false, effectiveType: "4g", addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      configurable: true,
+    });
     render(<AjustesNeurona {...propsBase} />);
-    const seccion = screen.queryByRole("region", { name: /internet compartido/i });
-    expect(seccion).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("Modo banco").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Modo mesh").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("muestra la ayuda del banco y la sugerencia con conexión cellular", async () => {
+    const { clasificarConexion } = await import("@/lib/malla/internet/conexion-limitada");
+    vi.mocked(clasificarConexion).mockReturnValue({ estado: "limitada", fuente: "navegador", motivo: "cellular" });
+    Object.defineProperty(navigator, "connection", {
+      value: { type: "cellular", saveData: false, effectiveType: "4g", addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      configurable: true,
+    });
+    render(<AjustesNeurona {...propsBase} />);
+    await waitFor(() => {
+      expect(screen.getAllByText(/reparte/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Conexión limitada detectada")).toBeInTheDocument();
+      expect(screen.getByText("Activar modo banco")).toBeInTheDocument();
+      expect(screen.getByText("Ahora no")).toBeInTheDocument();
+    });
   });
 
   it("mantiene los ajustes existentes (nombre, privacidad, modo banco, ver públicos)", () => {
@@ -114,20 +137,5 @@ describe("AjustesNeurona — sección Internet compartido", () => {
     expect(screen.getByText(/privacidad del radar público/i)).toBeInTheDocument();
     expect(screen.getByText(/compartir internet/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/ver los datos públicos de otras cuentas/i)).toBeInTheDocument();
-  });
-
-  it("usa clasificación «desconocida» en el primer render sin navigator.connection", async () => {
-    const { TextosInternet } = await import("@/lib/malla/internet/tipos");
-    const { clasificarConexion } = await import("@/lib/malla/internet/conexion-limitada");
-    vi.mocked(clasificarConexion).mockReturnValue({ estado: "desconocida", fuente: "ninguna", motivo: "sin conexión" });
-    Object.defineProperty(navigator, "connection", {
-      value: undefined,
-      configurable: true,
-    });
-    render(<AjustesNeurona {...propsBase} textosInternet={TextosInternet} />);
-    await waitFor(() => {
-      const seccion = screen.getByRole("region", { name: /internet compartido/i });
-      expect(seccion).toBeInTheDocument();
-    });
   });
 });

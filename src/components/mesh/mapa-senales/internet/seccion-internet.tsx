@@ -4,6 +4,7 @@ import * as React from "react";
 import { Switch } from "@/components/ui/switch";
 import { useAjustesInternet } from "@/lib/malla/internet/use-ajustes-internet";
 import { TextosInternet } from "@/lib/malla/internet/tipos";
+import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from "@/lib/malla/internet/textos-internet";
 import type { Audiencia, EstadoConexion, FuenteLimitada } from "@/lib/malla/internet/tipos";
 import { InterruptorModoBanco } from "./interruptor-modo-banco";
 import { RacionBanco } from "./racion-banco";
@@ -14,8 +15,8 @@ import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 import { debeSugerir, registrarNegativa } from "@/lib/malla/internet/sugerencia-banco";
 
 type Props = {
-  textos: typeof TextosInternet;
-  extra: {
+  textos?: typeof TextosInternet;
+  extra?: {
     desde: string;
     hasta: string;
     limite: string;
@@ -91,6 +92,8 @@ function claveConexionActual(tipo?: string, saveData?: boolean): string {
 }
 
 export function SeccionInternet({ textos, extra, clasificacion: clasificacionProp }: Props) {
+  const t = textos ?? TEXTOS_INTERNET;
+  const e = extra ?? TEXTOS_EXTRA_INTERNET;
   const { ajustes, cambiar, restanteHoyMb } = useAjustesInternet();
   const [clasificacionInterna, setClasificacionInterna] = React.useState<{ estado: EstadoConexion; fuente: FuenteLimitada }>(CLASIFICACION_INICIAL);
   const [sugerir, setSugerir] = React.useState(false);
@@ -158,9 +161,9 @@ export function SeccionInternet({ textos, extra, clasificacion: clasificacionPro
     setSugerir(false);
   };
 
-  const textoEstado = textos[TEXTO_ESTADO[clasificacion.estado]];
+  const textoEstado = t[TEXTO_ESTADO[clasificacion.estado]];
   const textoFuente =
-    clasificacion.fuente === "ninguna" ? null : textos[TEXTO_FUENTE[clasificacion.fuente]];
+    clasificacion.fuente === "ninguna" ? null : t[TEXTO_FUENTE[clasificacion.fuente]];
 
   return (
     <section aria-label="Internet compartido" className="space-y-3">
@@ -179,10 +182,10 @@ export function SeccionInternet({ textos, extra, clasificacion: clasificacionPro
           onActivar={onActivar}
           onAhoraNo={onAhoraNo}
           textos={{
-            sugerirTitulo: textos.sugerirTitulo,
-            sugerirCuerpo: textos.sugerirCuerpo,
-            sugerirActivar: textos.sugerirActivar,
-            sugerirAhoraNo: textos.sugerirAhoraNo,
+            sugerirTitulo: t.sugerirTitulo,
+            sugerirCuerpo: t.sugerirCuerpo,
+            sugerirActivar: t.sugerirActivar,
+            sugerirAhoraNo: t.sugerirAhoraNo,
           }}
         />
       )}
@@ -192,28 +195,28 @@ export function SeccionInternet({ textos, extra, clasificacion: clasificacionPro
           onClick={() => cambiar({ declaraLimitada: true })}
           className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-medium text-white/90 transition-colors duration-200 cursor-pointer hover:border-emerald-400/25 hover:bg-emerald-500/10"
         >
-          {extra.declararDePago}
+          {e.declararDePago}
         </button>
         <button
           type="button"
           onClick={() => cambiar({ declaraLimitada: false })}
           className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-medium text-white/90 transition-colors duration-200 cursor-pointer hover:border-emerald-400/25 hover:bg-emerald-500/10"
         >
-          {extra.declararNoDePago}
+          {e.declararNoDePago}
         </button>
       </div>
       <InterruptorModoBanco
         activo={ajustes.banco.activo}
         onCambiar={(activo) => cambiar({ banco: { ...ajustes.banco, activo } })}
-        textos={textos}
+        textos={t}
         restanteHoyMb={restanteHoyMb}
       />
       {ajustes.banco.activo && (
         <RacionBanco
           banco={ajustes.banco}
           onCambiar={(banco) => cambiar({ banco })}
-          textos={textos}
-          extra={extra}
+          textos={t}
+          extra={e}
         />
       )}
       {AUDIENCIAS.map((audiencia) => (
@@ -224,14 +227,14 @@ export function SeccionInternet({ textos, extra, clasificacion: clasificacionPro
           onCambiar={(valor) =>
             cambiar({ porAudiencia: { ...ajustes.porAudiencia, [audiencia]: valor } })
           }
-          textos={textos}
+          textos={t}
         />
       ))}
       <label
         htmlFor="compartir-con-otros"
         className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 transition-colors duration-200 cursor-pointer hover:border-emerald-400/25"
       >
-        <span className="text-[11px] font-medium text-white/90">{extra.compartirConOtros}</span>
+        <span className="text-[11px] font-medium text-white/90">{e.compartirConOtros}</span>
         <Switch
           id="compartir-con-otros"
           checked={ajustes.compartirConOtros}
