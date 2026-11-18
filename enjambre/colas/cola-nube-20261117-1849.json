@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "TU29",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Habilidad de Astraura «traductor-universal»: sumarla al catálogo de herramientas",
+   "archivos": [
+    "src/lib/astraura/chat-herramientas.ts",
+    "src/lib/astraura/__tests__/herramienta-traductor-catalogo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `chat-herramientas.ts` entero (`HERRAMIENTA_CONTENIDO_VIVO` y `HERRAMIENTAS_ASTRAURA_VIVO` :154) y `src/ai/astraura/skills.ts:41-70` (`SkillCapability`). Añade `HERRAMIENTA_TRADUCTOR: SkillCapability` con `id:\"traductor-universal\"`, `label:\"Traductor universal\"`, `defaultOn:true`, `packageIds:[\"app-traductor\"]`, y un `systemPrompt` que explique cuándo usarla (§6 del contrato: mensaje en otro idioma, petición de traducir, varias personas) y que si la herramienta falla lo diga sin inventar la traducción; súmala al array exportado. PRUEBAS: el catálogo contiene la herramienta una vez, el id no choca con `SKILL_CAPABILITIES`, y activar/desactivar con `alternarHerramienta` funciona.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU26"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-123226.json": [
+   "TU29"
+  ]
+ }
+}
