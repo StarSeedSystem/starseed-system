@@ -32,6 +32,7 @@ import { getIntegration, loadIntegrationConfig } from "./registry";
 import { runIntegration } from "./run";
 import { TOPE_CONTENIDO } from "../conectores-propios/trilium";
 import { resolveProvider, modeForCategory, type ProviderCategory } from "../../ai/astraura/provider-resolution";
+import type { EntradaTraductor } from "../../lib/traductor/herramienta-astraura";
 
 export interface AuroraIntegrationTool {
   /** Nombre que el modelo usa para invocar (snake_case, estable). */
@@ -1238,6 +1239,90 @@ export const AURORA_CONTEXT_TOOLS: AuroraScreenTool[] = [
   },
 ];
 
+// ── TRADUCTOR UNIVERSAL (TRA1116A §6, kind:"screen") ─────────────────────────
+// Conecta la herramienta que YA existía (src/lib/traductor/herramienta-astraura.ts)
+// con los motores de este aparato (crearMotores: navegador › LibreTranslate ›
+// Astraura, los mismos de /traductor y del clic derecho) vía crearServicioTraduccion.
+// Sin esta pieza, la capacidad «traductor-universal» pedía a Aurora una tool que
+// no podía llamar. NUNCA lanza: si no hay motor apto, error honesto — jamás una
+// traducción inventada.
+
+/** Tools del traductor que Aurora puede invocar (navegador, sin config). */
+export const AURORA_TRADUCTOR_TOOLS: AuroraScreenTool[] = [
+  {
+    name: "traducir",
+    description:
+      "Traduce texto entre idiomas con los motores gratuitos de este aparato (Traductor del navegador › LibreTranslate de la neurona › Astraura). Entrada: { texto | textos[], origen?: \"auto\"|código, destino: código (p. ej. \"en\", \"fr\"), tono?: \"neutro\"|\"formal\"|\"cercano\", contexto?: \"chat\"|\"documento\"|\"voz\" }. Úsala cuando el mensaje esté en un idioma distinto al de la conversación, cuando te pidan traducir o responder en otro idioma, o cuando atiendas a varias personas que hablan idiomas distintos. Si falla, dilo: nunca inventes la traducción.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "traducir",
+    kind: "screen",
+    run: async (input) => {
+      if (typeof window === "undefined") {
+        return { ok: false, error: "El traductor solo funciona en el navegador." };
+      }
+      try {
+        const [herr, capas, pantalla] = await Promise.all([
+          import("../../lib/traductor/herramienta-astraura"),
+          import("../../lib/traductor/motores-traductor"),
+          import("@/components/traduccion/traducir-texto"),
+        ]);
+        const destino = String(pickInput(input, "destino", "idiomaDestino", "target", "idioma") ?? "")
+          .trim().toLowerCase().replace(/_/g, "-");
+        if (!destino) {
+          return { ok: false, error: "¿A qué idioma lo traduzco? Dime el destino (p. ej. «en», «fr»)." };
+        }
+        const textoBruto = pickInput(input, "texto", "text", "contenido", "content", "mensaje");
+        const lista = pickInput(input, "textos", "texts");
+        const texto = textoBruto === undefined || textoBruto === null || textoBruto === "" ? undefined : String(textoBruto);
+        const origenBruto = pickInput(input, "origen", "source");
+        const origen = origenBruto === undefined || origenBruto === null || origenBruto === "" ? "auto" : String(origenBruto);
+        const contextoBruto = String(pickInput(input, "contexto", "context") ?? "");
+        const contexto = (["chat", "documento", "voz"] as const).find((c) => c === contextoBruto);
+        const entrada: EntradaTraductor = {
+          ...(texto !== undefined && texto.trim() ? { texto } : {}),
+          ...(Array.isArray(lista) && lista.length ? { textos: lista.map((t) => String(t)) } : {}),
+          origen,
+          destino,
+          ...(contexto ? { contexto } : {}),
+        };
+        const servicio = capas.crearServicioTraduccion({
+          privado: false,
+          motores: pantalla.crearMotores({
+            protocolo: window.location.protocol,
+            maquina: window.location.hostname,
+            translator: (window as { Translator?: unknown }).Translator,
+          }),
+        });
+        const r = await herr.ejecutarTraductorConServicio(entrada, async (textos, origen, destino) =>
+          (await servicio.traducir(textos, origen, destino)).map((t) => t.texto)
+        );
+        if ("error" in r) return { ok: false, error: r.error };
+        const traduccion = r.traducciones.join("\n\n");
+        return {
+          ok: true,
+          data: {
+            text: r.aviso ? `${traduccion}\n\n(${r.aviso})` : traduccion,
+            motor: r.motor,
+            origenDetectado: r.origenDetectado,
+            local: r.local,
+            ...(r.aviso ? { aviso: r.aviso } : {}),
+          },
+        };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error && e.message ? e.message : "No pude traducir ahora mismo." };
+      }
+    },
+  },
+];
+
+/** Conjunto de nombres de las tools del TRADUCTOR (para el prompt y los filtros). */
+const TRADUCTOR_TOOL_NAMES: ReadonlySet<string> = new Set(AURORA_TRADUCTOR_TOOLS.map((t) => t.name));
+
+/** ¿Es una tool del traductor universal? */
+export function isAuroraTraductorTool(t: AuroraIntegrationTool): boolean {
+  return TRADUCTOR_TOOL_NAMES.has(t.name);
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // PERSONALIDAD (kind:"personality") — Aurora cambia/ajusta su propia forma de
 // ----------------------------------------------------------------------------
@@ -1819,9 +1904,9 @@ function isContextTool(t: AuroraIntegrationTool): boolean {
   return CONTEXT_TOOL_NAMES.has(t.name);
 }
 
-// Índice por nombre para O(1) — integraciones + control de pantalla + generación + contexto + personalidad + voz.
+// Índice por nombre para O(1) — integraciones + control de pantalla + generación + contexto + traductor + personalidad + voz.
 const TOOL_INDEX: Record<string, AuroraIntegrationTool> = Object.fromEntries(
-  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].map((t) => [t.name, t]),
+  [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_TRADUCTOR_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].map((t) => [t.name, t]),
 );
 
 /** Busca una tool de Aurora por nombre. */
@@ -1856,7 +1941,7 @@ export function isAuroraToolAvailable(name: string, brainId?: string): boolean {
 
 /** Lista las tools disponibles ahora mismo (por config). */
 export function listAvailableAuroraTools(brainId?: string): AuroraIntegrationTool[] {
-  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].filter((t) =>
+  return [...AURORA_INTEGRATION_TOOLS, ...AURORA_SCREEN_TOOLS, ...AURORA_GENERATE_TOOLS, ...AURORA_CONTEXT_TOOLS, ...AURORA_TRADUCTOR_TOOLS, ...AURORA_PERSONALITY_TOOLS, ...AURORA_VOICE_TOOLS].filter((t) =>
     isAuroraToolAvailable(t.name, brainId),
   );
 }
@@ -2104,7 +2189,8 @@ export function auroraToolsPromptSection(brainId?: string): string {
   const voz = tools.filter((t) => isAuroraVoiceTool(t));
   const contenido = tools.filter((t) => isAuroraScreenTool(t) && isGenerateTool(t));
   const contexto = tools.filter((t) => isAuroraScreenTool(t) && isContextTool(t));
-  const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t) && !isContextTool(t));
+  const traduccion = tools.filter((t) => isAuroraScreenTool(t) && isAuroraTraductorTool(t));
+  const pantalla = tools.filter((t) => isAuroraScreenTool(t) && !isGenerateTool(t) && !isContextTool(t) && !isAuroraTraductorTool(t));
   const parts: string[] = [];
   if (integraciones.length > 0) {
     parts.push(
@@ -2128,6 +2214,14 @@ export function auroraToolsPromptSection(brainId?: string): string {
     parts.push(
       "CONTEXTO DEL USUARIO Y LA RED: ya tienes un resumen breve de tu ámbito propio arriba (si el usuario lo activó); estas tools te dejan pedir MÁS — el contexto COMPLETO, buscar publicaciones PÚBLICAS de la red, o consultar una página/grupo por su slug. Respeta la privacidad: solo ámbito propio + público, nunca reveles claves/secretos, y en mensajes nunca compartas el contenido de un hilo (solo su existencia/título).",
       ...contexto.map((t) => `- ${t.name}: ${t.description}`),
+    );
+  }
+  if (traduccion.length > 0) {
+    parts.push(
+      "TRADUCCIÓN (Traductor universal): puedes TRADUCIR texto entre idiomas con los motores gratuitos del aparato (navegador › LibreTranslate de la neurona › Astraura). Úsala cuando el mensaje esté en otro idioma, cuando te pidan traducir o responder en otro idioma, o cuando atiendas a varias personas que hablan idiomas distintos. Si la herramienta falla, dilo — NUNCA inventes la traducción.",
+      ...traduccion.map((t) => `- ${t.name}: ${t.description}`),
+      "Ejemplo:",
+      '· «¿Qué dice esto en francés?» → [[ACCION: traducir {"texto":"…","destino":"es"}]] y lees la traducción.',
     );
   }
   if (personalidad.length > 0) {
