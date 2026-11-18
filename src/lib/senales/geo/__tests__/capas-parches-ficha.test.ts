@@ -100,6 +100,31 @@ describe("ficha", () => {
     const f = JSON.stringify(fichaDeMarca(marca({ posicion: { tipo: "desconocida", motivo: "MOTIVO-PRUEBA" } }), AHORA));
     expect(f).toContain("MOTIVO-PRUEBA");
   });
+
+  it("con oferta anunciada: muestra los recursos en la ficha", () => {
+    const m = marca({ oferta: { computo: true, almacenamiento: true, internet: true } });
+    const f = JSON.stringify(fichaDeMarca(m, AHORA));
+    expect(f).toContain("cómputo");
+    expect(f).toContain("almacenamiento");
+    expect(f).toContain("internet compartido");
+    expect(f).toContain("presencia de la cuenta");
+  });
+
+  it("con oferta parcialmente anunciada: muestra solo lo que ofrece", () => {
+    const m = marca({ oferta: { computo: true, almacenamiento: false, internet: true } });
+    const f = JSON.stringify(fichaDeMarca(m, AHORA));
+    expect(f).toContain("cómputo");
+    expect(f).toContain("internet compartido");
+    // La línea de oferta no debe contener "almacenamiento" (aunque el hardware sí tiene "Almacenamiento libre")
+    const ofertaLine = f.split('"Cómputo, almacenamiento e internet compartido"')[1]?.split("}")[0] || "";
+    expect(ofertaLine).not.toContain("almacenamiento");
+  });
+
+  it("sin oferta anunciada: dice que no anuncia", () => {
+    const m = marca({ oferta: null });
+    const f = JSON.stringify(fichaDeMarca(m, AHORA));
+    expect(f).toContain("no anuncia su oferta");
+  });
 });
 
 describe("capas de oferta (AQ07)", () => {

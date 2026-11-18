@@ -39,6 +39,21 @@ export type OfertaNeurona = {
   t: number;
 };
 
+export type OfertaSimple = {
+  computo: boolean;
+  almacenamiento: boolean;
+  internet: boolean;
+};
+
+export function formatearOfertaSimple(oferta: OfertaSimple | null | undefined): string {
+  if (!oferta) return "sin anuncio de oferta";
+  const partes: string[] = [];
+  if (oferta.computo) partes.push("cómputo");
+  if (oferta.almacenamiento) partes.push("almacenamiento");
+  if (oferta.internet) partes.push("internet compartido");
+  return partes.length ? partes.join(", ") : "no ofrece recursos";
+}
+
 export function ofertaVisiblePara(
   oferta: OfertaNeurona,
   quien: { cuentaId: string; grupos: string[] }

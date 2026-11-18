@@ -9,6 +9,7 @@ import { TEXTO_ESTADO } from "@/lib/senales/aparatos";
 import { CLASES_ALMACENAMIENTO, ETIQUETA_CHIP, ETIQUETA_CONCIENCIA, claseAlmacenamiento } from "./capas";
 import type { MarcaGeo } from "./marcas";
 import { haceCuanto, posicionEsViva } from "./modelo-geo";
+import { formatearOfertaSimple, type OfertaSimple } from "@/lib/recursos/oferta";
 
 export const DESCONOCIDO = "desconocido";
 
@@ -143,7 +144,9 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
       ...datosHardware(m, hora),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
-      datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
+      m.oferta
+        ? { etiqueta: "Cómputo, almacenamiento e internet compartido", valor: formatearOfertaSimple(m.oferta as OfertaSimple), fuente: "presencia de la cuenta (ajustes locales del aparato)", estado: "declarado" }
+        : datoDesconocido("Cómputo, almacenamiento e internet compartido", "presencia de la cuenta", "esa neurona no anuncia su oferta de recursos"),
     ],
   });
 
