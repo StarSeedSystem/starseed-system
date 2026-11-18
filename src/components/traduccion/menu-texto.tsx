@@ -8,7 +8,11 @@
  * Escape y clic fuera cierran, dianas de 44 px.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { capturarSeleccionEditable, type ObjetivoEditable } from "./reemplazar-seleccion";
+import {
+  capturarSeleccionEditable,
+  capturarSeleccionEditableDesdeObjetivo,
+  type ObjetivoEditable,
+} from "./reemplazar-seleccion";
 
 /** Lo que ve una entrada: la selección, el bloque bajo el puntero y si la página está traducida. */
 export interface ContextoMenuTexto {
@@ -53,11 +57,18 @@ export function entradasVisibles(
   return lista.filter((e) => e.visible?.(ctx) ?? true);
 }
 
+const TIPOS_TEXTO = ["text", "search", "url", "tel", "email"];
+
+function esInputTexto(el: Element): el is HTMLInputElement {
+  return el.tagName === "INPUT" && TIPOS_TEXTO.includes((el as HTMLInputElement).type);
+}
+
 /** Un campo editable manda el menú del navegador, no el nuestro. */
 export function esEditable(objetivo: Element | null): boolean {
   if (!objetivo) return false;
   if ((objetivo as HTMLElement).isContentEditable) return true;
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(objetivo.tagName)) return true;
+  if (esInputTexto(objetivo)) return true;
+  if (objetivo.tagName === "TEXTAREA" || objetivo.tagName === "SELECT") return true;
   return objetivo.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']") !== null;
 }
 
@@ -68,13 +79,9 @@ export function abreMenuTexto(
   hayTexto: boolean,
   seleccionEditable = false,
 ): boolean {
-  return (
-    objetivo !== null &&
-    !evento.defaultPrevented &&
-    !evento.shiftKey &&
-    hayTexto &&
-    (!esEditable(objetivo) || seleccionEditable)
-  );
+  if (!objetivo || evento.defaultPrevented || evento.shiftKey || !hayTexto) return false;
+  if (objetivo.tagName === "INPUT" && (objetivo as HTMLInputElement).type === "password") return false;
+  return !esEditable(objetivo) || seleccionEditable;
 }
 
 /** Coloca el menú en el puntero sin salirse de la ventana (margen de 8 px). */
@@ -104,14 +111,19 @@ export function MenuTexto() {
   const refMenu = useRef<HTMLDivElement>(null);
   const cerrar = useCallback(() => setAbierto(false), []);
 
-  useEffect(() => {
-const abrir = (e: MouseEvent) => {
+useEffect(() => {
+    const abrir = (e: MouseEvent) => {
         const objetivo = e.target instanceof Element ? e.target : null;
         // En input/textarea la selección no está en `window.getSelection`: se captura del
         // campo antes de que el menú mueva el foco; en el resto sigue valiendo la del documento.
-        const capturada = esEditable(objetivo) ? capturarSeleccionEditable(document) : null;
+        const capturada = esEditable(objetivo)
+          ? capturarSeleccionEditableDesdeObjetivo(document, objetivo)
+          : null;
         const seleccion = (capturada?.texto ?? window.getSelection?.()?.toString() ?? "").trim();
-        const hayTexto = seleccion.length > 0 || Boolean(objetivo?.textContent?.trim());
+        const valorObjetivo = objetivo instanceof HTMLInputElement || objetivo instanceof HTMLTextAreaElement
+          ? objetivo.value
+          : objetivo?.textContent ?? "";
+        const hayTexto = seleccion.length > 0 || valorObjetivo.trim().length > 0;
         if (!abreMenuTexto(e, objetivo, hayTexto, capturada !== null) || objetivo?.closest("[data-menu-texto]")) return;
         const contexto: ContextoMenuTexto = {
           seleccion,

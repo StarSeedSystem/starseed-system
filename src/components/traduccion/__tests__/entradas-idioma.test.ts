@@ -3,7 +3,7 @@ import { entradasIdioma, urlTraductor } from "../entradas-idioma";
 import { entradasVisibles, type ContextoMenuTexto } from "../menu-texto";
 
 function ctx(opciones: { seleccion?: string }): ContextoMenuTexto {
-  return { seleccion: opciones.seleccion ?? "", objetivo: null, paginaTraducida: false };
+  return { seleccion: opciones.seleccion ?? "", objetivo: null, paginaTraducida: false, editable: false };
 }
 
 describe("urlTraductor · la URL del Traductor va codificada y recortada", () => {

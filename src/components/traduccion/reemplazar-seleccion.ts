@@ -62,6 +62,22 @@ export function capturarSeleccionEditable(doc: Document): ObjetivoEditable | nul
   if (fin <= inicio || texto.length === 0) return null;
   return { elemento: host, inicio, fin, texto };
 }
+
+/** Captura la selección desde un elemento objetivo concreto (útil en tests/jsdom donde activeElement no funciona). */
+export function capturarSeleccionEditableDesdeObjetivo(
+  doc: Document,
+  objetivo: Element | null,
+): ObjetivoEditable | null {
+  if (!objetivo || !esCampo(objetivo)) return null;
+  if (objetivo.tagName === "INPUT" && !TIPOS_TEXTO.includes((objetivo as HTMLInputElement).type)) {
+    return null;
+  }
+  const inicio = (objetivo as HTMLInputElement | HTMLTextAreaElement).selectionStart;
+  const fin = (objetivo as HTMLInputElement | HTMLTextAreaElement).selectionEnd;
+  if (inicio === null || fin === null || fin <= inicio) return null;
+  const valor = (objetivo as HTMLInputElement | HTMLTextAreaElement).value;
+  return { elemento: objetivo as HTMLInputElement | HTMLTextAreaElement, inicio, fin, texto: valor.slice(inicio, fin) };
+}
 /** Reconstruye un rango entre dos desplazamientos de texto, o `null` si no caben. */
 function rangoDeDesplazamientos(doc: Document, host: Node, inicio: number, fin: number): Range | null {
   const rango = doc.createRange();

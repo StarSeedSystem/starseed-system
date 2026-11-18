@@ -193,8 +193,8 @@ export function TraducirTexto() {
         const quitarReemplazo = registrarEntradaMenuTexto({
             id: "reemplazar-por-traduccion",
             etiqueta: "Reemplazar por la traducción",
-            visible: (c) => Boolean(c.editable),
-            ejecutar: (c) => { if (c.editable) void reemplazarSeleccion(c.editable); },
+            visible: (c) => Boolean(c.seleccionEditable),
+            ejecutar: (c) => { if (c.seleccionEditable) void reemplazarSeleccion(c.seleccionEditable); },
         });
         // TRA1116: las tres entradas de idioma van al MISMO menú del clic derecho.
         // El editor de paquetes se rehace cuando el almacén avisa (abrir o cerrar

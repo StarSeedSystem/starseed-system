@@ -124,7 +124,7 @@ describe("MenuTexto", () => {
       { id: "b", etiqueta: "B", visible: () => false, ejecutar: () => {} },
       { id: "c", etiqueta: "C", visible: () => true, ejecutar: () => {} },
     ];
-    expect(entradasVisibles(lista, { seleccion: "", objetivo: null, paginaTraducida: false }).map((e) => e.id)).toEqual([
+    expect(entradasVisibles(lista, { seleccion: "", objetivo: null, paginaTraducida: false, editable: false }).map((e) => e.id)).toEqual([
       "a",
       "c",
     ]);
