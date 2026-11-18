@@ -78,6 +78,42 @@ export function esperaReintentoIce(n: number): number {
 }
 
 /**
+ * AUD1117 · Cuánto se espera a que vuelva el enlace de una llamada que ya estaba en pie antes de darla por perdida.
+ * Antes, los 15 s del motor y los 20 s de la llamada directa eran el fin: un corte corto del Bluetooth colgaba la
+ * llamada. Ahora son solo el momento en que se enseña «Reconectando…»; el fin llega a los 90 s.
+ */
+export const ESPERA_RECONEXION_MS = 90_000;
+
+/** AUD1117 · Motivo visible en los dos extremos cuando el enlace no vuelve en `ESPERA_RECONEXION_MS`. */
+export const MOTIVO_RECONEXION_AGOTADA = `Se perdió el enlace con el otro aparato y no volvió en ${Math.round(ESPERA_RECONEXION_MS / 1000)} s. Comprueba que sigue cerca y vuelve a intentarlo.`;
+
+/** AUD1117 · Lo que se sabe en un tic de una llamada que se quedó sin enlace. */
+export interface EntradaCorteEnlace {
+  /** ms desde que se perdió el enlace. */
+  sinEnlaceMs: number;
+  /** ¿La llamada ya estaba en pie (había audio) antes del corte? */
+  estabaEnPie: boolean;
+  /** ¿Hay otro carril vivo con ese par? Entonces manda el relevo de siempre. */
+  otroCarril: boolean;
+  /** ¿El enlace ha vuelto? */
+  enlaceVuelve?: boolean;
+}
+
+/** «seguir»: el comportamiento de siempre · «reconectando»: esperar sin colgar · «terminar»: la espera se agotó. */
+export type DecisionCorteEnlace = "seguir" | "reconectando" | "terminar";
+
+/**
+ * AUD1117 · ¿Qué se hace con una llamada en pie que ha perdido su único carril? Pura: el tiempo entra en `sinEnlaceMs`.
+ * Un corte de hasta 90 s no cuelga: se espera y vuelve sola al volver el enlace. Pasados 90 s se termina con motivo.
+ * Con otro carril vivo, o si la llamada no llegó a estar en pie, no se toca lo que ya hacía el motor.
+ */
+export function decidirCorteEnlace(e: EntradaCorteEnlace): DecisionCorteEnlace {
+  if (e.enlaceVuelve || e.otroCarril) return "seguir";
+  if (!e.estabaEnPie) return "seguir";
+  return e.sinEnlaceMs >= ESPERA_RECONEXION_MS ? "terminar" : "reconectando";
+}
+
+/**
  * LLA1112A: intentos de WebRTC por la MISMA ruta IP (misma fuente: el mismo enlace local, la misma red nativa o el mismo Wi-Fi
  * directo) sin que ICE llegue a conectar; pasado el tope no se vuelve a intentar hasta que la ruta cambie (otra fuente u otro
  * enlace) o vuelva a aparecer tras desaparecer. Cuatro intentos cubren 51 s con la escala de arriba: lo que tarda de sobra

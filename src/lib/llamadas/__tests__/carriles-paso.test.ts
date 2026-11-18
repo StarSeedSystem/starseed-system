@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capacidadCarril, esperaReintentoIce, MARGEN_CAPACIDAD, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { capacidadCarril, decidirCorteEnlace, ESPERA_RECONEXION_MS, esperaReintentoIce, MARGEN_CAPACIDAD, MOTIVO_RECONEXION_AGOTADA, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type EntradaCorteEnlace, type MuestraCarril } from "@/lib/llamadas/carriles";
 
 
 const web = (arriba: boolean): MuestraCarril => ({ carril: "webrtc", arriba, rttMs: 20 });

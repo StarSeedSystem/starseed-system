@@ -33,7 +33,7 @@ import { anotarLlamada } from "@/lib/llamadas/voz-datos/diagnostico";
 import { RelojEstable } from "@/lib/llamadas/reloj-estable"; // LLA1113A
 import { leerControl } from "@/lib/llamadas/voz-datos/paquete";
 // (LLA1110D) Un carril estable por flujo (voz, vídeo, pantalla, señal) en vez de un único medio que saltaba.
-import { decidirReintentoIce, esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { decidirCorteEnlace, decidirReintentoIce, esCarrilBle, esperaReintentoIce, etiquetaCarril, LimiteRegistro, MOTIVO_RECONEXION_AGOTADA, SelectorCarriles, SILENCIO_WEBRTC_MS, textoCarriles, soyDirector, type CambioCarril, type Carril, type Flujo, type MuestraCarril } from "@/lib/llamadas/carriles";
 // (MLL1111C) Las señales de cambio de red del sistema (online/offline y Network Information): el paso de carril al instante.
 import { senalesDisponibles, vigilarSenalesRed, type SenalRed } from "@/lib/malla/senales-red";
 import { SesionVideoDatos } from "@/lib/llamadas/video-datos/sesion-video";
@@ -1797,12 +1797,16 @@ export class MotorLlamada {
     }
 
     private estadoDatosPar(id: string): "sin-enlace" | "disponible" | "activo" {
-        if (this.vozDatos.get(id)?.estado().activa) return "activo";
+        // AUD1117: una sesión de voz «activa» deja de contar en cuanto su enlace desaparece (corte del Bluetooth o del
+        // enlace local). Antes seguía diciendo «activo» y la caída no se veía hasta colgar.
+        let hay = false;
         try {
-            return this.opc.vozDatos?.transporteHacia(id) ? "disponible" : "sin-enlace";
+            hay = !!this.opc.vozDatos?.transporteHacia(id);
         } catch {
-            return "sin-enlace";
+            hay = false;
         }
+        if (!hay) return "sin-enlace";
+        return this.vozDatos.get(id)?.estado().activa ? "activo" : "disponible";
     }
 
     private hayAudioEnAlgunPar(): boolean {
@@ -1813,8 +1817,9 @@ export class MotorLlamada {
 
     /**
      * Vigila qué medio lleva la voz con ese par (cada 500 ms): sin ruta IP, o con ICE sin conectar tras 6 s, pasa a
-     * la voz por el enlace de datos sin colgar; si luego WebRTC conecta, vuelve a él; y a los 15 s sin audio por
-     * ninguno, acaba la llamada con un motivo claro en los dos extremos. Ver `voz-datos/decision.ts`.
+     * la voz por el enlace de datos sin colgar; si luego WebRTC conecta, vuelve a él. Sin audio al arrancar acaba a
+     * los 15 s; si la llamada ya iba y su único enlace se cae, espera hasta 90 s a que vuelva (AUD1117). Ver
+     * `voz-datos/decision.ts` y `carriles.ts › decidirCorteEnlace`.
      */
     private vigilarMedio(id: string) {
         const v = this.opc.vozDatos;
@@ -1822,6 +1827,7 @@ export class MotorLlamada {
         const reloj = this.relojVoz();
         let desde = reloj.ahora();
         let anotadoWebrtc = false;
+        let enPie = false;
         let bajaEscucha: (() => void) | null = null;
         let escuchado: TransporteVoz | null = null;
         const neurona = v.neurona ?? null;
