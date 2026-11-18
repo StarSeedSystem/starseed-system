@@ -2954,7 +2954,7 @@ export class MotorLlamada {
 }
 
 /** LLA1114G · Cuánto se espera a que vuelva la presencia del otro antes de acabar una llamada 1:1 (la caducidad de la presencia directa es 30 s). */
-export const GRACIA_PRESENCIA_MS = 25_000;
+export const GRACIA_PRESENCIA_MS = 90_000;
 const AVISO_RECONEXION = "Reconectando con el servidor de la llamada…";
 const AVISO_ENLACE_CAIDO = "El enlace directo con el otro aparato se ha caído. Esperando a que vuelva…";
 const MENSAJE_SIN_SERVIDOR = "No se pudo conectar con el servidor de la llamada. Revisa tu conexión y vuelve a intentarlo.";

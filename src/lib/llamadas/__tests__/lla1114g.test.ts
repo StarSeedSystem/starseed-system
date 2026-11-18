@@ -333,7 +333,7 @@ describe("A · una llamada no acaba sola", () => {
         presenciaDe("b:t", false);
         await vi.advanceTimersByTimeAsync(10_000);
         expect(a.estado().fase).not.toBe("terminada");
-        await vi.advanceTimersByTimeAsync(20_000);
+        await vi.advanceTimersByTimeAsync(80_000);
         const e = a.estado();
         expect(e.fase).toBe("terminada");
         expect(e.motivoFin).toBe("Se perdió el contacto con la otra persona.");

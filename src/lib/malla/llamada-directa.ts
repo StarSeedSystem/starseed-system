@@ -292,13 +292,13 @@ function soltarStream(s: MediaStream | null | undefined): void {
 /* ── LLA1112A: la conversación sobrevive a que su enlace se caiga y vuelva ───────────────────── */
 
 /**
- * Lo que una conversación espera a que vuelva un enlace con la otra neurona antes de darse por perdida. 20 s: el enlace
+ * (LLA1112A) Lo que una conversación espera a que vuelva un enlace con la otra neurona antes de darse por perdida. 90 s: el enlace
  * WebRTC local se rehace solo al volver la red (la malla de la cuenta lo vuelve a abrir, y `asegurarEnlace` lo pide por el
  * canal de la app), el Bluetooth de la prueba 39 tardó 1–6 s en religar (`reconectado · b3 … tras 1 s sin enlace`, la tableta
  * `tras 6 s`), y es algo más que los 15 s sin audio con los que el motor de llamadas da por fallida una llamada que no arranca
  * (`LIMITE_CONECTANDO_MS`): una persona espera eso con «Reconectando…» antes de colgar ella.
  */
-export const ESPERA_VUELTA_ENLACE_MS = 20_000;
+export const ESPERA_VUELTA_ENLACE_MS = 90_000;
 let esperaVuelta: ReturnType<typeof setTimeout> | null = null;
 let perdidoEn = 0;
 

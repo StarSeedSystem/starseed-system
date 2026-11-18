@@ -173,7 +173,7 @@ describe("LLA1112A · la llamada directa no cuelga porque su enlace se caiga", (
         const e = mac.ld.estadoLlamadaDirecta();
         expect(e.fase).toBe("terminada");
         expect(e.fin).toBe("fallo");
-        expect(e.motivo).toMatch(/no volvió en 20 s/);
+        expect(e.motivo).toMatch(/no volvió en 90 s/);
     });
 
     it("con otro enlace vivo con esa neurona, se pasa a él sin esperar", async () => {
@@ -182,5 +182,35 @@ describe("LLA1112A · la llamada directa no cuelga porque su enlace se caiga", (
         mac.reg.quitarEnlaceLocal(enMac.id);
         await pasa();
         expect(mac.ld.estadoLlamadaDirecta()).toMatchObject({ fase: "en-curso", enlaceId: otro.id, motivo: null });
+    });
+
+    it("enlace que cae 60 s y vuelve: la conversación sigue viva (no termina)", async () => {
+        const [enMac] = await enCurso();
+        vi.useFakeTimers();
+        mac.reg.quitarEnlaceLocal(enMac.id);
+        await pasa();
+        // A los 60 s, la llamada sigue en curso con el aviso de reconexión.
+        vi.advanceTimersByTime(60_000);
+        const e = mac.ld.estadoLlamadaDirecta();
+        expect(e.fase).toBe("en-curso");
+        expect(e.fin).toBeNull();
+        expect(e.motivo).toMatch(/Reconectando/);
+        // Vuelve el enlace: la conversación retoma sinmotivo.
+        const [nMac] = enlazar("wifi-3", mac, tableta);
+        await pasa();
+        expect(mac.ld.estadoLlamadaDirecta()).toMatchObject({ fase: "en-curso", enlaceId: nMac.id, motivo: null });
+    });
+
+    it("enlace que cae 95 s: termina con motivo visible", async () => {
+        const [enMac] = await enCurso();
+        vi.useFakeTimers();
+        mac.reg.quitarEnlaceLocal(enMac.id);
+        await pasa();
+        // Avanzamos 92 s: ya pasó el tope de 90 s pero no el reposo de 4 s.
+        vi.advanceTimersByTime(92_000);
+        const e = mac.ld.estadoLlamadaDirecta();
+        expect(e.fase).toBe("terminada");
+        expect(e.fin).toBe("fallo");
+        expect(e.motivo).toMatch(/no volvió en 90 s/);
     });
 });
