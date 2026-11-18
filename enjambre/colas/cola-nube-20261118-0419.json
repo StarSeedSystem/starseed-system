@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "INT17",
+   "ola": "INT1116A",
+   "titulo": "Conectar la sugerencia con la sección: la conexión de pago se ofrece, nunca se aplica",
+   "archivos": [
+    "src/components/mesh/mapa-senales/internet/seccion-internet.tsx",
+    "src/components/mesh/mapa-senales/internet/__tests__/seccion-internet-sugerencia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/malla-cristalina-sio2.md §8.2 (contrato; si aún no está en el repo, rige este texto). «Modo banco de llamadas» es otra función (pasa a «modo de pruebas de llamadas»): no la toques ni la menciones. Lee `seccion-internet.tsx` (INT12). Cambio ACOTADO (≤50 líneas): dentro de la sección, calcula `clasificacion` con `leerConexion` (INT14) + `clasificarConexion` (INT01) en un efecto (primer render: desconocida; se re-evalúa con `suscribirConexion`), llama a `debeSugerir` (INT15) con la negativa guardada en el aparato (clave `starseed.malla.internet.sugerencia.v1`, leída y escrita con try/catch) y monta `<SugerenciaModoBanco />` (INT16). `onActivar` pone `banco.activo = true` en los ajustes (y nada más: NO toca `compartirConOtros` ni ningún modo mesh); `onAhoraNo` guarda `registrarNegativa`. Si la persona ya declaró la conexión como no de pago, no se sugiere. PRUEBAS: con `cellular` se ofrece y NO cambia ningún ajuste hasta pulsar «Activar»; «Activar» solo enciende el banco; «Ahora no» oculta y no vuelve a salir al re-renderizar; cambiar la conexión a wifi oculta el aviso; declarar «no es de pago» lo oculta.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "INT12",
+    "INT14",
+    "INT15",
+    "INT16"
+   ]
+  },
+  {
+   "id": "AQ07",
+   "ola": "AUD1117",
+   "titulo": "Capacidades: anunciar la oferta de cómputo, almacenamiento e internet de cada neurona",
+   "archivos": [
+    "src/lib/recursos/oferta.ts",
+    "src/lib/neurons/presencia.ts",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F7 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: la oferta que la persona tiene encendida en este aparato (cómputo, almacenamiento, internet) viaja en su presencia/ficha, y las tres capas `oferta-*` del mapa dejan de decir «sin fuente» para las neuronas que anuncian; las que no anuncian siguen «desconocido». Nada se ofrece que la persona no haya encendido. Prueba: unitaria de la ficha (con y sin oferta) y de las capas (anuncia → valor; no anuncia → desconocido).",
+   "dependencias_ya_en_main": [
+    "AQ05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "INT17",
+   "AQ07"
+  ]
+ }
+}
