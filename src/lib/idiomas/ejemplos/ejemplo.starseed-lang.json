@@ -1,0 +1,29 @@
+{
+  "formato": "starseed-idioma",
+  "version": 1,
+  "codigo": "eo",
+  "nombre": "Esperanto",
+  "nombreIngles": "Esperanto",
+  "dir": "ltr",
+  "autor": {
+    "nombre": "StarSeed OS"
+  },
+  "creado": "2026-01-15T00:00:00.000Z",
+  "revisado": {
+    "estado": "automatico"
+  },
+  "licencia": "MIT",
+  "base": "es",
+  "entradas": {
+    "Guardar": "Konservi",
+    "Cancelar": "Nuligi",
+    "Editar": "Redakti",
+    "Eliminar": "Forigi",
+    "Aceptar": "Akcepti",
+    "Cerrar": "Fermi",
+    "Abrir": "Malfermi",
+    "Nuevo": "Nova",
+    "Abrir la pizarra compartida de {0}.": "Malfermi la kunhavitan tabulon de {0}."
+  },
+  "hash": "CALCULAR"
+}
