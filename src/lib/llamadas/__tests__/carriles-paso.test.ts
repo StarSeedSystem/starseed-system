@@ -52,6 +52,31 @@ describe("paso de carril al instante (MLL1111C)", () => {
   });
 });
 
+describe("AUD1117 · una caída corta del enlace no cuelga la llamada", () => {
+  const corte = (sinEnlaceMs: number, extra: Partial<EntradaCorteEnlace> = {}) =>
+    decidirCorteEnlace({ sinEnlaceMs, estabaEnPie: true, otroCarril: false, enlaceVuelve: false, ...extra });
+
+  it("un corte de 60 s que vuelve: sigue viva y se enseña «Reconectando…»", () => {
+    const caeEn = 1_000;
+    for (let ahora = caeEn; ahora <= caeEn + 60_000; ahora += 500) {
+      expect(corte(ahora - caeEn)).toBe("reconectando");
+    }
+    expect(corte(60_000, { enlaceVuelve: true })).toBe("seguir");
+  });
+
+  it("un corte de 95 s: termina a los 90 s con motivo visible", () => {
+    expect(corte(ESPERA_RECONEXION_MS - 1)).toBe("reconectando");
+    expect(corte(ESPERA_RECONEXION_MS)).toBe("terminar");
+    expect(corte(95_000)).toBe("terminar");
+    expect(MOTIVO_RECONEXION_AGOTADA).toMatch(/90 s/);
+  });
+
+  it("con otro carril vivo, o si la llamada no llegó a estar en pie, manda lo de siempre", () => {
+    expect(corte(95_000, { otroCarril: true })).toBe("seguir");
+    expect(corte(95_000, { estabaEnPie: false })).toBe("seguir");
+  });
+});
+
 describe("Wi-Fi directo frente a la red local por capacidad (MLL1111C, petición 8)", () => {
   const lan = (kbps: number, rtt: number): MuestraCarril => ({ carril: "lan-tcp", arriba: true, kbps, rttMs: rtt });
   const directo = (kbps: number, rtt: number): MuestraCarril => ({ carril: "wifi-direct", arriba: true, kbps, rttMs: rtt });
