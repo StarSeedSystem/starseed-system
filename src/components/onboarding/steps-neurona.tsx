@@ -132,7 +132,7 @@ export function StepCerebros() {
   const [personalidad, setPersonalidad] = useState(true);
   const [aplicado, setAplicado] = useState(false);
   const [cargando, setCargando] = useState(false);
-  const [nota, setNota] = useState<string | null>(null);
+  const [nota, setNota] = useState<Nota | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -173,12 +173,12 @@ export function StepCerebros() {
         ? (mezclarCarpetasEnServidores([], carpetas) as unknown as Brain["servers"])
         : undefined;
       if (cerebros === null) {
-        setNota("No pude leer tus cerebros ahora (¿sin red o con la pausa de consumo?). No creo otro: inténtalo luego en Cerebros.");
+        setNota(crearNota("No pude leer tus cerebros ahora (¿sin red o con la pausa de consumo?). No creo otro: inténtalo luego en Cerebros.", "error"));
       } else if (cerebros.length === 0) {
         const b = await saveBrain({ name: "Cerebro principal", ...(servidores ? { servers: servidores } : {}) });
         creado = b?.id ?? null;
         if (b) setCerebros([b]);
-        if (!b) setNota("No pude crear el cerebro ahora (¿sin red?). Puedes crearlo luego en Cerebros.");
+        if (!b) setNota(crearNota("No pude crear el cerebro ahora (¿sin red?). Puedes crearlo luego en Cerebros.", "error"));
       } else if (vincularCarpetas && carpetas.length > 0 && cerebros?.[0]) {
         // Ya tenía cerebro: se le AÑADEN las carpetas sin tocar sus servidores.
         const principal = cerebros[0];
@@ -193,7 +193,7 @@ export function StepCerebros() {
       });
       setAplicado(true);
     } catch {
-      setNota("Guardé tu elección localmente; la sincronizaré cuando haya conexión.");
+      setNota(crearNota("Guardé tu elección localmente; la sincronizaré cuando haya conexión.", "aviso"));
       setAplicado(true);
     } finally {
       setCargando(false);
@@ -249,7 +249,7 @@ export function StepCerebros() {
             <option value="local">Solo local en esta neurona — máxima soberanía, sin réplica remota</option>
           </select>
         </label>
-        {nota && <p className="text-xs text-amber-300/90">{nota}</p>}
+        {nota && <AvisoNota nota={nota} />}
       </div>
     </div>
   );
@@ -408,7 +408,7 @@ export function CorreosVinculados({
   const [correos, setCorreos] = useState<{ id: string; address: string; kind: string; is_primary: boolean }[] | null>(null);
   const [nuevo, setNuevo] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [nota, setNota] = useState<string | null>(null);
+  const [nota, setNota] = useState<Nota | null>(null);
   // (Adenda 191) El correo externo se pide UNA vez: si ya hay uno vinculado,
   // el alta de otro queda plegada tras un botón discreto.
   const [mostrarAlta, setMostrarAlta] = useState(false);
@@ -436,7 +436,7 @@ export function CorreosVinculados({
 
   const vincular = useCallback(async () => {
     const addr = nuevo.trim().toLowerCase();
-    if (!addr.includes("@")) { setNota("Escribe un correo válido."); return; }
+    if (!addr.includes("@")) { setNota(crearNota("Escribe un correo válido.", "error")); return; }
     setOcupado(true);
     setNota(null);
     try {
@@ -444,13 +444,13 @@ export function CorreosVinculados({
       const r = await addExternalEmail(addr);
       if (r.ok) {
         setNuevo("");
-        setNota("Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).");
+        setNota(crearNota("Correo vinculado a tu cuenta ✓ (la sincronización completa se activa en Correos).", "exito"));
         void cargar();
       } else {
-        setNota(r.error || "No se pudo vincular ahora.");
+        setNota(crearNota(r.error || "No se pudo vincular ahora.", "error"));
       }
     } catch {
-      setNota("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.");
+      setNota(crearNota("No se pudo vincular ahora (¿sin red?). Inténtalo en Ajustes → Correos.", "error"));
     } finally {
       setOcupado(false);
     }
@@ -561,7 +561,7 @@ export function CorreosVinculados({
               {c.kind === "created" && (
                 <button
                   type="button"
-                  onClick={() => { void navigator.clipboard?.writeText(c.address); setNota(`${c.address} copiada ✓`); }}
+                  onClick={() => { void navigator.clipboard?.writeText(c.address); setNota(crearNota(`${c.address} copiada ✓`, "exito")); }}
                   className="ml-auto shrink-0 cursor-pointer text-[10px] text-emerald-300 underline-offset-2 hover:underline"
                 >
                   copiar
@@ -607,7 +607,7 @@ export function CorreosVinculados({
           </div>
         );
       })()}
-      {nota && <p className="text-[11px] text-cyan-200/80">{nota}</p>}
+      {nota && <AvisoNota nota={nota} />}
     </div>
   );
 }
