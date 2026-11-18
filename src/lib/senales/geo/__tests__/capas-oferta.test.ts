@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CAPA_POR_ID, CAPAS_SENALES, pintarMarca, type MarcaGeo, type ValorCapa } from "../capas";
-import { construirMarcas, type EntradaMarcas } from "../marcas";
+import { CAPA_POR_ID, CAPAS_SENALES, pintarMarca, type ValorCapa } from "../capas";
+import { construirMarcas, type EntradaMarcas, type MarcaGeo } from "../marcas";
 import type { PresenciaMedio } from "@/lib/neurons/presencia";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import type { DispositivoMallaRow } from "@/lib/network/malla-neuronas";

@@ -103,7 +103,15 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
         : sinFicha("Memoria (RAM)"),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
-      datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
+      m.oferta
+        ? { etiqueta: "Cómputo", valor: m.oferta.compute ? "sí, ofrece" : "no ofrece", fuente: "anunciado en la presencia de la cuenta", estado: "declarado", nota: `a las ${horaDe(m.oferta.t)}` }
+        : datoDesconocido("Cómputo", "presencia de la cuenta", "esa neurona no anunció su oferta"),
+      m.oferta
+        ? { etiqueta: "Almacenamiento", valor: m.oferta.storage ? "sí, ofrece" : "no ofrece", fuente: "anunciado en la presencia de la cuenta", estado: "declarado", nota: `a las ${horaDe(m.oferta.t)}` }
+        : datoDesconocido("Almacenamiento", "presencia de la cuenta", "esa neurona no anunció su oferta"),
+      m.oferta
+        ? { etiqueta: "Internet compartido", valor: m.oferta.internet ? "sí, comparte" : "no comparte", fuente: "anunciado en la presencia de la cuenta", estado: "declarado", nota: `a las ${horaDe(m.oferta.t)}` }
+        : datoDesconocido("Internet compartido", "presencia de la cuenta", "esa neurona no anunció su oferta"),
     ],
   });
 

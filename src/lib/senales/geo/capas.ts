@@ -240,7 +240,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     valor: (m) => {
       const o = m.oferta;
       if (!o) return desconocido();
-      return { tramo: o.compute ? "si" : "no", texto: o.compute ? "ofrece cómputo" : "no ofrece cómputo", t: o.t, medida: true };
+      return { tramo: o.compute ? "si" : "no", texto: o.compute ? "sí, ofrece cómputo" : "no ofrece cómputo", t: o.t, medida: true };
     },
   },
   {
@@ -256,7 +256,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     valor: (m) => {
       const o = m.oferta;
       if (!o) return desconocido();
-      return { tramo: o.storage ? "si" : "no", texto: o.storage ? "ofrece almacenamiento" : "no ofrece almacenamiento", t: o.t, medida: true };
+      return { tramo: o.storage ? "si" : "no", texto: o.storage ? "sí, ofrece almacenamiento" : "no ofrece almacenamiento", t: o.t, medida: true };
     },
   },
   {
@@ -272,7 +272,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     valor: (m) => {
       const o = m.oferta;
       if (!o) return desconocido();
-      return { tramo: o.internet ? "si" : "no", texto: o.internet ? "comparte internet" : "no comparte internet", t: o.t, medida: true };
+      return { tramo: o.internet ? "si" : "no", texto: o.internet ? "sí, comparte internet" : "no comparte internet", t: o.t, medida: true };
     },
   },
   {
