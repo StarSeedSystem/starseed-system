@@ -34,8 +34,14 @@ OLAS_DEF = RAIZ_DEF / "starseed_memory_root" / "olas"
 ESTADO_DEF = SALUD_DEF / "directores.json"
 
 ARCHIVOS_SESION = ["scripts/puente/sanador_sesiones.py", "scripts/puente/test_sanador_sesiones.py"]
+ARCHIVOS_PETICIONES = [
+    "scripts/puente/peticiones_productor.py",
+    "scripts/puente/test_peticiones_productor.py",
+    "scripts/puente/peticiones_telegram.py",
+]
 OLA_SALUD = "SES1113 · salud de directores"
-MAX_FALLOS = 2
+MAX_FALLOS_SESION = 2
+MAX_FALLOS_PETICION = 2
 
 
 def _ahora_defecto() -> datetime:
@@ -133,6 +139,8 @@ class SaludDirectores:
         e = _leer_json(self.estado_file, {}) or {}
         if not isinstance(e.get("sesiones"), dict):
             e["sesiones"] = {}
+        if not isinstance(e.get("sesiones_peticiones"), dict):
+            e["sesiones_peticiones"] = {}
         if not isinstance(e.get("firmas"), dict):
             e["firmas"] = {}
         for f in self._firmas_seed:
@@ -199,7 +207,7 @@ class SaludDirectores:
         causa = ""
         if fir not in estado["firmas"]:
             causa = "firma-nueva"
-        elif int(s.get("fallos_seguidos", 0)) >= MAX_FALLOS:
+        elif int(s.get("fallos_seguidos", 0)) >= MAX_FALLOS_SESION:
             causa = "dos-seguidas"
         if not causa:
             self._guardar(estado)
@@ -280,9 +288,118 @@ class SaludDirectores:
                 d["tarea_id"] = ""
                 d["resuelta"] = self.ahora_fn().isoformat()
 
+    # ── Peticiones fallidas (PET1116C) ────────────────────────────────────────
+
+    def _sesion_peticiones(self, estado: dict[str, Any], tipo: str) -> dict[str, Any]:
+        """Estado de fallos para un tipo de petición (sesion, encargo, alcance)."""
+        s = estado["sesiones_peticiones"].setdefault(tipo, {})
+        s.setdefault("fallos_seguidos", 0)
+        s.setdefault("ultima_falla", None)
+        s.setdefault("firma_abierta", None)
+        return s
+
+    def evaluar_peticion_fallida(
+        self,
+        tipo: str,
+        texto_peticion: str,
+        registros: str | list[str] = "",
+    ) -> dict[str, Any]:
+        """Evalúa una petición fallida; abre tarea de diagnóstico si toca.
+
+        Args:
+            tipo: Tipo de petición ('sesion', 'encargo', 'alcance', etc.)
+            texto_peticion: Texto o razon de la petición fallida
+            registros: Registros de la falla (recortados y sin secretos)
+
+        Returns:
+            dict con accion, id (si abrió tarea), causa, firma
+        """
+        estado = self._cargar()
+        s = self._sesion_peticiones(estado, tipo)
+        mensaje = str(texto_peticion) or "petición fallida"
+        fir = firma(mensaje)
+        s["fallos_seguidos"] = int(s.get("fallos_seguidos", 0)) + 1
+        s["ultima_falla"] = self.ahora_fn().isoformat()
+
+        ya = estado["firmas"].get(fir, {})
+        if ya.get("tarea_id"):
+            self._guardar(estado)
+            return {"accion": "ya_abierta", "id": ya["tarea_id"], "firma": fir}
+
+        causa = ""
+        if fir not in estado["firmas"]:
+            causa = "firma-nueva"
+        elif int(s.get("fallos_seguidos", 0)) >= MAX_FALLOS_PETICION:
+            causa = "dos-seguidas"
+
+        if not causa:
+            self._guardar(estado)
+            return {"accion": "espera", "fallos_seguidos": s["fallos_seguidos"], "firma": fir}
+
+        tarea = self._crear_tarea_peticion(estado, tipo, fir, mensaje, causa, registros)
+        self._guardar(estado)
+        return {"accion": "tarea_abierta", "id": tarea["id"], "causa": causa, "firma": fir}
+
+    def _crear_tarea_peticion(
+        self,
+        estado: dict[str, Any],
+        tipo: str,
+        fir: str,
+        mensaje: str,
+        causa: str,
+        registros: str | list[str],
+    ) -> dict[str, Any]:
+        """Crea tarea de diagnóstico para petición fallida."""
+        ahora = self.ahora_fn()
+        tid = "SAL%s-%s" % (ahora.strftime("%m%d"), fir[:6].upper())
+        reg = recortar(registros)
+        prompt = (
+            "Tarea automática de salud (PET1116C): la petición de tipo «%s» falló %s. "
+            "Firma de error: %s. Mensaje normalizado: «%s». "
+            "Diagnostica la CAUSA y corrige; no toques archivos ajenos a la tarea; no "
+            "muestres claves (usa nombres de variables de entorno). "
+            "Archivos implicados: %s. "
+            "Registros recortados y sin secretos:\n```\n%s\n```\n"
+            "Pruebas que deben pasar: python3 scripts/puente/test_salud_directores.py."
+            % (
+                tipo,
+                "2 fallos seguidos" if causa == "dos-seguidas" else "por primera vez",
+                fir,
+                normalizar(mensaje)[:100],
+                ", ".join(ARCHIVOS_PETICIONES),
+                "\n".join(reg) or "(sin registros)",
+            )
+        )
+        tarea = {
+            "id": tid,
+            "ola": OLA_SALUD,
+            "titulo": "Petición %s fallida: %s" % (tipo, normalizar(mensaje)[:60]),
+            "archivos": list(ARCHIVOS_PETICIONES),
+            "depende": [],
+            "origen": "salud-directores",
+            "firma": fir,
+            "prompt": prompt,
+            "tipo": tipo,
+        }
+        fecha = ahora.strftime("%Y-%m-%d")
+        ruta_cola = self.olas_dir / ("cola-auto-salud-%s.json" % fecha)
+        cola = _leer_json(ruta_cola, None)
+        if not isinstance(cola, dict):
+            cola = {"ola": OLA_SALUD, "tareas": []}
+        cola.setdefault("ola", OLA_SALUD)
+        cola.setdefault("tareas", []).append(tarea)
+        _escribir_atomico(ruta_cola, cola)
+        estado["firmas"][fir] = {
+            "sesion": f"peticion-{tipo}",
+            "ts": ahora.isoformat(),
+            "tarea_id": tid,
+            "causa": causa,
+        }
+        return tarea
+
 
 def main(argv: list[str] | None = None, salida=None) -> int:
-    """CLI: evaluar <sesion> [--comprobacion JSON --reparacion JSON --registros TXT], estado, linea."""
+    """CLI: evaluar <sesion> [--comprobacion JSON --reparacion JSON --registros TXT], estado, linea, evaluar_peticion."""
     argv = list(argv) if argv is not None else sys.argv[1:]
     salida = salida or sys.stdout
     sd = SaludDirectores()
@@ -291,6 +408,7 @@ def main(argv: list[str] | None = None, salida=None) -> int:
             "Uso: python3 salud_directores.py <comando>\n"
             "Comandos:\n"
             "  evaluar <sesion> [--comprobacion JSON --reparacion JSON --registros TXT]\n"
+            "  evaluar_peticion <tipo> <texto> [--registros TXT]\n"
             "  estado   Resumen (caídas, recetas que funcionaron, tiempo sin servicio)\n"
             "  linea    Una línea de salud para la síntesis diaria\n"
         )
@@ -311,6 +429,24 @@ def main(argv: list[str] | None = None, salida=None) -> int:
             salida.write("Falta <sesion>\n")
             return 2
         r = _evaluar_cli(sd, argv[1:], salida)
+        salida.write(json.dumps(r, ensure_ascii=False) + "\n")
+        return 0 if r.get("accion") != "error" else 1
+    if cmd == "evaluar_peticion":
+        if len(argv) < 3:
+            salida.write("Uso: python3 salud_directores.py evaluar_peticion <tipo> <texto> [--registros TXT]\n")
+            return 2
+        tipo = argv[1]
+        texto = argv[2]
+        registros = ""
+        i = 3
+        while i < len(argv):
+            if argv[i] == "--registros" and i + 1 < len(argv):
+                registros = argv[i + 1]
+                i += 2
+            else:
+                salida.write("Argumento desconocido: %s\n" % argv[i])
+                i += 1
+        r = sd.evaluar_peticion_fallida(tipo, texto, registros)
         salida.write(json.dumps(r, ensure_ascii=False) + "\n")
         return 0 if r.get("accion") != "error" else 1
     salida.write("Comando desconocido: %s\n" % cmd)

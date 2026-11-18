@@ -63,6 +63,7 @@ from peticiones_notebooklm import (
 import peticiones_llm as PLLM
 
 import higgsfield_aprobado as hfa
+import salud_directores as SD
 
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
@@ -486,6 +487,10 @@ def atender(p: dict[str, Any]) -> None:
         else:
             actualizar(p["id"], estado="fallida")
             decir("No pude completar tu petición tras 3 intentos: %s" % str(e)[:500])
+            # PET1116C: Reportar a salud_directores para autorreparación
+            plan = p.get("plan")
+            tipo_peticion = plan.get("tipo", "respuesta") if plan else "respuesta"
+            _reportar_peticion_fallida(tipo_peticion, p["texto"], str(e))
 
 
 def atender_encargo(p: dict[str, Any], plan: dict[str, Any]) -> None:
@@ -1557,6 +1562,20 @@ def _comando_renovar(sesion: str) -> None:
             f"Intentado: {', '.join(resultado.get('recetas', [])) or 'recetas del sanador'}\n"
             f"Revisa los logs en starseed_memory_root/salud/sesiones.jsonl"
         )
+
+
+def _reportar_peticion_fallida(tipo: str, texto_peticion: str, error: str) -> None:
+    """Reporta una petición fallida a salud_directores para autorreparación (PET1116C)."""
+    try:
+        sd = SD.SaludDirectores()
+        registros = [f"Error: {error}", f"Petición: {texto_peticion[:500]}"]
+        r = sd.evaluar_peticion_fallida(tipo, f"{tipo}: {texto_peticion[:200]}", registros)
+        if r.get("accion") == "tarea_abierta":
+            log(f"PET1116C: Tarea de diagnóstico abierta: {r['id']} (causa: {r.get('causa')})")
+            decir(f"⚠️ Petición fallida detectada. Se ha abierto tarea de diagnóstico automática ({r['id']}).\n"
+                 f"El equipo de directores está analizando la causa y aplicará corrección.")
+    except Exception as e:
+        log(f"Error reportando a salud_directores: {e}")
 
 
 def main() -> None:

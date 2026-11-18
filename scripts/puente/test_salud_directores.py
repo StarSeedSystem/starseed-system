@@ -172,6 +172,94 @@ class SaludDirectoresTest(unittest.TestCase):
         self.assertEqual(r["accion"], "ya_abierta")
         self.assertEqual(len(self._tareas_cola()), 1)
 
+    # ── Tests para evaluar_peticion_fallida (PET1116C) ────────────────────────
+
+    def test_peticion_firma_nueva_abre_tarea_inmediatamente(self):
+        """PET1116C: firma nueva abre tarea inmediatamente."""
+        r = self._sd().evaluar_peticion_fallida(
+            "encargo", "Error al procesar encargo ENC-1112"
+        )
+        self.assertEqual(r["accion"], "tarea_abierta")
+        self.assertEqual(r["causa"], "firma-nueva")
+        self.assertEqual(len(self._tareas_cola()), 1)
+
+    def test_peticion_misma_firma_no_duplica(self):
+        """Una tarea ya abierta por firma no se duplica."""
+        sd = self._sd()
+        # Primera falla abre tarea
+        r1 = sd.evaluar_peticion_fallida("sesion", "auth caducada: token expirado")
+        self.assertEqual(r1["accion"], "tarea_abierta")
+
+        # Segunda llamada con mismo mensaje: ya_abierta
+        r2 = sd.evaluar_peticion_fallida("sesion", "auth caducada: token expirado")
+        self.assertEqual(r2["accion"], "ya_abierta")
+        self.assertEqual(r2["id"], r1["id"])
+        self.assertEqual(len(self._tareas_cola()), 1)
+
+    def test_peticion_salva_secreto_en_registros(self):
+        """Los secretos se redactan en los registros de la tarea."""
+        registros = [
+            "Fallo con token sk-abcdef123456789 en el cuaderno",
+            "Error: password=admin123 en source_add_drive",
+            "URL con clave AIza-xyz123 al acceder al drive",
+        ]
+        r = self._sd().evaluar_peticion_fallida("encargo", "Error de NotebookLM", registros)
+        t = self._tareas_cola()[0]
+
+        prompt = t["prompt"]
+        self.assertNotIn("sk-abcdef123456789", prompt)
+        self.assertNotIn("password=admin123", prompt)
+        self.assertNotIn("AIza-xyz123", prompt)
+        self.assertIn("[REDACTADO]", prompt)
+
+    def test_peticion_diferente_firma_cuenta_fallos(self):
+        """Diferentes firmas cuentan fallos por tipo de petición."""
+        sd = self._sd()
+
+        # Primera falla para 'encargo': abre tarea por firma-nueva
+        r1 = sd.evaluar_peticion_fallida("encargo", "Encargo fallido A")
+        self.assertEqual(r1["accion"], "tarea_abierta")
+        self.assertEqual(r1["causa"], "firma-nueva")
+
+        # Segunda falla diferente para 'encargo': también abre tarea
+        r2 = sd.evaluar_peticion_fallida("encargo", "Encargo fallido B")
+        self.assertEqual(r2["accion"], "tarea_abierta")
+
+        # Una falla para 'alcance': abre tarea
+        r3 = sd.evaluar_peticion_fallida("alcance", "Alcance fallido")
+        self.assertEqual(r3["accion"], "tarea_abierta")
+
+        # Tres tareas abiertas
+        self.assertEqual(len(self._tareas_cola()), 3)
+
+    def test_tarea_incluye_prompt_completo(self):
+        """La tarea incluye el prompt completo para el agente reparador."""
+        r = self._sd().evaluar_peticion_fallida(
+            "encargo", "Error crítico en producción del informe",
+            ["Registro1", "Registro2"]
+        )
+        t = self._tareas_cola()[0]
+
+        prompt = t["prompt"]
+        self.assertIn("PET1116C", prompt)
+        self.assertIn("encargo", prompt)
+        self.assertIn("diagnostica la causa", prompt.lower())
+        self.assertIn("scripts/puente/peticiones_productor.py", prompt)
+        self.assertIn("scripts/puente/test_peticiones_productor.py", prompt)
+
+    def test_estado_peticiones_guarda_falla(self):
+        """El estado de peticiones se guarda correctamente."""
+        sd = self._sd()
+        # Primera falla con nueva firma: abre tarea
+        r1 = sd.evaluar_peticion_fallida("sesion", "Error único")
+        self.assertEqual(r1["accion"], "tarea_abierta")
+
+        # Verificar estado
+        estado = sd.estado()
+        sesiones_petic = estado.get("sesiones_peticiones", {})
+        self.assertIn("sesion", sesiones_petic)
+        self.assertGreaterEqual(sesiones_petic["sesion"]["fallos_seguidos"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

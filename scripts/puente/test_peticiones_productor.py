@@ -679,17 +679,17 @@ def test_error_generico_no_es_caducidad():
     assert prod._llamar_nb(nb, "create", "cuaderno") == (124, "", "timeout agotado")
 
 
-def test_modo_degradado_texto_usa_llm_y_marca(monkeypatch):
+def test_modo_degradado_texto_usa_llm_y_marca():
     """Con NotebookLM caído, un entregable de texto sale con llm() y marcado para rehacer."""
+    from unittest.mock import patch
     drive = MockDrive()
     enc = crear_encargo_ejemplo()
     frente = enc["frentes"][1]
     frente["carpeta"] = "folder_1"
     frente["cuaderno"] = "nb_1"
     e = {"tipo": "report", "titulo": "Informe caído", "prompt": "Escribe el informe", "enviar": False}
-    monkeypatch.setattr(prod, "llm", lambda mensajes, max_tokens=3000: ("Contenido de respaldo", "modelo-gratis"))
-
-    enlace = prod.producir_entregable(e, frente, enc, "nb_1", MockNotebookLM(), drive, modo_degradado=True)
+    with patch.object(prod, "llm", lambda mensajes, max_tokens=3000: ("Contenido de respaldo", "modelo-gratis")):
+        enlace = prod.producir_entregable(e, frente, enc, "nb_1", MockNotebookLM(), drive, modo_degradado=True)
 
     assert enlace.startswith("https://docs.google.com/document/d/")
     contenido = list(drive.documentos.values())[0]["contenido"]
@@ -729,23 +729,24 @@ def test_encargo_con_nativo_sigue_sin_notebooklm_y_lo_deja_en_cola():
     assert "en cola" in e.get("fallo", "")
 
 
-def test_encargo_con_texto_se_hace_degradado_y_se_rehara(monkeypatch):
+def test_encargo_con_texto_se_hace_degradado_y_se_rehara():
     """Si NotebookLM caduca, el entregable de texto se hace con llm() y queda marcado."""
+    from unittest.mock import patch
     nb = MockNotebookLM()
     nb.debe_fallar[("generate",)] = (1, "", "Authentication expired. Run 'notebooklm login'")
-    monkeypatch.setattr(prod, "llm", lambda mensajes, max_tokens=3000: ("Texto de respaldo", "modelo-gratis"))
-    drive = MockDrive()
-    frente = {"id": "F1", "nombre": "Desarrollo", "destino": "produccion", "estado": "pendiente",
-              "investigacion": [], "fuentes_drive": [], "carpeta": "folder_1", "cuaderno": "nb_1",
-              "entregables": [{"tipo": "report", "titulo": "Informe", "prompt": "Escribe", "enviar": False}]}
-    enc = {"id": "ENC-Y", "titulo": "T2", "texto": "t", "estado": "activo", "notas": [], "frentes": [frente]}
+    with patch.object(prod, "llm", lambda mensajes, max_tokens=3000: ("Texto de respaldo", "modelo-gratis")):
+        drive = MockDrive()
+        frente = {"id": "F1", "nombre": "Desarrollo", "destino": "produccion", "estado": "pendiente",
+                  "investigacion": [], "fuentes_drive": [], "carpeta": "folder_1", "cuaderno": "nb_1",
+                  "entregables": [{"tipo": "report", "titulo": "Informe", "prompt": "Escribe", "enviar": False}]}
+        enc = {"id": "ENC-Y", "titulo": "T2", "texto": "t", "estado": "activo", "notas": [], "frentes": [frente]}
 
-    ejecutar_encargo(enc, nb, drive)
+        ejecutar_encargo(enc, nb, drive)
 
-    e = frente["entregables"][0]
-    assert e.get("enlace", "").startswith("https://docs.google.com/document/d/")
-    entregable = next(d for d in drive.documentos.values() if "Informe" in d["nombre"])
-    assert "se rehará al volver" in entregable["contenido"]
+        e = frente["entregables"][0]
+        assert e.get("enlace", "").startswith("https://docs.google.com/document/d/")
+        entregable = next(d for d in drive.documentos.values() if "Informe" in d["nombre"])
+        assert "se rehará al volver" in entregable["contenido"]
 
 
 
