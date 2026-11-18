@@ -37,6 +37,8 @@ _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _FORMA_CLAVE = re.compile(r"\b(?:sk-[A-Za-z0-9_\-]{8,}|ak_[A-Za-z0-9_\-]{8,}|ghp_[A-Za-z0-9]{8,}|[0-9a-fA-F]{32,})\b")
 _MARCA_TIEMPO = re.compile(r"^\s*\d{4}-\d{2}-\d{2}T[\d:.]+Z\s?")
 _PREFIJO_RUNNER = re.compile(r"^.*?/(?:home|Users)/runner/work/[^/]+/[^/]+/")
+# Prefijo de log de GitHub Actions: <job>\t<step>\t<fecha ISO>\t
+_PREFIJO_GH_LOG = re.compile(r"^[^\t]+\t[^\t]+\t\d{4}-\d{2}-\d{2}T[\d:.]+Z\t")
 
 #: Lo que decide una persona: ningún director lo arregla solo.
 _DECIDE_PERSONA = re.compile(r"la\s+decide\s+alex|decide\s+alex|posible\s+secreto|vetad[oa]\s+desde\s+genesis|^\s*jev\s+fren", re.I)
@@ -88,7 +90,7 @@ def errores_de_compilacion(log, tope=8):
     """PURA. Las líneas de error del compilador en el log de un job fallido: Kotlin/Gradle (`e: …kt:189:14 …`), Rust
     (`error[E0599]: …` con su ` --> ruta:línea`), tsc (`ruta(l,c): error TS…`) y el resumen de Gradle. Sin colores ni
     marcas de tiempo, sin repetir, ≤ `tope` líneas de ≤ 300 caracteres. Vacío si el log no trae ninguna."""
-    lineas = [_MARCA_TIEMPO.sub("", _ANSI.sub("", l)).rstrip() for l in str(log or "").splitlines()]
+    lineas = [_MARCA_TIEMPO.sub("", _PREFIJO_GH_LOG.sub("", _ANSI.sub("", l))).rstrip() for l in str(log or "").splitlines()]
     fuera, vistas = [], set()
 
     def meter(l):
@@ -160,6 +162,24 @@ def resolver_en_repo(ruta, rutas_repo):
 
 
 # ── el motivo ────────────────────────────────────────────────────────────────────────────────────────────────────
+def _compilacion_superada(prueba, numero_fallo):
+    """PURA. True si hay una compilación de número mayor en estado publicado o en marcha."""
+    if not isinstance(prueba, dict):
+        return False
+    builds = prueba.get("builds") or prueba.get("historial") or prueba.get("ultimas")
+    if not isinstance(builds, list):
+        return False
+    estados_superados = {"publicada", "compilando", "en_marcha"}
+    for b in builds:
+        if not isinstance(b, dict):
+            continue
+        n = b.get("numero")
+        est = str(b.get("estado") or "").lower()
+        if isinstance(n, int) and n > numero_fallo and est in estados_superados:
+            return True
+    return False
+
+
 def motivo_de_bloqueo(prueba, publicacion, errores=None):
     """PURA. `None` o `{clase, clave, resumen, evidencia, sha, ...}`.
 
@@ -173,6 +193,9 @@ def motivo_de_bloqueo(prueba, publicacion, errores=None):
     La clave = clase + 9 primeros caracteres del sha: sirve para no pedir nunca dos veces lo mismo."""
     ec = prueba.get("en_curso") if isinstance(prueba, dict) and "en_curso" in prueba else prueba
     if isinstance(ec, dict) and ec.get("estado") == "fallo" and _sha9(ec.get("sha")):
+        num = ec.get("numero")
+        if isinstance(num, int) and _compilacion_superada(prueba, num):
+            return None
         fallo = ec.get("fallo") if isinstance(ec.get("fallo"), dict) else {"paso": str(ec.get("fallo") or "")}
         if "orden de lanzar" not in str(fallo.get("paso") or ""):
             lineas = errores if isinstance(errores, (list, tuple)) else str(errores or "").splitlines()

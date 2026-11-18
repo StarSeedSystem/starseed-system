@@ -23,8 +23,16 @@ KOTLIN = (
     "2026-11-16T01:00:13.0Z FAILURE: Build failed with an exception.\n"
     "2026-11-16T01:00:13.1Z * What went wrong:\n"
     "2026-11-16T01:00:13.2Z Execution failed for task ':app:compileUniversalReleaseKotlin'.\n"
-    "2026-11-16T01:00:13.3Z > Compilation error. See log for more details\n"
     "2026-11-16T01:00:14.0Z > Task :app:compileUniversalReleaseKotlin FAILED\n")
+
+KOTLIN_REAL = (
+    "os\tandroid\t2026-11-16T01:00:12.1234567Z\te: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/"
+    "android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted "
+    "(!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.\n"
+    "os\tandroid\t2026-11-16T01:00:13.0Z\tFAILURE: Build failed with an exception.\n"
+    "os\tandroid\t2026-11-16T01:00:13.1Z\t* What went wrong:\n"
+    "os\tandroid\t2026-11-16T01:00:13.2Z\tExecution failed for task ':app:compileUniversalReleaseKotlin'.\n"
+    "os\tandroid\t2026-11-16T01:00:14.0Z\t> Task :app:compileUniversalReleaseKotlin FAILED\n")
 RUST = (
     "   Compiling app v0.1.0\n"
     "error[E0599]: no method named `abrir_puente` found for struct `Ventana` in the current scope\n"
@@ -53,6 +61,18 @@ class Parser(unittest.TestCase):
         self.assertNotIn("2026-11-16", l[0])
         self.assertTrue(any("What went wrong" in x for x in l))
         self.assertTrue(any("compileUniversalReleaseKotlin" in x for x in l))
+
+    def test_kotlin_real_con_prefijo_github(self):
+        l = PD.errores_de_compilacion(KOTLIN_REAL)
+        self.assertTrue(l[0].startswith("e: file:///"))
+        self.assertIn("ProyeccionPantallaStarSeed.kt:189:14", l[0])
+        self.assertNotIn("\x1b", l[0])
+        self.assertNotIn("os\tandroid", l[0])
+        self.assertNotIn("2026-11-16", l[0])
+        self.assertTrue(any("What went wrong" in x for x in l))
+        self.assertTrue(any("compileUniversalReleaseKotlin" in x for x in l))
+        ruta, linea = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(l)))
+        self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
 
     def test_rust_con_su_linea(self):
         l = PD.errores_de_compilacion(RUST)
@@ -335,6 +355,60 @@ class YaArreglado(unittest.TestCase):
         self.assertEqual(f.avisos, [])
         PD.pasada_desbloqueo(f, est, T0 + 300)
         self.assertEqual(f.pedidos_log, [777])             # una sola consulta al log
+
+
+class CompilacionSuperada(unittest.TestCase):
+    """Pruebas para no abrir tarea cuando la compilación ya está superada."""
+
+    def test_no_abre_si_hay_compilacion_mayor_publicada(self):
+        prueba_con_historial = fallo()
+        prueba_con_historial["builds"] = [
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+            {"numero": 48, "estado": "publicada", "sha": "1" * 64},
+        ]
+        f = Falso(prueba=prueba_con_historial, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        est = PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+        self.assertEqual(f.pedidos_log, [])
+
+    def test_no_abre_si_hay_compilacion_mayor_compilando(self):
+        prueba_con_historial = fallo()
+        prueba_con_historial["builds"] = [
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+            {"numero": 48, "estado": "compilando", "sha": "1" * 64},
+        ]
+        f = Falso(prueba=prueba_con_historial, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        est = PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+        self.assertEqual(f.pedidos_log, [])
+
+    def test_no_abre_si_hay_compilacion_mayor_en_marcha(self):
+        prueba_con_historial = fallo()
+        prueba_con_historial["builds"] = [
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+            {"numero": 48, "estado": "en_marcha", "sha": "1" * 64},
+        ]
+        f = Falso(prueba=prueba_con_historial, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        est = PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+        self.assertEqual(f.pedidos_log, [])
+
+    def test_sí_abre_si_fallo_es_la_más_alta(self):
+        prueba_con_historial = fallo()
+        prueba_con_historial["builds"] = [
+            {"numero": 46, "estado": "publicada", "sha": "0" * 64},
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+        ]
+        f = Falso(prueba=prueba_con_historial, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        est = PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(list(f.colas), ["cola-a-desbloqueo-compilacion-012345678.json"])
+        self.assertEqual(f.pedidos_log, [777])
+
+    def test_sí_abre_si_no_hay_historial(self):
+        f = Falso(prueba=fallo(), repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        est = PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(list(f.colas), ["cola-a-desbloqueo-compilacion-012345678.json"])
+        self.assertEqual(f.pedidos_log, [777])
 
 
 class MediosReales(unittest.TestCase):
