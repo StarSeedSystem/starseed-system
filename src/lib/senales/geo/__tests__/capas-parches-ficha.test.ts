@@ -42,8 +42,8 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos y la red externa.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
+    // Ahora la oferta de recursos (cómputo, almacenamiento, internet) tiene fuente (presencia); solo red-externa queda sin-fuente.
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
@@ -99,5 +99,44 @@ describe("ficha", () => {
   it("posición desconocida: dice el motivo, sin coordenadas", () => {
     const f = JSON.stringify(fichaDeMarca(marca({ posicion: { tipo: "desconocida", motivo: "MOTIVO-PRUEBA" } }), AHORA));
     expect(f).toContain("MOTIVO-PRUEBA");
+  });
+});
+
+describe("capas de oferta (AQ07)", () => {
+  it("con oferta anunciada: pinta 'ofrece' con color", () => {
+    const m = marca({ oferta: { computo: true, almacenamiento: true, internet: true } });
+    expect(pintarMarca(CAPA_POR_ID["oferta-computo"], m).valor).toMatchObject({ tramo: "si", texto: "ofrece", medida: true });
+    expect(pintarMarca(CAPA_POR_ID["oferta-almacenamiento"], m).valor).toMatchObject({ tramo: "si", texto: "ofrece", medida: true });
+    expect(pintarMarca(CAPA_POR_ID["oferta-internet"], m).valor).toMatchObject({ tramo: "si", texto: "ofrece", medida: true });
+  });
+
+  it("con oferta parcialmente anunciada: pinta cada una según su valor", () => {
+    const m = marca({ oferta: { computo: true, almacenamiento: false, internet: true } });
+    expect(pintarMarca(CAPA_POR_ID["oferta-computo"], m).valor.tramo).toBe("si");
+    expect(pintarMarca(CAPA_POR_ID["oferta-almacenamiento"], m).valor.tramo).toBe("no");
+    expect(pintarMarca(CAPA_POR_ID["oferta-internet"], m).valor.tramo).toBe("si");
+  });
+
+  it("sin oferta anunciada: hueco 'desconocido'", () => {
+    const m = marca({ oferta: null });
+    for (const id of ["oferta-computo", "oferta-almacenamiento", "oferta-internet"]) {
+      const { tramo, valor } = pintarMarca(CAPA_POR_ID[id], m);
+      expect(tramo.id).toBe("desconocido");
+      expect(valor.medida).toBe(false);
+    }
+  });
+
+  it("leyenda incluye tramos 'Ofrece', 'No ofrece' y 'Sin medir'", () => {
+    for (const id of ["oferta-computo", "oferta-almacenamiento", "oferta-internet"]) {
+      const ley = leyendaDe(CAPA_POR_ID[id]).map((l) => l.etiqueta);
+      expect(ley).toEqual(["Ofrece", "No ofrece", "Sin medir"]);
+    }
+  });
+
+  it("estado de las capas de oferta es 'parcial' (tienen fuente: presencia)", () => {
+    for (const id of ["oferta-computo", "oferta-almacenamiento", "oferta-internet"]) {
+      expect(CAPA_POR_ID[id].estado).toBe("parcial");
+      expect(CAPA_POR_ID[id].fuente).toContain("Presencia de la cuenta");
+    }
   });
 });

@@ -227,6 +227,10 @@ export interface NeuronSettings {
   syncExternal?: boolean;
   /** Ubicación declarada por el usuario (texto libre: ciudad, sala, "casa"…). Adenda 114. */
   location?: string;
+  /** Ofrecer cómputo (CPU/GPU/RAM) a la red con los recursos de esta neurona. */
+  offerCompute?: boolean;
+  /** Ofrecer almacenamiento (disco) a la red con los recursos de esta neurona. */
+  offerStorage?: boolean;
   /** Ofrecer internet público a los servidores comunitarios del OS con los recursos de esta neurona. */
   offerPublicInternet?: boolean;
   /** Puerto específico para vínculos privados personalizables (cuando ofrece servicio). */

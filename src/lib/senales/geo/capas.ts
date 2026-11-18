@@ -113,6 +113,36 @@ export function tramoDeCalidad(q: number | null | undefined): string {
 
 const SIN_OFERTA = "El ofrecimiento de recursos (Prestar recursos, Puerta de internet) es un ajuste local de cada aparato y todavía no se anuncia a la cuenta.";
 
+/** Genera las tres capas de oferta (cómputo, almacenamiento, internet) que leen de la presencia. */
+function capasOferta(): readonly CapaSenal[] {
+  const capas: CapaSenal[] = [];
+  for (const k of ["computo", "almacenamiento", "internet"] as const) {
+    const key = k === "computo" ? "computo" : k === "almacenamiento" ? "almacenamiento" : "internet";
+    const color = k === "computo" ? "#6366f1" : k === "almacenamiento" ? "#22c55e" : "#0ea5e9";
+    const etiqueta = k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido";
+    const descripcion = k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet";
+    capas.push({
+      id: `oferta-${k}`, grupo: "oferta",
+      etiqueta,
+      descripcion,
+      estado: "parcial",
+      fuente: `Presencia de la cuenta: cada neurona anuncia si ofrece ${k} en sus ajustes (offerCompute, offerStorage, offerPublicInternet); solo las que tienen medio abierto en la presencia.`,
+      tramos: [
+        { id: "si", etiqueta: "Ofrece", color, estilo: "relleno" },
+        { id: "no", etiqueta: "No ofrece", color: "#94a3b8", estilo: "anillo" },
+        DESC,
+      ],
+      valor: (m) => {
+        const of = m.oferta;
+        if (!of) return desconocido("sin anuncio de oferta");
+        const activo = of[key];
+        return { tramo: activo ? "si" : "no", texto: activo ? "ofrece" : "no ofrece", t: null, medida: true };
+      },
+    });
+  }
+  return capas;
+}
+
 function antena(m: MarcaGeo, kind: string) {
   return m.antenas.find((a) => a.kind === kind);
 }
@@ -267,15 +297,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       return q === null ? { tramo: "desconocido", texto: `${a.valor}; calidad sin medir`, t: a.t, medida: false } : { tramo: tramoDeCalidad(q), texto: a.valor, t: a.t, medida: true };
     },
   },
-  ...(["computo", "almacenamiento", "internet"] as const).map((k): CapaSenal => ({
-    id: `oferta-${k}`, grupo: "oferta",
-    etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
-    descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
-    estado: "sin-fuente",
-    fuente: `Sin fuente: ${SIN_OFERTA}`,
-    tramos: [DESC],
-    valor: () => desconocido("desconocido: aún no se anuncia"),
-  })),
+  ...capasOferta(),
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
     estado: "parcial",
