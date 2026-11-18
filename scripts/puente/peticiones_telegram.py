@@ -46,6 +46,7 @@ from peticiones_notebooklm import (
     token_google,
     drive,
 )
+import peticiones_llm as PLLM
 
 import higgsfield_aprobado as hfa
 
@@ -59,7 +60,6 @@ SALIDAS = NB_SALIDAS
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SALUD_ESTADO = os.path.join(RAIZ_REPO, "starseed_memory_root", "salud", "estado.json")
 
-MODELOS = ["gemini-flash", "qwen3.8-max", "gemini-3.5-flash", "glm-5.3-flash", "qwen3.6-plus"]
 REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
@@ -99,6 +99,23 @@ def log(*partes: Any) -> None:
     if TOKEN:
         texto = texto.replace(TOKEN, "***")
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, flush=True)
+
+
+def _llm_log(msg: str) -> None:
+    log("[peticiones_llm]", msg)
+
+
+def llm(mensajes: list[dict[str, str]], max_tokens: int = 1500) -> tuple[str, str]:
+    """Wrapper que usa el nuevo enrutador de modelos con catálogo vivo y salud compartida."""
+    return PLLM.llm_con_fallback(
+        mensajes,
+        max_tokens,
+        http_get=None,
+        http_post=None,
+        ahora_fn=None,
+        leer_clave=lambda k: ENV.get(k),
+        log_fn=_llm_log,
+    )
 
 
 def leer_json(ruta: str, defecto: Any) -> Any:
