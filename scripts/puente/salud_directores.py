@@ -181,6 +181,11 @@ class SaludDirectores:
         """Evalúa un incidente; abre tarea si toca y devuelve {accion, id?, causa?}."""
         estado = self._cargar()
         s = self._sesion(estado, sesion)
+        
+        # Avería del sanador (sin_comprobar): abrir tarea inmediatamente
+        if comprobacion.get("sin_comprobar"):
+            return self._averia_sanador(estado, sesion, comprobacion, registros)
+        
         viva = bool(comprobacion.get("ok")) or bool((reparacion or {}).get("ok"))
         receta = ""
         if viva and reparacion and reparacion.get("ok"):
@@ -191,6 +196,27 @@ class SaludDirectores:
             self._guardar(estado)
             return {"accion": "viva", "fallos_seguidos": 0}
         return self._incidente(estado, sesion, s, comprobacion, reparacion, registros)
+
+    def _averia_sanador(self, estado: dict[str, Any], sesion: str,
+                        comprobacion: dict[str, Any], registros: str | list[str]) -> dict[str, Any]:
+        """Maneja una avería del sanador: abre tarea en cola-auto-salud inmediatamente."""
+        mensaje = str(comprobacion.get("motivo") or "avería del sanador")
+        fir = firma(mensaje)
+        ya = estado["firmas"].get(fir, {})
+        if ya.get("tarea_id"):
+            self._guardar(estado)
+            return {"accion": "ya_abierta", "id": ya["tarea_id"], "firma": fir, "causa": "averia-sanador"}
+        
+        # Incluir la traza de la avería en los registros
+        traza = comprobacion.get("traza", "")
+        tipo_averia = comprobacion.get("tipo_averia", "Error")
+        registros_completos = list(registros) if isinstance(registros, list) else [registros]
+        if traza:
+            registros_completos.append(f"TRAZA {tipo_averia}: {traza}")
+        
+        tarea = self._crear_tarea(estado, sesion, fir, mensaje, "averia-sanador", registros_completos)
+        self._guardar(estado)
+        return {"accion": "tarea_abierta", "id": tarea["id"], "causa": "averia-sanador", "firma": fir}
 
     def _incidente(self, estado: dict[str, Any], sesion: str, s: dict[str, Any],
                    comprobacion: dict[str, Any], reparacion: dict[str, Any] | None,
@@ -260,12 +286,20 @@ class SaludDirectores:
             caida_s = 0.0
             if s.get("caida_desde"):
                 caida_s = (ahora - datetime.fromisoformat(s["caida_desde"])).total_seconds()
+            # Determinar estado: viva, caída, sin_comprobar
+            if s.get("sin_comprobar"):
+                est = "sin_comprobar"
+            elif s.get("caida_desde"):
+                est = "caída"
+            else:
+                est = "viva"
             sesiones[nombre] = {
-                "estado": "caída" if s.get("caida_desde") else "viva",
+                "estado": est,
                 "fallos_seguidos": s.get("fallos_seguidos", 0),
                 "receta_efectiva": s.get("receta_efectiva", ""),
                 "tiempo_sin_servicio_s": int(s.get("tiempo_sin_servicio_s", 0)),
                 "sin_servicio_ahora_s": int(caida_s),
+                "tipo_averia": s.get("tipo_averia", ""),
             }
         return {"ts": ahora.isoformat(), "sesiones": sesiones}
 
@@ -277,6 +311,8 @@ class SaludDirectores:
             trozo = "%s: %s" % (nombre, s["estado"])
             if s["receta_efectiva"]:
                 trozo += " (recuperada por %s)" % s["receta_efectiva"]
+            if s["tipo_averia"]:
+                trozo += " (averia: %s)" % s["tipo_averia"]
             trozo += ", tiempo sin servicio %d s" % s["tiempo_sin_servicio_s"]
             partes.append(trozo)
         return "Salud de sesiones: " + ("; ".join(partes) if partes else "sin datos") + "."
@@ -420,9 +456,12 @@ def main(argv: list[str] | None = None, salida=None) -> int:
     if cmd == "estado":
         r = sd.resumen()
         for nombre, s in r["sesiones"].items():
-            salida.write("%s: %s · fallos seguidos %d · receta %s · sin servicio %d s\n"
+            extra = ""
+            if s.get("tipo_averia"):
+                extra = f" · averia: {s['tipo_averia']}"
+            salida.write("%s: %s · fallos seguidos %d · receta %s · sin servicio %d s%s\n"
                          % (nombre, s["estado"], s["fallos_seguidos"],
-                            s["receta_efectiva"] or "-", s["tiempo_sin_servicio_s"]))
+                            s["receta_efectiva"] or "-", s["tiempo_sin_servicio_s"], extra))
         return 0
     if cmd == "evaluar":
         if len(argv) < 2:
@@ -476,10 +515,6 @@ def _evaluar_cli(sd: SaludDirectores, args: list[str], salida) -> dict[str, Any]
     if comprobacion is None:
         return {"accion": "error", "motivo": "falta --comprobacion JSON"}
     return sd.evaluar(sesion, comprobacion, reparacion, registros)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
 
 
 if __name__ == "__main__":

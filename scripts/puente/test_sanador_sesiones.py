@@ -721,6 +721,211 @@ class SanadorSesionesTest(unittest.TestCase):
         # El token no debe aparecer en ningún lado
         self.assertNotIn("secret_token_xyz", str(resultado))
 
+    # ── Tests para argv construction contra binario falso ──────────────────────
+
+    def test_higgsfield_argv_construction(self):
+        """La comprobación de higgsfield construye argv correctamente: [binario, 'account']."""
+        argv_capturado = []
+        
+        def fake_higgsfield_binario(args: list[str], timeout: int = 30) -> tuple[int, str]:
+            argv_capturado.extend(args)
+            return 0, "ok"
+        
+        # Usar el módulo sanador_recetas directamente
+        import sanador_recetas as SR
+        resultado = SR.comprobar_higgsfield(ejecutar=fake_higgsfield_binario)
+        
+        self.assertTrue(resultado.get("ok"))
+        self.assertEqual(len(argv_capturado), 1)
+        self.assertEqual(argv_capturado[0], "account")
+
+    def test_notebooklm_argv_construction(self):
+        """La comprobación de notebooklm construye argv correctamente para auth check y list."""
+        argv_capturado = []
+        
+        def fake_notebooklm_binario(binario: str | None, args: list[str], timeout: int = 60) -> dict[str, Any]:
+            argv_capturado.append([binario] + args)
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+        
+        # Mock _resolver_binario para devolver un binario falso
+        original_resolver = SS._resolver_binario
+        def mock_resolver(nombre):
+            if nombre == "notebooklm":
+                return "/fake/notebooklm"
+            return original_resolver(nombre)
+        
+        with patch("sanador_sesiones._resolver_binario", side_effect=mock_resolver):
+            with patch("sanador_sesiones._ejecutar_binario", side_effect=fake_notebooklm_binario):
+                resultado = SS._comprobar_notebooklm()
+        
+        self.assertTrue(resultado.get("ok"))
+        # Debe haber llamado dos veces: auth check y list --json
+        self.assertEqual(len(argv_capturado), 2)
+        self.assertEqual(argv_capturado[0], ["/fake/notebooklm", "auth", "check"])
+        self.assertEqual(argv_capturado[1], ["/fake/notebooklm", "list", "--json"])
+
+    def test_higgsfield_recetas_argv_construction(self):
+        """La receta de higgsfield (solo aviso) no construye argv de reparación."""
+        import sanador_recetas as SR
+        # higgsfield no tiene recetas de reparación, solo aviso
+        config = SR.registro()["higgsfield"]
+        self.assertEqual(len(config["recetas"]), 1)
+        # La receta es solo aviso, no ejecuta binario
+
+    def test_programming_exception_nameerror_sin_comprobar(self):
+        """NameError en comprobación se marca como sin_comprobar (avería del sanador)."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        def comprobacion_con_nameerror():
+            raise NameError("name 'subprocess' is not defined")
+        
+        s.registrar("test", comprobacion_con_nameerror, [])
+        resultado = s.comprobar("test")
+        
+        self.assertFalse(resultado.get("ok"))
+        self.assertTrue(resultado.get("sin_comprobar"))
+        self.assertEqual(resultado.get("tipo_averia"), "NameError")
+        self.assertIn("avería del sanador", resultado.get("motivo", ""))
+        self.assertIn("traza", resultado)
+
+    def test_programming_exception_typeerror_sin_comprobar(self):
+        """TypeError en comprobación se marca como sin_comprobar."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        def comprobacion_con_typeerror():
+            raise TypeError("argument of type 'NoneType' is not iterable")
+        
+        s.registrar("test", comprobacion_con_typeerror, [])
+        resultado = s.comprobar("test")
+        
+        self.assertFalse(resultado.get("ok"))
+        self.assertTrue(resultado.get("sin_comprobar"))
+        self.assertEqual(resultado.get("tipo_averia"), "TypeError")
+
+    def test_programming_exception_importerror_sin_comprobar(self):
+        """ImportError en comprobación se marca como sin_comprobar."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        def comprobacion_con_importerror():
+            raise ImportError("No module named 'entorno'")
+        
+        s.registrar("test", comprobacion_con_importerror, [])
+        resultado = s.comprobar("test")
+        
+        self.assertFalse(resultado.get("ok"))
+        self.assertTrue(resultado.get("sin_comprobar"))
+        self.assertEqual(resultado.get("tipo_averia"), "ImportError")
+
+    def test_programming_exception_filenotfounderror_sin_comprobar(self):
+        """FileNotFoundError del argv en comprobación se marca como sin_comprobar."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        def comprobacion_con_filenotfound():
+            raise FileNotFoundError("[Errno 2] No such file or directory: 'account'")
+        
+        s.registrar("test", comprobacion_con_filenotfound, [])
+        resultado = s.comprobar("test")
+        
+        self.assertFalse(resultado.get("ok"))
+        self.assertTrue(resultado.get("sin_comprobar"))
+        self.assertEqual(resultado.get("tipo_averia"), "FileNotFoundError")
+
+    def test_comprobar_todas_sin_comprobar_no_repara_no_escala(self):
+        """comprobar_todas: sesión sin_comprobar no se repara ni escala."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        escalados = []
+        
+        def enviar_falso(texto):
+            escalados.append(texto)
+            return {"ok": True}
+        s.enviar_fn = enviar_falso
+        
+        def comprobacion_con_nameerror():
+            raise NameError("name 'subprocess' is not defined")
+        
+        s.registrar("test_sin_comp", comprobacion_con_nameerror, [
+            lambda: {"ok": True, "detalle": "reparada"}  # Esta receta NO debe ejecutarse
+        ])
+        s.registrar("test_viva", lambda: {"ok": True, "detalle": "ok"}, [])
+        
+        from io import StringIO
+        salida = StringIO()
+        code = s.comprobar_todas(salida)
+        
+        self.assertEqual(code, 0)
+        self.assertEqual(len(escalados), 0)  # No escala por avería del sanador
+        output = salida.getvalue()
+        self.assertIn("sin comprobar", output.lower())
+        self.assertIn("avería del sanador", output.lower())
+        self.assertIn("test_viva", output)
+
+    def test_salud_directores_averia_sanador_abre_tarea_inmediata(self):
+        """salud_directores: avería del sanador abre tarea en cola-auto-salud inmediatamente."""
+        import salud_directores as SD
+        from datetime import datetime
+        
+        t = tempfile.TemporaryDirectory()
+        raiz = Path(t.name)
+        (raiz / "starseed_memory_root" / "olas").mkdir(parents=True)
+        (raiz / "starseed_memory_root" / "salud").mkdir(parents=True)
+        
+        sd = SD.SaludDirectores(raiz=raiz, ahora_fn=lambda: datetime(2026, 11, 18, 12, 0, 0))
+        
+        comprobacion = {
+            "ok": False,
+            "motivo": "avería del sanador (NameError): name 'subprocess' is not defined",
+            "sin_comprobar": True,
+            "traza": "Traceback...",
+            "tipo_averia": "NameError",
+        }
+        
+        r = sd.evaluar("notebooklm", comprobacion, None, ["registro de prueba"])
+        
+        self.assertEqual(r["accion"], "tarea_abierta")
+        self.assertEqual(r["causa"], "averia-sanador")
+        
+        # Verificar que se creó la cola
+        import json
+        cola_file = raiz / "starseed_memory_root" / "olas" / "cola-auto-salud-2026-11-18.json"
+        self.assertTrue(cola_file.exists())
+        with open(cola_file, encoding="utf-8") as f:
+            cola = json.load(f)
+        self.assertEqual(len(cola["tareas"]), 1)
+        tarea = cola["tareas"][0]
+        self.assertIn("averia-sanador", tarea["prompt"])
+        self.assertIn("NameError", tarea["prompt"])
+        
+        t.cleanup()
+
+    def test_resolver_comando_envia_mensaje_resolucion(self):
+        """CLI resolver envía mensaje de resolución por Telegram."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        
+        # Mock entorno.enviar_resolucion
+        import entorno
+        original_enviar = entorno.enviar_resolucion
+        enviados = []
+        def mock_enviar(servicio, causa, arreglo, ruta=None):
+            enviados.append((servicio, causa, arreglo))
+            return {"ok": True, "detalle": "enviado"}
+        
+        try:
+            entorno.enviar_resolucion = mock_enviar
+            salida = MagicMock()
+            code = SS.main(["resolver", "Higgsfield", "falsa alarma del sanador", "argv corregido"], salida=salida, sanador=s)
+            
+            self.assertEqual(code, 0)
+            self.assertEqual(len(enviados), 1)
+            self.assertEqual(enviados[0], ("Higgsfield", "falsa alarma del sanador", "argv corregido"))
+            
+            # Verificar salida
+            escritos = [call[0][0] for call in salida.write.call_args_list]
+            full_output = "".join(escritos)
+            self.assertIn("Resolución enviada", full_output)
+            self.assertIn("Higgsfield", full_output)
+        finally:
+            entorno.enviar_resolucion = original_enviar
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
@@ -112,43 +113,41 @@ def _ejecutar_binario(binario: str | None, args: list[str], timeout: int = 60) -
 # ─────────────────────────────── Canal de escalado ───────────────────────────────
 
 def _cargar_env_escalado(ruta_env: str | None = None) -> dict[str, str]:
-    """Carga credenciales desde ~/.starseed/env (mismo lector que el bot peticiones_telegram.leer_env).
+    """Carga credenciales desde ~/.starseed/env usando entorno.leer_clave.
     
     Nunca imprime ni registra los tokens.
     """
-    if ruta_env is None:
-        ruta_env = str(Path.home() / ".starseed" / "env")
-    datos = {}
     try:
-        with open(ruta_env, encoding="utf-8") as f:
-            for linea in f:
-                linea = linea.strip()
-                if not linea or linea.startswith("#") or "=" not in linea:
-                    continue
-                k, v = linea.split("=", 1)
-                datos[k.replace("export ", "").strip()] = v.strip().strip('"').strip("'")
-    except OSError:
-        pass
-    return datos
+        import entorno
+        if ruta_env is None:
+            ruta_env = str(Path.home() / ".starseed" / "env")
+        ruta = Path(ruta_env)
+        cache = entorno._cargar_cache(ruta)
+        return dict(cache)
+    except Exception:
+        return {}
 
 
 def _probar_envio_escalado(ruta_env: str | None = None) -> dict[str, Any]:
     """Prueba que el canal de escalado puede enviar sin imprimir el token."""
-    env = _cargar_env_escalado(ruta_env)
-    token = env.get("TELEGRAM_SINTESIS_BOT_TOKEN", "")
-    chat_id = env.get("TELEGRAM_SINTESIS_CHAT_ID", "")
-    
-    if not token or not chat_id:
-        return {"ok": False, "motivo": "sin canal: faltan TELEGRAM_SINTESIS_BOT_TOKEN o TELEGRAM_SINTESIS_CHAT_ID en ~/.starseed/env"}
-    
-    # Solo validamos que las credenciales existen y tienen formato esperado
-    # No hacemos la llamada real para no spamear
-    if len(token) < 10:
-        return {"ok": False, "motivo": "token inválido"}
-    if not chat_id.startswith("-") and not chat_id.isdigit():
-        return {"ok": False, "motivo": "chat_id inválido"}
-    
-    return {"ok": True, "detalle": "canal de escalado configurado correctamente"}
+    try:
+        import entorno
+        if ruta_env is None:
+            ruta_env = str(Path.home() / ".starseed" / "env")
+        return entorno.probar_canal_telegram(Path(ruta_env))
+    except Exception as e:
+        return {"ok": False, "motivo": f"error probando canal: {e}"}
+
+
+def _enviar_escalado_telegram(mensaje: str, ruta_env: str | None = None) -> dict[str, Any]:
+    """Envía el mensaje de escalado por Telegram usando entorno.enviar_telegram."""
+    try:
+        import entorno
+        if ruta_env is None:
+            ruta_env = str(Path.home() / ".starseed" / "env")
+        return entorno.enviar_telegram(mensaje, Path(ruta_env))
+    except Exception as e:
+        return {"ok": False, "motivo": f"error enviando: {e}"}
 
 
 # Patrones de secretos para redactar (sin look-behind variable-width)
@@ -603,11 +602,28 @@ class SanadorSesiones:
         return list(self._sesiones.keys())
 
     def comprobar(self, nombre: str) -> dict[str, Any]:
-        """Ejecuta la comprobación de una sesión."""
+        """Ejecuta la comprobación de una sesión.
+
+        Las excepciones de programación (NameError, TypeError, ImportError,
+        FileNotFoundError del argv) son averías del sanador, no caídas del servicio:
+        - No se avisa "X cayó"
+        - Se marca como "sin_comprobar"
+        - salud_directores abrirá cola-auto-salud con la traza
+        """
         if nombre not in self._sesiones:
             return {"ok": False, "motivo": f"sesión no registrada: {nombre}"}
         try:
             return self._sesiones[nombre]["comprobacion"]()
+        except (NameError, TypeError, ImportError, FileNotFoundError) as e:
+            # Avería del sanador: error de programación en la comprobación
+            import traceback
+            return {
+                "ok": False,
+                "motivo": f"avería del sanador ({type(e).__name__}): {e}",
+                "sin_comprobar": True,
+                "traza": _sanear(traceback.format_exc()),
+                "tipo_averia": type(e).__name__,
+            }
         except Exception as e:
             if _es_fallo_red(e):
                 return {"ok": False, "motivo": f"red: {e}", "es_red": True}
@@ -682,8 +698,7 @@ class SanadorSesiones:
     def _escalado(self, sesion: str, motivo: str, recetas_intentadas: list[str], enviar_fn: EnviarFn | None = None) -> dict[str, Any]:
         """Envía escalado (máx 1 por sesión y día).
         
-        Si no hay enviar_fn, intenta cargar credenciales desde ~/.starseed/env
-        (mismo lector que el bot) y validar el canal.
+        Si no hay enviar_fn, usa entorno.enviar_telegram con credenciales de ~/.starseed/env.
         """
         fn = enviar_fn or self.enviar_fn
         hoy = self.ahora_fn().strftime("%Y-%m-%d")
@@ -700,15 +715,14 @@ class SanadorSesiones:
             f"(MetaGenesis lo intentará solo al detectar la Mac activa)"
         )
 
-        # Si no hay función de envío, intentar canal por defecto (~/.starseed/env)
+        # Si no hay función de envío inyectada, usar la real por Telegram
         if fn is None:
-            # Probar que el canal está configurado
-            prueba = _probar_envio_escalado()
-            if not prueba.get("ok"):
-                return {"ok": False, "motivo": f"sin canal de envío: {prueba.get('motivo', 'desconocido')}", "escalado": "sin_canal"}
-            # Canal configurado pero no hay función de envío real (solo test)
-            # En producción, aquí se usaría sintesis_telegram.enviar(mensaje)
-            return {"ok": False, "motivo": "canal configurado pero sin función de envío real", "escalado": "sin_canal"}
+            resp = _enviar_escalado_telegram(mensaje)
+            if resp.get("ok"):
+                self._ultimo_escalado[sesion] = hoy
+                self._guardar_ultimo_escalado()
+                return {"ok": True, "detalle": "escalado enviado", "escalado": "enviado"}
+            return {"ok": False, "motivo": f"sin canal de envío: {resp.get('motivo', 'desconocido')}", "escalado": "sin_canal"}
 
         if fn:
             resp = fn(mensaje)
@@ -717,7 +731,7 @@ class SanadorSesiones:
                 self._guardar_ultimo_escalado()
                 return {"ok": True, "detalle": "escalado enviado", "escalado": "enviado"}
 
-        return {"ok": False, "motivo": "sin canal de envío (sintesis_telegram)", "escalado": "sin_canal"}
+        return {"ok": False, "motivo": "sin canal de envío", "escalado": "sin_canal"}
 
     def _guardar_ultimo_escalado(self):
         estado = _leer_json(self.estado_file, {})
@@ -729,6 +743,7 @@ class SanadorSesiones:
         vivas = 0
         caidas = 0
         no_instalados = 0
+        sin_comprobar = 0
         detalle = {}
 
         for nombre in self._sesiones:
@@ -738,9 +753,18 @@ class SanadorSesiones:
                 detalle[nombre] = {"estado": "viva", "detalle": check.get("detalle", "")}
             else:
                 no_instalado = check.get('no_instalado', False)
+                sin_comp = check.get('sin_comprobar', False)
                 if no_instalado:
                     no_instalados += 1
                     detalle[nombre] = {"estado": "no_instalado", "motivo": check.get("motivo", "")}
+                elif sin_comp:
+                    sin_comprobar += 1
+                    detalle[nombre] = {
+                        "estado": "sin_comprobar",
+                        "motivo": check.get("motivo", ""),
+                        "traza": check.get("traza", ""),
+                        "tipo_averia": check.get("tipo_averia", ""),
+                    }
                 else:
                     caidas += 1
                     detalle[nombre] = {"estado": "caída", "motivo": check.get("motivo", "")}
@@ -751,6 +775,7 @@ class SanadorSesiones:
             "vivas": vivas,
             "caidas": caidas,
             "no_instalados": no_instalados,
+            "sin_comprobar": sin_comprobar,
             "detalle": detalle,
             "ultimo_escalado": self._ultimo_escalado,
         }
@@ -766,11 +791,13 @@ class SanadorSesiones:
         
         Una sesión caída no es un fallo del servicio: sale con 0 salvo error interno.
         Un binario no instalado no cuenta como caída ni escala.
+        Una avería del sanador (sin_comprobar) no escala ni repara; salud_directores abre cola-auto-salud.
         """
         try:
             caidas = 0
             reparadas = 0
             no_instalados = 0
+            sin_comprobar = 0
             errores_internos = 0
             
             for nombre in self.listar():
@@ -781,10 +808,15 @@ class SanadorSesiones:
                     motivo = check.get('motivo', 'caída')
                     es_red = check.get('es_red', False)
                     no_instalado = check.get('no_instalado', False)
+                    sin_comp = check.get('sin_comprobar', False)
                     
                     if no_instalado:
                         no_instalados += 1
                         salida.write(f"○ {nombre}: no instalado ({motivo})\n")
+                    elif sin_comp:
+                        sin_comprobar += 1
+                        salida.write(f"⚠ {nombre}: sin comprobar - avería del sanador ({motivo})\n")
+                        # No reparar, no escalar; salud_directores abrirá cola-auto-salud
                     elif es_red:
                         salida.write(f"⚠ {nombre}: red ({motivo}) - se reintentará\n")
                     else:
@@ -810,10 +842,10 @@ class SanadorSesiones:
             self.actualizar_estado_agregado()
             
             total = len(self.listar())
-            vivas = total - caidas - no_instalados
-            salida.write(f"\nResumen: {vivas}/{total} vivas, {reparadas} reparadas, {no_instalados} no instalados\n")
+            vivas = total - caidas - no_instalados - sin_comprobar
+            salida.write(f"\nResumen: {vivas}/{total} vivas, {reparadas} reparadas, {no_instalados} no instalados, {sin_comprobar} sin comprobar\n")
             
-            # Error interno solo si hubo excepción no controlada (no sesión caída ni no instalado)
+            # Error interno solo si hubo excepción no controlada (no sesión caída, no instalado ni sin_comprobar)
             return 1 if errores_internos > 0 else 0
             
         except Exception as e:
@@ -853,6 +885,7 @@ def main(argv: list[str] | None = None, salida=None, sanador: SanadorSesiones | 
             "  reparar <sesion>     Repara una sesión probando recetas\n"
             "  estado               Muestra estado agregado de todas las sesiones\n"
             "  listar               Lista sesiones registradas\n"
+            "  resolver <servicio> <causa> <arreglo>  Envía mensaje de resolución por Telegram\n"
         )
         return 0
 
@@ -890,16 +923,40 @@ def main(argv: list[str] | None = None, salida=None, sanador: SanadorSesiones | 
     if cmd == "estado":
         est = s.estado()
         no_inst = est.get('no_instalados', 0)
+        sin_comp = est.get('sin_comprobar', 0)
         salida.write(
-            f"SESIONES · {est['vivas']}/{est['total']} vivas · {est['caidas']} caídas · {no_inst} no instalados\n"
+            f"SESIONES · {est['vivas']}/{est['total']} vivas · {est['caidas']} caídas · {no_inst} no instalados · {sin_comp} sin comprobar\n"
         )
         for nombre, det in est["detalle"].items():
             if det["estado"] == "viva":
                 salida.write(f"  ✓ {nombre}: {det.get('detalle', 'ok')}\n")
             elif det["estado"] == "no_instalado":
                 salida.write(f"  ○ {nombre}: no instalado ({det.get('motivo', '')})\n")
+            elif det["estado"] == "sin_comprobar":
+                salida.write(f"  ⚠ {nombre}: sin comprobar - avería del sanador ({det.get('motivo', '')})\n")
+                if det.get("traza"):
+                    for linea in det["traza"].splitlines()[:5]:
+                        salida.write(f"    {linea}\n")
             else:
                 salida.write(f"  ✗ {nombre}: {det.get('motivo', 'caída')}\n")
+        return 0
+
+    if cmd == "resolver":
+        if len(argv) < 4:
+            salida.write("Uso: resolver <servicio> <causa> <arreglo>\n")
+            return 2
+        servicio, causa, arreglo = argv[1], argv[2], argv[3]
+        try:
+            import entorno
+            resp = entorno.enviar_resolucion(servicio, causa, arreglo)
+            if resp.get("ok"):
+                salida.write(f"✓ Resolución enviada: {servicio} resuelto ({causa} · {arreglo})\n")
+            else:
+                salida.write(f"✗ Error enviando resolución: {resp.get('motivo', '')}\n")
+                return 1
+        except Exception as e:
+            salida.write(f"✗ Error: {e}\n")
+            return 1
         return 0
 
     salida.write(f"Comando desconocido: {cmd}\n")

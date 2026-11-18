@@ -19,6 +19,7 @@ AHORA = datetime(2026, 11, 14, 12, 0)
 def deps(**cambios):
     base = {
         "ejecutar": lambda argv, timeout=30: (0, "ok"),
+        "ejecutar_higgsfield": lambda args, timeout=30: (0, "ok"),
         "getme": lambda: {"ok": True},
         "renovar_google": lambda alias: {"ok": True},
         "leer_ficha": lambda alias: {"emitido": (AHORA - timedelta(days=1)).isoformat()},
@@ -102,7 +103,7 @@ class SanadorRecetasTest(unittest.TestCase):
 
     def test_higgsfield_caido_avisa_el_paso_de_la_mac(self):
         avisos, ordenes = [], []
-        reg = R.registro(deps(ejecutar=lambda argv, timeout=30: (ordenes.append(argv) or (1, "no session")),
+        reg = R.registro(deps(ejecutar_higgsfield=lambda args, timeout=30: (ordenes.append(args) or (1, "no session")),
                               avisar=lambda t: avisos.append(t) or {"ok": True}))
         r = reg["higgsfield"]["comprobacion"]()
         self.assertFalse(r["ok"])

@@ -320,6 +320,7 @@ def registro(deps: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
     """Construye el registro con E/S inyectable (sin red en las pruebas)."""
     d = deps or {}
     ej = d.get("ejecutar", _ejecutar)
+    ej_higgsfield = d.get("ejecutar_higgsfield", _ejecutar_binario_higgsfield)
     ahora = d.get("ahora", datetime.now)
     renovar = d.get("renovar_google", _renovar_google)
     leer = d.get("leer_ficha", _leer_ficha)
@@ -339,7 +340,7 @@ def registro(deps: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
     return {
         "google-oauth-alex": oauth("alex"),
         "google-oauth-alex-docs": oauth("alex-docs"),
-        "higgsfield": {"comprobacion": lambda: comprobar_higgsfield(ej),
+        "higgsfield": {"comprobacion": lambda: comprobar_higgsfield(ej_higgsfield),
                        "recetas": [lambda: receta_higgsfield_aviso(avisar)]},
         "freellmapi": proveedor("freellmapi"),
         "nim": proveedor("nim"),
