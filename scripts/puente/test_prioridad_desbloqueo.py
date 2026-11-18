@@ -71,8 +71,11 @@ class Parser(unittest.TestCase):
         self.assertNotIn("2026-11-16", l[0])
         self.assertTrue(any("What went wrong" in x for x in l))
         self.assertTrue(any("compileUniversalReleaseKotlin" in x for x in l))
-        ruta, linea = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(l)))
-        self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
+        res_ev = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(l)))
+        self.assertIsNotNone(res_ev)
+        if res_ev is not None:
+            ruta, linea = res_ev
+            self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
 
     def test_rust_con_su_linea(self):
         l = PD.errores_de_compilacion(RUST)
@@ -87,11 +90,14 @@ class Parser(unittest.TestCase):
         self.assertEqual(len(PD.errores_de_compilacion(muchos)), 8)
 
     def test_archivo_y_resolucion(self):
-        ruta, linea = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(PD.errores_de_compilacion(KOTLIN))))
-        self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
-        self.assertTrue(ruta.startswith("native/src-tauri/gen/android/"))   # sin el prefijo del runner
-        repo = ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt", "src/otro.ts"]
-        self.assertEqual(PD.resolver_en_repo(ruta, repo), repo[0])
+        res_ev = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(PD.errores_de_compilacion(KOTLIN))))
+        self.assertIsNotNone(res_ev)
+        if res_ev is not None:
+            ruta, linea = res_ev
+            self.assertEqual((ruta.rsplit("/", 1)[-1], linea), ("ProyeccionPantallaStarSeed.kt", 189))
+            self.assertTrue(ruta.startswith("native/src-tauri/gen/android/"))   # sin el prefijo del runner
+            repo = ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt", "src/otro.ts"]
+            self.assertEqual(PD.resolver_en_repo(ruta, repo), repo[0])
         self.assertEqual(PD.archivo_de_evidencia("error[E0599]: x\n --> src/lib.rs:88:14"), ("src/lib.rs", 88))
         self.assertEqual(PD.resolver_en_repo("src/lib.rs", ["native/src-tauri/src/lib.rs"]), "native/src-tauri/src/lib.rs")
         self.assertEqual(PD.archivo_de_evidencia("nada que ver"), (None, None))
@@ -216,7 +222,7 @@ class Falso(object):
     def __init__(self, prueba=None, log=KOTLIN, repo=None, falla_escritura=False):
         self.prueba, self.log, self.repo = prueba or {}, log, repo or []
         self.colas, self.avisos, self.pedidos_log, self.falla = {}, [], [], falla_escritura
-        self.cambios = None
+        self.cambios = None  # type: list[str] | None
 
     def cambios_desde(self, sha):
         return self.cambios
@@ -445,6 +451,67 @@ class FrenoComentarios(unittest.TestCase):
 
     def test_comillas_siguen_sin_perdonarse(self):
         self.assertEqual(len(lote('alter table t drop constraint "c";\nalter table t add constraint "c" check (a>0);')), 1)
+
+
+class DireccionKotlinRealTest(unittest.TestCase):
+    """Nuevas pruebas requeridas por la tarea DSB02-d2 (DSB1116B)."""
+
+    def test_kotlin_linea_real_con_prefijo_github(self):
+        # 1) Línea real con prefijo GitHub: <trabajo>\t<paso>\t<fecha ISO> e: file://...
+        linea_log = (
+            "os\tandroid\t2026-11-16T01:00:12.1234567Z\te: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/"
+            "android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted "
+            "(!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.\n"
+        )
+        errores = PD.errores_de_compilacion(linea_log)
+        self.assertTrue(len(errores) > 0)
+        self.assertTrue(errores[0].startswith("e: file:///"))
+        self.assertIn("ProyeccionPantallaStarSeed.kt:189:14", errores[0])
+        res_ev = PD.archivo_de_evidencia(PD.limpiar_evidencia("\n".join(errores)))
+        self.assertIsNotNone(res_ev)
+        if res_ev is not None:
+            ruta, numero_linea = res_ev
+            self.assertEqual(ruta.rsplit("/", 1)[-1], "ProyeccionPantallaStarSeed.kt")
+            self.assertEqual(numero_linea, 189)
+
+    def test_compilacion_47_fallo_con_48_publicada_no_abre_tarea(self):
+        # Compilación 47 en fallo con la 48 publicada no abre tarea
+        p = fallo(numero=47)
+        p["builds"] = [
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+            {"numero": 48, "estado": "publicada", "sha": "1" * 64}
+        ]
+        f = Falso(prueba=p, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+
+    def test_compilacion_47_fallo_con_48_compilando_no_abre_tarea(self):
+        # Compilación 47 en fallo con la 48 compilando no abre tarea
+        p = fallo(numero=47)
+        p["builds"] = [
+            {"numero": 47, "estado": "fallo", "sha": SHA},
+            {"numero": 48, "estado": "compilando", "sha": "1" * 64}
+        ]
+        f = Falso(prueba=p, repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+
+    def test_fallo_cuyo_archivo_cambio_en_main_no_abre_tarea(self):
+        # Un fallo cuyo archivo (por nombre) cambió en main después no abre tarea
+        f = Falso(prueba=fallo(numero=47), repo=[])
+        f.cambios = ["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"]
+        PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(f.colas, {})
+
+    def test_fallo_nuevo_sin_nada_de_eso_si_abre_tarea(self):
+        # Un fallo nuevo sin nada de eso SÍ abre tarea con archivos no vacío
+        f = Falso(prueba=fallo(numero=47), repo=["native/src-tauri/android/ProyeccionPantallaStarSeed.kt"])
+        f.log = KOTLIN_REAL
+        PD.pasada_desbloqueo(f, {}, T0)
+        self.assertEqual(len(f.colas), 1)
+        nombre_cola = list(f.colas.keys())[0]
+        t = f.colas[nombre_cola]["tareas"][0]
+        self.assertTrue(len(t["archivos"]) > 0)
 
 
 if __name__ == "__main__":
