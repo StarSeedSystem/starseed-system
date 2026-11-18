@@ -111,6 +111,10 @@ export function guardarAjustes(almacen: AlmacenAjustes, ajustes: AjustesInternet
   }
 }
 
+// Base neutra «todo apagado»: se conserva porque otras pruebas y el propio
+// almacén la usan. Los valores por defecto del contrato §8.2 (malla de la
+// propia cuenta encendida y sin límite, entidad y público apagadas) viven en
+// `defectos-audiencia.ts` (`ajustesPorDefecto`).
 export const AJUSTES_APAGADOS: AjustesInternet = {
   version: 1,
   compartirConOtros: false,
