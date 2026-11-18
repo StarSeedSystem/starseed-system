@@ -9,6 +9,7 @@
  * variantes de la comunidad, calidad «sin medir», que se eligen a mano y solo para mis conversaciones privadas.
  * (MOD1116) Sección «Ramas por proveedor» (`ramas-proveedor.ts`): una rama por proveedor (Ollama, huihui_ai, capas
  * propias y API externas), cada una con sus modelos de MÁS a MENOS capaz, el mejor y el más ligero que caben aquí.
+ * Los bloques plegables con insignias y precios se pintan con `ramas-proveedor-ui.tsx` (MQC4).
  */
 
 import { useMemo, useState } from "react";
@@ -22,6 +23,7 @@ import { useModelosNeurona, type AccionesModelos, type EstadoModelos } from "@/l
 import { CASOS, ETIQUETA_CASO, type CasoUso, type ModeloLocal, type Veredicto } from "@/lib/astraura/modelos/tipos";
 import { Comparacion, InsigniaVeredicto, PreguntaDescarga, gbTxt } from "@/components/astraura/modelos-ui";
 import { ContinuarModelo, InsigniaSinFiltros, InstalarOllama } from "@/components/astraura/modelos-sin-filtros-ui";
+import { RamasProveedor } from "@/components/astraura/ramas-proveedor-ui";
 
 type Filtro = CasoUso | "todos";
 
@@ -143,36 +145,11 @@ export function ModelosIaVista({ e }: { e: EstadoModelos & AccionesModelos }) {
       <ContinuarModelo e={e} />
 
       {e.cargando && <p className="text-[12px] text-white/50" role="status">Midiendo tus neuronas…</p>}
-      {ramas.length > 0 && (
-        <section aria-label="Ramas por proveedor" className="space-y-2" data-seccion="ramas">
-          <h3 className="text-[13px] font-semibold text-white/90">Ramas por proveedor</h3>
-          <ul className="space-y-2">
-            {ramas.map((r) => (
-              <li key={`${r.via}-${r.proveedor}`} data-proveedor={r.proveedor} data-via={r.via} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13px] font-medium text-white/90">{r.proveedor}</span>
-                  <span className="text-[11px] text-white/45">{r.via === "local" ? "se ejecuta en esta neurona" : "proveedor externo de pago"}</span>
-                </div>
-                {r.nota && <p className="mt-1 text-[11px] text-amber-300" data-campo="nota">{r.nota}</p>}
-                <ul className="mt-1 space-y-0.5">
-                  {r.modelos.map((x) => (
-                    <li key={x.id} className="flex flex-wrap items-center gap-2 text-[11px] text-white/70">
-                      <span className="font-mono">{x.etiqueta}</span>
-                      {r.mejorQueCabe === x.id && <span className="rounded-full border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-cyan-100">El mejor que cabe</span>}
-                      {r.masLigero === x.id && r.mejorQueCabe !== x.id && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 text-white/60">El más ligero que cabe</span>
-                      )}
-                      {x.veredicto && <InsigniaVeredicto v={x.veredicto} liberarGb={x.liberarGb} />}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       <ul className="grid gap-3 md:grid-cols-2">{lista.listos.map((m) => <Tarjeta key={m.id} m={m} e={e} preguntando={preguntando} setPreguntando={setPreguntando} />)}</ul>
       {lista.listos.length === 0 && <p className="text-[12px] text-white/50">Ningún modelo comprobado sirve para este caso.</p>}
+      {ramas.length > 0 && (
+        <RamasProveedor ramas={ramas} apis={MODELOS_API} sinFiltrosPermitido={e.sinFiltros.disponible} />
+      )}
       {lista.sinFiltros.length > 0 && (
         <section aria-label="Variantes sin filtros" className="space-y-2 rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/[0.04] p-3" data-seccion="sin-filtros">
           <h3 className="flex items-center gap-2 text-[13px] font-semibold text-fuchsia-100"><InsigniaSinFiltros />Variantes sin filtros</h3>
