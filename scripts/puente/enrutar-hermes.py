@@ -51,9 +51,11 @@ import re
 import shutil
 import sys
 import time
+from datetime import datetime, timedelta
 
 CONFIG = os.path.expanduser("~/.hermes/config.yaml")
 INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
+GATEWAY_LOG = os.path.expanduser("~/.hermes/logs/gateway.error.log")
 
 #: Nombre de pasarela en el informe → nombre de proveedor en Hermes.
 ALIAS = {"nvidia": "nvidia", "nim": "nvidia", "neurona": "ollama", "google": "gemini"}
@@ -117,6 +119,79 @@ ORDEN_ESTADO = {"escribe": 0, "lenta": 1, "saturada": 2, "sin_cupo": 3,
 TPM_GRATUITO = {"groq": 8000}
 TOKENS_QUE_PIDE_HERMES = 12000
 
+#: Patrones que indican que una clave de API fue rechazada por el proveedor.
+PATRONES_RECHAZO = [
+    "rejected this api key",
+    "api key not valid",
+    "api_key_invalid",
+    "permission_denied",
+]
+
+#: Mapeo de nombres legibles a ids de proveedor en Hermes.
+NOMBRE_A_PROVEEDOR = {
+    "google gemini": "gemini",
+    "google": "gemini",
+    "gemini": "gemini",
+    "openrouter": "openrouter",
+    "apinex": "apinex",
+    "tokenrouter": "tokenrouter",
+    "xkiro": "xkiro",
+    "aihubmix": "aihubmix",
+    "freellmapi": "freellmapi",
+    "nvidia": "nvidia",
+    "nim": "nvidia",
+    "groq": "groq",
+}
+
+
+def proveedores_con_clave_rechazada(lineas, *, ahora=None, ventana_horas=24, max_lineas=300):
+    """Devuelve el set de proveedores cuya clave fue rechazada en las últimas N horas.
+
+    Args:
+        lineas: iterable de líneas del log (más recientes al final).
+        ahora: datetime de referencia (por defecto ahora real). Para tests.
+        ventana_horas: horas de antigüedad máxima para considerar el rechazo vigente.
+        max_lineas: cuántas líneas finales examinar (por defecto 300).
+
+    Returns:
+        set[str]: ids de proveedor (p. ej. "gemini", "openrouter") con rechazo vigente.
+    """
+    if ahora is None:
+        ahora = datetime.now()
+    corte = ahora - timedelta(hours=ventana_horas)
+    lineas = list(lineas)[-max_lineas:]
+    rechazados = set()
+    patron_rechazo = re.compile("|".join(PATRONES_RECHAZO), re.IGNORECASE)
+    patron_provider = re.compile(r"provider=([a-z0-9_-]+)", re.IGNORECASE)
+    patron_fecha = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+    for i, linea in enumerate(lineas):
+        if not patron_rechazo.search(linea):
+            continue
+        m_fecha = patron_fecha.match(linea)
+        if m_fecha:
+            try:
+                ts = datetime.strptime(m_fecha.group(1), "%Y-%m-%d %H:%M:%S")
+                if ts < corte:
+                    continue
+            except ValueError:
+                pass
+        prov = None
+        m_prov = patron_provider.search(linea)
+        if m_prov:
+            prov = m_prov.group(1).lower()
+        else:
+            for nombre, pid in NOMBRE_A_PROVEEDOR.items():
+                if nombre in linea.lower():
+                    prov = pid
+                    break
+            if prov is None and i + 1 < len(lineas):
+                m_prov_next = patron_provider.search(lineas[i + 1])
+                if m_prov_next:
+                    prov = m_prov_next.group(1).lower()
+        if prov:
+            rechazados.add(prov)
+    return rechazados
+
 
 def proveedores_de_hermes(texto):
     """{proveedor: [modelos declarados]} leído del YAML sin parsearlo entero."""
@@ -175,8 +250,14 @@ def modelo_para(prov, declarados):
     return declarados[0] if declarados else None
 
 
-def cadena(provs_hermes, estados):
-    """[(proveedor, modelo)] ordenados por lo que escribe hoy."""
+def cadena(provs_hermes, estados, *, rechazados=None):
+    """[(proveedor, modelo)] ordenados por lo que escribe hoy.
+
+    Los proveedores en `rechazados` (clave rechazada hace < 24h) van al final
+    de la cadena y nunca como modelo por defecto.
+    """
+    if rechazados is None:
+        rechazados = set()
     filas = []
     for prov, modelos in provs_hermes.items():
         m = modelo_para(prov, modelos)
@@ -187,6 +268,9 @@ def cadena(provs_hermes, estados):
         if TPM_GRATUITO.get(prov, 10**9) < TOKENS_QUE_PIDE_HERMES:
             orden += 10                      # vivo, pero no le cabe una charla
             est = est + " (tpm %d < %d)" % (TPM_GRATUITO[prov], TOKENS_QUE_PIDE_HERMES)
+        if prov in rechazados:
+            orden += 100                     # clave rechazada: al final de la cadena
+            est = est + " (clave rechazada)"
         filas.append((orden, AFINIDAD.get(prov, 5), prov, m, est))
     filas.sort(key=lambda x: (x[0], x[1], x[2]))
     return [(p, m, e) for _, _, p, m, e in filas]
@@ -240,7 +324,13 @@ def main():
     texto = open(CONFIG, encoding="utf-8").read()
     provs = con_nativos(proveedores_de_hermes(texto))
     estados = estados_del_informe()
-    cad = cadena(provs, estados)
+    rechazados = set()
+    try:
+        lineas = open(GATEWAY_LOG, encoding="utf-8").read().splitlines()
+        rechazados = proveedores_con_clave_rechazada(lineas)
+    except Exception:
+        pass
+    cad = cadena(provs, estados, rechazados=rechazados)
     if not cad:
         print("Hermes no tiene proveedores declarados: no toco nada"); return 1
     primero = (cad[0][0], cad[0][1])
