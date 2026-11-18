@@ -424,7 +424,8 @@ class MediosReales(unittest.TestCase):
             m = PD.MediosDesbloqueo(None, d, olas)
             m.escribir_cola("cola-a-desbloqueo-x.json", {"a": 1})
             m.escribir_cola("cola-a-desbloqueo-x.json", {"a": 2})
-            self.assertEqual(json.load(open(os.path.join(olas, "cola-a-desbloqueo-x.json"), encoding="utf-8")), {"a": 1})
+            with open(os.path.join(olas, "cola-a-desbloqueo-x.json"), encoding="utf-8") as f:
+                self.assertEqual(json.load(f), {"a": 1})
             self.assertEqual(m.nombres_colas(), ["cola-a-desbloqueo-x.json"])
             self.assertEqual(m.estado_pruebas(), {})
             with open(os.path.join(d, "pruebas-director-estado.json"), "w") as f:

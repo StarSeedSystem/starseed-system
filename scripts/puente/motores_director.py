@@ -146,9 +146,9 @@ def es_pausa_hermes(rc, salida) -> bool:
 
 
 def es_fallo_hermes(texto) -> bool:
-    """PURA. «Ningún proveedor de la cadena contestó»: texto corto de error, no una respuesta."""
+    """PURA. «Ningún proveedor de la cadena contestó» o timeout: texto corto de error, no una respuesta."""
     bajo = (texto or "").lower()
-    return len(bajo) < 600 and any(m in bajo for m in _FALLOS_HERMES)
+    return len(bajo) < 600 and (any(m in bajo for m in _FALLOS_HERMES) or "[tiempo agotado]" in bajo)
 
 
 def es_fallo_tiempo_agotado(texto) -> bool:
