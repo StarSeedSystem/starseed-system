@@ -147,6 +147,8 @@ def _asegurar_metodo_canal_youtube() -> None:
     if CANAL_YOUTUBE_MD.exists():
         return
     
+    # Las vallas de esta plantilla llevan tres espacios delante: ninguna línea de un .py puede empezar por tres
+    # comillas invertidas (scripts/enjambre/test_guiones_parsean.py), y en Markdown siguen siendo vallas.
     metodo = """# Método de investigación de un canal para alcance (ALC-NICK-1116)
 
 Este documento define el procedimiento estándar para investigar un canal de YouTube
@@ -193,7 +195,7 @@ Estructura:
 - **Puntos de entrada para StarSeed**: qué valor concreto aportaríamos
 
 ### 2.2 Ficha de contacto (JSON)
-```json
+   ```json
 {
   "canal": "Nombre del canal",
   "handle": "@handle",
@@ -208,7 +210,7 @@ Estructura:
   "alineacion": 85,
   "puntos_entrada": ["protocolos", "IA local", "soberanía"]
 }
-```
+   ```
 
 ### 2.3 Mensaje de contacto (borrador, pendiente de aprobación)
 - Personalizado: referencia a vídeo/contenido específico
