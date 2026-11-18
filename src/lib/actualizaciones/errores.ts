@@ -9,7 +9,7 @@
  * ════════════════════════════════════════════════════════════════════════════
  */
 
-export type CodigoError = "github" | "sin-conexion" | "tiempo" | "firma" | "no-existe" | "sin-permiso" | "otro";
+export type CodigoError = "github" | "sin-conexion" | "tiempo" | "firma" | "no-existe" | "sin-permiso" | "sin-plataforma" | "otro";
 
 export interface ErrorActualizacion {
   codigo: CodigoError;
@@ -52,6 +52,9 @@ export function describirError(crudo: unknown, opciones: { enLinea?: boolean } =
   if (http === 404 || /not found|no existe|no est[aá] en el release/.test(e)) {
     return { codigo: "no-existe", http: 404, texto: "Esa versión aún no está publicada para este sistema. Lo intentaré de nuevo más tarde.", reintentable: true, esperarRed: false };
   }
+  if (/were found in the response.*platforms object|platforms object.*were found/.test(e)) {
+    return { codigo: "sin-plataforma", http, texto: "Esta versión de prueba aún no tiene paquete para tu sistema.", reintentable: true, esperarRed: false };
+  }
   if (/not allowed|no est[aá] permitido|permission|permiso/.test(e) && !/github/.test(e)) {
     return { codigo: "sin-permiso", http, texto: "Esta app no tiene permiso para buscar actualizaciones. Instala la versión nueva desde la Librería.", reintentable: false, esperarRed: false };
   }
@@ -74,4 +77,29 @@ export function textoReintento(crudo: unknown, siguiente: "directa" | "api" | "e
   const causa = d.codigo === "github" ? `GitHub no respondió${d.http ? ` (${d.http})` : ""}` : d.codigo === "tiempo" ? "GitHub tardó demasiado" : "No hubo conexión con GitHub";
   const donde = siguiente === "api" ? "por otra ruta (la API de GitHub)" : siguiente === "espejo" ? "desde otra neurona cercana" : "de nuevo por la ruta directa";
   return `${causa}. Lo intento ${donde}…`;
+}
+
+export type TipoAviso = "ámbar" | "rojo";
+
+export interface ErrorFormateado {
+  tipo: TipoAviso;
+  texto: string;
+}
+
+/**
+ * Formatea un error de actualización para mostrar en la UI.
+ * - Devuelve null si no hay error (crudo es null/undefined/empty).
+ * - Para "sin-plataforma": tipo ámbar, texto con versión instalada, sin prefijo duplicado.
+ * - Para el resto: tipo rojo, texto de describirError.
+ */
+export function formatearErrorActualizacion(crudo: unknown, versionInstalada: string): ErrorFormateado | null {
+  if (!crudo) return null;
+  const d = describirError(crudo);
+  if (d.codigo === "sin-plataforma") {
+    return {
+      tipo: "ámbar",
+      texto: `Esta versión de prueba aún no tiene paquete para tu sistema; sigues en la ${versionInstalada}. Vuelve a comprobar más tarde.`,
+    };
+  }
+  return { tipo: "rojo", texto: d.texto };
 }
