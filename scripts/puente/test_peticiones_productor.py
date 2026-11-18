@@ -447,13 +447,18 @@ def test_ajuste_durante_marcha_se_conserva_al_guardar():
     
     # F2 está pendiente y se procesará
     enc["frentes"][1]["estado"] = "pendiente"
-    enc["state_notas_iniciales"] = list(enc["notas"])
+    
+    # Guardar notas originales antes del ajuste
+    notas_originales = list(enc["notas"])
     
     # Simular que el productor recarga el encargo y Maggasukha añadió notas
     # Esto representa el comportamiento de productor() que lee de disco
     enc["notas"].append("Nuevo ajuste: añadir referencias de Art Nouveau")
     
-    # Verificar que la nota se conserva al continuar con F2
+    # Verificar que TODAS las notas se conservan (originales + nuevas)
+    assert notas_originales, "Las notas originales no deben estar vacías"
+    for nota_original in notas_originales:
+        assert nota_original in enc["notas"], f"Nota original perdida: {nota_original}"
     assert "Nuevo ajuste: añadir referencias de Art Nouveau" in enc["notas"]
 
 
@@ -492,9 +497,9 @@ def test_ejecutar_encargo_recarga_notas_antes_de_frente():
     except Exception:
         pass
     
-    # F2 debería haber sido procesado y las notas deberían estar en el panel
-    # (el test verifica que el flujo continúa sin errores)
-    assert "Ajuste: incluir referencias de Art Nouveau" in enc["notas"]
+    # F2 debería haber sido procesado (estado cambiado a 'hecho') y las notas deberían estar presentes
+    assert "Ajuste: incluir referencias de Art Nouveau" in enc["notas"], "Las notas deben estar presentes"
+    assert enc["frentes"][1]["estado"] == "hecho", f"F2 debería haberse procesado, estado actual: {enc['frentes'][1]['estado']}"
 
 
 def test_sesion_caducada_se_propaga_y_espera():
