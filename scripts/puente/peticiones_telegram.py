@@ -13,6 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from pathlib import Path
 from typing import Any
 
 from peticiones_reglas import (
@@ -64,6 +65,7 @@ import peticiones_llm as PLLM
 
 import higgsfield_aprobado as hfa
 import salud_directores as SD
+import peticiones_sintesis_respaldo as PSR
 
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
@@ -926,6 +928,91 @@ def _tarea_multiformato_periodica() -> None:
             log("Error en tarea multiformato periódica:", e)
 
 
+def _tarea_respaldo_0830() -> None:
+    """Tarea periódica que ejecuta el respaldo de síntesis a las 08:30 CDMX (SIN1116B §3.1).
+
+    Verifica cada 5 minutos si es la hora de respaldo (08:30 ± 15 min en zona horaria de México).
+    Si es la hora y no hay síntesis válida para hoy, ejecuta el respaldo completo:
+    - Investiga con criterio (3 deep research en tema rotativo)
+    - Genera informe con protocolo completo + regla de calidad
+    - Redacta con flota gratuita
+    - Sube Doc a Drive con nombre exacto
+    - Envía resumen al chat
+    - Lanza multiformato (9 formatos)
+
+    Los hitos se publican en el chat vía sintesis_avances (SIN1116B §3.2).
+    """
+    INTERVALO_VERIFICACION_S = 5 * 60  # 5 minutos
+    while True:
+        time.sleep(INTERVALO_VERIFICACION_S)
+        try:
+            _ejecutar_respaldo_si_es_hora()
+        except Exception as e:
+            log("Error en tarea respaldo 08:30:", e)
+
+
+def _ejecutar_respaldo_si_es_hora() -> None:
+    """Verifica si es hora de respaldo y lo ejecuta si procede."""
+    # Usar la función de peticiones_sintesis_respaldo para obtener hora CDMX
+    try:
+        import zoneinfo
+        from datetime import datetime
+        tz = zoneinfo.ZoneInfo("America/Mexico_City")
+        ahora = time.time()
+        dt = datetime.fromtimestamp(ahora, tz)
+        hora_decimal = dt.hour + dt.minute / 60.0
+    except Exception:
+        from datetime import datetime, timezone
+        dt = datetime.fromtimestamp(time.time(), timezone.utc)
+        hora_decimal = dt.hour + dt.minute / 60.0
+
+    HORA_RESPALDO = 8.5  # 08:30
+    VENTANA_MIN = 0.25   # ±15 min
+
+    if abs(hora_decimal - HORA_RESPALDO) > VENTANA_MIN:
+        return  # No es hora de respaldo
+
+    # Verificar si ya se ejecutó hoy (evitar duplicados)
+    try:
+        import zoneinfo
+        from datetime import datetime
+        tz = zoneinfo.ZoneInfo("America/Mexico_City")
+        fecha_hoy = datetime.fromtimestamp(time.time(), tz).date().isoformat()
+    except Exception:
+        from datetime import datetime, timezone
+        fecha_hoy = datetime.fromtimestamp(time.time(), timezone.utc).date().isoformat()
+
+    estado = leer_json(ESTADO, {})
+    respaldos = estado.get("respaldos_ejecutados", {})
+    if respaldos.get(fecha_hoy) is True:
+        return  # Ya se ejecutó hoy
+
+    log(f"Hora de respaldo 08:30 CDMX detectada ({hora_decimal:.2f}). Ejecutando...")
+
+    # Ejecutar respaldo con todas las dependencias inyectadas
+    resultado = PSR.ejecutar_respaldo_0830(
+        raiz=Path(__file__).parent.parent.parent,
+        ahora=time.time(),
+        nb_fn=nb,
+        drive_fn=drive,
+        token_google_fn=token_google,
+        leer_clave_fn=lambda k: ENV.get(k),
+        enviar_telegram_fn=decir,
+        multiformato_fn=_procesar_multiformato_con_degradacion,
+        log_fn=lambda msg: log("[respaldo_0830]", msg),
+        seco=False,
+    )
+
+    if resultado.get("ok"):
+        # Marcar como ejecutado hoy
+        respaldos[fecha_hoy] = True
+        estado["respaldos_ejecutados"] = respaldos
+        escribir_json(ESTADO, estado)
+        log(f"Respaldo completado: {resultado.get('mensaje')}")
+    else:
+        log(f"Respaldo no ejecutado: {resultado.get('mensaje')}")
+
+
 # GEN1114D · /estado y /ayuda empiezan con «Este chat: <nombre> · id <id>», leído de chat-a1.json (lo lleva la Mac
 # por ssh con `llevar-a1`), NUNCA del catálogo de la puerta, que no es de confianza. Sin él no se inventa nombre.
 ID_CHAT = re.compile(r"^[a-z0-9][a-z0-9._-]{1,62}$")
@@ -1589,6 +1676,7 @@ def main() -> None:
     threading.Thread(target=trabajar, daemon=True).start()
     threading.Thread(target=mantener_sesion, daemon=True).start()
     threading.Thread(target=_tarea_multiformato_periodica, daemon=True).start()
+    threading.Thread(target=_tarea_respaldo_0830, daemon=True).start()
     hay_trabajo.set()
     escuchar()
 
