@@ -17,6 +17,9 @@ import { RADIO_ESCENA, type MarcadorEscena } from "@/lib/senales/mapa-3d";
 import type { ModeloMapa } from "@/lib/senales/modelo";
 import { colocarRotulos, type Anclaje, type Caja, type Posicion, type Rotulo } from "@/lib/senales/rotulos";
 import { COLOR_ESTADO } from "@/lib/senales/aparatos";
+import { CAPA_POR_ID, COLOR_DESCONOCIDO, tramoDe, tramoDeCalidad } from "@/lib/senales/geo/capas";
+import { horaDe } from "@/lib/senales/geo/ficha-geo";
+import type { MarcaGeo } from "@/lib/senales/geo/marcas";
 import { TrazosIcono } from "./icono-2d";
 
 const C = 50;
@@ -282,6 +285,74 @@ export function VistaPlana({ modelo, seleccionId, apuntadaId = null, onSeleccion
           <circle cx={C} cy={C} r={3} fill="#38bdf8" style={{ filter: "drop-shadow(0 0 3px #38bdf8)" }} />
         )}
         {rotulo("yo", "#7dd3fc")}
+      </g>
+    </svg>
+  );
+}
+
+/** (AUD1117) Sitio de una marca en el esquema sin base: reparto por relación, no por coordenadas. */
+export function posicionEnEsquema(indice: number, total: number, radio = 30): { x: number; y: number } {
+  const n = Math.max(1, total);
+  const ang = -Math.PI / 2 + (2 * Math.PI * indice) / n;
+  return { x: C + Math.cos(ang) * radio, y: C + Math.sin(ang) * radio };
+}
+
+function colorDeMarca(m: MarcaGeo): string {
+  if (m.esYo) return "#38bdf8";
+  if (m.calidad.valor === null) return COLOR_DESCONOCIDO;
+  return tramoDe(CAPA_POR_ID["senal-internet"], tramoDeCalidad(m.calidad.valor)).color;
+}
+
+export interface EsquemaSenalesPlanoProps {
+  marcas: readonly MarcaGeo[];
+  seleccionId: string | null;
+  onSeleccionar: (id: string | null) => void;
+  alto?: number;
+  descripcion: string;
+  className?: string;
+}
+
+/**
+ * (AUD1117) Esquema plano de la malla para cuando la base geográfica no carga: las MISMAS marcas de
+ * Señales, colocadas por relación alrededor de «Tú». No hay teselas ni coordenadas que inventar.
+ */
+export function EsquemaSenalesPlano({ marcas, seleccionId, onSeleccionar, alto = 300, descripcion, className }: EsquemaSenalesPlanoProps) {
+  const yo = marcas.find((m) => m.esYo) ?? null;
+  const otros = marcas.filter((m) => !m.esYo);
+  const alternar = (id: string) => onSeleccionar(seleccionId === id ? null : id);
+  const tecla = (id: string) => (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(id); }
+  };
+  return (
+    <svg viewBox="0 0 100 100" style={{ height: alto }} className={cn("w-full", className)} role="group" aria-label={descripcion} data-testid="esquema-sin-base">
+      <circle cx={C} cy={C} r={R} fill="none" stroke="#38bdf8" strokeOpacity={0.18} strokeWidth={0.3} strokeDasharray="1.2 1.2" />
+      {otros.map((m, i) => {
+        const p = posicionEnEsquema(i, otros.length);
+        const sel = seleccionId === m.id;
+        const color = colorDeMarca(m);
+        const cuando = m.posicion.tipo === "exacta" ? ` · ${horaDe(m.posicion.t)}` : "";
+        return (
+          <g key={m.id} role="button" tabIndex={0} className="cursor-pointer"
+            aria-label={`${m.esYo ? "Este aparato · " : ""}${m.nombre} · ${TEXTO_ESTADO[m.estado]}${cuando}`}
+            onClick={() => alternar(m.id)} onKeyDown={tecla(m.id)}>
+            <line x1={C} y1={C} x2={p.x} y2={p.y} stroke={color} strokeOpacity={0.22} strokeWidth={0.3}
+              strokeDasharray={m.posicion.tipo === "desconocida" ? "1.2 1.1" : undefined} />
+            <circle cx={p.x} cy={p.y} r={3.6} fill="transparent" />
+            {sel && <circle cx={p.x} cy={p.y} r={3.4} fill="none" stroke="#fff" strokeWidth={0.6} strokeOpacity={0.9} />}
+            {m.forma === "rombo" ? (
+              <rect x={p.x - 2} y={p.y - 2} width={4} height={4} transform={`rotate(45 ${p.x} ${p.y})`} fill={color} stroke="#0b1220" strokeWidth={0.4} />
+            ) : (
+              <circle cx={p.x} cy={p.y} r={2} fill={color} stroke="#0b1220" strokeWidth={0.4} />
+            )}
+            <text x={p.x} y={p.y - 4.4} fontSize={2.3} textAnchor="middle" fill={color}>{m.nombre.slice(0, 18)}</text>
+            {m.posicion.tipo === "desconocida" && <text x={p.x} y={p.y + 5.4} fontSize={1.9} textAnchor="middle" fill="#94a3b8">sin posición</text>}
+          </g>
+        );
+      })}
+      <g role="button" tabIndex={0} className="cursor-pointer" aria-label={yo ? `Tú, esta neurona · ${yo.nombre}` : "Tú, esta neurona"} onClick={() => alternar(yo?.id ?? "yo")} onKeyDown={tecla(yo?.id ?? "yo")}>
+        <circle cx={C} cy={C} r={5} fill="transparent" />
+        <circle cx={C} cy={C} r={3} fill="#38bdf8" style={{ filter: "drop-shadow(0 0 3px #38bdf8)" }} />
+        <text x={C} y={C + 7.4} fontSize={2.4} textAnchor="middle" fill="#7dd3fc">{(yo?.nombre ?? "Tú").slice(0, 22)}</text>
       </g>
     </svg>
   );

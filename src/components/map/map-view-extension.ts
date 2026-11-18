@@ -31,6 +31,12 @@ export interface MiPosicion {
   t: number;
 }
 
+/**
+ * (AUD1117) Cómo va la base geográfica de teselas: `cargando` al empezar, `ok` cuando se pudo pintar
+ * y `fallo` cuando alguna tesela no cargó (sin red o servidor caído). La extensión decide su respaldo.
+ */
+export type EstadoBaseGeografica = "cargando" | "ok" | "fallo";
+
 export interface MapViewExtension {
   /** Clave propia de la vista guardada (centro, zoom, capas). Así no se mueve la vista del Hub. */
   viewKey?: string;
@@ -48,6 +54,8 @@ export interface MapViewExtension {
   onErrorUbicacion?: (motivo: string) => void;
   /** Clases extra del panel de capas (p. ej. su alto máximo en una pantalla pequeña). */
   clasePanelCapas?: string;
+  /** (AUD1117) Avisa de cada cambio de la base geográfica (teselas). Sin esto, nada cambia. */
+  onBaseEstado?: (estado: EstadoBaseGeografica) => void;
   /** Secciones que se añaden AL PRINCIPIO del panel de capas. */
   seccionCapas?: (ctx: MapExtensionCtx) => ReactNode;
   /** Superposiciones sobre el mapa (leyendas, ficha). Aquí se pintan también las marcas (efectos con `ctx.L`). */

@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapPinOff, WifiOff } from "lucide-react";
 import { MapView } from "@/components/map/map-view";
-import type { MapViewExtension } from "@/components/map/map-view-extension";
+import type { EstadoBaseGeografica, MapViewExtension } from "@/components/map/map-view-extension";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import {
   CLAVE_CAPAS_SENALES, CLAVE_VISTA_SENALES, estadoCapasInicial, sanearEstadoCapas, type EstadoCapas,
@@ -19,6 +19,7 @@ import { coordenadasDeVista } from "@/lib/senales/geo/modelo-geo";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
 import type { MarcaGeo } from "@/lib/senales/geo/marcas";
 import { useCompacto } from "../use-compacto";
+import { EsquemaSenalesPlano } from "../vista-plana";
 import { FichaGeo } from "./ficha-geo";
 import { MarcasEnMapa } from "./marcas-en-mapa";
 import { SeccionCapas } from "./seccion-capas";
@@ -73,6 +74,19 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   const [sel, setSel] = useState<string | null>(null);
   const { marcas, ahora, permiso, presenciaConectada } = datos;
 
+  // (AUD1117) La base geográfica puede fallar aunque `navigator.onLine` diga que hay red (teselas caídas).
+  // Se mide con los eventos de Leaflet; al volver la red se reintenta sola y, si sigue sin base, cada 30 s.
+  const [base, setBase] = useState<EstadoBaseGeografica>(() => (enLinea ? "cargando" : "fallo"));
+  useEffect(() => {
+    setBase((prev) => (!enLinea ? "fallo" : prev === "fallo" ? "cargando" : prev));
+  }, [enLinea]);
+  useEffect(() => {
+    if (base !== "fallo" || !enLinea) return;
+    const t = setTimeout(() => setBase("cargando"), 30_000);
+    return () => clearTimeout(t);
+  }, [base, enLinea]);
+  const sinBase = !enLinea || base === "fallo";
+
   const marcaSel = marcas.find((m) => m.id === sel) ?? null;
   const colocadas = marcas.filter((m) => coordenadasDeVista(m.posicion));
   const yo = marcas.find((m) => m.esYo);
@@ -87,6 +101,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     clasePanelCapas: "mr-12 w-[calc(100vw-5.5rem)] sm:w-80 max-h-[calc(100svh-18.5rem)] min-h-[14rem]",
     onMiPosicion: datos.alMiPosicion,
     onErrorUbicacion: datos.alErrorUbicacion,
+    onBaseEstado: setBase,
     seccionCapas: (ctx) => (
       <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} />
     ),
@@ -101,6 +116,21 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     ),
   }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
 
+  if (sinBase) {
+    return (
+      <section aria-label="Mapa de señales" data-testid="pestana-mapa">
+        <div className="relative">
+          <Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} sinBase />
+          <EsquemaSenalesPlano
+            marcas={marcas} seleccionId={sel} onSeleccionar={setSel} alto={estrecho ? 380 : 520}
+            descripcion="Esquema de la malla sin base geográfica" className="text-white"
+          />
+          {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-label="Mapa de señales" data-testid="pestana-mapa">
       <MapView className="h-[calc(100svh-6rem)] min-h-[520px]" extension={extension} />
@@ -108,9 +138,10 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   );
 }
 
-function Avisos({ enLinea, sinRedDesde, presenciaConectada, errorUbicacion }: { enLinea: boolean; sinRedDesde: number | null; presenciaConectada: boolean; errorUbicacion: string | null }) {
+function Avisos({ enLinea, sinRedDesde, presenciaConectada, errorUbicacion, sinBase = false }: { enLinea: boolean; sinRedDesde: number | null; presenciaConectada: boolean; errorUbicacion: string | null; sinBase?: boolean }) {
   const lineas: string[] = [];
-  if (!enLinea) lineas.push(`Sin conexión${sinRedDesde ? ` desde las ${horaDe(sinRedDesde)}` : ""}: el mapa base no carga y la presencia de la cuenta no llega. Se muestra lo último que se sabía, con su hora.`);
+  if (sinBase) lineas.push("Sin base geográfica: esquema de la malla con las mismas marcas, colocadas por relación y con su hora.");
+  if (!enLinea) lineas.push(`Sin conexión${sinRedDesde ? ` desde las ${horaDe(sinRedDesde)}` : ""}: la base geográfica no carga y la presencia de la cuenta no llega. Se muestra lo último que se sabía, con su hora.`);
   else if (!presenciaConectada) lineas.push("La presencia en vivo de la cuenta no está conectada: solo se muestra lo último que se sabe de cada aparato.");
   if (errorUbicacion) lineas.push(`No se pudo obtener la ubicación de este aparato: ${errorUbicacion}.`);
   if (!lineas.length) return null;
