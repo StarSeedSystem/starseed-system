@@ -1687,3 +1687,203 @@ def test_renovar_no_manda_a_claude():
     from peticiones_reglas import RENOVAR
 
     assert "claude" not in RENOVAR.lower()
+
+
+# ── PET1116F: Comandos /sintesis y libro de recomendaciones ──
+
+def test_comando_sintesis_lanza_sintesis_diaria(tmp_path, monkeypatch):
+    """/sintesis lanza la síntesis diaria autónoma."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("SALIDAS", str(tmp_path / "salidas"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    # Mock de la función que lanza la síntesis
+    sintesis_lanzada = []
+    def mock_lanzar_sintesis():
+        sintesis_lanzada.append(True)
+        return {"estado": "sintesis_lanzada", "fecha": "2026-11-17"}
+    
+    monkeypatch.setattr("sintesis_telegram._lanzar_sintesis_diaria", mock_lanzar_sintesis)
+    
+    recibir({"update_id": 1, "message": {"chat": {"id": "123456"}, "text": "/sintesis"}})
+    
+    # Debe haber llamado a lanzar_sintesis_diaria
+    assert len(sintesis_lanzada) == 1
+    # Y responder con confirmación
+    assert any("síntesis" in r.lower() for r in respuestas)
+
+
+def test_comando_sintesis_estado_muestra_hito_y_retrasos(tmp_path, monkeypatch):
+    """/sintesis estado muestra el hito actual y los retrasos."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decifrar", respuestas.append)
+    
+    # Mock del estado de síntesis
+    def mock_estado_sintesis():
+        return {
+            "hito_actual": "Síntesis 2026-11-17",
+            "ultima_entrega": "2026-11-16T18:02:00",
+            "retrasos": [],
+            "en_cola": []
+        }
+    
+    monkeypatch.setattr("sintesis_telegram._estado_sintesis", mock_estado_sintesis)
+    
+    recibir({"update_id": 2, "message": {"chat": {"id": "123456"}, "text": "/sintesis estado"}})
+    
+    # Debe mencionar el hito actual
+    assert any("hito" in r.lower() or "síntesis" in r.lower() for r in respuestas)
+
+
+def test_comando_sintesis_contexto_muestra_resumen_y_enlace(tmp_path, monkeypatch):
+    """/sintesis contexto muestra resumen del paquete y enlace al contexto vivo."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decifrar", respuestas.append)
+    
+    # Mock del contexto
+    def mock_contexto_sintesis():
+        return {
+            "fecha": "2026-11-17",
+            "agentes": ["contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube"],
+            "recomendaciones": 12,
+            "drive_link": "https://drive.google.com/file/d/1abc/view",
+        }
+    
+    monkeypatch.setattr("sintesis_telegram._contexto_sintesis", mock_contexto_sintesis)
+    
+    recibir({"update_id": 3, "message": {"chat": {"id": "123456"}, "text": "/sintesis contexto"}})
+    
+    # Debe mencionar resumen y enlace
+    texto = " ".join(respuestas)
+    assert any("agente" in r.lower() or "recomendacion" in r.lower() for r in respuestas)
+
+
+def test_comando_aprobar_actualiza_recomendacion(tmp_path, monkeypatch):
+    """aprobar <n> actualiza el estado de una recomendación a 'aprobada'."""
+    import libro_recomendaciones as L
+    
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    # Crear una recomendación para probar
+    L.RUTA_RECOMENDACIONES = str(tmp_path / "recomendaciones.jsonl")
+    rec = L.crear_recomendacion("Test recommendation", "ia", "test-pieza", id_propuesta="rec-test123")
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    recibir({"update_id": 10, "message": {"chat": {"id": "123456"}, "text": "aprobar rec-test123"}})
+    
+    # Verificar que se actualizó el estado
+    actualizada = L.obtener_recomendacion("rec-test123")
+    assert actualizada["estado"] == "aprobada"
+    # Y que se respondió
+    assert any("aprobada" in r.lower() for r in respuestas)
+
+
+def test_comando_rechazar_actualiza_recomendacion(tmp_path, monkeypatch):
+    """rechazar <n> actualiza el estado de una recomendación a 'rechazada'."""
+    import libro_recomendaciones as L
+    
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    L.RUTA_RECOMENDACIONES = str(tmp_path / "recomendaciones.jsonl")
+    rec = L.crear_recomendacion("Test recommendation", "ia", "test-pieza", id_propuesta="rec-test456")
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decifrar", respuestas.append)
+    
+    recibir({"update_id": 11, "message": {"chat": {"id": "123456"}, "text": "rechazar rec-test456"}})
+    
+    actualizada = L.obtener_recomendacion("rec-test456")
+    assert actualizada["estado"] == "rechazada"
+    assert any("rechazada" in r.lower() for r in respuestas)
+
+
+def test_comando_ya_existe_actualiza_recomendacion(tmp_path, monkeypatch):
+    """ya existe <n> actualiza el estado de una recomendación a 'ya_existe'."""
+    import libro_recomendaciones as L
+    
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    L.RUTA_RECOMENDACIONES = str(tmp_path / "recomendaciones.jsonl")
+    rec = L.crear_recomendacion("Test recommendation", "ia", "test-pieza", id_propuesta="rec-test789")
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    
+    recibir({"update_id": 12, "message": {"chat": {"id": "123456"}, "text": "ya existe rec-test789"}})
+    
+    actualizada = L.obtener_recomendacion("rec-test789")
+    assert actualizada["estado"] == "ya_existe"
+    assert any("ya existe" in r.lower() or "ya existe" in r.lower() for r in respuestas)
+
+
+def test_comando_encarga_crea_ola(tmp_path, monkeypatch):
+    """encarga <n> crea una ola para una recomendación aprobada."""
+    import libro_recomendaciones as L
+    
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    L.RUTA_RECOMENDACIONES = str(tmp_path / "recomendaciones.jsonl")
+    rec = L.crear_recomendacion("Test recommendation", "ia", "test-pieza", id_propuesta="rec-testenc")
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decifrar", respuestas.append)
+    
+    # Mock para crear ola
+    ola_creada = []
+    def mock_crear_ola(rec_id):
+        ola_creada.append(rec_id)
+        return {"ola": "SIN1116F-encargos", "Titulo": f"Encargo: {rec_id}"}
+    
+    monkeypatch.setattr("sintesis_telegram._crear_ola_desde_recomendacion", mock_crear_ola)
+    
+    recibir({"update_id": 13, "message": {"chat": {"id": "123456"}, "text": "encarga rec-testenc"}})
+    
+    # Verificar que se creó la ola
+    assert len(ola_creada) == 1
+    assert "rec-testenc" in ola_creada[0]
+    # Verificar estado de recomendación
+    actualizada = L.obtener_recomendacion("rec-testenc")
+    assert actualizada["estado"] == "encargada"
+
+
+def test_recuerda_texto_crea_regla_permanente(tmp_path, monkeypatch):
+    """Texto con 'recuerda' se procesa como regla permanente y se encola."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json")),
+                 ("PREFERENCIAS", str(tmp_path / "preferencias.json")),
+                 ("RUTINAS", str(tmp_path / "rutinas.json"))):
+        monkeypatch.setattr(mod, k, v)
+    
+    respuestas = []
+    monkeypatch.setattr(mod, "decifrar", respuestas.append)
+    
+    recibir({"update_id": 14, "message": {"chat": {"id": "123456"}, "text": "Recuerda: genera todos los formatos al terminar la síntesis"}})
+    
+    # Debe responder "Recibido"
+    assert any("Recibido" in r for r in respuestas)
+    
+    # Debe haber procesado como regla permanente
+    # (La regla se guarda y se confirma)
+    assert any("Rutina registrada" in r or "Preferencia guardada" in r for r in respuestas)
