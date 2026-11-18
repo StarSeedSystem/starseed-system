@@ -20,7 +20,6 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "SOCIAL_RADAR", "WELLNESS", "THEME_SELECTOR", "COLLAB_PROJECTS",
     "LIVE_DATA", "SYSTEM_STATUS", "RECENT_ACTIVITY", "QUICK_ACCESS",
     "ACTIVITY_SUMMARY", "NEXUS_QUICK_ACCESS", "THEME_MANAGER",
-    "NOTIFICATIONS", "ECONOMIC_OVERVIEW", "CARTERA_STARSEED",
     // ── Familia clima terrestre ──
     "WEATHER_BASIC", "WEATHER_TEMPERATURE", "WEATHER_UV", "WEATHER_WIND",
     "WEATHER_HUMIDITY", "WEATHER_AIR_QUALITY",
@@ -30,6 +29,7 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "WEATHER_ASTRONOMY", "WEATHER_HOLISTIC",
     // ── Social / cultura ──
     "CULTURAL_FEED", "CALCULATOR", "RELEVANT_POSTS", "MESSAGES",
+    "NOTIFICATIONS", "ECONOMIC_OVERVIEW", "CARTERA_STARSEED",
     "ACTIVE_PROJECTS",
     // ── Segunda generación ──
     "AGORA_CAUSAL", "LIQUID_DELEGATION", "OIKOS_METABOLISM", "SKILL_TREE",
@@ -62,8 +62,6 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "PROTOMOLECULA",
     // ── OpenUI (ola 1104R) ──
     "RESPUESTA_VIVA",
-    // ── Novena oleada (widgets recientemente añadidos) ──
-    "TRADUCTOR",
 ];
 
 describe("WIDGET_MANIFEST completitud", () => {

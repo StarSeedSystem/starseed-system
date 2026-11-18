@@ -23,7 +23,6 @@ import { WidgetRespuestaViva } from "@/components/openui/widget-respuesta-viva";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
-import { TraductorWidget } from "@/components/dashboard/widgets/traductor-widget";
 import { AuroraLastWidget } from "@/components/dashboard/widgets/aurora-last-widget";
 import { BadgesWidget } from "@/components/dashboard/widgets/badges-widget";
 import { NetworkFeedWidget } from "@/components/dashboard/widgets/network-feed-widget";
@@ -599,8 +598,6 @@ function cuerpoClasico(
         // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
         case 'CLOCK_DATE':
             return <ClockDateWidget widget={widget} onUpdateSettings={onUpdateSettings} />;
-        case 'TRADUCTOR':
-            return <TraductorWidget widget={widget} onUpdateSettings={onUpdateSettings} />;
         case 'TASKS_QUICK':
             return <TasksQuickWidget />;
         case 'QUICK_NOTES':

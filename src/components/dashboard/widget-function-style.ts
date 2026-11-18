@@ -120,7 +120,7 @@ const WIDGET_FUNCTION: Partial<Record<WidgetType, WidgetFunctionKind>> = {
     THEME_MANAGER: "utility", OFFICIAL_DATA: "utility", SERENDIPITY_LENS: "utility",
     IDEA_FORGE: "utility", HABITAT_CORE: "system", SOCIETY_PULSE: "social",
     // Sexta oleada: rediseño de widgets predeterminados (2026-07)
-    CLOCK_DATE: "utility", TRADUCTOR: "utility", TASKS_QUICK: "productivity", QUICK_NOTES: "productivity",
+    CLOCK_DATE: "utility", TASKS_QUICK: "productivity", QUICK_NOTES: "productivity",
     AURORA_LAST: "ai", BADGES: "identity", NETWORK_FEED_MINI: "social",
 };
 

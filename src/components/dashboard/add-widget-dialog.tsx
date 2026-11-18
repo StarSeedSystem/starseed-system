@@ -7,7 +7,7 @@ import {
     LayoutDashboard, LayoutGrid, FileText, Vote, GraduationCap, Activity,
     Heart, Palette, Network, Book, Rocket, Calendar, Plus,
     BrainCircuit, CloudLightning, CloudRain, Wind, ThermometerSun,
-    Tornado, Globe, MoonStar, Sparkles, Languages, Radio, Calculator, ListChecks,
+    Tornado, Globe, MoonStar, Sparkles, Radio, Calculator, ListChecks,
     MessageSquare, BellRing, Zap, Search, Star, ChevronRight, Wallet,
     Music, Waves, AudioWaveform, Satellite, SlidersHorizontal, Orbit,
     CalendarDays, Users, Globe2, BookMarked, Vault, FolderOpen,
@@ -435,13 +435,6 @@ export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         icon: <Clock className="h-5 w-5 text-amber-400" />,
         primaryCategory: 'utilidades', secondaryCategories: ['sistema'],
         tags: ['reloj', 'hora', 'fecha', 'analógico', 'zona horaria', 'tiempo'], isPopular: true,
-    },
-    {
-        type: 'TRADUCTOR', title: 'Traductor',
-        description: 'Caja de texto con par de idiomas, motor de traducción y botón para traducir.',
-        icon: <Languages className="h-5 w-5 text-amber-400" />,
-        primaryCategory: 'utilidades', secondaryCategories: ['sistema'],
-        tags: ['traductor', 'idiomas', 'motor', 'texto'], isPopular: true,
     },
     {
         type: 'TASKS_QUICK', title: 'Tareas',
