@@ -8,12 +8,15 @@
  * Escape y clic fuera cierran, dianas de 44 px.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { capturarSeleccionEditable, type ObjetivoEditable } from "./reemplazar-seleccion";
 
 /** Lo que ve una entrada: la selección, el bloque bajo el puntero y si la página está traducida. */
 export interface ContextoMenuTexto {
   readonly seleccion: string;
   readonly objetivo: Element | null;
   readonly paginaTraducida: boolean;
+  /** La selección viva de un campo editable, capturada antes de mover el foco al menú. */
+  readonly editable?: ObjetivoEditable | null;
 }
 
 export interface EntradaMenuTexto {
@@ -61,9 +64,14 @@ export function abreMenuTexto(
   evento: { defaultPrevented?: boolean; shiftKey?: boolean },
   objetivo: Element | null,
   hayTexto: boolean,
+  seleccionEditable = false,
 ): boolean {
   return (
-    objetivo !== null && !evento.defaultPrevented && !evento.shiftKey && hayTexto && !esEditable(objetivo)
+    objetivo !== null &&
+    !evento.defaultPrevented &&
+    !evento.shiftKey &&
+    hayTexto &&
+    (!esEditable(objetivo) || seleccionEditable)
   );
 }
 
@@ -97,10 +105,13 @@ export function MenuTexto() {
   useEffect(() => {
     const abrir = (e: MouseEvent) => {
       const objetivo = e.target instanceof Element ? e.target : null;
-      const seleccion = window.getSelection?.()?.toString().trim() ?? "";
+      // En input/textarea la selección no está en `window.getSelection`: se captura del
+      // campo antes de que el menú mueva el foco; en el resto sigue valiendo la del documento.
+      const capturada = esEditable(objetivo) ? capturarSeleccionEditable(document) : null;
+      const seleccion = (capturada?.texto ?? window.getSelection?.()?.toString() ?? "").trim();
       const hayTexto = seleccion.length > 0 || Boolean(objetivo?.textContent?.trim());
-      if (!abreMenuTexto(e, objetivo, hayTexto) || objetivo?.closest("[data-menu-texto]")) return;
-      const contexto: ContextoMenuTexto = { seleccion, objetivo, paginaTraducida };
+      if (!abreMenuTexto(e, objetivo, hayTexto, capturada !== null) || objetivo?.closest("[data-menu-texto]")) return;
+      const contexto: ContextoMenuTexto = { seleccion, objetivo, paginaTraducida, editable: capturada };
       const aVer = entradasVisibles(entradas, contexto);
       if (aVer.length === 0) return;
       e.preventDefault();

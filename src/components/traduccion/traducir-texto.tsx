@@ -15,6 +15,7 @@ import { leer } from "@/lib/traduccion/preferencias";
 import { trozoDeLineaSSE } from "@/lib/astraura/conversacion-rapida";
 import { IDIOMAS } from "@/lib/idiomas/idiomas";
 import { establecerPaginaTraducida, registrarEntradaMenuTexto, type ContextoMenuTexto, type EntradaMenuTexto } from "@/components/traduccion/menu-texto";
+import { reemplazar, type ObjetivoEditable } from "@/components/traduccion/reemplazar-seleccion";
 import { entradasIdioma } from "@/components/traduccion/entradas-idioma";
 import { leerEnVoz, detener, type EntornoVoz } from "@/lib/idiomas/leer-en-voz";
 import { crearEditor } from "@/lib/idiomas/paquete/editor";
@@ -129,6 +130,14 @@ export function TraducirTexto() {
             setVentana({ texto: r.texto, motor: r.motor });
         } catch (e) { setVentana(null); aviso(e instanceof Error ? e.message : "No se pudo traducir."); }
     };
+    const reemplazarSeleccion = async (objetivo: ObjetivoEditable) => {
+        try {
+            const [r] = await crearTraductor(motores()).traducir([objetivo.texto], "auto", destino());
+            if (!r) throw new Error("La traducción no llegó.");
+            if (!reemplazar(objetivo, r.texto)) throw new Error("La selección cambió y no se reemplazó.");
+            aviso(`Reemplazado con ${nombreMotor(r.motor)}.`);
+        } catch (e) { aviso(e instanceof Error ? e.message : "No se pudo reemplazar la selección."); }
+    };
     const traducirPagina = async () => {
         const recogidos = recogerTextos(document.body);
         const unicos = Array.from(new Set(recogidos.map((x) => x.texto).filter((t) => t.trim())));
@@ -180,6 +189,13 @@ export function TraducirTexto() {
             traducirPagina: () => void traducirPagina(),
             verOriginal,
         }).map(registrarEntradaMenuTexto);
+        // A3: sustituir en el propio campo la selección que se acaba de traducir.
+        const quitarReemplazo = registrarEntradaMenuTexto({
+            id: "reemplazar-por-traduccion",
+            etiqueta: "Reemplazar por la traducción",
+            visible: (c) => Boolean(c.editable),
+            ejecutar: (c) => { if (c.editable) void reemplazarSeleccion(c.editable); },
+        });
         // TRA1116: las tres entradas de idioma van al MISMO menú del clic derecho.
         // El editor de paquetes se rehace cuando el almacén avisa (abrir o cerrar
         // edición dispara EVENTO_CAMBIO), para que hayEdicion() no quede vieja.
@@ -200,6 +216,7 @@ export function TraducirTexto() {
         window.addEventListener(EVENTO_CAMBIO, alCambiarPaquetes);
         return () => {
             for (const q of quitar) q();
+            quitarReemplazo();
             for (const q of quitarIdioma) q();
             window.removeEventListener(EVENTO_CAMBIO, alCambiarPaquetes);
         };
