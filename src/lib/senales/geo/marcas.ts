@@ -57,6 +57,12 @@ export interface HardwareMarca {
   backendLocal: boolean | null;
   sirveAstraura: boolean | null;
   fuentesServibles: number | null;
+  /** Modelo de GPU normalizado; null = el navegador lo oculta o no hay ficha. */
+  gpu?: string | null;
+  /** Almacenamiento libre en GB; null = no se midió (nunca un cero de relleno). */
+  almacenamientoLibreGb?: number | null;
+  /** Familia de chip deducida de la plataforma y la GPU; null = sin dato. */
+  chip?: import("@/lib/astraura/modelos/tipos").FamiliaChip | null;
   t: number | null;
   fuente: string;
 }
@@ -184,6 +190,12 @@ function hardwareDeFicha(f: FichaDispositivo | null | undefined, fuente: string)
     backendLocal: typeof f.backendLocal === "boolean" ? f.backendLocal : null,
     sirveAstraura: typeof f.sirveAstraura === "boolean" ? f.sirveAstraura : null,
     fuentesServibles: Array.isArray(f.fuentesServibles) ? f.fuentesServibles.length : null,
+    gpu: typeof f.gpu === "string" && f.gpu.trim() ? f.gpu : null,
+    almacenamientoLibreGb:
+      typeof f.almacenamientoLibreGb === "number" && Number.isFinite(f.almacenamientoLibreGb) && f.almacenamientoLibreGb >= 0
+        ? f.almacenamientoLibreGb
+        : null,
+    chip: f.chip ?? null,
     t: typeof f.at === "number" ? f.at : null,
     fuente,
   };

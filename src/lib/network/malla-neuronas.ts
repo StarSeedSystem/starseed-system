@@ -86,6 +86,9 @@ import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-stor
 // (VZF1015Q) Voz medida en la ficha: medidas locales (módulo hoja) + saneado puro.
 import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
 import { normalizarVoz, vozMedida, type VozNodo } from "@/lib/network/capacidades-nodo";
+// (AUD1117 · F8) GPU, almacenamiento libre y chip en la ficha: helpers puros de hardware.
+import { normalizarGpu } from "@/lib/neurons/huella";
+import { detectarChip, type Plataforma } from "@/lib/astraura/perfil-hardware";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -168,6 +171,12 @@ export interface FichaDispositivo {
   plataforma: string;
   versionOS: string;
   ramClase: ClaseRam;
+  /** Modelo de GPU medido por WebGL (normalizado); ausente si el navegador lo oculta. */
+  gpu?: string;
+  /** Almacenamiento libre medido en GB; ausente si no hay dato (nunca un 0 inventado). */
+  almacenamientoLibreGb?: number;
+  /** Familia de chip deducida de la plataforma y la GPU; ausente si no se sabe. */
+  chip?: import("@/lib/astraura/modelos/tipos").FamiliaChip;
   backendLocal: boolean;
   capas: PreferenciaCapas["capas"];
   at: number;
@@ -355,10 +364,51 @@ async function medirLatenciaAstrauraPropia(): Promise<number | undefined> {
   }
 }
 
+/* (AUD1117 · F8) Hardware medido de la ficha: sin dato → undefined, nunca 0 inventado. */
+
+type CapsDisco = { discoLibreGb?: unknown };
+
+function numeroNoNegativo(x: unknown): number | undefined {
+  return typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : undefined;
+}
+
+const redondear1 = (n: number): number => Math.round(n * 10) / 10;
+
+function plataformaDeCaps(caps: Neuron["capabilities"] | undefined): Plataforma {
+  const p = (caps?.platform ?? "").toLowerCase();
+  if (p.includes("android")) return "android";
+  if (p.includes("ios") || p.includes("iphone") || p.includes("ipad")) return "ios";
+  return caps?.installedApp === true ? "tauri" : "web";
+}
+
+/** Disco libre real si la app nativa lo mide; si no, lo libre de la cuota del navegador. */
+function almacenamientoLibreDeCaps(caps: Neuron["capabilities"] | undefined): number | undefined {
+  if (!caps) return undefined;
+  const disco = numeroNoNegativo((caps as Neuron["capabilities"] & CapsDisco).discoLibreGb);
+  if (disco !== undefined) return redondear1(disco);
+  const cuota = numeroNoNegativo(caps.storageQuotaGb);
+  const usado = numeroNoNegativo(caps.storageUsedGb);
+  if (cuota === undefined || usado === undefined || cuota <= 0) return undefined;
+  return redondear1(Math.max(0, cuota - usado));
+}
+
+/** Familia de chip solo cuando la ficha trae GPU o una plataforma que la identifica. */
+function chipDeCaps(caps: Neuron["capabilities"] | undefined): FichaDispositivo["chip"] {
+  if (!caps) return undefined;
+  const plataforma = plataformaDeCaps(caps);
+  const hayGpu = !!caps.gpuRenderer?.trim() || !!caps.gpuVendor?.trim() || plataforma === "android";
+  if (!hayGpu) return undefined;
+  return detectarChip({ plataforma, gpuRenderer: caps.gpuRenderer, gpuVendor: caps.gpuVendor });
+}
+
 /** Construye la ficha de ESTE dispositivo (best-effort, nunca lanza). */
 export async function construirFicha(neuron: Neuron | null): Promise<FichaDispositivo> {
   const ids = identidadDispositivo();
-  const memoryGb = (neuron?.capabilities as { memoryGb?: number } | undefined)?.memoryGb;
+  const caps = neuron?.capabilities;
+  const memoryGb = (caps as { memoryGb?: number } | undefined)?.memoryGb;
+  const gpu = normalizarGpu(caps?.gpuRenderer).modelo;
+  const almacenamientoLibreGb = almacenamientoLibreDeCaps(caps);
+  const chip = chipDeCaps(caps);
   let backendLocal = false;
   try {
     backendLocal = await sondaBackendLocal();
@@ -391,6 +441,9 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     plataforma: neuron?.capabilities?.platform || "desconocida",
     versionOS: OS_VERSION,
     ramClase: claseRam(memoryGb),
+    ...(gpu ? { gpu } : {}),
+    ...(almacenamientoLibreGb !== undefined ? { almacenamientoLibreGb } : {}),
+    ...(chip ? { chip } : {}),
     backendLocal,
     capas: preferenciaCapasGuardada().capas,
     at: Date.now(),

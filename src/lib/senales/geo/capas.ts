@@ -12,6 +12,7 @@
  */
 
 import { qualityFromRtt } from "@/ai/astraura/mesh/signals";
+import type { FamiliaChip } from "@/lib/astraura/modelos/tipos";
 import type { MarcaGeo } from "./marcas";
 import { ALCANCES, MEDIOS_ALCANCE, ROTULO_ALCANCE, type MedioAlcance } from "./alcances";
 
@@ -172,6 +173,45 @@ function capaConciencia(id: CapaConcienciaId): CapaSenal {
 export const CLASES_RAM = ["≤4 GB", "8 GB", "16 GB", ">16 GB"] as const;
 const COLOR_RAM: Record<string, string> = { "≤4 GB": "#38bdf8", "8 GB": "#6366f1", "16 GB": "#a855f7", ">16 GB": "#ec4899" };
 
+export const CLASES_ALMACENAMIENTO = ["≤1 GB", "≤10 GB", "≤50 GB", ">50 GB"] as const;
+export type ClaseAlmacenamiento = (typeof CLASES_ALMACENAMIENTO)[number];
+const COLOR_ALMACENAMIENTO: Record<ClaseAlmacenamiento, string> = {
+  "≤1 GB": "#ef4444",
+  "≤10 GB": "#f59e0b",
+  "≤50 GB": "#22c55e",
+  ">50 GB": "#0ea5e9",
+};
+
+/** Banda legible del espacio libre; un cero medido cae en «≤1 GB», nunca se confunde con «sin dato». */
+export function claseAlmacenamiento(gb: number): ClaseAlmacenamiento {
+  if (gb <= 1) return "≤1 GB";
+  if (gb <= 10) return "≤10 GB";
+  if (gb <= 50) return "≤50 GB";
+  return ">50 GB";
+}
+
+export const ETIQUETA_CHIP: Record<FamiliaChip, string> = {
+  "apple-silicon": "Apple Silicon",
+  nvidia: "NVIDIA",
+  amd: "AMD",
+  cpu: "CPU",
+  "android-soc": "SoC Android",
+};
+
+const CHIPS_HARDWARE: readonly FamiliaChip[] = ["apple-silicon", "nvidia", "amd", "cpu", "android-soc"];
+const COLOR_CHIP: Record<FamiliaChip, string> = {
+  "apple-silicon": "#94a3b8",
+  nvidia: "#22c55e",
+  amd: "#ef4444",
+  cpu: "#f59e0b",
+  "android-soc": "#10b981",
+};
+
+/** Etiqueta de una familia recibida por la ficha; una cadena rara no pinta nada. */
+function etiquetaChip(chip: string): string | null {
+  return (ETIQUETA_CHIP as Record<string, string | undefined>)[chip] ?? null;
+}
+
 export const CAPA_ENLACES: CapaSenal = {
   id: "enlaces-medidos", grupo: "medido", tipo: "enlaces",
   etiqueta: "Enlaces medidos", descripcion: "Líneas entre neuronas con calidad medida (ida y vuelta o capacidad)",
@@ -259,6 +299,46 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       const h = m.hardware;
       if (!h.ramClase || h.ramClase === "desconocida") return desconocido();
       return { tramo: h.ramClase, texto: h.ramClase, t: h.t, medida: true };
+    },
+  },
+
+  {
+    id: "hw-gpu", grupo: "hardware", etiqueta: "GPU", descripcion: "Modelo de GPU que anuncia cada aparato",
+    estado: "parcial",
+    fuente: "Ficha de capacidades P2P de cada neurona (`gpu`, deducida del renderizador WebGL); la de este aparato, de su propia ficha. Si el navegador oculta el modelo, queda sin medir.",
+    tramos: [
+      { id: "medido", etiqueta: "GPU medida", color: "#0ea5e9", estilo: "relleno" },
+      DESC,
+    ],
+    valor: (m) => {
+      const h = m.hardware;
+      const gpu = typeof h.gpu === "string" ? h.gpu.trim() : "";
+      return gpu ? { tramo: "medido", texto: gpu, t: h.t, medida: true } : desconocido();
+    },
+  },
+  {
+    id: "hw-almacenamiento", grupo: "hardware", etiqueta: "Almacenamiento libre", descripcion: "Almacenamiento libre que anuncia cada aparato",
+    estado: "parcial",
+    fuente: "Ficha de capacidades P2P de cada neurona (`almacenamientoLibreGb`: disco libre medido por la app nativa o cuota del navegador menos lo usado); la de este aparato, de su propia ficha.",
+    tramos: [...CLASES_ALMACENAMIENTO.map((c): Tramo => ({ id: c, etiqueta: c, color: COLOR_ALMACENAMIENTO[c], estilo: "relleno" })), DESC],
+    valor: (m) => {
+      const h = m.hardware;
+      const gb = h.almacenamientoLibreGb;
+      if (typeof gb !== "number" || !Number.isFinite(gb) || gb < 0) return desconocido();
+      return { tramo: claseAlmacenamiento(gb), texto: `${gb} GB libres`, t: h.t, medida: true };
+    },
+  },
+  {
+    id: "hw-chip", grupo: "hardware", etiqueta: "Tipo de chip", descripcion: "Familia de chip que anuncia cada aparato",
+    estado: "parcial",
+    fuente: "Ficha de capacidades P2P de cada neurona (`chip`, deducido de la plataforma y la GPU); la de este aparato, de su propia ficha. Sin dato, sin medir.",
+    tramos: [...CHIPS_HARDWARE.map((c): Tramo => ({ id: c, etiqueta: ETIQUETA_CHIP[c], color: COLOR_CHIP[c], estilo: "relleno" })), DESC],
+    valor: (m) => {
+      const h = m.hardware;
+      const chip = h.chip;
+      if (!chip) return desconocido();
+      const etiqueta = etiquetaChip(chip);
+      return etiqueta ? { tramo: chip, texto: etiqueta, t: h.t, medida: true } : desconocido();
     },
   },
 
