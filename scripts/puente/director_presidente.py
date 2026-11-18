@@ -44,6 +44,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import director_chat
 import motores_director
 
+# CTX1118A: tope de contexto para el presidente (importado de cartero_director)
+try:
+    import cartero_director
+    TOPE_CONTEXTO_PRESIDENTE = cartero_director.TOPE_CONTEXTO_PRESIDENTE
+except Exception:
+    TOPE_CONTEXTO_PRESIDENTE = 16000
+
 #: Mismo orden e ids que `PROVEEDORES_PRESIDENTE` de `src/lib/mando/chat-director-tipos.ts`.
 PROVEEDORES = ("claude", "hermes", "chatgpt")
 NOMBRES = {"claude": "Claude", "hermes": "Hermes", "chatgpt": "ChatGPT"}
@@ -122,7 +129,7 @@ def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
         "verificas puertas y decides rumbo. Si no sabes algo, dilo.",
     ]
     if contexto:
-        partes.append("Contexto del proyecto:\n" + contexto[:8000])
+        partes.append("Contexto del proyecto:\n" + contexto[:TOPE_CONTEXTO_PRESIDENTE])
     if hilo:
         lineas = []
         for r in hilo:
