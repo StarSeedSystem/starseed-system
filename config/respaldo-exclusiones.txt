@@ -1,0 +1,32 @@
+# Lista única de exclusiones del respaldo (MAG1117).
+# La leen todas las copias: desarrollo, bóveda y espejos. Un patrón por línea.
+# Los patrones con «!» son excepciones: se copian aunque un patrón los cubra.
+
+# REGENERABLE: se reconstruye con npm install, builds y cachés; no viaja.
+node_modules/
+.next/
+.turbo/
+.gitnexus/
+venv/
+.venv/
+__pycache__/
+.gradle/
+src-tauri/target/
+.DS_Store
+
+# ARBOLES: worktrees y copias de trabajo que se regeneran desde main.
+/starseed-wt/
+/starseed-opus/OPUS*/
+/wt-*/
+
+# CLAVES: secretos que nunca salen del origen, en ninguna copia.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+.credentials.json
+credentials.json
+storage_state*
