@@ -8,12 +8,15 @@
  * Escape y clic fuera cierran, dianas de 44 px.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { capturarSeleccionEditable, type ObjetivoEditable } from "./reemplazar-seleccion";
 
 /** Lo que ve una entrada: la selección, el bloque bajo el puntero y si la página está traducida. */
 export interface ContextoMenuTexto {
   readonly seleccion: string;
   readonly objetivo: Element | null;
   readonly paginaTraducida: boolean;
+  /** Campo editable con texto seleccionado, para poder reemplazarlo (contrato A3). */
+  readonly editable?: ObjetivoEditable | null;
 }
 
 export interface EntradaMenuTexto {
