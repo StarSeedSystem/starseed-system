@@ -320,7 +320,9 @@ export class PantallaDestino {
             if (r.ok) void this.registro.soltar(this.neurona, (r.resultado as { sesion?: string } | undefined)?.sesion ?? null, this.d.mandar);
             return;
         }
-        const abierta = r.resultado as { sesion?: string; nivel?: string; caduca?: string } | undefined;
+        const abierta = r.resultado as { sesion?: string; nivel?: string; caduca?: string; reutilizada?: boolean } | undefined;
+        // CTL1118A: cada paso de la apertura deja su línea en el registro (sin ella, un «no pidió la pantalla» no se podía distinguir de un «la pidió y el aparato no contestó»).
+        this.anotar(`control-senal paso=abrir lado=controlador resultado=${r.ok && typeof abierta?.sesion === "string" ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}${abierta?.reutilizada ? " reutilizada=si" : ""}`);
         if (!r.ok || typeof abierta?.sesion !== "string") return this.cerrar(claveParadaNativa(r.motivo || "sin-sesion", r.resultado), false); // CTL1117J · S3
         this.token = abierta.sesion;
         const caduca = typeof abierta.caduca === "string" ? Date.parse(abierta.caduca) : NaN;
@@ -328,7 +330,10 @@ export class PantallaDestino {
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
+        this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=envio fuente=${this.fuente}`); // CTL1118A
+        const t0 = this.d.ahora();
         const p = await this.orden("pantalla-iniciar", this.fuente === "proyeccion" ? { fuente: this.fuente } : {}, "ver");
+        this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=${p.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(p.motivo)} ms=${Math.max(0, Math.min(999_999, Math.round(this.d.ahora() - t0)))}`); // CTL1118A
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
         const res = (p.resultado ?? {}) as Record<string, unknown>;
@@ -439,6 +444,11 @@ export class PantallaDestino {
         this.anotar(`control-senal paso=respuesta lado=controlador resultado=ok partes=${f.n} largo=${respuesta.length}`);
         this.remotoListo = true;
         await this.soltarCandidatos();
+    }
+
+    /** CTL1118A: un motivo para el registro: solo letras minúsculas y guiones, acotado. */
+    private motivoCorto(m: unknown): string {
+        return typeof m === "string" && /^[a-z-]{1,32}$/.test(m) ? m : "fallo";
     }
 
     private anotar(l: string): void {

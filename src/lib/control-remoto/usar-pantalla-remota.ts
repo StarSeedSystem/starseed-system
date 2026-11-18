@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { FUENTE_DEFECTO, type FuentePedida } from "./fuente-pantalla";
 import { crearPantallaDestino, type EntradaControl, type InstantaneaPantalla, type PantallaDestino } from "./pantalla-destino";
 
 const VACIA: InstantaneaPantalla = {
@@ -26,7 +27,8 @@ export interface PantallaRemota extends InstantaneaPantalla {
     reintentar: () => void;
 }
 
-export function usarPantallaRemota(neurona: string | null): PantallaRemota {
+/** `fuente` (RST1116A): la pantalla que pide la persona; sin ella, «auto» (como siempre). Cambiarla reabre la pantalla. */
+export function usarPantallaRemota(neurona: string | null, fuente: FuentePedida = FUENTE_DEFECTO): PantallaRemota {
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
 
@@ -35,13 +37,13 @@ export function usarPantallaRemota(neurona: string | null): PantallaRemota {
             setObj(null);
             return;
         }
-        const p = crearPantallaDestino(neurona);
+        const p = crearPantallaDestino(neurona, { fuente });
         setObj(p);
         void p.iniciar();
         return () => {
             void p.cerrar("desmontada", true);
         };
-    }, [neurona, intento]);
+    }, [neurona, intento, fuente]);
 
     const suscribir = useCallback((cb: () => void) => (obj ? obj.suscribir(cb) : () => undefined), [obj]);
     const snap = useSyncExternalStore(
