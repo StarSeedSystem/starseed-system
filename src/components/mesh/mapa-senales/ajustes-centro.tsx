@@ -10,7 +10,8 @@
  * solo hay controles claros; el efecto real (qué lleva el faro) lo decide `server-relay.ts`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { Eye, EyeOff, Globe2, MapPin, Settings2, ShieldCheck, Smartphone, Tag, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,10 @@ import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/i
 import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 import { SeccionInternet } from "./internet/seccion-internet";
 import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from "@/lib/malla/internet/textos-internet";
+import { sugerirComparticion, type DecisionComparticion } from "@/lib/malla/auto-compartir";
+import type { PuertaInternet } from "@/lib/malla/cristal/puertas-internet";
+import type { PreferenciasRedAparato } from "@/lib/malla/preferencias-red-compartida";
+import { aPreferenciasCompartida, leerPreferenciasRed } from "@/lib/malla/preferencias-red-compartida";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -128,9 +133,121 @@ function Fila({ icono, titulo, nota, activo, onCambio, deshabilitado }: {
 
 const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "anonymous", texto: "Anónima", nota: "participas en la malla pública sin nombre, foto ni posición" },
-  { id: "visible", texto: "Visible", nota: "las demás cuentas ven lo que marques abajo" },
+  { id: "visible", texto: "Visible", nota: "las demás cuentas ven lo que marcas abajo" },
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
+
+const CLAVE_PUERTAS_CRISTAL = "starseed.cristal.puertas.v1";
+
+function leerPuertasCristal(): PuertaInternet[] {
+  try {
+    if (typeof window === "undefined") return [];
+    const raw = window.localStorage.getItem(CLAVE_PUERTAS_CRISTAL);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function estadoDispositivoParaSugerir(): Promise<{
+  enWifi: boolean;
+  cargando: boolean;
+  bateriaPct: number | null;
+  medida: boolean;
+  usoMb: number;
+}> {
+  if (typeof window === "undefined") return { enWifi: true, cargando: false, bateriaPct: null, medida: false, usoMb: 0 };
+  const nav = navigator as Navigator & { connection?: { type?: string; saveData?: boolean; effectiveType?: string } };
+  const conn = nav.connection;
+  const enWifi = conn?.type === "wifi" || conn?.effectiveType === "wifi";
+  const getBattery = (nav as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }).getBattery;
+  let cargando = false;
+  let bateriaPct: number | null = null;
+  if (getBattery) {
+    try {
+      const bat = await getBattery();
+      cargando = bat.charging;
+      bateriaPct = Math.round(bat.level * 100);
+    } catch {
+      /* ignora */
+    }
+  }
+  const medida = conn?.saveData === true;
+  return { enWifi, cargando, bateriaPct, medida, usoMb: 0 };
+}
+
+const PanelRedCompartida = dynamic(
+  () => import("./panel-red-compartida").then((m) => m.PanelRedCompartida),
+  { ssr: false }
+);
+
+function PanelRedCompartidaWrapper({
+  neuronaId,
+  preferencias,
+}: {
+  neuronaId: string | null;
+  preferencias: PreferenciasRedAparato;
+}) {
+  const [decisiones, setDecisiones] = useState<DecisionComparticion[]>([]);
+  const [puertas, setPuertas] = useState<PuertaInternet[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let montado = true;
+    async function cargar() {
+      const p = leerPuertasCristal();
+      const prefsCompartida = aPreferenciasCompartida(preferencias);
+      const estado = await estadoDispositivoParaSugerir();
+      const { decisiones: d } = sugerirComparticion({
+        puertas: p,
+        preferencias: prefsCompartida,
+        estado,
+        ahora: Date.now(),
+      });
+      if (montado) {
+        setPuertas(p);
+        setDecisiones(d);
+        setCargando(false);
+      }
+    }
+    cargar();
+    return () => { montado = false; };
+  }, [preferencias]);
+
+  if (cargando) {
+    return <div className="text-[10px] text-white/40">Cargando panel de red compartida…</div>;
+  }
+
+  if (puertas.length === 0) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Red compartida">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Red compartida (cristal)</p>
+        <p className="text-[11px] text-white/60">Este aparato no declara salida a internet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <PanelRedCompartida
+      preferencias={preferencias}
+      puertas={puertas}
+      decisiones={decisiones}
+      onCambiar={(patch) => {
+        const next = { ...preferencias, ...patch };
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("starseed.red-compartida.v1", JSON.stringify(next));
+            window.dispatchEvent(new CustomEvent("starseed:red-compartida:v1", { detail: next }));
+          }
+        } catch {
+          /* no-op */
+        }
+      }}
+    />
+  );
+}
 
 export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
   centro: CentroNeurona;
@@ -279,6 +396,14 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         extra={TEXTOS_EXTRA_INTERNET}
         clasificacion={clasificacion}
       />
+
+      {/* MAP1116: Panel de red compartida (puertas de internet del cristal) */}
+      <Suspense fallback={<div className="text-[10px] text-white/40">Cargando panel de red compartida…</div>}>
+        <PanelRedCompartidaWrapper
+          neuronaId={neuronaId}
+          preferencias={leerPreferenciasRed()}
+        />
+      </Suspense>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Así te ven las demás cuentas</p>
