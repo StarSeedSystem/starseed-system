@@ -58,6 +58,8 @@ REINTENTO_COLA_S = 120  # primer reintento; los siguientes crecen (DIR1111N)
 #: el techo (15 min). Una señal de que un proveedor volvió (lectura nueva de límites, una respuesta de
 #: cualquier proveedor, la sesión de Hermes reabierta) adelanta el reintento y reinicia la cuenta.
 INTERVALOS_COLA_S = (120, 240, 480, 900)
+#: DIR1118T · timeouts crecientes para llamadas a proveedores en reintentos de cola: 120s, 300s, 600s (máx).
+TIMEOUTS_REINTENTO_PROVEEDOR = (120, 300, 600)
 ENFRIAMIENTO_S = 600
 MAX_COLA = 200
 RAIZ = Path(__file__).resolve().parent.parent.parent
@@ -227,15 +229,22 @@ def _en_min(segundos):
     return "%d min" % m
 
 
+def _timeout_reintento(intentos):
+    """PURA. Timeout en segundos para la llamada a proveedor en el intento `intentos` (≥ 1)."""
+    i = max(1, int(intentos or 1)) - 1
+    return TIMEOUTS_REINTENTO_PROVEEDOR[min(i, len(TIMEOUTS_REINTENTO_PROVEEDOR) - 1)]
+
+
 def detalle_cola(descartes, intentos=1, proximo=None, ahora=None):
     """El motivo visible de «En cola»: quién no pudo y por qué, cuántos intentos y cuándo es el siguiente."""
     base = "En cola: ningún director puede contestar ahora (%s)." % (texto_descartes(descartes) or "sin proveedores")
     if proximo is None:
         return base + " Se reintenta solo."
     espera = intervalo_cola(intentos)
-    return "%s Intento %d; el siguiente hacia las %s (en %s), cada vez más espaciado hasta %s. " \
+    timeout_prov = _timeout_reintento(intentos)
+    return "%s Intento %d (reintento con %d s); el siguiente hacia las %s (en %s), cada vez más espaciado hasta %s. " \
            "Si un director vuelve antes, se contesta en cuanto se note." % (
-               base, intentos, _hora_corta(proximo), _en_min(espera), _en_min(INTERVALOS_COLA_S[-1]))
+                base, intentos, timeout_prov, _hora_corta(proximo), _en_min(espera), _en_min(INTERVALOS_COLA_S[-1]))
 
 
 def _hora_corta(epoch):
