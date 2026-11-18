@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Brain as BrainIcon, ArrowDownToLine, Send } from "lucide-react";
+import { Brain as BrainIcon, ArrowDownToLine, Send, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,59 @@ import AgentRecommendation from "./agent-recommendation";
 
 const selectCls =
   "w-full rounded-lg border border-white/15 bg-black/30 p-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-cyan-400/50";
+
+// ── Notas del rito: contraste y contexto ────────────────────────────────
+// Un fallo no es un aviso: cada nota declara su TONO para anunciarse con la
+// urgencia correcta (alerta inmediata frente a estado) y para leerse sobre su
+// propio fondo. Antes, el error y el éxito compartían el mismo cian apagado:
+// el mismo peso visual para «no se pudo» y para «hecho».
+export type TonoNota = "error" | "aviso" | "exito";
+
+export interface Nota {
+  texto: string;
+  tono: TonoNota;
+}
+
+/** Una nota vacía no ocupa espacio: el contenedor no deja un hueco fantasma. */
+export function crearNota(texto: string | null | undefined, tono: TonoNota): Nota | null {
+  const limpio = (texto ?? "").trim();
+  return limpio ? { texto: limpio, tono } : null;
+}
+
+export function atributosNota(tono: TonoNota): {
+  role: "alert" | "status";
+  "aria-live": "assertive" | "polite";
+} {
+  return tono === "error"
+    ? { role: "alert", "aria-live": "assertive" }
+    : { role: "status", "aria-live": "polite" };
+}
+
+export function clasesNota(tono: TonoNota): string {
+  // Contraste alto: tinta clara (100) sobre fondo profundo (950) y borde
+  // visible. El error manda sobre el cristal y deja de leerse como un detalle.
+  if (tono === "error") {
+    return "rounded-lg border border-red-400/50 bg-red-950/60 p-2.5 text-xs font-medium text-red-100";
+  }
+  if (tono === "exito") {
+    return "rounded-lg border border-emerald-400/40 bg-emerald-950/40 p-2.5 text-xs text-emerald-100";
+  }
+  return "rounded-lg border border-amber-400/40 bg-amber-950/40 p-2.5 text-xs text-amber-100";
+}
+
+export function AvisoNota({ nota }: { nota: Nota | null }) {
+  if (!nota) return null;
+  const Icono = nota.tono === "error" ? AlertTriangle : nota.tono === "exito" ? CheckCircle2 : Info;
+  return (
+    <p
+      className={cn("flex items-start gap-2 leading-snug", clasesNota(nota.tono))}
+      {...atributosNota(nota.tono)}
+    >
+      <Icono className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>{nota.texto}</span>
+    </p>
+  );
+}
 
 // (Ola 221) Registro de «aceptar pendiente» por paso: «Continuar» del wizard
 // aplica solo lo que el usuario no pulsó. La tabla se crea PEREZOSA y SOLO en
