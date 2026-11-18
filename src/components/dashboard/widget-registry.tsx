@@ -21,7 +21,6 @@ import type { TarjetaInspiracion } from "@/components/library/referencias/widget
 import { useToast } from "@/components/ui/use-toast";
 import { WidgetRespuestaViva } from "@/components/openui/widget-respuesta-viva";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
-import { TraductorWidget } from "@/components/dashboard/widgets/traductor-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
 import { AuroraLastWidget } from "@/components/dashboard/widgets/aurora-last-widget";
@@ -132,6 +131,17 @@ const MapWidget = dynamic(
     { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-black/50 text-white/50 animate-pulse text-xs">Cargando mapa...</div> }
 );
 
+// Traductor (carga diferida)
+const dashboardWidgetLoading = () => (
+    <div className="w-full h-full flex items-center justify-center bg-black/20 text-white/40 animate-pulse text-xs">
+        Cargando…
+    </div>
+);
+const TraductorWidget = dynamic(
+    () => import("@/components/dashboard/widgets/traductor-widget").then((mod) => mod.TraductorWidget),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+
 // Segunda generación — widgets adaptativos (kit + capa de datos en vivo)
 import {
     AgoraCausalWidget,
@@ -150,11 +160,6 @@ import {
 // arriba: dynamic({ssr:false}) saca recharts del chunk inicial del dashboard
 // y solo lo descarga cuando el widget concreto se monta. Siguen renderizando
 // EXACTAMENTE igual (mismo componente, mismos props — aquí ninguno lleva).
-const dashboardWidgetLoading = () => (
-    <div className="w-full h-full flex items-center justify-center bg-black/20 text-white/40 animate-pulse text-xs">
-        Cargando…
-    </div>
-);
 const PoliticalSummaryWidget = dynamic(
     () => import("@/components/dashboard/widgets/political-summary-widget").then((mod) => mod.PoliticalSummaryWidget),
     { ssr: false, loading: dashboardWidgetLoading }
