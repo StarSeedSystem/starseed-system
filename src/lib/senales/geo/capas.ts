@@ -13,6 +13,7 @@
 
 import { qualityFromRtt } from "@/ai/astraura/mesh/signals";
 import type { MarcaGeo } from "./marcas";
+import type { CapaRed, OrigenDato, SenalEspectro } from "../espectro/tipos";
 import { ALCANCES, MEDIOS_ALCANCE, ROTULO_ALCANCE, type MedioAlcance } from "./alcances";
 
 export type CapaConcienciaId = "local" | "mesh" | "nube" | "colectiva";
@@ -86,7 +87,8 @@ export interface CapaSenal {
   /** De dónde sale el dato en el código de hoy (o por qué no hay). */
   fuente: string;
   tramos: readonly Tramo[];
-  valor: (m: MarcaGeo) => ValorCapa;
+  /** Las capas del grupo «red» reciben aquí las señales publicadas de la cuenta; las demás lo ignoran. */
+  valor: (m: MarcaGeo, publicadas?: readonly SenalEspectro[]) => ValorCapa;
   /** Cómo se pinta; por defecto un parche. */
   tipo?: TipoCapa;
   /** Solo en capas de alcance: el medio. */
@@ -186,6 +188,62 @@ export const CAPA_ENLACES: CapaSenal = {
   valor: () => desconocido("las líneas no son un valor por neurona"),
 };
 
+// ── Grupo «red»: lo que cada dueño publica (AUD1117 F2) ──────────────────────────────────────
+// Las señales publicadas NO traen coordenadas (solo una zona gruesa), así que estas capas no pintan
+// parches por neurona: su valor es el RESUMEN de la capa, con el origen de cada dato y la hora de la
+// más reciente. Sin filas dicen «sin publicar»; con la lectura rota, el motivo.
+
+/** Capa del espectrómetro que alimenta a cada capa del grupo «red». */
+export const CAPA_RED_POR_ID: Readonly<Record<string, CapaRed>> = {
+  "red-publica": "publica",
+  "red-comunidad": "comunidad",
+  "red-privada": "privada",
+  "red-externa": "externa",
+};
+
+/** Lo que la lectura de señales publicadas entrega, en la forma mínima que el rótulo necesita. */
+export interface LecturaPublicadas {
+  senales: readonly SenalEspectro[];
+  estado: "ok" | "sin-tabla" | "sin-sesion" | "error";
+  motivo?: string;
+  cargando: boolean;
+}
+
+const ORDEN_ORIGEN: readonly OrigenDato[] = ["medida", "declarada", "estimada"];
+const ETIQUETA_ORIGEN: Record<OrigenDato, string> = { medida: "medidas", declarada: "declaradas", estimada: "estimadas" };
+
+/** Resumen de una capa de red: cuántas señales publicadas hay y con qué origen. Sin filas: «sin publicar». */
+export function valorRed(capaRed: CapaRed, senales?: readonly SenalEspectro[]): ValorCapa {
+  const deCapa = (senales ?? []).filter((s) => s.capa === capaRed);
+  if (deCapa.length === 0) return desconocido("sin publicar");
+  const conteo = new Map<OrigenDato, number>();
+  let t: number | null = null;
+  for (const s of deCapa) {
+    conteo.set(s.origen, (conteo.get(s.origen) ?? 0) + 1);
+    if (s.medidoEn !== null && (t === null || s.medidoEn > t)) t = s.medidoEn;
+  }
+  let dominante = ORDEN_ORIGEN[0];
+  for (const o of ORDEN_ORIGEN) if ((conteo.get(o) ?? 0) > (conteo.get(dominante) ?? 0)) dominante = o;
+  const partes = ORDEN_ORIGEN.filter((o) => conteo.has(o)).map((o) => `${conteo.get(o)} ${ETIQUETA_ORIGEN[o]}`);
+  const n = deCapa.length;
+  return {
+    tramo: dominante,
+    texto: `${n} ${n === 1 ? "señal" : "señales"} · ${partes.join(" · ")} · publicado por su dueño`,
+    t,
+    medida: dominante === "medida",
+  };
+}
+
+/** Rótulo del panel para una capa del grupo «red»: con la lectura rota dice el motivo, nunca un cero fingido. */
+export function rotuloRed(id: string, lect: LecturaPublicadas | undefined): ValorCapa {
+  const capaRed = CAPA_RED_POR_ID[id];
+  if (!capaRed) return desconocido();
+  if (!lect) return desconocido("sin lectura de las señales publicadas");
+  if (lect.cargando && lect.senales.length === 0) return desconocido("leyendo las señales publicadas…");
+  if (lect.estado !== "ok") return desconocido(lect.motivo ?? "la lectura de las señales publicadas falló");
+  return valorRed(capaRed, lect.senales);
+}
+
 export const CAPAS_SENALES: readonly CapaSenal[] = [
   ...MEDIOS_ALCANCE.map(capaAlcance),
   CAPA_ENLACES,
@@ -276,10 +334,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#10b981", estilo: "rayado" },
       { ...DESC, etiqueta: "Sin publicar en capa pública" },
     ],
-    valor: (m) => {
-      // Las señales de la capa pública vienen de leer-senales.ts; aquí la marca no las trae aún.
-      return desconocido("desconocido");
-    },
+    valor: (_m, publicadas) => valorRed("publica", publicadas),
   },
   {
     id: "red-comunidad",
@@ -294,9 +349,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#0ea5e9", estilo: "rayado" },
       { ...DESC, etiqueta: "Sin publicar en capa comunidad" },
     ],
-    valor: (m) => {
-      return desconocido("desconocido");
-    },
+    valor: (_m, publicadas) => valorRed("comunidad", publicadas),
   },
   {
     id: "red-privada",
@@ -311,9 +364,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#a855f7", estilo: "rayado" },
       { ...DESC, etiqueta: "Sin canal privado de posición" },
     ],
-    valor: (m) => {
-      return desconocido("desconocido");
-    },
+    valor: (_m, publicadas) => valorRed("privada", publicadas),
   },
   {
     id: "red-externa",
@@ -328,9 +379,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       { id: "estimada", etiqueta: "Estimada · publicado por su dueño · zona aproximada", color: "#f59e0b", estilo: "rayado" },
       { ...DESC, etiqueta: "Sin fuente externa" },
     ],
-    valor: (m) => {
-      return desconocido("desconocido");
-    },
+    valor: (_m, publicadas) => valorRed("externa", publicadas),
   },
 ];
 
@@ -340,9 +389,10 @@ export function tramoDe(capa: CapaSenal, id: string): Tramo {
   return capa.tramos.find((t) => t.id === id) ?? DESC;
 }
 
-/** Lo que se pinta de una marca en una capa: el tramo y su valor. */
-export function pintarMarca(capa: CapaSenal, m: MarcaGeo): { tramo: Tramo; valor: ValorCapa } {
-  const valor = capa.valor(m);
+/** Lo que se pinta de una marca en una capa: el tramo y su valor. Las capas del grupo «red»
+ *  ignoran la marca y usan `publicadas`; las demás la ignoran a ella. */
+export function pintarMarca(capa: CapaSenal, m: MarcaGeo, publicadas?: readonly SenalEspectro[]): { tramo: Tramo; valor: ValorCapa } {
+  const valor = capa.valor(m, publicadas);
   return { tramo: tramoDe(capa, valor.tramo), valor };
 }
 

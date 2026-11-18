@@ -1,7 +1,8 @@
 /**
- * leer-senales — lectura de señales publicadas en la capa pública (MAP1116B).
+ * leer-senales — lectura de señales publicadas por sus dueños (os_senales_publicas, MAP1116B).
  * ═══════════════════════════════════════════════════════════════════════════════
- * Puro: sin React, sin red, sin `node:*`.
+ * Cada fila conserva la capa en la que su dueño la publicó (pública, comunidad o privada):
+ * el mapa la necesita para pintar cada capa red-* con lo suyo. Puro: sin React, sin red, sin `node:*`.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -93,7 +94,7 @@ export async function leerSenalesPublicadas(deps: DepsLectura): Promise<Resultad
     const s = filaASenal(row);
     if (!s) continue;
     if (s.vinculo?.id === uid) continue;
-    senales.push({ ...s, capa: "publica", fuente: "publicada por su dueño" });
+    senales.push({ ...s, fuente: "publicada por su dueño" });
   }
 
   return { senales, estado: "ok" };

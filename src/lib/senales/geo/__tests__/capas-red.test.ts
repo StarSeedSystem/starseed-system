@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CAPAS_SENALES, CAPA_POR_ID, GRUPOS_CAPA, GrupoCapa, COLOR_DESCONOCIDO, NOTA_ALCANCE } from "../capas";
+import { CAPAS_SENALES, CAPA_POR_ID, CAPA_RED_POR_ID, GRUPOS_CAPA, GrupoCapa, COLOR_DESCONOCIDO, NOTA_ALCANCE, valorRed, rotuloRed } from "../capas";
+import type { SenalEspectro } from "../../espectro/tipos";
 
 describe("capas: grupo 'red' — cuatro capas de red completa", () => {
   it("el grupo 'red' existe en GRUPOS_CAPA con su título", () => {
@@ -71,7 +72,7 @@ describe("capas: grupo 'red' — cuatro capas de red completa", () => {
     }
   });
 
-  it("valor() devuelve 'desconocido' cuando falta la medida (tramo desconocido, medida=false)", () => {
+  it("sin señales publicadas la capa dice «sin publicar» (tramo desconocido, medida=false)", () => {
     // Marca sin datos de red (posición desconocida, sin antenas de red)
     const marcaVacia = {
       id: "neurona:test",
@@ -94,7 +95,7 @@ describe("capas: grupo 'red' — cuatro capas de red completa", () => {
       const valor = capa?.valor(marcaVacia as any);
       expect(valor).toBeDefined();
       expect(valor?.tramo).toBe("desconocido");
-      expect(valor?.texto).toMatch(/desconocido/);
+      expect(valor?.texto).toBe("sin publicar");
       expect(valor?.medida).toBe(false);
     }
   });
@@ -117,5 +118,115 @@ describe("capas: grupo 'red' — cuatro capas de red completa", () => {
   it("NOTA_ALCANCE menciona que los campos rayados son alcance estimado", () => {
     expect(NOTA_ALCANCE).toMatch(/alcance estimado/);
     expect(NOTA_ALCANCE).toMatch(/rayad/);
+  });
+});
+
+describe("capas red-*: señales publicadas de toda la red (AUD1117 F2)", () => {
+  const T = 1_700_000_000_000;
+
+  function senal(capa: "publica" | "comunidad" | "privada" | "externa", origen: "medida" | "declarada" | "estimada", id: string, overrides: Partial<SenalEspectro> = {}): SenalEspectro {
+    return {
+      id, medio: "wifi", banda: "2.4 GHz", frecuenciaKhz: 2437000, anchoKhz: 20000, fuerzaDbm: -45,
+      calidad: 0.8, origen, capa, fuente: "publicada por su dueño", medidoEn: T, zona: "A1",
+      compatibles: [], ...overrides,
+    };
+  }
+
+  const marcaVacia = {
+    id: "neurona:test", neuronaId: "test", nombre: "Test", esYo: false, forma: "punto" as const,
+    estado: "desconocida" as const, posicion: { tipo: "desconocida" as const, motivo: "sin datos" },
+    calidad: { valor: null, t: null, fuente: "", nota: "" },
+    enlace: { estado: "sin-vinculo" as const, latenciaMs: null, t: null },
+    antenas: [], capas: { lista: null, t: null, fuente: "" },
+    hardware: { ramClase: null, backendLocal: null, sirveAstraura: null, fuentesServibles: null, t: null, fuente: "" },
+    aparato: null,
+  } as any;
+
+  it("CAPA_RED_POR_ID mapea las cuatro capas del grupo «red» a su capa del espectrómetro", () => {
+    expect(CAPA_RED_POR_ID["red-publica"]).toBe("publica");
+    expect(CAPA_RED_POR_ID["red-comunidad"]).toBe("comunidad");
+    expect(CAPA_RED_POR_ID["red-privada"]).toBe("privada");
+    expect(CAPA_RED_POR_ID["red-externa"]).toBe("externa");
+  });
+
+  it("con filas en tres capas, cada capa pinta lo suyo: conteo y origen dominante", () => {
+    const filas = [
+      senal("publica", "medida", "p1"),
+      senal("publica", "medida", "p2", { medidoEn: T + 5000 }),
+      senal("publica", "estimada", "p3"),
+      senal("comunidad", "declarada", "c1"),
+      senal("privada", "medida", "v1"),
+    ];
+    const publica = valorRed("publica", filas);
+    expect(publica.texto).toContain("3 señales");
+    expect(publica.texto).toContain("2 medidas");
+    expect(publica.texto).toContain("1 estimadas");
+    expect(publica.tramo).toBe("medida");
+    expect(publica.medida).toBe(true);
+    expect(publica.t).toBe(T + 5000);
+
+    const comunidad = valorRed("comunidad", filas);
+    expect(comunidad.texto).toContain("1 señal");
+    expect(comunidad.texto).toContain("1 declaradas");
+    expect(comunidad.tramo).toBe("declarada");
+
+    const privada = valorRed("privada", filas);
+    expect(privada.texto).toContain("1 señal");
+    expect(privada.tramo).toBe("medida");
+
+    const externa = valorRed("externa", filas);
+    expect(externa.tramo).toBe("desconocido");
+    expect(externa.texto).toBe("sin publicar");
+  });
+
+  it("las capas red-* reciben las señales publicadas por su segundo argumento y pintan su capa", () => {
+    const filas = [senal("comunidad", "declarada", "c1"), senal("publica", "medida", "p1")];
+    const capaComunidad = CAPA_POR_ID["red-comunidad"];
+    const valor = capaComunidad?.valor(marcaVacia, filas);
+    expect(valor?.tramo).toBe("declarada");
+    expect(valor?.texto).toContain("1 señal");
+  });
+
+  it("el origen dominante decide el tramo; con dominio de estimadas el tramo es rayado", () => {
+    const filas = [
+      senal("publica", "estimada", "e1"),
+      senal("publica", "estimada", "e2"),
+      senal("publica", "medida", "m1"),
+    ];
+    const valor = valorRed("publica", filas);
+    expect(valor.tramo).toBe("estimada");
+    expect(valor.medida).toBe(false);
+  });
+
+  it("sin filas el texto es «sin publicar» y no menciona datos ni personas", () => {
+    const valor = valorRed("publica", []);
+    expect(valor.tramo).toBe("desconocido");
+    expect(valor.texto).toBe("sin publicar");
+    expect(valor.t).toBeNull();
+    expect(valor.medida).toBe(false);
+  });
+
+  it("rotuloRed: con filas resume, sin filas dice «sin publicar», con error dice el motivo", () => {
+    const filas = [senal("publica", "medida", "p1")];
+    expect(rotuloRed("red-publica", { senales: filas, estado: "ok", cargando: false }).texto).toContain("1 señal");
+    expect(rotuloRed("red-publica", { senales: [], estado: "ok", cargando: false }).texto).toBe("sin publicar");
+    expect(rotuloRed("red-publica", { senales: [], estado: "sin-tabla", motivo: "la tabla os_senales_publicas no existe en este proyecto", cargando: false }).texto)
+      .toBe("la tabla os_senales_publicas no existe en este proyecto");
+    expect(rotuloRed("red-publica", { senales: [], estado: "error", motivo: "permission denied", cargando: false }).texto).toBe("permission denied");
+    expect(rotuloRed("red-publica", { senales: [], estado: "sin-sesion", motivo: "no hay cliente de Supabase (sesión no iniciada)", cargando: false }).texto)
+      .toBe("no hay cliente de Supabase (sesión no iniciada)");
+  });
+
+  it("rotuloRed: mientras lee dice que está leyendo; capa desconocida sale desconocido", () => {
+    const leyendo = rotuloRed("red-publica", { senales: [], estado: "ok", cargando: true });
+    expect(leyendo.texto).toMatch(/leyendo/);
+    const rara = rotuloRed("capa-inexistente", { senales: [], estado: "ok", cargando: false });
+    expect(rara.tramo).toBe("desconocido");
+  });
+
+  it("rotuloRed sin lectura alguna no dice «sin publicar» (no finge que ya miró la tabla)", () => {
+    const valor = rotuloRed("red-privada", undefined);
+    expect(valor.tramo).toBe("desconocido");
+    expect(valor.texto).not.toBe("sin publicar");
   });
 });

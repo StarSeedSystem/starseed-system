@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { escapeHtml } from "@/lib/map/map-config";
 import type { MapExtensionCtx } from "@/components/map/map-view-extension";
-import { CAPA_POR_ID, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, tramoDe, tramoDeCalidad, type EstadoCapas } from "@/lib/senales/geo/capas";
+import { CAPA_POR_ID, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, tramoDe, tramoDeCalidad, rotuloRed, type EstadoCapas, type LecturaPublicadas } from "@/lib/senales/geo/capas";
 import { camposDeCapa, lineasDeEnlaces } from "@/lib/senales/geo/cobertura";
 import type { EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
@@ -55,12 +55,14 @@ export interface MarcasEnMapaProps {
   compacto: boolean;
   /** (MAP1114D) Enlaces con medida real, para las líneas. */
   enlaces?: readonly EnlaceMedido[];
+  /** (AUD1117 F2) Señales publicadas por los dueños de la red: alimenta las capas del grupo «red». */
+  publicadas?: LecturaPublicadas;
   vacio?: React.ReactNode;
   aviso?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], vacio, aviso, children }: MarcasEnMapaProps) {
+export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, vacio, aviso, children }: MarcasEnMapaProps) {
   const { L, map } = ctx;
   const capasRef = useRef<Record<string, CapaParches | CapaAlcance>>({});
   const lineasRef = useRef<any>(null);
@@ -71,16 +73,21 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
   onElegirRef.current = onElegir;
 
   // Una capa de canvas por capa encendida: parches (medido) o campos de alcance (estimado). Las líneas van aparte.
+  // Las capas del grupo «red» no pintan parches: las señales publicadas no traen coordenadas (solo zona gruesa),
+  // así que su valor es el resumen de la capa (rotuloRed) en el panel de leyendas, nunca un punto inventado.
   useEffect(() => {
     const hechas = capasRef.current;
-    const activas = new Set(estado.activas.filter((id) => id in CAPA_POR_ID && (CAPA_POR_ID[id].tipo ?? "parche") !== "enlaces"));
+    const activas = new Set(estado.activas.filter((id) => {
+      const c = CAPA_POR_ID[id];
+      return !!c && (c.tipo ?? "parche") !== "enlaces" && c.grupo !== "red";
+    }));
     for (const id of Object.keys(hechas)) {
       if (!activas.has(id)) { hechas[id].quitar(); delete hechas[id]; }
     }
     let z = ORDEN_Z;
     for (const id of estado.activas) {
       const capa = CAPA_POR_ID[id];
-      if (!capa || capa.tipo === "enlaces") continue;
+      if (!capa || capa.tipo === "enlaces" || capa.grupo === "red") continue;
       z += 1;
       if (capa.tipo === "alcance") {
         if (!hechas[id]) hechas[id] = crearCapaAlcance(L, map, id, z);
@@ -209,6 +216,11 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
                 <div key={c.id} className={compacto ? "flex flex-wrap items-center gap-x-2 gap-y-0.5" : undefined}>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-white/60">{c.etiqueta}{c.estado === "sin-fuente" ? " · sin fuente" : c.estado === "estimado" ? " · alcance estimado" : ""}</p>
                   <LeyendaCapa capa={c} soloDibujado className="flex flex-wrap gap-x-3 gap-y-0.5" />
+                  {c.grupo === "red" && (
+                    <p className="w-full text-[10px] leading-snug text-white/70" data-testid={`rotulo-${c.id}`}>
+                      {rotuloRed(c.id, publicadas).texto}
+                    </p>
+                  )}
                 </div>
               ))}
               {!compacto && (

@@ -20,6 +20,7 @@ import { observarPermisoUbicacion } from "@/lib/senales/geo/fuente-posicion";
 import { mismosEnlaces, type EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { abrirCanalPosicionReal, leerEnlacesMedidosReales } from "@/lib/senales/geo/fuentes-vivas";
 import type { MiPosicion } from "@/components/map/map-view-extension";
+import { useSenalesPublicadas, type EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
 import { useAhora } from "../use-mapa-vivo";
 
 export type PermisoUbicacion = "concedido" | "denegado" | "por-pedir" | "desconocido";
@@ -41,6 +42,8 @@ export interface MarcasGeo {
   canal: EstadoCanalPosicion;
   /** (MAP1114D) Enlaces con medida real (Bluetooth, red local) entre este aparato y las demás neuronas. */
   enlaces: EnlaceMedido[];
+  /** (AUD1117 F2) Señales publicadas por los dueños de la red, con el estado de su lectura (capas grupo «red»). */
+  publicadas: EstadoSenalesPublicadas;
 }
 
 /** Cada cuánto se reintenta unirse al canal privado si fue rechazado (por ejemplo, tras aplicar la migración o iniciar sesión). */
@@ -60,6 +63,8 @@ export function useMarcasGeo(): MarcasGeo {
   const presencia = usePresenciaNeuronas();
   const ahora = useAhora();
   const permiso = usePermisoUbicacion();
+  // (AUD1117 F2) Las señales publicadas de toda la red: alimenta a las cuatro capas del grupo «red».
+  const publicadas = useSenalesPublicadas();
   const [desde] = useState(() => Date.now());
   const [senales, setSenales] = useState<SenalesMedio | null>(null);
   const [capas, setCapas] = useState<string[] | null>(null);
@@ -178,6 +183,6 @@ export function useMarcasGeo(): MarcasGeo {
 
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
-    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces,
+    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces, publicadas,
   };
 }
