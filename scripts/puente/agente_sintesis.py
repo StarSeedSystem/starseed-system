@@ -779,12 +779,6 @@ def _seccion_promocion_canales(raiz, fecha):
     return "\n".join(lineas)
 
 
-SECCIONES_RESPALDO = ("Portada y rotación", "Noticias con fuente y fecha", "Actividad de Alex",
-                      "Referencias de diseño", "Ideas de vídeo y redes", "Guiones y storyboard",
-                      "YouTube", "Mañana (la rotación del día siguiente)")
-CIFRAS_RESPALDO = (3000, 9000)
-
-
 def _prompt_respaldo(ctx, fecha, salidas=()):
     """El encargo de UNA sola llamada (la prueba del 2026-11-11): la flota gratuita redacta
     la síntesis entera con las secciones del protocolo. Pura; cabe en el tope de la flota."""
