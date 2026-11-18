@@ -20,7 +20,7 @@
  * dobles en `__tests__/ice-servidor.test.ts`).
  */
 import { createHmac } from "node:crypto";
-import { contieneTurn, normalizarIceServers, servidoresIce, STUN_POR_DEFECTO, unirConStun, type FuenteIce, type RespuestaIce } from "@/lib/llamadas/ice";
+import { contieneTurn, normalizarIceServers, RUTA_ICE, servidoresIce, STUN_POR_DEFECTO, unirConStun, type FuenteIce, type RespuestaIce } from "@/lib/llamadas/ice";
 
 /** Vida de las credenciales pedidas a Cloudflare (una llamada larga cabe de sobra). */
 export const TTL_CLOUDFLARE_S = 86_400;
@@ -31,6 +31,9 @@ export const TTL_ESTATICO_S = 3_600;
 export const TTL_STUN_S = 300;
 
 export const URL_CLOUDFLARE_TURN = "https://rtc.live.cloudflare.com/v1/turn/keys";
+
+/** Ruta que sirve los servidores ICE al navegador; `scripts/comprobar-turn.mjs` pide la misma. */
+export const RUTA_SERVIDOR_ICE: string = RUTA_ICE;
 
 /** Credencial REST de coturn: base64(HMAC-SHA1(secret, usuario)). */
 export function credencialRest(secret: string, usuario: string): string {
