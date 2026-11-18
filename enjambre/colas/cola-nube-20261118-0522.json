@@ -1,0 +1,102 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116Ds",
+   "titulo": "Contexto vivo y paquetes de memoria por agente para la síntesis · lo que faltó: scripts/puente/test_agente_sintesis.py",
+   "archivos": [
+    "scripts/puente/test_agente_sintesis.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116D, que ya está integrada (sha dff1910c0f2e). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_agente_sintesis.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Contexto vivo y paquetes de memoria por agente para la síntesis\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §3.4. contexto_sintesis.py, núcleo puro con E/S inyectable, partiendo del generador de Claude ~/.starseed/herramientas/contexto_vivo.py de la Mac: (1) lo ya integrado (olas con commit en 30 días agrupadas por ola; títulos y primer párrafo de architecture/*.md; memory/workflow-actual.md, CLAUDE.md y AGENTS.md; la Librería instalada; rutas y apps del OS); (2) producción audiovisual (vídeos en planeación, encargos y lo producido, Higgsfield, formatos hechos); (3) alcance sin datos personales; (4) las síntesis de los últimos 7 días y su «Mañana», las fuentes de NotebookLM y la Imaginación; (5) recuerdos con contexto_agente.py (rol por agente) y LEANN (seccion_recuerdos), más la libreta por ámbito (JLA1116); (6) el libro de recomendaciones (SIN1116E). Salidas: paquetes por agente (contactos, noticias, referencias, actividad, ideas, guiones y youtube) dentro de los topes de _encoger_contexto, y el contexto completo para el redactor, que se sube a Drive (Herramientas de producción) como «Contexto vivo de StarSeed <fecha>» y entra como fuente del cuaderno. Conéctalo en agente_sintesis (encargar_por_flota y _prompt_respaldo). Pruebas sin red: el paquete del agente «ideas» contiene lo integrado y el prompt prohíbe repetirlo.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "TU25",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Widget: pintarlo en el registro y darle su estilo de función",
+   "archivos": [
+    "src/components/dashboard/widget-registry.tsx",
+    "src/components/dashboard/widget-function-style.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `widget-registry.tsx` añade el `case 'TRADUCTOR':` (carga diferida con `dynamic`, `ssr:false`, como los demás) que pinta `WidgetTraductor` con el servicio del Traductor y los ajustes del widget (`widget.settings`; copia cómo lo hace otro caso con `onUpdateSettings`); en `widget-function-style.ts` añade `TRADUCTOR: \"ai\"` junto a `ASTRAURA_CORTEX` (línea 103). Diff total ≤40 líneas.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU24"
+   ]
+  },
+  {
+   "id": "RST07",
+   "ola": "RST1116A",
+   "titulo": "El gancho de la pantalla remota acepta la fuente pedida y la cambia sin perder la sesión sin avisar",
+   "archivos": [
+    "src/lib/control-remoto/usar-pantalla-remota.ts",
+    "src/lib/control-remoto/__tests__/usar-pantalla-remota-fuente.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. `usarPantallaRemota(neurona: string | null, opciones?: { fuente?: FuentePedida })`: pasa `opciones.fuente` a `crearPantallaDestino` (RST05) y vuelve a abrir la pantalla cuando la fuente pedida CAMBIA (igual que `reintentar`: cierra la sesión de pantalla y abre otra; mira que el efecto :34-47 ya depende de `neurona` e `intento`; añade `fuente` a sus dependencias). Devuelve además `fuentePedida` (la que se pidió) y `veredicto: ReturnType<typeof veredictoFuente>` calculado con `veredictoFuente(fuentePedida, snap.fuente ?? null)` (RST04). Con `neurona` null sigue sin hacer nada. ≤30 líneas de diferencia. PRUEBAS con `crearPantallaDestino` simulado: abre con la fuente pedida; cambiar de `auto` a `proyeccion` cierra la anterior y abre otra con `proyeccion`; si la instantánea dice `accesibilidad` tras pedir `proyeccion`, el `veredicto` trae el aviso; sin neurona no abre nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  },
+  {
+   "id": "HAL05",
+   "ola": "HAL1116A",
+   "titulo": "CapaIdioma espera a que el documento esté hidratado antes de reescribir el texto",
+   "archivos": [
+    "src/components/idiomas/capa-idioma.tsx",
+    "src/components/idiomas/__tests__/capa-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `capa-idioma.tsx` entero (38 líneas) y `src/lib/idiomas/hidratacion.ts` (HAL04). Cambio ACOTADO (≤25 líneas): en el efecto, antes de la PRIMERA llamada a `iniciarCapa` (no antes de `capa.cambiar`, que es una elección de la persona ya con la página viva), espera `cuandoEsSeguroTraducir(entornoDelNavegador(window))` y sigue solo si `vivo` sigue siendo true tras la espera. Una elección nueva (`EVENTO_IDIOMA`) durante la espera no se pierde: al terminar se lee `idiomaEfectivo()` de nuevo. Se conserva todo lo demás (`storage`, `parar`, `fijarDocumento`). PRUEBAS (`render` con `vi.useFakeTimers` y un `cuandoEsSeguroTraducir` simulado con `vi.mock`): con idioma guardado `en` el texto del cuerpo sigue en español hasta que la promesa resuelve y entonces cambia; si el componente se desmonta durante la espera no se aplica nada; un cambio de idioma durante la espera aplica el último.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "HAL04"
+   ]
+  },
+  {
+   "id": "AQ07",
+   "ola": "AUD1117",
+   "titulo": "Capacidades: anunciar la oferta de cómputo, almacenamiento e internet de cada neurona",
+   "archivos": [
+    "src/lib/recursos/oferta.ts",
+    "src/lib/neurons/presencia.ts",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F7 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: la oferta que la persona tiene encendida en este aparato (cómputo, almacenamiento, internet) viaja en su presencia/ficha, y las tres capas `oferta-*` del mapa dejan de decir «sin fuente» para las neuronas que anuncian; las que no anuncian siguen «desconocido». Nada se ofrece que la persona no haya encendido. Prueba: unitaria de la ficha (con y sin oferta) y de las capas (anuncia → valor; no anuncia → desconocido).",
+   "dependencias_ya_en_main": [
+    "AQ05"
+   ]
+  },
+  {
+   "id": "RST06",
+   "ola": "RST1116A",
+   "titulo": "Del lado del aparato controlado: la petición de fuente llega a lo nativo y se devuelve la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/nativo-comandos.ts",
+    "src/lib/control-remoto/__tests__/pantalla-origen-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `nativo-comandos.ts:11`: `control_pantalla_iniciar: [\"sesion\", \"lado_max\", \"calidad\", \"fuente\"]` (la lista de claves permitidas; lee el archivo para ver cómo se valida). (2) `pantalla-origen.ts` (:161 el caso `pantalla-iniciar` y :186-198): si `args.fuente` es `\"proyeccion\"`, pásalo a `control_pantalla_iniciar` como `fuente`; si no está o es `\"auto\"`, NO lo mandes (igual que hoy). La `fuente` que se devuelve y se guarda sigue siendo la que CONTESTA lo nativo (`r.fuente`), nunca la pedida. Si se pidió `proyeccion` y lo nativo contesta otra cosa o no la ofrece, la sesión sigue con lo que haya (no se cierra) y el resultado lleva `fuente_pedida: \"proyeccion\"` además de la real, para que el otro lado pueda avisar (con `RST04`). ≤40 líneas de diferencia en cada archivo. PRUEBAS (`pantalla-origen.test.ts` como guía, `invocar` simulado): con `fuente:\"proyeccion\"` el invocador recibe `fuente`; sin ella no; si lo nativo contesta `accesibilidad`, el resultado dice `fuente:\"accesibilidad\"` y `fuente_pedida:\"proyeccion\"`; si contesta `proyeccion`, dice `proyeccion`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "SIN1116Ds",
+   "RST07",
+   "HAL05",
+   "AQ07",
+   "TU25",
+   "RST06"
+  ]
+ }
+}
