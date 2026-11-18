@@ -21,7 +21,6 @@ import type { TarjetaInspiracion } from "@/components/library/referencias/widget
 import { useToast } from "@/components/ui/use-toast";
 import { WidgetRespuestaViva } from "@/components/openui/widget-respuesta-viva";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
-import { TraductorWidget } from "@/components/dashboard/widgets/traductor-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
 import { AuroraLastWidget } from "@/components/dashboard/widgets/aurora-last-widget";
@@ -49,6 +48,10 @@ import { WeatherOmniClimateWidget } from "@/modules/weather/components/widgets/t
 const WeatherHolisticWidget = dynamic(
     () => import("@/modules/weather/components/widgets/terrestrial/weather-holistic-widget").then(mod => mod.WeatherHolisticWidget),
     { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-black/50 text-white/50 animate-pulse text-xs">Cargando 3D...</div> }
+);
+const TraductorWidget = dynamic(
+    () => import("@/components/dashboard/widgets/traductor-widget").then(mod => mod.TraductorWidget),
+    { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-black/20 text-white/40 animate-pulse text-xs">Cargando traductor…</div> }
 );
 import { WeatherTemperatureWidget } from "@/modules/weather/components/widgets/terrestrial/weather-temperature-widget";
 import { WeatherWindWidget } from "@/modules/weather/components/widgets/terrestrial/weather-wind-widget";
