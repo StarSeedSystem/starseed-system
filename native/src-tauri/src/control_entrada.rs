@@ -99,9 +99,15 @@ pub fn control_entrada(app: tauri::AppHandle, webview: tauri::Webview, sesion: S
     Ok(entrada(&app, &sesion, &sobre))
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "macos")))]
 fn entrada(_app: &tauri::AppHandle, _sesion: &str, _sobre: &Value) -> Value {
     sin_soporte()
+}
+
+// CTL1117M: el Mac como aparato controlado (enigo + comprobación nativa del controlador).
+#[cfg(target_os = "macos")]
+fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
+    crate::control_entrada_macos::entrada(app, sesion, sobre)
 }
 
 #[cfg(target_os = "android")]
@@ -192,7 +198,9 @@ pub fn control_capacidades(app: tauri::AppHandle, webview: tauri::Webview) -> Re
         let k = es::llamar(&app, json!({ "tipo": "capacidades" }), ESPERA_MS);
         Ok(capacidades_json(k.as_ref()))
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_entrada_macos::capacidades(&app)); // CTL1117M
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     Ok(sin_soporte())
 }
 
@@ -200,8 +208,13 @@ pub fn control_capacidades(app: tauri::AppHandle, webview: tauri::Webview) -> Re
 #[tauri::command(async)]
 pub fn control_abrir_ajuste(app: tauri::AppHandle, webview: tauri::Webview, cual: String) -> Result<Value, String> {
     crate::control_neuronas::pagina_ok(&app, &webview)?;
-    if !l::AJUSTES.contains(&cual.as_str()) {
-        return Ok(json!({ "ok": false, "motivo": "ajuste-desconocido" }));
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_entrada_macos::abrir_ajuste(&cual)); // CTL1117M: los permisos del Mac tienen sus propios nombres
+    #[cfg(not(target_os = "macos"))]
+    {
+        if !l::AJUSTES.contains(&cual.as_str()) {
+            return Ok(json!({ "ok": false, "motivo": "ajuste-desconocido" }));
+        }
     }
     #[cfg(target_os = "android")]
     {
@@ -224,7 +237,9 @@ pub fn control_estado_aparato(app: tauri::AppHandle, webview: tauri::Webview) ->
             _ => json!({ "ok": false, "motivo": "sin-servicio" }),
         })
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_entrada_macos::estado_aparato()); // CTL1117M
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     Ok(sin_soporte())
 }
 
@@ -245,7 +260,9 @@ pub fn control_entrada_aceptar(app: tauri::AppHandle, webview: tauri::Webview, s
             None => json!({ "ok": false, "motivo": "sin-servicio" }),
         })
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_aceptados_macos::pedir_aceptar(&app, &spki, &cuenta, &nombre, &huella, &codigo)); // CTL1117M: solo PIDE el diálogo nativo
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     {
         let _ = (nombre, codigo);
         Ok(sin_soporte())
@@ -266,7 +283,9 @@ pub fn control_entrada_aceptados(app: tauri::AppHandle, webview: tauri::Webview)
             .collect();
         Ok(json!({ "ok": true, "controladores": lista }))
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_aceptados_macos::listar(&app)); // CTL1117M
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     Ok(sin_soporte())
 }
 
@@ -302,7 +321,9 @@ pub fn control_entrada_quitar(app: tauri::AppHandle, webview: tauri::Webview, hu
         let r = es::llamar(&app, json!({ "tipo": "quitar-controlador", "huella": huella }), ESPERA_MS);
         Ok(quitar_de_kotlin(r.as_ref()))
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    return Ok(crate::control_aceptados_macos::quitar(&app, &huella)); // CTL1117M
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     Ok(sin_soporte())
 }
 

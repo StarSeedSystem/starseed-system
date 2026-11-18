@@ -48,9 +48,15 @@ pub fn fuente_real(r: &Value) -> &'static str {
     if r.get("fuente").and_then(|f| f.as_str()) == Some("proyeccion") { "proyeccion" } else { "accesibilidad" }
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "macos")))]
 fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32, _fuente: &str) -> Value {
     crate::control_entrada::sin_soporte()
+}
+
+// CTL1117M: la pantalla principal del Mac (la fuente pedida no cambia nada: solo hay una).
+#[cfg(target_os = "macos")]
+fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, _fuente: &str) -> Value {
+    crate::control_pantalla_macos::iniciar(app, sesion, lado, calidad)
 }
 
 #[cfg(target_os = "android")]
@@ -111,9 +117,14 @@ pub fn control_pantalla_cuadro(app: tauri::AppHandle, webview: tauri::Webview, s
     Ok(tauri::ipc::Response::new(cuadro(&app, &sesion, desde.unwrap_or(0))))
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "macos")))]
 fn cuadro(_app: &tauri::AppHandle, _sesion: &str, _desde: u32) -> Vec<u8> {
     Vec::new()
+}
+
+#[cfg(target_os = "macos")]
+fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
+    crate::control_pantalla_macos::cuadro(app, sesion, desde) // CTL1117M
 }
 
 #[cfg(target_os = "android")]
@@ -153,12 +164,20 @@ pub fn control_pantalla_parar(app: tauri::AppHandle, webview: tauri::Webview, se
         parar_interno(&app);
         Ok(json!({ "ok": true }))
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "macos")]
+    {
+        parar_interno(&app); // CTL1117M
+        Ok(serde_json::json!({ "ok": true }))
+    }
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     Ok(crate::control_entrada::sin_soporte())
 }
 
 /// Para la captura de Kotlin y deja la línea de fin (con los fps medidos). Sin pantalla activa, no hace nada.
 pub(crate) fn parar_interno(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    return crate::control_pantalla_macos::parar_interno(app); // CTL1117M
+    #[cfg(not(target_os = "macos"))]
     let Some(a) = activa().take() else { return };
     #[cfg(target_os = "android")]
     {
@@ -169,7 +188,7 @@ pub(crate) fn parar_interno(app: &tauri::AppHandle) {
         crate::ble::nota(None, "control-pantalla", &linea);
         crate::control_neuronas::anotar_k(app, "pantalla-parada", &linea);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     let _ = (app, a);
 }
 

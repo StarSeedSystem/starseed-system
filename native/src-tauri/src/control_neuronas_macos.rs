@@ -98,6 +98,7 @@ extern "C" {
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
+    #[allow(dead_code)] // CTL1117M
     fn CGEventSourceSecondsSinceLastEventType(estado: i32, tipo: u32) -> f64;
 }
 
@@ -280,12 +281,9 @@ pub fn vigilar_entrada_local(app: &AppHandle) {
         if !cn::sesion_viva_sin_pausa() {
             continue;
         }
-        // kCGEventSourceStateHIDSystemState = 1; kCGAnyInputEventType = ~0.
-        let quieto_s = unsafe { CGEventSourceSecondsSinceLastEventType(1, u32::MAX) };
-        if !quieto_s.is_finite() || quieto_s < 0.0 {
-            continue;
-        }
-        let entrada = cn::mono_ms().saturating_sub((quieto_s * 1000.0) as u64);
+        // CTL1117M: lo que inyecta el propio control (enigo, a nivel HID) no cuenta; una mano real, sí. Ver `control_entrada_macos::mano_real`.
+        let Some(entrada) = crate::control_entrada_macos::mano_real() else { continue };
+        crate::control_entrada_macos::al_pausar(); // suelta el botón o la tecla que el control hubiera dejado pulsado
         cn::pausa_local(&h, entrada);
     });
 }

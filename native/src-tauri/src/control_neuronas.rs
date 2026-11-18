@@ -227,9 +227,24 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     {
         *origen_nombre() = "pagina"; // CTL1117K · S4: sin entrada nativa el nombre es el que dice la página
     }
-    #[cfg(not(target_os = "android"))]
+    // CTL1117M · macOS: si el controlador está en la lista que la persona aceptó EN este Mac y su orden firmada vale, el `de`,
+    // el nombre y el color salen de lo nativo y la sesión queda VERIFICADA (pantalla y entrada solo para esas). Si este Mac
+    // aún no lo aceptó, sigue la fase 1 de siempre (sesión sin pantalla ni entrada). Una firma, hora o repetición mala se rechaza.
+    #[cfg(target_os = "macos")]
+    let (de, nombre, nivel, color) = match crate::control_aceptados_macos::apertura(&app, sobre.as_ref(), &nivel) {
+        crate::control_aceptados_macos::Apertura::Verificada(a) => (a.de, a.nombre, a.nivel, a.color),
+        crate::control_aceptados_macos::Apertura::SinVerificar => {
+            let color = crate::control_ajustes::color_por_defecto(&de);
+            (de, nombre, nivel, color)
+        }
+        crate::control_aceptados_macos::Apertura::Rechazada(m) => {
+            anotar(&app, "sesion-rechazada", &format!("de=- motivo={m}"));
+            return Err(m.into());
+        }
+    };
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     let color = crate::control_ajustes::color_por_defecto(&de); // CTL1117H: sin entrada nativa no hay color firmado
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     let _ = &sobre; // escritorio: sin entrada ni pantalla nativas (`sin-soporte`); ver contrato §12.3
     // ORD1114T: una cadena rota se DETECTA y queda dicha en la propia cadena (y en el estado); no se tapa.
     if let Some(n) = ruta_registro(&app).and_then(|r| std::fs::read_to_string(r).ok()).and_then(|t| l::verificar_registro(&t).err()) {
@@ -460,6 +475,12 @@ fn interruptor(_app: &AppHandle) -> l::Interruptor {
     l::Interruptor::default()
 }
 
+/// (CTL1117M) ¿Está encendido el interruptor NATIVO de este aparato? Lo usan el diálogo de aceptar y el arranque.
+#[allow(dead_code)]
+pub(crate) fn interruptor_encendido(app: &AppHandle) -> bool {
+    interruptor(app).encendido
+}
+
 #[cfg(desktop)]
 fn guardar_interruptor(app: &AppHandle, i: &l::Interruptor) -> bool {
     let Some(r) = ruta_interruptor(app) else { return false };
@@ -473,6 +494,8 @@ fn guardar_interruptor(app: &AppHandle, i: &l::Interruptor) -> bool {
 /// Apaga el interruptor nativo al instante, sin diálogo, y cierra la sesión que hubiera.
 pub(crate) fn apagar_interruptor(app: &AppHandle, motivo: &str) {
     parar(app, motivo);
+    #[cfg(target_os = "macos")]
+    crate::control_aceptados_macos::vaciar(app); // CTL1117M: al apagar el control, la lista de controladores aceptados queda vacía
     #[cfg(desktop)]
     {
         let mut i = interruptor(app);
@@ -536,6 +559,8 @@ pub fn iniciar(app: &AppHandle) {
     let _ = APP.set(app.clone()); // ORD1114T
     #[cfg(target_os = "macos")]
     crate::control_neuronas_macos::vigilar_entrada_local(app); // ORD1114T: tecla/ratón local → pausa
+    #[cfg(target_os = "macos")]
+    crate::control_aceptados_macos::al_arrancar(app); // CTL1117M: con el interruptor apagado no queda nadie aceptado
     let h = app.clone();
     #[cfg(target_os = "android")]
     let mut huerfano = 0u32;
@@ -859,6 +884,10 @@ fn quitar_indicador(app: &AppHandle) {
     {
         crate::control_neuronas_macos::quitar_borde(app);
         crate::control_neuronas_macos::quitar_atajo(app);
+        // CTL1117M: la sesión acabó: se suelta lo pulsado, se anota el resumen de la entrada y se para la pantalla.
+        crate::control_entrada_macos::al_cerrar(app);
+        crate::control_pantalla_macos::parar_interno(app);
+        crate::control_aceptados_macos::olvidar_verificada();
     }
 }
 

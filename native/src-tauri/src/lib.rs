@@ -180,6 +180,13 @@ mod control_entrada; // AND1115K
 mod control_pantalla; // AND1115K
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
+mod control_entrada_macos_logica; // CTL1117M (pura: se prueba en todas las plataformas)
+#[cfg(target_os = "macos")]
+mod control_aceptados_macos; // CTL1117M
+#[cfg(target_os = "macos")]
+mod control_entrada_macos; // CTL1117M
+#[cfg(target_os = "macos")]
+mod control_pantalla_macos; // CTL1117M
 #[cfg(test)]
 mod control_neuronas_parche; // ORD1114T (lo usa build.rs; aquí solo sus pruebas)
 #[cfg(test)]
