@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from '../oferta';
+import { OfertaNeurona, OfertaSimple, capacidadPrestable, ofertaVisiblePara, formatearOfertaSimple } from '../oferta';
 
 const base = (o: Partial<OfertaNeurona> = {}): OfertaNeurona => ({
   nodoId: 'nodo1',
@@ -109,5 +109,22 @@ describe('capacidadPrestable', () => {
     expect(r.energia).toEqual(o.energia);
     expect(r.presta).toEqual(o.presta);
     expect(r.t).toBe(o.t);
+  });
+});
+
+describe('formatearOfertaSimple', () => {
+  it('null/undefined -> sin anuncio', () => {
+    expect(formatearOfertaSimple(null)).toBe("sin anuncio de oferta");
+    expect(formatearOfertaSimple(undefined)).toBe("sin anuncio de oferta");
+  });
+  it('all false -> no ofrece recursos', () => {
+    expect(formatearOfertaSimple({ computo: false, almacenamiento: false, internet: false })).toBe("no ofrece recursos");
+  });
+  it('all true -> lista completa', () => {
+    expect(formatearOfertaSimple({ computo: true, almacenamiento: true, internet: true })).toBe("cómputo, almacenamiento, internet compartido");
+  });
+  it('partial -> solo los true', () => {
+    expect(formatearOfertaSimple({ computo: true, almacenamiento: false, internet: true })).toBe("cómputo, internet compartido");
+    expect(formatearOfertaSimple({ computo: false, almacenamiento: true, internet: false })).toBe("almacenamiento");
   });
 });
