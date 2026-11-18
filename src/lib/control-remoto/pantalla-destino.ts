@@ -20,6 +20,7 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
+import { FUENTE_DEFECTO, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -57,6 +58,8 @@ export interface InstantaneaPantalla {
     nivel: "ver" | "controlar";
     capacidades: CapacidadesVentana;
     aparato: AparatoVentana | null;
+    /** RST1116A: la fuente REAL que contestó el aparato (nunca la que se pidió). */
+    fuente?: FuenteReal;
     latenciaMs?: number;
     fps?: number;
     /** CTL1117A · S3: cuándo llega la hora máxima de la sesión (ms epoch), si el aparato la dijo. */
@@ -260,6 +263,7 @@ export class PantallaDestino {
     constructor(
         readonly neurona: string,
         private readonly d: DepsDestino,
+        private readonly fuente: FuentePedida = FUENTE_DEFECTO,
     ) {
         this.registro = d.registro ?? new RegistroSesiones(d.ahora);
         this.snap = { estado: "conectando", desde: d.ahora(), flujo: null, pantalla: null, nivel: "ver", capacidades: SIN_CAPACIDADES, aparato: null };
@@ -313,14 +317,16 @@ export class PantallaDestino {
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
-        const p = await this.orden("pantalla-iniciar", {}, "ver");
+        const p = await this.orden("pantalla-iniciar", this.fuente === "proyeccion" ? { fuente: this.fuente } : {}, "ver");
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
         const res = (p.resultado ?? {}) as Record<string, unknown>;
+        const real = res.fuente;
+        const fuente: FuenteReal | undefined = real === "proyeccion" || real === "accesibilidad" ? real : undefined;
         if (res.ok !== true) {
             // La orden se cumplió pero la fuente de pantalla no está: lo arregla la persona EN el aparato; se dice qué falta.
             const falta = Array.isArray(res.falta) && typeof res.falta[0] === "string" ? res.falta[0] : typeof res.motivo === "string" ? res.motivo : "sin-pantalla";
-            this.poner({ estado: "sin-pantalla", motivo: falta, capacidades: SIN_CAPACIDADES });
+            this.poner({ estado: "sin-pantalla", motivo: falta, capacidades: SIN_CAPACIDADES, ...(fuente ? { fuente } : {}) });
             this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
             return;
         }
@@ -329,6 +335,7 @@ export class PantallaDestino {
         this.poner({
             pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: 0 },
             capacidades: capacidadesDeNativo(res.capacidades, nivel),
+            ...(fuente ? { fuente } : {}),
         });
         try {
             await this.negociar();
@@ -770,8 +777,15 @@ export function depsReales(neurona: string): DepsDestino {
     };
 }
 
-export function crearPantallaDestino(neurona: string, d: DepsDestino = depsReales(neurona)): PantallaDestino {
-    return new PantallaDestino(neurona, d);
+export interface OpcionesPantallaDestino {
+    /** RST1116A: lo que pide la persona. «auto» no manda el campo (comportamiento de siempre). */
+    fuente?: FuentePedida;
+    /** Piezas inyectadas (pruebas); en producción se usan las reales. */
+    deps?: DepsDestino;
+}
+
+export function crearPantallaDestino(neurona: string, opciones: OpcionesPantallaDestino = {}): PantallaDestino {
+    return new PantallaDestino(neurona, opciones.deps ?? depsReales(neurona), opciones.fuente ?? FUENTE_DEFECTO);
 }
 
 // Para quien quiera comprobar que el vocabulario de entrada coincide con el de la puerta.
