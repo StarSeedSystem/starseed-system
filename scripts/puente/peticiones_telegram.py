@@ -65,6 +65,10 @@ import peticiones_llm as PLLM
 import higgsfield_aprobado as hfa
 import salud_directores as SD
 
+# SIN1116B: respaldo 08:30 y avances de síntesis
+import peticiones_sintesis_respaldo as PSR
+import sintesis_avances as SA
+
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
 ESTADO = os.path.join(DIR, "estado.json")
@@ -79,6 +83,12 @@ REINTENTO_S = 300
 VIDA_S = 24 * 3600
 REFRESCO_S = 20 * 60
 MULTIFORMATO_INTERVALO_S = 15 * 60
+
+# SIN1116B: respaldo 08:30 y avances
+RESPALDO_INTERVALO_S = 15 * 60  # cada 15 min, pero solo ejecuta a las 08:30 ± 15 min
+HORA_RESPALDO_CDMX = 8.5  # 08:30
+HORA_RETRASO_CDMX = 9.0   # 09:00
+VENTANA_RESPALDO_H = 0.25  # ±15 min
 
 # Archivos para reglas permanentes y rutinas (PSF1113B)
 PREFERENCIAS = os.path.join(DIR, "preferencias.json")
@@ -926,6 +936,171 @@ def _tarea_multiformato_periodica() -> None:
             log("Error en tarea multiformato periódica:", e)
 
 
+# ────────────────────────────── SIN1116B: Respaldo 08:30 y avances ──────────────────────────────
+
+def _fecha_cdmx(ahora: float | None = None) -> str:
+    """Fecha en zona horaria de Ciudad de México (AAAA-MM-DD)."""
+    if ahora is None:
+        ahora = time.time()
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo("America/Mexico_City")
+        return datetime.datetime.fromtimestamp(ahora, tz).date().isoformat()
+    except Exception:
+        from datetime import timezone
+        return datetime.datetime.fromtimestamp(ahora, timezone.utc).date().isoformat()
+
+
+def _hora_cdmx(ahora: float | None = None) -> float:
+    """Hora decimal en zona horaria de Ciudad de México."""
+    if ahora is None:
+        ahora = time.time()
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo("America/Mexico_City")
+        dt = datetime.datetime.fromtimestamp(ahora, tz)
+        return dt.hour + dt.minute / 60.0
+    except Exception:
+        from datetime import timezone
+        dt = datetime.datetime.fromtimestamp(ahora, timezone.utc)
+        return dt.hour + dt.minute / 60.0
+
+
+def _es_hora_respaldo(ahora: float | None = None) -> bool:
+    """Verifica si estamos en la ventana de respaldo (08:30 ± 15 min en CDMX)."""
+    hora = _hora_cdmx(ahora)
+    return abs(hora - HORA_RESPALDO_CDMX) <= VENTANA_RESPALDO_H
+
+
+def _es_hora_retraso(ahora: float | None = None) -> bool:
+    """Verifica si ya pasó la hora de aviso de retraso (09:00 en CDMX)."""
+    hora = _hora_cdmx(ahora)
+    return hora >= HORA_RETRASO_CDMX
+
+
+def _enviar_hito_al_chat(tipo: str, **kwargs) -> None:
+    """Registra un hito en sintesis_avances y lo envía al chat si no es duplicado."""
+    try:
+        linea = SA.registrar_hito(tipo, **kwargs)
+        if linea:
+            decir(linea)
+    except Exception as e:
+        log(f"Error enviando hito {tipo}: {e}")
+
+
+def _verificar_y_avisar_retraso(fecha: str | None = None, hay_sintesis: bool = False, ahora: float | None = None) -> str | None:
+    """Verifica si a las 09:00 CDMX hay síntesis; si no, registra y envía aviso de retraso."""
+    if fecha is None:
+        fecha = _fecha_cdmx(ahora)
+    if ahora is None:
+        ahora = time.time()
+    
+    if not _es_hora_retraso(ahora):
+        return None  # Aún no son las 09:00
+    
+    if hay_sintesis:
+        return None  # Ya hay síntesis, no hay retraso
+    
+    try:
+        linea = SA.verificar_retraso(
+            fecha=fecha,
+            ahora=ahora,
+            hay_sintesis=hay_sintesis,
+            motivo="investigación profunda en curso",
+            accion="generando síntesis diaria",
+        )
+        if linea:
+            decir(linea)
+        return linea
+    except Exception as e:
+        log(f"Error verificando retraso: {e}")
+        return None
+
+
+def _generar_y_enviar_seguimiento(fecha_ayer: str | None = None, ahora: float | None = None) -> str | None:
+    """Genera y envía línea de seguimiento de recomendaciones del día anterior."""
+    if fecha_ayer is None:
+        if ahora is None:
+            ahora = time.time()
+        hoy = _fecha_cdmx(ahora)
+        from datetime import datetime, timedelta
+        ayer_dt = datetime.fromisoformat(hoy) - timedelta(days=1)
+        fecha_ayer = ayer_dt.date().isoformat()
+    
+    try:
+        linea = SA.generar_seguimiento(fecha_ayer=fecha_ayer, ahora=ahora)
+        if linea:
+            decir(linea)
+        return linea
+    except Exception as e:
+        log(f"Error generando seguimiento: {e}")
+        return None
+
+
+def _tarea_respaldo_0830() -> None:
+    """Tarea periódica que ejecuta el respaldo 08:30 si no hay síntesis válida."""
+    while True:
+        time.sleep(RESPALDO_INTERVALO_S)
+        try:
+            ahora = time.time()
+            
+            # Solo ejecutar si es la hora de respaldo
+            if not _es_hora_respaldo(ahora):
+                continue
+            
+            fecha = _fecha_cdmx(ahora)
+            
+            # Verificar si ya se ejecutó hoy (evitar duplicados)
+            # Usar un archivo de marca simple
+            marca_file = os.path.join(DIR, f"respaldo-{fecha}.done")
+            if os.path.exists(marca_file):
+                continue
+            
+            log(f"Ejecutando respaldo 08:30 para {fecha}")
+            
+            # Hito de arranque
+            _enviar_hito_al_chat(
+                "arranque",
+                fecha=fecha,
+                ahora=ahora,
+                agentes=["contactos", "noticias", "referencias", "actividad", "ideas", "guiones", "youtube"],
+                tema=f"Síntesis diaria StarSeed {fecha}",
+            )
+            
+            # Ejecutar respaldo usando peticiones_sintesis_respaldo
+            from pathlib import Path
+            resultado = PSR.ejecutar_respaldo_0830(
+                raiz=Path(RAIZ_REPO),
+                ahora=ahora,
+                nb_fn=nb,
+                drive_fn=drive,
+                token_google_fn=token_google,
+                leer_clave_fn=lambda k: ENV.get(k),
+                enviar_telegram_fn=decir,
+                multiformato_fn=_procesar_multiformato_con_degradacion,
+                log_fn=lambda msg: log(f"[respaldo] {msg}"),
+            )
+            
+            if resultado.get("ok") and resultado.get("accion") == "respaldo_completado":
+                # Marcar como ejecutado hoy
+                with open(marca_file, "w") as f:
+                    f.write(str(ahora))
+                
+                # Hito de entrega (se envía desde ejecutar_respaldo_0830 via sintesis_avances)
+                # El multiformato también se lanza desde ahí
+                log(f"Respaldo 08:30 completado para {fecha}: {resultado.get('caracteres', 0)} chars")
+            elif resultado.get("accion") == "ya_existe":
+                # Ya hay síntesis válida, marcar para no volver a intentar
+                with open(marca_file, "w") as f:
+                    f.write(str(ahora))
+                log(f"Respaldo 08:30: síntesis ya existe para {fecha}")
+            else:
+                log(f"Respaldo 08:30 falló o no ejecutado: {resultado}")
+                
+        except Exception as e:
+            log("Error en tarea respaldo 08:30:", e)
+
+
 # GEN1114D · /estado y /ayuda empiezan con «Este chat: <nombre> · id <id>», leído de chat-a1.json (lo lleva la Mac
 # por ssh con `llevar-a1`), NUNCA del catálogo de la puerta, que no es de confianza. Sin él no se inventa nombre.
 ID_CHAT = re.compile(r"^[a-z0-9][a-z0-9._-]{1,62}$")
@@ -948,8 +1123,10 @@ def chat_a1() -> dict[str, Any] | None:
     d = leer_privado(os.path.join(DIR, "chat-a1.json"))
     if not (isinstance(d, dict) and d.get("v") == 1 and isinstance(d.get("id"), str) and ID_CHAT.match(d["id"])):
         return None
-    nombre = RAROS.sub("", d.get("nombre") if isinstance(d.get("nombre"), str) else "").strip()[:80]
-    alias = [RAROS.sub("", a).strip()[:80] for a in d.get("alias") or [] if isinstance(a, str)][:20]
+    nombre_raw = d.get("nombre") if isinstance(d.get("nombre"), str) else ""
+    nombre = RAROS.sub("", nombre_raw).strip()[:80]
+    alias_raw = d.get("alias") or []
+    alias = [RAROS.sub("", str(a)).strip()[:80] for a in alias_raw if isinstance(a, str)][:20]
     return {"id": d["id"], "nombre": nombre, "alias": alias} if nombre else None
 
 
@@ -1589,6 +1766,7 @@ def main() -> None:
     threading.Thread(target=trabajar, daemon=True).start()
     threading.Thread(target=mantener_sesion, daemon=True).start()
     threading.Thread(target=_tarea_multiformato_periodica, daemon=True).start()
+    threading.Thread(target=_tarea_respaldo_0830, daemon=True).start()
     hay_trabajo.set()
     escuchar()
 
