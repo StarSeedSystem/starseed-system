@@ -236,6 +236,35 @@ describe("cuadros: uno cada vez, nunca en cola", () => {
     });
 });
 
+describe("CTL1117J · S1 · una pausa local no para la pantalla", () => {
+    it("sin cuadros durante la pausa (lo nativo devuelve vacío) la pantalla sigue en marcha y, al reanudar, los cuadros vuelven sin reabrir nada", async () => {
+        cuadros = [cuadro(1), cuadro(2)];
+        await origen.ejecutar("pantalla-iniciar", {}, ctx());
+        await hasta(() => pintor.pintados.length === 2);
+        await pausa(80); // pausa local: ~3 s reales; aquí, un rato de «vacío» con la sesión viva
+        expect(origen.enMarcha()).toBe(true);
+        expect(n("control_pantalla_parar")).toHaveLength(0);
+        const pintadosEnPausa = pintor.pintados.length;
+        expect(pintadosEnPausa).toBe(2);
+        cuadros.push(cuadro(3), cuadro(4));
+        await hasta(() => pintor.pintados.length === 4);
+        expect(n("control_pantalla_iniciar")).toHaveLength(1);
+        expect(n("control_pantalla_parar")).toHaveLength(0);
+        await origen.parar("fin");
+    });
+    it("una parada real (la sesión de la puerta ya no está) SÍ para la pantalla", async () => {
+        await origen.ejecutar("pantalla-iniciar", {}, ctx());
+        await pausa(20);
+        viva = null;
+        await hasta(() => !origen.enMarcha());
+        expect(n("control_pantalla_parar")).toHaveLength(1);
+    });
+    it("una orden de entrada rechazada con «pausa-local» llega a quien manda con ese motivo (no se disfraza de otro)", async () => {
+        respuestas.control_entrada = { ok: false, motivo: "pausa-local" };
+        await expect(origen.ejecutar("gesto", {}, ctx())).rejects.toThrow("pausa-local");
+    });
+});
+
 describe("negociación por el canal de control", () => {
     async function conPantalla() {
         await origen.ejecutar("pantalla-iniciar", {}, ctx("ver"));

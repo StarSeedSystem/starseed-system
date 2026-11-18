@@ -406,6 +406,23 @@ describe("respuestas del otro aparato", () => {
         responder("nonce-2", { ok: true, motivo: "ok" });
         expect(destino.instantanea().estado).toBe("en-vivo");
     });
+    it("CTL1117J · S1: la pausa no cierra ni reabre nada: «En pausa» → en vivo con la misma sesión, y la entrada vuelve a salir", async () => {
+        await enVivo();
+        destino.enviar({ tipo: "tecla", cual: "atras" });
+        await vi.advanceTimersByTimeAsync(50);
+        const antes = nombres().length;
+        responder("nonce-1", { motivo: "pausa-local" });
+        expect(destino.instantanea().estado).toBe("pausa-local");
+        destino.enviar({ tipo: "tecla", cual: "inicio" }); // durante la pausa la entrada se acepta (lo nativo la sostiene)
+        await vi.advanceTimersByTimeAsync(3400);
+        expect(destino.instantanea().estado).toBe("en-vivo");
+        destino.enviar({ tipo: "tecla", cual: "atras" });
+        await vi.advanceTimersByTimeAsync(50);
+        expect(nombres().slice(antes)).not.toContain("abrir-sesion");
+        expect(nombres()).not.toContain("cerrar-sesion");
+        expect(nombres()).not.toContain("pantalla-parar");
+        expect(destino.instantanea().estado).not.toBe("cerrada");
+    });
     it("regla-g se dice como motivo sin cerrar nada, y se quita sola", async () => {
         await enVivo();
         destino.enviar({ tipo: "texto", texto: "x" });

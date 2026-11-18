@@ -334,6 +334,11 @@ export class PuertaControl {
         }
         // ORD1114Q: Rust da el visto bueno y la anota; si paró (indicador, caducidad), aquí también se cierra.
         const visto = await this.d.nativo.orden(s.token, nombre);
+        if (!visto.ok && visto.motivo === "pausa-local") {
+            // CTL1117J · S1: una pausa local NO es una parada. Lo nativo sostiene la entrada ~3 s (también las lecturas: contesta igual a toda
+            // orden) y la reanuda solo; la sesión, su token y la pantalla siguen vivos. Quien manda recibe «pausa-local» y su ventana dice «En pausa».
+            return this.respuesta(c.nonce, false, "pausa-local", nombre, c.de, s.nivel);
+        }
         if (!visto.ok) {
             if (this.sesion === s) this.sesion = null;
             this.d.alCambiar?.();
