@@ -8,8 +8,8 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
-  CAPAS_SENALES, GRUPOS_CAPA, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe,
-  type CapaSenal, type EstadoCapas, type ItemLeyenda,
+  CAPAS_SENALES, GRUPOS_CAPA, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe, rotuloRed,
+  type CapaSenal, type EstadoCapas, type ItemLeyenda, type LecturaPublicadas,
 } from "@/lib/senales/geo/capas";
 import type { EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
 import type { PermisoUbicacion } from "./use-marcas-geo";
@@ -43,6 +43,8 @@ export interface SeccionCapasProps {
   canal: Pick<EstadoCanalPosicion, "union" | "motivo">;
   onCompartir: (on: boolean) => void;
   onUbicarme: () => void;
+  /** (AUD1117 F2) Lectura de las señales publicadas: los rótulos de las capas grupo «red» salen de aquí. */
+  publicadas?: LecturaPublicadas;
 }
 
 const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
@@ -52,7 +54,7 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme }: SeccionCapasProps) {
+export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas }: SeccionCapasProps) {
   return (
     <div className="space-y-3" data-testid="seccion-senales">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Señales de mi cuenta</p>
@@ -95,6 +97,11 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
                   </span>
                   <Switch checked={on} onCheckedChange={(v) => onAlternar(c.id, v)} aria-label={`Capa ${c.etiqueta}`} />
                 </div>
+                {c.grupo === "red" && (
+                  <p className="text-[10px] leading-snug text-white/70" data-testid={`rotulo-panel-${c.id}`}>
+                    {rotuloRed(c.id, publicadas).texto}
+                  </p>
+                )}
                 {on && (
                   <>
                     <div className="flex items-center gap-2">

@@ -88,7 +88,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     onMiPosicion: datos.alMiPosicion,
     onErrorUbicacion: datos.alErrorUbicacion,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} />
+      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
