@@ -11,9 +11,15 @@ import { decidirCompartir } from "./decision-compartir";
 
 const CLAVE_AJUSTES = "starseed.malla.internet.v1";
 
-import { AJUSTES_APAGADOS } from "./almacen-ajustes";
+import { ajustesPorDefecto } from "./defectos-audiencia";
 
-export { AJUSTES_APAGADOS };
+// Valores por defecto del contrato §8.2: la malla de «mi-cuenta» va encendida y
+// sin límite; entidad y público, apagadas. Son datos fijos (no leen nada del
+// aparato), así que el primer render del servidor y del cliente es el mismo.
+// Se conserva el nombre histórico `AJUSTES_APAGADOS` para no romper las
+// importaciones que ya existían desde este módulo; el «todo apagado» sigue en
+// `almacen-ajustes.ts`.
+export const AJUSTES_APAGADOS: AjustesInternet = ajustesPorDefecto();
 
 export interface OpcionesUseAjustesInternet {
   almacen?: AlmacenAjustes & AlmacenContadores;
@@ -52,14 +58,14 @@ export function useAjustesInternet(opciones: OpcionesUseAjustesInternet = {}): R
   const ahora = ahoraFn ?? (() => Date.now());
   const desfaseMin = desfaseMinPropio;
 
-  const [ajustes, setAjustes] = useState<AjustesInternet>(AJUSTES_APAGADOS);
+  const [ajustes, setAjustes] = useState<AjustesInternet>(() => ajustesPorDefecto());
   const [contadores, setContadores] = useState<Contadores>(() => contadoresVacios(ahora(), desfaseMin));
 
   useEffect(() => {
     if (!esCliente()) return;
 
     const ahoraActual = ahora();
-    setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+    setAjustes(leerAjustes(almacenRef.current, ajustesPorDefecto()));
     setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
   }, []);
 
@@ -70,7 +76,7 @@ export function useAjustesInternet(opciones: OpcionesUseAjustesInternet = {}): R
       if (evento.key !== CLAVE_AJUSTES) return;
 
       const ahoraActual = ahora();
-      setAjustes(leerAjustes(almacenRef.current, AJUSTES_APAGADOS));
+      setAjustes(leerAjustes(almacenRef.current, ajustesPorDefecto()));
       setContadores(leerContadores(almacenRef.current, ahoraActual, desfaseMin));
     };
 
