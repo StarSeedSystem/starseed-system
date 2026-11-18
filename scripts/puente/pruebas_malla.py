@@ -38,28 +38,6 @@ SSH_MAGGABOX = "maggasukha@starseed-nodo-1.local"
 SSH_KEY = Path.home() / ".ssh" / "starseed_nodo1"
 SSH_KNOWN_HOSTS = Path.home() / ".ssh" / "known_hosts_starseed_nodo"
 
-# Patrones de log para enlaces.log y control-neuronas.log
-ENLACES_PATTERNS = {
-    "llamada": re.compile(r"llamada"),
-    "ble_evento": re.compile(r"ble (enlace-abierto|l2cap-kbps|latido|enlace-cerrado|conexion-vencida|envio-fallido)"),
-    "wifi_directo": re.compile(r"wifi-directo (descubrimiento|conectado|kbps|fallo|desconectado|rechazado)"),
-    "relevo": re.compile(r"relevo (ruta destino=|pasa |veto|bucle-cortado|rechazado)"),
-}
-
-CONTROL_PATTERNS = {
-    "sesion_abierta": re.compile(r"control-neuronas sesion-abierta"),
-    "sesion_rechazada": re.compile(r"control-neuronas sesion-rechazada motivo=(sin-indicador-nativo|interruptor-nativo-apagado)"),
-    "orden": re.compile(r"control-neuronas orden (\w+) de= resultado=(autorizada|rechazo:[\w-]+)"),
-    "sesion_parada": re.compile(r"control-neuronas sesion-parada"),
-    "pausa_local": re.compile(r"control-pausa (entra|sale)"),
-    "indicador": re.compile(r"control-indicador motivo=(mostrar|quitar)"),
-    "registro_roto": re.compile(r"control-neuronas registro-roto"),
-    "control_sesion": re.compile(r"control-sesion (inicio|fin)"),
-    "arranque": re.compile(r"(servidor-local lanzando|puerta en http://127\.0\.0\.1:|capas ok)"),
-    "arranque_error": re.compile(r"(error|panic|fatal|no se pudo|fall[oó]|EADDRINUSE|ENOENT|EACCES)"),
-    "camara": re.compile(r"camara (intento|abierta|abierta elegida|conserva|error)"),
-}
-
 
 def cargar_bateria() -> dict[str, Any]:
     """Carga la batería de pruebas desde el JSON."""
@@ -257,6 +235,24 @@ def leer_logs_tableta(inicio: str, fin: str | None = None) -> dict[str, list[str
     return resultado
 
 
+def leer_logs_malla(aparato: str, inicio: str, fin: str | None = None) -> dict[str, list[str]]:
+    """Lee logs compartidos por la malla (si la app ya los comparte).
+    Devuelve dict vacío si no hay compartición por malla."""
+    # Por ahora no hay implementación de compartición por malla;
+    # cuando exista, se leerá de la ruta compartida.
+    return {}
+
+
+def prefijo_aparato(aparato: str) -> str:
+    """Devuelve el prefijo de archivo para un aparato."""
+    if aparato == "mac":
+        return "mac-"
+    elif aparato in ("tablet", "maggaboard", "tableta"):
+        return "tableta-"
+    else:
+        return "maggabox-"
+
+
 def recoger(pid: str) -> None:
     """Copia los registros de los tres aparatos a pruebas/evidencias/<id>-<fecha>/."""
     bateria = cargar_bateria()
@@ -277,18 +273,26 @@ def recoger(pid: str) -> None:
     dir_evidencia = EVIDENCIAS_DIR / f"{pid}-{fecha}"
     dir_evidencia.mkdir(parents=True, exist_ok=True)
 
-    # Leer logs de cada aparato
-    logs_mac = leer_logs_mac(inicio)
-    logs_maggabox = leer_logs_maggabox(inicio)
-    logs_tableta = leer_logs_tableta(inicio)
+    # Leer logs de cada aparato (primero intenta malla, luego local/SSH/adb)
+    todos_logs: dict[str, dict[str, list[str]]] = {}
+    for aparato in prueba["aparatos"]:
+        logs_malla = leer_logs_malla(aparato, inicio)
+        if logs_malla and any(logs_malla.values()):
+            todos_logs[aparato] = logs_malla
+        elif aparato == "mac":
+            todos_logs[aparato] = leer_logs_mac(inicio)
+        elif aparato in ("maggabox", "maggaboard"):
+            todos_logs[aparato] = leer_logs_maggabox(inicio)
+        elif aparato in ("tablet", "tableta"):
+            todos_logs[aparato] = leer_logs_tableta(inicio)
+        else:
+            todos_logs[aparato] = {}
 
     # Guardar
-    for nombre, lineas in logs_mac.items():
-        (dir_evidencia / f"mac-{nombre}").write_text("\n".join(lineas) + "\n", encoding="utf-8")
-    for nombre, lineas in logs_maggabox.items():
-        (dir_evidencia / f"maggabox-{nombre}").write_text("\n".join(lineas) + "\n", encoding="utf-8")
-    for nombre, lineas in logs_tableta.items():
-        (dir_evidencia / f"tableta-{nombre}").write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    for aparato, logs in todos_logs.items():
+        pref = prefijo_aparato(aparato)
+        for nombre, lineas in logs.items():
+            (dir_evidencia / f"{pref}{nombre}").write_text("\n".join(lineas) + "\n", encoding="utf-8")
 
     # Metadatos
     meta = {
@@ -311,7 +315,6 @@ def recoger(pid: str) -> None:
 
 def evaluar_patrones(lineas: list[str], patrones_debe: list[str], patrones_no_debe: list[str]) -> dict[str, Any]:
     """Evalúa una lista de líneas contra patrones debe/no_debe."""
-    texto = "\n".join(lineas)
     resultados = {"debe": [], "no_debe": [], "ok": True, "lineas_prueba": []}
 
     for patron in patrones_debe:
@@ -359,17 +362,10 @@ def evaluar(pid: str) -> None:
     global_ok = True
 
     for aparato, crit in criterios.items():
-        # Determinar prefijo de archivo según aparato
-        if aparato == "mac":
-            prefijo = "mac-"
-        elif aparato in ("tablet", "maggaboard"):
-            prefijo = "tableta-"
-        else:
-            prefijo = "maggabox-"
-
         # Leer todos los logs de ese aparato en el directorio
         lineas_todas = []
-        for archivo in dir_evidencia.glob(f"{prefijo}*"):
+        pref = prefijo_aparato(aparato)
+        for archivo in dir_evidencia.glob(f"{pref}*"):
             if archivo.suffix != ".json":
                 lineas_todas.extend(archivo.read_text(encoding="utf-8", errors="ignore").splitlines())
 
@@ -451,11 +447,8 @@ def cerrar(pid: str, resultado: str, nota: str) -> None:
     print(f"Prueba {pid} cerrada con resultado {resultado}")
 
 
-def informe(ronda: int | None = None) -> None:
-    """Genera y publica un informe tabular de las pruebas."""
-    bateria = cargar_bateria()
-    registro = leer_registro()
-
+def formatear_informe(bateria: dict, registro: list[dict[str, Any]], ronda: int | None = None) -> str:
+    """Genera la tabla de informe (función pura para tests)."""
     # Estado de cada prueba
     estados = {}
     for e in registro:
@@ -482,7 +475,14 @@ def informe(ronda: int | None = None) -> None:
         est = estados.get(pid, {"resultado": "pendiente", "nota": "", "t": ""})
         lineas.append(f"| {pid} | {p['titulo']} | {est['resultado']} | {est.get('resultado', '-') } | {est['nota'][:50]} |")
 
-    tabla = "\n".join(lineas)
+    return "\n".join(lineas)
+
+
+def informe(ronda: int | None = None) -> None:
+    """Genera y publica un informe tabular de las pruebas."""
+    bateria = cargar_bateria()
+    registro = leer_registro()
+    tabla = formatear_informe(bateria, registro, ronda)
     texto = f"📊 Informe de pruebas de la malla{' (bloque ' + str(ronda) + ')' if ronda else ''}\n\n{tabla}"
     publicar_chat_director(texto, tipo="informe")
     print(tabla)

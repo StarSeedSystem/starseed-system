@@ -196,6 +196,75 @@ def test_registro_jsonl_multiples_entradas():
             PM.REGISTRO_PATH = original
 
 
+def test_prefijo_aparato():
+    """prefijo_aparato devuelve el prefijo correcto para cada aparato."""
+    assert PM.prefijo_aparato("mac") == "mac-"
+    assert PM.prefijo_aparato("tablet") == "tableta-"
+    assert PM.prefijo_aparato("maggaboard") == "tableta-"
+    assert PM.prefijo_aparato("tableta") == "tableta-"
+    assert PM.prefijo_aparato("maggabox") == "maggabox-"
+    assert PM.prefijo_aparato("otro") == "maggabox-"
+
+
+def test_formatear_informe_tabla_basica():
+    """formatear_informe genera una tabla markdown correcta."""
+    bateria = {
+        "pruebas": [
+            {"id": "B1-MT-A1", "titulo": "Test 1", "bloque": 1},
+            {"id": "B2-CT-A1", "titulo": "Test 2", "bloque": 2},
+        ]
+    }
+    registro = [
+        {"prueba": "B1-MT-A1", "accion": "cerrar", "resultado": "ok", "nota": "todo bien", "t": "2026-11-18T10:00:00Z"},
+        {"prueba": "B2-CT-A1", "accion": "empezar", "t": "2026-11-18T11:00:00Z"},
+    ]
+    tabla = PM.formatear_informe(bateria, registro)
+    assert "| ID | Título | Estado | Resultado | Nota |" in tabla
+    assert "|---|---|---|---|---|" in tabla
+    assert "B1-MT-A1" in tabla
+    assert "Test 1" in tabla
+    assert "ok" in tabla
+    assert "todo bien" in tabla
+    assert "B2-CT-A1" in tabla
+    assert "en curso" in tabla
+
+
+def test_formatear_informe_filtra_por_ronda():
+    """formatear_informe filtra por bloque/ronda cuando se especifica."""
+    bateria = {
+        "pruebas": [
+            {"id": "B1-MT-A1", "titulo": "Test 1", "bloque": 1},
+            {"id": "B2-CT-A1", "titulo": "Test 2", "bloque": 2},
+        ]
+    }
+    registro = [
+        {"prueba": "B1-MT-A1", "accion": "cerrar", "resultado": "ok", "nota": "", "t": "2026-11-18T10:00:00Z"},
+        {"prueba": "B2-CT-A1", "accion": "cerrar", "resultado": "ok", "nota": "", "t": "2026-11-18T11:00:00Z"},
+    ]
+    tabla = PM.formatear_informe(bateria, registro, ronda=1)
+    assert "B1-MT-A1" in tabla
+    assert "B2-CT-A1" not in tabla
+
+
+def test_formatear_informe_estado_evaluado():
+    """formatear_informe usa 'evaluado' cuando hay evaluación pero no cierre."""
+    bateria = {"pruebas": [{"id": "B1-MT-A1", "titulo": "Test 1", "bloque": 1}]}
+    registro = [
+        {"prueba": "B1-MT-A1", "accion": "evaluar", "veredicto": "parcial", "t": "2026-11-18T10:00:00Z"},
+    ]
+    tabla = PM.formatear_informe(bateria, registro)
+    assert "parcial" in tabla
+    assert "evaluado" in tabla
+
+
+def test_formatear_informe_pendiente():
+    """formatear_informe marca 'pendiente' para pruebas sin entradas."""
+    bateria = {"pruebas": [{"id": "B1-MT-A1", "titulo": "Test 1", "bloque": 1}]}
+    registro = []
+    tabla = PM.formatear_informe(bateria, registro)
+    assert "pendiente" in tabla
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
