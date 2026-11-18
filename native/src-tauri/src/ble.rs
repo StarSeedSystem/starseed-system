@@ -333,7 +333,7 @@ pub enum EventoRadio {
 }
 
 /// Los hitos que la radio puede anotar (lista cerrada: el texto libre va en el detalle).
-pub const NOTAS_RADIO: [&str; 24] = [
+pub const NOTAS_RADIO: [&str; 25] = [
     // BLE1110A: cambios de MTU (anterior → nuevo), anuncio que ya estaba activo (código 3) y conexión soltada para renegociar el MTU.
     "mtu-cambio",
     "anuncio-ya-activo",
@@ -359,6 +359,7 @@ pub const NOTAS_RADIO: [&str; 24] = [
     "control-sesion", // CTL1117C: el fin de una sesión de control con su motivo REAL y la edad del latido del indicador
     "control-aviso", // CTL1117G: el aviso fijo del control repuesto (descartado o ausente) y por qué falló si falló
     "control-pulso", // CTL1117G: pulso del vigía de Rust cada 30 s con sesión viva y, tras un hueco de más de 5 s, cuánto duró (proceso congelado)
+    "linux-bluez", // BLX1118A: las decisiones de la radio de Linux (turno de conexión, escaneo parado/encendido, direcciones olvidadas, anuncio LE)
     "control-pausa", // CTL1117F: entrar y salir de la pausa local (motivo y ms desde el último gesto propio), anotado por Rust sin la página
 ];
 

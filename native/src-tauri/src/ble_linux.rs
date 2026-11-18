@@ -1,4 +1,3 @@
-
 // ═══════════════════════════════════════════════════════════════════════════
 // ble_linux — la radio Bluetooth de Linux (BlueZ por D-Bus) para el núcleo de `ble.rs` (LNX1109B · 2026-11-09).
 // ---------------------------------------------------------------------------
@@ -78,6 +77,14 @@ static CONEXION: OnceLock<Connection> = OnceLock::new();
 static ORDENES: OnceLock<Mutex<Sender<Orden>>> = OnceLock::new();
 static UUID_ANUNCIO: Mutex<String> = Mutex::new(String::new());
 static PSM_PUBLICADO: AtomicU16 = AtomicU16::new(0);
+/// (BLX1118A) El turno de conexión como central (una a la vez) y la marca de «escaneo parado a propósito».
+static TURNO: Mutex<Option<lg::Turno>> = Mutex::new(None);
+static ESCANEO_PAUSADO: AtomicBool = AtomicBool::new(false);
+
+fn turno<T>(f: impl FnOnce(&mut lg::Turno) -> T) -> T {
+    let mut g = TURNO.lock().unwrap_or_else(|e| e.into_inner());
+    f(g.get_or_insert_with(lg::Turno::default))
+}
 
 fn enlaces<T>(f: impl FnOnce(&mut HashMap<String, Enlace>) -> T) -> T {
     let mut g = ENLACES.lock().unwrap_or_else(|e| e.into_inner());
@@ -533,19 +540,87 @@ fn hilo_lector(plat: &str, fd: Option<OwnedFd>, central: bool, parar: &AtomicBoo
 }
 
 /// Central: conectar, descubrir, suscribirse a SALIDA con `AcquireNotify` y leer el PSM.
-fn conectar_central(c: &Connection, ad: &str, dir: &str) -> Result<(), String> {
-    let plat = lg::plataforma('c', dir).ok_or("dirección no válida")?;
+/// (BLX1118A) Anota una decisión de la radio de Linux en el registro (tipo `linux-bluez`).
+fn dec(plataforma: Option<&str>, texto: &str) {
+    nucleo::nota(plataforma, "linux-bluez", texto);
+}
+
+fn ahora_ms() -> u64 {
+    static INICIO: OnceLock<Instant> = OnceLock::new();
+    INICIO.get_or_init(Instant::now).elapsed().as_millis() as u64
+}
+
+fn fallo(t: impl Into<String>) -> (lg::ResultadoConnect, String) {
+    (lg::ResultadoConnect::Fallo, t.into())
+}
+
+fn conectado_o_perdido(c: &Connection, ruta: &str) -> Result<Option<bool>, String> {
+    let o = objetos(c)?;
+    Ok(prop(&o, ruta, lg::IF_DISPOSITIVO).map(|p| v_bool(p, "Connected") == Some(true)))
+}
+
+/// `Device1.Connect`. Un `InProgress` NO es un fallo: ya hay una conexión a medias con ese aparato y se espera a que acabe
+/// (hasta `PLAZO_EN_CURSO_MS`); `AlreadyConnected` sigue con los servicios; lo demás se devuelve clasificado.
+fn abrir_conexion(c: &Connection, ruta: &str, plat: &str) -> Result<(), (lg::ResultadoConnect, String)> {
+    let dev = proxy(c, ruta, lg::IF_DISPOSITIVO).map_err(|e| fallo(txt(e)))?;
+    let e = match dev.call::<_, _, ()>("Connect", &()) {
+        Ok(()) => return Ok(()),
+        Err(e) => e,
+    };
+    let r = lg::clasificar_connect(&format!("{e:?}"), &e.to_string());
+    match r {
+        lg::ResultadoConnect::YaConectado => {
+            dec(Some(plat), "Connect: BlueZ dice que ya estaba conectado; sigo con los servicios");
+            Ok(())
+        }
+        lg::ResultadoConnect::Espera => {
+            dec(Some(plat), &format!("Connect: «InProgress» (ya había una conexión a medias con este aparato). No lo cuento como fallo ni lanzo otra: espero hasta {} s a que acabe", lg::PLAZO_EN_CURSO_MS / 1000));
+            let limite = Instant::now() + Duration::from_millis(lg::PLAZO_EN_CURSO_MS);
+            loop {
+                match conectado_o_perdido(c, ruta).map_err(fallo)? {
+                    Some(true) => {
+                        dec(Some(plat), "la conexión a medias terminó: el aparato está conectado");
+                        return Ok(());
+                    }
+                    None => return Err((lg::ResultadoConnect::ObjetoPerdido, "BlueZ olvidó el dispositivo mientras la conexión estaba en curso".into())),
+                    Some(false) => {}
+                }
+                if Instant::now() > limite {
+                    let _ = dev.call::<_, _, ()>("Disconnect", &());
+                    return Err((lg::ResultadoConnect::Espera, format!("la conexión en curso no terminó en {} s; la cancelo", lg::PLAZO_EN_CURSO_MS / 1000)));
+                }
+                std::thread::sleep(Duration::from_millis(300));
+            }
+        }
+        otro => Err((otro, format!("no se pudo conectar: {e}"))),
+    }
+}
+
+fn conectar_central(c: &Connection, ad: &str, dir: &str) -> Result<(), (lg::ResultadoConnect, String)> {
+    let plat = lg::plataforma('c', dir).ok_or_else(|| fallo("dirección no válida"))?;
     if enlaces(|e| e.contains_key(&plat)) {
         return Ok(());
     }
-    let ruta = lg::ruta_dispositivo(ad, dir).ok_or("dirección no válida")?;
-    let dev = proxy(c, &ruta, lg::IF_DISPOSITIVO).map_err(txt)?;
-    dev.call::<_, _, ()>("Connect", &()).map_err(|e| format!("no se pudo conectar: {e}"))?;
-    let limite = Instant::now() + Duration::from_secs(10);
+    let ruta = lg::ruta_dispositivo(ad, dir).ok_or_else(|| fallo("dirección no válida"))?;
+    abrir_conexion(c, &ruta, &plat)?;
+    servicios_y_suscripcion(c, dir, &plat, &ruta).map_err(fallo)
+}
+
+/// Tras conectar: servicios (hasta `PLAZO_SERVICIOS_MS`), PSM y suscripción a SALIDA.
+fn servicios_y_suscripcion(c: &Connection, dir: &str, plat: &str, ruta: &str) -> Result<(), String> {
+    let plat = plat.to_string();
+    let dev = proxy(c, ruta, lg::IF_DISPOSITIVO).map_err(txt)?;
+    let limite = Instant::now() + Duration::from_millis(lg::PLAZO_SERVICIOS_MS);
     loop {
         let o = objetos(c)?;
-        if prop(&o, &ruta, lg::IF_DISPOSITIVO).and_then(|p| v_bool(p, "ServicesResolved")) == Some(true) {
+        let Some(d) = prop(&o, ruta, lg::IF_DISPOSITIVO) else {
+            return Err("BlueZ olvidó el dispositivo mientras descubría sus servicios".into());
+        };
+        if v_bool(d, "ServicesResolved") == Some(true) {
             break;
+        }
+        if v_bool(d, "Connected") == Some(false) {
+            return Err("el otro aparato se desconectó mientras BlueZ descubría sus servicios".into());
         }
         if Instant::now() > limite {
             let _ = dev.call::<_, _, ()>("Disconnect", &());
@@ -822,6 +897,12 @@ struct Marcha {
     anunciando: bool,
     escucha_l2cap: bool,
     descubriendo: bool,
+    /// (BLX1118A) Qué direcciones se oyen de verdad (y desde cuándo cambian), cuándo arrancó la vigilancia y cuándo se reinició el escaneo.
+    oidos: lg::Oidos,
+    desde_ms: u64,
+    ultima_reexploracion: Option<u64>,
+    anuncio_dicho: bool,
+    ultimo_fallo_anuncio: String,
 }
 
 fn hilo_principal(rx: Receiver<Orden>) {
@@ -851,15 +932,7 @@ fn hilo_principal(rx: Receiver<Orden>) {
             }
             Ok(Orden::Conectar(dir)) => {
                 if let (true, Some(m)) = (activo, marcha.as_ref()) {
-                    let (c, ad) = (m.conn.clone(), m.adaptador.clone());
-                    let _ = std::thread::Builder::new().name("starseed-ble-conecta".into()).spawn(move || {
-                        if let Err(e) = conectar_central(&c, &ad, &dir) {
-                            eprintln!("[ble-linux] conectar {dir}: {e}");
-                            if let Some(p) = lg::plataforma('c', &dir) {
-                                nucleo::nota(Some(&p), "sin-suscripcion", &e);
-                            }
-                        }
-                    });
+                    pedir_conexion(m.conn.clone(), m.adaptador.clone(), dir);
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -899,6 +972,154 @@ fn hilo_principal(rx: Receiver<Orden>) {
     }
 }
 
+// ───────────────────────────── Conectar como central (BLX1118A) ─────────────────────────────
+
+/// El escaneo parado mientras se conecta: al soltarse (también si el intento falla) se enciende de nuevo, con su filtro.
+struct PausaEscaneo {
+    c: Connection,
+    ad: String,
+    plat: String,
+}
+
+fn iniciar_descubrimiento(c: &Connection, ad: &str) -> Result<(), zbus::Error> {
+    let a = proxy(c, ad, lg::IF_ADAPTADOR)?;
+    let mut filtro: HashMap<&str, Value> = HashMap::new();
+    filtro.insert("Transport", Value::from("le"));
+    filtro.insert("DuplicateData", Value::from(true));
+    let _ = a.call::<_, _, ()>("SetDiscoveryFilter", &(filtro,));
+    match a.call::<_, _, ()>("StartDiscovery", &()) {
+        Err(e) if format!("{e:?}").contains("InProgress") => Ok(()),
+        otro => otro,
+    }
+}
+
+fn descubriendo_ahora(c: &Connection, ad: &str) -> Option<bool> {
+    let o = objetos(c).ok()?;
+    prop(&o, ad, lg::IF_ADAPTADOR).and_then(|p| v_bool(p, "Discovering"))
+}
+
+impl PausaEscaneo {
+    fn nueva(c: &Connection, ad: &str, plat: &str) -> Self {
+        ESCANEO_PAUSADO.store(true, Ordering::SeqCst);
+        if let Ok(a) = proxy(c, ad, lg::IF_ADAPTADOR) {
+            let _ = a.call::<_, _, ()>("StopDiscovery", &());
+        }
+        std::thread::sleep(Duration::from_millis(300));
+        match descubriendo_ahora(c, ad) {
+            Some(true) => dec(
+                Some(plat),
+                "escaneo: lo paré antes de conectar, pero BlueZ sigue escaneando porque otro programa lo mantiene encendido (bluetoothctl, el applet del escritorio...). Con un controlador antiguo eso puede abortar la conexión: ciérralo",
+            ),
+            _ => dec(Some(plat), "escaneo: parado antes de conectar (un controlador antiguo no sabe explorar y conectar a la vez)"),
+        }
+        PausaEscaneo { c: c.clone(), ad: ad.to_string(), plat: plat.to_string() }
+    }
+}
+
+impl Drop for PausaEscaneo {
+    fn drop(&mut self) {
+        ESCANEO_PAUSADO.store(false, Ordering::SeqCst);
+        match iniciar_descubrimiento(&self.c, &self.ad) {
+            Ok(()) => dec(Some(&self.plat), "escaneo: encendido de nuevo tras el intento"),
+            Err(e) => dec(Some(&self.plat), &format!("escaneo: no se pudo encender de nuevo ({e}); lo reintenta la vigilancia")),
+        }
+    }
+}
+
+/// Una petición del núcleo: empieza ya, queda en cola o se descarta por repetida (nunca dos a la vez).
+fn pedir_conexion(c: Connection, ad: String, dir: String) {
+    let plat = lg::plataforma('c', &dir);
+    let r = turno(|t| (t.pedir(&dir, ahora_ms()), t.en_curso().map(String::from)));
+    match r {
+        (lg::Peticion::Repetida, _) => dec(plat.as_deref(), &format!("conectar {dir}: ya hay una petición para esa dirección; no lanzo otra")),
+        (lg::Peticion::EnCola, en_curso) => dec(
+            plat.as_deref(),
+            &format!("conectar {dir}: espera su turno (hay una conexión en curso con {}); una a la vez", en_curso.unwrap_or_default()),
+        ),
+        (lg::Peticion::Empezar, _) => {
+            let _ = std::thread::Builder::new().name("starseed-ble-conecta".into()).spawn(move || trabajador_conexion(c, ad, dir));
+        }
+    }
+}
+
+fn trabajador_conexion(c: Connection, ad: String, primera: String) {
+    let mut dir = primera;
+    let mut seguidos: u32 = 0;
+    loop {
+        let res = intento_conexion(&c, &ad, &dir);
+        match res {
+            None => seguidos = 0,
+            Some(r) => {
+                seguidos = if matches!(r, lg::ResultadoConnect::Espera | lg::ResultadoConnect::YaConectado) { 0 } else { seguidos.saturating_add(1) };
+                let pausa = lg::pausa_tras_fallo_ms(r, seguidos);
+                if pausa > 0 {
+                    if let Some(p) = lg::plataforma('c', &dir) {
+                        dec(Some(&p), &format!("central: descanso {pausa} ms antes de aceptar otra conexión ({} seguidos: {})", seguidos, r.etiqueta()));
+                    }
+                    std::thread::sleep(Duration::from_millis(pausa));
+                }
+            }
+        }
+        match turno(|t| t.terminar(ahora_ms())) {
+            Some(siguiente) => dir = siguiente,
+            None => return,
+        }
+    }
+}
+
+/// Un intento completo con una dirección. `None` = hubo enlace (o ya lo había); `Some(r)` = por qué no.
+fn intento_conexion(c: &Connection, ad: &str, dir: &str) -> Option<lg::ResultadoConnect> {
+    let plat = lg::plataforma('c', dir)?;
+    let ruta = lg::ruta_dispositivo(ad, dir)?;
+    // El objeto debe seguir en BlueZ: si lo olvidó, no se intenta (y se vuelve a explorar).
+    let existe = objetos(c).map(|o| prop(&o, &ruta, lg::IF_DISPOSITIVO).is_some()).unwrap_or(true);
+    if !existe {
+        dec(Some(&plat), &format!("conectar {dir}: BlueZ ya olvidó ese dispositivo (UnknownObject); lo quito del vecindario y vuelvo a explorar"));
+        nucleo::olvidar_vecino(dir);
+        reexplorar(c, ad, Some(&plat), "dispositivo olvidado por BlueZ");
+        return Some(lg::ResultadoConnect::ObjetoPerdido);
+    }
+    let resultado = {
+        let _pausa = PausaEscaneo::nueva(c, ad, &plat);
+        let t0 = Instant::now();
+        let r = conectar_central(c, ad, dir);
+        if r.is_ok() {
+            dec(Some(&plat), &format!("central: enlace listo con {dir} en {} ms", t0.elapsed().as_millis()));
+        }
+        r
+    };
+    match resultado {
+        Ok(()) => None,
+        Err((r, texto)) => {
+            eprintln!("[ble-linux] conectar {dir}: {texto}");
+            nucleo::nota(Some(&plat), "sin-suscripcion", &texto);
+            dec(Some(&plat), &format!("central: {dir} no enlazó ({}): {texto}", r.etiqueta()));
+            if r == lg::ResultadoConnect::ObjetoPerdido {
+                nucleo::olvidar_vecino(dir);
+                turno(|t| t.quitar(dir));
+                dec(Some(&plat), "central: quito esa dirección del vecindario; se volverá a probar cuando llegue un anuncio nuevo de esa neurona");
+            }
+            // El escaneo ya se encendió de nuevo al soltar la pausa: eso es, a la vez, el «volver a explorar».
+            if lg::reexplorar_tras(r) {
+                dec(Some(&plat), "central: el escaneo se reinició para volver a encontrar al otro aparato");
+            }
+            Some(r)
+        }
+    }
+}
+
+/// Parar y encender el escaneo (cuando el objeto desapareció o el escaneo lleva mudo mucho tiempo).
+fn reexplorar(c: &Connection, ad: &str, plat: Option<&str>, motivo: &str) {
+    if let Ok(a) = proxy(c, ad, lg::IF_ADAPTADOR) {
+        let _ = a.call::<_, _, ()>("StopDiscovery", &());
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    match iniciar_descubrimiento(c, ad) {
+        Ok(()) => nucleo::nota(plat, "redescubriendo", &format!("Linux: escaneo reiniciado ({motivo})")),
+        Err(e) => nucleo::nota(plat, "redescubriendo", &format!("Linux: no se pudo reiniciar el escaneo ({motivo}): {e}")),
+    }
+}
+
 fn arrancar_marcha() -> Result<Marcha, (&'static str, String)> {
     let conn = match CONEXION.get() {
         Some(c) => c.clone(),
@@ -914,7 +1135,7 @@ fn arrancar_marcha() -> Result<Marcha, (&'static str, String)> {
     *ADAPTADOR.lock().unwrap_or_else(|e| e.into_inner()) = Some(ad.clone());
     let (estado, motivo) = lg::estado_adaptador(true, encendido);
     informar(estado, &motivo);
-    Ok(Marcha { conn, adaptador: ad, encendido, gatt: false, anunciando: false, escucha_l2cap: false, descubriendo: false })
+    Ok(Marcha { conn, adaptador: ad, encendido, gatt: false, anunciando: false, escucha_l2cap: false, descubriendo: false, oidos: lg::Oidos::default(), desde_ms: ahora_ms(), ultima_reexploracion: None, anuncio_dicho: false, ultimo_fallo_anuncio: String::new() })
 }
 
 fn parar_marcha(m: &mut Marcha) {
@@ -973,25 +1194,45 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
     // El anuncio (rota con `anunciar`).
     if !m.anunciando && !UUID_ANUNCIO.lock().unwrap_or_else(|e| e.into_inner()).is_empty() {
         match registrar_anuncio(&m.conn, &m.adaptador) {
-            Ok(()) => m.anunciando = true,
+            Ok(()) => {
+                m.anunciando = true;
+                if !m.anuncio_dicho {
+                    m.anuncio_dicho = true;
+                    dec(None, "periférico: anuncio LE registrado en BlueZ (el aparato puede ser periférico: la aplicación GATT, el anuncio y el canal L2CAP propio están puestos)");
+                }
+            }
             Err(e) if format!("{e:?}").contains("AlreadyExists") => m.anunciando = true,
-            Err(e) => eprintln!("[ble-linux] RegisterAdvertisement: {e}"),
+            Err(e) => {
+                eprintln!("[ble-linux] RegisterAdvertisement: {e}");
+                let t = format!("periférico: BlueZ no aceptó el anuncio LE ({e}); sin anuncio no puede ser periférico de nadie");
+                if t != m.ultimo_fallo_anuncio {
+                    dec(None, &t);
+                    m.ultimo_fallo_anuncio = t;
+                }
+            }
         }
     }
-    // Escaneo LE.
-    if !m.descubriendo {
-        let a = proxy(&m.conn, &m.adaptador, lg::IF_ADAPTADOR).map_err(txt)?;
-        let mut filtro: HashMap<&str, Value> = HashMap::new();
-        filtro.insert("Transport", Value::from("le"));
-        filtro.insert("DuplicateData", Value::from(true));
-        let _ = a.call::<_, _, ()>("SetDiscoveryFilter", &(filtro,));
-        match a.call::<_, _, ()>("StartDiscovery", &()) {
-            Ok(()) => m.descubriendo = true,
-            Err(e) if format!("{e:?}").contains("InProgress") => m.descubriendo = true,
-            Err(e) => {
-                let (estado, motivo) = clasificar(&e);
-                informar(estado, &motivo);
+    // Escaneo LE. Se mira lo que BlueZ dice de verdad (`Discovering`): si el escaneo se paró solo (o lo paró una conexión
+    // fallida) se vuelve a encender, en vez de dar por bueno lo que se hizo la primera vez. Mientras una conexión
+    // lo tiene parado a propósito, no se toca.
+    if !ESCANEO_PAUSADO.load(Ordering::SeqCst) {
+        m.descubriendo = prop(&o, &m.adaptador, lg::IF_ADAPTADOR).and_then(|p| v_bool(p, "Discovering")) == Some(true);
+        if !m.descubriendo {
+            match iniciar_descubrimiento(&m.conn, &m.adaptador) {
+                Ok(()) => m.descubriendo = true,
+                Err(e) => {
+                    let (estado, motivo) = clasificar(&e);
+                    informar(estado, &motivo);
+                }
             }
+        }
+    }
+    let ahora = ahora_ms();
+    // Escaneo mudo: «Discovering: yes» pero ningún anuncio nuevo desde hace mucho → parar y encender.
+    if !ESCANEO_PAUSADO.load(Ordering::SeqCst) {
+        if let Some(seg) = lg::escaneo_mudo(ahora, m.desde_ms, m.oidos.ultimo_cambio(), m.ultima_reexploracion) {
+            m.ultima_reexploracion = Some(ahora);
+            reexplorar(&m.conn, &m.adaptador, None, &format!("{seg} s sin oír ningún anuncio nuevo de StarSeed"));
         }
     }
     // Vecinos y enlaces caídos.
@@ -999,7 +1240,12 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
         let Some(d) = ifs.iter().find(|(i, _)| i.as_str() == lg::IF_DISPOSITIVO).map(|(_, p)| p) else { continue };
         let Some(dir) = lg::direccion_de_ruta(r.as_str()) else { continue };
         if let (Some(uuid), Some(rssi)) = (lg::uuid_de_anuncio(&v_textos(d, "UUIDs")), v_i16(d, "RSSI")) {
-            nucleo::al_ver(&dir, &uuid, rssi);
+            // BlueZ guarda el último RSSI de una dirección en su caché aunque ya no se oiga (la privada vieja de una neurona
+            // convive con la nueva): solo se da por vista la que cambia. Así el núcleo elige la dirección que SÍ se oye.
+            match m.oidos.observar(&dir, uuid, rssi, ahora) {
+                lg::Frescura::Fresca => nucleo::al_ver(&dir, &uuid, rssi),
+                lg::Frescura::Caducada => {}
+            }
         }
         if v_bool(d, "Connected") == Some(false) {
             for rol in ['c', 'p'] {
@@ -1010,6 +1256,19 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
                 }
             }
         }
+    }
+    // Las direcciones que ya no se oyen (y no están conectadas ni en turno) se olvidan: se quitan de BlueZ y del núcleo.
+    let en_turno = turno(|t| t.en_curso().map(String::from));
+    let conectadas: Vec<String> = enlaces(|e| e.values().map(|l| l.direccion.clone()).collect());
+    let viejas = m.oidos.olvidables(ahora, &|d: &str| en_turno.as_deref() == Some(d) || conectadas.iter().any(|c| c == d));
+    for dir in viejas {
+        let Some(ruta) = lg::ruta_dispositivo(&m.adaptador, &dir) else { continue };
+        if let (Ok(a), Ok(op)) = (proxy(&m.conn, &m.adaptador, lg::IF_ADAPTADOR), ObjectPath::try_from(ruta.as_str())) {
+            let _ = a.call::<_, _, ()>("RemoveDevice", &(op,));
+        }
+        nucleo::olvidar_vecino(&dir);
+        turno(|t| t.quitar(&dir));
+        dec(lg::plataforma('c', &dir).as_deref(), &format!("vecindario: {dir} no se oye hace {} s; la olvido (BlueZ y núcleo)", lg::OLVIDAR_MS / 1000));
     }
     Ok(())
 }

@@ -1048,11 +1048,16 @@ impl Vecindario {
         self.intentos.get(direccion).map(|(_, f)| *f).unwrap_or(0)
     }
 
+    /// (BLX1118A) ¿Ese aparato aún está en la espera de su último intento fallido?
+    fn en_espera(&self, direccion: &str, ahora_ms: u64) -> bool {
+        self.intentos.get(direccion).is_some_and(|(t, f)| ahora_ms.saturating_sub(*t) < espera_reconexion(*f))
+    }
+
     /// A qué aparatos conectar SOLO ahora (como central): neuronas de TU cuenta que anuncian el
     /// servidor abierto, con señal suficiente, sin enlace ya, sin intento en los últimos 20 s y con
     /// sitio. Si las dos neuronas se conocen por id, conecta la de id MENOR (`conecto_yo`); si este
     /// aparato no sabe aún qué neurona es la otra (le falta en «conocidas»), conecta igual: es de tu
-    /// cuenta. Una por llamada a cada neurona (la de mejor señal).
+    /// cuenta. Una por llamada a cada neurona (la dirección vista más recientemente; a igual edad, la de mejor señal).
     pub fn a_conectar(
         &self,
         mi_neurona: Option<&str>,
@@ -1063,32 +1068,44 @@ impl Vecindario {
         let mut out: Vec<String> = Vec::new();
         let mut neuronas: Vec<String> = Vec::new();
         let mut sitio = MAX_ENLACES.saturating_sub(enlaces_abiertos);
-        for v in self.lista() {
+        // (BLX1118A) Primero lo conectable; después se elige UNA dirección por neurona. Una neurona puede oírse con
+        // dos direcciones a la vez (la privada que rota: BlueZ guarda la vieja y la nueva): se prueba la VISTA MÁS
+        // RECIENTEMENTE (y, a igual edad, la de mejor señal), y la espera entre intentos cuenta por NEURONA, no por
+        // dirección: así dos direcciones de la misma neurona no se pisan ni alternan saltándose la espera.
+        let lista = self.lista();
+        let conectables: Vec<&VecinoVisto> = lista
+            .iter()
+            .filter(|v| v.propia && v.flags & FLAG_SERVIDOR != 0 && v.rssi >= RSSI_MINIMO)
+            .filter(|v| match (mi_neurona, v.neurona.as_deref()) {
+                (Some(mia), Some(suya)) => mia != suya && conecto_yo(mia, suya),
+                _ => true,
+            })
+            .filter(|v| !enlazada(*v))
+            .collect();
+        for v in &conectables {
             if sitio == 0 {
                 break;
-            }
-            if !v.propia || v.flags & FLAG_SERVIDOR == 0 || v.rssi < RSSI_MINIMO {
-                continue;
-            }
-            if let (Some(mia), Some(suya)) = (mi_neurona, v.neurona.as_deref()) {
-                if mia == suya || !conecto_yo(mia, suya) {
-                    continue;
-                }
-            }
-            if enlazada(&v) {
-                continue;
             }
             if let Some(n) = &v.neurona {
                 if neuronas.contains(n) {
                     continue;
                 }
                 neuronas.push(n.clone());
+                let hermanas = || conectables.iter().filter(|o| o.neurona.as_ref() == Some(n));
+                if hermanas().any(|o| self.en_espera(&o.direccion, ahora_ms)) {
+                    continue;
+                }
+                if let Some(mejor) = hermanas().max_by(|a, b| a.visto_ms.cmp(&b.visto_ms).then_with(|| a.rssi.cmp(&b.rssi))) {
+                    out.push(mejor.direccion.clone());
+                    sitio -= 1;
+                }
+            } else {
+                if self.en_espera(&v.direccion, ahora_ms) {
+                    continue;
+                }
+                out.push(v.direccion.clone());
+                sitio -= 1;
             }
-            if self.intentos.get(&v.direccion).is_some_and(|(t, f)| ahora_ms.saturating_sub(*t) < espera_reconexion(*f)) {
-                continue;
-            }
-            out.push(v.direccion.clone());
-            sitio -= 1;
         }
         out
     }
@@ -1425,6 +1442,29 @@ mod pruebas {
         assert!(id_vecino("AA:01").starts_with('v') && id_vecino("AA:01").len() == 9);
         assert!(v.caducar(1_500 + CADUCA_VECINO_MS));
         assert!(v.lista().is_empty());
+    }
+
+    #[test]
+    fn dos_direcciones_de_una_neurona_se_prueban_de_una_en_una_y_con_la_mas_reciente() {
+        // (BLX1118A) BlueZ guarda la dirección privada vieja y la nueva de la tableta: la de mejor señal es la VIEJA.
+        let mut v = Vecindario::nuevo();
+        let anuncio = construir_anuncio(Some(&CLAVE), Some("m-tablet"), TipoAparato::Android, FLAG_SERVIDOR, T, [1; 4]);
+        let ids = vec!["m-tablet".to_string(), "a-mac".to_string()];
+        v.ver("VIEJA", &anuncio, -50, 1_000, T, Some(&CLAVE), &ids);
+        v.ver("NUEVA", &anuncio, -70, 9_000, T, Some(&CLAVE), &ids);
+        let nada = |_: &VecinoVisto| false;
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, 10_000), vec!["NUEVA".to_string()], "la más reciente, aunque suene menos");
+        // Tras el intento, la espera vale para la neurona: la otra dirección no se prueba «a la vez» ni de seguida.
+        v.marcar_intento("NUEVA", 10_000);
+        assert!(v.a_conectar(Some("a-mac"), &nada, 0, 10_001).is_empty());
+        assert!(v.a_conectar(Some("a-mac"), &nada, 0, 11_999).is_empty());
+        // Si la más reciente deja de oírse (BlueZ la olvidó), se vuelve a la otra cuando toque.
+        v.olvidar("NUEVA");
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, 12_000), vec!["VIEJA".to_string()]);
+        // A igual edad manda la señal.
+        v.ver("NUEVA", &anuncio, -60, 1_000, T, Some(&CLAVE), &ids);
+        v.ver("VIEJA", &anuncio, -50, 1_000, T, Some(&CLAVE), &ids);
+        assert_eq!(v.a_conectar(Some("a-mac"), &nada, 0, 12_000), vec!["VIEJA".to_string()]);
     }
 
     #[test]

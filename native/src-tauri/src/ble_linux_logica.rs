@@ -15,6 +15,8 @@
 
 #![allow(dead_code)]
 
+use std::collections::HashMap;
+
 use crate::ble_l2cap as l2;
 use crate::ble_trama as bt;
 
@@ -225,6 +227,224 @@ pub fn estado_adaptador(hay: bool, encendido: bool) -> (&'static str, String) {
     ("encendida", String::new())
 }
 
+// ─────────────────────────────── Conexión como central (BLX1118A) ───────────────────────────────
+//
+// Lo que pasó en el nodo (Mac mini 2011, BlueZ 5.82): el núcleo pedía conectar con dos direcciones de la MISMA tableta
+// (la privada vieja y la nueva), cada petición lanzaba un hilo con `Device1.Connect` mientras el escaneo seguía
+// encendido, y los errores (`InProgress`, `le-connection-abort-by-local`, `UnknownObject`) se trataban todos igual:
+// «falló» y a volver a pedir. Aquí está lo que decide qué hacer con cada uno, sin radio.
+
+/// Qué significó la respuesta de `Device1.Connect` (o de lo que vino después).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultadoConnect {
+    /// `InProgress`: ya hay una conexión a medias con ese dispositivo. NO es un fallo: se espera a que acabe.
+    Espera,
+    /// `le-connection-abort-by-local`: BlueZ/el controlador abortó el intento (típico con el escaneo encendido en
+    /// controladores que no pueden explorar y conectar a la vez, o con dos conexiones LE pendientes).
+    AbortoLocal,
+    /// `UnknownObject`/«doesn't exist»: BlueZ ya olvidó ese dispositivo (caducó en su caché). Hay que volver a explorar.
+    ObjetoPerdido,
+    /// `AlreadyConnected`: ya estaba conectado; se sigue con los servicios.
+    YaConectado,
+    /// Cualquier otro error.
+    Fallo,
+}
+
+pub fn clasificar_connect(nombre: &str, mensaje: &str) -> ResultadoConnect {
+    let n = nombre.to_ascii_lowercase();
+    let m = mensaje.to_ascii_lowercase();
+    if n.contains("unknownobject") || m.contains("doesn't exist") || m.contains("does not exist") || m.contains("no such device") {
+        ResultadoConnect::ObjetoPerdido
+    } else if n.contains("inprogress") || m.contains("in progress") {
+        ResultadoConnect::Espera
+    } else if m.contains("abort-by-local") || m.contains("abort by local") {
+        ResultadoConnect::AbortoLocal
+    } else if n.contains("alreadyconnected") || m.contains("already connected") {
+        ResultadoConnect::YaConectado
+    } else {
+        ResultadoConnect::Fallo
+    }
+}
+
+impl ResultadoConnect {
+    pub fn etiqueta(self) -> &'static str {
+        match self {
+            Self::Espera => "en-curso",
+            Self::AbortoLocal => "abortado-por-el-controlador",
+            Self::ObjetoPerdido => "dispositivo-olvidado-por-bluez",
+            Self::YaConectado => "ya-conectado",
+            Self::Fallo => "fallo",
+        }
+    }
+}
+
+/// Cuánto descansar antes de aceptar otra conexión tras `seguidos` fallos seguidos (contando este) de ese tipo.
+/// `Espera` y `YaConectado` no son fallos: 0. El aborto del controlador pide soltarlo un rato (2 s, 4 s… tope 20 s);
+/// un dispositivo olvidado, medio segundo (lo que importa es volver a explorar); lo demás, 1 s por fallo con tope 10 s.
+pub fn pausa_tras_fallo_ms(r: ResultadoConnect, seguidos: u32) -> u64 {
+    let n = seguidos.max(1) as u64;
+    match r {
+        ResultadoConnect::Espera | ResultadoConnect::YaConectado => 0,
+        ResultadoConnect::AbortoLocal => (2_000 * n).min(20_000),
+        ResultadoConnect::ObjetoPerdido => 500,
+        ResultadoConnect::Fallo => (1_000 * n).min(10_000),
+    }
+}
+
+/// ¿Se vuelve a explorar (parar y encender el escaneo) tras ese resultado? Con el escaneo parado por la conexión y
+/// el objeto perdido o el aborto, el controlador queda a veces con el escaneo «encendido» pero mudo.
+pub fn reexplorar_tras(r: ResultadoConnect) -> bool {
+    matches!(r, ResultadoConnect::AbortoLocal | ResultadoConnect::ObjetoPerdido)
+}
+
+/// Plazo para que BlueZ termine de descubrir los servicios tras conectar (controladores antiguos: lento).
+pub const PLAZO_SERVICIOS_MS: u64 = 20_000;
+/// Plazo para esperar un `InProgress` hasta que el dispositivo quede conectado.
+pub const PLAZO_EN_CURSO_MS: u64 = 20_000;
+
+/// El turno de conexión: UNA conexión a la vez en todo el adaptador (los controladores antiguos solo admiten una
+/// conexión LE pendiente) y, por dirección, nunca dos peticiones. Lo que llega mientras hay una en curso se guarda
+/// (solo la última por dirección; máximo `MAX_COLA`) y se atiende al terminar.
+#[derive(Debug, Default)]
+pub struct Turno {
+    en_curso: Option<(String, u64)>,
+    cola: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Peticion {
+    /// Esta petición empieza ahora.
+    Empezar,
+    /// Ya hay otra en curso: queda en cola.
+    EnCola,
+    /// Esa misma dirección ya está en curso o en cola: no se repite.
+    Repetida,
+}
+
+pub const MAX_COLA: usize = 4;
+/// Un turno que lleva más de esto «en curso» se da por colgado (el hilo murió) y se libera.
+pub const TURNO_VENCE_MS: u64 = 90_000;
+
+impl Turno {
+    pub fn pedir(&mut self, direccion: &str, ahora: u64) -> Peticion {
+        if let Some((_, desde)) = &self.en_curso {
+            if ahora.saturating_sub(*desde) > TURNO_VENCE_MS {
+                self.en_curso = None;
+            }
+        }
+        match &self.en_curso {
+            None => {
+                self.en_curso = Some((direccion.to_string(), ahora));
+                Peticion::Empezar
+            }
+            Some((d, _)) if d == direccion => Peticion::Repetida,
+            Some(_) if self.cola.iter().any(|c| c == direccion) => Peticion::Repetida,
+            Some(_) => {
+                if self.cola.len() >= MAX_COLA {
+                    self.cola.remove(0);
+                }
+                self.cola.push(direccion.to_string());
+                Peticion::EnCola
+            }
+        }
+    }
+
+    /// El intento en curso terminó: devuelve la siguiente dirección (que pasa a estar en curso), si la hay.
+    pub fn terminar(&mut self, ahora: u64) -> Option<String> {
+        self.en_curso = None;
+        if self.cola.is_empty() {
+            return None;
+        }
+        let d = self.cola.remove(0);
+        self.en_curso = Some((d.clone(), ahora));
+        Some(d)
+    }
+
+    pub fn en_curso(&self) -> Option<&str> {
+        self.en_curso.as_ref().map(|(d, _)| d.as_str())
+    }
+
+    /// Una dirección que se olvidó (caducó en BlueZ) sale de la cola.
+    pub fn quitar(&mut self, direccion: &str) {
+        self.cola.retain(|c| c != direccion);
+    }
+}
+
+/// Una dirección sin cambios en su señal ni en su UUID de anuncio durante tanto tiempo ya no se está oyendo: BlueZ
+/// conserva el último `RSSI` de un dispositivo en su caché y, sin esto, `vigilar` lo seguía dando por «visto».
+pub const FRESCO_MS: u64 = 30_000;
+/// Pasado esto sin oírla (y sin estar conectada ni en turno), la dirección se olvida: se quita de BlueZ y del núcleo.
+pub const OLVIDAR_MS: u64 = 60_000;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Frescura {
+    Fresca,
+    Caducada,
+}
+
+#[derive(Debug, Default)]
+pub struct Oidos {
+    marcas: HashMap<String, (i16, [u8; 16], u64)>,
+}
+
+impl Oidos {
+    /// Una lectura del estado de BlueZ de ese dispositivo (cada segundo). `Fresca` si es nueva o algo cambió
+    /// (RSSI o UUID de anuncio) en los últimos `FRESCO_MS`.
+    pub fn observar(&mut self, direccion: &str, uuid: [u8; 16], rssi: i16, ahora: u64) -> Frescura {
+        let m = self.marcas.entry(direccion.to_string()).or_insert((rssi, uuid, ahora));
+        if m.0 != rssi || m.1 != uuid {
+            *m = (rssi, uuid, ahora);
+        }
+        if ahora.saturating_sub(m.2) < FRESCO_MS {
+            Frescura::Fresca
+        } else {
+            Frescura::Caducada
+        }
+    }
+
+    /// Direcciones para olvidar: sin cambios hace `OLVIDAR_MS` y que `protegida` no ampara (conectada o en turno).
+    /// Salen del registro.
+    pub fn olvidables(&mut self, ahora: u64, protegida: &dyn Fn(&str) -> bool) -> Vec<String> {
+        let fuera: Vec<String> = self
+            .marcas
+            .iter()
+            .filter(|(d, (_, _, t))| ahora.saturating_sub(*t) >= OLVIDAR_MS && !protegida(d))
+            .map(|(d, _)| d.clone())
+            .collect();
+        for d in &fuera {
+            self.marcas.remove(d);
+        }
+        fuera
+    }
+
+    /// La última vez que se oyó algo NUEVO de cualquier dirección (para saber si el escaneo está mudo).
+    pub fn ultimo_cambio(&self) -> Option<u64> {
+        self.marcas.values().map(|(_, _, t)| *t).max()
+    }
+
+    pub fn olvidar(&mut self, direccion: &str) {
+        self.marcas.remove(direccion);
+    }
+
+    pub fn len(&self) -> usize {
+        self.marcas.len()
+    }
+}
+
+/// Sin oír ningún anuncio nuevo durante tanto tiempo, el escaneo se para y se enciende de nuevo.
+pub const ESCANEO_MUDO_MS: u64 = 120_000;
+/// Entre dos reinicios del escaneo, como mínimo.
+pub const ENTRE_REEXPLORACIONES_MS: u64 = 60_000;
+
+/// ¿Hay que reiniciar el escaneo por estar mudo? `ultimo_cambio` (None = nunca se oyó nada desde que arrancó
+/// `desde_ms`). Devuelve los segundos de silencio.
+pub fn escaneo_mudo(ahora: u64, desde_ms: u64, ultimo_cambio: Option<u64>, ultima_reexploracion: Option<u64>) -> Option<u64> {
+    let referencia = ultimo_cambio.unwrap_or(desde_ms).max(ultima_reexploracion.unwrap_or(0));
+    let silencio = ahora.saturating_sub(referencia);
+    let tras_reexplorar = ultima_reexploracion.map(|t| ahora.saturating_sub(t) >= ENTRE_REEXPLORACIONES_MS).unwrap_or(true);
+    (silencio >= ESCANEO_MUDO_MS && tras_reexplorar).then_some(silencio / 1000)
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
@@ -359,5 +579,101 @@ mod pruebas {
             assert!(r.starts_with(RAIZ_APP), "{r}");
         }
         assert!(RUTA_ENTRADA.starts_with(RUTA_SERVICIO) && RUTA_SALIDA.starts_with(RUTA_SERVICIO) && RUTA_PSM.starts_with(RUTA_SERVICIO));
+    }
+
+    #[test]
+    fn los_errores_de_connect_del_nodo_se_clasifican() {
+        use ResultadoConnect::*;
+        assert_eq!(clasificar_connect("org.bluez.Error.InProgress", "In Progress"), Espera);
+        assert_eq!(clasificar_connect("org.bluez.Error.Failed", "le-connection-abort-by-local"), AbortoLocal);
+        assert_eq!(
+            clasificar_connect("org.freedesktop.DBus.Error.UnknownObject", "Method \"Connect\" with signature \"\" on interface \"org.bluez.Device1\" doesn't exist"),
+            ObjetoPerdido
+        );
+        assert_eq!(clasificar_connect("org.bluez.Error.AlreadyConnected", "Already Connected"), YaConectado);
+        assert_eq!(clasificar_connect("org.bluez.Error.Failed", "Software caused connection abort"), Fallo);
+        assert_eq!(clasificar_connect("", "Connection refused"), Fallo);
+        // El texto de zbus trae el nombre dentro del mensaje (`MethodError(name, Some(msg), …)`).
+        assert_eq!(clasificar_connect("MethodError(OwnedErrorName(\"org.bluez.Error.InProgress\"), Some(\"In Progress\"))", ""), Espera);
+    }
+
+    #[test]
+    fn espera_no_es_fallo_y_el_aborto_pide_descanso_con_tope() {
+        use ResultadoConnect::*;
+        assert_eq!(pausa_tras_fallo_ms(Espera, 5), 0);
+        assert_eq!(pausa_tras_fallo_ms(YaConectado, 1), 0);
+        assert_eq!([1, 2, 3].map(|n| pausa_tras_fallo_ms(AbortoLocal, n)), [2_000, 4_000, 6_000]);
+        assert_eq!(pausa_tras_fallo_ms(AbortoLocal, 500), 20_000, "con tope");
+        assert_eq!(pausa_tras_fallo_ms(AbortoLocal, 0), 2_000, "0 cuenta como 1");
+        assert_eq!(pausa_tras_fallo_ms(Fallo, 50), 10_000);
+        assert_eq!(pausa_tras_fallo_ms(ObjetoPerdido, 3), 500);
+        assert!(reexplorar_tras(AbortoLocal) && reexplorar_tras(ObjetoPerdido));
+        assert!(!reexplorar_tras(Espera) && !reexplorar_tras(Fallo) && !reexplorar_tras(YaConectado));
+    }
+
+    #[test]
+    fn solo_una_conexion_a_la_vez_y_sin_repetir_direcciones() {
+        let mut t = Turno::default();
+        assert_eq!(t.pedir("A", 0), Peticion::Empezar);
+        assert_eq!(t.pedir("A", 10), Peticion::Repetida, "la misma, en curso");
+        assert_eq!(t.pedir("B", 20), Peticion::EnCola, "otra: espera su turno (no a la vez)");
+        assert_eq!(t.pedir("B", 30), Peticion::Repetida);
+        assert_eq!(t.en_curso(), Some("A"));
+        assert_eq!(t.terminar(100).as_deref(), Some("B"));
+        assert_eq!(t.en_curso(), Some("B"));
+        assert_eq!(t.terminar(200), None);
+        assert_eq!(t.en_curso(), None);
+        assert_eq!(t.pedir("A", 300), Peticion::Empezar);
+    }
+
+    #[test]
+    fn la_cola_tiene_tope_y_el_turno_colgado_se_libera() {
+        let mut t = Turno::default();
+        t.pedir("X", 0);
+        for d in ["1", "2", "3", "4", "5"] {
+            assert_eq!(t.pedir(d, 1), Peticion::EnCola);
+        }
+        assert_eq!(t.terminar(2).as_deref(), Some("2"), "la más vieja se descartó");
+        t.quitar("3");
+        assert_eq!(t.terminar(3).as_deref(), Some("4"));
+        let mut c = Turno::default();
+        assert_eq!(c.pedir("A", 0), Peticion::Empezar);
+        assert_eq!(c.pedir("B", TURNO_VENCE_MS), Peticion::EnCola);
+        assert_eq!(c.pedir("C", TURNO_VENCE_MS + 1), Peticion::Empezar, "el hilo colgado no bloquea para siempre");
+    }
+
+    #[test]
+    fn una_direccion_que_no_cambia_caduca_y_luego_se_olvida() {
+        let mut o = Oidos::default();
+        let (u1, u2) = ([1u8; 16], [2u8; 16]);
+        assert_eq!(o.observar("A", u1, -60, 0), Frescura::Fresca);
+        assert_eq!(o.observar("A", u1, -60, FRESCO_MS - 1), Frescura::Fresca);
+        assert_eq!(o.observar("A", u1, -60, FRESCO_MS), Frescura::Caducada, "ni señal ni UUID cambian: ya no se oye");
+        assert_eq!(o.observar("A", u1, -58, FRESCO_MS + 1), Frescura::Fresca, "la señal cambió: se oye");
+        assert_eq!(o.observar("A", u2, -58, 2 * FRESCO_MS), Frescura::Fresca, "el UUID rotó: se oye");
+        // Una vieja y una nueva de la misma tableta.
+        let mut p = Oidos::default();
+        p.observar("VIEJA", u1, -50, 0);
+        p.observar("NUEVA", u2, -70, 40_000);
+        assert_eq!(p.observar("VIEJA", u1, -50, 50_000), Frescura::Caducada);
+        assert_eq!(p.observar("NUEVA", u2, -69, 50_000), Frescura::Fresca);
+        let nadie = |_: &str| false;
+        assert!(p.olvidables(OLVIDAR_MS - 1, &nadie).is_empty());
+        assert_eq!(p.olvidables(OLVIDAR_MS, &nadie), vec!["VIEJA".to_string()]);
+        assert_eq!(p.len(), 1);
+        let amparada = |d: &str| d == "NUEVA";
+        assert!(p.olvidables(40_000 + OLVIDAR_MS, &amparada).is_empty(), "la conectada o en turno no se olvida");
+    }
+
+    #[test]
+    fn el_escaneo_mudo_se_reinicia_pero_no_en_bucle() {
+        // Nunca se oyó nada: cuenta desde que empezó el escaneo.
+        assert_eq!(escaneo_mudo(ESCANEO_MUDO_MS - 1, 0, None, None), None);
+        assert_eq!(escaneo_mudo(ESCANEO_MUDO_MS, 0, None, None), Some(120));
+        // Se oyó algo hace poco: no.
+        assert_eq!(escaneo_mudo(200_000, 0, Some(150_000), None), None);
+        // Tras reiniciar, hay que esperar otro tramo entero.
+        assert_eq!(escaneo_mudo(ESCANEO_MUDO_MS + 10_000, 0, None, Some(ESCANEO_MUDO_MS)), None);
+        assert_eq!(escaneo_mudo(2 * ESCANEO_MUDO_MS, 0, None, Some(ESCANEO_MUDO_MS)), Some(120));
     }
 }
