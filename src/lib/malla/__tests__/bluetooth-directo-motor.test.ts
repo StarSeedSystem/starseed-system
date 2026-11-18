@@ -11,6 +11,7 @@ import {
   cifrarSecretoEnlace,
   crearRedBle,
   descifrarSecretoEnlace,
+  enlaceMudoBle,
   type DepsBle,
   type RedBle,
 } from "@/lib/malla/bluetooth-directo-motor";
@@ -565,5 +566,37 @@ describe("Bluetooth directo · BLE1109B", () => {
     await Promise.all([datos, control]);
     const nuevos = aire.jsons.slice(antes);
     expect(nuevos.findIndex((j) => j.includes('"id":"c1"'))).toBeLessThan(nuevos.findIndex((j) => j.startsWith('{"t":"archivo.trozo"')));
+  });
+});
+
+describe("Bluetooth directo · AUD1117 F4 (enlace mudo)", () => {
+  it("la regla pura: 60 s enviando sin recibir nada es mudo; un byte lo desmiente", () => {
+    const base = { desde: 1_000, bytesEnviados: 480, bytesRecibidos: 0 };
+    expect(enlaceMudoBle({ ...base, ahora: 1_000 + 59_999 })).toBe(false);
+    expect(enlaceMudoBle({ ...base, ahora: 1_000 + 60_000 })).toBe(true);
+    expect(enlaceMudoBle({ ...base, ahora: 1_000 + 60_000, bytesRecibidos: 1 })).toBe(false);
+    expect(enlaceMudoBle({ ...base, ahora: 1_000 + 60_000, bytesEnviados: 0 })).toBe(false);
+  });
+
+  it("un enlace que envía y no recibe se marca mudo, deja de ser alcanzable y vuelve con un byte", async () => {
+    const { lados, reloj } = dosApps();
+    await ligar(lados);
+    const enlace = lados.mac.estado.enlaces[0];
+    expect(enlace).toBeDefined();
+    if (!enlace) return;
+    enlace.bytes_enviados = 512;
+    enlace.bytes_recibidos = 0;
+    await lados.mac.red.refrescar();
+    expect(lados.mac.red.enlaces()[0]?.abierto).toBe(true);
+    expect(lados.mac.red.registro().lista("n-tab").some((x) => x.detalle.includes("mudo=si"))).toBe(false);
+    reloj.ahora += 60_000;
+    await lados.mac.red.refrescar();
+    expect(lados.mac.red.enlaces()[0]?.abierto).toBe(false);
+    expect(lados.mac.red.enlaceHacia("n-tab")).toBeNull();
+    expect(lados.mac.red.registro().lista("n-tab").some((x) => x.detalle.includes("mudo=si"))).toBe(true);
+    enlace.bytes_recibidos = 1;
+    await lados.mac.red.refrescar();
+    expect(lados.mac.red.enlaces()[0]?.abierto).toBe(true);
+    expect(lados.mac.red.enlaceHacia("n-tab")).toBe("b1");
   });
 });

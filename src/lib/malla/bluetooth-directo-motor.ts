@@ -60,6 +60,7 @@ import {
   T_OFERTA_WIFI,
   T_RESPUESTA_WIFI,
   datosAsociadosSecreto,
+  enlaceDeIdBle,
   enlacesBle,
   idEnlaceBle,
   leerControlEnlace,
@@ -332,6 +333,17 @@ export function datosTienenTurnoEnLlamada(envDatos: number, envOtros: number, fr
   return total <= 0 || envDatos < fraccion * total;
 }
 
+/**
+ * (AUD1117 F4) Un enlace que lleva 60 s enviando sin recibir un solo byte está MUDO: se sigue enviando al vacío
+ * y la neurona contaba como alcanzable. «Mudo» no cierra nada: solo deja de ofrecerse hasta que llegue un byte.
+ */
+export const SILENCIO_MUDO_BLE_MS = 60_000;
+
+/** ¿El enlace lleva ya `SILENCIO_MUDO_BLE_MS` con bytes enviados y ninguno recibido? Puro. */
+export function enlaceMudoBle(p: { ahora: number; desde: number; bytesEnviados: number; bytesRecibidos: number }): boolean {
+  return p.bytesEnviados > 0 && p.bytesRecibidos === 0 && p.ahora - p.desde >= SILENCIO_MUDO_BLE_MS;
+}
+
 /** PTA1110A · Un trozo de túnel de la puerta (`tu.msg` del canal «puerta» con trama `dat`) es DATOS: nunca va con el control. */
 export function esTextoDatosPuerta(t: string): boolean {
   return t.startsWith('{"t":"tu.msg"') && t.includes('"c":"puerta"') && (t.includes('"k":"dat"') || t.includes('"k":"datb"'));
@@ -344,6 +356,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
   let conClave = false;
   const ultimoHola: Record<string, number> = {};
   const caidas: Record<string, number> = {};
+  // (AUD1117 F4) Enlaces que solo envían: desde cuándo se les vio enviar sin recibir nada y cuáles ya están mudos.
+  const silencioDesde = new Map<string, number>();
+  const mudos = new Set<string>();
   const colas = new Map<string, Cola>();
   // LLA1111Q: lo que tardó cada escritura del carril de la llamada (voz y vídeo), de entregarla a la app nativa a su
   // acuse, sin la espera por fichas. Es lo que el enlace dice de sí mismo; el reparto de la llamada lo usa para su modelo.
@@ -1059,8 +1074,11 @@ export function crearRedBle(deps: DepsBle): RedBle {
       const c = colas.get(id);
       const enCola = c ? c.control.length + c.datos.length : 0;
       const neurona = lig?.neurona ?? antes.neurona ?? null;
-      registro.anotar("perdido", neurona, `el enlace se cerró${lig ? "" : " sin llegar a ligarse"} (abierto ${Math.round(antes.abierto_hace_ms / 1000)} s, rol ${antes.rol}, ${antes.bytes_enviados} B enviados / ${antes.bytes_recibidos} B recibidos${enCola ? `, ${enCola} mensaje(s) sin enviar devueltos` : ""})`, id);
+      const eraMudo = mudos.has(id);
+      registro.anotar("perdido", neurona, `el enlace se cerró${lig ? "" : " sin llegar a ligarse"} (abierto ${Math.round(antes.abierto_hace_ms / 1000)} s, rol ${antes.rol}, ${antes.bytes_enviados} B enviados / ${antes.bytes_recibidos} B recibidos${enCola ? `, ${enCola} mensaje(s) sin enviar devueltos` : ""})${eraMudo ? " · mudo=si" : ""}`, id);
       if (neurona) perdidas.set(neurona, { enlace: id, en: deps.ahora() });
+      silencioDesde.delete(id);
+      mudos.delete(id);
       delete rachaCaidas[id];
     }
     // (BLE1109A) Cambio de carril de un enlace que sigue abierto: solo se apunta; el enlace y la ligadura no se tocan.
@@ -1074,6 +1092,28 @@ export function crearRedBle(deps: DepsBle): RedBle {
       if (previos.has(x.id)) continue;
       registro.anotar("abierto", x.neurona ?? null, `enlace ${x.rol} abierto (paquete ${x.paquete} B, ${x.rssi ?? "?"} dBm); a saludar`, x.id);
       void insistirHola(x.id).catch(nada);
+    }
+    // (AUD1117 F4) Enviar sin recibir nada no es estar alcanzable: a los 60 s el enlace queda «mudo» (sin cerrarlo).
+    const ahoraEstado = deps.ahora();
+    for (const x of e?.enlaces ?? []) {
+      if (x.bytes_recibidos > 0) {
+        silencioDesde.delete(x.id);
+        if (mudos.delete(x.id)) {
+          const neurona = ligaduraDeEnlace(ligaduras, x.id, ahoraEstado)?.neurona ?? x.neurona ?? null;
+          registro.anotar("reconectado", neurona, `llegó un byte (${x.bytes_recibidos} B recibidos): el enlace deja de estar mudo`, x.id);
+        }
+        continue;
+      }
+      if (x.bytes_enviados <= 0) {
+        silencioDesde.delete(x.id);
+        continue;
+      }
+      const desde = silencioDesde.get(x.id) ?? ahoraEstado - Math.max(0, x.abierto_hace_ms);
+      silencioDesde.set(x.id, desde);
+      if (mudos.has(x.id) || !enlaceMudoBle({ ahora: ahoraEstado, desde, bytesEnviados: x.bytes_enviados, bytesRecibidos: x.bytes_recibidos })) continue;
+      mudos.add(x.id);
+      const neurona = ligaduraDeEnlace(ligaduras, x.id, ahoraEstado)?.neurona ?? x.neurona ?? null;
+      registro.anotar("perdido", neurona, `sin recibir un solo byte en 60 s (${x.bytes_enviados} B enviados / 0 B recibidos, ${Math.round(x.abierto_hace_ms / 1000)} s abierto): mudo=si; no se cierra`, x.id);
     }
     ligaduras = podarLigadurasBle(ligaduras, abiertos, deps.ahora());
     for (const [enlace, c] of Array.from(colas)) {
@@ -1152,12 +1192,21 @@ export function crearRedBle(deps: DepsBle): RedBle {
       avisar();
       void saludarPendientes().catch(nada);
     },
-    enlaces: () => enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }),
+    // (AUD1117 F4) Un enlace mudo no cuenta como alcanzable (sigue abierto y se le puede seguir enviando).
+    enlaces: () =>
+      enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }).map((x) => {
+        const id = enlaceDeIdBle(x.id);
+        return id && mudos.has(id) ? { ...x, abierto: false } : x;
+      }),
     cifradoDe: (neurona) => {
       const l = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora());
       return l ? etiquetaDe(l) : null;
     },
-    enlaceHacia: (neurona) => ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null,
+    // (AUD1117 F4) Mudo: la neurona no se alcanza por ese enlace hasta que llegue un byte.
+    enlaceHacia: (neurona) => {
+      const enlace = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora())?.enlace ?? null;
+      return enlace && !mudos.has(enlace) ? enlace : null;
+    },
     enviarTexto: (enlace, texto) => encolar(enlace, texto),
     enviarVoz: (enlace, texto) => encolarVoz(enlace, texto),
     colaVozBytes: (enlace) => colas.get(enlace)?.bytesVoz ?? 0,
