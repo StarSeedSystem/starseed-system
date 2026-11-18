@@ -77,6 +77,11 @@ function nonce(): string {
 }
 
 let cuentaCache: string | null = null;
+/**
+ * CTL1118B: la cuenta de ESTE aparato se relee en cada orden (entra o sale). `uidActual` va con caché y sigue los cambios de
+ * sesión, así que no cuesta red. Antes se leía una sola vez al arrancar el canal: un aparato que abría la app y LUEGO iniciaba
+ * sesión (un nodo recién instalado) contestaba «otra-cuenta» a todo hasta reiniciar la app, y tras cambiar de cuenta seguía con la vieja.
+ */
 async function refrescarCuenta(): Promise<string | null> {
     try {
         const { uidActual } = await import("@/lib/consumo/usuario");
@@ -176,7 +181,9 @@ export async function iniciarCanalControl(): Promise<void> {
         }
         if (esRespuesta(cuerpo)) return; // ORD1114Q: una respuesta en claro ya no vale (la pudo escribir un relé)
         void (async () => {
-            const { respuesta: r, kr, orden } = await puerta!.recibirSellado(cuerpo);
+            await refrescarCuenta(); // CTL1118B: la cuenta de ahora, no la del arranque
+            if (!puerta) return;
+            const { respuesta: r, kr, orden } = await puerta.recibirSellado(cuerpo);
             const o = leerOrden(orden);
             if (!o || !kr) return; // en claro, sello roto o sin forma: no se contesta (ya quedó en el registro)
             // Se contesta a la neurona fijada por el dueño (o a la que se presenta): nunca a quien diga el sobre.
@@ -260,7 +267,7 @@ export function nonceNuevo(): string {
 /** (PAN1115J) Firma una orden para mandarla por un canal de datos ya cifrado (la conexión de vídeo). Nunca lanza: null si no se pudo. */
 export async function firmarParaCanalDirecto(para: string, nombre: string, args: Args, o: OpcionesOrden): Promise<{ sobre: { v: 1; carga: string; firma: string }; nonce: string } | null> {
     try {
-        const cuenta = cuentaCache ?? (await refrescarCuenta());
+        const cuenta = await refrescarCuenta(); // CTL1118B
         if (!cuenta) return null;
         const n = nonce();
         return { sobre: await firmarSobre(cuenta, para, nombre, args, o, n), nonce: n };
@@ -274,7 +281,7 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
     const n = nonce();
     try {
         if (!puerta) await iniciarCanalControl(); // necesitamos el oyente para recibir la respuesta
-        const cuenta = cuentaCache ?? (await refrescarCuenta());
+        const cuenta = await refrescarCuenta(); // CTL1118B
         if (!cuenta) return { tipo: "respuesta", nonce: n, ok: false, motivo: "sin-cuenta" };
         const sobre = await firmarSobre(cuenta, para, nombre, args, o, n);
         // ORD1114Q: sellada para la pública de cifrado del destino; sin ella no sale nada (nunca en claro).

@@ -424,7 +424,9 @@ export class PuertaControl {
         this.d.alCambiar?.();
         // CTL1117J · S3: pedir ser aceptado también avisa (con el permiso apagado o encendido); nunca acepta nada por sí mismo.
         const aviso = this.avisar({ de: c.de, nombre, tipo: "presentarse", nivel: p.nivel === "ver" ? "ver" : "controlar", estado: p.encendido ? "por-aceptar" : "apagado", desde: ahora });
-        return this.respuesta(c.nonce, true, "pendiente", "presentarse", c.de, "-", aviso ? { aviso } : undefined);
+        // CTL1118B: quien pide sabe si además hay que ENCENDER el control aquí (ya lo sabría por «permiso-apagado» al abrir).
+        const dicho = { ...(aviso ? { aviso } : {}), ...(p.encendido ? {} : { apagado: true }) };
+        return this.respuesta(c.nonce, true, "pendiente", "presentarse", c.de, "-", Object.keys(dicho).length ? dicho : undefined);
     }
 }
 

@@ -93,6 +93,10 @@ export function textoFalta(c: CosaQueFalta, plataforma: string): { falta: string
 }
 
 /** (CAL1115I) Quién controla a quién, en palabras, para los tres sitios del panel. */
+/** CTL1118B: con el control apagado nadie opera este aparato aunque figure aceptado; «Terminar» también lo apaga. */
+export const TEXTO_CONTROL_APAGADO = "El control está apagado en este aparato: nadie puede operarlo, aunque esté aceptado, hasta que lo enciendas. «Terminar» también lo apaga.";
+export const TEXTO_TERMINADO = "Control terminado: quedó apagado en este aparato. Enciéndelo cuando quieras volver a permitirlo.";
+
 export const quienOpera = {
     esteAparatoPide: (otro: string, codigo: string | null) =>
         `Vas a operar ${otro} desde este aparato; en ${otro} tienen que aceptar el código ${codigo ?? "de este aparato"}.`,
@@ -439,18 +443,21 @@ export function ControlEntreNeuronasPanel() {
 
     const cambiar = useCallback(async (f: (p: PermisoControl) => PermisoControl) => {
         const c = await import("@/lib/control-remoto/canal");
-        const nuevo = f(c.leerPermisoLocal());
+        const antes = c.leerPermisoLocal();
+        const nuevo = f(antes);
         c.guardarPermisoLocal(nuevo);
-        if (!nuevo.encendido) c.puertaControl()?.revocar("apagado-por-el-dueno");
+        // CTL1118B: «revocar» solo cuando la persona APAGA (antes se repetía en cada guardado con el control ya apagado).
+        if (antes.encendido && !nuevo.encendido) c.puertaControl()?.revocar("apagado-por-el-dueno");
     }, []);
 
     const aceptar = useCallback(
-        async (huella: string) => {
+        async (huella: string, encender = false) => {
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
-            await cambiar((p) => s.aceptarPendiente(p, huella));
+            // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
+            await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
             // UNI1115M · costura g: para tocar este aparato (nivel «controlar») lo NATIVO enseña su diálogo con el código y solo
             // el «Sí» de la persona acepta; la página solo lo pide. Sin ese «Sí», las órdenes de entrada se rechazan.
             if (quien && antes.nivel === "controlar") {
@@ -498,7 +505,7 @@ export function ControlEntreNeuronasPanel() {
         }
         setAviso(
             r.ok
-                ? `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}`
+                ? `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
                 : r.motivo === "sin-aparato"
                   ? "Este aparato no tiene clave propia: créala en Chats de Genesis (emparejar)."
                   : `No se pudo pedir: ${r.motivo}.`,
@@ -532,11 +539,23 @@ export function ControlEntreNeuronasPanel() {
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
                 {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar. Cada orden queda en el registro de llamadas.
             </p>
+            {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
+                <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
+                    <span className="min-w-0 flex-1">{TEXTO_CONTROL_APAGADO}</span>
+                    <button onClick={() => void cambiar((p) => ({ ...p, encendido: true }))} className="min-h-9 cursor-pointer rounded-md bg-amber-400/80 px-2 py-1 font-medium text-black transition-colors hover:bg-amber-400">
+                        Encender el control
+                    </button>
+                </div>
+            )}
             <label className="flex items-center gap-2 text-[12px] text-white/70">
                 Nivel
                 <select
                     value={permiso.nivel}
-                    onChange={(e) => void cambiar((p) => ({ ...p, nivel: e.target.value === "ver" ? "ver" : "controlar" }))}
+                    onChange={(e) => {
+                        // CTL1118B: el valor se lee YA; `cambiar` espera una importación y para entonces React ya devolvió el <select> a su valor de antes (el nivel no cambiaba nunca).
+                        const nivel = e.target.value === "ver" ? "ver" : "controlar";
+                        void cambiar((p) => ({ ...p, nivel }));
+                    }}
                     className="cursor-pointer rounded-md border border-white/20 bg-black/40 px-2 py-1"
                 >
                     <option value="ver">ver (solo leer el estado)</option>
@@ -545,7 +564,7 @@ export function ControlEntreNeuronasPanel() {
             </label>
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
-            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.revocar("terminado-por-el-dueno"); setSesionAct(null); })} />
+            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.revocar("terminado-por-el-dueno"); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
@@ -553,8 +572,8 @@ export function ControlEntreNeuronasPanel() {
                     <span className="flex-1">
                         {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
                     </span>
-                    <button onClick={() => void aceptar(x.huella)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
-                        Aceptar
+                    <button onClick={() => void aceptar(x.huella, !permiso.encendido)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
+                        {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
                     </button>
                     <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
                         Rechazar
