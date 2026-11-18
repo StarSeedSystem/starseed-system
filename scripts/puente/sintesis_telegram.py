@@ -95,7 +95,9 @@ def _leer_env(ruta=RUTA_ENV):
     import entorno as E
     datos = {}
     for nombre in CLAVES + CLAVES_RELEVO:
-        valor = os.environ.get(nombre) or E.leer_clave(nombre)
+        valor = os.environ.get(nombre)
+        if valor is None:
+            valor = E._leer_clave_desde_archivo(nombre, ruta) or E.leer_clave(nombre)
         if valor:
             datos[nombre] = valor
     return datos
