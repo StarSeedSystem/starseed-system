@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "HER1118G",
+   "ola": "HER1118",
+   "titulo": "Enrutador de Hermes: un proveedor cuya clave rechaza el servidor baja al final de la cadena",
+   "archivos": [
+    "scripts/puente/enrutar-hermes.py",
+    "scripts/puente/test_enrutar_hermes_her1118g.py"
+   ],
+   "depende": [],
+   "prompt": "Hermes tiene como modelo por defecto gemini-3.6-flash (provider gemini, AFINIDAD 0 en scripts/puente/enrutar-hermes.py) y en cada turno ~/.hermes/logs/gateway.error.log dice «Google Gemini rejected this API key's type … Google began rejecting legacy 'Standard' Google Cloud keys for the Gemini API on June 19, 2026»: cada turno pierde tiempo en ese intento antes de saltar a otro proveedor. Tarea: añade a enrutar-hermes.py una función pura que, dadas las últimas 300 líneas de ese registro, devuelva los proveedores con la clave rechazada (patrones: «rejected this API key», «API key not valid», «API_KEY_INVALID», «PERMISSION_DENIED»; el proveedor se saca del texto, p. ej. «Google Gemini» → gemini, o de «provider=<x>» en la misma línea o la siguiente), y que el orden final los ponga al final de la cadena y nunca como modelo por defecto mientras la última línea de rechazo tenga menos de 24 h. No leas ni escribas ninguna clave. Pruebas unitarias con líneas de ejemplo (sin red ni archivos reales). Verificación: python3 -m pytest -q scripts/puente/test_enrutar_hermes_her1118g.py scripts/puente/test_enrutar_hermes.py scripts/puente/test_enrutar_hermes_bloque.py. Español neutro."
+  },
+  {
+   "id": "TU31",
+   "ola": "TRA1116-APP-F1",
+   "titulo": "Preinstalar el Traductor entre las apps por defecto (siembra versión 26, una sola vez)",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts",
+    "src/lib/library/__tests__/traductor-siembra.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. SENSIBLE: toca la siembra de TODAS las cuentas. Lee `defaults-seed.ts` entero salvo los comentarios largos (`SEED_VERSION` :77, `RECOMMENDED_PACKAGE_IDS` :434, `selectSeedIds` :531, `ensureDefaultsSeeded` :558) y su doc (apps con ruta excluidas :88-91 porque instalar implica navegar; mira en `install.ts` si instalar una app con `route` navega o solo registra). Cambio mínimo: `SEED_VERSION` 25 → 26; añade `IDS_SIEMBRA_TRADUCTOR` (TU30) a `RECOMMENDED_PACKAGE_IDS`; si `ensureDefaultsSeeded` navegaría al instalar una app con ruta, haz que la siembra solo REGISTRE (sin navegar) para este id y di en un comentario por qué. No re-instala a quien ya lo desinstaló (la lista «ya ofrecido» existente lo garantiza: demuéstralo en la prueba). PRUEBAS con `selectSeedIds`: cuenta nueva lo recibe; cuenta que ya lo tenía instalado no; cuenta que lo desinstaló tras ofrecerse no vuelve a tenerlo; las pruebas existentes de `defaults-seed*.test.ts` no se tocan.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "TU30"
+   ]
+  },
+  {
+   "id": "DIR1118T",
+   "ola": "HER1118",
+   "titulo": "Director presidente: un «[tiempo agotado]» no es una respuesta; se reintenta con más tiempo",
+   "archivos": [
+    "scripts/puente/director_presidente.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/test_director_presidente_dir1118t.py"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 a las 15:04 el Director presidente publicó como respuesta «[tiempo agotado]» y marcó la entrega «respondido»: Hermes estaba haciendo un encargo de varios pasos (SSH, captura de pantalla) y el cartero lo cortó a los 120 s (SEGUNDOS_PROVEEDOR_PRESIDENTE en scripts/puente/motores_director.py). Tarea: (1) ese texto (y cualquier salida vacía por tiempo) cuenta como fallo, igual que los de _FALLOS_HERMES / es_fallo_hermes, y el mensaje queda en cola con su detalle visible; (2) el reintento del mismo mensaje usa más tiempo: 120 s, luego 300 s, luego 600 s (como mucho), y el detalle de la cola lo dice («reintento con 300 s»). No cambies el orden de motores ni nada más. Pruebas unitarias sin red en scripts/puente/test_director_presidente_dir1118t.py (texto «[tiempo agotado]» = fallo; escalera 120/300/600). Verificación: python3 -m pytest -q scripts/puente/test_director_presidente_dir1118t.py scripts/puente/test_cartero_director.py. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "TU31",
+   "HER1118G",
+   "DIR1118T"
+  ]
+ }
+}
