@@ -42,7 +42,33 @@ const TECLAS: { cual: string; texto: string }[] = [
     { cual: "bloquear", texto: "Bloquear" },
     { cual: "captura", texto: "Captura" },
     { cual: "menu-energia", texto: "Menú de encendido" },
+    // CTL1117M · Mac controlado (lo que ofrece un escritorio)
+    { cual: "volumen-subir", texto: "Volumen +" },
+    { cual: "volumen-bajar", texto: "Volumen −" },
+    { cual: "silencio", texto: "Silencio" },
 ];
+
+/** CTL1117M · un aparato de escritorio se anuncia con la marca «escritorio» entre sus teclas (`control_capacidades`). */
+export function esEscritorio(teclas: readonly string[]): boolean {
+    return teclas.includes("escritorio");
+}
+
+/** CTL1117M · en un Mac, «Recientes» es Mission Control. */
+function rotuloTecla(cual: string, texto: string, escritorio: boolean): string {
+    return escritorio && cual === "recientes" ? "Mission Control" : texto;
+}
+
+/**
+ * CTL1117M · la tecla física de quien controla un Mac → el texto que se manda («texto» con \n, \b). Solo letras, números,
+ * signos, Intro y Borrar, sin Ctrl/Cmd/Alt: los atajos del propio navegador no salen hacia el otro Mac. Tab y Escape quedan
+ * para moverse por la ventana (accesibilidad).
+ */
+export function textoDeTecla(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing?: boolean }): string | null {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return null;
+    if (e.key === "Enter") return "\n";
+    if (e.key === "Backspace") return "\b";
+    return e.key.length >= 1 && [...e.key].length === 1 ? e.key : null;
+}
 
 const FLUJOS: { flujo: "multimedia" | "llamada" | "timbre" | "alarma"; texto: string }[] = [
     { flujo: "multimedia", texto: "Multimedia" },
@@ -364,6 +390,7 @@ function FilaEstado({ p }: { p: PropsVentanaControl }) {
 function Controles({ p }: { p: PropsVentanaControl }) {
     const c = p.capacidades;
     const [texto, setTexto] = useState("");
+    const escritorio = esEscritorio(c.teclas);
     const teclas = TECLAS.filter((t) => c.teclas.includes(t.cual));
     const enviarTexto = () => {
         if (!texto) return;
@@ -383,7 +410,7 @@ function Controles({ p }: { p: PropsVentanaControl }) {
                             onClick={() => p.alEnviar({ tipo: "tecla", cual: t.cual })}
                             className="min-h-10 min-w-10 cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-white/[0.12]"
                         >
-                            {t.texto}
+                            {rotuloTecla(t.cual, t.texto, escritorio)}
                         </button>
                     ))}
                 </div>
@@ -532,6 +559,17 @@ export function VentanaControl(props: PropsVentanaControl) {
         if (e.key === "Escape" && activo && props.capacidades.teclas.includes("atras")) {
             e.preventDefault();
             props.alEnviar({ tipo: "tecla", cual: "atras" });
+            return;
+        }
+        // CTL1117M · en un Mac controlado, lo que se teclea sobre la pantalla llega como texto (no desde los cuadros de la ventana).
+        if (activo && props.capacidades.texto && esEscritorio(props.capacidades.teclas)) {
+            const el = e.target as HTMLElement | null;
+            if (el?.closest?.("input,textarea,select,button,[contenteditable='true']")) return;
+            const t = textoDeTecla(e);
+            if (t) {
+                e.preventDefault();
+                props.alEnviar({ tipo: "texto", texto: t });
+            }
         }
     };
 
@@ -557,7 +595,8 @@ export function VentanaControl(props: PropsVentanaControl) {
         </button>
     );
 
-    const selector = props.alCambiarFuente && (
+    // CTL1117M · un Mac solo tiene una pantalla que ver: no se ofrece elegir entre fuentes de Android.
+    const selector = props.alCambiarFuente && !esEscritorio(props.capacidades.teclas) && (
         <SelectorFuente
             pedida={props.fuentePedida ?? "auto"}
             real={props.fuenteReal ?? null}

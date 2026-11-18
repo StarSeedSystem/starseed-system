@@ -193,7 +193,7 @@ export interface CapacidadesNativas {
     falta: string[];
 }
 
-export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes"] as const;
+export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "grabacion-pantalla", "accesibilidad-mac"] as const; // CTL1117M: los dos últimos, del Mac
 export type AjusteQueFalta = (typeof AJUSTES_QUE_FALTAN)[number];
 
 export async function capacidadesNativas(): Promise<CapacidadesNativas | null> {

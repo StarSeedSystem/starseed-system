@@ -116,6 +116,9 @@ export const PALABRAS_FALTA: Readonly<Record<string, string>> = {
     "consentimiento-pantalla": "Falta el interruptor «Ver la pantalla sin preguntar en cada sesión»: sin él, Android no deja mandar la pantalla.",
     "escribir-ajustes": "Falta el permiso «Modificar ajustes del sistema»: sin él no se puede cambiar el brillo desde otra neurona.",
     "consentimiento-proyeccion": "Android te preguntará en el aparato si compartes la pantalla; contesta allí.",
+    // CTL1117M · Mac controlado: los dos permisos los da la persona en ese Mac, en Ajustes del Sistema.
+    "grabacion-pantalla": "Falta el permiso «Grabación de pantalla» de StarSeed OS en ese Mac: sin él no se puede ver la pantalla. Se da en Ajustes del Sistema › Privacidad y seguridad.",
+    "accesibilidad-mac": "Falta el permiso «Accesibilidad» de StarSeed OS en ese Mac: sin él no se puede mover el ratón ni escribir. Se da en Ajustes del Sistema › Privacidad y seguridad.",
 };
 
 export const BOTON_FALTA: Readonly<Record<string, string>> = {
@@ -124,6 +127,8 @@ export const BOTON_FALTA: Readonly<Record<string, string>> = {
     "consentimiento-pantalla": "Activar «Ver la pantalla sin preguntar»",
     "escribir-ajustes": "Abrir «Modificar ajustes del sistema»",
     "consentimiento-proyeccion": "Compartir la pantalla en esta sesión",
+    "grabacion-pantalla": "Abrir «Grabación de pantalla»", // CTL1117M
+    "accesibilidad-mac": "Abrir «Accesibilidad»", // CTL1117M
 };
 
 /** Los estados de la ventana (seam 3), con el nombre de la neurona. */
