@@ -9,13 +9,13 @@ afterEach(() => {
 describe("CTL1117H · ajustes del aparato controlado", () => {
     it("sin Tauri (web, escritorio sin soporte) devuelven los de fábrica sin fallar", async () => {
         expect(await leerAjustesControl()).toEqual(AJUSTES_CONTROL_DEFECTO);
-        expect(await ponerAjustesControl({ indicador: "oculto" })).toEqual({ indicador: "oculto", ver_toques: true });
+        expect(await ponerAjustesControl({ indicador: "oculto" })).toEqual({ indicador: "oculto", ver_toques: true, alcance: "total" });
     });
     it("con Tauri llama a los dos comandos y limpia lo que vuelve", async () => {
         const invoke = vi.fn(async (cmd: string) => (cmd === "control_ajustes_leer" ? { indicador: "raro", ver_toques: "si" } : { indicador: "oculto", ver_toques: false }));
         (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke } };
         expect(await leerAjustesControl()).toEqual(AJUSTES_CONTROL_DEFECTO);
-        expect(await ponerAjustesControl({ ver_toques: false })).toEqual({ indicador: "oculto", ver_toques: false });
+        expect(await ponerAjustesControl({ ver_toques: false })).toEqual({ indicador: "oculto", ver_toques: false, alcance: "total" });
         expect(invoke).toHaveBeenCalledWith("control_ajustes_poner", { parcial: { ver_toques: false } });
     });
     it("un fallo nativo no lanza", async () => {

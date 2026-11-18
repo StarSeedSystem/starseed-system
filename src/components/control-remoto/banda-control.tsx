@@ -96,7 +96,11 @@ export function textoFalta(c: CosaQueFalta, plataforma: string): { falta: string
 export const quienOpera = {
     esteAparatoPide: (otro: string, codigo: string | null) =>
         `Vas a operar ${otro} desde este aparato; en ${otro} tienen que aceptar el código ${codigo ?? "de este aparato"}.`,
-    otroPide: (otro: string) => `${otro} quiere operar ESTE aparato; si aceptas, podrá llamar, contestar, colgar… desde allí.`,
+    // CTL1117J · S2: la verdad de lo que concede aceptar: con «Control total» es todo el aparato, apps incluidas.
+    otroPide: (otro: string, alcance: "total" | "protegido" = "total") =>
+        alcance === "total"
+            ? `${otro} quiere operar ESTE aparato; si aceptas, podrá ver la pantalla y operar todo el aparato, apps incluidas (también los ajustes y los permisos).`
+            : `${otro} quiere operar ESTE aparato; si aceptas, podrá ver la pantalla y tocarla, pero no las ventanas de permisos, instalador ni ajustes («Protegido»).`,
     puedeOperarEste: (otro: string) => `Puede operar este aparato: ${otro}`,
     esteAparatoPuede: (otro: string) => `Este aparato puede operar: ${otro}`,
 };
@@ -312,6 +316,17 @@ export function ControlEntreNeuronasPanel() {
     const [uso, setUso] = useState({ pantalla: false, entrada: false });
     const [sesionAct, setSesionAct] = useState<SesionActiva | null>(null); // CTL1117I: quién controla ahora (aunque el punto esté oculto)
     const [esperando, setEsperando] = useState<string | null>(null);
+    const [alcance, setAlcance] = useState<"total" | "protegido">("total"); // CTL1117J · S2
+    useEffect(() => {
+        let vivo = true;
+        const leer = () => void leerAjustesControl().then((a) => vivo && setAlcance(a.alcance));
+        leer();
+        window.addEventListener(EVENTO_AJUSTES_CONTROL, leer);
+        return () => {
+            vivo = false;
+            window.removeEventListener(EVENTO_AJUSTES_CONTROL, leer);
+        };
+    }, []);
     const leerPantallaEntrada = useCallback(() => {
         void capacidadesNativas().then(setCapsNat);
         void controladoresAceptadosNativos().then(setAceptadosNat);
@@ -499,7 +514,7 @@ export function ControlEntreNeuronasPanel() {
 
     if (!permiso) return null;
     return (
-        <div className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
+        <div id="control-entre-neuronas" className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
             <div className="flex flex-wrap items-center gap-3">
                 <h3 className="flex-1 text-sm font-medium text-white/80">Control entre mis neuronas</h3>
                 <button
@@ -512,8 +527,8 @@ export function ControlEntreNeuronasPanel() {
                 </button>
             </div>
             <p className="text-[12px] text-white/55">
-                Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere la app de este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado.
-                Nada fuera de la app. Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar. Cada orden queda en el registro de llamadas.
+                Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
+                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar. Cada orden queda en el registro de llamadas.
             </p>
             <label className="flex items-center gap-2 text-[12px] text-white/70">
                 Nivel
@@ -534,7 +549,7 @@ export function ControlEntreNeuronasPanel() {
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
                     <PuntoColor color={colorDe(x.neurona, x.color)} />
                     <span className="flex-1">
-                        {quienOpera.otroPide(x.nombre)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
+                        {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
                     </span>
                     <button onClick={() => void aceptar(x.huella)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
                         Aceptar

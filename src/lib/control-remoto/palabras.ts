@@ -9,7 +9,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     firma: "La orden no venía firmada por un aparato de confianza: este aparato no la ejecutó. Si es la primera vez, vuelve a pedir el control.",
     "no-autorizado": "Este aparato todavía no te ha aceptado para operar su entrada. Acéptalo en él con su código.",
     sesion: "No hay una sesión de control abierta; se abre de nuevo sola.",
-    "regla-g": "La tableta tiene delante una ventana protegida (permisos, instalador o ajustes). Pulsa Inicio para salir de ella; lo demás solo se toca en la tableta misma.",
+    "regla-g": "Este aparato está en «Protegido»: tiene delante una ventana protegida (permisos, instalador o ajustes) y no deja tocarla desde otra neurona. Pulsa Inicio para salir de ella, o pon el aparato en «Control total» desde su ajuste local.",
     "pausa-local": "Alguien está tocando la pantalla del aparato: el control espera unos 3 segundos.",
     limite: "Demasiadas órdenes seguidas; el aparato espera un momento.",
     "sin-servicio": "El servicio de accesibilidad de StarSeed no está encendido en el aparato: la persona debe encenderlo allí.",
@@ -17,6 +17,8 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "sin-consentimiento": "Falta que la persona active, en el aparato, «Ver la pantalla sin preguntar en cada sesión».",
     "sin-indicador-nativo": "El aparato no pudo enseñar su aviso de control (borde rojo y «Terminar»): sin aviso no hay control.",
     "permiso-apagado": "El control está apagado en el aparato; solo su dueño puede encenderlo.",
+    // CTL1117J · S3: el aparato dijo que SÍ avisó a su dueño (ventana, aviso del sistema y centro de notificaciones).
+    "permiso-apagado-avisado": "La otra neurona tiene el control apagado; ya se lo avisamos a su dueño.",
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
     "sesion-caducada": "La sesión terminó (por inactividad o por llegar a su hora máxima). Pulsa «Reabrir» para seguir.",
@@ -72,7 +74,7 @@ export function palabrasOrden(motivo: string | undefined | null): string | undef
 }
 
 /** (CTL1117A · S3) Motivos que ya no se arreglan pidiendo otra vez: se dice claro y se espera, sin insistir. */
-export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado", "no-autorizado", "otra-cuenta", "otro-destino", "parada-nativa", "a-mano"]);
+export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado", "permiso-apagado-avisado", "no-autorizado", "otra-cuenta", "otro-destino", "parada-nativa", "a-mano"]);
 
 /**
  * CTL1117C · FALLO 3: la clave fina de una parada del aparato. `parada-nativa` + el motivo real que dijo lo nativo
@@ -80,6 +82,12 @@ export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado
  * Sin motivo (aparato anterior) se queda `parada-nativa`, que ya no afirma que la persona terminó.
  */
 export function claveParadaNativa(motivo: string, resultado?: unknown): string {
+    if (motivo === "permiso-apagado") {
+        // CTL1117J · S3: solo se dice «ya se lo avisamos» si el aparato lo confirmó en su respuesta.
+        const d0 = resultado && typeof resultado === "object" ? (resultado as { detalle?: unknown }).detalle : undefined;
+        const a = d0 && typeof d0 === "object" ? (d0 as { aviso?: unknown }).aviso : undefined;
+        return a === "si" || a === "ya" ? "permiso-apagado-avisado" : motivo;
+    }
     if (motivo !== "parada-nativa") return motivo;
     const d = resultado && typeof resultado === "object" ? (resultado as { detalle?: unknown }).detalle : undefined;
     const m = d && typeof d === "object" ? (d as { motivo?: unknown }).motivo : undefined;

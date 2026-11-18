@@ -271,6 +271,32 @@ export async function avisarLlamadaEntrante(l: {
     }
 }
 
+/**
+ * (CTL1117J · S3) Aviso del SISTEMA de que otra neurona pide ver o controlar esta (Control entre mis neuronas). Mismo camino que las
+ * llamadas: en la app nativa por `aviso_mensaje` de Rust, en la web por el service worker o la API del navegador. Respeta el permiso
+ * de ventanas de la app «Señales» y el permiso del sistema. `omitir`: con la sesión abierta en Android ya la notificación nativa lo
+ * dice y no se pone otra. No enciende ni acepta nada: pulsarla solo abre el ajuste. Nunca lanza.
+ */
+export async function avisarPeticionControl(a: { id: string; titulo: string; cuerpo: string; ruta: string; omitir?: boolean }): Promise<{ ok: boolean; motivo?: string } | null> {
+    try {
+        if (typeof window === "undefined" || !a?.id || !rutaValida(a.ruta)) return null;
+        if (a.omitir) return { ok: false, motivo: "ya-lo-dice-la-notificacion-nativa" };
+        if (!vistos.apuntar(a.id)) return null;
+        const pref = getAppNotifyPref("senales");
+        if (!pref.popups) return { ok: false, motivo: "silenciada-en-ajustes" };
+        const sistemaDisponible = esAppNativa() || permisoWeb() === "granted";
+        if (!sistemaDisponible) return { ok: false, motivo: "sin-permiso-del-sistema" };
+        const clave = "control-neuronas";
+        if (esAppNativa()) {
+            const r = await avisosNativos().avisar({ id: a.id, clave, titulo: a.titulo.slice(0, 80), cuerpo: a.cuerpo.slice(0, 240), ruta: a.ruta, sistema: true });
+            return r.ok ? { ok: r.valor.mostrada, motivo: r.valor.motivo ?? undefined } : { ok: false, motivo: r.motivo };
+        }
+        return await notificarWeb(a.id, a.titulo, a.cuerpo, a.ruta, clave);
+    } catch {
+        return null;
+    }
+}
+
 /** Un mensaje que ya estaba (llegó por otro camino): solo se le cuenta a la app nativa, sin avisar. */
 export function informarRecibido(id: string, clave: string): void {
     if (!id || !esAppNativa() || vistos.contiene(id)) return;

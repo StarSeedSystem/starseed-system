@@ -45,7 +45,7 @@ describe("CAL1115I · el panel dice quién controla a quién antes de pulsar nad
         render(<ControlEntreNeuronasPanel />);
         await waitFor(() => expect(screen.getByText(/quiere operar ESTE aparato/)).toBeInTheDocument());
         const t = screen.getByText(/quiere operar ESTE aparato/).textContent ?? "";
-        expect(t).toContain("MacBook de Alex quiere operar ESTE aparato; si aceptas, podrá llamar, contestar, colgar… desde allí.");
+        expect(t).toContain("MacBook de Alex quiere operar ESTE aparato; si aceptas, podrá ver la pantalla y operar todo el aparato, apps incluidas (también los ajustes y los permisos).");
         expect(t).toContain("C3D4");
     });
 

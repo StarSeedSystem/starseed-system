@@ -117,6 +117,11 @@ export function puertaControl(): PuertaControl | null {
     return puerta;
 }
 
+async function avisadorDePeticiones(): Promise<(p: import("./aviso-peticion").PeticionControl) => "si" | "ya"> {
+    const [{ crearAvisador }, { SALIDAS_REALES, resolverLocal }] = await Promise.all([import("./aviso-peticion"), import("./aviso-peticion-salidas")]);
+    return crearAvisador({ ahora: () => Date.now(), anotar, salidas: SALIDAS_REALES, resolver: resolverLocal });
+}
+
 /** Arranca el canal en este aparato (idempotente). Con el permiso apagado, la puerta lo rechaza todo. */
 export async function iniciarCanalControl(): Promise<void> {
     if (puerta || typeof window === "undefined" || !globalThis.crypto?.subtle) return;
@@ -143,6 +148,8 @@ export async function iniciarCanalControl(): Promise<void> {
         },
         nativo,
         abrirSobre: decryptEnvelopeFor,
+        // CTL1117J · S3: la petición verificada de otra neurona se avisa a la persona (ventana, sistema y centro de notificaciones).
+        avisarPeticion: await avisadorDePeticiones(),
     });
     void import("./pantalla-origen").then((m) => m.registrarPuerta(puerta)).catch(() => undefined); // PAN1115J
     // ORD1114Q: la parada de Rust (indicador, caducidad) cierra también la sesión de la página.

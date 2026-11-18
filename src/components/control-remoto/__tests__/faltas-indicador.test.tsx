@@ -83,7 +83,8 @@ describe("CAL1115I · las frases de quién opera a quién", () => {
         expect(quienOpera.esteAparatoPide("Maggaboard", "A1B2")).toBe("Vas a operar Maggaboard desde este aparato; en Maggaboard tienen que aceptar el código A1B2.");
     });
     it("otro aparato pide", () => {
-        expect(quienOpera.otroPide("Maggaboard")).toBe("Maggaboard quiere operar ESTE aparato; si aceptas, podrá llamar, contestar, colgar… desde allí.");
+        expect(quienOpera.otroPide("Maggaboard")).toContain("operar todo el aparato, apps incluidas");
+        expect(quienOpera.otroPide("Maggaboard", "protegido")).toContain("no las ventanas de permisos");
     });
     it("lista de aceptados, en los dos sentidos", () => {
         expect(quienOpera.puedeOperarEste("Maggaboard")).toBe("Puede operar este aparato: Maggaboard");

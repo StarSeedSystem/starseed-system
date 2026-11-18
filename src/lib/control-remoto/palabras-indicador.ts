@@ -19,6 +19,14 @@ export const PALABRAS_INDICADOR = {
         si: "sí",
         no: "no",
     },
+    // CTL1117J · S2: hasta dónde llega el control de otra neurona en ESTE aparato.
+    alcance: {
+        etiqueta: "Hasta dónde llega el control",
+        total: "Control total",
+        protegido: "Protegido",
+        ayudaTotal: "Quien controla puede ver la pantalla y operar todo el aparato: StarSeed OS, otras apps, los ajustes, los permisos y los instaladores. Aun así, con el aparato bloqueado no entra nada.",
+        ayudaProtegido: "Quien controla puede ver y tocar, pero no las ventanas de permisos, instalador ni ajustes, ni las de StarSeed OS y las tiendas; solo la tecla Inicio sirve para salir de ellas.",
+    },
     siempre: "El aviso en las notificaciones sigue ahí siempre que alguien controla este aparato.",
     sinNativo: "Estos dos ajustes son de la app de Android: este aparato no tiene control de pantalla propio, así que aquí aparecen apagados.",
     guardando: "Guardando…",

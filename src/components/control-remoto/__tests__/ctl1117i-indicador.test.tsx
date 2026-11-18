@@ -40,7 +40,7 @@ afterEach(() => {
     delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
 });
 
-function tauri(ajustes: { indicador: string; ver_toques: boolean }, extra: Record<string, unknown> = {}) {
+function tauri(ajustes: { indicador: string; ver_toques: boolean; alcance?: string }, extra: Record<string, unknown> = {}) {
     const inv = vi.fn(async (c: string, a?: { parcial?: Record<string, unknown> }) => {
         if (c === "control_ajustes_leer") return ajustes;
         if (c === "control_ajustes_poner") {
@@ -114,14 +114,14 @@ describe("CTL1117I · el punto de la esquina", () => {
 
 describe("CTL1117I · la banda de la app según el indicador", () => {
     it("indicador=punto: hay punto con el color de quien controla y ya no hay banda roja", async () => {
-        tauri({ indicador: "punto", ver_toques: true });
+        tauri({ indicador: "punto", ver_toques: true, alcance: "total" });
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora, color: "#dd3cd2" };
         render(<BandaControl />);
         await waitFor(() => expect(screen.getByTestId("punto-control-punto")).toHaveAttribute("data-color", "#dd3cd2"));
         expect(screen.queryByText(/Terminar y quitar el permiso/)).toBeNull();
     });
     it("indicador=oculto: no se dibuja nada", async () => {
-        const inv = tauri({ indicador: "oculto", ver_toques: true });
+        const inv = tauri({ indicador: "oculto", ver_toques: true, alcance: "total" });
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
         const { container } = render(<BandaControl />);
         await waitFor(() => expect(inv).toHaveBeenCalledWith("control_ajustes_leer"));
@@ -129,7 +129,7 @@ describe("CTL1117I · la banda de la app según el indicador", () => {
         expect(container).toBeEmptyDOMElement();
     });
     it("con indicador nativo (Android) la web NO pinta su punto: solo el nativo; el panel sigue diciendo quién controla y deja «Terminar»", async () => {
-        const inv = tauri({ indicador: "punto", ver_toques: true }, { control_capacidades: { ok: true, pantalla: {}, entrada: {}, falta: [] } });
+        const inv = tauri({ indicador: "punto", ver_toques: true, alcance: "total" }, { control_capacidades: { ok: true, pantalla: {}, entrada: {}, falta: [] } });
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
         const { container } = render(<BandaControl />);
         await waitFor(() => expect(inv).toHaveBeenCalledWith("control_capacidades"));
@@ -149,7 +149,7 @@ describe("CTL1117I · la banda de la app según el indicador", () => {
         await waitFor(() => expect(screen.getByTestId("punto-control")).toBeInTheDocument());
     });
     it("sin sesión no hay punto", async () => {
-        tauri({ indicador: "punto", ver_toques: true });
+        tauri({ indicador: "punto", ver_toques: true, alcance: "total" });
         const { container } = render(<BandaControl />);
         await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
         expect(container).toBeEmptyDOMElement();
@@ -158,7 +158,7 @@ describe("CTL1117I · la banda de la app según el indicador", () => {
 
 describe("CTL1117I · ajustes «Cómo se ve que te controlan»", () => {
     it("con app nativa lee los valores, los cambia con ponerAjustesControl y dice la frase fija de las notificaciones", async () => {
-        const inv = tauri({ indicador: "punto", ver_toques: true });
+        const inv = tauri({ indicador: "punto", ver_toques: true, alcance: "total" });
         render(<AjustesIndicadorControl disponible quien={null} onTerminar={() => undefined} />);
         const punto = screen.getByRole("radio", { name: "Punto en la esquina" });
         const oculto = screen.getByRole("radio", { name: "Oculto" });
@@ -178,7 +178,7 @@ describe("CTL1117I · ajustes «Cómo se ve que te controlan»", () => {
         const sw = screen.getByRole("switch");
         const ayuda = sw.getAttribute("aria-describedby");
         expect(ayuda && document.getElementById(ayuda)?.textContent).toMatch(/con su color/);
-        expect(screen.getByRole("radiogroup")).toHaveAttribute("aria-labelledby");
+        expect(screen.getAllByRole("radiogroup")[0]).toHaveAttribute("aria-labelledby");
     });
     it("en escritorio o web salen apagados y con el motivo; no llaman a nada", async () => {
         const inv = vi.fn();
@@ -198,14 +198,14 @@ describe("CTL1117I · ajustes «Cómo se ve que te controlan»", () => {
         expect(poner).not.toHaveBeenCalled();
     });
     it("si lo nativo no acepta el cambio lo dice", async () => {
-        const poner = vi.fn(async () => ({ indicador: "punto" as const, ver_toques: true }));
-        render(<AjustesIndicadorControl disponible quien={null} onTerminar={() => undefined} leer={async () => ({ indicador: "punto", ver_toques: true })} poner={poner} />);
+        const poner = vi.fn(async () => ({ indicador: "punto" as const, ver_toques: true, alcance: "total" as const }));
+        render(<AjustesIndicadorControl disponible quien={null} onTerminar={() => undefined} leer={async () => ({ indicador: "punto", ver_toques: true, alcance: "total" })} poner={poner} />);
         await userEvent.click(screen.getByRole("radio", { name: "Oculto" }));
         await waitFor(() => expect(screen.getByTestId("ajustes-indicador-fallo")).toBeInTheDocument());
     });
     it("con el indicador oculto, el panel dice quién controla y deja terminar", async () => {
         const f = vi.fn();
-        render(<AjustesIndicadorControl disponible quien={quien} onTerminar={f} leer={async () => ({ indicador: "oculto", ver_toques: true })} poner={async () => ({ indicador: "oculto", ver_toques: true })} />);
+        render(<AjustesIndicadorControl disponible quien={quien} onTerminar={f} leer={async () => ({ indicador: "oculto", ver_toques: true, alcance: "total" })} poner={async () => ({ indicador: "oculto", ver_toques: true, alcance: "total" })} />);
         expect(screen.getByTestId("quien-controla-ahora")).toHaveTextContent(/Mac de Alex controla este aparato \(nivel controlar\) desde las/);
         await userEvent.click(screen.getByRole("button", { name: "Terminar" }));
         expect(f).toHaveBeenCalled();
@@ -214,7 +214,7 @@ describe("CTL1117I · ajustes «Cómo se ve que te controlan»", () => {
 
 describe("CTL1117I · el panel «Control entre mis neuronas» entero", () => {
     it("con sesión viva y el indicador oculto sigue diciendo quién controla y «Terminar» la acaba", async () => {
-        tauri({ indicador: "oculto", ver_toques: false }, { control_capacidades: { ok: true, pantalla: {}, entrada: {}, falta: [] } });
+        tauri({ indicador: "oculto", ver_toques: false, alcance: "total" }, { control_capacidades: { ok: true, pantalla: {}, entrada: {}, falta: [] } });
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
         render(<ControlEntreNeuronasPanel />);
         const q = await screen.findByTestId("quien-controla-ahora");

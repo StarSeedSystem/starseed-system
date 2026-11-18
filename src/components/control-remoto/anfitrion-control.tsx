@@ -11,6 +11,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { VentanaControl } from "./ventana-control";
 import { usarColoresControl } from "./usar-colores-control";
 import { MedioControl } from "./ventana-control/medio"; // CTL1117B
+import { AvisoPeticionControl } from "./aviso-peticion-control"; // CTL1117J
 import { usarPantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
 
@@ -89,7 +90,17 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             fps={p.fps}
             caduca={p.caduca}
             alReabrir={p.reintentar}
-            ranuraMedio={<MedioControl neurona={neurona} nombre={nombre} alReconectar={p.reintentar} />}
+            ranuraMedio={
+                <>
+                    <MedioControl neurona={neurona} nombre={nombre} alReconectar={p.reintentar} />
+                    {/* CTL1117J · S2: hasta dónde llega el control en ESE aparato, dicho por él */}
+                    {p.alcance && (
+                        <span data-testid="alcance-aparato" title={p.alcance === "total" ? "Ese aparato deja ver y operar todo, apps y ajustes incluidos." : "Ese aparato protege sus ventanas de permisos, instalador y ajustes."} className="px-3 text-[11px] text-white/60">
+                            {p.alcance === "total" ? "Control total" : "Protegido"}
+                        </span>
+                    )}
+                </>
+            }
             alEnviar={(e) => void p.enviar(e)}
             alCerrar={() => {
                 p.cerrar();
@@ -112,6 +123,7 @@ export function AnfitrionControl() {
     }, []);
     return (
         <>
+            <AvisoPeticionControl />
             {lista.map((a) => (
                 <VentanaRemota key={a.neurona} neurona={a.neurona} nombre={a.nombre} modo="flotante" alCerrada={() => cerrarVentanaControl(a.neurona)} />
             ))}

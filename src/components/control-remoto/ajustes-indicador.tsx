@@ -130,6 +130,33 @@ export function AjustesIndicadorControl({
                     {a.indicador === "oculto" && disponible ? P.indicador.ayudaOculto : P.indicador.ayudaPunto}
                 </p>
             </div>
+            <div role="radiogroup" aria-labelledby={`${id}-a`} aria-describedby={`${id}-alc-ayuda`} className="space-y-1" data-testid="alcance-control">
+                <p id={`${id}-a`} className="text-white/70">
+                    {P.alcance.etiqueta}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    {(["total", "protegido"] as const).map((v) => {
+                        const marcado = disponible && a.alcance === v;
+                        return (
+                            <button
+                                key={v}
+                                type="button"
+                                role="radio"
+                                aria-checked={marcado}
+                                disabled={!disponible || ocupado}
+                                onClick={() => void cambiar({ alcance: v })}
+                                data-testid={`alcance-${v}`}
+                                className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${marcado ? "border-sky-400 bg-sky-400/20 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
+                            >
+                                {P.alcance[v]}
+                            </button>
+                        );
+                    })}
+                </div>
+                <p id={`${id}-alc-ayuda`} className="text-white/55" data-testid="alcance-ayuda">
+                    {disponible && a.alcance === "protegido" ? P.alcance.ayudaProtegido : P.alcance.ayudaTotal}
+                </p>
+            </div>
             <div className="space-y-1">
                 <button
                     type="button"

@@ -10,9 +10,15 @@ export interface AjustesControl {
     indicador: IndicadorControl;
     /** La onda del color del controlador en cada toque remoto. */
     ver_toques: boolean;
+    /**
+     * CTL1117J · S2: hasta dónde llega el control de otra neurona en ESTE aparato. «total» (de fábrica; un valor que falta o es raro
+     * se lee «total»): ninguna ventana ni app queda fuera, ni ajustes ni permisos. «protegido»: la regla G de siempre.
+     */
+    alcance: AlcanceAparato;
 }
+export type AlcanceAparato = "total" | "protegido";
 
-export const AJUSTES_CONTROL_DEFECTO: AjustesControl = { indicador: "punto", ver_toques: true };
+export const AJUSTES_CONTROL_DEFECTO: AjustesControl = { indicador: "punto", ver_toques: true, alcance: "total" };
 
 type Invocar = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -26,6 +32,7 @@ function limpiar(x: unknown): AjustesControl {
     return {
         indicador: o.indicador === "oculto" ? "oculto" : "punto",
         ver_toques: typeof o.ver_toques === "boolean" ? o.ver_toques : true,
+        alcance: o.alcance === "protegido" ? "protegido" : "total",
     };
 }
 

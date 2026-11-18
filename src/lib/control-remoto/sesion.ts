@@ -36,6 +36,7 @@ import { leerOrden, verificarFirma, huellaDeSpki, DESFASE_MAX_MS, VIDA_ORDEN_MS,
 import { capacidadesDeNivel, definicion, nivelMinimo, rangoNivel, NIVELES_CONCEDIBLES_FASE1, type Args, type Nivel } from "./niveles";
 import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
+import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
 
 export const SESION_MAX_MS = 60 * 60_000;
 export const SESION_INACTIVA_MS = 2 * 60_000;
@@ -103,6 +104,11 @@ export interface DepsPuerta {
     nativo: PuenteNativoControl;
     /** (ORD1114Q) Cómo abrir un sobre v:3 con la privada de cifrado de ESTA neurona. */
     abrirSobre?: AbrirSobre;
+    /**
+     * CTL1117J · S3: avisa a la persona de ESTE aparato de una petición YA verificada (misma cuenta, firma válida, para esta neurona,
+     * en hora). Devuelve «si» (se avisó), «ya» (se avisó hace poco: tope) o nada. Nunca enciende ni acepta nada.
+     */
+    avisarPeticion?: (p: PeticionControl) => "si" | "ya" | void;
 }
 
 const MAX_NONCES = 2000;
@@ -258,7 +264,11 @@ export class PuertaControl {
         // «presentarse»: un aparato de la cuenta pide que el dueño lo acepte AQUÍ. Nunca concede nada.
         if (nombre === "presentarse") return this.presentarse(o);
 
-        if (!permiso.encendido) return this.respuesta(c.nonce, false, "permiso-apagado", nombre, c.de, c.nivel);
+        if (!permiso.encendido) {
+            // CTL1117J · S3: la persona de este aparato se entera de que alguien lo pidió, y quien manda sabe que se avisó (`aviso`).
+            const aviso = nombre === "abrir-sesion" ? await this.avisoDeAperturaApagada(o, permiso) : null;
+            return this.respuesta(c.nonce, false, "permiso-apagado", nombre, c.de, c.nivel, undefined, aviso ? { aviso } : undefined);
+        }
         // ORD1114Q: sin indicador nativo posible no hay control (§2.4).
         if (!this.d.nativo.disponible()) return this.respuesta(c.nonce, false, "sin-indicador-nativo", nombre, c.de, c.nivel);
         const cuenta = this.d.cuentaPropia();
@@ -312,6 +322,7 @@ export class PuertaControl {
             const color = colorFirmado ?? ctl.color;
             this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
             this.d.alCambiar?.();
+            if (!mismaSesion) this.avisar({ de: c.de, nombre: ctl.nombre, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
                 nivel,
@@ -355,6 +366,39 @@ export class PuertaControl {
         }
     }
 
+    /** CTL1117J · S3: llama al aviso sin que un fallo suyo toque la puerta. */
+    private avisar(p: PeticionControl): "si" | "ya" | null {
+        try {
+            const r = this.d.avisarPeticion?.(p);
+            return r === "si" || r === "ya" ? r : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * CTL1117J · S3: con el permiso APAGADO, una `abrir-sesion` solo avisa si se puede verificar a quien la manda: misma cuenta, un
+     * controlador ya fijado AQUÍ, su firma con esa clave, dirigida a esta neurona y en hora. No toca `seq` ni nonces (no es una orden que se cumpla).
+     */
+    private async avisoDeAperturaApagada(o: NonNullable<ReturnType<typeof leerOrden>>, permiso: PermisoControl): Promise<"si" | "ya" | null> {
+        try {
+            const c = o.carga;
+            const cuenta = this.d.cuentaPropia();
+            if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return null;
+            const ctl = permiso.controladores.find((x) => x.huella === c.de);
+            if (!ctl || ctl.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return null;
+            if (!(await verificarFirma(this.d.subtle, ctl.spki, o.bytes, o.firma))) return null;
+            if (c.para !== this.d.neuronaPropia()) return null;
+            const ahora = this.d.ahora();
+            const t = Date.parse(c.t);
+            const cad = Date.parse(c.caduca);
+            if (Math.abs(ahora - t) > DESFASE_MAX_MS || cad <= ahora || cad - t > VIDA_ORDEN_MS || cad < t) return null;
+            return this.avisar({ de: c.de, nombre: ctl.nombre, tipo: "abrir-sesion", nivel: c.nivel === "ver" ? "ver" : "controlar", estado: "apagado", desde: ahora });
+        } catch {
+            return null;
+        }
+    }
+
     private async presentarse(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {
         const c = o.carga;
         const a = c.accion.args;
@@ -378,7 +422,9 @@ export class PuertaControl {
         const pendientes = [nuevo, ...p.pendientes.filter((x) => x.huella !== c.de)].slice(0, MAX_PENDIENTES);
         this.d.guardarPermiso({ ...p, pendientes });
         this.d.alCambiar?.();
-        return this.respuesta(c.nonce, true, "pendiente", "presentarse", c.de, "-");
+        // CTL1117J · S3: pedir ser aceptado también avisa (con el permiso apagado o encendido); nunca acepta nada por sí mismo.
+        const aviso = this.avisar({ de: c.de, nombre, tipo: "presentarse", nivel: p.nivel === "ver" ? "ver" : "controlar", estado: p.encendido ? "por-aceptar" : "apagado", desde: ahora });
+        return this.respuesta(c.nonce, true, "pendiente", "presentarse", c.de, "-", aviso ? { aviso } : undefined);
     }
 }
 

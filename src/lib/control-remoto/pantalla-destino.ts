@@ -64,6 +64,17 @@ export interface InstantaneaPantalla {
     fps?: number;
     /** CTL1117A · S3: cuándo llega la hora máxima de la sesión (ms epoch), si el aparato la dijo. */
     caduca?: number;
+    /** CTL1117J · S2: hasta dónde llega el control en el aparato controlado, tal como él lo dijo (null: no lo dijo, aparato anterior). */
+    alcance?: "total" | "protegido";
+}
+
+/** (CTL1117J · S2) El `alcance` que dice el aparato controlado en su respuesta de capacidades; un valor raro no se inventa. */
+export function alcanceDeNativo(...xs: unknown[]): "total" | "protegido" | undefined {
+    for (const x of xs) {
+        const a = x && typeof x === "object" ? (x as { alcance?: unknown }).alcance : undefined;
+        if (a === "total" || a === "protegido") return a;
+    }
+    return undefined;
 }
 
 export const MAX_ENTRADA_POR_SEGUNDO = 60;
@@ -310,7 +321,7 @@ export class PantallaDestino {
             return;
         }
         const abierta = r.resultado as { sesion?: string; nivel?: string; caduca?: string } | undefined;
-        if (!r.ok || typeof abierta?.sesion !== "string") return this.cerrar(r.motivo || "sin-sesion", false);
+        if (!r.ok || typeof abierta?.sesion !== "string") return this.cerrar(claveParadaNativa(r.motivo || "sin-sesion", r.resultado), false); // CTL1117J · S3
         this.token = abierta.sesion;
         const caduca = typeof abierta.caduca === "string" ? Date.parse(abierta.caduca) : NaN;
         if (Number.isFinite(caduca)) this.poner({ caduca });
@@ -336,6 +347,7 @@ export class PantallaDestino {
             pantalla: { ancho: Number(res.ancho) || 0, alto: Number(res.alto) || 0, giro: 0 },
             capacidades: capacidadesDeNativo(res.capacidades, nivel),
             ...(fuente ? { fuente } : {}),
+            ...(alcanceDeNativo(res.capacidades, res) ? { alcance: alcanceDeNativo(res.capacidades, res) } : {}), // CTL1117J · S2
         });
         try {
             await this.negociar();
@@ -515,6 +527,8 @@ export class PantallaDestino {
         const a = (r.resultado as { aparato?: Record<string, unknown> } | undefined)?.aparato;
         if (a && typeof a === "object") {
             this.poner({ aparato: a as AparatoVentana });
+            const al = alcanceDeNativo(a, (r.resultado as { capacidades?: unknown } | undefined)?.capacidades); // CTL1117J · S2
+            if (al && al !== this.snap.alcance) this.poner({ alcance: al });
             // UNI1115M · costura e: si la tableta se giró, los cuadros siguen llegando derechos pero con otra proporción: la ventana la sigue.
             const p = (a as { pantalla?: { ancho?: unknown; alto?: unknown } }).pantalla;
             const w = Number(p?.ancho);
