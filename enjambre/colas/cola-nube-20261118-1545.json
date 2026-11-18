@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "IMA21",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar y entradas nuevas montadas en el menú: Traducir y reemplazar",
+   "archivos": [
+    "src/components/traduccion/montaje-idioma.tsx",
+    "src/components/traduccion/__tests__/montaje-idioma.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `MontajeIdioma` (cliente) que, al montarse, registra con `registrarEntradaMenuTexto` las entradas de IMA17 y la nueva «Reemplazar por la traducción» (visible con `ctx.editable` y selección): traduce la selección con el MISMO traductor y motores que `traducir-texto.tsx` (importa de ahí `puedeLibreTranslate` y `nombreMotor`; no lo modifiques; el idioma destino es el del perfil como allí, vía `leer` de `preferencias.ts`), captura la selección ANTES de abrir el menú con `capturarSeleccionEditable` (IMA19) y reemplaza al terminar; si falla dice por qué y no toca el texto; muestra un aviso con «Deshacer». Respeta el modo privado (`crearTraductor({privado})`). Montaje: NO toques `app-globals.tsx` (no está en `archivos`): deja el montaje como comentario `// montar junto a <TraducirTexto /> en src/app/(app)/app-globals.tsx` al final del componente, PRUEBAS: con motores falsos reemplaza el texto de un textarea y «Deshacer» lo devuelve; si el motor falla no cambia nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA17",
+    "IMA18",
+    "IMA19",
+    "IMA20"
+   ]
+  },
+  {
+   "id": "DIR1118T",
+   "ola": "HER1118",
+   "titulo": "Director presidente: un «[tiempo agotado]» no es una respuesta; se reintenta con más tiempo",
+   "archivos": [
+    "scripts/puente/director_presidente.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/test_director_presidente_dir1118t.py"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 a las 15:04 el Director presidente publicó como respuesta «[tiempo agotado]» y marcó la entrega «respondido»: Hermes estaba haciendo un encargo de varios pasos (SSH, captura de pantalla) y el cartero lo cortó a los 120 s (SEGUNDOS_PROVEEDOR_PRESIDENTE en scripts/puente/motores_director.py). Tarea: (1) ese texto (y cualquier salida vacía por tiempo) cuenta como fallo, igual que los de _FALLOS_HERMES / es_fallo_hermes, y el mensaje queda en cola con su detalle visible; (2) el reintento del mismo mensaje usa más tiempo: 120 s, luego 300 s, luego 600 s (como mucho), y el detalle de la cola lo dice («reintento con 300 s»). No cambies el orden de motores ni nada más. Pruebas unitarias sin red en scripts/puente/test_director_presidente_dir1118t.py (texto «[tiempo agotado]» = fallo; escalera 120/300/600). Verificación: python3 -m pytest -q scripts/puente/test_director_presidente_dir1118t.py scripts/puente/test_cartero_director.py. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "IMA21",
+   "DIR1118T"
+  ]
+ }
+}
