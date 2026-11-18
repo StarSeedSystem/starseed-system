@@ -12,7 +12,8 @@
 //! menos fino (una tecla muy breve entre dos sondeos se escapa); por eso la línea de registro dice qué mecanismo se usa.
 //!
 //! Sin sesión de control viva (o ya en pausa) los eventos se ignoran. Pausar NO cierra la sesión: la reanuda la persona
-//! desde la franja del indicador, y `control_entrada_logica` descuenta los 3 s.
+//! desde el punto del indicador, o se quita sola a los 3 s sin actividad física (CTL1118P: los eventos siguen llegando en pausa y
+//! cada uno vuelve a empezar la cuenta).
 
 use crate::control_entrada_macos_logica as m;
 use crate::control_escritorio_linux_logica as ll;
@@ -34,11 +35,14 @@ pub fn contadores_y_reiniciar() -> (u64, u64) {
 }
 
 fn hay_mano(app: &AppHandle) {
-    if !crate::control_neuronas::sesion_viva_sin_pausa() {
+    if !crate::control_neuronas::sesion_viva() {
         return;
     }
-    PAUSAS_DE_MANO.fetch_add(1, Ordering::SeqCst);
-    crate::control_entrada_linux::al_pausar(); // suelta el botón o la tecla que el control hubiera dejado pulsado
+    // CTL1118P: con la pausa ya puesta una mano nueva solo vuelve a empezar los 3 s (no cuenta como pausa nueva ni suelta nada).
+    if crate::control_neuronas::sesion_viva_sin_pausa() {
+        PAUSAS_DE_MANO.fetch_add(1, Ordering::SeqCst);
+        crate::control_entrada_linux::al_pausar(); // suelta el botón o la tecla que el control hubiera dejado pulsado
+    }
     crate::control_neuronas::pausa_local(app, crate::control_neuronas::mono_k());
 }
 
@@ -129,13 +133,8 @@ fn bucle_sondeo(app: &AppHandle, con: &RustConnection, raiz: Option<u32>) {
     let mut teclas_antes: Option<[u8; 32]> = None;
     loop {
         std::thread::sleep(std::time::Duration::from_millis(50));
-        if !crate::control_neuronas::sesion_viva_sin_pausa() {
-            botones_antes = None;
-            teclas_antes = None;
-            if !crate::control_neuronas::sesion_viva() {
-                return; // cerró la sesión: se vuelve a decidir el mecanismo con la siguiente
-            }
-            continue;
+        if !crate::control_neuronas::sesion_viva() {
+            return; // cerró la sesión: se vuelve a decidir el mecanismo con la siguiente
         }
         let Some(p) = con.query_pointer(raiz).ok().and_then(|c| c.reply().ok()) else { return };
         let k = con.query_keymap().ok().and_then(|c| c.reply().ok()).map(|r| r.keys);

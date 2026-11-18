@@ -555,17 +555,21 @@ pub fn quitar_atajo(app: &AppHandle) {
     }
 }
 
-/// Cada 150 ms, con sesión viva y sin pausa: ¿hubo entrada local? → pausa al instante.
+/// Cada 150 ms, con sesión viva: ¿hubo entrada local? → pausa al instante. (CTL1118P) Con la pausa ya puesta se sigue mirando: cada
+/// actividad física nueva vuelve a empezar los 3 s (`cn::pausa_local` lo hace sin pausar otra vez).
 pub fn vigilar_entrada_local(app: &AppHandle) {
     let h = app.clone();
     let _ = std::thread::Builder::new().name("starseed-control-entrada-local".into()).spawn(move || loop {
         std::thread::sleep(Duration::from_millis(150));
-        if !cn::sesion_viva_sin_pausa() {
+        if !cn::sesion_viva() {
             continue;
         }
+        let ya_pausada = !cn::sesion_viva_sin_pausa();
         // CTL1117M: lo que inyecta el propio control (enigo, a nivel HID) no cuenta; una mano real, sí. Ver `control_entrada_macos::mano_real`.
         let Some(entrada) = crate::control_entrada_macos::mano_real() else { continue };
-        crate::control_entrada_macos::al_pausar(); // suelta el botón o la tecla que el control hubiera dejado pulsado
+        if !ya_pausada {
+            crate::control_entrada_macos::al_pausar(); // suelta el botón o la tecla que el control hubiera dejado pulsado
+        }
         cn::pausa_local(&h, entrada);
     });
 }

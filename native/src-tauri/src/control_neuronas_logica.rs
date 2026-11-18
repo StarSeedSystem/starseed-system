@@ -18,6 +18,10 @@ const MAX_DETALLE: usize = 160;
 /// (ORD1114T) Margen tras abrir o reanudar en el que lo local no pausa (el propio clic de «Reanudar»).
 pub const GRACIA_LOCAL_MS: u64 = 1_500;
 
+/// (CTL1118P · contrato §2.4 y Android) En macOS y Linux la pausa local se quita SOLA tras tantos ms sin actividad física local
+/// (cada actividad nueva vuelve a empezar la cuenta). Es el mismo valor que ya usa Android.
+pub const PAUSA_LOCAL_MS: u64 = crate::control_entrada_logica::PAUSA_LOCAL_MS;
+
 /// (CTL1118H · 18-11, Alex: «hice pruebas en la 53 tratando de controlar esta mac desde la tableta…») Lo que SIGUE pasando mientras la
 /// pausa por toque físico local está activa: abrir y cerrar la sesión, la señal y el arranque de la pantalla y las lecturas. La pausa solo
 /// frena la ENTRADA (gesto, tecla, texto, volumen, brillo) y lo que actúa sobre la neurona (llamar, colgar…): quien controla sigue viendo
@@ -75,6 +79,29 @@ pub struct Sesion {
     pub pausada_ms: Option<u64>,
     /// (ORD1114T) Última vez que la persona la reanudó (o que se abrió): lo local anterior no pausa.
     pub reanudada_ms: u64,
+    /// (CTL1118P) Última actividad física local vista mientras dura la pausa: la cuenta de los 3 s parte de aquí.
+    pub local_ms: u64,
+    /// (CTL1118P) Pausas locales de esta sesión (para las líneas `control-pausa`).
+    pub pausas: u32,
+}
+
+/// (CTL1118P) Una pausa que acaba de quitarse: cuánto duró y la cuenta de pausas de la sesión.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PausaTerminada {
+    pub dur_ms: u64,
+    pub pausas: u32,
+}
+
+/// (CTL1118P) `entra motivo=… pausas=N` (como las de Android, sin contenido: nunca qué se tecleó ni dónde se pulsó).
+pub fn linea_pausa_escritorio_entra(motivo: &str, pausas: u32) -> String {
+    let m = clave_de_motivo(motivo);
+    format!("entra motivo={} pausas={}", if m.is_empty() { "desconocido".to_string() } else { m }, pausas)
+}
+
+/// (CTL1118P) `sale motivo=reanudada-sola|reanudar dur-ms=N pausas=N`.
+pub fn linea_pausa_escritorio_sale(motivo: &str, p: PausaTerminada) -> String {
+    let m = clave_de_motivo(motivo);
+    format!("sale motivo={} dur-ms={} pausas={}", if m.is_empty() { "desconocido".to_string() } else { m }, p.dur_ms.min(9_999_999), p.pausas)
 }
 
 #[derive(Debug, Default)]
@@ -138,7 +165,7 @@ impl Control {
                 return Err(Rechazo::Pausada); // ORD1114T: renovar no quita la pausa local
             }
         }
-        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora });
+        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora, local_ms: 0, pausas: 0 });
         Ok(self.sesion.as_ref().expect("recién puesta"))
     }
 
@@ -232,14 +259,21 @@ impl Control {
 
     /// (ORD1114T) Lo local pausa al instante. `entrada_ms` = hora de la última entrada local (tecla, ratón,
     /// toque). Solo cuenta si es POSTERIOR a abrir o reanudar más `GRACIA_LOCAL_MS` (el clic de «Reanudar» no
-    /// vuelve a pausar). Devuelve true si acaba de pausar.
+    /// vuelve a pausar). Devuelve true si acaba de pausar. (CTL1118P) Con la pausa ya puesta, una actividad nueva NO pausa otra vez
+    /// pero sí vuelve a empezar la cuenta de los 3 s (`local_ms`); devuelve false.
     #[allow(dead_code)]
     pub fn entrada_local(&mut self, entrada_ms: u64) -> bool {
         let Some(s) = self.sesion.as_mut() else { return false };
-        if s.pausada_ms.is_some() || entrada_ms <= s.reanudada_ms.saturating_add(GRACIA_LOCAL_MS) {
+        if entrada_ms <= s.reanudada_ms.saturating_add(GRACIA_LOCAL_MS) {
+            return false;
+        }
+        if s.pausada_ms.is_some() {
+            s.local_ms = s.local_ms.max(entrada_ms);
             return false;
         }
         s.pausada_ms = Some(entrada_ms);
+        s.local_ms = entrada_ms;
+        s.pausas = s.pausas.saturating_add(1);
         true
     }
 
@@ -251,19 +285,48 @@ impl Control {
             return false;
         }
         s.pausada_ms = Some(ahora);
+        s.local_ms = ahora;
+        s.pausas = s.pausas.saturating_add(1);
         true
     }
 
     /// (ORD1114T) Solo desde el indicador nativo (menú de la barra, notificación de Android).
     #[allow(dead_code)]
     pub fn reanudar(&mut self, ahora: u64) -> bool {
-        let Some(s) = self.sesion.as_mut() else { return false };
-        if s.pausada_ms.take().is_none() {
-            return false;
-        }
+        self.reanudar_medida(ahora).is_some()
+    }
+
+    /// (CTL1118P) Como `reanudar`, pero dice cuánto duró la pausa y cuántas lleva la sesión (para el registro). Es la acción inmediata
+    /// de «Reanudar»: no espera a los 3 s.
+    #[allow(dead_code)]
+    pub fn reanudar_medida(&mut self, ahora: u64) -> Option<PausaTerminada> {
+        let s = self.sesion.as_mut()?;
+        let desde = s.pausada_ms.take()?;
         s.reanudada_ms = ahora;
         s.ultima_ms = ahora;
-        true
+        Some(PausaTerminada { dur_ms: ahora.saturating_sub(desde), pausas: s.pausas })
+    }
+
+    /// (CTL1118P) Solo macOS y Linux: quita la pausa SOLA si han pasado `PAUSA_LOCAL_MS` desde la última actividad física local.
+    /// No cierra la sesión. La gracia de después NO se come el toque siguiente: la reanudación cuenta como hecha en la última actividad
+    /// (que ya queda a 3 s o más), así que cualquier toque posterior a ella vuelve a pausar.
+    #[allow(dead_code)]
+    pub fn vencer_pausa(&mut self, ahora: u64) -> Option<PausaTerminada> {
+        let s = self.sesion.as_mut()?;
+        let desde = s.pausada_ms?;
+        if ahora.saturating_sub(s.local_ms) < PAUSA_LOCAL_MS {
+            return None;
+        }
+        s.pausada_ms = None;
+        s.reanudada_ms = s.local_ms;
+        s.ultima_ms = ahora;
+        Some(PausaTerminada { dur_ms: ahora.saturating_sub(desde), pausas: s.pausas })
+    }
+
+    /// (CTL1118P) Pausas locales de la sesión viva (0 sin sesión).
+    #[allow(dead_code)]
+    pub fn pausas(&self) -> u32 {
+        self.sesion.as_ref().map_or(0, |s| s.pausas)
     }
 
     /// (CTL1117C · FALLO 3) El detalle de un rechazo `parada-nativa`: POR QUÉ no hay sesión, para que quien manda no diga que la
@@ -686,6 +749,80 @@ mod pruebas {
         // En pausa también caduca por inactividad: pausar no alarga la sesión.
         assert_eq!(c.orden(TOK, "colgar", 30_500 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         assert_eq!(Rechazo::Pausada.codigo(), "pausa-local");
+    }
+
+    // ─────────── CTL1118P ───────────
+
+    #[test]
+    fn la_pausa_local_se_quita_sola_a_los_3_s_sin_actividad() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        assert!(c.entrada_local(20_000));
+        assert_eq!(c.vencer_pausa(22_999), None, "a 2999 ms todavía");
+        assert!(c.pausada());
+        let p = c.vencer_pausa(23_000).expect("a los 3000 ms se quita sola");
+        assert_eq!(p, PausaTerminada { dur_ms: 3_000, pausas: 1 });
+        assert!(!c.pausada());
+        assert!(c.activa().is_some(), "la pausa nunca cierra la sesion");
+        assert!(c.orden(TOK, "colgar", 23_001, true).is_ok(), "la entrada vuelve");
+        assert_eq!(c.vencer_pausa(30_000), None, "sin pausa no hay nada que quitar");
+    }
+
+    #[test]
+    fn cada_actividad_fisica_nueva_reinicia_la_cuenta() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        assert!(c.entrada_local(20_000));
+        assert!(!c.entrada_local(22_500), "ya estaba en pausa: no pausa otra vez");
+        assert_eq!(c.vencer_pausa(24_000), None, "la cuenta parte de 22 500, no de 20 000");
+        assert!(!c.entrada_local(25_000));
+        assert_eq!(c.vencer_pausa(27_999), None);
+        let p = c.vencer_pausa(28_000).unwrap();
+        assert_eq!(p.dur_ms, 8_000, "dura desde la primera actividad hasta que se quita");
+        assert_eq!(p.pausas, 1, "una sola pausa aunque hubiera varias actividades");
+        // Una actividad atrasada (de antes) nunca acorta ni retrasa la cuenta.
+        assert!(c.entrada_local(40_000));
+        assert!(!c.entrada_local(39_000));
+        assert_eq!(c.vencer_pausa(42_999), None);
+        assert!(c.vencer_pausa(43_000).is_some());
+    }
+
+    #[test]
+    fn lo_que_inyecta_el_propio_control_no_cuenta_y_tras_reanudar_un_toque_nuevo_vuelve_a_pausar() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        // Lo propio no llega nunca a `entrada_local` (lo descuentan los vigias): sin actividad fisica no hay pausa que alargar ni poner.
+        assert_eq!(c.vencer_pausa(60_000), None);
+        assert!(!c.pausada());
+        assert!(c.entrada_local(20_000));
+        // El propio control inyectando durante la pausa tampoco la alarga: no llama a `entrada_local`.
+        assert!(c.vencer_pausa(23_000).is_some());
+        // Un toque justo despues de quitarse sola vuelve a pausar (la gracia no se lo come).
+        assert!(c.entrada_local(23_100));
+        assert_eq!(c.pausas(), 2);
+        assert_eq!(c.vencer_pausa(26_100).unwrap().pausas, 2);
+    }
+
+    #[test]
+    fn reanudar_es_inmediato_y_su_clic_no_vuelve_a_pausar() {
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        assert!(c.entrada_local(20_000));
+        let p = c.reanudar_medida(20_400).expect("Reanudar no espera a los 3 s");
+        assert_eq!(p, PausaTerminada { dur_ms: 400, pausas: 1 });
+        assert!(!c.pausada());
+        assert!(!c.entrada_local(20_900), "el propio clic de Reanudar cae en la gracia");
+        assert_eq!(c.reanudar_medida(21_000), None, "sin pausa no hay nada que reanudar");
+        assert_eq!(c.vencer_pausa(21_000), None);
+        assert!(c.activa().is_some());
+    }
+
+    #[test]
+    fn las_lineas_de_registro_son_las_de_android() {
+        assert_eq!(linea_pausa_escritorio_entra("mano-local", 2), "entra motivo=mano-local pausas=2");
+        assert_eq!(linea_pausa_escritorio_sale("reanudada-sola", PausaTerminada { dur_ms: 3_056, pausas: 2 }), "sale motivo=reanudada-sola dur-ms=3056 pausas=2");
+        assert_eq!(linea_pausa_escritorio_sale("reanudar", PausaTerminada { dur_ms: 400, pausas: 1 }), "sale motivo=reanudar dur-ms=400 pausas=1");
+        assert_eq!(PAUSA_LOCAL_MS, 3_000);
     }
 
     // ─────────── CTL1117A ───────────

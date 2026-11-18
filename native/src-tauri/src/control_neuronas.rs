@@ -8,8 +8,8 @@
 //!   el menú «Terminar el control ahora», atendido en Rust: para aunque la página esté colgada. La página no
 //!   tiene `core:tray`/`core:menu` (SEG1111U), así que no lo puede quitar.
 //! · (ORD1114T) macOS además: punto de color siempre encima (CTL1118H; antes un borde rojo), atajo global fijo ⌃⌥⌘. que para, y
-//!   cualquier tecla, clic o movimiento local pausa al instante (`control_neuronas_macos.rs`); «Reanudar el
-//!   control» solo desde el menú del indicador.
+//!   cualquier tecla, clic o movimiento local pausa al instante (`control_neuronas_macos.rs`); «Reanudar»
+//!   la quita al instante y, sin actividad física local, se quita sola a los 3 s (CTL1118P; también en Linux).
 //! · (ORD1114T) Android: notificación en curso del servicio en primer plano con «Terminar» + superposición
 //!   (borde y pastilla), todo en Kotlin; la sesión y el registro siguen aquí (`control_neuronas_android.rs`).
 //!   Sin interruptor nativo, notificaciones o superposición, se niega con «sin-indicador-nativo».
@@ -111,7 +111,7 @@ pub struct EstadoControl {
     pub ultima_parada: Option<String>,
     pub ultima_parada_motivo: Option<String>,
     pub registro_integro: Option<bool>,
-    /// (ORD1114T) Pausada por una acción local; la reanuda la persona desde el indicador.
+    /// (ORD1114T) Pausada por una acción local; la reanuda la persona desde el indicador o, en macOS y Linux, se quita sola a los 3 s (CTL1118P).
     pub pausada: bool,
     /// (ORD1114T) Lo que falta para poder enseñar el indicador aquí, en palabras cortas.
     pub falta: Vec<String>,
@@ -521,9 +521,14 @@ pub(crate) fn apagar_interruptor(app: &AppHandle, motivo: &str) {
 /// (ORD1114T) Pausa local (macOS: tecla/ratón; Android: toque fuera de la pastilla). Devuelve si pausó.
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 pub(crate) fn pausa_local(app: &AppHandle, entrada_ms: u64) {
-    let pauso = control().entrada_local(entrada_ms);
+    // CTL1118P: con la pausa ya puesta, una actividad nueva solo vuelve a empezar la cuenta de los 3 s (no pausa otra vez ni anota).
+    let (pauso, pausas) = {
+        let mut c = control();
+        (c.entrada_local(entrada_ms), c.pausas())
+    };
     if pauso {
         anotar(app, "pausa-local", "una accion local pauso el control");
+        crate::ble::nota(None, "control-pausa", &l::linea_pausa_escritorio_entra("mano-local", pausas));
         marcar_pausa_indicador(app, true);
         let _ = app.emit(EVENTO_PAUSA, serde_json::json!({ "pausada": true }));
     }
@@ -545,8 +550,23 @@ pub(crate) fn sesion_viva_sin_pausa() -> bool {
 /// (ORD1114T) Solo desde el indicador nativo.
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 pub(crate) fn reanudar(app: &AppHandle, desde: &str) {
-    if control().reanudar(mono_ms()) {
+    let medida = control().reanudar_medida(mono_ms());
+    if let Some(p) = medida {
         anotar(app, "reanudada", desde);
+        crate::ble::nota(None, "control-pausa", &l::linea_pausa_escritorio_sale("reanudar", p));
+        marcar_pausa_indicador(app, false);
+        let _ = app.emit(EVENTO_PAUSA, serde_json::json!({ "pausada": false }));
+    }
+}
+
+/// (CTL1118P) Solo macOS y Linux: quita SOLA la pausa local a los 3 s sin actividad física local. El punto y el panel siguen al cambio por
+/// el mismo camino de «Reanudar» (`marcar_pausa_indicador`) y la página recibe el mismo evento. No cierra la sesión.
+#[allow(dead_code)] // Android lo lleva Kotlin
+pub(crate) fn vencer_pausa_local(app: &AppHandle) {
+    let medida = control().vencer_pausa(mono_ms());
+    if let Some(p) = medida {
+        anotar(app, "reanudada", "sola-a-los-3-s");
+        crate::ble::nota(None, "control-pausa", &l::linea_pausa_escritorio_sale("reanudada-sola", p));
         marcar_pausa_indicador(app, false);
         let _ = app.emit(EVENTO_PAUSA, serde_json::json!({ "pausada": false }));
     }
@@ -574,6 +594,15 @@ pub fn iniciar(app: &AppHandle) {
     crate::control_neuronas_macos::vigilar_entrada_local(app); // ORD1114T: tecla/ratón local → pausa
     #[cfg(target_os = "linux")]
     crate::control_vigia_linux::vigilar_entrada_local(app); // CTL1118L: toque físico (XInput2) → pausa
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        // CTL1118P: el reloj de la pausa local (3 s sin actividad física). Cuenta fina (250 ms), aparte del tic de 1 s.
+        let h = app.clone();
+        let _ = std::thread::Builder::new().name("starseed-control-pausa-sola".into()).spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            vencer_pausa_local(&h);
+        });
+    }
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     crate::control_aceptados_escritorio::al_arrancar(app); // CTL1117M: con el interruptor apagado no queda nadie aceptado
     let h = app.clone();
