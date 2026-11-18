@@ -19,6 +19,8 @@ describe("error de plataforma ausente en el manifiesto (UPD1118A)", () => {
     const error = 'None of the fallback platforms ["linux-x86_64-appimage","linux-x86_64"] were found in the response platforms object';
     const versionInstalada = "0.5.1-prueba.53";
     const formateado = formatearErrorActualizacion(error, versionInstalada);
+    expect(formateado).not.toBeNull();
+    if (!formateado) return;
     expect(formateado.tipo).toBe("ámbar");
     expect(formateado.texto).toBe(
       `Esta versión de prueba aún no tiene paquete para tu sistema; sigues en la ${versionInstalada}. Vuelve a comprobar más tarde.`
@@ -28,6 +30,8 @@ describe("error de plataforma ausente en el manifiesto (UPD1118A)", () => {
   it("error de red sigue en rojo con texto habitual", () => {
     const error = "TypeError: Failed to fetch";
     const formateado = formatearErrorActualizacion(error, "0.5.1-prueba.53");
+    expect(formateado).not.toBeNull();
+    if (!formateado) return;
     expect(formateado.tipo).toBe("rojo");
     expect(formateado.texto).toBe("Sin conexión: lo intentaré cuando vuelva la red.");
   });
