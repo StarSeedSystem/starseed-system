@@ -135,6 +135,10 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
 
     // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
     CLOCK_DATE: { label: "Reloj y Fecha", category: "utilidades", w: 3, h: 3, minW: 2, minH: 2, relevance: 83 },
+<<<<<<< HEAD
+=======
+    TRADUCTOR: { label: "Traductor", category: "ia", w: 3, h: 3, minW: 2, minH: 2, relevance: 70 },
+>>>>>>> b728ea91a (salvavidas · TU24: trabajo del agente antes de las puertas (tsc / vitest))
     TASKS_QUICK: { label: "Tareas", category: "productividad", w: 3, h: 4, minW: 2, minH: 3, relevance: 81 },
     QUICK_NOTES: { label: "Notas rápidas", category: "productividad", w: 3, h: 4, minW: 2, minH: 3, relevance: 68 },
     AURORA_LAST: { label: "Aurora", category: "ia", w: 3, h: 4, minW: 2, minH: 3, relevance: 80 },
