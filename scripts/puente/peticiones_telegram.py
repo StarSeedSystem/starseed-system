@@ -543,9 +543,7 @@ def atender_alcance(p: dict[str, Any], plan: dict[str, Any]) -> None:
          f"Investigaré el canal, sus vídeos y métodos de contacto.\n"
          f"El informe, ficha de contacto y mensaje quedarán PENDIENTES DE APROBACIÓN.")
     
-    # Aquí se conectaría con los agentes de alcance (ALC1113)
-    # Por ahora, registramos la petición y creamos la estructura
-    from alcance_aprobacion import registrar_alcance
+    from peticiones_alcance import registrar_alcance, investigar_canal_youtube
     
     # Extraer info del canal del texto
     texto = p["texto"]
@@ -555,11 +553,27 @@ def atender_alcance(p: dict[str, Any], plan: dict[str, Any]) -> None:
     # Registrar en el sistema de alcance
     hash_id = registrar_alcance(texto, destinatario, canal, "peticiones-a1")
     
-    decir(f"✅ Alcance registrado (ID: {hash_id})\n"
-         f"• Vídeo fuente: {url_principal}\n"
-         f"• Investigación profunda: en cola\n"
-         f"• Informe, ficha y mensaje: pendientes de tu aprobación\n"
-         f"Usa /alcance para ver pendientes y /approve <id> para aprobar.")
+    # Investigar el canal (asíncrono en producción, síncrono aquí para demo)
+    try:
+        resultado = investigar_canal_youtube(url_principal, texto)
+        from peticiones_alcance import actualizar_alcance
+        actualizar_alcance(hash_id, 
+            informe=resultado.get("informe"),
+            ficha_contacto=resultado.get("ficha_contacto"),
+            mensaje_borrador=resultado.get("mensaje_borrador"),
+            estado="pendiente_aprobacion"
+        )
+        decir(f"✅ Alcance registrado (ID: {hash_id})\n"
+             f"• Vídeo fuente: {url_principal}\n"
+             f"• Informe: generado\n"
+             f"• Ficha de contacto: generada\n"
+             f"• Mensaje borrador: generado\n"
+             f"• Todo PENDIENTE DE APROBACIÓN\n"
+             f"Usa /alcance para ver pendientes y /approve <id> para aprobar.")
+    except Exception as e:
+        log("investigación alcance falló", str(e))
+        decir(f"⚠️ Alcance registrado (ID: {hash_id}) pero la investigación falló: {e}\n"
+             f"Se reintentará automáticamente.")
 
 
 def atender_descartar(p: dict[str, Any], plan: dict[str, Any]) -> None:
@@ -569,17 +583,18 @@ def atender_descartar(p: dict[str, Any], plan: dict[str, Any]) -> None:
          f"Buscaré las fuentes relacionadas en los cuadernos afectados,\n"
          f"las eliminaré, guardaré la regla y regeneraré los formatos.")
     
-    # Aquí se conectaría con NotebookLM para hacer source search y delete
-    # Por ahora, confirmamos la acción
-    from peticiones_notebooklm import nb as nb_cliente
+    from peticiones_alcance import procesar_descarte
     
-    # Buscar en cuadernos de síntesis y producción
     try:
-        # source search en cuadernos afectados
-        # source delete de las fuentes encontradas
-        # guardar regla en preferencias
-        # regenerar formatos afectados
-        decir("✅ Descarte procesado. Las fuentes relacionadas han sido eliminadas y la regla guardada.")
+        resultado = procesar_descarte(texto)
+        total = resultado.get("total_fuentes_eliminadas", 0)
+        cuadernos = resultado.get("cuadernos_procesados", [])
+        detalles = "\n".join(f"  • {c['cuaderno']}: {c['eliminadas']} fuentes" for c in cuadernos)
+        decir(f"✅ Descarte procesado.\n"
+             f"• Palabras clave: {', '.join(resultado.get('palabras_clave', [])) or 'ninguna'}\n"
+             f"• Cuadernos procesados:\n{detalles or '  (ninguno)'}\n"
+             f"• Total fuentes eliminadas: {total}\n"
+             f"• Regla guardada y formatos regenerados.")
     except Exception as e:
         log("descartar falló", str(e))
         raise

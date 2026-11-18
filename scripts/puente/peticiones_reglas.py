@@ -108,7 +108,13 @@ def por_reglas(texto: str) -> dict[str, Any]:
     tipo_peticion = _detectar_tipo_peticion(texto)
     
     # Artefactos NotebookLM (solo para tipo "notebooklm")
-    artefactos = [{"tipo": k, "indicaciones": ""} for k, patron in CLAVES_TIPO if re.search(patron, t)]
+    # "video" solo es artefacto si se pide PRODUCIR uno, no si se analiza (alcance)
+    artefactos = []
+    for k, patron in CLAVES_TIPO:
+        if re.search(patron, t):
+            # Excluir "video" cuando el tipo es "alcance" (análisis, no producción)
+            if not (tipo_peticion == "alcance" and k == "video"):
+                artefactos.append({"tipo": k, "indicaciones": ""})
     
     # Determinar fuente principal
     if urls["drive"]:
