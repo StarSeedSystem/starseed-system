@@ -65,6 +65,7 @@ import { IDS_SIEMBRA_1027B } from "./repos-1027b";
 import { IDS_SIEMBRA_1028 } from "./repos-1028";
 import { IDS_SIEMBRA_1101 } from "./repos-1101";
 import { IDS_SIEMBRA_1104 } from "./repos-1104";
+import { IDS_SIEMBRA_TRADUCTOR } from "./traductor-1116";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -74,7 +75,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -432,7 +433,7 @@ const IDS_SIEMBRA_1020D: string[] = [
  * nativo de cada uno lo cablea la Ola 1104R.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D, ...IDS_SIEMBRA_1101, ...IDS_SIEMBRA_1104]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D, ...IDS_SIEMBRA_1101, ...IDS_SIEMBRA_1104, ...IDS_SIEMBRA_TRADUCTOR]),
 );
 
 /**
@@ -590,6 +591,10 @@ export async function ensureDefaultsSeeded(): Promise<{ seeded: boolean; install
       if (res.ok) justInstalled.push(id);
     } catch { /* defensivo: un paquete no debe frenar la siembra */ }
   }
+
+  // app-traductor tiene payload.route ("/traductor") pero ensureDefaultsSeeded
+  // SOLO llama a install() y verifica res.ok; ignora res.action/res.href, así
+  // que la siembra REGISTRA el paquete SIN navegar (cero navegación inesperada).
 
   // ── 2) Garantizar que las fuentes gratis recomendadas NO estén deshabilitadas.
   //       Import dinámico defensivo del router (toca localStorage/providers).
