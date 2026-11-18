@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MRE4",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro: celular y SDR, con la ranura para una fuente de espectro real cuando haya hardware",
+   "archivos": [
+    "src/lib/senales/espectro/adaptadores/celular-sdr.ts",
+    "src/lib/senales/espectro/adaptadores/__tests__/celular-sdr.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Interfaz `FuenteEspectroReal { nombre: string; disponible(): Promise<boolean>; barrer(desdeKhz: number, hastaKhz: number): Promise<{frecuenciaKhz:number; fuerzaDbm:number}[]> }` y la fuente por defecto `SIN_SDR` (`disponible()` = false). `adaptadorCelular(lectura: {celda?: {banda?: string; frecuenciaKhz?: number; fuerzaDbm?: number}} | null)`: hoy NINGUNA API del OS ni del navegador entrega celda y banda a la app (el repo no las lee; comprueba con `grep -rn \"CellInfo\\|TelephonyManager\" native src`); sin lectura → `sinFuente` («este aparato no entrega la celda ni la banda móvil a la app»); si se inyecta una lectura, conviértela con `bandas.ts`. `adaptadorSdr(fuente, rango)`: solo con `disponible()` verdadero barre y devuelve señales `medida` con fuente «SDR conectado: <nombre>»; sin SDR → `sinFuente` («no hay un receptor SDR conectado»). No añadas dependencias nuevas ni código nativo: solo la ranura. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: sin lectura y sin SDR → solo `sinFuente`; con lectura falsa → banda correcta; con SDR falso → señales medidas y la fuente nombrada. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/adaptadores/__tests__/celular-sdr.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE4:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA2",
+    "MRA3"
+   ]
+  },
+  {
+   "id": "MRE5",
+   "ola": "MAP1116B",
+   "titulo": "Espectrómetro inteligente: unir los adaptadores, deduplicar, vincular con antenas y neuronas conocidas",
+   "archivos": [
+    "src/lib/senales/espectro/espectrometro.ts",
+    "src/lib/senales/espectro/__tests__/espectrometro.test.ts"
+   ],
+   "depende": [
+    "MRE4"
+   ],
+   "prompt": "Lee AGENTS.md. `espectrometro(entradas): {senales: SenalEspectro[]; sinFuente: SinFuente[]; vinculadas: number}` que llama a los cuatro adaptadores (inyectados), suma las señales publicadas por otros dueños (MRA7) y las estaciones (MRI5), deduplica por `claveSenal`, y VINCULA: si una señal coincide (medio + id de antena/neurona/estación/nodo) con algo que el mapa ya conoce (`AntennaKind` de `signals.ts`: lora/relay/account/ip/ble/serial; aparatos de `src/lib/senales/aparatos.ts`), le pone `vinculo` y cuenta; añade `compatibles` con `compatiblesDe`. Orden: más viva y de mayor calidad primero. Todo lo que ningún adaptador pudo leer queda en `sinFuente` y se enseña. No hace red ni lecturas propias. PRUEBAS: dos adaptadores devuelven la misma señal → una; una señal coincide con una neurona propia → `vinculo`; si todos fallan → lista vacía y cuatro `sinFuente`; no se inventa ninguna señal. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/espectro/__tests__/espectrometro.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE5:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRE1",
+    "MRE2",
+    "MRE3",
+    "MRA4"
+   ]
+  },
+  {
+   "id": "MRE6",
+   "ola": "MAP1116B",
+   "titulo": "Vista del espectro: eje de bandas y frecuencias con anchos, capa y fuente",
+   "archivos": [
+    "src/components/mesh/mapa-senales/vista-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx"
+   ],
+   "depende": [
+    "MRE5"
+   ],
+   "prompt": "Lee AGENTS.md. Componente SVG `VistaEspectro({senales, sinFuente, onElegir})`: eje horizontal de frecuencia (escala logarítmica con las bandas de `bandas.ts` rotuladas: 433 MHz, 868 MHz, 2,4 GHz, 5 GHz…), cada señal es una barra de su ancho en su frecuencia, altura = fuerza (o «sin medir» como barra hueca), color por medio, estilo por origen (medida sólida, declarada con anillo, estimada rayada); las señales sin frecuencia van a una fila «sin frecuencia» debajo (no se colocan al azar). Debajo, un bloque «Lo que este aparato no puede ver» con los `sinFuente` y su motivo. Táctil y de teclado (Enter abre la ficha), usable a 360 px, `prefers-reduced-motion` respetado. PRUEBAS: dos señales solapadas; una sin frecuencia en su fila; `sinFuente` visible; elegir llama a `onElegir` con el id. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/vista-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE6:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRF1"
+   ]
+  },
+  {
+   "id": "MRE7",
+   "ola": "MAP1116B",
+   "titulo": "Ficha de una señal: toda su información y sus opciones de compatibilidad",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ficha-senal-espectro.tsx",
+    "src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx"
+   ],
+   "depende": [
+    "MRE5"
+   ],
+   "prompt": "Lee AGENTS.md. Componente `FichaSenalEspectro({senal, onAccion})` con el estilo de las fichas de `src/components/mesh/mapa-senales/secciones-ficha.tsx`: medio, banda, frecuencia y ancho en unidades legibles, fuerza y calidad, origen con su etiqueta («medida a las 14:32» / «declarada» / «estimada»), capa (propia/pública/comunidad/privada/externa), zona aproximada si hay, quién la ve (`fuente`), `vinculo` (a qué antena, cerebro, nodo, neurona, servidor, estación o router corresponde) y la lista `compatibles`: cada opción con su motivo y, si `posible`, un botón de acción que SOLO llama a `onAccion(opcion)` (inyectado; la ficha no conecta nada por sí misma). Lo que falta se enseña como «sin dato», nunca como 0. PRUEBAS: señal medida completa; señal sin frecuencia; opción no posible con su motivo y sin botón; el botón llama a `onAccion` con la opción. COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales/__tests__/ficha-senal-espectro.test.tsx` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE7:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA4"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "MRE5",
+   "MRE4"
+  ]
+ }
+}
