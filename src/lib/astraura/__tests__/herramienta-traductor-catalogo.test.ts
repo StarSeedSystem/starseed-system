@@ -47,7 +47,7 @@ describe("herramienta Traductor universal en el catálogo", () => {
     expect(veces[0]).toBe(HERRAMIENTA_TRADUCTOR);
   });
 
-  it("su id no choca en el catálogo base: entra una vez y es la misma herramienta", () => {
+it("su id no choca en el catálogo base: entra una vez y es la misma herramienta", () => {
     // El catálogo base la aplica vía el spread de `HERRAMIENTAS_ASTRAURA_VIVO`
     // en `SKILL_CAPABILITIES` (src/ai/astraura/skills.ts): «no choca» es que no
     // hay duplicado y que la entrada es ESTA herramienta, no otra con su id.
