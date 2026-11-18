@@ -1,0 +1,60 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "MAG06",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: bóveda cifrada de claves",
+   "archivos": [
+    "scripts/puente/maggabit_boveda.py",
+    "scripts/puente/test_maggabit_boveda.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». La bóveda (imagen APFS cifrada) la crea y la abre Alex; este módulo NUNCA pide, lee ni recibe la contraseña, y nunca abre un diálogo. FUENTES = ('~/.starseed/env', '~/.starseed/env.*', '~/.hermes', '~/.astraura', '~/.oci') más los archivos de la sección CLAVES de config/respaldo-exclusiones.txt hallados bajo ~/Documents (menos `.credentials.json`, que no se copia a ningún sitio). Función PURA plan(boveda_estado: str, fuentes_existentes: list[str]) -> list[dict]: lista vacía con motivo si la bóveda no está 'abierta'. ordenes(plan) -> rsync -a a /Volumes/MaggabitBoveda/claves/…, conservando la ruta relativa al home. El registro lleva solo rutas y tamaños, nunca contenido. Pruebas: bóveda cerrada, sin crear, abierta; `.credentials.json` excluido aunque esté en ~/Documents.",
+   "dependencias_ya_en_main": [
+    "MAG05"
+   ]
+  },
+  {
+   "id": "MAG10",
+   "ola": "MAG1117",
+   "titulo": "Maggabit: director de la pasada",
+   "archivos": [
+    "scripts/puente/respaldo_maggabit.py",
+    "scripts/puente/test_respaldo_maggabit.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md y architecture/maggabit-almacenamiento-vivo.md (si aún no existe: starseed_memory_root/olas/contrato-maggabit-1117.md). Reglas de esta ola: módulo de Python en scripts/puente, sin dependencias nuevas; la decisión es una función PURA y la E/S es una capa fina con todo inyectable (reloj, subprocess, lectura de disco); pruebas con unittest en scripts/puente/test_<módulo>.py, herméticas: NUNCA tocan /Volumes, la red, ~/.starseed ni el disco real. Todo subprocess lleva timeout (el volumen exFAT puede no responder: se devuelve «sin-respuesta», nunca se cuelga). Con el disco ausente nada falla ni espera (principio 0 del contrato). Nunca se borra en el origen. Nunca se imprimen ni se registran tokens, claves ni URLs con credenciales. Textos en español neutro, sin la palabra «Mando». Pega fina (≤ 120 líneas) con todo inyectado: una_pasada(leer_medio, presion, libre_interno, ejecutar, ahora) hace: 1) maggabit_medio.leer(); si el disco está y la imagen de trabajo no, `hdiutil attach <IMAGEN_TRABAJO> -owners on` con timeout (la bóveda no se monta aquí); 2) maggabit_ritmo.siguiente(...) elige UN trabajo o ninguno; 3) lo ejecuta con el módulo que toque; 4) escribe el manifiesto. Órdenes: `pasada`, `estado` y `expulsar` (hdiutil detach de las imágenes montadas y `diskutil eject` del disco, cada uno con timeout y diciendo qué quedó). Un cerrojo de archivo evita dos pasadas a la vez. Pruebas: disco ausente → no hace nada y sale 0; presión 2 → no copia; trabajo elegido → se ejecuta ese y solo ese; expulsar con la imagen ocupada → lo dice y no fuerza.",
+   "dependencias_ya_en_main": [
+    "MAG02",
+    "MAG03",
+    "MAG04",
+    "MAG05",
+    "MAG07",
+    "MAG09"
+   ]
+  },
+  {
+   "id": "MQC4",
+   "ola": "MOD1116",
+   "titulo": "Biblioteca de modelos: sección «Ramas por proveedor» en el panel de Modelos de IA",
+   "archivos": [
+    "src/components/library/modelos-ia-panel.tsx",
+    "src/components/astraura/ramas-proveedor-ui.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `src/components/library/modelos-ia-panel.tsx` y `src/components/astraura/modelos-sin-filtros-ui.tsx`. Crea `ramas-proveedor-ui.tsx`: por cada rama de `ramasPorProveedor` un bloque plegable con el proveedor, sus modelos de más a menos capaz, la insignia «Cabe en esta neurona» / «Justo» / «No cabe», la marca «Más capaz que cabe» y «Más ligero» y, en los de API, el precio por millón de tokens con su fecha de comprobación y la frase «lo que envías llega a un tercero». Las variantes sin filtros siguen detrás del interruptor existente y con su explicación; una rama de API sin filtros NO se muestra si el perfil no la permite. En `modelos-ia-panel.tsx` monta el componente bajo la sección de recomendaciones (cambio ≤60 líneas). Usa los tokens y componentes del panel vecino (nada de colores sueltos); texto en español neutro, sin «Mando». Sin pruebas nuevas: la lógica ya la cubren MQC3 y MQA7; deja `data-testid=\"ramas-proveedor\"` en el contenedor.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQC3",
+    "MQA7-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "MQC4",
+   "MAG06",
+   "MAG10"
+  ]
+ }
+}
