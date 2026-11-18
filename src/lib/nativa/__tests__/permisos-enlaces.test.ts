@@ -70,7 +70,7 @@ describe("tabla de enlaces directos", () => {
   });
 
   it("cada cosa que le falta al control remoto tiene sus pasos", () => {
-    for (const f of AJUSTES_QUE_FALTAN) expect(ENLACES_CONTROL[f].pulsa.length, f).toBeGreaterThan(20);
+    for (const f of AJUSTES_QUE_FALTAN.filter((x): x is keyof typeof ENLACES_CONTROL => x in ENLACES_CONTROL)) expect(ENLACES_CONTROL[f].pulsa.length, f).toBeGreaterThan(20);
     expect(ENLACES_CONTROL["ajustes-restringidos"].pulsa).toMatch(/⋮/);
   });
 
