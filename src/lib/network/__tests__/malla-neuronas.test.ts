@@ -164,3 +164,129 @@ describe("hayQueEnviarRadar (RDV13)", () => {
     expect(hayQueEnviarRadar(huella, { huella, at: 100 }, 100 + 10_000, 10_000)).toBe(true);
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────── */
+/* Publicación de la ficha al arrancar la malla (AUD1117 · F5)            */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+import {
+  crearControlPublicacionCapacidades,
+  publicadorFichaActivo,
+  registrarPublicadorFicha,
+  retirarPublicadorFicha,
+  type PublicadorFicha,
+} from "@/lib/network/malla-neuronas";
+
+interface PublicadorFalso extends PublicadorFicha {
+  detenciones: number;
+}
+
+function publicadorFalso(): PublicadorFalso {
+  const p: PublicadorFalso = {
+    detener: () => {
+      p.detenciones++;
+    },
+    detenciones: 0,
+  };
+  return p;
+}
+
+describe("crearControlPublicacionCapacidades (AUD1117 · F5)", () => {
+  test("con la capa mesh ENCENDIDA, arranca la publicación UNA sola vez", () => {
+    let capa = true;
+    let inicios = 0;
+    const creado: { valor: PublicadorFalso | null } = { valor: null };
+    const control = crearControlPublicacionCapacidades({
+      capaEncendida: () => capa,
+      iniciar: () => {
+        inicios++;
+        creado.valor = publicadorFalso();
+        return creado.valor;
+      },
+    });
+    control.sincronizar();
+    control.sincronizar();
+    control.sincronizar();
+    expect(inicios).toBe(1);
+    expect(control.activo()).toBe(true);
+    expect(publicadorFichaActivo()).toBe(creado.valor);
+    control.apagar();
+    expect(publicadorFichaActivo()).toBeNull();
+  });
+
+  test("con la capa mesh APAGADA, no arranca nada", () => {
+    const control = crearControlPublicacionCapacidades({
+      capaEncendida: () => false,
+      iniciar: () => {
+        throw new Error("no debió arrancar");
+      },
+    });
+    control.sincronizar();
+    expect(control.activo()).toBe(false);
+    expect(publicadorFichaActivo()).toBeNull();
+  });
+
+  test("al APAGAR la capa se detiene y se retira el publicador", () => {
+    let capa = true;
+    const creado: { valor: PublicadorFalso | null } = { valor: null };
+    const control = crearControlPublicacionCapacidades({
+      capaEncendida: () => capa,
+      iniciar: () => {
+        creado.valor = publicadorFalso();
+        return creado.valor;
+      },
+    });
+    control.sincronizar();
+    capa = false;
+    control.sincronizar();
+    expect(creado.valor?.detenciones).toBe(1);
+    expect(control.activo()).toBe(false);
+    expect(publicadorFichaActivo()).toBeNull();
+  });
+
+  test("al apagar la capa detiene TAMBIÉN el publicador registrado por otro (panel)", () => {
+    let capa = true;
+    const delPanel = publicadorFalso();
+    expect(registrarPublicadorFicha(delPanel)).toBe(true);
+    const control = crearControlPublicacionCapacidades({
+      capaEncendida: () => capa,
+      iniciar: () => publicadorFalso(),
+    });
+    control.sincronizar();
+    expect(control.activo()).toBe(false);
+    capa = false;
+    control.sincronizar();
+    expect(delPanel.detenciones).toBe(1);
+    expect(publicadorFichaActivo()).toBeNull();
+  });
+
+  test("si YA hay un publicador activo (el del panel), no arranca otro", () => {
+    const delPanel = publicadorFalso();
+    expect(registrarPublicadorFicha(delPanel)).toBe(true);
+    let inicios = 0;
+    const control = crearControlPublicacionCapacidades({
+      capaEncendida: () => true,
+      iniciar: () => {
+        inicios++;
+        return publicadorFalso();
+      },
+    });
+    control.sincronizar();
+    expect(inicios).toBe(0);
+    expect(publicadorFichaActivo()).toBe(delPanel);
+    retirarPublicadorFicha(delPanel);
+    delPanel.detener();
+  });
+
+  test("el registro no admite dos publicadores; retirar solo quita el propio", () => {
+    const a = publicadorFalso();
+    const b = publicadorFalso();
+    expect(registrarPublicadorFicha(a)).toBe(true);
+    expect(registrarPublicadorFicha(b)).toBe(false);
+    expect(publicadorFichaActivo()).toBe(a);
+    retirarPublicadorFicha(b);
+    expect(publicadorFichaActivo()).toBe(a);
+    retirarPublicadorFicha(a);
+    expect(publicadorFichaActivo()).toBeNull();
+  });
+});

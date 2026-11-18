@@ -82,7 +82,16 @@ import {
 import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-store";
 // (VZF1015Q) Voz medida en la ficha: medidas locales (módulo hoja) + saneado puro.
 import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
-import { normalizarVoz, vozMedida, type VozNodo } from "@/lib/network/capacidades-nodo";
+import {
+  iniciarPublicacionCapacidades,
+  normalizarVoz,
+  vozMedida,
+  type PublicacionCapacidades,
+  type VozNodo,
+} from "@/lib/network/capacidades-nodo";
+// (AUD1117 · F5) La ficha MEDIDA de este dispositivo ya no vive en el panel:
+// el motor la publica al arrancar la malla con la capa mesh encendida.
+import { medirFichaPropia } from "@/lib/network/ficha-propia";
 
 /* ------------------------------------------------------------------ */
 /* Constantes                                                        */
@@ -451,6 +460,101 @@ export function decidirAutovinculo(
 }
 
 /* ------------------------------------------------------------------ */
+/* Publicación de la ficha al arrancar la malla (AUD1117 · F5)        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * (AUD1117 · F5) Antes, la ficha de capacidades solo se publicaba con el
+ * panel «Cerebro → Servidores» abierto (`device-network-panel.tsx`). Ahora el
+ * motor de la malla la publica AL ARRANCAR con la capa mesh encendida y la
+ * DETIENE al apagarla. Este registro compartido (motor + panel) evita que
+ * dos publicadores vivos anuncien la misma ficha dos veces.
+ */
+export const EVENTO_INTELIGENCIA = "starseed:astraura-intelligence";
+
+/** Lo mínimo que un publicador de ficha debe saber hacer: detenerse. */
+export type PublicadorFicha = Pick<PublicacionCapacidades, "detener">;
+
+let publicadorFichaVivo: PublicadorFicha | null = null;
+
+/** El publicador de ficha activo ahora mismo (motor o panel), o null. */
+export function publicadorFichaActivo(): PublicadorFicha | null {
+  return publicadorFichaVivo;
+}
+
+/** Registra el publicador activo. `false` si ya hay uno: no duplica. */
+export function registrarPublicadorFicha(p: PublicadorFicha): boolean {
+  if (publicadorFichaVivo) return false;
+  publicadorFichaVivo = p;
+  return true;
+}
+
+/** Retira SOLO si es el mismo: quien no lo registró no apaga el ajeno. */
+export function retirarPublicadorFicha(p: PublicadorFicha | null): void {
+  if (p && publicadorFichaVivo === p) publicadorFichaVivo = null;
+}
+
+export interface ControlPublicacionDeps {
+  /** ¿La capa mesh comparte ahora mismo? (en producción, `capaMeshCompartiendo()`). */
+  capaEncendida: () => boolean;
+  /** Crea el publicador (en producción, `iniciarPublicacionCapacidades`). */
+  iniciar: () => PublicadorFicha;
+}
+
+/** Control de la publicación: qué se puede pedirle desde el motor. */
+export interface ControlPublicacionCapacidades {
+  /** ¿Lo creó y sigue vivo este control (el publicador ES suyo)? */
+  activo: () => boolean;
+  /** Detiene y retira el publicador propio (al desmontar el motor). */
+  apagar: () => void;
+  /** Relee el interruptor de la capa y arranca o detiene en consecuencia. */
+  sincronizar: () => void;
+}
+
+/**
+ * crearControlPublicacionCapacidades — sincroniza la publicación de la ficha
+ * con el interruptor de la capa mesh, sin duplicar:
+ *   · Capa encendida y nadie publicando → arranca UNA vez (y se registra).
+ *   · Capa encendida y ya hay publicador (el del panel) → no arranca otro.
+ *   · Capa apagada → detiene el propio y, si quedó el ajeno publicado,
+ *     también: sin capa mesh no se anuncia nada. Nunca lanza ni duplica.
+ * Puro salvo por el registro de módulo; inyectable para pruebas.
+ */
+export function crearControlPublicacionCapacidades(
+  deps: ControlPublicacionDeps,
+): ControlPublicacionCapacidades {
+  let propio: PublicadorFicha | null = null;
+  const detenerActivo = (p: PublicadorFicha): void => {
+    p.detener();
+    retirarPublicadorFicha(p);
+  };
+  return {
+    activo: () => propio !== null,
+    apagar: () => {
+      if (propio) {
+        detenerActivo(propio);
+        propio = null;
+      }
+    },
+    sincronizar: () => {
+      if (deps.capaEncendida()) {
+        if (propio || publicadorFichaActivo()) return;
+        propio = deps.iniciar();
+        // Perdió la carrera con otro publicador: no duplica.
+        if (!registrarPublicadorFicha(propio)) {
+          propio.detener();
+          propio = null;
+        }
+        return;
+      }
+      const vivo = propio ?? publicadorFichaActivo();
+      if (vivo) detenerActivo(vivo);
+      propio = null;
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Resumen para el indicador de capas (usePeersMalla)                */
 /* ------------------------------------------------------------------ */
 
@@ -650,6 +754,9 @@ export function useMallaNeuronas(deps?: {
 
   const meshRef = useRef<MeshHandle | null>(null);
   const concienciaRef = useRef<(() => void) | null>(null);
+  // (AUD1117 · F5) Control de la publicación de la ficha de capacidades:
+  // arranca con la capa mesh encendida y se detiene al apagarla.
+  const publicacionCtrlRef = useRef<ControlPublicacionCapacidades | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
   // (RDV13) Control del radar compartido: cuándo se construyó el último resumen
   // local y qué se compartió al final (huella + momento).
@@ -752,19 +859,63 @@ export function useMallaNeuronas(deps?: {
         },
       });
 
-      const conciencia = capaMeshCompartiendo() ? setupConcienciaSync(mesh, {}) : null;
+      // Conciencia colectiva SIEMPRE enganchada: sus envíos y recepciones se
+      // guardan por sí solos con `capaMeshCompartiendo()` en cada mensaje, así
+      // que apagar la capa no necesita desmontar nada (y al encenderla después
+      // ya hay transporte para publicar la ficha — AUD1117 · F5).
+      const conciencia = setupConcienciaSync(mesh, {});
       concienciaRef.current = () => {
         unsubPeer();
-        conciencia?.unsubscribe();
+        conciencia.unsubscribe();
       };
+
+      // (AUD1117 · F5) Publica la ficha de capacidades AL ARRANCAR la malla si
+      // la capa mesh está encendida; el evento de inteligencia (o un cambio
+      // desde otra pestaña) la re-sincroniza, y apagar la capa la detiene.
+      if (!cancelado) {
+        const control = crearControlPublicacionCapacidades({
+          capaEncendida: capaMeshCompartiendo,
+          iniciar: () => {
+            const ids = identidadDispositivo();
+            const device = {
+              id: ids.syncDeviceId || ids.neuronDeviceId,
+              label: "Este dispositivo",
+              platform: typeof navigator !== "undefined" ? navigator.platform || "" : "",
+              userAgent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 120) : "",
+              publicIp: null,
+              lastSeen: Date.now(),
+            };
+            return iniciarPublicacionCapacidades({
+              obtenerFicha: () => medirFichaPropia(device),
+              publicarMalla: (ficha) => {
+                conciencia.publicarCapacidades(ficha);
+              },
+            });
+          },
+        });
+        publicacionCtrlRef.current = control;
+        control.sincronizar();
+      }
     })();
 
     const nearbyUnsub = deps?.subscribeNearby?.((b) => setCercanas(b));
+    // (AUD1117 · F5) El interruptor de la capa viaja en los ajustes de
+    // inteligencia: al guardarlos (`starseed:astraura-intelligence`) o al
+    // cambiarlos desde otra pestaña (`storage`) se re-sincroniza la publicación.
+    const resincronizarPublicacion = () => {
+      publicacionCtrlRef.current?.sincronizar();
+    };
+    window.addEventListener(EVENTO_INTELIGENCIA, resincronizarPublicacion);
+    window.addEventListener("storage", resincronizarPublicacion);
 
     return () => {
       cancelado = true;
       concienciaRef.current?.();
       concienciaRef.current = null;
+      window.removeEventListener(EVENTO_INTELIGENCIA, resincronizarPublicacion);
+      window.removeEventListener("storage", resincronizarPublicacion);
+      publicacionCtrlRef.current?.apagar();
+      publicacionCtrlRef.current = null;
       nearbyUnsub?.();
       // NO cerramos el mesh compartido aquí: otras superficies (el panel
       // manual de /servidores) lo siguen usando. `teardownMesh()` solo lo

@@ -58,18 +58,23 @@ import {
 } from "@/lib/network/lan-sync";
 import type { PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import {
-  crearFichaNodo,
   elegirDeliberador,
   elegirReflejo,
   iniciarPublicacionCapacidades,
   resumenRed,
-  vozMedida,
   type CapacidadesNodo,
-  type MedioNodo,
   type PublicacionCapacidades,
 } from "@/lib/network/capacidades-nodo";
-import { leerMedidas } from "@/lib/aurora/medidas-voz";
-import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+// (AUD1117 · F5) La ficha medida vive en lib: la comparte con el motor de la
+// malla, que ahora también la publica al arrancar (se reexporta por compatibilidad).
+import { medirFichaPropia } from "@/lib/network/ficha-propia";
+import {
+  publicadorFichaActivo,
+  registrarPublicadorFicha,
+  retirarPublicadorFicha,
+} from "@/lib/network/malla-neuronas";
+
+export { medirFichaPropia } from "@/lib/network/ficha-propia";
 
 /* ------------------------------------------------------------------ */
 /* Utilidades de presentación                                        */
@@ -202,51 +207,6 @@ function DeviceRow({
       </div>
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/* Ficha de capacidades de ESTE dispositivo (medida, no inventada)      */
-/* ------------------------------------------------------------------ */
-
-function medioDesdePlataforma(platform: string): MedioNodo {
-  const p = (platform || "").toLowerCase();
-  if (p.includes("android")) return "android";
-  if (p.includes("iphone") || p.includes("ios") || p.includes("ipad")) return "ios";
-  if (p.includes("linux")) return "linux";
-  if (p.includes("nube") || p.includes("cloud")) return "nube";
-  if (p.includes("win") || p.includes("chrome") || p.includes("browser")) return "navegador";
-  return "mac";
-}
-
-/**
- * Mide la ficha de ESTE dispositivo. Lo que el navegador no puede medir
- * (tok/s por capa, RAM libre) queda sin dato («sin medir»), nunca inventado.
- * También la voz MEDIDA de esta neurona (SGO1024F): solo lo anotado por
- * `medidas-voz.ts`; sin medidas, el campo no existe.
- */
-export async function medirFichaPropia(device: DeviceInfo): Promise<CapacidadesNodo> {
-  let bateriaPct: number | null = null;
-  try {
-    const nav = navigator as Navigator & { getBattery?: () => Promise<{ level?: number }> };
-    const bat = await nav.getBattery?.();
-    if (bat && typeof bat.level === "number") bateriaPct = Math.round(bat.level * 100);
-  } catch {
-    /* sin API de batería: se anuncia sin dato */
-  }
-  // (SGO1024F) La voz se filtra por la NEURONA que el propio módulo de medidas
-  // anota (`neuronDeviceIdActual`, `starseed.neuron.device-id`): otra neurona o
-  // una ficha del motor nunca cuentan. Nunca lanza: `vozMedida` devuelve undefined.
-  const voz = vozMedida(leerMedidas(), { neurona: neuronDeviceIdActual(), ahora: Date.now() });
-  return crearFichaNodo({
-    nodoId: device.id,
-    medio: medioDesdePlataforma(device.platform),
-    capas: [],
-    tokS: null,
-    bateriaPct,
-    enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
-    ambitos: ["propio", "cuenta"],
-    ...(voz ? { voz } : {}),
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -395,19 +355,29 @@ export default function DeviceNetworkPanel() {
 
     // Anuncio de la ficha propia: al arrancar y cada 20 min por la malla (§7).
     // NUNCA por Supabase en cada latido (presupuesto de Supabase).
-    if (thisDevice && !publicacionRef.current) {
-      publicacionRef.current = iniciarPublicacionCapacidades({
+    // (AUD1117 · F5) El motor de la malla ya publica al arrancar con la capa
+    // mesh encendida; el registro compartido evita arrancar un segundo
+    // publicador (si el motor ya publicó, este panel no duplica).
+    if (thisDevice && !publicacionRef.current && !publicadorFichaActivo()) {
+      const publicacion = iniciarPublicacionCapacidades({
         obtenerFicha: () => medirFichaPropia(thisDevice),
         publicarMalla: (ficha) => {
           concienciaSync.publicarCapacidades(ficha);
           setFichaPropia(ficha);
         },
       });
+      if (registrarPublicadorFicha(publicacion)) {
+        publicacionRef.current = publicacion;
+      } else {
+        // Perdió la carrera con el motor (o el panel): no duplica.
+        publicacion.detener();
+      }
     }
 
     peerUnsubRef.current = () => {
       unsubPeer();
       concienciaSync.unsubscribe();
+      retirarPublicadorFicha(publicacionRef.current);
       publicacionRef.current?.detener();
       publicacionRef.current = null;
     };
