@@ -95,6 +95,8 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 // de la cuenta + radar de neuronas cercanas de otras cuentas. Ver src/lib/network/malla-neuronas.ts.
 import { MallaNeuronasMount } from "@/components/network/malla-neuronas-mount";
 import { PresenciaNeuronasMount } from "@/components/neurons/presencia-neuronas-mount";
+// (AN02) Motor de la retícula: se carga después del primer pintado y no arranca con la capa apagada.
+import { MotorCristalMountDiferido } from "@/components/malla/motor-cristal-mount-diferido";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
 // Estaciones EN VIVO (Omnifrecuencias/Audiomorphic): montaje diminuto; el motor, el minicontrol y el
 // puente con la app oficial se cargan solo al sintonizar. SOP architecture/estaciones-en-vivo-parametricas.md.
@@ -414,6 +416,7 @@ export default function RootLayout({
                             auto-vincula por WebRTC sin botón + radar de neuronas cercanas de otras
                             cuentas. Excluida de /mando y /voces (máquinas de 8 GB, ver el componente). */}
                         <MallaNeuronasMount />
+                        <MotorCristalMountDiferido />
                         <PresenciaNeuronasMount />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>

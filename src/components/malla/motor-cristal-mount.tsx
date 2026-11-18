@@ -10,32 +10,27 @@ import { identidadDispositivo, type IdentidadDispositivo } from '@/lib/network/i
 import { claseRam, alCambiarResumenMalla } from '@/lib/network/malla-neuronas';
 import { getMeshState } from '@/ai/astraura/mesh/store';
 import { resumirRuta } from '@/lib/network/estadisticas-enlace';
-import { getSharedMesh } from '@/lib/network/lan-sync';
+import { getSharedMesh, capaMeshCompartiendo } from '@/lib/network/lan-sync';
 import { vinculosActivos, enviarAPar } from '@/lib/network/vinculos-entre-cuentas';
 import { crearBucle } from '@/lib/network/bucle-fondo';
 import { tick, observe } from '@/ai/astraura/mesh/logical-clock';
 import { signContent, verifyContent } from '@/ai/astraura/mesh/mesh-identity';
 import { esAppNativa, puenteNativo } from '@/lib/nativa/puente';
-
 type Motor = ReturnType<typeof crearMotorCristal>;
 interface FirmaTesela { s: string; k: JsonWebKey }
 const MEDIOS: NeuronaReticula['medios'] = ['wifi-lan', 'webrtc', 'ble', 'lora'];
 const RAM_POR_CLASE: Record<string, number> = { '≤4 GB': 4, '8 GB': 8, '16 GB': 16, '>16 GB': 32, desconocida: 4 };
-
 const capacidadDeClase = (clase: string): NeuronaReticula['capacidad'] =>
   ({ ramGb: RAM_POR_CLASE[clase] ?? 4, bateriaPct: null, cargando: false });
-
 function neuronaDeIdentidad(ids: Partial<IdentidadDispositivo> | null | undefined, clase = 'desconocida'): NeuronaReticula | null {
   const id = ids?.neuronDeviceId?.trim();
   if (!id) return null;
   return { id, cuenta: ids?.syncDeviceId?.trim() || id, capacidad: capacidadDeClase(clase), medios: [...MEDIOS] };
 }
-
 function miNeurona(): NeuronaReticula {
   const memoria = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory : undefined;
   return neuronaDeIdentidad(identidadDispositivo(), claseRam(memoria)) ?? { id: '', cuenta: '', capacidad: capacidadDeClase('desconocida'), medios: [...MEDIOS] };
 }
-
 async function medir(): Promise<SenalMedida[]> {
   const ahora = Date.now();
   const yo = miNeurona().id;
@@ -59,14 +54,12 @@ async function medir(): Promise<SenalMedida[]> {
   }
   return salida;
 }
-
 async function firmarTesela(t: Tesela): Promise<string | null> {
   try {
     const f = await signContent(t);
     return f ? JSON.stringify({ s: f.s, k: f.k } satisfies FirmaTesela) : null;
   } catch { return null; }
 }
-
 async function teselaFirmadaValida(t: Tesela): Promise<boolean> {
   if (!t.firma) return false;
   const { firma, ...cuerpo } = t;
@@ -75,7 +68,6 @@ async function teselaFirmadaValida(t: Tesela): Promise<boolean> {
     return typeof f.s === 'string' && !!f.k && await verifyContent(cuerpo, f.s, f.k);
   } catch { return false; }
 }
-
 const difusor = crearDifusor({
   broadcastMalla: (texto: string) => getSharedMesh()?.broadcast(texto) ?? 0,
   enviarAPares: (texto: string) => { for (const v of vinculosActivos()) enviarAPar(v.vinculoId, texto); },
@@ -86,6 +78,7 @@ const motor: Motor = crearMotorCristal({
 });
 let mallaEnganchada: ReturnType<typeof getSharedMesh> = null;
 let desenganchar: (() => void) | null = null;
+let montajes = 0;
 function recibir(data: string): void {
   const t = teselaDeSobre(data);
   if (t) void teselaFirmadaValida(t).then((ok) => { if (ok) { observe(t.reloj); motor.recibir(t); } });
@@ -97,22 +90,28 @@ function engancharReceptor(): void {
   mallaEnganchada = malla;
   desenganchar = malla.onPeer({ onMessage: (_id, data) => recibir(data) });
 }
-
+function arrancarMotor(): () => void {
+  const baja = alCambiarResumenMalla(engancharReceptor);
+  engancharReceptor();
+  const bucle = crearBucle({
+    nombre: 'retícula SiO₂ · motor', intervaloMs: motor.intervaloMs(),
+    tarea: async () => { engancharReceptor(); await motor.vuelta(); return { siguienteMs: motor.intervaloMs() }; },
+  });
+  bucle.iniciar();
+  return () => {
+    baja(); bucle.detener();
+    desenganchar?.(); desenganchar = null; mallaEnganchada = null;
+  };
+}
 export function MotorCristalMount() {
   useEffect(() => {
-    const baja = alCambiarResumenMalla(engancharReceptor);
-    engancharReceptor();
-    const bucle = crearBucle({
-      nombre: 'retícula SiO₂ · motor',
-      intervaloMs: motor.intervaloMs(),
-      tarea: async () => { engancharReceptor(); await motor.vuelta(); return { siguienteMs: motor.intervaloMs() }; },
-    });
-    bucle.iniciar();
-    return () => { baja(); bucle.detener(); };
+    if (!capaMeshCompartiendo()) return;
+    montajes += 1;
+    const parar = montajes === 1 ? arrancarMotor() : null;
+    return () => { montajes -= 1; if (montajes === 0) parar?.(); };
   }, []);
   return null;
 }
-
 export function useMotorCristal(): ReturnType<Motor['estado']> {
   return useCristal(motor);
 }
