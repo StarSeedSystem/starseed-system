@@ -61,7 +61,7 @@ export function PestanaMapa({ compacto }: { compacto?: boolean }) {
 }
 
 export interface VistaMapaProps {
-  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces">;
+  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces" | "publicadas">;
   enLinea: boolean;
   sinRedDesde?: number | null;
   compacto?: boolean;
@@ -103,18 +103,18 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     onErrorUbicacion: datos.alErrorUbicacion,
     onBaseEstado: setBase,
     seccionCapas: (ctx) => (
-      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} />
+      <SeccionCapas estado={capas} onAlternar={alternar} onOpacidad={opacidad} permiso={permiso} compartir={datos.compartir} canal={datos.canal} onCompartir={datos.fijarCompartir} onUbicarme={ctx.ubicarme} publicadas={datos.publicadas} />
     ),
     superposicion: (ctx) => (
       <MarcasEnMapa
-        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho} enlaces={datos.enlaces}
+        ctx={ctx} marcas={marcas} ahora={ahora} estado={capas} seleccion={sel} onElegir={setSel} compacto={estrecho} enlaces={datos.enlaces} publicadas={datos.publicadas}
         aviso={<Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} />}
         vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcas.length} onUbicarme={ctx.ubicarme} /> : null}
       >
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel]);
 
   if (sinBase) {
     return (

@@ -9,7 +9,8 @@
 import { useEffect, useRef, useState } from "react";
 import { escapeHtml } from "@/lib/map/map-config";
 import type { MapExtensionCtx } from "@/components/map/map-view-extension";
-import { CAPA_POR_ID, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, tramoDe, tramoDeCalidad, type EstadoCapas } from "@/lib/senales/geo/capas";
+import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
+import { CAPA_POR_ID, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, motivoSenalesPublicadas, tramoDe, tramoDeCalidad, type EstadoCapas } from "@/lib/senales/geo/capas";
 import { camposDeCapa, lineasDeEnlaces } from "@/lib/senales/geo/cobertura";
 import type { EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
@@ -55,12 +56,14 @@ export interface MarcasEnMapaProps {
   compacto: boolean;
   /** (MAP1114D) Enlaces con medida real, para las líneas. */
   enlaces?: readonly EnlaceMedido[];
+  /** (AUD1117) Estado de la lectura de las señales publicadas de la red: si falló, el panel de capas dice el motivo. */
+  publicadas?: { estado: EstadoLectura; motivo?: string };
   vacio?: React.ReactNode;
   aviso?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], vacio, aviso, children }: MarcasEnMapaProps) {
+export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, vacio, aviso, children }: MarcasEnMapaProps) {
   const { L, map } = ctx;
   const capasRef = useRef<Record<string, CapaParches | CapaAlcance>>({});
   const lineasRef = useRef<any>(null);
@@ -167,6 +170,9 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
 
   const activas = estado.activas.map((id) => CAPA_POR_ID[id]).filter(Boolean);
   const sinPos = marcas.filter((m) => m.posicion.tipo === "desconocida");
+  // (AUD1117) Si la lectura de señales publicadas falló y hay capas de red encendidas, el panel dice el motivo
+  // en vez de dejarlas pintar cero como si fuera la verdad.
+  const motivoPublicadas = activas.some((c) => c.grupo === "red") ? motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo) : null;
 
   return (
     <>
@@ -211,6 +217,9 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
                   <LeyendaCapa capa={c} soloDibujado className="flex flex-wrap gap-x-3 gap-y-0.5" />
                 </div>
               ))}
+              {motivoPublicadas && (
+                <p className="text-[10px] leading-snug text-amber-300" data-testid="motivo-publicadas" role="status">{motivoPublicadas}</p>
+              )}
               {!compacto && (
                 <p className="text-[10px] leading-snug text-white/60">
                   {`${activas.some((c) => c.tipo === "alcance") ? NOTA_ALCANCE + " " : ""}${activas.some((c) => (c.tipo ?? "parche") === "parche") ? NOTA_PARCHE : ""}`}

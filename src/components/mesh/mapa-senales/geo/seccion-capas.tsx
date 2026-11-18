@@ -7,8 +7,9 @@
 
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
 import {
-  CAPAS_SENALES, GRUPOS_CAPA, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe,
+  CAPAS_SENALES, GRUPOS_CAPA, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, leyendaDe, motivoSenalesPublicadas,
   type CapaSenal, type EstadoCapas, type ItemLeyenda,
 } from "@/lib/senales/geo/capas";
 import type { EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
@@ -43,6 +44,8 @@ export interface SeccionCapasProps {
   canal: Pick<EstadoCanalPosicion, "union" | "motivo">;
   onCompartir: (on: boolean) => void;
   onUbicarme: () => void;
+  /** (AUD1117) Lectura de las señales publicadas de la red: si falló, el panel dice el motivo en vez de pintar cero. */
+  publicadas?: { estado: EstadoLectura; motivo?: string };
 }
 
 const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
@@ -52,7 +55,10 @@ const TEXTO_PERMISO: Record<PermisoUbicacion, string> = {
   desconocido: "No se sabe si este aparato dio su ubicación.",
 };
 
-export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme }: SeccionCapasProps) {
+export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, compartir, canal, onCompartir, onUbicarme, publicadas }: SeccionCapasProps) {
+  // (AUD1117) Si la lectura de las señales publicadas falló, el panel de capas dice el motivo: las capas
+  // grupo «red» pintarían cero y el panel explica por qué, en vez de callarse.
+  const motivoPublicadas = motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo);
   return (
     <div className="space-y-3" data-testid="seccion-senales">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">Señales de mi cuenta</p>
@@ -81,6 +87,9 @@ export function SeccionCapas({ estado, onAlternar, onOpacidad, permiso, comparti
       {GRUPOS_CAPA.map((g) => (
         <div key={g.id} className="space-y-1.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{g.titulo}</p>
+          {g.id === "red" && motivoPublicadas && (
+            <p className="text-[10px] leading-snug text-amber-300" data-testid="motivo-publicadas-panel" role="status">{motivoPublicadas}</p>
+          )}
           {CAPAS_SENALES.filter((c) => c.grupo === g.id).map((c) => {
             const on = estado.activas.includes(c.id);
             const op = estado.opacidad[c.id] ?? OPACIDAD_POR_DEFECTO;

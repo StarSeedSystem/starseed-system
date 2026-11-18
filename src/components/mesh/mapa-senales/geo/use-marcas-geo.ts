@@ -19,6 +19,7 @@ import { ESTADO_INICIAL, type CanalPosicion, type EstadoCanalPosicion } from "@/
 import { observarPermisoUbicacion } from "@/lib/senales/geo/fuente-posicion";
 import { mismosEnlaces, type EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { abrirCanalPosicionReal, leerEnlacesMedidosReales } from "@/lib/senales/geo/fuentes-vivas";
+import { useSenalesPublicadas, type EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
 import type { MiPosicion } from "@/components/map/map-view-extension";
 import { useAhora } from "../use-mapa-vivo";
 
@@ -41,6 +42,9 @@ export interface MarcasGeo {
   canal: EstadoCanalPosicion;
   /** (MAP1114D) Enlaces con medida real (Bluetooth, red local) entre este aparato y las demás neuronas. */
   enlaces: EnlaceMedido[];
+  /** (AUD1117) Lectura de las señales publicadas por toda la red (`useSenalesPublicadas`), que pintan
+   * las capas `red-*`; con lectura fallida, su `estado` y `motivo` son lo que dice el panel. */
+  publicadas: EstadoSenalesPublicadas;
 }
 
 /** Cada cuánto se reintenta unirse al canal privado si fue rechazado (por ejemplo, tras aplicar la migración o iniciar sesión). */
@@ -60,6 +64,8 @@ export function useMarcasGeo(): MarcasGeo {
   const presencia = usePresenciaNeuronas();
   const ahora = useAhora();
   const permiso = usePermisoUbicacion();
+  // (AUD1117) Señales publicadas por toda la red: alimentan las capas `red-*` del mapa.
+  const publicadas = useSenalesPublicadas();
   const [desde] = useState(() => Date.now());
   const [senales, setSenales] = useState<SenalesMedio | null>(null);
   const [capas, setCapas] = useState<string[] | null>(null);
@@ -173,11 +179,12 @@ export function useMarcasGeo(): MarcasGeo {
       posiciones: canal.posiciones,
       canal: { unido: canal.union === "unido", motivo: canal.motivo },
       enlaces,
+      publicadas: publicadas.senales,
     });
-  }, [filas, presencia.medios, senales, capas, cruda, ficha, ahora, canal, enlaces]);
+  }, [filas, presencia.medios, senales, capas, cruda, ficha, ahora, canal, enlaces, publicadas.senales]);
 
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
-    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces,
+    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces, publicadas,
   };
 }
