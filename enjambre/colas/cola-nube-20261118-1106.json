@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "IMA14",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Panel «Mis idiomas»: instalar desde archivo, ver autor y estado, quitar",
+   "archivos": [
+    "src/components/idiomas/panel-paquetes.tsx",
+    "src/components/idiomas/__tests__/panel-paquetes.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `PanelPaquetesIdioma({ fuente, leerArchivo?, digest? })` (todo inyectable): lista los paquetes instalados con nombre, código, autor, licencia y la etiqueta «Traducción automática» / «Revisado por X el …»; botón «Instalar desde archivo» (acepta `.starseed-lang.json`, `.json`, `.po`, `.xlf/.xliff`, `.properties`, `.strings`, `.xml`, `.csv`, `.tsv`; elige el importador por extensión y contenido); para formatos ajenos pide el código de idioma y el nombre, muestra «Casaron N de M textos (P %)» con `mapearClaves` y deja confirmar; antes de instalar muestra los errores de `validarPaquete` en palabras y NO instala a medias; botón «Quitar» con confirmación; «Exportar» descarga el archivo propio. Accesible, 44 px, usable a 360 px; texto de ayuda: «Un archivo de idioma es solo texto: no puede ejecutar nada».\nPRUEBAS (jsdom, con importadores y almacén falsos): instalar uno válido; uno inválido muestra el motivo y no se guarda; quitar pide confirmación.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA6",
+    "IMA7-d2",
+    "IMA8",
+    "IMA9",
+    "IMA10",
+    "IMA11-d2"
+   ]
+  },
+  {
+   "id": "IMA21",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Reemplazar y entradas nuevas montadas en el menú: Traducir y reemplazar",
+   "archivos": [
+    "src/components/traduccion/montaje-idioma.tsx",
+    "src/components/traduccion/__tests__/montaje-idioma.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Componente `MontajeIdioma` (cliente) que, al montarse, registra con `registrarEntradaMenuTexto` las entradas de IMA17 y la nueva «Reemplazar por la traducción» (visible con `ctx.editable` y selección): traduce la selección con el MISMO traductor y motores que `traducir-texto.tsx` (importa de ahí `puedeLibreTranslate` y `nombreMotor`; no lo modifiques; el idioma destino es el del perfil como allí, vía `leer` de `preferencias.ts`), captura la selección ANTES de abrir el menú con `capturarSeleccionEditable` (IMA19) y reemplaza al terminar; si falla dice por qué y no toca el texto; muestra un aviso con «Deshacer». Respeta el modo privado (`crearTraductor({privado})`). Montaje: NO toques `app-globals.tsx` (no está en `archivos`): deja el montaje como comentario `// montar junto a <TraducirTexto /> en src/app/(app)/app-globals.tsx` al final del componente, PRUEBAS: con motores falsos reemplaza el texto de un textarea y «Deshacer» lo devuelve; si el motor falla no cambia nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA17",
+    "IMA18",
+    "IMA19",
+    "IMA20"
+   ]
+  },
+  {
+   "id": "MRI4b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa: las ofertas de internet de la red aparecen como capa y el panel vive en los ajustes del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/components/mesh/mapa-senales/ajustes-centro.tsx` (ya muestra el radar público: `describirRadarPublico`) añade, en un bloque aditivo `// MAP1116`, `PanelRedCompartida` (import dinámico) y los datos de `sugerirComparticion` con las puertas reales (`src/lib/malla/cristal/usar-cristal.ts`; si no hay puertas, el texto dice «este aparato no declara salida a internet»). En `src/lib/senales/geo/capas.ts` añade UNA capa del grupo `oferta` («Internet que ofrece la red») alimentada solo por lo que los dueños anuncian (`offersPublic` de los faros: `src/ai/astraura/mesh/signals.ts:344-379`) y por filas publicadas con medio `internet`; sin anuncios → «sin fuente: nadie lo anuncia aún». No cambies capas existentes (≤40 líneas por archivo). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo src/components/mesh/mapa-senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI4b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI3b",
+    "MRA9"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "IMA14",
+   "IMA21",
+   "MRI4b"
+  ]
+ }
+}
