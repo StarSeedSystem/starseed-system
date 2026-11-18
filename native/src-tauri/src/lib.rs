@@ -97,6 +97,10 @@ mod enlace_wifi_linux_logica;
 mod enlace_wifi_linux;
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
+// LNX1118WC: arranque en Linux (DMABUF, reintentos de carga, respaldo).
+mod arranque_linux_logica;
+#[cfg(target_os = "linux")]
+mod arranque_linux;
 mod faro;
 // (LLA1108D) Las llamadas como llamadas del teléfono: Telecom, aviso CallStyle, audio y proximidad (Android).
 mod llamada_entrante;
@@ -741,6 +745,9 @@ pub fn run() {
     // (WebView2 solo lee `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` al nacer). Si no se puede, no pasa nada.
     #[cfg(target_os = "windows")]
     puerta_proxy_windows::instalar();
+    // LNX1118WC: configurar DMABUF antes de crear el primer webview en Linux.
+    #[cfg(target_os = "linux")]
+    arranque_linux::configurar_dmabuf_si_hace_falta();
     let mut builder = tauri::Builder::default();
 
     // Autostart + Updater: SOLO escritorio (en móvil ni compilan; ver Cargo.toml
@@ -826,6 +833,9 @@ pub fn run() {
                     }
                 }
             });
+            // LNX1118WC: arranque en Linux (reintentos de carga, respaldo).
+            #[cfg(target_os = "linux")]
+            arranque_linux::iniciar(app.handle());
             // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
             #[cfg(desktop)]
             servidor_local::iniciar(app.handle());
