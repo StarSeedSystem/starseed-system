@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116Ds",
+   "titulo": "Contexto vivo y paquetes de memoria por agente para la síntesis · lo que faltó: scripts/puente/test_agente_sintesis.py",
+   "archivos": [
+    "scripts/puente/test_agente_sintesis.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116D, que ya está integrada (sha dff1910c0f2e). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_agente_sintesis.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Contexto vivo y paquetes de memoria por agente para la síntesis\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §3.4. contexto_sintesis.py, núcleo puro con E/S inyectable, partiendo del generador de Claude ~/.starseed/herramientas/contexto_vivo.py de la Mac: (1) lo ya integrado (olas con commit en 30 días agrupadas por ola; títulos y primer párrafo de architecture/*.md; memory/workflow-actual.md, CLAUDE.md y AGENTS.md; la Librería instalada; rutas y apps del OS); (2) producción audiovisual (vídeos en planeación, encargos y lo producido, Higgsfield, formatos hechos); (3) alcance sin datos personales; (4) las síntesis de los últimos 7 días y su «Mañana», las fuentes de NotebookLM y la Imaginación; (5) recuerdos con contexto_agente.py (rol por agente) y LEANN (seccion_recuerdos), más la libreta por ámbito (JLA1116); (6) el libro de recomendaciones (SIN1116E). Salidas: paquetes por agente (contactos, noticias, referencias, actividad, ideas, guiones y youtube) dentro de los topes de _encoger_contexto, y el contexto completo para el redactor, que se sube a Drive (Herramientas de producción) como «Contexto vivo de StarSeed <fecha>» y entra como fuente del cuaderno. Conéctalo en agente_sintesis (encargar_por_flota y _prompt_respaldo). Pruebas sin red: el paquete del agente «ideas» contiene lo integrado y el prompt prohíbe repetirlo.",
+   "ola": "SIN1116",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "DIR1118R",
+   "ola": "DIR1118",
+   "titulo": "Director presidente: un error de conexión de Hermes no se publica como respuesta",
+   "archivos": [
+    "scripts/puente/motores_director.py",
+    "scripts/puente/test_motores_director_dir1118r.py"
+   ],
+   "depende": [],
+   "prompt": "El 18-11-2026 a las 05:46 el Director presidente publicó como respuesta el texto «Error: Gateway connection failed; no local fallback» que devolvió `hermes -z` y marcó la entrega como «respondido». En scripts/puente/motores_director.py, la tupla _FALLOS_HERMES (hoy: \"kept failing over\", \"every provider in the fallback chain\", \"invalid api key\") decide con es_fallo_hermes(texto) si lo que devolvió Hermes es un fallo y no una respuesta. Tarea: añade \"gateway connection failed\" y \"no local fallback\" (en minúsculas, como las demás) para que ese texto cuente como fallo y el presidente pruebe el siguiente motor o deje el mensaje en cola. No cambies nada más. Escribe scripts/puente/test_motores_director_dir1118r.py (unittest, sin red): es_fallo_hermes devuelve True para «Error: Gateway connection failed; no local fallback» y para «no local fallback», y False para una respuesta normal de dos líneas. Verificación: python3 -m pytest -q scripts/puente/test_motores_director_dir1118r.py scripts/puente/test_cartero_director.py. Español neutro en comentarios."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "SIN1116Ds",
+   "DIR1118R"
+  ]
+ }
+}
