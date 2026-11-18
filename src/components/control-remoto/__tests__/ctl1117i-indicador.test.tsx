@@ -13,7 +13,7 @@ const estado = vi.hoisted(() => ({
 vi.mock("@/lib/control-remoto/canal", () => ({
     leerPermisoLocal: () => estado.permiso,
     guardarPermisoLocal: () => undefined,
-    puertaControl: () => ({ sesionActiva: () => estado.sesion, revocar: (m: string) => { estado.revocado.push(m); estado.sesion = null; } }),
+    puertaControl: () => ({ sesionActiva: () => estado.sesion, revocar: (m: string) => { estado.revocado.push(m); estado.sesion = null; }, terminar: () => { estado.revocado.push("terminar"); estado.sesion = null; }, quitarPermiso: () => { estado.revocado.push("quitar-permiso"); estado.sesion = null; } }),
     presentarmeA: async () => ({ ok: true }),
     iniciarCanalControl: async () => undefined,
 }));
@@ -141,7 +141,7 @@ describe("CTL1117I · la banda de la app según el indicador", () => {
         const q = await screen.findByTestId("quien-controla-ahora");
         await waitFor(() => expect(q).toHaveTextContent(/Mac de Alex controla este aparato \(nivel controlar\)/));
         await userEvent.click(q.querySelector("button") as HTMLElement);
-        expect(estado.revocado).toEqual(["terminado-por-el-dueno"]);
+        expect(estado.revocado).toEqual(["terminar"]); // CTL1118G: «Terminar» solo corta la sesión
     });
     it("sin app nativa (web) el indicador es el punto, el de fábrica", async () => {
         estado.sesion = { token: "t", de: HUELLA, nombre: "Mac de Alex", nivel: "controlar", inicio: ahora, ultima: ahora };
@@ -221,7 +221,7 @@ describe("CTL1117I · el panel «Control entre mis neuronas» entero", () => {
         await waitFor(() => expect(q).toHaveTextContent(/Mac de Alex controla este aparato/));
         const dentro = screen.getByTestId("ajustes-indicador");
         await userEvent.click(dentro.querySelector("[data-testid='quien-controla-ahora'] button") as HTMLElement);
-        expect(estado.revocado).toEqual(["terminado-por-el-dueno"]);
+        expect(estado.revocado).toEqual(["terminar"]); // CTL1118G: «Terminar» solo corta la sesión
         await waitFor(() => expect(screen.getByTestId("quien-controla-ahora")).toHaveTextContent("Ahora nadie controla"));
     });
     it("cada neurona que puede controlar este aparato lleva su punto de color junto al nombre", async () => {

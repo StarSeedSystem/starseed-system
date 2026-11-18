@@ -190,7 +190,7 @@ object ControlNeuronasNativo : Application.ActivityLifecycleCallbacks {
                     hilo = if (Looper.myLooper() === Looper.getMainLooper()) "main" else Thread.currentThread().name
                     escribirEstado()
                     leerAjustes() // CTL1117H
-                    ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(40), p.optString("color", "#dd3c3c"), if (p.optString("nivel") == "controlar") "controlar" else "ver")
+                    ServicioControlNeuronas.mostrar(app, ses, p.optString("nombre", "otra neurona").take(41) /* CTL1118G: 40 letras y «…» (lo recorta Rust) */, p.optString("color", "#dd3c3c"), if (p.optString("nivel") == "controlar") "controlar" else "ver")
                 }
                 // CTL1117H: la página de este aparato cambió «indicador» o «ver_toques»: se vuelve a leer y se redibuja sin cortar la sesión.
                 "ajustes" -> { leerAjustes(); if (mostrando) ServicioControlNeuronas.refrescarAjustes(app); escribirEstado() }
@@ -523,6 +523,7 @@ class ServicioControlNeuronas : Service() {
         const val ID = 47160
         const val MOSTRAR = "app.starseed.nativa.control.MOSTRAR"
         const val TERMINAR = "app.starseed.nativa.control.TERMINAR"
+        const val QUITAR_PERMISO = "app.starseed.nativa.control.QUITAR_PERMISO" // CTL1118G
         const val REANUDAR = "app.starseed.nativa.control.REANUDAR"
         const val DESCARTADA = "app.starseed.nativa.control.DESCARTADA"
         const val QUITAR = "app.starseed.nativa.control.QUITAR"
@@ -565,12 +566,13 @@ class ServicioControlNeuronas : Service() {
     private var pastilla: LinearLayout? = null
     private var panel: LinearLayout? = null
     private var textoPanel: TextView? = null
+    private var nombrePanel: TextView? = null // CTL1118G: el nombre entero, aparte de la línea de estado
     private var botonPausa: TextView? = null
     private var paramsPastilla: WindowManager.LayoutParams? = null // CTL1117K · S4: para volver a medir la ventana cuando el panel se abre o se pliega
     private var filaBotones: LinearLayout? = null
     private var filaConfirma: LinearLayout? = null
     private val plegarPanel = Runnable { cancelarRevocar(); panel?.visibility = View.GONE; reajustarVentana() }
-    /** CTL1117K · S4: «Revocar» pide confirmación 3 s («¿Revocar? Sí · No»); pasados, o con «No», vuelve a «Revocar». */
+    /** CTL1117K · S4 / CTL1118G: «Quitar permiso» pide confirmación 3 s («¿Quitar permiso? Sí · No»); pasados, o con «No», vuelve a «Revocar». */
     private val cancelarRevocarTras = Runnable { cancelarRevocar(); principal.removeCallbacks(plegarPanel); principal.postDelayed(plegarPanel, 5_000L) }
     private val latido = object : Runnable {
         override fun run() {
@@ -593,7 +595,8 @@ class ServicioControlNeuronas : Service() {
             MOSTRAR -> mostrar(intent.getStringExtra("sesion") ?: "", intent.getStringExtra("nombre") ?: "otra neurona", intent.getStringExtra("color") ?: "#dd3c3c", intent.getStringExtra("nivel") ?: "ver")
             PAUSAR -> pausarPorBoton() // CTL1117H
             AJUSTES -> if (ControlNeuronasNativo.mostrando) { ponerSuperposicion(); refrescarAviso() } // CTL1117H
-            TERMINAR -> terminar("la-persona-desde-la-notificacion")
+            TERMINAR -> terminar("la-persona-desde-la-notificacion") // CTL1118G: SOLO corta la sesión; el permiso sigue encendido
+            QUITAR_PERMISO -> revocar() // CTL1118G: «Quitar permiso» desde la notificación: corta y apaga el permiso de ESTE aparato
             // CTL1117G (decisión del dueño): descartar el aviso fijo NO termina el control; se repone. Solo «Terminar» (o las paradas de siempre) lo cierran.
             DESCARTADA -> if (ControlNeuronasNativo.mostrando) reponerAviso("descartado") else cerrar()
             REANUDAR -> reanudar()
@@ -679,6 +682,7 @@ class ServicioControlNeuronas : Service() {
             .setCategory(Notification.CATEGORY_SERVICE)
             .setDeleteIntent(pi(DESCARTADA, 3)) // CTL1117G: descartarla repone el aviso (ya no termina)
             .addAction(Notification.Action.Builder(null, "Terminar", pi(TERMINAR, 1)).build())
+            .addAction(Notification.Action.Builder(null, "Quitar permiso", pi(QUITAR_PERMISO, 5)).build()) // CTL1118G
         if (pausada) b.addAction(Notification.Action.Builder(null, "Reanudar", pi(REANUDAR, 2)).build())
         else b.addAction(Notification.Action.Builder(null, "Pausar", pi(PAUSAR, 4)).build())
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
@@ -724,7 +728,9 @@ class ServicioControlNeuronas : Service() {
         try { getSystemService(NotificationManager::class.java)?.notify(ID, aviso()) } catch (_: Exception) {}
         val c = ControlNeuronasNativo.lista.firstOrNull()
         val alc = if (ControlNeuronasNativo.alcance == "total") "control total" else "protegido"
-        textoPanel?.text = if (ControlNeuronasNativo.pausada) "${ControlNeuronasNativo.nombre}\nEn pausa · $alc" else "${ControlNeuronasNativo.nombre}\n${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())} · $alc"
+        // CTL1118G: el nombre ENTERO en su propia vista (hasta dos líneas; «…» solo si pasa de 40 letras, lo corta Rust) y la línea de estado aparte.
+        nombrePanel?.text = ControlNeuronasNativo.nombre
+        textoPanel?.text = if (ControlNeuronasNativo.pausada) "En pausa · $alc" else "${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())} · $alc"
         botonPausa?.text = if (ControlNeuronasNativo.pausada) "  Reanudar  " else "  Pausar  "
     }
 
@@ -754,12 +760,25 @@ class ServicioControlNeuronas : Service() {
         val v = pastilla ?: return
         val lp = paramsPastilla ?: return
         try {
+            // CTL1118G: sin ancho fijo que corte el nombre. Con el panel abierto la ventana mide lo que pide su contenido, hasta el ancho de la
+            // pantalla menos márgenes (pegada arriba a la derecha: crece hacia la izquierda y no se sale); plegado, vuelve a su tamaño.
+            if (ControlNeuronasNativo.indicador != "oculto") {
+                if (panel?.visibility == View.VISIBLE) {
+                    val tope = (resources.displayMetrics.widthPixels - dp(16)).coerceAtLeast(dp(120))
+                    nombrePanel?.maxWidth = tope - dp(20)
+                    textoPanel?.maxWidth = tope - dp(20)
+                    v.measure(View.MeasureSpec.makeMeasureSpec(tope, View.MeasureSpec.AT_MOST), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    lp.width = minOf(v.measuredWidth, tope)
+                } else {
+                    lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+                }
+            }
             v.requestLayout()
             getSystemService(WindowManager::class.java)?.updateViewLayout(v, lp)
         } catch (_: Throwable) { /* sin esto el panel puede verse recortado, pero nada se rompe */ }
     }
 
-    /** CTL1117K · S4: primer toque de «Revocar»: enseña «¿Revocar? Sí · No» durante 3 s. Nada se quita todavía. */
+    /** CTL1117K · S4 / CTL1118G: primer toque de «Quitar permiso»: enseña «¿Quitar permiso? Sí · No» durante 3 s. Nada se quita todavía. */
     private fun pedirConfirmarRevocar() {
         val fb = filaBotones ?: return
         val fc = filaConfirma ?: return
@@ -779,7 +798,7 @@ class ServicioControlNeuronas : Service() {
     }
 
     /**
-     * CTL1117K · S4: «Sí» de «¿Revocar?». Termina la sesión con el motivo `revocado` (el mismo que usa `control_neuronas_parar("revocado")` de Rust: la ventana de
+     * CTL1117K · S4 / CTL1118G: «Sí» de «¿Quitar permiso?». Termina la sesión con el motivo `revocado` (el mismo que usa `control_neuronas_parar("revocado")` de Rust: la ventana de
      * quien manda dice «La persona quitó el permiso de control en el aparato») y apaga el interruptor nativo de ESTE aparato, vaciando la lista de aceptados.
      * Solo apaga: encender de nuevo exige otra vez el diálogo nativo con su «Sí». Rust lo ve por `terminada` y repite la parada y el apagado por su camino.
      */
@@ -828,13 +847,13 @@ class ServicioControlNeuronas : Service() {
             setOnClickListener { terminar("la-persona-desde-la-superposicion") }
         }
         val revocarB = TextView(this).apply {
-            text = "  Revocar  "; setTextColor(Color.WHITE); textSize = 13f
+            text = "  Quitar permiso  "; setTextColor(Color.WHITE); textSize = 13f
             setOnClickListener { pedirConfirmarRevocar() } // CTL1117K · S4: primer paso; nada se quita hasta el «Sí»
         }
         val botones = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         botones.addView(pausarB); botones.addView(terminarB); botones.addView(revocarB)
         val confirma = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; visibility = View.GONE }
-        confirma.addView(TextView(this).apply { text = "  ¿Revocar?"; setTextColor(Color.WHITE); textSize = 13f })
+        confirma.addView(TextView(this).apply { text = "  ¿Quitar permiso?"; setTextColor(Color.WHITE); textSize = 13f })
         confirma.addView(TextView(this).apply { text = "  Sí  "; setTextColor(Color.WHITE); textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD); setOnClickListener { revocar() } })
         confirma.addView(TextView(this).apply { text = "  No  "; setTextColor(Color.WHITE); textSize = 13f; setOnClickListener { cancelarRevocar() } })
         val pan = LinearLayout(this).apply {
@@ -843,11 +862,15 @@ class ServicioControlNeuronas : Service() {
             setPadding(dp(10), dp(8), dp(10), dp(8))
             visibility = View.GONE
         }
-        // CTL1117K · S4: el nombre en varias líneas, con un ancho mínimo y máximo propios (no depende del tamaño que tuviera la ventana al crearse).
+        // CTL1118G: el nombre ENTERO en su propia vista, hasta dos líneas y sin ancho fijo (la ventana se mide al abrir: `reajustarVentana`); la línea de estado va debajo.
+        val nombreV = TextView(this).apply {
+            setTextColor(Color.WHITE); textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setSingleLine(false); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
         t.setSingleLine(false)
-        t.maxLines = 3
-        t.minWidth = dp(190)
-        t.maxWidth = dp(280)
+        t.maxLines = 2
+        pan.minimumWidth = dp(200)
+        pan.addView(nombreV)
         pan.addView(t); pan.addView(botones); pan.addView(confirma)
         fila.addView(pan)
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.
@@ -869,6 +892,7 @@ class ServicioControlNeuronas : Service() {
         paramsPastilla = pPastilla
         panel = pan
         textoPanel = t
+        nombrePanel = nombreV
         botonPausa = pausarB
         filaBotones = botones
         filaConfirma = confirma
@@ -881,7 +905,7 @@ class ServicioControlNeuronas : Service() {
         val wm = getSystemService(WindowManager::class.java) ?: return
         principal.removeCallbacks(plegarPanel)
         pastilla?.let { try { wm.removeView(it) } catch (_: Exception) {} }
-        pastilla = null; panel = null; textoPanel = null; botonPausa = null
+        pastilla = null; panel = null; textoPanel = null; nombrePanel = null; botonPausa = null
         paramsPastilla = null; filaBotones = null; filaConfirma = null // CTL1117K
     }
 

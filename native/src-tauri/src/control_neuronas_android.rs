@@ -210,10 +210,10 @@ where
 }
 
 /// (CTL1117K · S4) Lo que se añade a la línea `control-indicador` de «mostrar»: cuántos caracteres tiene el nombre del controlador que enseña
-/// el punto (nunca el nombre) y de dónde sale: `aceptados` (la lista nativa), `pagina` o `defecto` («otra neurona», la lista no traía nombre).
+/// el punto (nunca el nombre) y de dónde sale: `firmado` (su orden firmada, CTL1118G), `aceptados` (la lista nativa), `pagina` o `defecto` («otra neurona», la lista no traía nombre).
 pub fn sufijo_nombre(nombre: &str, origen: &str) -> String {
     let o = match origen {
-        "aceptados" | "pagina" | "defecto" => origen,
+        "aceptados" | "firmado" | "pagina" | "defecto" => origen,
         _ => "defecto",
     };
     format!(" nombre-len={} nombre-origen={}", nombre.chars().count().min(999), o)
@@ -551,6 +551,7 @@ mod pruebas {
         assert_eq!(sufijo_nombre("Mac de Alex", "aceptados"), " nombre-len=11 nombre-origen=aceptados");
         assert_eq!(sufijo_nombre("otra neurona", "defecto"), " nombre-len=12 nombre-origen=defecto");
         assert_eq!(sufijo_nombre("ñandú", "pagina"), " nombre-len=5 nombre-origen=pagina");
+        assert_eq!(sufijo_nombre("MaggaBook", "firmado"), " nombre-len=9 nombre-origen=firmado"); // CTL1118G
         // Un origen raro no se cuela en el registro; el nombre vacío (el punto saldría sin texto) se ve como longitud 0.
         assert_eq!(sufijo_nombre("", "<b>\nx"), " nombre-len=0 nombre-origen=defecto");
         assert!(!sufijo_nombre("Mac de Alex", "aceptados").contains("Mac"));

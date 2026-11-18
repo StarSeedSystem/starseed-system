@@ -376,11 +376,14 @@ mod pruebas {
         let k = KOTLIN;
         // S4 · el nombre: la ventana se vuelve a medir al abrir o plegar el panel, y el texto tiene ancho propio.
         assert!(k.contains("private fun reajustarVentana()") && k.contains("updateViewLayout(v, lp)"));
-        assert!(k.contains("paramsPastilla = pPastilla") && k.contains("t.minWidth = dp(190)") && k.contains("t.maxWidth = dp(280)"));
+        assert!(k.contains("paramsPastilla = pPastilla"));
+        // CTL1118G: sin ancho fijo que corte el nombre: la ventana mide su contenido hasta el ancho de la pantalla menos márgenes; el nombre va entero en su vista (2 líneas).
+        assert!(!k.contains("t.maxWidth = dp(280)") && k.contains("lp.width = minOf(v.measuredWidth, tope)") && k.contains("nombrePanel?.maxWidth = tope - dp(20)"));
+        assert!(k.contains("setSingleLine(false); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END") && k.contains("take(41)"));
         let a = k.find("private fun alternarPanel()").unwrap();
         assert!(k[a..a + 700].contains("reajustarVentana()"));
-        // «Revocar» → «¿Revocar? Sí · No», 3 s; solo el «Sí» quita algo.
-        assert!(k.contains("setOnClickListener { pedirConfirmarRevocar() }") && k.contains("text = \"  ¿Revocar?\"") && k.contains("text = \"  Sí  \"") && k.contains("text = \"  No  \""));
+        // CTL1118G: «Quitar permiso» → «¿Quitar permiso? Sí · No», 3 s; solo el «Sí» quita algo.
+        assert!(k.contains("setOnClickListener { pedirConfirmarRevocar() }") && k.contains("text = \"  ¿Quitar permiso?\"") && k.contains("text = \"  Sí  \"") && k.contains("text = \"  No  \""));
         assert!(k.contains("principal.postDelayed(cancelarRevocarTras, 3_000L)"));
         let p = k.find("private fun pedirConfirmarRevocar()").unwrap();
         let fin = k[p..].find("private fun cancelarRevocar()").unwrap();
@@ -391,11 +394,14 @@ mod pruebas {
         // Es el mismo motivo y el mismo apagado que usa la página (`control_neuronas_parar("revocado")`) y que la petición `apagar`.
         assert!(rs::MOTIVOS.contains(&"revocado") && crate::control_neuronas_logica::MOTIVOS_QUE_APAGAN.contains(&"revocado"));
         assert!(k.contains("fun apagarInterruptor()") && k.contains("\"apagar\" -> {\n                    apagarInterruptor()"));
-        // La notificación sigue con sus acciones de siempre («Terminar» y «Pausar»/«Reanudar») y sin «Revocar».
+        // CTL1118G: la notificación lleva «Terminar» (solo corta), «Quitar permiso» (corta y apaga) y «Pausar»/«Reanudar»; sin «Revocar».
         let av = k.find("private fun aviso(): Notification").unwrap();
         let fin_av = k[av..].find("private var avisoDesde").unwrap();
         let aviso = &k[av..av + fin_av];
         assert!(!aviso.contains("Revocar"));
-        assert_eq!(aviso.matches("addAction(").count(), 3, "Terminar, Reanudar y Pausar: como estaban");
+        assert_eq!(aviso.matches("addAction(").count(), 4, "Terminar, Quitar permiso, Reanudar y Pausar");
+        assert!(aviso.contains("\"Quitar permiso\", pi(QUITAR_PERMISO, 5)") && k.contains("QUITAR_PERMISO -> revocar()"));
+        // «Terminar» de la notificación SOLO corta la sesión (no llama a `revocar`/`apagarInterruptor`).
+        assert!(k.contains("TERMINAR -> terminar(\"la-persona-desde-la-notificacion\") //") && !k.contains("TERMINAR -> revocar()"));
     }
 }

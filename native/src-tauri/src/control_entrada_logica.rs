@@ -354,6 +354,31 @@ fn anotar_vista(f: &Firmada, vistos: &mut Vistos) {
     }
 }
 
+/// CTL1118G: el tope largo del nombre que enseña el indicador. Por debajo se enseña ENTERO; por encima se corta con puntos suspensivos.
+pub const TOPE_NOMBRE_MOSTRADO: usize = 40;
+
+/// CTL1118G: el nombre sin controles ni espacios de más; por encima de `TOPE_NOMBRE_MOSTRADO` caracteres, los primeros 40 y «…».
+pub fn recortar_nombre(n: &str) -> String {
+    let limpio: Vec<char> = n.chars().filter(|c| !c.is_control()).collect::<String>().trim().chars().collect();
+    if limpio.len() > TOPE_NOMBRE_MOSTRADO {
+        let mut s: String = limpio.iter().take(TOPE_NOMBRE_MOSTRADO).collect();
+        s.push('…');
+        s
+    } else {
+        limpio.into_iter().collect()
+    }
+}
+
+/// CTL1118G: el nombre que enseña el indicador y de dónde sale. El FIRMADO (ya verificado con la clave del aceptado) manda, así el aceptado con el
+/// nombre viejo se pone al día sin aceptarlo otra vez; si falta, el que la persona aceptó; si tampoco hay, «otra neurona».
+pub fn nombre_visible(firmado: Option<&str>, aceptado: &str) -> (String, &'static str) {
+    if let Some(n) = firmado.map(recortar_nombre).filter(|n| !n.is_empty()) {
+        return (n, "firmado");
+    }
+    let n = recortar_nombre(aceptado);
+    if n.is_empty() { ("otra neurona".to_string(), "defecto") } else { (n, "aceptados") }
+}
+
 /// FSG1116 · A2: lo que abre una sesión en el aparato controlado, decidido en lo NATIVO.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Apertura {
@@ -365,8 +390,8 @@ pub struct Apertura {
     pub nivel: String,
     /// (CTL1117H) El color público que FIRMÓ el controlador (`#rrggbb`) o, si falta o no vale, el por defecto de su huella.
     pub color: String,
-    /// (CTL1117K) De dónde sale `nombre`: `aceptados` (lo que la persona aceptó en el diálogo nativo) o `defecto` («otra neurona», porque la
-    /// lista no traía nombre). `pagina` solo lo pone quien abre sin entrada nativa (escritorio). Va a la línea `control-indicador`.
+    /// (CTL1117K / CTL1118G) De dónde sale `nombre`: `firmado` (el nombre de su neurona, DENTRO de la orden firmada y verificada), `aceptados` (lo que la
+    /// persona aceptó en el diálogo nativo) o `defecto` («otra neurona», porque ni la orden ni la lista traían nombre). `pagina` solo lo pone quien abre sin entrada nativa (escritorio). Va a la línea `control-indicador`.
     pub nombre_origen: &'static str,
     /// (CTL1117K) El código de 12 caracteres del controlador (el mismo del diálogo de aceptación): el panel del punto lo enseña junto al nombre.
     pub codigo: String,
@@ -381,9 +406,13 @@ pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &
     if f.nombre != "abrir-sesion" {
         return Err((Motivo::Firma, "no-es-abrir-sesion"));
     }
-    // CTL1117H: los argumentos son vacíos o SOLO `color` (texto); cualquier otra cosa sigue siendo «forma».
+    // CTL1117H / CTL1118G: los argumentos son vacíos o SOLO `color` y/o `nombre` (texto); cualquier otra cosa sigue siendo «forma».
     let color_firmado = f.args.get("color").and_then(|c| c.as_str()).map(str::to_string);
-    if f.sesion.is_some() || f.args.as_object().is_some_and(|a| a.keys().any(|k| k != "color") || a.len() > 1 || (a.len() == 1 && color_firmado.is_none())) {
+    let nombre_firmado = f.args.get("nombre").and_then(|c| c.as_str()).map(str::to_string);
+    let args_mal = f.args.as_object().is_some_and(|a| {
+        a.keys().any(|k| k != "color" && k != "nombre") || (a.contains_key("color") && color_firmado.is_none()) || (a.contains_key("nombre") && nombre_firmado.is_none())
+    });
+    if f.sesion.is_some() || args_mal {
         return Err((Motivo::Firma, "abrir-sesion-forma"));
     }
     en_hora(&f, ahora_ms)?;
@@ -394,10 +423,7 @@ pub fn verificar_apertura(sobre: &Value, aceptados: &[Aceptado], nivel_pagina: &
         _ => return Err((Motivo::Sesion, "nivel")),
     };
     anotar_vista(&f, vistos);
-    let (nombre, nombre_origen) = {
-        let n: String = f.aceptado.nombre.chars().filter(|c| !c.is_control()).take(40).collect();
-        if n.trim().is_empty() { ("otra neurona".to_string(), "defecto") } else { (n.trim().to_string(), "aceptados") }
-    };
+    let (nombre, nombre_origen) = nombre_visible(nombre_firmado.as_deref(), &f.aceptado.nombre);
     let color = crate::control_ajustes::color_o_defecto(color_firmado.as_deref(), &f.de);
     let codigo = codigo_de(&f.de, &f.aceptado.cuenta);
     Ok(Apertura { de: f.de, nombre, nivel: nivel.into(), color, nombre_origen, codigo })
@@ -1412,6 +1438,46 @@ mod pruebas {
         let (s5b, _) = firmado(7, carga_abrir(5, "EEEEEEEEEEEEEEEEEEEEEE", "controlar"));
         s5["carga"] = s5b["carga"].clone();
         assert_eq!(verificar_apertura(&s5, &[a3], "controlar", AHORA, &mut v).unwrap_err(), (Motivo::Firma, "firma-no-casa"));
+    }
+
+    #[test]
+    fn ctl1118g_el_nombre_firmado_manda_se_recorta_solo_por_encima_de_40_y_nunca_viene_de_otro_sitio() {
+        let mut v = Vistos::default();
+        let con = |seq: u64, nonce: &str, args: Value| {
+            let mut c = carga_abrir(seq, nonce, "controlar");
+            c["accion"]["args"] = args;
+            firmado(7, c)
+        };
+        // El nombre de su neurona, firmado: es el que enseña el indicador (el aceptado decía «Mac de Alex»).
+        let (s, a) = con(1, "JJJJJJJJJJJJJJJJJJJJJJ", json!({ "nombre": "MaggaBook" }));
+        let ap = verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).unwrap();
+        assert_eq!((ap.nombre.as_str(), ap.nombre_origen), ("MaggaBook", "firmado"));
+        // Color y nombre juntos.
+        let (s, a) = con(2, "KKKKKKKKKKKKKKKKKKKKKK", json!({ "color": "#12abef", "nombre": "MaggaBook" }));
+        let ap = verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).unwrap();
+        assert_eq!((ap.color.as_str(), ap.nombre.as_str()), ("#12abef", "MaggaBook"));
+        // Un nombre vacío no borra el aceptado.
+        let (s, a) = con(3, "LLLLLLLLLLLLLLLLLLLLLL", json!({ "nombre": "  \n " }));
+        let ap = verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).unwrap();
+        assert_eq!((ap.nombre.as_str(), ap.nombre_origen), ("Mac de Alex", "aceptados"));
+        // Un nombre que no es texto, o cualquier otro argumento: forma inválida.
+        let (s, a) = con(4, "MMMMMMMMMMMMMMMMMMMMMM", json!({ "nombre": 7 }));
+        assert!(verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).is_err());
+        let (s, a) = con(5, "NNNNNNNNNNNNNNNNNNNNNN", json!({ "nombre": "x", "otro": "y" }));
+        assert!(verificar_apertura(&s, &[a], "controlar", AHORA, &mut v).is_err());
+    }
+
+    #[test]
+    fn ctl1118g_recortar_nombre_entero_hasta_40_y_con_puntos_suspensivos_solo_por_encima() {
+        assert_eq!(recortar_nombre("MaggaBook"), "MaggaBook");
+        assert_eq!(recortar_nombre("  Mac de Alex \n"), "Mac de Alex");
+        let justo: String = "n".repeat(40);
+        assert_eq!(recortar_nombre(&justo), justo);
+        let largo: String = "ñ".repeat(41);
+        assert_eq!(recortar_nombre(&largo), format!("{}…", "ñ".repeat(40)));
+        assert_eq!(nombre_visible(None, ""), ("otra neurona".to_string(), "defecto"));
+        assert_eq!(nombre_visible(None, "Mac"), ("Mac".to_string(), "aceptados"));
+        assert_eq!(nombre_visible(Some("MaggaBook"), "MacIntel"), ("MaggaBook".to_string(), "firmado"));
     }
 
     #[test]

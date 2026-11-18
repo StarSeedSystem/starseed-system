@@ -113,6 +113,21 @@ export interface DepsPuerta {
 
 const MAX_NONCES = 2000;
 
+/** CTL1118G: el motivo que recibe quien manda cuando la persona de este aparato termina la sesión. */
+export const MOTIVO_TERMINADO = "terminado-por-el-dueno";
+
+/** CTL1118G: los motivos nativos de «Terminar» (indicador, notificación, superposición, web) que SOLO cortan la sesión. */
+export function esTerminarDeLaPersona(motivo: string): boolean {
+    return motivo === MOTIVO_TERMINADO || motivo === "la-persona-desde-el-indicador" || motivo === "la-persona-desde-la-notificacion" || motivo === "la-persona-desde-la-superposicion";
+}
+
+/** CTL1118G: el nombre de la neurona que manda, limpio (sin controles, 60 letras como `presentarse`); `null` si no sirve. */
+export function nombreLimpio(v: unknown): string | null {
+    if (typeof v !== "string") return null;
+    const n = [...v.replace(/[\u0000-\u001f\u007f]/g, "")].slice(0, 60).join("").trim();
+    return n ? n : null;
+}
+
 export class PuertaControl {
     private sesion: SesionActiva | null = null;
     private ultimoSeq = new Map<string, number>();
@@ -124,6 +139,12 @@ export class PuertaControl {
     private marcasTotal = new Map<string, number[]>(); // CTL1117A · S5
     /** (ORD1114Q) Una persona contestó o colgó a mano: la orden siguiente lo sabe («a-mano»). */
     private aMano: string | null = null;
+    /**
+     * CTL1118G: controladores a los que la persona de ESTE aparato les terminó la sesión («Terminar»). Mientras la marca siga, sus órdenes
+     * contestan `parada-nativa` con `detalle.motivo=terminado-por-el-dueno` (terminal: su ventana no reabre sola). Una `abrir-sesion` buena
+     * (una persona pulsó «Reabrir») la borra. Solo en memoria.
+     */
+    private terminadoPor = new Set<string>();
 
     constructor(private readonly d: DepsPuerta) {}
 
@@ -138,10 +159,29 @@ export class PuertaControl {
         return this.sesion;
     }
 
-    /** Un toque: cierra la sesión y apaga el permiso en este aparato. */
+    /**
+     * CTL1118G · «Terminar»: cierra SOLO la sesión. El permiso sigue encendido y el controlador sigue aceptado. Quien manda recibe
+     * `terminado-por-el-dueno` y no reabre solo.
+     */
+    terminar(motivo = MOTIVO_TERMINADO): void {
+        const s = this.sesion;
+        this.sesion = null;
+        if (s) this.terminadoPor.add(s.de);
+        void this.d.nativo.parar(motivo).catch(() => undefined);
+        this.d.anotar(`orden terminar de=${s ? s.de.slice(0, 8) : "-"} nivel=- resultado=${motivo}`);
+        this.d.alCambiar?.();
+    }
+
+    /** CTL1118G · «Quitar permiso»: cierra la sesión Y apaga el permiso en este aparato (un toque). */
+    quitarPermiso(): void {
+        this.revocar("revocado");
+    }
+
+    /** Cierra la sesión y apaga el permiso en este aparato. */
     revocar(motivo = "revocado"): void {
         const s = this.sesion;
         this.sesion = null;
+        this.terminadoPor.clear();
         void this.d.nativo.parar(motivo).catch(() => undefined); // ORD1114Q
         const p = this.d.leerPermiso();
         this.d.guardarPermiso({ ...p, encendido: false });
@@ -154,6 +194,7 @@ export class PuertaControl {
         const s = this.sesion;
         if (!s) return;
         this.sesion = null;
+        if (esTerminarDeLaPersona(motivo)) this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
         this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${/^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada"}`);
         this.d.alCambiar?.();
     }
@@ -311,8 +352,12 @@ export class PuertaControl {
             this.caducarSesion();
             if (this.sesion && this.sesion.de !== c.de) return this.respuesta(c.nonce, false, "otra-sesion", nombre, c.de, c.nivel);
             const nivel = nivelMinimo(c.nivel, concedido);
+            // CTL1118G: el nombre de su neurona viaja DENTRO de lo firmado (la firma ya se comprobó arriba): así se pone al día el de quien
+            // se aceptó con el nombre viejo, sin aceptarlo otra vez. Nunca desde algo sin firma.
+            const nombreFirmado = nombreLimpio(c.accion.args.nombre);
+            const nombreCtl = nombreFirmado ?? ctl.nombre;
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
-            const n = await this.d.nativo.abrir(c.de, ctl.nombre, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
+            const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token, misma hora
             // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
@@ -320,9 +365,11 @@ export class PuertaControl {
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
             const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
             const color = colorFirmado ?? ctl.color;
-            this.sesion = { token: n.token, de: c.de, nombre: ctl.nombre, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
+            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
+            this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
+            if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
             this.d.alCambiar?.();
-            if (!mismaSesion) this.avisar({ de: c.de, nombre: ctl.nombre, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
+            if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
                 nivel,
@@ -333,6 +380,10 @@ export class PuertaControl {
 
         this.caducarSesion();
         const s = this.sesion;
+        if (!s && this.terminadoPor.has(c.de)) {
+            // CTL1118G: la persona terminó esta sesión. Se dice con el motivo de siempre de «parada-nativa» (terminal: no reabre sola).
+            return this.respuesta(c.nonce, false, "parada-nativa", nombre, c.de, c.nivel, undefined, { motivo: MOTIVO_TERMINADO });
+        }
         if (!s || s.de !== c.de || c.sesion !== s.token) return this.respuesta(c.nonce, false, s ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
         if (rangoNivel(def.nivel) > rangoNivel(s.nivel)) return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
         s.ultima = ahora;
@@ -363,6 +414,17 @@ export class PuertaControl {
         } catch (e) {
             const m = e instanceof Error && /^[a-z-]{1,32}$/.test(e.message) ? e.message : "fallo";
             return this.respuesta(c.nonce, false, m, nombre, c.de, s.nivel);
+        }
+    }
+
+    /** CTL1118G: guarda el nombre firmado de un controlador YA aceptado (solo el nombre; no enciende ni acepta nada). */
+    private ponerAlDiaNombre(huella: string, nombre: string): void {
+        try {
+            const p = this.d.leerPermiso();
+            if (!p.controladores.some((x) => x.huella === huella)) return;
+            this.d.guardarPermiso({ ...p, controladores: p.controladores.map((x) => (x.huella === huella ? { ...x, nombre } : x)) });
+        } catch {
+            /* sin almacenamiento: el nombre de esta sesión ya es el bueno */
         }
     }
 

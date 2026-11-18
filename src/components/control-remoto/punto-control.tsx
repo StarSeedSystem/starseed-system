@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { QuienControla } from "@/lib/control-remoto/quien-controla";
+import { nombreParaMostrar, type QuienControla } from "@/lib/control-remoto/quien-controla";
 import { PALABRAS_INDICADOR as P } from "@/lib/control-remoto/palabras-indicador";
 
 function hhmm(t: number): string {
@@ -32,8 +32,9 @@ export function PuntoColor({ color, leer, className = "" }: { color: string; lee
 
 export const PLIEGA_PANEL_MS = 5000;
 
-export function PuntoControl({ quien, onTerminar, plegarMs = PLIEGA_PANEL_MS }: { quien: QuienControla; onTerminar: () => void; plegarMs?: number }) {
+export function PuntoControl({ quien, onTerminar, onQuitarPermiso, plegarMs = PLIEGA_PANEL_MS }: { quien: QuienControla; onTerminar: () => void; onQuitarPermiso?: () => void; plegarMs?: number }) {
     const [abierto, setAbierto] = useState(false);
+    const [confirma, setConfirma] = useState(false); // CTL1118G: «Quitar permiso» en dos pasos, como en Android
     const [dentro, setDentro] = useState(false);
     const caja = useRef<HTMLDivElement | null>(null);
     const boton = useRef<HTMLButtonElement | null>(null);
@@ -44,7 +45,14 @@ export function PuntoControl({ quien, onTerminar, plegarMs = PLIEGA_PANEL_MS }: 
         return () => clearTimeout(t);
     }, [abierto, dentro, plegarMs]);
 
+    useEffect(() => {
+        if (!confirma) return;
+        const t = setTimeout(() => setConfirma(false), 3000);
+        return () => clearTimeout(t);
+    }, [confirma]);
+
     const cerrar = useCallback(() => {
+        setConfirma(false);
         setAbierto(false);
         boton.current?.focus();
     }, []);
@@ -52,7 +60,7 @@ export function PuntoControl({ quien, onTerminar, plegarMs = PLIEGA_PANEL_MS }: 
     return (
         <div
             ref={caja}
-            className="pointer-events-none fixed right-1 top-1 z-[2147483000] flex flex-col items-end gap-1"
+            className="pointer-events-none fixed right-1 top-1 z-[2147483000] flex max-w-[calc(100vw-8px)] flex-col items-end gap-1"
             data-testid="punto-control"
             onKeyDown={(e) => {
                 if (e.key === "Escape" && abierto) {
@@ -86,15 +94,18 @@ export function PuntoControl({ quien, onTerminar, plegarMs = PLIEGA_PANEL_MS }: 
                     role="dialog"
                     aria-label={P.punto.panelTitulo}
                     data-testid="punto-control-panel"
-                    className="pointer-events-auto w-64 max-w-[calc(100vw-16px)] space-y-2 rounded-xl border border-white/20 bg-[#10131a]/95 p-3 text-[12px] text-white shadow-lg"
+                    className="pointer-events-auto w-max min-w-[16rem] max-w-[calc(100vw-16px)] space-y-2 rounded-xl border border-white/20 bg-[#10131a]/95 p-3 text-[12px] text-white shadow-lg"
                 >
                     <p className="font-medium text-white/90">{P.punto.panelTitulo}</p>
                     <dl className="space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <dt className="text-white/55">{P.punto.quien}</dt>
-                            <dd className="flex items-center gap-1.5 font-medium">
-                                <PuntoColor color={quien.color} />
-                                {quien.nombre}
+                        <div className="flex items-start justify-between gap-2">
+                            <dt className="shrink-0 text-white/55">{P.punto.quien}</dt>
+                            {/* CTL1118G: el nombre ENTERO, hasta dos líneas y sin ancho fijo; puntos suspensivos solo por encima de 40 caracteres. */}
+                            <dd className="flex min-w-0 items-start gap-1.5 font-medium">
+                                <PuntoColor color={quien.color} className="mt-1" />
+                                <span data-testid="punto-control-nombre" title={quien.nombre} className="min-w-0 break-words [overflow-wrap:anywhere] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                                    {nombreParaMostrar(quien.nombre)}
+                                </span>
                             </dd>
                         </div>
                         <div className="flex justify-between gap-2">
@@ -110,10 +121,27 @@ export function PuntoControl({ quien, onTerminar, plegarMs = PLIEGA_PANEL_MS }: 
                             <dd data-testid="punto-control-color">{quien.color}</dd>
                         </div>
                     </dl>
-                    <div className="flex gap-2 pt-1">
+                    <p className="text-white/50">{P.punto.terminarAyuda}</p>
+                    <div className="flex flex-wrap gap-2 pt-1">
                         <button type="button" onClick={onTerminar} className="min-h-9 flex-1 cursor-pointer rounded-lg bg-[#DC143C] px-3 py-1 font-medium transition-colors hover:bg-[#b01030]">
                             {P.punto.terminar}
                         </button>
+                        {onQuitarPermiso && !confirma && (
+                            <button type="button" data-testid="punto-quitar-permiso" onClick={() => setConfirma(true)} className="min-h-9 cursor-pointer rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">
+                                {P.punto.quitarPermiso}
+                            </button>
+                        )}
+                        {onQuitarPermiso && confirma && (
+                            <span className="flex items-center gap-1" data-testid="punto-quitar-confirma">
+                                <span>{P.punto.confirmaQuitar}</span>
+                                <button type="button" data-testid="punto-quitar-si" onClick={() => { setConfirma(false); onQuitarPermiso(); }} className="min-h-9 cursor-pointer rounded-lg bg-[#DC143C] px-3 py-1 font-medium hover:bg-[#b01030]">
+                                    {P.punto.si}
+                                </button>
+                                <button type="button" onClick={() => setConfirma(false)} className="min-h-9 cursor-pointer rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">
+                                    {P.punto.no}
+                                </button>
+                            </span>
+                        )}
                         <button type="button" onClick={cerrar} className="min-h-9 cursor-pointer rounded-lg bg-white/10 px-3 py-1 hover:bg-white/20">
                             {P.punto.cerrar}
                         </button>

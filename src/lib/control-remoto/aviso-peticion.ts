@@ -65,7 +65,9 @@ function hhmm(t: number): string {
 }
 
 function limpiarNombre(n: string): string {
-    return [...String(n ?? "").replace(/[\u0000-\u001f\u007f]/g, "")].slice(0, 40).join("").trim() || "Otra neurona";
+    // CTL1118G: el nombre va ENTERO en el aviso; solo por encima de 40 caracteres se corta, y con puntos suspensivos.
+    const letras = [...String(n ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim()];
+    return letras.length === 0 ? "Otra neurona" : letras.length > 40 ? `${letras.slice(0, 40).join("").trim()}…` : letras.join("");
 }
 
 /** Las palabras del aviso (en español llano; el «control total» solo cuando de verdad es `total`). */

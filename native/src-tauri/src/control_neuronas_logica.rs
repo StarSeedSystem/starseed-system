@@ -291,7 +291,8 @@ impl Control {
 /// Archivo del interruptor en la carpeta de configuración de la app (escritorio). Lo escribe SOLO Rust.
 pub const ARCHIVO_INTERRUPTOR: &str = "control-neuronas-interruptor.json";
 /// Motivos de parada que, además, APAGAN el interruptor (la persona quitó el permiso). Apagar nunca pide nada.
-pub const MOTIVOS_QUE_APAGAN: [&str; 4] = ["revocado", "terminado-por-el-dueno", "apagado-por-el-dueno", "la-persona-quito-el-permiso"];
+/// CTL1118G: «Terminar» (`terminado-por-el-dueno`) ya NO apaga: solo corta la sesión. Quitar el permiso es `revocado` / `la-persona-quito-el-permiso`.
+pub const MOTIVOS_QUE_APAGAN: [&str; 3] = ["revocado", "apagado-por-el-dueno", "la-persona-quito-el-permiso"];
 
 /// «Dejar que mis otras neuronas controlen esta»: apagado de fábrica, por aparato, guardado por el lado nativo.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -747,9 +748,11 @@ mod pruebas {
         assert_eq!(Interruptor::leer(Some(&i.texto())), i, "persiste");
         assert!(i.apagar(), "apagar sin diálogo");
         assert!(!Interruptor::leer(Some(&i.texto())).encendido);
-        for m in ["revocado", "terminado-por-el-dueno", "apagado-por-el-dueno", "la-persona-quito-el-permiso"] {
+        for m in ["revocado", "apagado-por-el-dueno", "la-persona-quito-el-permiso"] {
             assert!(motivo_apaga(m), "{m}");
         }
+        // CTL1118G: «Terminar» solo corta la sesión; el permiso sigue encendido.
+        assert!(!motivo_apaga("terminado-por-el-dueno") && !motivo_apaga("la-persona-desde-el-indicador"));
         assert!(!motivo_apaga("cerrar-sesion") && !motivo_apaga("a-mano") && !motivo_apaga("pagina"));
     }
 

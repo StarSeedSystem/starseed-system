@@ -225,13 +225,27 @@ export interface OpcionesOrden {
  */
 async function conColorPropio(nombre: string, args: Args): Promise<Args> {
     if (nombre !== "presentarse" && nombre !== "abrir-sesion") return args;
-    if (typeof args.color === "string") return args;
-    try {
-        const { colorPublicoPropio } = await import("@/lib/neurons/color-publico-ajuste");
-        return { ...args, color: colorPublicoPropio() };
-    } catch {
-        return args;
+    let salida = args;
+    if (typeof salida.color !== "string") {
+        try {
+            const { colorPublicoPropio } = await import("@/lib/neurons/color-publico-ajuste");
+            salida = { ...salida, color: colorPublicoPropio() };
+        } catch {
+            /* sin color: el aparato usa el de su id */
+        }
     }
+    // CTL1118G: el NOMBRE de esta neurona (el que la persona le puso) va dentro de lo firmado, en «presentarse» y en «abrir-sesion»:
+    // el aparato controlado enseña el nombre entero y quien ya estaba aceptado con el nombre viejo lo pone al día sin aceptar de nuevo.
+    if (typeof salida.nombre !== "string" || salida.nombre.trim() === "" || nombre === "presentarse") {
+        try {
+            const { nombreNeuronaPropia } = await import("./nombre-propio");
+            const n = nombreNeuronaPropia();
+            if (n) salida = { ...salida, nombre: n };
+        } catch {
+            /* sin nombre: «presentarse» lleva el que se le pasó y «abrir-sesion» va sin él */
+        }
+    }
+    return salida;
 }
 
 /** (PAN1115J) Firma una orden con la clave de este aparato y devuelve el sobre `{ v, carga, firma }` (sin sellar ni mandar). */

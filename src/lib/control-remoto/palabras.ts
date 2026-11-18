@@ -25,7 +25,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
     // CTL1117C · FALLO 3: sin el motivo real no se sabe QUIÉN paró (antes toda parada se decía «Terminar»).
     "parada-nativa": "El aparato cerró el control por su cuenta y no dijo por qué.",
-    "parada-nativa-persona": "La persona terminó el control desde el aviso del aparato («Terminar»).",
+    "parada-nativa-persona": "La persona terminó la sesión desde el aviso del aparato («Terminar»). El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
     "parada-nativa-caducada": "La sesión de control caducó en el aparato (2 minutos sin órdenes o 1 hora de duración).",
     "parada-nativa-sin-indicador": "El aviso de control del aparato (el borde rojo y su botón) dejó de verse y el control se cortó por seguridad.",
     "parada-nativa-no-se-pudo-mostrar": "Android no dejó mantener el aviso de control en el aparato: sin aviso no hay control.",
@@ -34,7 +34,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "parada-nativa-otro-token": "El aparato abrió otra sesión de control y esta quedó atrás.",
     "parada-nativa-revocado": "La persona quitó el permiso de control en el aparato.",
     "a-mano": "La persona usó el aparato con la mano y el control se detuvo.",
-    "terminado-por-el-dueno": "La persona terminó el control desde el aparato.",
+    "terminado-por-el-dueno": "La persona terminó la sesión en el aparato. El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
     "apagado-por-el-dueno": "La persona apagó el control en el aparato.",
     nivel: "Esa orden pide un nivel de control que la sesión no tiene.",
     caducada: "La orden llegó tarde y no se ejecutó.",
@@ -74,7 +74,7 @@ export function palabrasOrden(motivo: string | undefined | null): string | undef
 }
 
 /** (CTL1117A · S3) Motivos que ya no se arreglan pidiendo otra vez: se dice claro y se espera, sin insistir. */
-export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado", "permiso-apagado-avisado", "no-autorizado", "otra-cuenta", "otro-destino", "parada-nativa", "a-mano"]);
+export const MOTIVOS_TERMINALES: ReadonlySet<string> = new Set(["permiso-apagado", "permiso-apagado-avisado", "no-autorizado", "otra-cuenta", "otro-destino", "parada-nativa", "a-mano", "terminado-por-el-dueno", "parada-nativa-persona"]);
 
 /**
  * CTL1117C · FALLO 3: la clave fina de una parada del aparato. `parada-nativa` + el motivo real que dijo lo nativo
@@ -92,8 +92,9 @@ export function claveParadaNativa(motivo: string, resultado?: unknown): string {
     const d = resultado && typeof resultado === "object" ? (resultado as { detalle?: unknown }).detalle : undefined;
     const m = d && typeof d === "object" ? (d as { motivo?: unknown }).motivo : undefined;
     if (typeof m !== "string" || !/^[a-z-]{1,40}$/.test(m)) return motivo;
+    if (m === "terminado-por-el-dueno") return "terminado-por-el-dueno"; // CTL1118G: «Terminar» solo corta la sesión; el permiso sigue
     if (m === "la-persona-desde-el-indicador" || m === "la-persona-desde-la-notificacion" || m === "la-persona-desde-la-superposicion") return "parada-nativa-persona";
-    if (m === "revocado" || m === "terminado-por-el-dueno" || m === "apagado-por-el-dueno" || m === "la-persona-quito-el-permiso") return "parada-nativa-revocado";
+    if (m === "revocado" || m === "apagado-por-el-dueno" || m === "la-persona-quito-el-permiso") return "parada-nativa-revocado";
     return `parada-nativa-${m}`;
 }
 

@@ -23,3 +23,12 @@ export function quienControla(sesion: SesionActiva | null, permiso: Pick<Permiso
     const color = colorValido(sesion.color) ? sesion.color : colorDe(c?.neurona ?? sesion.de, c?.color);
     return { nombre: sesion.nombre, nivel: sesion.nivel, desde: sesion.inicio, color, neurona: c?.neurona ?? null };
 }
+
+/** CTL1118G: el tope largo del nombre en pantalla. Por debajo se enseña ENTERO; por encima, con puntos suspensivos. */
+export const TOPE_NOMBRE_MOSTRADO = 40;
+
+/** CTL1118G: el nombre tal cual para enseñarlo (sin recortarlo salvo por encima de 40 caracteres). */
+export function nombreParaMostrar(nombre: string, tope = TOPE_NOMBRE_MOSTRADO): string {
+    const letras = [...nombre.trim()];
+    return letras.length > tope ? `${letras.slice(0, tope).join("")}…` : letras.join("");
+}

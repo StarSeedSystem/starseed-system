@@ -28,9 +28,9 @@ describe("CTL1117I · el controlador firma su color público", () => {
         const def = colorPorDefecto("neurona-1");
         expect(def).toBe("#3c9fdd");
         const a = leerCarga(await firmarSobre("c@x.es", "tableta", "abrir-sesion", {}, { nivel: "controlar" }, "n1"));
-        expect(a.accion.args).toEqual({ color: def });
+        expect(a.accion.args).toEqual({ color: def, nombre: "Neurona" }); // CTL1118G: también el nombre de esta neurona (aquí sin nombre puesto)
         const p = leerCarga(await firmarSobre("c@x.es", "tableta", "presentarse", { spki: "s", nombre: "Mac", neurona: "neurona-1" }, {}, "n2"));
-        expect(p.accion.args).toEqual({ spki: "s", nombre: "Mac", neurona: "neurona-1", color: def });
+        expect(p.accion.args).toEqual({ spki: "s", nombre: "Neurona", neurona: "neurona-1", color: def }); // CTL1118G: «presentarse» manda el nombre de la neurona, no el que traía
     });
     it("con color elegido va ese; si se borra vuelve el de por defecto", async () => {
         expect(ponerColorPublico("neurona-1", "#E5484D")).toBe("#e5484d");
@@ -47,7 +47,7 @@ describe("CTL1117I · el controlador firma su color público", () => {
     });
     it("las demás órdenes no llevan color y uno ya puesto no se pisa", async () => {
         expect(leerCarga(await firmarSobre("c@x.es", "t", "leer-estado", {}, {}, "n")).accion.args).toEqual({});
-        expect(leerCarga(await firmarSobre("c@x.es", "t", "abrir-sesion", { color: "#112233" }, {}, "n")).accion.args).toEqual({ color: "#112233" });
+        expect(leerCarga(await firmarSobre("c@x.es", "t", "abrir-sesion", { color: "#112233" }, {}, "n")).accion.args).toEqual({ color: "#112233", nombre: "Neurona" });
     });
     it("un color escrito mal no se guarda", () => {
         expect(ponerColorPublico("neurona-1", "azul")).toBeNull();

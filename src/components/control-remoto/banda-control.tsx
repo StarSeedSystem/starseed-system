@@ -93,9 +93,12 @@ export function textoFalta(c: CosaQueFalta, plataforma: string): { falta: string
 }
 
 /** (CAL1115I) Quién controla a quién, en palabras, para los tres sitios del panel. */
-/** CTL1118B: con el control apagado nadie opera este aparato aunque figure aceptado; «Terminar» también lo apaga. */
-export const TEXTO_CONTROL_APAGADO = "El control está apagado en este aparato: nadie puede operarlo, aunque esté aceptado, hasta que lo enciendas. «Terminar» también lo apaga.";
-export const TEXTO_TERMINADO = "Control terminado: quedó apagado en este aparato. Enciéndelo cuando quieras volver a permitirlo.";
+/** CTL1118B / CTL1118G: con el control apagado nadie opera este aparato aunque figure aceptado; «Quitar permiso» lo apaga, «Terminar» no. */
+export const TEXTO_CONTROL_APAGADO = "El control está apagado en este aparato: nadie puede operarlo, aunque esté aceptado, hasta que lo enciendas. «Quitar permiso» lo apaga; «Terminar» solo corta la sesión y lo deja encendido.";
+/** CTL1118G: «Terminar» solo cortó la sesión. */
+export const TEXTO_TERMINADO = "Sesión terminada. El permiso sigue encendido y quien controlaba sigue aceptado: solo una persona, desde el otro aparato, puede volver a abrirla. Si quieres cortar el acceso, pulsa «Quitar permiso».";
+/** CTL1118G: «Quitar permiso» cerró la sesión y apagó el permiso de este aparato. */
+export const TEXTO_PERMISO_QUITADO = "Control apagado en este aparato: la sesión se cerró y nadie puede operarlo, aunque esté aceptado, hasta que lo enciendas.";
 
 export const quienOpera = {
     esteAparatoPide: (otro: string, codigo: string | null) =>
@@ -272,8 +275,12 @@ export function BandaControl() {
         };
     }, []);
 
+    // CTL1118G: «Terminar» solo corta la sesión (el permiso sigue); «Quitar permiso» corta y además apaga el permiso de ESTE aparato.
     const terminar = useCallback(() => {
-        void import("@/lib/control-remoto/canal").then((c) => c.puertaControl()?.revocar("terminado-por-el-dueno"));
+        void import("@/lib/control-remoto/canal").then((c) => c.puertaControl()?.terminar());
+    }, []);
+    const quitarPermiso = useCallback(() => {
+        void import("@/lib/control-remoto/canal").then((c) => c.puertaControl()?.quitarPermiso());
     }, []);
     const apagarBanco = useCallback(() => {
         void import("@/lib/banco-llamadas/app").then((b) => b.apagarBanco("apagar"));
@@ -287,7 +294,7 @@ export function BandaControl() {
     if (!verPunto && !banco) return null;
     return (
         <>
-            {verPunto && quien && <PuntoControl quien={quien} onTerminar={terminar} />}
+            {verPunto && quien && <PuntoControl quien={quien} onTerminar={terminar} onQuitarPermiso={quitarPermiso} />}
             {banco && (
                 <div className="pointer-events-none fixed inset-x-0 top-0 z-[2147483000] flex flex-col items-center gap-1 p-2" data-testid="banda-control">
                     <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#FFBF00] bg-[#1a1404]/95 px-4 py-2 text-sm text-white shadow-lg">
@@ -540,7 +547,7 @@ export function ControlEntreNeuronasPanel() {
             </div>
             <p className="text-[12px] text-white/55">
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
-                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar. Cada orden queda en el registro de llamadas.
+                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
             </p>
             {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
                 <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
@@ -567,7 +574,7 @@ export function ControlEntreNeuronasPanel() {
             </label>
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
-            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.revocar("terminado-por-el-dueno"); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} />
+            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">

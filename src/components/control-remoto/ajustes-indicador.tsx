@@ -21,7 +21,7 @@ function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function QuienControlaAhora({ quien, onTerminar }: { quien: QuienControla | null; onTerminar: () => void }) {
+export function QuienControlaAhora({ quien, onTerminar, onQuitarPermiso }: { quien: QuienControla | null; onTerminar: () => void; onQuitarPermiso?: () => void }) {
     return (
         <div className="flex flex-wrap items-center gap-2 text-[12px]" role="status" data-testid="quien-controla-ahora">
             {quien ? (
@@ -31,6 +31,11 @@ export function QuienControlaAhora({ quien, onTerminar }: { quien: QuienControla
                     <button type="button" onClick={onTerminar} className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-3 py-1 font-medium hover:bg-[#b01030]">
                         {P.ahora.terminar}
                     </button>
+                    {onQuitarPermiso && (
+                        <button type="button" onClick={onQuitarPermiso} data-testid="quitar-permiso" className="min-h-9 cursor-pointer rounded-md bg-white/10 px-3 py-1 font-medium hover:bg-white/20">
+                            {P.ahora.quitarPermiso}
+                        </button>
+                    )}
                 </>
             ) : (
                 <span className="text-white/55">{P.ahora.nadie}</span>
@@ -43,6 +48,7 @@ export function AjustesIndicadorControl({
     disponible,
     quien,
     onTerminar,
+    onQuitarPermiso,
     leer = leerAjustesControl,
     poner = ponerAjustesControl,
 }: {
@@ -50,6 +56,8 @@ export function AjustesIndicadorControl({
     disponible: boolean;
     quien: QuienControla | null;
     onTerminar: () => void;
+    /** CTL1118G: «Quitar permiso» (cierra la sesión y apaga el permiso de este aparato), al lado de «Terminar». */
+    onQuitarPermiso?: () => void;
     leer?: () => Promise<AjustesControl>;
     poner?: (p: Partial<AjustesControl>) => Promise<AjustesControl>;
 }) {
@@ -102,7 +110,7 @@ export function AjustesIndicadorControl({
             <h4 id={`${id}-t`} className="font-medium text-white/90">
                 {P.titulo}
             </h4>
-            <QuienControlaAhora quien={quien} onTerminar={onTerminar} />
+            <QuienControlaAhora quien={quien} onTerminar={onTerminar} onQuitarPermiso={onQuitarPermiso} />
             <div role="radiogroup" aria-labelledby={`${id}-i`} aria-describedby={`${id}-ind-ayuda`} className="space-y-1">
                 <p id={`${id}-i`} className="text-white/70">
                     {P.indicador.etiqueta}

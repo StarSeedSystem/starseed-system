@@ -867,8 +867,8 @@ fn poner_bandeja(app: &AppHandle, nombre: &str) -> tauri::Result<()> {
         let atajo = MenuItem::with_id(app, "ss-control-atajo", "⌃⌥⌘. termina · tocar el teclado o el ratón pausa", false, None::<&str>)?;
         let sep = PredefinedMenuItem::separator(app)?;
         let reanudar_i = MenuItem::with_id(app, MENU_REANUDAR, "Reanudar el control", true, None::<&str>)?;
-        let terminar = MenuItem::with_id(app, MENU_TERMINAR, "Terminar el control ahora", true, None::<&str>)?;
-        let quitar = MenuItem::with_id(app, MENU_QUITAR, "Terminar y quitar el permiso", true, None::<&str>)?; // ORD1114V
+        let terminar = MenuItem::with_id(app, MENU_TERMINAR, "Terminar la sesión (el permiso sigue)", true, None::<&str>)?;
+        let quitar = MenuItem::with_id(app, MENU_QUITAR, "Quitar permiso", true, None::<&str>)?; // ORD1114V
         let menu = Menu::with_items(app, &[&info, &nota, &atajo, &sep, &reanudar_i, &terminar, &quitar])?;
         let mut b = TrayIconBuilder::with_id(ID_BANDEJA)
             .menu(&menu)

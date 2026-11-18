@@ -26,7 +26,7 @@ vi.mock("@/lib/chats-genesis/firma-aparato", () => ({ aparatoLocal: async () => 
 vi.mock("@/lib/neurons/neurons", () => ({ thisDeviceId: () => "11111111-2222-4333-8444-555555555555", listNeurons: async () => [] }));
 vi.mock("@/lib/banco-llamadas/app", () => ({ estadoBanco: () => null, ultimoInforme: () => null, informarBanco: () => undefined, armarBanco: () => true, apagarBanco: () => undefined }));
 
-import { ControlEntreNeuronasPanel, TEXTO_CONTROL_APAGADO } from "../banda-control";
+import { ControlEntreNeuronasPanel, TEXTO_CONTROL_APAGADO, TEXTO_PERMISO_QUITADO, TEXTO_TERMINADO } from "../banda-control";
 
 const permiso = () => e.v as { encendido: boolean; nivel: string; controladores: { huella: string }[]; pendientes: unknown[] };
 
@@ -79,5 +79,14 @@ describe("CTL1118B · control apagado", () => {
         render(<ControlEntreNeuronasPanel />);
         expect(await screen.findByRole("button", { name: "Aceptar" })).toBeInTheDocument();
         expect(screen.queryByTestId("control-apagado-aviso")).toBeNull();
+    });
+
+    it("CTL1118G · los textos dicen la regla nueva: «Terminar» solo corta la sesión y «Quitar permiso» apaga", () => {
+        expect(TEXTO_TERMINADO).toMatch(/Sesión terminada/);
+        expect(TEXTO_TERMINADO).toMatch(/permiso sigue encendido/);
+        expect(TEXTO_TERMINADO).not.toMatch(/quedó apagado/);
+        expect(TEXTO_CONTROL_APAGADO).toMatch(/«Terminar» solo corta la sesión/);
+        expect(TEXTO_CONTROL_APAGADO).not.toMatch(/«Terminar» también lo apaga/);
+        expect(TEXTO_PERMISO_QUITADO).toMatch(/^Control apagado en este aparato/);
     });
 });
