@@ -244,11 +244,11 @@ describe("VEN1115L · puntero → dedos, de punta a punta", () => {
     });
 
     it("sin estar en vivo la ventana no envía gestos y dice por qué", () => {
-        const { p, env } = props({ estado: "pausa-local", motivo: "toque en la tableta" });
+        const { p, env } = props({ estado: "pausa-local", motivo: "toque en esa neurona" });
         render(<VentanaControl {...p} />);
         fireEvent.pointerDown(pantalla(), { pointerId: 1, pointerType: "touch", clientX: 100, clientY: 100 });
         expect(env).toEqual([]);
-        expect(screen.getByTestId("ventana-control-mensaje").textContent).toContain("toque en la tableta");
+        expect(screen.getByTestId("ventana-control-mensaje").textContent).toContain("toque en esa neurona");
     });
 
     it("pasar de en vivo a pausa levanta los dedos apoyados", () => {

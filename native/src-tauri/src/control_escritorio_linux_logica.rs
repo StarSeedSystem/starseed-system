@@ -172,7 +172,7 @@ pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: m::Alcance) -> String 
     format!(
         "¿Dejar que «{nombre}» (código {codigo}) controle este equipo?\n\n\
          Compara ese código con el que ves en la otra neurona antes de decir que sí.\n\n{alcance_txt}\n\n\
-         Mientras te controle verás una franja roja «● Controlada por …» arriba, con el botón «Terminar». Tocar el teclado o el \
+         Mientras te controle verás un punto de su color en la esquina de arriba a la derecha; al pulsarlo, su nombre completo y los botones «Terminar» y «Quitar permiso». Tocar el teclado o el \
          ratón de este equipo pausa unos segundos. Cada orden queda en el registro (nunca lo que se escribe ni dónde se pulsa). \
          Al apagar «Control entre tus neuronas» esta lista se vacía."
     )

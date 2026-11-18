@@ -447,7 +447,7 @@ pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: Alcance) -> String {
     format!(
         "¿Dejar que «{nombre}» (código {codigo}) controle este Mac?\n\n\
          Compara ese código con el que ves en la otra neurona antes de decir que sí.\n\n{alcance_txt}\n\n\
-         Mientras te controle verás un borde rojo y «● Controlada por …» en la barra de menús. Tocar el teclado o el ratón pausa; \
+         Mientras te controle verás un punto de su color en la esquina y «● Controlada por …» en la barra de menús. Tocar el teclado o el ratón pausa; \
          ⌃⌥⌘. termina. Cada orden queda en el registro de este Mac (nunca lo que se escribe ni dónde se pulsa). \
          Al apagar «Control entre tus neuronas» esta lista se vacía."
     )

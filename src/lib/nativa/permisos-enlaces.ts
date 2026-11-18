@@ -154,7 +154,7 @@ export function textoEnlace(e: Enlace | null): string {
   }
 }
 
-/* ───────────── Lo que le falta al control remoto de una tableta (`control_capacidades().falta`) ───────────── */
+/* ───────────── Lo que le falta al control remoto de una neurona (`control_capacidades().falta`) ───────────── */
 
 export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac" | "wayland" | "sin-pantalla-x11" | "entrada-x11", Enlace> = {
   "servicio-accesibilidad": ANDROID.accesibilidad!,

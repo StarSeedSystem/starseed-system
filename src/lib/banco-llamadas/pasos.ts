@@ -17,11 +17,11 @@ export function pasosQueFaltan(a: { informe: EstadoApp | null; destino: string; 
     const ahora = a.ahora ?? Date.now();
     const out: Paso[] = [];
     const elegida = RE_UUID.test(destino);
-    out.push({ clave: "tableta", hecho: elegida, texto: elegida ? "Tableta elegida." : "Elige la tableta de la lista o escribe su id completo." });
+    out.push({ clave: "tableta", hecho: elegida, texto: elegida ? "Neurona elegida." : "Elige la neurona de la lista o escribe su id completo." });
     if (!elegida) return out;
     // 1 · la clave de ESTE aparato
     if (!i) {
-        out.push({ clave: "llave", hecho: false, texto: "Comprobando la clave de este aparato y si la tableta te aceptó…" });
+        out.push({ clave: "llave", hecho: false, texto: "Comprobando la clave de este aparato y si esa neurona te aceptó…" });
         return out;
     }
     if (i.llave === false) {
@@ -32,7 +32,7 @@ export function pasosQueFaltan(a: { informe: EstadoApp | null; destino: string; 
     // 2 · la tableta aceptó a esta Mac
     const mismo = i.objetivo?.toLowerCase() === destino.toLowerCase();
     if (!mismo || !i.sesion) {
-        out.push({ clave: "aceptada", hecho: false, texto: "Comprobando si la tableta te aceptó…" });
+        out.push({ clave: "aceptada", hecho: false, texto: "Comprobando si esa neurona te aceptó…" });
         return out;
     }
     if (i.sesion.estado !== "aceptada") {
@@ -40,15 +40,15 @@ export function pasosQueFaltan(a: { informe: EstadoApp | null; destino: string; 
         out.push({
             clave: "aceptada",
             hecho: false,
-            texto: `La tableta no te ha aceptado todavía (${i.sesion.motivo ?? "sin respuesta"}). Pulsa «Pedir controlarla desde aquí» y, en la tableta, en Control entre mis neuronas, acepta este aparato${cod ? ` con el código ${cod}` : ""}.`,
+            texto: `Esa neurona no te ha aceptado todavía (${i.sesion.motivo ?? "sin respuesta"}). Pulsa «Pedir controlarla desde aquí» y, en esa neurona, en Control entre mis neuronas, acepta este aparato${cod ? ` con el código ${cod}` : ""}.`,
         });
         return out;
     }
-    out.push({ clave: "aceptada", hecho: true, texto: "La tableta ha aceptado este aparato." });
+    out.push({ clave: "aceptada", hecho: true, texto: "Esa neurona ha aceptado este aparato." });
     // 3 · el modo de pruebas de llamadas armado
     const arm = i.armada;
     if (!arm || arm.con.toLowerCase() !== destino.toLowerCase()) {
-        out.push({ clave: "armada", hecho: false, texto: "El modo de pruebas de llamadas no está armado hacia esa tableta: pulsa «Modo de pruebas de llamadas hacia esa tableta»." });
+        out.push({ clave: "armada", hecho: false, texto: "El modo de pruebas de llamadas no está armado hacia esa neurona: pulsa «Modo de pruebas de llamadas hacia esa neurona»." });
     } else if (arm.hasta <= ahora) {
         out.push({ clave: "armada", hecho: false, texto: "El modo de pruebas de llamadas venció: vuelve a armarlo." });
     } else {

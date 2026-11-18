@@ -18,6 +18,17 @@ const MAX_DETALLE: usize = 160;
 /// (ORD1114T) Margen tras abrir o reanudar en el que lo local no pausa (el propio clic de «Reanudar»).
 pub const GRACIA_LOCAL_MS: u64 = 1_500;
 
+/// (CTL1118H · 18-11, Alex: «hice pruebas en la 53 tratando de controlar esta mac desde la tableta…») Lo que SIGUE pasando mientras la
+/// pausa por toque físico local está activa: abrir y cerrar la sesión, la señal y el arranque de la pantalla y las lecturas. La pausa solo
+/// frena la ENTRADA (gesto, tecla, texto, volumen, brillo) y lo que actúa sobre la neurona (llamar, colgar…): quien controla sigue viendo
+/// la pantalla y sabe que están usando el aparato. Todo lo que NO está aquí se rechaza en pausa, como siempre (lo desconocido, también).
+pub const ORDENES_QUE_PASAN_EN_PAUSA: [&str; 8] = ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla"];
+
+/// (CTL1118H) ¿Esta orden pasa aunque haya pausa local? Ver [`ORDENES_QUE_PASAN_EN_PAUSA`].
+pub fn orden_pasa_en_pausa(nombre: &str) -> bool {
+    ORDENES_QUE_PASAN_EN_PAUSA.contains(&nombre)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rechazo {
     /// No hay forma de enseñar el indicador nativo: sin indicador no hay control (§2.4).
@@ -134,7 +145,7 @@ impl Control {
     /// (CTL1117A · S1/S4) Abrir OTRA vez con la sesión viva del MISMO controlador y el indicador ya a la vista: es la
     /// misma sesión (mismo token, mismo indicador), solo se da por activa ahora. Nada de indicador nuevo ni de token
     /// nuevo: así una apertura repetida (la Mac, dos ventanas, un reintento) no tumba lo que ya funciona. No reutiliza
-    /// si hay pausa local (quien manda no se la quita reabriendo), si es otro aparato ni si no hay indicador a la vista.
+    /// si es otro aparato ni si no hay indicador a la vista. Con pausa local SÍ (CTL1118H): abrir no quita la pausa, pero tampoco se niega.
     /// No alarga la hora máxima: `inicio_ms` no cambia.
     pub fn reutilizar(&mut self, de: &str, nivel: &str, ahora: u64, indicador: bool) -> Option<&Sesion> {
         if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
@@ -142,7 +153,8 @@ impl Control {
         }
         self.caducar(ahora);
         let s = self.sesion.as_mut()?;
-        if s.de != de || s.pausada_ms.is_some() {
+        // CTL1118H: con pausa local también es la misma sesión (mismo token, y la pausa sigue como estaba: reabrir NO la quita).
+        if s.de != de {
             return None;
         }
         s.nivel = nivel.into();
@@ -155,10 +167,9 @@ impl Control {
     pub fn negada_por_la_viva(&mut self, de: &str, ahora: u64) -> Option<Rechazo> {
         self.caducar(ahora);
         let s = self.sesion.as_ref()?;
+        // CTL1118H: la pausa local ya no niega una apertura del mismo controlador (se reutiliza la sesión; ver `reutilizar`).
         if s.de != de {
             Some(Rechazo::OtraSesion)
-        } else if s.pausada_ms.is_some() {
-            Some(Rechazo::Pausada)
         } else {
             None
         }
@@ -189,7 +200,8 @@ impl Control {
         if !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()) {
             return Err(Rechazo::Token);
         }
-        if s.pausada_ms.is_some() {
+        // CTL1118H: la pausa solo frena la entrada. Abrir, pantalla y lecturas pasan (y renuevan la actividad: una pausa larga ya no mata la sesión).
+        if s.pausada_ms.is_some() && !orden_pasa_en_pausa(nombre) {
             return Err(Rechazo::Pausada); // ORD1114T
         }
         s.ultima_ms = ahora;
@@ -692,8 +704,11 @@ mod pruebas {
         assert!(c.reutilizar("zz", "controlar", 5_100, true).is_none());
         assert!(c.reutilizar(DE, "administrar", 5_100, true).is_none());
         assert!(c.pausar(6_000));
-        assert!(c.reutilizar(DE, "controlar", 6_100, true).is_none(), "reabrir no quita la pausa local");
-        assert_eq!(c.negada_por_la_viva(DE, 6_200), Some(Rechazo::Pausada));
+        // CTL1118H: con pausa local reabrir es la misma sesión (no se niega) y NO quita la pausa.
+        let s = c.reutilizar(DE, "controlar", 6_100, true).expect("la pausa ya no niega reabrir");
+        assert_eq!(s.token, TOK);
+        assert!(c.pausada(), "reabrir no quita la pausa local");
+        assert_eq!(c.negada_por_la_viva(DE, 6_200), None);
         assert_eq!(c.negada_por_la_viva(otro, 6_200), Some(Rechazo::OtraSesion));
         assert!(c.reanudar(7_000));
         assert!(c.reutilizar(DE, "ver", 7_100, true).is_some());
@@ -790,14 +805,48 @@ mod pruebas {
         assert!(c.orden(TOK, "leer-aparato", 5_000, true).is_ok());
         // Sin lecturas: a los 2 min de la última, caducada.
         assert_eq!(c.orden(TOK, "leer-aparato", 5_000 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
-        // En pausa local las lecturas se rechazan y no renuevan (pausar no alarga la sesión): por eso una pausa pegada la mata a los 2 min.
+        // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 2 min).
+        // Lo que sigue sin renovar es lo que se rechaza (la entrada): una pausa sin nadie leyendo caduca como siempre.
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        assert!(c.pausar(10_000));
+        for t in (15_000..=SESION_INACTIVA_MS * 2).step_by(5_000) {
+            assert!(c.orden(TOK, "leer-aparato", t, true).is_ok(), "t={t}");
+            assert!(c.pausada(), "leer no quita la pausa");
+        }
+        assert!(c.activa().is_some());
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         assert!(c.pausar(10_000));
         for t in (15_000..=SESION_INACTIVA_MS).step_by(5_000) {
-            assert_eq!(c.orden(TOK, "leer-aparato", t, true).unwrap_err(), Rechazo::Pausada, "t={t}");
+            assert_eq!(c.orden(TOK, "gesto", t, true).unwrap_err(), Rechazo::Pausada, "t={t}");
         }
-        assert_eq!(c.orden(TOK, "leer-aparato", SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+        assert_eq!(c.orden(TOK, "gesto", SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
+    }
+
+    #[test]
+    fn ctl1118h_la_pausa_local_solo_frena_la_entrada() {
+        // Lo que pasa en pausa: abrir/cerrar, pantalla y lecturas. Lo que no: la entrada y lo que actúa sobre la neurona.
+        for pasa in ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla"] {
+            assert!(orden_pasa_en_pausa(pasa), "{pasa}");
+        }
+        for frena in ["gesto", "tecla", "texto", "volumen", "brillo", "llamar", "contestar", "colgar", "micro", "camara", "abrir-ruta", "simular-corte-ip", "simular-vuelve-ip", "entrada", "algo-raro", ""] {
+            assert!(!orden_pasa_en_pausa(frena), "{frena}");
+        }
+        let mut c = Control::default();
+        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        assert!(c.entrada_local(20_000));
+        for pasa in ORDENES_QUE_PASAN_EN_PAUSA {
+            assert!(c.orden(TOK, pasa, 20_100, true).is_ok(), "{pasa} pasa en pausa");
+        }
+        for frena in ["gesto", "tecla", "texto", "volumen", "brillo", "entrada"] {
+            assert_eq!(c.orden(TOK, frena, 20_200, true).unwrap_err(), Rechazo::Pausada, "{frena} se frena en pausa");
+        }
+        assert!(c.pausada() && c.activa().is_some(), "ni pasar ni frenar cierran la sesión ni quitan la pausa");
+        // La pausa no abre la puerta a nadie: sin token válido o sin indicador, igual que siempre.
+        assert_eq!(c.orden("otro-token-otro-token-otro-token-0", "leer-estado", 20_300, true).unwrap_err(), Rechazo::Token);
+        assert_eq!(c.orden(TOK, "leer-estado", 20_400, false).unwrap_err(), Rechazo::SinIndicador, "sin indicador no hay control, ni leyendo");
+        assert!(c.activa().is_none());
     }
 
     #[test]

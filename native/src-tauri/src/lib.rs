@@ -173,6 +173,8 @@ mod acceso_equipo_logica; // SEG1111U
 mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
 mod control_neuronas_logica; // ORD1114Q
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+mod control_punto_logica; // CTL1118H: el punto de color de macOS y Linux (parte pura)
 // ORD1114T: el borde de cada plataforma del indicador (Android por archivos con Kotlin; macOS AppKit/Carbon).
 mod control_neuronas_android; // ORD1114T
 mod control_entrada_logica; // AND1115K

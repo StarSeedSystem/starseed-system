@@ -524,7 +524,7 @@ export function ControlEntreNeuronasPanel() {
 
     const armar = useCallback(async () => {
         const b = await import("@/lib/banco-llamadas/app");
-        if (!b.armarBanco(destino.trim(), 4, 40)) setAviso("Escribe el id completo de la tableta.");
+        if (!b.armarBanco(destino.trim(), 4, 40)) setAviso("Escribe el id completo de la neurona.");
     }, [destino]);
     const apagar = useCallback(async () => {
         const b = await import("@/lib/banco-llamadas/app");
@@ -547,7 +547,7 @@ export function ControlEntreNeuronasPanel() {
             </div>
             <p className="text-[12px] text-white/55">
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
-                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso en las notificaciones y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
+                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso a la vista y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
             </p>
             {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
                 <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
@@ -670,7 +670,7 @@ export function ControlEntreNeuronasPanel() {
                     </button>
                 ) : (
                     <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10">
-                        Modo de pruebas de llamadas hacia esa tableta (4 h, 40 llamadas)
+                        Modo de pruebas de llamadas hacia esa neurona (4 h, 40 llamadas)
                     </button>
                 )}
             </div>

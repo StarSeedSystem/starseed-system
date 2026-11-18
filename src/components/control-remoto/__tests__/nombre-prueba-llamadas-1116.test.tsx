@@ -39,9 +39,9 @@ afterEach(() => {
 });
 
 describe("FBM1116 · el nombre de la función en los textos", () => {
-    it("el panel ofrece «Modo de pruebas de llamadas hacia esa tableta» y, armado, «Apagar el modo de pruebas de llamadas»", async () => {
+    it("el panel ofrece «Modo de pruebas de llamadas hacia esa neurona» y, armado, «Apagar el modo de pruebas de llamadas»", async () => {
         render(<ControlEntreNeuronasPanel />);
-        await waitFor(() => expect(screen.getByText(/Modo de pruebas de llamadas hacia esa tableta/)).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText(/Modo de pruebas de llamadas hacia esa neurona/)).toBeInTheDocument());
         cleanup();
         banco.v = { con: TAB, hasta: Date.now() + 3_600_000, restantes: 9 };
         render(<ControlEntreNeuronasPanel />);

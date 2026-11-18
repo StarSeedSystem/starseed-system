@@ -10,10 +10,10 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "no-autorizado": "Este aparato todavía no te ha aceptado para operar su entrada. Acéptalo en él con su código.",
     sesion: "No hay una sesión de control abierta; se abre de nuevo sola.",
     "regla-g": "Este aparato está en «Protegido»: tiene delante una ventana protegida (permisos, instalador o ajustes) y no deja tocarla desde otra neurona. Pulsa Inicio para salir de ella, o pon el aparato en «Control total» desde su ajuste local.",
-    "pausa-local": "Alguien está tocando la pantalla del aparato: el control espera unos 3 segundos.",
+    "pausa-local": "Están usando esa neurona: el control de la entrada espera, pero la pantalla se sigue viendo.",
     limite: "Demasiadas órdenes seguidas; el aparato espera un momento.",
     "sin-servicio": "El servicio de accesibilidad de StarSeed no está encendido en el aparato: la persona debe encenderlo allí.",
-    "sin-soporte": "Este aparato todavía no puede hacer esto (solo las tabletas Android se controlan por ahora).",
+    "sin-soporte": "Esta neurona todavía no puede hacer esto.",
     "sin-consentimiento": "Falta que la persona active, en el aparato, «Ver la pantalla sin preguntar en cada sesión».",
     "sin-indicador-nativo": "El aparato no pudo enseñar su aviso de control (borde rojo y «Terminar»): sin aviso no hay control.",
     "permiso-apagado": "El control está apagado en el aparato; solo su dueño puede encenderlo.",
@@ -141,7 +141,7 @@ export function palabrasEstado(estado: "conectando" | "en-vivo" | "pausa-local" 
     switch (estado) {
         case "conectando": return `Conectando con ${nombre}…`;
         case "en-vivo": return `Controlando ${nombre} en directo.`;
-        case "pausa-local": return `${nombre}: alguien toca su pantalla; el control espera.`;
+        case "pausa-local": return `${nombre}: están usando esa neurona; el control espera.`;
         case "sin-pantalla": return `${nombre} no enseña su pantalla ahora.`;
         default: return `La ventana de ${nombre} está cerrada.`;
     }

@@ -7,7 +7,7 @@
 //! · Indicador (escritorio): icono propio en la barra de menús/bandeja con el título «● Controlada por …» y
 //!   el menú «Terminar el control ahora», atendido en Rust: para aunque la página esté colgada. La página no
 //!   tiene `core:tray`/`core:menu` (SEG1111U), así que no lo puede quitar.
-//! · (ORD1114T) macOS además: borde rojo siempre encima en cada pantalla, atajo global fijo ⌃⌥⌘. que para, y
+//! · (ORD1114T) macOS además: punto de color siempre encima (CTL1118H; antes un borde rojo), atajo global fijo ⌃⌥⌘. que para, y
 //!   cualquier tecla, clic o movimiento local pausa al instante (`control_neuronas_macos.rs`); «Reanudar el
 //!   control» solo desde el menú del indicador.
 //! · (ORD1114T) Android: notificación en curso del servicio en primer plano con «Terminar» + superposición
@@ -423,14 +423,14 @@ pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview, 
     if !i.encendido && indicador_posible(&app) && !PREGUNTANDO.swap(true, Ordering::SeqCst) {
         #[cfg(not(target_os = "linux"))]
         let texto = "¿Dejar que tus otras neuronas de la misma cuenta controlen este aparato?\n\n\
-            Solo las que aceptes una a una. Mientras alguna lo controle verás un borde rojo, «● Controlada por …» en \
+            Solo las que aceptes una a una. Mientras alguna lo controle verás un punto de su color en la esquina, «● Controlada por …» en \
             la barra de menús y podrás terminar con ⌃⌥⌘. o desde ese menú; tocar el teclado o el ratón lo pausa. Cada \
             orden queda en el registro de este aparato. Puedes quitarlo cuando quieras."
             .to_string();
         #[cfg(target_os = "linux")]
         let texto = "¿Dejar que tus otras neuronas de la misma cuenta controlen este equipo?\n\n\
-            Solo las que aceptes una a una. Mientras alguna lo controle verás una franja roja «● Controlada por …» arriba, con el \
-            botón «Terminar»; tocar el teclado o el ratón lo pausa unos segundos. Funciona en sesiones X11 (en Wayland no). Cada \
+            Solo las que aceptes una a una. Mientras alguna lo controle verás un punto de su color en la esquina de arriba a la derecha («● Controlada por …»); al pulsarlo, su nombre \
+            completo y los botones «Terminar» y «Quitar permiso»; tocar el teclado o el ratón lo pausa unos segundos. Funciona en sesiones X11 (en Wayland no). Cada \
             orden queda en el registro de este equipo. Puedes quitarlo cuando quieras."
             .to_string();
         let si = crate::acceso_equipo::dialogo(&app, "Control entre tus neuronas", texto, "Sí, dejar", "No").await;
@@ -711,7 +711,7 @@ fn sesion_indicador() -> MutexGuard<'static, Option<String>> {
 
 #[cfg(target_os = "macos")]
 fn indicador_visible(app: &AppHandle) -> bool {
-    app.tray_by_id(ID_BANDEJA).is_some() && crate::control_neuronas_macos::borde_visible()
+    crate::control_punto_logica::indicador_completo(crate::control_neuronas_macos::punto_dibujado(), crate::control_neuronas_macos::punto_a_la_vista(), app.tray_by_id(ID_BANDEJA).is_some(), true)
 }
 
 #[cfg(target_os = "android")]
@@ -831,6 +831,8 @@ fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str, nombre:
 #[cfg(desktop)]
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
+    #[cfg(target_os = "macos")]
+    crate::control_neuronas_macos::marcar_pausa(app, pausada); // CTL1118H: el panel del punto
     #[cfg(target_os = "linux")]
     {
         // CTL1118L: la franja de GTK cambia su texto y enseña «Reanudar» solo en pausa.
@@ -847,10 +849,12 @@ fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
 fn marcar_pausa_indicador(_app: &AppHandle, _pausada: bool) {}
 
 #[cfg(target_os = "macos")]
-fn poner_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
+fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> Result<(), String> {
     poner_bandeja(app, nombre).map_err(|e| e.to_string())?;
-    // Borde siempre encima y atajo global: sin cualquiera de los dos, no hay indicador completo (§2.4).
-    if !crate::control_neuronas_macos::poner_borde(app, nombre) || !crate::control_neuronas_macos::registrar_atajo(app) {
+    // CTL1118H: el punto de color (antes, un marco) y el atajo global: sin cualquiera de los dos, no hay indicador completo (§2.4).
+    // Con `indicador=oculto` no hay punto y basta el icono de la barra de menús.
+    let ajuste = crate::control_ajustes::actuales(app).indicador;
+    if !crate::control_neuronas_macos::poner_punto(app, nombre, color, nivel, &ajuste) || !crate::control_neuronas_macos::registrar_atajo(app) {
         quitar_indicador(app);
         return Err("indicador-incompleto".into());
     }
@@ -917,9 +921,9 @@ fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> R
 }
 
 #[cfg(target_os = "linux")]
-fn poner_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
-    // CTL1118L: la franja de GTK con «Terminar». Sin ella a la vista no hay sesión.
-    if crate::control_neuronas_linux::poner(app, nombre) {
+fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> Result<(), String> {
+    // CTL1118H: el punto de color de GTK (antes una franja) con su panel «Terminar» / «Quitar permiso». Sin él a la vista no hay sesión.
+    if crate::control_neuronas_linux::poner(app, nombre, color, nivel, &crate::control_ajustes::actuales(app).indicador) {
         Ok(())
     } else {
         quitar_indicador(app);
@@ -937,7 +941,7 @@ fn quitar_indicador(app: &AppHandle) {
     let _ = app.remove_tray_by_id(ID_BANDEJA);
     #[cfg(target_os = "macos")]
     {
-        crate::control_neuronas_macos::quitar_borde(app);
+        crate::control_neuronas_macos::quitar_punto(app);
         crate::control_neuronas_macos::quitar_atajo(app);
         // CTL1117M: la sesión acabó: se suelta lo pulsado, se anota el resumen de la entrada y se para la pantalla.
         crate::control_entrada_macos::al_cerrar(app);

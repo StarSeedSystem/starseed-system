@@ -359,7 +359,7 @@ function mensajeSobrePantalla(p: PropsVentanaControl): string | null {
     const por = p.motivo ? ` · ${p.motivo}` : "";
     switch (p.estado) {
         case "conectando": return `Conectando con ${p.nombre}…${por}`;
-        case "pausa-local": return `En pausa: alguien está tocando ${p.nombre}${por}`;
+        case "pausa-local": return `En pausa: están usando ${p.nombre}${por}`;
         case "sin-pantalla": return `${p.nombre} no enseña su pantalla${por}`;
         case "cerrada": return `Sesión cerrada${por}`;
         default:

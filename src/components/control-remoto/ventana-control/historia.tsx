@@ -43,7 +43,7 @@ export function HistoriaVentanaControl({ modo = "flotante", nivel = "controlar" 
     const flujo = useMemo(() => crearFlujo(1200, 2000), []);
     useEffect(() => () => flujo?.getTracks().forEach((t) => t.stop()), [flujo]);
     const p: PropsVentanaControl = {
-        nombre: "Tableta de Alex",
+        nombre: "Neurona de Alex",
         modo,
         estado: cerrada ? "cerrada" : "en-vivo",
         flujo,
