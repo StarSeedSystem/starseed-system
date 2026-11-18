@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reglas puras para peticiones por Telegram: tipos, por_reglas, validación, textos."""
+"""Reglas puras para peticiones por Telegram: tipos, por_reglas, validación, textos.
+Incluye comandos de síntesis (§3.6) y gestión de recomendaciones."""
+import json
+import os
 import re
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 
@@ -188,3 +192,301 @@ def texto_estado(cola: list[dict[str, Any]], nb_estado: dict[str, Any]) -> str:
     for p in activas[:5]:
         lineas.append(f"   – {p['estado']} · {p['texto'][:70]}")
     return "\n".join(lineas)
+
+
+# ============================================================
+# §3.6 Comandos de síntesis y gestión de recomendaciones
+# ============================================================
+
+RECOMENDACIONES_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "starseed_memory_root", "sintesis", "recomendaciones.jsonl"
+)
+
+ESTADOS_RECOMENDACION = ("propuesta", "aprobada", "rechazada", "ya_existe", "encargada", "integrada")
+
+
+def _leer_recomendaciones() -> list[dict[str, Any]]:
+    """Lee el archivo de recomendaciones (JSONL)."""
+    try:
+        with open(RECOMENDACIONES_PATH, encoding="utf-8") as f:
+            return [json.loads(linea) for linea in f if linea.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def _guardar_recomendaciones(recomendaciones: list[dict[str, Any]]) -> None:
+    """Guarda el archivo de recomendaciones (JSONL)."""
+    os.makedirs(os.path.dirname(RECOMENDACIONES_PATH), exist_ok=True)
+    tmp = RECOMENDACIONES_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for r in recomendaciones:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    os.replace(tmp, RECOMENDACIONES_PATH)
+
+
+def _obtener_recomendacion_por_numero(n: int) -> tuple[dict[str, Any] | None, int]:
+    """Obtiene la n-ésima recomendación (1-indexado) y su índice en la lista."""
+    recs = _leer_recomendaciones()
+    if 1 <= n <= len(recs):
+        return recs[n - 1], n - 1
+    return None, -1
+
+
+def comando_sintesis_lanzar() -> str:
+    """/sintesis — La lanza ya."""
+    from peticiones_telegram import _revisar_y_procesar_sintesis_diaria
+    _revisar_y_procesar_sintesis_diaria()
+    return "🚀 Síntesis diaria lanzada. Se procesará la síntesis de hoy/ayer en hora México y se generarán los 9 formatos."
+
+
+def comando_sintesis_estado() -> str:
+    """/sintesis estado — Hito actual y retrasos."""
+    from sintesis_multiformato import ya_procesado
+    from peticiones_notebooklm import ultima_sintesis
+    
+    try:
+        fid, nombre = ultima_sintesis()
+        import re
+        m = re.match(r".*?(\d{4}-\d{2}-\d{2})", nombre)
+        fecha = m.group(1) if m else "desconocida"
+    except RuntimeError:
+        return "⚠️ No hay síntesis disponible para hoy/ayer en hora México."
+    
+    mexico_tz = timezone(timedelta(hours=-6))
+    hoy_mexico = datetime.now(mexico_tz).date().isoformat()
+    ayer_mexico = (datetime.now(mexico_tz).date() - timedelta(days=1)).isoformat()
+    
+    procesada = ya_procesado(fecha)
+    
+    lineas = [
+        f"📊 Estado de la síntesis {fecha}:",
+        f"• Hito: {'Multiformato completado' if procesada else 'Pendiente de procesar'}",
+        f"• Fecha de hoy (México): {hoy_mexico}",
+        f"• Fecha de ayer (México): {ayer_mexico}",
+    ]
+    
+    if not procesada:
+        lineas.append("• Retraso: La síntesis no se ha procesado aún. MetaGenesis la procesará en el próximo ciclo (cada 15 min) o usa /sintesis para lanzarla ya.")
+    else:
+        lineas.append("• Sin retrasos.")
+    
+    return "\n".join(lineas)
+
+
+def comando_sintesis_contexto() -> str:
+    """/sintesis contexto — Resumen del paquete de hoy y enlace al contexto vivo."""
+    from peticiones_notebooklm import ultima_sintesis
+    from contexto_sintesis import contexto_vivo
+    import os
+    
+    try:
+        fid, nombre = ultima_sintesis()
+    except RuntimeError:
+        return "⚠️ No hay síntesis disponible para hoy/ayer en hora México."
+    
+    try:
+        raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        hoy = datetime.now(timezone.utc).date().isoformat()
+        contexto = contexto_vivo(raiz, hoy)
+        resumen = f"Fecha: {contexto.get('fecha')}\nSíntesis previas: {len(contexto.get('sintesis_previas', []))}\nInformes: {len(contexto.get('informes', []))}\nImaginación: {len(contexto.get('imaginacion', []))}\nAlcance GitHub: {len(contexto.get('alcance_github', []))}\nProducción Higgsfield: {len(contexto.get('produccion_higgsfield', []))}\nEncargos: {bool(contexto.get('produccion_encargos'))}\nArquitectura: {len(contexto.get('arquitectura_titulos', []))} contratos\nLibrería: {len(contexto.get('libreria', []))} repos\nApps: {len(contexto.get('rutas_apps', []))}"
+        enlace = "Contexto generado en memoria (se sube a Drive al procesar la síntesis)"
+    except Exception as e:
+        return f"⚠️ Error generando contexto vivo: {e}"
+    
+    return (
+        f"📋 Contexto vivo de la síntesis ({nombre}):\n\n"
+        f"{resumen}\n\n"
+        f"🔗 {enlace}"
+    )
+
+
+def _es_comando_sintesis(texto: str) -> bool:
+    """Detecta si el texto es un comando /sintesis."""
+    return texto.strip().startswith("/sintesis")
+
+
+def _parsear_comando_sintesis(texto: str) -> str | None:
+    """Parsea subcomando de /sintesis. Devuelve 'lanzar', 'estado', 'contexto' o None."""
+    t = texto.strip().lower()
+    if t == "/sintesis":
+        return "lanzar"
+    if t == "/sintesis estado":
+        return "estado"
+    if t == "/sintesis contexto":
+        return "contexto"
+    return None
+
+
+def ejecutar_comando_sintesis(texto: str) -> str | None:
+    """Ejecuta comando /sintesis si aplica. Devuelve respuesta o None si no es comando síntesis."""
+    sub = _parsear_comando_sintesis(texto)
+    if not sub:
+        return None
+    if sub == "lanzar":
+        return comando_sintesis_lanzar()
+    if sub == "estado":
+        return comando_sintesis_estado()
+    if sub == "contexto":
+        return comando_sintesis_contexto()
+    return "❓ Subcomando desconocido. Usa: /sintesis, /sintesis estado, /sintesis contexto"
+
+
+# --- Recomendaciones ---
+
+def _es_comando_recomendacion(texto: str) -> bool:
+    """Detecta comandos: aprobar <n>, rechazar <n>, ya existe <n>, encarga <n>."""
+    t = texto.strip().lower()
+    return t.startswith(("aprobar ", "rechazar ", "ya existe ", "encarga "))
+
+
+def _parsear_comando_recomendacion(texto: str) -> tuple[str, int] | None:
+    """Parsea comando de recomendación. Devuelve (accion, numero) o None."""
+    t = texto.strip()
+    m = re.match(r"^(aprobar|rechazar|ya existe|encarga)\s+(\d+)$", t, re.IGNORECASE)
+    if m:
+        return m.group(1).lower(), int(m.group(2))
+    return None
+
+
+def _actualizar_estado_recomendacion(n: int, nuevo_estado: str, accion_extra: str = "") -> str:
+    """Actualiza el estado de la n-ésima recomendación."""
+    recs = _leer_recomendaciones()
+    if not (1 <= n <= len(recs)):
+        return f"❌ No existe la recomendación #{n}. Hay {len(recs)} recomendaciones."
+    
+    idx = n - 1
+    estado_anterior = recs[idx].get("estado", "propuesta")
+    recs[idx]["estado"] = nuevo_estado
+    recs[idx]["actualizada"] = datetime.now(timezone.utc).isoformat()
+    recs[idx]["accion_extra"] = accion_extra
+    _guardar_recomendaciones(recs)
+    
+    area = recs[idx].get("area", "?")
+    texto_rec = recs[idx].get("texto", "")[:100]
+    
+    return f"✅ Recomendación #{n} ({area}): «{texto_rec}» → {estado_anterior} → {nuevo_estado}{accion_extra}"
+
+
+def comando_aprobar_recomendacion(n: int) -> str:
+    """aprobar <n> — Marca como aprobada."""
+    return _actualizar_estado_recomendacion(n, "aprobada")
+
+
+def comando_rechazar_recomendacion(n: int) -> str:
+    """rechazar <n> — Marca como rechazada."""
+    return _actualizar_estado_recomendacion(n, "rechazada")
+
+
+def comando_ya_existe_recomendacion(n: int) -> str:
+    """ya existe <n> — Marca como ya existente."""
+    return _actualizar_estado_recomendacion(n, "ya_existe")
+
+
+def comando_encarga_recomendacion(n: int) -> str:
+    """encarga <n> — Marca como encargada y crea encargo/ola."""
+    recs = _leer_recomendaciones()
+    if not (1 <= n <= len(recs)):
+        return f"❌ No existe la recomendación #{n}. Hay {len(recs)} recomendaciones."
+    
+    rec = recs[n - 1]
+    
+    # Crear encargo en el sistema de encargos
+    from peticiones_telegram import _crear_encargo_desde_recomendacion
+    try:
+        # _crear_encargo_desde_recomendacion toma un dict de recomendación y no retorna ID
+        # Simulamos la recomendación actualizada para pasarla
+        rec_actualizada = dict(rec)
+        rec_actualizada["estado"] = "encargada"
+        _crear_encargo_desde_recomendacion(rec_actualizada)
+        accion_extra = " · Encargo creado y planificado"
+    except Exception as e:
+        accion_extra = f" · ⚠️ Error creando encargo: {e}"
+    
+    return _actualizar_estado_recomendacion(n, "encargada", accion_extra)
+
+
+def ejecutar_comando_recomendacion(texto: str) -> str | None:
+    """Ejecuta comando de recomendación si aplica. Devuelve respuesta o None."""
+    parsed = _parsear_comando_recomendacion(texto)
+    if not parsed:
+        return None
+    accion, numero = parsed
+    if accion == "aprobar":
+        return comando_aprobar_recomendacion(numero)
+    if accion == "rechazar":
+        return comando_rechazar_recomendacion(numero)
+    if accion == "ya existe":
+        return comando_ya_existe_recomendacion(numero)
+    if accion == "encarga":
+        return comando_encarga_recomendacion(numero)
+    return None
+
+
+# --- Reglas de síntesis ("Recuerda...") ---
+
+CLAVES_REGLA_SINTESIS = [
+    r"^recuerda\s+(?:que\s+)?",
+    r"^nota\s+(?:para\s+)?(?:la\s+)?s[ií]ntesis\s*[:\-]?\s*",
+    r"^regla\s+(?:de\s+)?(?:la\s+)?s[ií]ntesis\s*[:\-]?\s*",
+    r"^aprend[eií]\s+(?:para\s+)?(?:la\s+)?s[ií]ntesis\s*[:\-]?\s*",
+]
+
+
+def _es_regla_sintesis(texto: str) -> bool:
+    """Detecta si el mensaje es una regla para la síntesis."""
+    t = texto.strip().lower()
+    for patron in CLAVES_REGLA_SINTESIS:
+        if re.match(patron, t):
+            return True
+    return False
+
+
+def _extraer_regla_sintesis(texto: str) -> str:
+    """Extrae el contenido de la regla quitando el prefijo."""
+    t = texto.strip()
+    for patron in CLAVES_REGLA_SINTESIS:
+        t = re.sub(patron, "", t, flags=re.IGNORECASE)
+    return t.strip()
+
+
+def _guardar_regla_sintesis(regla: str) -> str:
+    """Guarda la regla en el archivo de notas de agentes de la síntesis."""
+    notas_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "starseed_memory_root", "sintesis", "notas-agentes.json"
+    )
+    try:
+        with open(notas_path, encoding="utf-8") as f:
+            notas = json.load(f)
+    except (OSError, ValueError):
+        notas = {}
+    
+    hoy = datetime.now(timezone.utc).date().isoformat()
+    if hoy not in notas:
+        notas[hoy] = {}
+    
+    # Guardar como regla general (sin rol específico)
+    if "reglas_sintesis" not in notas[hoy]:
+        notas[hoy]["reglas_sintesis"] = []
+    notas[hoy]["reglas_sintesis"].append({
+        "regla": regla,
+        "fecha": datetime.now(timezone.utc).isoformat(),
+        "origen": "chat_telegram"
+    })
+    
+    os.makedirs(os.path.dirname(notas_path), exist_ok=True)
+    with open(notas_path, "w", encoding="utf-8") as f:
+        json.dump(notas, f, ensure_ascii=False, indent=1)
+    
+    return f"✅ Regla de síntesis guardada: «{regla[:100]}»"
+
+
+def procesar_regla_sintesis(texto: str) -> str | None:
+    """Procesa mensaje como regla de síntesis si aplica. Devuelve confirmación o None."""
+    if not _es_regla_sintesis(texto):
+        return None
+    regla = _extraer_regla_sintesis(texto)
+    if not regla:
+        return "❓ Regla vacía. Usa: «Recuerda que...» o «Nota para la síntesis:...»"
+    return _guardar_regla_sintesis(regla)
