@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "AN04abs",
+   "ola": "AUD1117",
+   "titulo": "Llamadas: una caída corta del Bluetooth no cuelga la llamada · lo que faltó: src/lib/llamadas/carriles.ts",
+   "archivos": [
+    "src/lib/llamadas/carriles.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de AN04ab, que ya está integrada (sha 5e884a4b09fb). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/llamadas/carriles.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Llamadas: una caída corta del Bluetooth no cuelga la llamada\n\n--- encargo original, como contexto ---\nLee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: con un solo carril (solo Bluetooth o solo llamada directa) y un corte del enlace de hasta 90 s, la llamada pasa a «Reconectando…» y vuelve sola al volver el enlace, sin colgar; pasados 90 s termina con un motivo visible. Con otro carril vivo, el relevo sigue como hoy. Los 15 s y 20 s actuales quedan como el momento en que se enseña «Reconectando…», no como el fin. Prueba: caso nuevo con un enlace que cae 60 s y vuelve (sigue viva) y otro que cae 95 s (termina con motivo), con reloj inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44238985590`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44238985590:refs/remotes/origin/nube/44238985590\"` y `git cherry-pick --no-commit e653eee15949 5fa763dbfdf9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con ",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/44238985590",
+   "depende_de": []
+  },
+  {
+   "id": "T301",
+   "ola": "TRI1118",
+   "titulo": "Prueba de la matriz de enlaces con Mac, Android y Linux (nodo con una sola tarjeta b43)",
+   "archivos": [
+    "src/lib/malla/__tests__/matriz-tres-neuronas-1118.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea SOLO el archivo de prueba src/lib/malla/__tests__/matriz-tres-neuronas-1118.test.ts (vitest, max. 120 lineas) sin tocar codigo de produccion. Lee primero src/lib/malla/matriz-enlaces.ts: `lanasDeNativo(e: EntradaNativa)`, `decidirPareja(a: NeuronaLanas, b: NeuronaLanas, o?: {mismaRed?: boolean; caidas?: Lana[]})`, `elegirGoWifiDirect`, `NeuronaLanas = {id, plataforma, lanas}` y el tipo `CapacidadesWifi` (importado alli; sus campos son plataforma, ap, cliente, permiso, radio_unica, wifi, motivo, lanas). Construye tres neuronas: Mac (`lanasDeNativo({plataforma:'macos', nativo:true, ble:{disponible:true}, wifi:null})`), Android (plataforma 'android', ble disponible, wifi con ap y cliente ['wifi-direct'] y lanas ['wifi-direct','wifi-direct-concurrente']) y el nodo Linux con una sola tarjeta sin P2P (plataforma 'linux', ble disponible, wifi {plataforma:'linux', ap:[], cliente:[], permiso:'concedido', radio_unica:true, wifi:true, motivo:'', lanas:[]}). Comprueba: (1) Linux resulta con wifi-direct go=false y cliente=false; (2) decidirPareja(mac, linux, {mismaRed:true}) deja 'lan-tcp' en `lanas` y 'wifi-direct' en `descartadas`; (3) decidirPareja(android, linux, {mismaRed:true}) tambien descarta 'wifi-direct' con un motivo que contiene 'ninguna'; (4) decidirPareja(mac, android) descarta 'wifi-direct' (Mac no lo tiene); (5) con mismaRed:false las tres parejas pierden 'lan-tcp'; (6) un Linux con cap {ap:['wifi-direct'], cliente:[], lanas:['wifi-direct','wifi-direct-concurrente']} puede ser go frente a Android cliente (`elegirGoWifiDirect` devuelve go=linux). Sin claves ni red. Verificacion: `NODE_ENV=test ./node_modules/.bin/vitest run src/lib/malla/__tests__/matriz-tres-neuronas-1118.test.ts src/lib/__tests__/nombre-genesis.test.ts` debe pasar entero."
+  },
+  {
+   "id": "T302",
+   "ola": "TRI1118",
+   "titulo": "Prueba de relevo A-B-C y de que el directo siempre gana (tres neuronas)",
+   "archivos": [
+    "src/lib/malla/__tests__/relevo-tres-neuronas-1118.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea SOLO src/lib/malla/__tests__/relevo-tres-neuronas-1118.test.ts (vitest, max. 120 lineas), sin tocar produccion. Lee src/lib/malla/relevo/tabla.ts (`crearAnuncio({yo, uid, nombre, seq, ofrezco, clave, vecinas})`, `TablaAlcance` con `registrar(deVecina, anuncio, ahora)`, `olvidar`, `caducar`, `hablaRelevo`, `destinos(ahora)`, CADUCA_MS, tipo `VecinaAnunciada {n,c,k,l,...}` y `RelevoPosible`) y src/lib/malla/relevo/ruta.ts (`elegirRuta(candidatas, actual, vetados)`, `costeRuta`, HISTERESIS, COSTE_RELEVO_MS). Escenario con tres ids 'mac', 'tab', 'nodo': la tabla de 'tab' recibe de 'mac' un anuncio cuyas vecinas incluyen a 'nodo' por carril 'local' (tab no ve a nodo). Comprueba: (a) la tabla ofrece a 'mac' como relevo hacia 'nodo' (usa el metodo publico que devuelve `RelevoPosible[]`; leelo en tabla.ts, no inventes nombres); (b) `elegirRuta` con una candidata {relevo:'mac', tramos:[...]} y sin directa devuelve motivo 'inicial' y ruta.relevo === 'mac'; (c) si ademas hay una candidata directa (relevo:null) gana siempre, motivo 'directo', aunque la del relevo cueste menos; (d) con actual={relevo:'mac'} y una segunda candidata ligeramente mejor (menos del 25 %) se mantiene ('se-mantiene'), con una mejor por mas del 25 % cambia ('mejor'); (e) con 'mac' vetado devuelve 'sin-ruta' o la otra; (f) `caducar` tras CADUCA_MS + 1 olvida a 'mac' y ya no hay relevo; (g) un anuncio de 'mac' registrado como deVecina='tab' (id distinto) devuelve 'rechazado'. Verificacion: `NODE_ENV=test ./node_modules/.bin/vitest run src/lib/malla/__tests__/relevo-tres-neuronas-1118.test.ts src/lib/__tests__/nombre-genesis.test.ts`."
+  },
+  {
+   "id": "T303",
+   "ola": "TRI1118",
+   "titulo": "Prueba de la llamada de grupo de tres aparatos (planGrupoMalla, medios y pares sin enlace)",
+   "archivos": [
+    "src/lib/llamadas/__tests__/grupo-tres-aparatos-1118.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea SOLO src/lib/llamadas/__tests__/grupo-tres-aparatos-1118.test.ts (vitest, max. 120 lineas), sin tocar produccion. Lee src/lib/llamadas/grupo-malla.ts: `planGrupoMalla({miembros, miUid, enlaces, pedido})` (enlaces: `EnlaceGrupo {id, nombre, abierto, uid?, capacidadKbps?, rttMs?}`), `decidirMediosGrupo(pedido, aparatos, enlaces)`, `paresSinEnlace(participantes: {uid, nombre, alcanza: string[]}[])`, MAX_GRUPO_MALLA, MAX_VIDEO_GRUPO_MALLA, KBPS_VIDEO_POR_PAR, `PlanGrupoMalla` y `DecisionMediosGrupo`. Escenario: yo = Mac (uid 'u-mac'), con enlaces abiertos a Tableta (uid 'u-tab') y Nodo Linux (uid 'u-nodo'), todos miembros. Comprueba: (a) el plan con pedido 'audio' invita a los dos aparatos y no deja a nadie fuera; (b) con pedido 'video' y capacidadKbps >= 2 * KBPS_VIDEO_POR_PAR en los dos enlaces, `decidirMediosGrupo('video', 3, ...)` devuelve video true; con un enlace de 100 kbps devuelve video false con `motivo`; (c) con MAX_VIDEO_GRUPO_MALLA + 1 aparatos baja a solo voz; (d) un enlace cerrado (abierto:false) queda en la lista de los que se quedan fuera con motivo no vacio; (e) un enlace sin `uid` no recibe invitacion; (f) `paresSinEnlace` con tres participantes donde 'u-tab' y 'u-nodo' no se alcanzan entre si devuelve exactamente ese par, y con malla completa devuelve []. Lee los campos reales de PlanGrupoMalla antes de afirmar nada y no inventes nombres. Verificacion: `NODE_ENV=test ./node_modules/.bin/vitest run src/lib/llamadas/__tests__/grupo-tres-aparatos-1118.test.ts src/lib/llamadas/__tests__/grupo-malla.test.ts src/lib/__tests__/nombre-genesis.test.ts` debe pasar."
+  },
+  {
+   "ola": "DSB1116B",
+   "id": "DSB02-d2",
+   "titulo": "Directores: leer el error real de Kotlin y no abrir tareas por compilaciones ya superadas (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_prioridad_desbloqueo.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. PRIMERA PRUEBA REAL de `scripts/puente/prioridad_desbloqueo.py` (16-11, 21:27): abrió una tarea URGENTE para la compilación N.º 47, que ya estaba arreglada, con `archivos: []` y esta evidencia: «FAILURE: Build failed with an exception. * What went wrong: Execution failed for task …». Dos defectos:\n1) El analizador del registro NO recogió la línea del compilador de Kotlin tal como la da GitHub. Formato real (cada línea de `gh run view --log-failed` lleva delante `<trabajo>\\t<paso>\\t<fecha ISO> `): `e: file:///home/runner/work/starseed-system/starseed-system/native/src-tauri/gen/android/app/src/main/java/app/starseed/os/nativa/ProyeccionPantallaStarSeed.kt:189:14 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'MediaProjection?'.` Debe reconocer `e: file://…/<Nombre>.kt:<línea>:<columna> <mensaje>` (y `e: <ruta>.kt:…` sin `file://`), quedarse con el nombre del archivo, la línea y el mensaje, y ponerlos PRIMERO en la evidencia. La ruta generada (`gen/android/...`) no existe en el repositorio: el archivo del repo se busca por su NOMBRE con el buscador inyectado que ya use el módulo (si no hay ninguno, añade un parámetro inyectado `buscar_por_nombre(nombre) -> [rutas]`).\n2) No debe abrir tarea por una compilación fallida cuando ya hay una compilación de número MAYOR publicada o en marcha (dato del estado del director de pruebas que ya recibe: `numero` y `estado`), ni cuando `main` ya cambió, después del sha del fallo, un archivo con el mismo nombre que señala la evidencia (la comprobación `ya_arreglado` existente debe usar también el nombre, no solo la ruta).\n\nLee entero el módulo y sus pruebas antes de tocar. Cambia SOLO esos dos archivos (≤60 líneas en el módulo). Pruebas nuevas: la línea real de arriba con su prefijo de GitHub da archivo `ProyeccionPantallaStarSeed.kt`, línea 189 y el mensaje; una compilación 47 en `fallo` con la 48 `publicada` no abre tarea; con la 48 `compilando` tampoco; un fallo cuyo archivo (por nombre) cambió en `main` después no abre tarea; un fallo nuevo sin nada de eso SÍ abre tarea con `archivos` no vacío. Asunto del commit: `DSB1116B · DSB02: el director lee el error real de Kotlin y no abre tareas por compilaciones ya superadas`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## PARTE 2 DE 2 (la dirección dividió DSB02: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/test_prioridad_desbloqueo.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DSB02",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "DSB02-d1"
+   ]
+  },
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario (parte 3 de 3)",
+   "archivos": [
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 3 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-te: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/mando/areas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-te",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-corregir-te-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "DSB02-d2",
+   "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "AN04abs",
+   "T301",
+   "T302",
+   "T303"
+  ]
+ }
+}
