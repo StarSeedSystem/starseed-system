@@ -19,6 +19,8 @@ import type { FotoEnlaceLocal } from "@/lib/malla/registro-enlaces-locales";
 import type { TipoMedio } from "@/lib/neurons/medio";
 import type { PresenciaMedio } from "@/lib/neurons/presencia";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
+import type { SenalEspectro } from "@/lib/senales/espectro/modelo";
+import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
 
 /* ── Cuentas ────────────────────────────────────────────────────────────────── */
 
@@ -210,4 +212,17 @@ export interface AnilloAlcance {
   familia: AntennaKind | null;
   desdeRad: number | null;
   hastaRad: number | null;
+}
+
+/* ── Red (capa pública) ──────────────────────────────────────────────────────── */
+
+export interface MapaVivoRed {
+  /** Señales de la capa pública más los enlaces directos propios sin internet. */
+  senales: SenalEspectro[];
+  /** Estado de la lectura de la capa pública. */
+  estado: EstadoLectura;
+  /** Motivo si el estado no es "ok" o si la lectura fue exitosa pero vino vacía. */
+  motivo?: string;
+  /** Cuántas cuentas distintas (diferente a la propia) están publicando señales. */
+  otrasCuentasPublicando: number;
 }

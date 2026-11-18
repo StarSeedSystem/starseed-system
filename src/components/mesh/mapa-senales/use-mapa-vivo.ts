@@ -25,10 +25,11 @@ import { anonimizarAjenas } from "@/lib/senales/cuentas";
 import { reubicar } from "@/lib/senales/escalas";
 import type { DetectedSignal, BleDetection } from "@/ai/astraura/mesh/signals";
 import { BLE_FRESH_MS } from "@/ai/astraura/mesh/signals";
-import type { EntradaYo, VivoMapa } from "@/lib/senales/tipos-vivo";
+import type { EntradaYo, VivoMapa, MapaVivoRed } from "@/lib/senales/tipos-vivo";
 import { ordenarSenalesPorCalidad, useDetectedSignals, type DetectedSignalsOptions, type DetectedSignalsResult } from "../use-detected-signals";
 import { adaptarBluetooth, type EntradaBluetooth } from "@/lib/senales/espectro/adaptadores/bluetooth";
 import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/modelo";
+import { useSenalesPublicadas, type EstadoSenalesPublicadas } from "@/lib/senales/espectro/usar-senales-publicadas";
 
 const REFRESCO_MS = 15_000;
 const MEDIDA_MS = 30_000;
@@ -59,6 +60,7 @@ export interface MapaVivo {
   yo: EntradaYo;
   ahora: number;
   senalesEspectroBluetooth: readonly SenalEspectro[] | SinFuente;
+  red: MapaVivoRed;
 }
 
 export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: boolean }): MapaVivo {
@@ -72,6 +74,9 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
   const [medio, setMedio] = useState<DescripcionMedio | null>(null);
   const [senalesMedio, setSenalesMedio] = useState<SenalesMedio | null>(null);
   const [miUid, setMiUid] = useState<string | null>(null);
+
+  // Señales publicadas por toda la red (capa pública)
+  const publicadas = useSenalesPublicadas();
 
   // Lo que depende del navegador se lee DESPUÉS de montar (el HTML del servidor no lo conoce).
   useEffect(() => {
@@ -129,5 +134,24 @@ export function useMapaVivo(opciones?: DetectedSignalsOptions & { verPublicos?: 
     };
   }, [filas, medio, senalesMedio, mesh.status, mesh.transport, mesh.nodes, mesh.region, mesh.self?.lat, mesh.self?.lon]);
 
-  return { detected, senales, vivo, yo, ahora, senalesEspectroBluetooth };
+  // Construir el campo red: combinar señales propias (extras de vivo) con publicadas
+  const red = useMemo<MapaVivoRed>(() => {
+    const senalesPropias = vivo.extras.filter((s) => s.starseed?.via === "direct-link");
+    const todas = [...publicadas.senales, ...senalesPropias];
+    const otrasCuentas = new Set(publicadas.senales.map((s) => s.vinculo?.id).filter((id): id is string => !!id)).size;
+    let motivo = publicadas.motivo;
+    if (publicadas.estado === "ok" && publicadas.senales.length === 0 && !motivo) {
+      motivo = "nadie más ha publicado en esta capa todavía";
+    } else if (publicadas.estado === "sin-tabla") {
+      motivo = "las señales públicas aún no están activadas en este servidor";
+    }
+    return {
+      senales: todas,
+      estado: publicadas.estado,
+      motivo,
+      otrasCuentasPublicando: otrasCuentas,
+    };
+  }, [publicadas.senales, publicadas.estado, publicadas.motivo, vivo.extras]);
+
+  return { detected, senales, vivo, yo, ahora, senalesEspectroBluetooth, red };
 }
