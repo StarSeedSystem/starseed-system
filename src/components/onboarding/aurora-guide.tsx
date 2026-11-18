@@ -121,6 +121,11 @@ import {
   subscribeGuideButtonVisible,
 } from "@/lib/onboarding/guide-visibility";
 import { esMiTurno, terminarEtapa, suscribirRito, navegarSuave } from "@/lib/onboarding/director-rito";
+import {
+  EVENTOS_INTERACCION,
+  RESPIRO_APERTURA_MS,
+  puedeAbrirGuiaSola,
+} from "@/lib/onboarding/guia-temporizador";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { GUIA_VERSION, copiarGuiaLocalACuenta, marcarGuiaVista, temasNuevosPara, versionGuiaVistaEnCuenta } from "@/lib/onboarding/guia-vista";
 import {
@@ -443,6 +448,19 @@ export function AuroraGuide() {
     // «por primera vez» en cada medio. Si la cuenta no responde, no se abre sola (se puede
     // abrir a demanda), y en cuanto responda se decide.
     let temporizador: ReturnType<typeof setTimeout> | undefined;
+    // Rearma la apertura de primera visita: cada interacción la empuja otro
+    // respiro; al expirar, SOLO abre si la persona lleva el respiro quieto.
+    const armarAutoApertura = () => {
+      if (temporizador) clearTimeout(temporizador);
+      temporizador = setTimeout(() => {
+        temporizador = undefined;
+        rearmarAutoRef.current = null;
+        if (puedeAbrirGuiaSola(ultimaInteraccionRef.current, Date.now(), RESPIRO_APERTURA_MS)) {
+          setOpen(true);
+        }
+      }, RESPIRO_APERTURA_MS);
+      rearmarAutoRef.current = armarAutoApertura;
+    };
     const decidir = () => {
       // Una marca local antigua se respeta y se copia a la cuenta para los demás medios.
       const seen = copiarGuiaLocalACuenta();
@@ -457,14 +475,16 @@ export function AuroraGuide() {
       let introDone = false;
       try { introDone = window.localStorage.getItem("starseed.aurora.intro.v1") === "1"; } catch { /* */ }
       if (!seen && introDone) {
-        // Primera visita (tras el intro): arranca sola tras un instante.
-        temporizador = setTimeout(() => setOpen(true), 900);
+        // Primera visita (tras el intro): arranca sola tras el respiro — pero
+        // cada interacción lo rearma, así que no interrumpe a quien navega.
+        armarAutoApertura();
       }
     };
     const cancelarEspera = cuandoCuentaFiable(decidir, 4000);
     return () => {
       cancelarEspera();
       if (temporizador) clearTimeout(temporizador);
+      rearmarAutoRef.current = null;
     };
   }, []);
 
@@ -504,6 +524,17 @@ export function AuroraGuide() {
     };
   }, [openGuide]);
 
+  // Con la guía ya abierta, ninguna apertura automática pendiente debe quedar
+  // viva: saltaría a otro paso encima de lo que la persona está leyendo.
+  useEffect(() => {
+    if (!open) return;
+    if (temporizadorTurnoRef.current) {
+      clearTimeout(temporizadorTurnoRef.current);
+      temporizadorTurnoRef.current = null;
+    }
+    rearmarTurnoRef.current = null;
+  }, [open]);
+
   // (Ola 247 · 2026-09-05) TURNO DE LA GUÍA, por el DIRECTOR del rito y no por
   // marcas sueltas (`starseed.guide.launch` / `starseed.guia.tras.perfil`).
   // Cuando `esMiTurno("guia")`:
@@ -517,8 +548,50 @@ export function AuroraGuide() {
   // rito (Genesis redirigía y secuestraba la sesión). Ahora, fuera del rito
   // (consola /mando, /voces o cualquier página del OS) la guía ESPERA: el efecto
   // se re-ejecuta con usePathname y abrirá cuando la persona llegue a /escritorios.
+  // (IMG-…-d1 · parte 1) La apertura automática ya NO es un temporizador fijo
+  // que expira y salta encima de la navegación: cada interacción de la persona
+  // (clic, tecla, rueda, toque, ratón, desplazamiento) la REARMA, así que la
+  // guía solo se abre sola durante un respiro de silencio. Marcador de la
+  // última interacción + las dos aperturas automáticas rearmables (primera
+  // visita y turno del rito «guia»).
+  const ultimaInteraccionRef = useRef(0);
+  const rearmarAutoRef = useRef<(() => void) | null>(null);
+  const rearmarTurnoRef = useRef<(() => void) | null>(null);
+  const temporizadorTurnoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Seguir las interacciones y rearmar con ellas lo pendiente. Capture: el
+  // desplazamiento dentro de contenedores también cuenta como interacción.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    ultimaInteraccionRef.current = Date.now();
+    const marcar = () => {
+      ultimaInteraccionRef.current = Date.now();
+      rearmarAutoRef.current?.();
+      rearmarTurnoRef.current?.();
+    };
+    for (const tipo of EVENTOS_INTERACCION) {
+      window.addEventListener(tipo, marcar, { capture: true, passive: true });
+    }
+    return () => {
+      for (const tipo of EVENTOS_INTERACCION) {
+        window.removeEventListener(tipo, marcar, { capture: true });
+      }
+    };
+  }, []);
   const etapaGuiaAtendidaRef = useRef(false);
   useEffect(() => {
+    // Rearma la apertura del turno del rito con cada interacción (misma regla:
+    // solo abre durante un respiro de silencio).
+    const armarTurno = () => {
+      if (temporizadorTurnoRef.current) clearTimeout(temporizadorTurnoRef.current);
+      temporizadorTurnoRef.current = setTimeout(() => {
+        temporizadorTurnoRef.current = null;
+        rearmarTurnoRef.current = null;
+        if (puedeAbrirGuiaSola(ultimaInteraccionRef.current, Date.now(), RESPIRO_APERTURA_MS)) {
+          openGuide(0);
+        }
+      }, RESPIRO_APERTURA_MS);
+      rearmarTurnoRef.current = armarTurno;
+    };
     const atenderGuia = () => {
       if (etapaGuiaAtendidaRef.current) return;
       // El turno decide primero: sin rito en «guia», no hacemos nada.
@@ -534,11 +607,18 @@ export function AuroraGuide() {
         return;
       }
       etapaGuiaAtendidaRef.current = true;
-      const t = setTimeout(() => openGuide(0), 900);
-      return () => clearTimeout(t);
+      armarTurno();
     };
     atenderGuia();
-    return suscribirRito(atenderGuia);
+    const desuscribir = suscribirRito(atenderGuia);
+    return () => {
+      desuscribir();
+      if (temporizadorTurnoRef.current) {
+        clearTimeout(temporizadorTurnoRef.current);
+        temporizadorTurnoRef.current = null;
+      }
+      rearmarTurnoRef.current = null;
+    };
   }, [pathname, router, openGuide]);
 
   // Al cerrar, marca visto (no reaparece sola). Reabrible siempre por evento.
