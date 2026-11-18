@@ -1,4 +1,6 @@
-//! (CTL1117M) Control entre mis neuronas · el Mac como aparato CONTROLADO: la PANTALLA hacia quien lo controla.
+//! (CTL1117M · CTL1118L) Control entre mis neuronas · un Mac o un Linux (X11) como aparato CONTROLADO: la PANTALLA hacia quien
+//! lo controla. Un solo motor para los dos; lo que cambia (qué falta antes de capturar, cómo se sabe si está bloqueado y el
+//! nombre de la fuente en el registro) está en las funciones `plataforma_*` de abajo.
 //!
 //! · Los tres comandos `control_pantalla_*` (seam 1) contestan aquí en macOS con la misma cabecera de 12 bytes que Android
 //!   (`l::cabecera_cuadro`) y un JPEG de la pantalla principal (`xcap`), a `lado_max` y `calidad`.
@@ -9,15 +11,45 @@
 //!   `CGPreflightScreenCaptureAccess`, que solo mira.
 //! · Un cuadro no se guarda ni se anota; el registro lleva fuente, tamaño y fps al empezar y al acabar.
 
+use crate::control_captura::capturar_jpeg;
 use crate::control_entrada_logica as l;
-use crate::control_entrada_macos as em;
-use crate::control_entrada_macos_logica as m;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tauri::AppHandle;
 
+#[cfg(target_os = "macos")]
 const FUENTE_REGISTRO: &str = "mac-pantalla";
+#[cfg(target_os = "linux")]
+const FUENTE_REGISTRO: &str = "linux-pantalla";
+
+/// Lo que falta antes de poder capturar: (motivo del seam, falta). `None` = se puede.
+#[cfg(target_os = "macos")]
+fn plataforma_falta() -> Option<(&'static str, &'static str)> {
+    (!crate::control_entrada_macos::grabacion_ok()).then_some(("sin-consentimiento", crate::control_entrada_macos_logica::FALTA_GRABACION))
+}
+#[cfg(target_os = "linux")]
+fn plataforma_falta() -> Option<(&'static str, &'static str)> {
+    crate::control_entrada_linux::falta_para_ver()
+}
+
+#[cfg(target_os = "macos")]
+fn plataforma_bloqueada() -> bool {
+    crate::control_entrada_macos::bloqueada()
+}
+#[cfg(target_os = "linux")]
+fn plataforma_bloqueada() -> bool {
+    crate::control_entrada_linux::bloqueada()
+}
+
+/// Una línea de registro cuando la pantalla no se puede iniciar (para diagnosticar en el aparato).
+fn nota_sin_pantalla(motivo: &str, falta: &str) {
+    #[cfg(target_os = "linux")]
+    crate::ble::nota(None, "control-pantalla", &crate::control_escritorio_linux_logica::linea_pantalla_sin(motivo, falta, crate::control_entrada_linux::grafica()));
+    #[cfg(not(target_os = "linux"))]
+    crate::ble::nota(None, "control-pantalla", &format!("sin-pantalla motivo={motivo} falta={falta} fuente={FUENTE_REGISTRO}"));
+}
+
 /// Pausa entre capturas (~6 cuadros por segundo como mucho).
 const PERIODO_MS: u64 = 160;
 
@@ -39,28 +71,17 @@ fn buffer() -> MutexGuard<'static, Vec<u8>> {
     B.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Tamaño en píxeles de la pantalla principal (para `control_estado_aparato`).
-pub fn tamano_principal() -> Option<(u32, u32)> {
-    let ms = xcap::Monitor::all().ok()?;
-    let p = ms.iter().find(|m| m.is_primary().unwrap_or(false)).or(ms.first())?;
-    Some((p.width().ok()?, p.height().ok()?))
+/// La captura de prueba falló aunque nada faltaba: en el Mac es casi siempre el permiso; en Linux, el servidor X.
+#[cfg(target_os = "macos")]
+fn plataforma_captura_fallida() -> (&'static str, &'static str) {
+    ("sin-consentimiento", crate::control_entrada_macos_logica::FALTA_GRABACION)
+}
+#[cfg(target_os = "linux")]
+fn plataforma_captura_fallida() -> (&'static str, &'static str) {
+    ("sin-servicio", crate::control_escritorio_linux_logica::FALTA_X11)
 }
 
-fn capturar_jpeg(lado: u32, calidad: u8, numero: u32) -> Option<(Vec<u8>, u32, u32)> {
-    let ms = xcap::Monitor::all().ok()?;
-    let mon = ms.iter().find(|m| m.is_primary().unwrap_or(false)).or(ms.first())?;
-    let img = mon.capture_image().ok()?;
-    let (w, h) = l::escalar(img.width(), img.height(), lado);
-    let img = if (w, h) == (img.width(), img.height()) { img } else { image::imageops::resize(&img, w, h, image::imageops::FilterType::Triangle) };
-    let rgb = image::DynamicImage::ImageRgba8(img).to_rgb8();
-    let mut salida = Vec::with_capacity(64 * 1024);
-    salida.extend_from_slice(&l::cabecera_cuadro(numero, w.min(65535) as u16, h.min(65535) as u16, 0));
-    let mut cod = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut salida, calidad);
-    cod.encode_image(&rgb).ok()?;
-    Some((salida, w, h))
-}
-
-/// `control_pantalla_iniciar` en macOS.
+/// `control_pantalla_iniciar` en macOS y Linux.
 pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value {
     use crate::control_neuronas::{de_de_sesion, puerta_sesion, ModoPuerta};
     if puerta_sesion(app, sesion, ModoPuerta::Actividad).is_err() {
@@ -68,13 +89,15 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
     }
     // Como en Android (FSG1116 · A2): solo el controlador que abrió la sesión con su orden firmada y SIGUE aceptado aquí.
     match de_de_sesion(sesion) {
-        Some(de) if crate::control_aceptados_macos::sigue_aceptado(app, &de) => {}
+        Some(de) if crate::control_aceptados_escritorio::sigue_aceptado(app, &de) => {}
         _ => return json!({ "ok": false, "motivo": "sesion" }),
     }
-    if !em::grabacion_ok() {
-        return json!({ "ok": false, "motivo": "sin-consentimiento", "falta": [m::FALTA_GRABACION] });
+    if let Some((motivo, falta)) = plataforma_falta() {
+        nota_sin_pantalla(motivo, falta);
+        return json!({ "ok": false, "motivo": motivo, "falta": [falta] });
     }
-    if em::bloqueada() {
+    if plataforma_bloqueada() {
+        nota_sin_pantalla("sin-servicio", "bloqueada");
         return json!({ "ok": false, "motivo": "sin-servicio" });
     }
     let lado = lado.clamp(l::LADO_MIN, l::LADO_MAX);
@@ -82,7 +105,9 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
     parar_interno(app); // una captura a la vez
     // El primer cuadro se hace aquí para decir el tamaño real y para fallar con verdad si el sistema no deja capturar.
     let Some((primero, ancho, alto)) = capturar_jpeg(lado, calidad, 1) else {
-        return json!({ "ok": false, "motivo": "sin-consentimiento", "falta": [m::FALTA_GRABACION] });
+        let (motivo, falta) = plataforma_captura_fallida();
+        nota_sin_pantalla(motivo, falta);
+        return json!({ "ok": false, "motivo": motivo, "falta": [falta] });
     };
     *buffer() = primero;
     let parar = Arc::new(AtomicBool::new(false));
@@ -95,7 +120,7 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
                 while !parar.load(Ordering::SeqCst) {
                     let t0 = std::time::Instant::now();
                     let en_pausa = crate::control_neuronas::sesion_pausada(&sesion2);
-                    if !en_pausa && !em::bloqueada() {
+                    if !en_pausa && !plataforma_bloqueada() {
                         let n = cuadros.load(Ordering::SeqCst) + 1;
                         if let Some((c, _, _)) = capturar_jpeg(lado, calidad, n) {
                             *buffer() = c;
@@ -140,7 +165,7 @@ pub fn cuadro(app: &AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
     }
     // La lista aceptada se vuelve a mirar: si la persona quitó al controlador o apagó el control, no sale nada más.
     match crate::control_neuronas::de_de_sesion(sesion) {
-        Some(de) if crate::control_aceptados_macos::sigue_aceptado(app, &de) => {}
+        Some(de) if crate::control_aceptados_escritorio::sigue_aceptado(app, &de) => {}
         _ => return Vec::new(),
     }
     l::cuadro_si_nuevo(&buffer(), desde).map(<[u8]>::to_vec).unwrap_or_default()

@@ -1,4 +1,4 @@
-//! (CTL1117M) Control entre mis neuronas · el Mac como aparato CONTROLADO: la lista de controladores aceptados.
+//! (CTL1117M · CTL1118L) Control entre mis neuronas · un Mac o un Linux (X11) como aparato CONTROLADO: la lista de controladores aceptados.
 //!
 //! · El archivo `control-entrada/aceptados.json` (mismo formato que en Android) lo escribe SOLO este módulo, y solo con el
 //!   «Sí» del diálogo nativo de este Mac (el mismo `acceso_equipo::dialogo` del interruptor). Ningún comando ni orden
@@ -68,7 +68,11 @@ pub fn pedir_aceptar(app: &AppHandle, spki: &str, cuenta: &str, nombre: &str, hu
         nombre: nombre.chars().filter(|c| !c.is_control()).take(40).collect(),
         cuenta: cuenta.chars().take(100).collect(),
     };
-    let texto = m::texto_aceptar(&nuevo.nombre, codigo, crate::control_entrada_macos::alcance(app));
+    let alcance = crate::control_ajustes::alcance_de_app(app);
+    #[cfg(target_os = "linux")]
+    let texto = crate::control_escritorio_linux_logica::texto_aceptar(&nuevo.nombre, codigo, alcance); // CTL1118L
+    #[cfg(not(target_os = "linux"))]
+    let texto = m::texto_aceptar(&nuevo.nombre, codigo, alcance);
     let app2 = app.clone();
     tauri::async_runtime::spawn(async move {
         let si = crate::acceso_equipo::dialogo(&app2, "Control entre tus neuronas", texto, "Sí, aceptar", "No").await;

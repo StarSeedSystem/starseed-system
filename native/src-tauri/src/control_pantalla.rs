@@ -11,7 +11,7 @@
 //! · PENC2: `fuente` opcional («auto» por defecto, «proyeccion» o «accesibilidad»). La proyección (MediaProjection) es
 //!   fluida pero Android pregunta en CADA sesión: `control_capacidades` solo dice `proyeccion:true` con el «Sí» de la sesión.
 //!   Se anota la fuente REAL que contestó Kotlin, no la pedida.
-//! · En escritorio todo contesta `{ ok:false, motivo:"sin-soporte" }`.
+//! · En escritorio todo contesta `{ ok:false, motivo:"sin-soporte" }`; macOS (CTL1117M) y Linux/X11 (CTL1118L) capturan con xcap.
 
 #![allow(dead_code)] // AND1115K: parte de esto solo se usa en Android
 
@@ -48,15 +48,15 @@ pub fn fuente_real(r: &Value) -> &'static str {
     if r.get("fuente").and_then(|f| f.as_str()) == Some("proyeccion") { "proyeccion" } else { "accesibilidad" }
 }
 
-#[cfg(not(any(target_os = "android", target_os = "macos")))]
+#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
 fn iniciar(_app: &tauri::AppHandle, _sesion: &str, _lado: u32, _calidad: u32, _fuente: &str) -> Value {
     crate::control_entrada::sin_soporte()
 }
 
 // CTL1117M: la pantalla principal del Mac (la fuente pedida no cambia nada: solo hay una).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn iniciar(app: &tauri::AppHandle, sesion: &str, lado: u32, calidad: u32, _fuente: &str) -> Value {
-    crate::control_pantalla_macos::iniciar(app, sesion, lado, calidad)
+    crate::control_pantalla_escritorio::iniciar(app, sesion, lado, calidad)
 }
 
 #[cfg(target_os = "android")]
@@ -117,14 +117,14 @@ pub fn control_pantalla_cuadro(app: tauri::AppHandle, webview: tauri::Webview, s
     Ok(tauri::ipc::Response::new(cuadro(&app, &sesion, desde.unwrap_or(0))))
 }
 
-#[cfg(not(any(target_os = "android", target_os = "macos")))]
+#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
 fn cuadro(_app: &tauri::AppHandle, _sesion: &str, _desde: u32) -> Vec<u8> {
     Vec::new()
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
-    crate::control_pantalla_macos::cuadro(app, sesion, desde) // CTL1117M
+    crate::control_pantalla_escritorio::cuadro(app, sesion, desde) // CTL1117M
 }
 
 #[cfg(target_os = "android")]
@@ -164,20 +164,20 @@ pub fn control_pantalla_parar(app: tauri::AppHandle, webview: tauri::Webview, se
         parar_interno(&app);
         Ok(json!({ "ok": true }))
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         parar_interno(&app); // CTL1117M
         Ok(serde_json::json!({ "ok": true }))
     }
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(crate::control_entrada::sin_soporte())
 }
 
 /// Para la captura de Kotlin y deja la línea de fin (con los fps medidos). Sin pantalla activa, no hace nada.
 pub(crate) fn parar_interno(app: &tauri::AppHandle) {
-    #[cfg(target_os = "macos")]
-    return crate::control_pantalla_macos::parar_interno(app); // CTL1117M
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    return crate::control_pantalla_escritorio::parar_interno(app); // CTL1117M
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let Some(a) = activa().take() else { return };
     #[cfg(target_os = "android")]
     {
@@ -188,7 +188,7 @@ pub(crate) fn parar_interno(app: &tauri::AppHandle) {
         crate::ble::nota(None, "control-pantalla", &linea);
         crate::control_neuronas::anotar_k(app, "pantalla-parada", &linea);
     }
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     let _ = (app, a);
 }
 

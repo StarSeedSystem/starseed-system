@@ -230,21 +230,21 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     // CTL1117M · macOS: si el controlador está en la lista que la persona aceptó EN este Mac y su orden firmada vale, el `de`,
     // el nombre y el color salen de lo nativo y la sesión queda VERIFICADA (pantalla y entrada solo para esas). Si este Mac
     // aún no lo aceptó, sigue la fase 1 de siempre (sesión sin pantalla ni entrada). Una firma, hora o repetición mala se rechaza.
-    #[cfg(target_os = "macos")]
-    let (de, nombre, nivel, color) = match crate::control_aceptados_macos::apertura(&app, sobre.as_ref(), &nivel) {
-        crate::control_aceptados_macos::Apertura::Verificada(a) => (a.de, a.nombre, a.nivel, a.color),
-        crate::control_aceptados_macos::Apertura::SinVerificar => {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let (de, nombre, nivel, color) = match crate::control_aceptados_escritorio::apertura(&app, sobre.as_ref(), &nivel) {
+        crate::control_aceptados_escritorio::Apertura::Verificada(a) => (a.de, a.nombre, a.nivel, a.color),
+        crate::control_aceptados_escritorio::Apertura::SinVerificar => {
             let color = crate::control_ajustes::color_por_defecto(&de);
             (de, nombre, nivel, color)
         }
-        crate::control_aceptados_macos::Apertura::Rechazada(m) => {
+        crate::control_aceptados_escritorio::Apertura::Rechazada(m) => {
             anotar(&app, "sesion-rechazada", &format!("de=- motivo={m}"));
             return Err(m.into());
         }
     };
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     let color = crate::control_ajustes::color_por_defecto(&de); // CTL1117H: sin entrada nativa no hay color firmado
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     let _ = &sobre; // escritorio: sin entrada ni pantalla nativas (`sin-soporte`); ver contrato §12.3
     // ORD1114T: una cadena rota se DETECTA y queda dicha en la propia cadena (y en el estado); no se tapa.
     if let Some(n) = ruta_registro(&app).and_then(|r| std::fs::read_to_string(r).ok()).and_then(|t| l::verificar_registro(&t).err()) {
@@ -421,10 +421,17 @@ pub async fn control_neuronas_preparar(app: AppHandle, webview: tauri::Webview, 
     let mut i = interruptor(&app);
     // Sin indicador posible (Windows/Linux) encenderlo no daría control: no se pregunta.
     if !i.encendido && indicador_posible(&app) && !PREGUNTANDO.swap(true, Ordering::SeqCst) {
+        #[cfg(not(target_os = "linux"))]
         let texto = "¿Dejar que tus otras neuronas de la misma cuenta controlen este aparato?\n\n\
             Solo las que aceptes una a una. Mientras alguna lo controle verás un borde rojo, «● Controlada por …» en \
             la barra de menús y podrás terminar con ⌃⌥⌘. o desde ese menú; tocar el teclado o el ratón lo pausa. Cada \
             orden queda en el registro de este aparato. Puedes quitarlo cuando quieras."
+            .to_string();
+        #[cfg(target_os = "linux")]
+        let texto = "¿Dejar que tus otras neuronas de la misma cuenta controlen este equipo?\n\n\
+            Solo las que aceptes una a una. Mientras alguna lo controle verás una franja roja «● Controlada por …» arriba, con el \
+            botón «Terminar»; tocar el teclado o el ratón lo pausa unos segundos. Funciona en sesiones X11 (en Wayland no). Cada \
+            orden queda en el registro de este equipo. Puedes quitarlo cuando quieras."
             .to_string();
         let si = crate::acceso_equipo::dialogo(&app, "Control entre tus neuronas", texto, "Sí, dejar", "No").await;
         PREGUNTANDO.store(false, Ordering::SeqCst);
@@ -494,8 +501,8 @@ fn guardar_interruptor(app: &AppHandle, i: &l::Interruptor) -> bool {
 /// Apaga el interruptor nativo al instante, sin diálogo, y cierra la sesión que hubiera.
 pub(crate) fn apagar_interruptor(app: &AppHandle, motivo: &str) {
     parar(app, motivo);
-    #[cfg(target_os = "macos")]
-    crate::control_aceptados_macos::vaciar(app); // CTL1117M: al apagar el control, la lista de controladores aceptados queda vacía
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    crate::control_aceptados_escritorio::vaciar(app); // CTL1117M: al apagar el control, la lista de controladores aceptados queda vacía
     #[cfg(desktop)]
     {
         let mut i = interruptor(app);
@@ -520,6 +527,12 @@ pub(crate) fn pausa_local(app: &AppHandle, entrada_ms: u64) {
         marcar_pausa_indicador(app, true);
         let _ = app.emit(EVENTO_PAUSA, serde_json::json!({ "pausada": true }));
     }
+}
+
+/// (CTL1118L) ¿Hay una sesión de control viva (con o sin pausa)?
+#[allow(dead_code)]
+pub(crate) fn sesion_viva() -> bool {
+    control().activa().is_some()
 }
 
 /// (ORD1114T) Para el vigía de entrada local: ¿hay sesión y no está ya en pausa?
@@ -559,8 +572,10 @@ pub fn iniciar(app: &AppHandle) {
     let _ = APP.set(app.clone()); // ORD1114T
     #[cfg(target_os = "macos")]
     crate::control_neuronas_macos::vigilar_entrada_local(app); // ORD1114T: tecla/ratón local → pausa
-    #[cfg(target_os = "macos")]
-    crate::control_aceptados_macos::al_arrancar(app); // CTL1117M: con el interruptor apagado no queda nadie aceptado
+    #[cfg(target_os = "linux")]
+    crate::control_vigia_linux::vigilar_entrada_local(app); // CTL1118L: toque físico (XInput2) → pausa
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    crate::control_aceptados_escritorio::al_arrancar(app); // CTL1117M: con el interruptor apagado no queda nadie aceptado
     let h = app.clone();
     #[cfg(target_os = "android")]
     let mut huerfano = 0u32;
@@ -619,12 +634,18 @@ fn indicador_posible(app: &AppHandle) -> bool {
     crate::nativa::es_starseed_os(app) && crate::segundo_plano::bandeja_posible()
 }
 
+// CTL1118L: Linux (X11) con la franja de GTK. En Wayland o sin pantalla no hay indicador posible (y se dice por qué).
+#[cfg(target_os = "linux")]
+fn indicador_posible(app: &AppHandle) -> bool {
+    crate::nativa::es_starseed_os(app) && crate::control_entrada_linux::grafica() == crate::control_escritorio_linux_logica::Grafica::X11
+}
+
 #[cfg(target_os = "android")]
 fn indicador_posible(app: &AppHandle) -> bool {
     crate::nativa::es_starseed_os(app) && crate::control_neuronas_android::posible(crate::control_neuronas_android::es::estado(app).as_ref())
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
 fn indicador_posible(_app: &AppHandle) -> bool {
     false
 }
@@ -640,7 +661,19 @@ fn falta_indicador(app: &AppHandle) -> Vec<String> {
 
 #[cfg(not(target_os = "android"))]
 fn falta_indicador(app: &AppHandle) -> Vec<String> {
-    if cfg!(target_os = "macos") {
+    if cfg!(target_os = "linux") {
+        // CTL1118L: lo que falta en Linux es la sesión X11 (no un permiso).
+        #[cfg(target_os = "linux")]
+        {
+            use crate::control_escritorio_linux_logica as ll;
+            if !crate::nativa::es_starseed_os(app) {
+                return vec!["no-aplica".into()];
+            }
+            return vec![if crate::control_entrada_linux::grafica() == ll::Grafica::Wayland { ll::FALTA_WAYLAND } else { ll::FALTA_X11 }.into()];
+        }
+        #[allow(unreachable_code)]
+        Vec::new()
+    } else if cfg!(target_os = "macos") {
         if crate::nativa::es_starseed_os(app) { vec!["bandeja".into()] } else { vec!["no-aplica".into()] }
     } else {
         // Windows/Linux/iOS: sin borde siempre encima, atajo global y pausa local en Rust (§2.4).
@@ -687,7 +720,12 @@ fn indicador_visible(app: &AppHandle) -> bool {
     crate::control_neuronas_android::visible(crate::control_neuronas_android::es::estado(app).as_ref(), &id, pared_ms())
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(target_os = "linux")]
+fn indicador_visible(_app: &AppHandle) -> bool {
+    crate::control_neuronas_linux::indicador_visible() // CTL1118L
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
 fn indicador_visible(_app: &AppHandle) -> bool {
     false
 }
@@ -793,6 +831,12 @@ fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str, nombre:
 #[cfg(desktop)]
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
+    #[cfg(target_os = "linux")]
+    {
+        // CTL1118L: la franja de GTK cambia su texto y enseña «Reanudar» solo en pausa.
+        let nombre = control().activa().map(|s| s.nombre.clone()).unwrap_or_default();
+        crate::control_neuronas_linux::marcar_pausa(app, pausada, nombre);
+    }
     if let Some(t) = app.tray_by_id(ID_BANDEJA) {
         let nombre = control().activa().map(|s| s.nombre.clone()).unwrap_or_default();
         let _ = t.set_title(Some(if pausada { "‖ Control en pausa · menú para reanudar".to_string() } else { format!("● Controlada por {nombre}") }));
@@ -872,7 +916,18 @@ fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> R
     Err(a::detalle_rechazo(&r))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(target_os = "linux")]
+fn poner_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
+    // CTL1118L: la franja de GTK con «Terminar». Sin ella a la vista no hay sesión.
+    if crate::control_neuronas_linux::poner(app, nombre) {
+        Ok(())
+    } else {
+        quitar_indicador(app);
+        Err("indicador-incompleto".into())
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
 fn poner_indicador(_app: &AppHandle, _nombre: &str, _color: &str, _nivel: &str) -> Result<(), String> {
     Err("sin-indicador-nativo".into())
 }
@@ -886,8 +941,16 @@ fn quitar_indicador(app: &AppHandle) {
         crate::control_neuronas_macos::quitar_atajo(app);
         // CTL1117M: la sesión acabó: se suelta lo pulsado, se anota el resumen de la entrada y se para la pantalla.
         crate::control_entrada_macos::al_cerrar(app);
-        crate::control_pantalla_macos::parar_interno(app);
-        crate::control_aceptados_macos::olvidar_verificada();
+        crate::control_pantalla_escritorio::parar_interno(app);
+        crate::control_aceptados_escritorio::olvidar_verificada();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // CTL1118L: la sesión acabó: se quita la franja, se suelta lo pulsado, se anota el resumen y se para la pantalla.
+        crate::control_neuronas_linux::quitar(app);
+        crate::control_entrada_linux::al_cerrar(app);
+        crate::control_pantalla_escritorio::parar_interno(app);
+        crate::control_aceptados_escritorio::olvidar_verificada();
     }
 }
 

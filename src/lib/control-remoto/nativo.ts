@@ -193,7 +193,7 @@ export interface CapacidadesNativas {
     falta: string[];
 }
 
-export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "grabacion-pantalla", "accesibilidad-mac"] as const; // CTL1117M: los dos últimos, del Mac
+export const AJUSTES_QUE_FALTAN = ["servicio-accesibilidad", "ajustes-restringidos", "consentimiento-pantalla", "escribir-ajustes", "grabacion-pantalla", "accesibilidad-mac", "wayland", "sin-pantalla-x11", "entrada-x11"] as const; // CTL1117M: los dos del Mac · CTL1118L: los tres de Linux (sin botón: es la sesión, no un permiso)
 export type AjusteQueFalta = (typeof AJUSTES_QUE_FALTAN)[number];
 
 export async function capacidadesNativas(): Promise<CapacidadesNativas | null> {

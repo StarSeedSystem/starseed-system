@@ -181,12 +181,22 @@ mod control_pantalla; // AND1115K
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
 mod control_entrada_macos_logica; // CTL1117M (pura: se prueba en todas las plataformas)
-#[cfg(target_os = "macos")]
-mod control_aceptados_macos; // CTL1117M
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod control_aceptados_escritorio; // CTL1117M · CTL1118L: macOS y Linux
 #[cfg(target_os = "macos")]
 mod control_entrada_macos; // CTL1117M
-#[cfg(target_os = "macos")]
-mod control_pantalla_macos; // CTL1117M
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod control_pantalla_escritorio; // CTL1117M · CTL1118L: macOS y Linux
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod control_captura; // CTL1118L: la captura JPEG (xcap) que comparten macOS y Linux
+// CTL1118L: Linux (X11) como aparato controlado. La lógica pura se prueba en todas las plataformas.
+mod control_escritorio_linux_logica;
+#[cfg(target_os = "linux")]
+mod control_entrada_linux; // CTL1118L
+#[cfg(target_os = "linux")]
+mod control_neuronas_linux; // CTL1118L (indicador GTK)
+#[cfg(target_os = "linux")]
+mod control_vigia_linux; // CTL1118L (pausa por toque físico)
 #[cfg(test)]
 mod control_neuronas_parche; // ORD1114T (lo usa build.rs; aquí solo sus pruebas)
 #[cfg(test)]

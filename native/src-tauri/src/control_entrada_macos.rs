@@ -3,7 +3,7 @@
 //! `control_entrada_macos_logica.rs` y el contrato de los comandos en `control-fase23-costuras.md` (seams 1 y 2).
 //!
 //! · `control_entrada` comprueba en Rust, ANTES de inyectar nada: sobre firmado por un controlador que la persona aceptó en
-//!   el diálogo nativo de ESTE Mac (`control_aceptados_macos`), el mismo controlador que abrió la sesión (y que la apertura
+//!   el diálogo nativo de ESTE Mac (`control_aceptados_escritorio`), el mismo controlador que abrió la sesión (y que la apertura
 //!   verificó), sesión viva con indicador y nivel `controlar`, y el límite de 60 por segundo (`control_entrada_logica`).
 //! · Después: pantalla no bloqueada, `alcance` (S2: `total` por defecto) y el permiso de «Accesibilidad» ya dado por la
 //!   persona. Nada de aquí pide, concede ni contesta un permiso del sistema: `AXIsProcessTrusted` solo MIRA, y enigo se abre
@@ -93,13 +93,7 @@ fn app_al_frente() -> Option<String> {
 
 /// El alcance de ESTE Mac (`control-ajustes.json`, junto a `indicador` y `ver_toques`). Falta → `total`.
 pub fn alcance(app: &AppHandle) -> m::Alcance {
-    use tauri::Manager;
-    app.path()
-        .app_data_dir()
-        .ok()
-        .and_then(|d| std::fs::read_to_string(d.join("control-ajustes.json")).ok())
-        .map(|t| m::leer_alcance(&t))
-        .unwrap_or(m::Alcance::Total)
+    crate::control_ajustes::alcance_de_app(app)
 }
 
 // ─────────────────────────── Estado de la inyección ───────────────────────────
@@ -239,12 +233,12 @@ fn anotar_resultado(app: &AppHandle, sesion: &str, r: Result<(), l::Motivo>) {
 pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
     use crate::control_neuronas::{puerta_sesion, ModoPuerta};
     let Ok(nivel) = puerta_sesion(app, sesion, ModoPuerta::Lectura) else { return rechazo(l::Motivo::Sesion) };
-    let aceptados = crate::control_aceptados_macos::leer(app);
+    let aceptados = crate::control_aceptados_escritorio::leer(app);
     let ahora_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
     let v = l::verificar_sobre(sobre, &aceptados, sesion, &nivel, ahora_ms, &mut vistos());
     // La orden la firma el MISMO controlador que abrió la sesión, y esa apertura se verificó aquí (no solo la página).
     let v = v.and_then(|o| {
-        if crate::control_neuronas::de_de_sesion(sesion).as_deref() == Some(o.de.as_str()) && crate::control_aceptados_macos::sesion_verificada(&o.de) {
+        if crate::control_neuronas::de_de_sesion(sesion).as_deref() == Some(o.de.as_str()) && crate::control_aceptados_escritorio::sesion_verificada(&o.de) {
             Ok(o)
         } else {
             Err((l::Motivo::NoAutorizado, "otro-controlador"))
@@ -429,6 +423,6 @@ pub fn abrir_ajuste(cual: &str) -> Value {
 
 /// `control_estado_aparato` en macOS: solo lo que se sabe de verdad (pantalla y bloqueo); volumen, brillo y batería no se inventan.
 pub fn estado_aparato() -> Value {
-    let (ancho, alto) = crate::control_pantalla_macos::tamano_principal().unwrap_or((0, 0));
+    let (ancho, alto) = crate::control_captura::tamano_principal().unwrap_or((0, 0));
     json!({ "ok": true, "pantalla": { "ancho": ancho, "alto": alto, "giro": 0, "encendida": true, "bloqueada": bloqueada() }, "plataforma": "macos" })
 }

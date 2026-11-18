@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { VentanaControl, olvidarLugarVentana, esEscritorio, textoDeTecla } from "../ventana-control";
+import { VentanaControl, olvidarLugarVentana, esEscritorio, esLinux, textoDeTecla } from "../ventana-control";
 import type { EntradaControl, PropsVentanaControl } from "../tipos";
 import { PALABRAS_FALTA, BOTON_FALTA } from "@/lib/control-remoto/palabras";
 import { AJUSTES_QUE_FALTAN } from "@/lib/control-remoto/nativo";
@@ -110,6 +110,17 @@ describe("CTL1117M · un Mac como aparato controlado", () => {
         for (const f of ["grabacion-pantalla", "accesibilidad-mac"]) {
             expect(PALABRAS_FALTA[f], f).toMatch(/Mac/);
             expect(BOTON_FALTA[f], f).toBeTruthy();
+            expect((AJUSTES_QUE_FALTAN as readonly string[]).includes(f), f).toBe(true);
+        }
+    });
+
+    // CTL1118L · Linux controlado: se anuncia como escritorio con la marca «linux»; sus faltas no tienen botón de Ajustes.
+    it("un Linux se reconoce por su marca y sus tres faltas tienen palabras y pasos pero no botón", () => {
+        expect(esLinux(["recientes", "escritorio", "linux"])).toBe(true);
+        expect(esLinux(["recientes", "escritorio"])).toBe(false);
+        for (const f of ["wayland", "sin-pantalla-x11", "entrada-x11"]) {
+            expect(PALABRAS_FALTA[f], f).toMatch(/Linux/);
+            expect(BOTON_FALTA[f], f).toBeUndefined();
             expect((AJUSTES_QUE_FALTAN as readonly string[]).includes(f), f).toBe(true);
         }
     });

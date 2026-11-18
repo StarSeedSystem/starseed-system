@@ -49,6 +49,19 @@ pub fn leer(texto: &str) -> Ajustes {
     a
 }
 
+/// (CTL1118L) El alcance de ESTE aparato leído de `control-ajustes.json` (junto a `indicador` y `ver_toques`). Falta → `total`.
+/// Lo usan macOS y Linux como aparatos controlados.
+#[allow(dead_code)]
+pub fn alcance_de_app(app: &tauri::AppHandle) -> crate::control_entrada_macos_logica::Alcance {
+    use tauri::Manager;
+    app.path()
+        .app_data_dir()
+        .ok()
+        .and_then(|d| std::fs::read_to_string(d.join("control-ajustes.json")).ok())
+        .map(|t| crate::control_entrada_macos_logica::leer_alcance(&t))
+        .unwrap_or(crate::control_entrada_macos_logica::Alcance::Total)
+}
+
 /// Aplica un cambio parcial de la página: un campo con valor inválido se rechaza entero (nada a medias).
 pub fn aplicar(actual: &Ajustes, parcial: &Value) -> Result<Ajustes, &'static str> {
     let o = parcial.as_object().ok_or("forma")?;

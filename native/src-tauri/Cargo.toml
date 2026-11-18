@@ -137,6 +137,12 @@ webkit2gtk = { version = "2", features = ["v2_38"] }
 # necesita ningún paquete más. Los sockets L2CAP LE CoC se abren con libc (AF_BLUETOOTH/BTPROTO_L2CAP).
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 libc = "0.2"
+# (CTL1118L) Linux como aparato CONTROLADO (control entre neuronas): la franja del indicador es una ventana GTK (la misma
+# `gtk` 0.18 que ya trae tauri/wry para la ventana de la app: se unifica, no baja ni compila nada nuevo y no pide paquetes
+# del sistema) y la pausa por toque físico lee eventos crudos de XInput2 con `x11rb` (Rust puro, SIN libxcb; es la misma
+# crate 0.13 que ya usa enigo: aquí solo se enciende su feature `xinput`, que no añade ninguna dependencia nueva al lock).
+gtk = "0.18"
+x11rb = { version = "0.13", default-features = false, features = ["xinput"] }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]

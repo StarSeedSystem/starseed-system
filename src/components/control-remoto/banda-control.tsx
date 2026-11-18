@@ -181,9 +181,12 @@ export function PantallaYEntradaEsteAparato({ caps, aceptados, pantallaEnUso, en
                         {/* (FAC1116) Qué pantalla se abre y qué pulsar allí, en las palabras de Android. */}
                         <span className="block text-white/55" data-testid={`pasos-${f}`}>{textoEnlace(ENLACES_CONTROL[f as keyof typeof ENLACES_CONTROL])}</span>
                     </span>
-                    <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400">
-                        {BOTON_FALTA[f]}
-                    </button>
+                    {/* CTL1118L: lo que falta en un Linux (sesión X11) no se arregla en un panel de Ajustes: sin botón. */}
+                    {BOTON_FALTA[f] && (
+                        <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400">
+                            {BOTON_FALTA[f]}
+                        </button>
+                    )}
                 </div>
             ))}
             {otras.map((f) => (

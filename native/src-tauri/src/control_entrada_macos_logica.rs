@@ -1,6 +1,6 @@
 //! (CTL1117M) Control entre mis neuronas · el Mac como aparato CONTROLADO: la lógica pura (sin AppKit, sin enigo, sin
 //! xcap y sin reloj real), para que se pruebe en cualquier sistema. Lo que toca el sistema está en
-//! `control_entrada_macos.rs`, `control_pantalla_macos.rs` y `control_aceptados_macos.rs` (solo macOS).
+//! `control_entrada_macos.rs`, `control_pantalla_escritorio.rs` y `control_aceptados_escritorio.rs` (solo macOS).
 //!
 //! Contiene:
 //!   · `alcance` (S2): `total` (por defecto; un valor que falta o no se conoce se lee como `total`) o `protegido`.

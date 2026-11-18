@@ -119,6 +119,10 @@ export const PALABRAS_FALTA: Readonly<Record<string, string>> = {
     // CTL1117M · Mac controlado: los dos permisos los da la persona en ese Mac, en Ajustes del Sistema.
     "grabacion-pantalla": "Falta el permiso «Grabación de pantalla» de StarSeed OS en ese Mac: sin él no se puede ver la pantalla. Se da en Ajustes del Sistema › Privacidad y seguridad.",
     "accesibilidad-mac": "Falta el permiso «Accesibilidad» de StarSeed OS en ese Mac: sin él no se puede mover el ratón ni escribir. Se da en Ajustes del Sistema › Privacidad y seguridad.",
+    // CTL1118L · Linux controlado: no son permisos que se den en Ajustes, es la sesión gráfica del equipo (por eso no hay botón).
+    "wayland": "Ese equipo Linux usa una sesión Wayland: StarSeed OS solo puede mostrar y controlar su pantalla en una sesión X11. Cierra la sesión allí y entra eligiendo «Xfce (X11)» o similar.",
+    "sin-pantalla-x11": "StarSeed OS no encuentra la pantalla (servidor X) de ese equipo Linux: sin ella no se puede ver ni tocar. Hace falta que alguien haya iniciado sesión en el escritorio.",
+    "entrada-x11": "El servidor gráfico de ese equipo Linux no tiene la extensión XTEST: se puede ver su pantalla, pero no mover el ratón ni escribir.",
 };
 
 export const BOTON_FALTA: Readonly<Record<string, string>> = {

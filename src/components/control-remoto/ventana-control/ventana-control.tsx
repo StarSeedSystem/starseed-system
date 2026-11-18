@@ -53,9 +53,15 @@ export function esEscritorio(teclas: readonly string[]): boolean {
     return teclas.includes("escritorio");
 }
 
-/** CTL1117M · en un Mac, «Recientes» es Mission Control. */
-function rotuloTecla(cual: string, texto: string, escritorio: boolean): string {
-    return escritorio && cual === "recientes" ? "Mission Control" : texto;
+/** CTL1118L · un Linux de escritorio se anuncia además con la marca «linux». */
+export function esLinux(teclas: readonly string[]): boolean {
+    return teclas.includes("linux");
+}
+
+/** CTL1117M · en un Mac, «Recientes» es Mission Control; (CTL1118L) en un Linux es cambiar de ventana (Alt+Tab). */
+function rotuloTecla(cual: string, texto: string, escritorio: boolean, linux = false): string {
+    if (!escritorio || cual !== "recientes") return texto;
+    return linux ? "Cambiar de ventana" : "Mission Control";
 }
 
 /**
@@ -410,7 +416,7 @@ function Controles({ p }: { p: PropsVentanaControl }) {
                             onClick={() => p.alEnviar({ tipo: "tecla", cual: t.cual })}
                             className="min-h-10 min-w-10 cursor-pointer rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-white transition-colors hover:bg-white/[0.12]"
                         >
-                            {rotuloTecla(t.cual, t.texto, escritorio)}
+                            {rotuloTecla(t.cual, t.texto, escritorio, esLinux(c.teclas))}
                         </button>
                     ))}
                 </div>

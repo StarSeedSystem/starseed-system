@@ -99,7 +99,7 @@ pub fn control_entrada(app: tauri::AppHandle, webview: tauri::Webview, sesion: S
     Ok(entrada(&app, &sesion, &sobre))
 }
 
-#[cfg(not(any(target_os = "android", target_os = "macos")))]
+#[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
 fn entrada(_app: &tauri::AppHandle, _sesion: &str, _sobre: &Value) -> Value {
     sin_soporte()
 }
@@ -108,6 +108,12 @@ fn entrada(_app: &tauri::AppHandle, _sesion: &str, _sobre: &Value) -> Value {
 #[cfg(target_os = "macos")]
 fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
     crate::control_entrada_macos::entrada(app, sesion, sobre)
+}
+
+// CTL1118L: Linux (X11) como aparato controlado (enigo por XTEST + comprobación nativa del controlador).
+#[cfg(target_os = "linux")]
+fn entrada(app: &tauri::AppHandle, sesion: &str, sobre: &Value) -> Value {
+    crate::control_entrada_linux::entrada(app, sesion, sobre)
 }
 
 #[cfg(target_os = "android")]
@@ -200,7 +206,9 @@ pub fn control_capacidades(app: tauri::AppHandle, webview: tauri::Webview) -> Re
     }
     #[cfg(target_os = "macos")]
     return Ok(crate::control_entrada_macos::capacidades(&app)); // CTL1117M
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_entrada_linux::capacidades(&app)); // CTL1118L
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(sin_soporte())
 }
 
@@ -210,7 +218,9 @@ pub fn control_abrir_ajuste(app: tauri::AppHandle, webview: tauri::Webview, cual
     crate::control_neuronas::pagina_ok(&app, &webview)?;
     #[cfg(target_os = "macos")]
     return Ok(crate::control_entrada_macos::abrir_ajuste(&cual)); // CTL1117M: los permisos del Mac tienen sus propios nombres
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_entrada_linux::abrir_ajuste(&cual)); // CTL1118L: en X11 no hay permisos que abrir
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         if !l::AJUSTES.contains(&cual.as_str()) {
             return Ok(json!({ "ok": false, "motivo": "ajuste-desconocido" }));
@@ -221,7 +231,7 @@ pub fn control_abrir_ajuste(app: tauri::AppHandle, webview: tauri::Webview, cual
         let r = es::llamar(&app, json!({ "tipo": "abrir-ajuste", "cual": cual }), ESPERA_MS);
         Ok(r.unwrap_or_else(|| json!({ "ok": false, "motivo": "sin-servicio" })))
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(sin_soporte())
 }
 
@@ -239,7 +249,9 @@ pub fn control_estado_aparato(app: tauri::AppHandle, webview: tauri::Webview) ->
     }
     #[cfg(target_os = "macos")]
     return Ok(crate::control_entrada_macos::estado_aparato()); // CTL1117M
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_entrada_linux::estado_aparato()); // CTL1118L
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(sin_soporte())
 }
 
@@ -261,8 +273,10 @@ pub fn control_entrada_aceptar(app: tauri::AppHandle, webview: tauri::Webview, s
         })
     }
     #[cfg(target_os = "macos")]
-    return Ok(crate::control_aceptados_macos::pedir_aceptar(&app, &spki, &cuenta, &nombre, &huella, &codigo)); // CTL1117M: solo PIDE el diálogo nativo
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    return Ok(crate::control_aceptados_escritorio::pedir_aceptar(&app, &spki, &cuenta, &nombre, &huella, &codigo)); // CTL1117M: solo PIDE el diálogo nativo
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_aceptados_escritorio::pedir_aceptar(&app, &spki, &cuenta, &nombre, &huella, &codigo)); // CTL1118L: igual en Linux
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     {
         let _ = (nombre, codigo);
         Ok(sin_soporte())
@@ -284,8 +298,10 @@ pub fn control_entrada_aceptados(app: tauri::AppHandle, webview: tauri::Webview)
         Ok(json!({ "ok": true, "controladores": lista }))
     }
     #[cfg(target_os = "macos")]
-    return Ok(crate::control_aceptados_macos::listar(&app)); // CTL1117M
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    return Ok(crate::control_aceptados_escritorio::listar(&app)); // CTL1117M
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_aceptados_escritorio::listar(&app)); // CTL1118L
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(sin_soporte())
 }
 
@@ -322,8 +338,10 @@ pub fn control_entrada_quitar(app: tauri::AppHandle, webview: tauri::Webview, hu
         Ok(quitar_de_kotlin(r.as_ref()))
     }
     #[cfg(target_os = "macos")]
-    return Ok(crate::control_aceptados_macos::quitar(&app, &huella)); // CTL1117M
-    #[cfg(not(any(target_os = "android", target_os = "macos")))]
+    return Ok(crate::control_aceptados_escritorio::quitar(&app, &huella)); // CTL1117M
+    #[cfg(target_os = "linux")]
+    return Ok(crate::control_aceptados_escritorio::quitar(&app, &huella)); // CTL1118L
+    #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
     Ok(sin_soporte())
 }
 

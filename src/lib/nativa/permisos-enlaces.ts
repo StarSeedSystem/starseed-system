@@ -156,7 +156,7 @@ export function textoEnlace(e: Enlace | null): string {
 
 /* ───────────── Lo que le falta al control remoto de una tableta (`control_capacidades().falta`) ───────────── */
 
-export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac", Enlace> = {
+export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restringidos" | "escribir-ajustes" | "consentimiento-pantalla" | "grabacion-pantalla" | "accesibilidad-mac" | "wayland" | "sin-pantalla-x11" | "entrada-x11", Enlace> = {
   "servicio-accesibilidad": ANDROID.accesibilidad!,
   "ajustes-restringidos": f(
     "Pulsa ⋮ (arriba a la derecha) › «Permitir ajustes restringidos» y confirma con tu huella o PIN. Si ⋮ no sale, vuelve a «Accesibilidad», intenta activar StarSeed OS una vez (saldrá en gris) y regresa aquí: Android lo muestra después del primer intento.",
@@ -165,4 +165,8 @@ export const ENLACES_CONTROL: Record<"servicio-accesibilidad" | "ajustes-restrin
   "consentimiento-pantalla": { nivel: "aviso", pantalla: "Diálogo de StarSeed OS en este aparato", pulsa: "Lee el aviso y pulsa «Sí» solo si quieres que tus otras neuronas vean la pantalla sin preguntar." },  // CTL1117M: lo que le falta a un Mac controlado; los dos los concede la persona en Ajustes del Sistema.
   "grabacion-pantalla": MACOS.pantalla!,
   "accesibilidad-mac": MACOS.accesibilidad!,
+  // CTL1118L: Linux controlado. No hay pantalla de Ajustes donde darlo: es la sesión del equipo.
+  "wayland": sin("Pantalla de inicio de sesión del equipo Linux", "Cierra la sesión y, antes de escribir la contraseña, elige en el selector de sesión «Xfce» o «Xfce (X11)» (no «Wayland»). Después vuelve a abrir StarSeed OS."),
+  "sin-pantalla-x11": sin("Escritorio del equipo Linux", "Inicia sesión en el escritorio del equipo (el control no funciona con la pantalla de inicio de sesión ni por ssh) y deja abierto StarSeed OS."),
+  "entrada-x11": sin("Servidor gráfico (X11) del equipo Linux", "Falta la extensión XTEST del servidor X: instala o activa el servidor X estándar (Xorg) de tu distribución. Mientras tanto solo se ve la pantalla."),
 };

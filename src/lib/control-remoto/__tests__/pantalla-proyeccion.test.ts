@@ -57,7 +57,7 @@ describe("PENC3 · fuente de pantalla", () => {
     it("la palabra nueva tiene su frase y las demás no cambian", () => {
         expect(PALABRAS_FALTA["consentimiento-proyeccion"]).toBe("Android te preguntará en el aparato si compartes la pantalla; contesta allí.");
         expect(palabrasMotivo("consentimiento-proyeccion")).toBe(PALABRAS_FALTA["consentimiento-proyeccion"]);
-        expect(Object.keys(PALABRAS_FALTA).sort()).toEqual(["accesibilidad-mac", "ajustes-restringidos", "consentimiento-pantalla", "consentimiento-proyeccion", "escribir-ajustes", "grabacion-pantalla", "servicio-accesibilidad"]); // CTL1117M: + los dos permisos del Mac
+        expect(Object.keys(PALABRAS_FALTA).sort()).toEqual(["accesibilidad-mac", "ajustes-restringidos", "consentimiento-pantalla", "consentimiento-proyeccion", "entrada-x11", "escribir-ajustes", "grabacion-pantalla", "servicio-accesibilidad", "sin-pantalla-x11", "wayland"]); // CTL1117M: + los dos permisos del Mac · CTL1118L: + las tres faltas de Linux
         expect(PALABRAS_FALTA["servicio-accesibilidad"]).toMatch(/^El servicio de accesibilidad de StarSeed está apagado/);
         expect(PALABRAS_FALTA["escribir-ajustes"]).toMatch(/Modificar ajustes del sistema/);
     });
