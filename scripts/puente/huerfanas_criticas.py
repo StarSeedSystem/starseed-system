@@ -255,7 +255,7 @@ No duplicar trabajo: verifica primero si ya está integrado.
     else:
         # Sin contrato: se escala al Mando y al chat (nunca se pierde en silencio)
         return {
-            "ok": True,
+            "ok": False,
             "accion": "escalar",
             "id": tarea_id,
             "motivo": "sin_contrato",

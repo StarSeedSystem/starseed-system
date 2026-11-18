@@ -860,7 +860,10 @@ def _redactar_con_modelo(prompt, clave, base, modelo, abrir):
     return contenido
 
 
-def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
+_NO_CLAVE = object()
+
+
+def _redactar_flota(prompt, clave=_NO_CLAVE, base=None, modelo=None, abrir=None):
     """La flota gratuita en un solo paso: intenta modelos con nombre que funcionan hoy.
 
     Orden: gemini-flash-lite, NIM minimax-m3.1-flash, nemotron-3.5-lightning.
@@ -868,8 +871,10 @@ def _redactar_flota(prompt, clave=None, base=None, modelo=None, abrir=None):
     """
     if not prompt:
         return None
-    if clave is None:
+    if clave is _NO_CLAVE:
         clave = _clave_flota()
+    elif clave is None:
+        return None
     if not clave:
         return None
     base = (base or os.environ.get("STARSEED_FLOTA_BASE_URL") or "http://127.0.0.1:3001/v1").rstrip("/")
