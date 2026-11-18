@@ -108,7 +108,7 @@ export function tramoDeCalidad(q: number | null | undefined): string {
   return q < 0.34 ? "mala" : q < 0.67 ? "regular" : "buena";
 }
 
-const SIN_OFERTA = "El ofrecimiento de recursos (Prestar recursos, Puerta de internet) es un ajuste local de cada aparato y todavía no se anuncia a la cuenta.";
+const SIN_OFERTA = "Ninguna neurona anuncia todavía qué ofrece. La oferta viaja en la presencia de la cuenta (`of`) con lo que su dueño tiene encendido en cada aparato.";
 
 function antena(m: MarcaGeo, kind: string) {
   return m.antenas.find((a) => a.kind === kind);
@@ -229,10 +229,19 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     id: `oferta-${k}`, grupo: "oferta",
     etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
     descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
-    estado: "sin-fuente",
-    fuente: `Sin fuente: ${SIN_OFERTA}`,
-    tramos: [DESC],
-    valor: () => desconocido("desconocido: aún no se anuncia"),
+    estado: "parcial",
+    fuente: `Lo que cada neurona anuncia en su presencia (\`of\`): ${k === "computo" ? "cómputo" : k === "almacenamiento" ? "almacenamiento" : "internet compartido"} que su dueño tiene encendido. Las que no lo anuncian salen sin medir. ${SIN_OFERTA}`,
+    tramos: [
+      { id: "si", etiqueta: k === "computo" ? "Ofrece cómputo" : k === "almacenamiento" ? "Ofrece almacenamiento" : "Comparte su internet", color: k === "computo" ? "#8b5cf6" : k === "almacenamiento" ? "#06b6d4" : "#22c55e", estilo: "relleno" },
+      { id: "no", etiqueta: "No lo ofrece", color: "#94a3b8", estilo: "anillo" },
+      { ...DESC, etiqueta: "Sin anunciar" },
+    ],
+    valor: (m) => {
+      const o = m.oferta;
+      if (!o) return desconocido("sin anunciar");
+      const on = o[k];
+      return { tramo: on ? "si" : "no", texto: on ? "lo ofrece" : "no lo ofrece", t: o.t, medida: true };
+    },
   })),
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",

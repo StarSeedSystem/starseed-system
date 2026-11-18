@@ -31,6 +31,26 @@ export function datoDesconocido(etiqueta: string, fuente: string, nota: string):
 
 const pct = (q: number) => `${Math.round(q * 100)} %`;
 
+/** (AUD1117) La oferta que la neurona anuncia, o el motivo de no tenerla. */
+function datosOferta(m: MarcaGeo): Dato[] {
+  const o = m.oferta;
+  if (!o) {
+    return [datoDesconocido("Cómputo, almacenamiento e internet compartido", "presencia de la cuenta (`of`)", "esa neurona aún no anuncia su oferta")];
+  }
+  const fila = (etiqueta: string, on: boolean): Dato => ({
+    etiqueta,
+    valor: on ? "sí" : "no",
+    fuente: "lo que la propia neurona anuncia en la presencia de tu cuenta (`of`)",
+    estado: "declarado",
+    nota: horaDe(o.t) ? `anunciado a las ${horaDe(o.t)}` : undefined,
+  });
+  return [
+    fila("Cómputo compartido", o.computo),
+    fila("Almacenamiento compartido", o.almacenamiento),
+    fila("Internet compartido", o.internet),
+  ];
+}
+
 function seccionPosicion(m: MarcaGeo, ahora: number): SeccionFicha {
   const p = m.posicion;
   if (p.tipo === "desconocida") return { id: "posicion", titulo: "Posición", datos: [datoDesconocido("Posición", "ninguna fuente de posición", p.motivo)] };
@@ -103,7 +123,7 @@ export function fichaDeMarca(m: MarcaGeo, ahora: number): FichaMapa {
         : sinFicha("Memoria (RAM)"),
       h.backendLocal === null ? sinFicha("Modelo local")
         : { etiqueta: "Modelo local", valor: h.backendLocal ? "tiene un motor local" : "sin motor local", fuente: h.fuente, estado: "declarado", nota: hora },
-      datoDesconocido("Cómputo, almacenamiento e internet compartido", "ajustes locales de cada aparato", "aún no se anuncian a la cuenta"),
+      ...datosOferta(m),
     ],
   });
 

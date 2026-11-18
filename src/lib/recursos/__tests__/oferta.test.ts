@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from '../oferta';
+import { OfertaNeurona, anuncioOferta, capacidadPrestable, ofertaVisiblePara, sanearOferta } from '../oferta';
 
 const base = (o: Partial<OfertaNeurona> = {}): OfertaNeurona => ({
   nodoId: 'nodo1',
@@ -109,5 +109,34 @@ describe('capacidadPrestable', () => {
     expect(r.energia).toEqual(o.energia);
     expect(r.presta).toEqual(o.presta);
     expect(r.t).toBe(o.t);
+  });
+});
+describe('anuncioOferta', () => {
+  it('anuncia lo que la persona encendió y nada más', () => {
+    const a = anuncioOferta({ computo: true, almacenamiento: false, internet: true }, 123);
+    expect(a).toEqual({ computo: true, almacenamiento: false, internet: true, t: 123 });
+  });
+  it('sin nada encendido no ofrece nada', () => {
+    const a = anuncioOferta({ computo: false, almacenamiento: false, internet: false }, 7);
+    expect(a).toEqual({ computo: false, almacenamiento: false, internet: false, t: 7 });
+  });
+});
+
+describe('sanearOferta', () => {
+  it('acepta un anuncio válido con su hora', () => {
+    expect(sanearOferta({ computo: true, almacenamiento: true, internet: false, t: 99 })).toEqual({
+      computo: true, almacenamiento: true, internet: false, t: 99,
+    });
+  });
+  it('sin oferta o con forma inválida devuelve null', () => {
+    expect(sanearOferta(undefined)).toBeNull();
+    expect(sanearOferta(null)).toBeNull();
+    expect(sanearOferta('x')).toBeNull();
+    expect(sanearOferta({ computo: true })).toBeNull();
+  });
+  it('solo ofrece lo que llega como true', () => {
+    expect(sanearOferta({ computo: 'sí', almacenamiento: 1, internet: true, t: 5 })).toEqual({
+      computo: false, almacenamiento: false, internet: true, t: 5,
+    });
   });
 });

@@ -39,6 +39,48 @@ export type OfertaNeurona = {
   t: number;
 };
 
+/**
+ * (AUD1117) Lo que una neurona anuncia en su presencia: cómputo, almacenamiento e internet que su dueño
+ * tiene encendidos en ese aparato. Solo se anuncia lo encendido; nada se ofrece por defecto.
+ */
+export interface OfertaAnunciada {
+  computo: boolean;
+  almacenamiento: boolean;
+  internet: boolean;
+  /** Hora del anuncio (epoch ms). */
+  t: number;
+}
+
+/** Lo que la persona tiene encendido en ESTA neurona (ajustes locales). */
+export interface AjustesOfertaLocal {
+  computo: boolean;
+  almacenamiento: boolean;
+  internet: boolean;
+}
+
+/** Arma el anuncio desde los ajustes locales. Puro. */
+export function anuncioOferta(ajustes: AjustesOfertaLocal, t: number): OfertaAnunciada {
+  return {
+    computo: ajustes.computo === true,
+    almacenamiento: ajustes.almacenamiento === true,
+    internet: ajustes.internet === true,
+    t,
+  };
+}
+
+/** Valida lo que llega de otra neurona: sin forma o sin hora, no hay anuncio. Puro. */
+export function sanearOferta(x: unknown): OfertaAnunciada | null {
+  if (!x || typeof x !== "object") return null;
+  const o = x as Record<string, unknown>;
+  if (typeof o.t !== "number" || !Number.isFinite(o.t)) return null;
+  return {
+    computo: o.computo === true,
+    almacenamiento: o.almacenamiento === true,
+    internet: o.internet === true,
+    t: o.t,
+  };
+}
+
 export function ofertaVisiblePara(
   oferta: OfertaNeurona,
   quien: { cuentaId: string; grupos: string[] }

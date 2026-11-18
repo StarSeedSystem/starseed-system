@@ -42,8 +42,8 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos y la red externa.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
+    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); la oferta se anuncia en la presencia y solo la red externa sigue sin fuente.
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
@@ -99,5 +99,40 @@ describe("ficha", () => {
   it("posición desconocida: dice el motivo, sin coordenadas", () => {
     const f = JSON.stringify(fichaDeMarca(marca({ posicion: { tipo: "desconocida", motivo: "MOTIVO-PRUEBA" } }), AHORA));
     expect(f).toContain("MOTIVO-PRUEBA");
+  });
+
+  it("la ficha enseña la oferta anunciada y la dice desconocida sin anuncio", () => {
+    const con = JSON.stringify(fichaDeMarca(marca({ oferta: { computo: true, almacenamiento: false, internet: true, t: AHORA - 1_000 } }), AHORA));
+    expect(con).toContain("Cómputo compartido");
+    expect(con).toContain("Internet compartido");
+    expect(con).not.toMatch(/aún no se anuncian/);
+    const sin = JSON.stringify(fichaDeMarca(marca({ oferta: null }), AHORA));
+    expect(sin).toMatch(/sin anunciar|no anuncia|aún no anuncia/);
+  });
+});
+
+describe("oferta anunciada", () => {
+  const conOferta = (o: { computo: boolean; almacenamiento: boolean; internet: boolean }) =>
+    marca({ oferta: { ...o, t: AHORA - 1_000 } });
+
+  it("anuncia → valor con su hora; no anuncia → desconocido", () => {
+    const c = CAPA_POR_ID["oferta-computo"];
+    const anuncia = pintarMarca(c, conOferta({ computo: true, almacenamiento: false, internet: true }));
+    expect(anuncia.tramo.id).toBe("si");
+    expect(anuncia.valor.medida).toBe(true);
+    expect(anuncia.valor.t).toBe(AHORA - 1_000);
+
+    const apagado = pintarMarca(CAPA_POR_ID["oferta-almacenamiento"], conOferta({ computo: true, almacenamiento: false, internet: true }));
+    expect(apagado.tramo.id).toBe("no");
+    expect(apagado.valor.medida).toBe(true);
+
+    const sinAnuncio = pintarMarca(c, marca({ oferta: null }));
+    expect(sinAnuncio.tramo.id).toBe("desconocido");
+    expect(sinAnuncio.valor.texto).toContain("sin anunciar");
+  });
+
+  it("las tres capas de oferta dejan de ser «sin fuente»", () => {
+    const ids = ["oferta-computo", "oferta-almacenamiento", "oferta-internet"];
+    for (const id of ids) expect(CAPA_POR_ID[id].estado).toBe("parcial");
   });
 });

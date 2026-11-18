@@ -16,6 +16,7 @@ import { estadoAparato } from "@/lib/senales/aparatos";
 import type { EstadoAparato } from "@/lib/senales/tipos-vivo";
 import type { DispositivoMallaRow, EstadoEnlace, FichaDispositivo } from "@/lib/network/malla-neuronas";
 import type { PresenciaMedio } from "@/lib/neurons/presencia";
+import { sanearOferta, type OfertaAnunciada } from "@/lib/recursos/oferta";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import { normalizarCapaConciencia, ORDEN_CONCIENCIA, type CapaConcienciaId } from "./capas";
 import {
@@ -76,6 +77,8 @@ export interface MarcaGeo {
   antenas: AntenaMarca[];
   capas: { lista: CapaConcienciaId[] | null; t: number | null; fuente: string };
   hardware: HardwareMarca;
+  /** (AUD1117) Oferta que la neurona anuncia en su presencia; null = no la anuncia. */
+  oferta: OfertaAnunciada | null;
   /** Versión y aparato que la neurona anuncia de sí misma (declarado). */
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
   versionWeb?: string;
@@ -243,6 +246,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
         fuente: esYo ? "capas de conciencia de este aparato" : "capas que esa neurona anuncia en la presencia de la cuenta",
       },
       hardware: hardwareDeFicha(ficha, esYo ? "ficha de este aparato" : "ficha que esa neurona mandó por su canal P2P"),
+      oferta: sanearOferta(ultimo?.of),
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,

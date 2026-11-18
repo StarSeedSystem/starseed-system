@@ -32,6 +32,7 @@ import { CLAVE_FUSIONES, EVENTO_FUSIONES } from "@/lib/neurons/fusion-alias";
 import type { VersionesPorCapa } from "@/lib/actualizaciones/capas";
 import { firmaVersiones } from "@/lib/actualizaciones/versiones-capa";
 import type { InfoPublicaNeurona } from "@/lib/neurons/info-publica";
+import { anuncioOferta, type OfertaAnunciada } from "@/lib/recursos/oferta";
 
 export const CLAVE_CANAL_NEURONAS = "starseed.neuronas.canal.v1";
 const MIN_REENVIO_MS = 15_000;
@@ -66,6 +67,8 @@ export interface PresenciaMedio {
   c?: string[];
   /** (CTL1117I) Color público de la neurona (`#rrggbb`); ausente en las webs anteriores: se usa el de su id. */
   col?: string;
+  /** (AUD1117) Oferta de cómputo, almacenamiento e internet que su dueño tiene encendida en este aparato. */
+  of?: OfertaAnunciada;
 }
 
 export interface EstadoPresencia {
@@ -170,6 +173,18 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       col = undefined;
     }
+    let of: OfertaAnunciada | undefined;
+    try {
+      const { permissionsFor } = await import("@/lib/neurons/neurons");
+      const { leerAjustesPuerta } = await import("@/lib/malla/puerta/politica");
+      const permisos = permissionsFor(n);
+      of = anuncioOferta(
+        { computo: permisos.compute === true, almacenamiento: permisos.storage === true, internet: leerAjustesPuerta().misNeuronas === true },
+        Date.now(),
+      );
+    } catch {
+      of = undefined;
+    }
     let plataforma: string | undefined;
     try {
       const ua = navigator.userAgent || "";
@@ -192,6 +207,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(d ? { d } : {}),
       ...(c ? { c } : {}),
       ...(col ? { col } : {}),
+      ...(of ? { of } : {}),
     };
   } catch {
     return null;
@@ -202,7 +218,7 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}`;
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${a.of ? `${a.of.computo ? 1 : 0}${a.of.almacenamiento ? 1 : 0}${a.of.internet ? 1 : 0}` : ""}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {
