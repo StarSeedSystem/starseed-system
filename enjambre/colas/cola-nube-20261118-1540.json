@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SIN1116Bs",
+   "titulo": "Respaldo de las 08:30 en el A1 (vuelve SIN1114C) y avances de la síntesis en el chat · lo que faltó: scripts/puente/peticiones_telegram.py",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116B, que ya está integrada (sha 2a3424cc6411). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/peticiones_telegram.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Respaldo de las 08:30 en el A1 (vuelve SIN1114C) y avances de la síntesis en el chat\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §3.1 y §3.2. (1) peticiones_sintesis_respaldo.py: a las 08:30 de México, si no hay una «Síntesis diaria <hoy>» que valga (≥ 4000 caracteres), el A1 la hace con el CLI de NotebookLM y el cerrojo de SES1113A: cuaderno, fuentes base (protocolo, índice de vídeos, red de resonancia, lista de contactos, Codex y la síntesis anterior), el contexto vivo del día (SIN1116D, si existe), 3 investigaciones add-research --mode deep sobre el tema rotativo, un informe a medida con todo el protocolo más la regla de calidad «nada que ya figure como integrado», el Doc con nombre exacto en Síntesis diarias, el resumen de 1500–3000 caracteres al chat y luego el multiformato. Toma como modelo el guion que Claude usó el 14 y el 16, ~/.starseed/peticiones/sintesis_hoy.py en el A1 (pídelo al Mando si no lo tienes). (2) sintesis_avances.py: los hitos de §3.2 al chat, del agente nativo y del respaldo, con una línea por hito y sin duplicar; el aviso de retraso a las 09:00; y el seguimiento de las recomendaciones de ayer. Pruebas sin red.",
+   "ola": "SIN1116",
+   "adelantar": "2026-11-16 19:30 · Maggasukha (chat de producción): «arregla todo, que se autorrepare y se dirija por MetaGenesis»",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-094955.json": [
+   "SIN1116Bs"
+  ]
+ }
+}
