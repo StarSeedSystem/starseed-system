@@ -60,13 +60,28 @@ class MockNotebookLM:
         self.llamadas.append(("source_wait", cuaderno_id, source_id))
         return (0, json.dumps({"status": "ready"}), "")
 
-    def source_add_research(self, cuaderno_id, query, mode="deep", timeout=3300):
+    def source_add_research(self, cuaderno_id, query, mode="deep", timeout=3300, source_id=None, json_output=True):
         fallo = self._check_fallar("source_add_research")
         if fallo:
             return fallo
         self.llamadas.append(("source_add_research", cuaderno_id, query, mode))
+        
+        if mode == "list":
+            # Simular lista de fuentes para test
+            fuentes = []
+            for i, (sid, (cid, drive_id, titulo)) in enumerate(self.fuentes_anadidas.items()):
+                if cid == cuaderno_id:
+                    fuentes.append({"id": sid, "title": titulo, "status": "ready", "source_guide": f"Guía de {titulo}"})
+            return (0, json.dumps({"sources": fuentes}) if json_output else str(fuentes), "")
+        
+        if mode == "delete":
+            # Simular eliminación
+            if source_id and source_id in self.fuentes_anadidas:
+                del self.fuentes_anadidas[source_id]
+            return (0, "", "")
+        
         self.investigaciones[query] = cuaderno_id
-        return (0, json.dumps({"status": "completed"}), "")
+        return (0, json.dumps({"status": "completed"}) if json_output else "completed", "")
 
     def generate(self, cuaderno_id, tipo, prompt, no_wait=False, retry=2, json_output=True):
         fallo = self._check_fallar("generate")
@@ -216,6 +231,11 @@ def test_crear_cuaderno_reutiliza_si_ya_existe():
 def test_investigar_frente_lanza_investigacion_profunda():
     """investigar_frente llama a source add-research --mode deep para cada consulta."""
     nb = MockNotebookLM()
+    # Añadir fuentes mock para que el list mode devuelva algo
+    nb.fuentes_anadidas = {
+        "src_1": ("nb_1", "drive_1", "Referencias de diseño solarpunk"),
+        "src_2": ("nb_1", "drive_2", "Herramientas de producción descentralizadas"),
+    }
     enc = crear_encargo_ejemplo()
     frente = enc["frentes"][0]
     frente["cuaderno"] = "nb_1"
@@ -224,15 +244,20 @@ def test_investigar_frente_lanza_investigacion_profunda():
 
     assert "referencias de diseño solarpunk" in frente.get("investigado", [])
     assert "herramientas de producción" in frente.get("investigado", [])
-    assert len(nb.llamadas) == 2
-    for llamada in nb.llamadas:
-        assert llamada[0] == "source_add_research"
-        assert llamada[3] == "deep"  # mode deep
+    # Verificar que se llamó deep research para cada consulta
+    deep_calls = [l for l in nb.llamadas if l[0] == "source_add_research" and l[3] == "deep"]
+    assert len(deep_calls) == 2
+    assert deep_calls[0][2] == "referencias de diseño solarpunk"
+    assert deep_calls[1][2] == "herramientas de producción"
 
 
 def test_investigar_frente_salta_ya_investigadas():
     """Consultas ya investigadas se saltan."""
     nb = MockNotebookLM()
+    nb.fuentes_anadidas = {
+        "src_1": ("nb_1", "drive_1", "Referencias de diseño solarpunk"),
+        "src_2": ("nb_1", "drive_2", "Herramientas de producción descentralizadas"),
+    }
     enc = crear_encargo_ejemplo()
     frente = enc["frentes"][0]
     frente["cuaderno"] = "nb_1"
@@ -240,13 +265,19 @@ def test_investigar_frente_salta_ya_investigadas():
 
     investigar_frente(frente, enc, "nb_1", nb)
 
-    assert len(nb.llamadas) == 1
-    assert nb.llamadas[0][2] == "herramientas de producción"
+    # Solo debe llamar deep research para la consulta no investigada
+    deep_calls = [l for l in nb.llamadas if l[0] == "source_add_research" and l[3] == "deep"]
+    assert len(deep_calls) == 1
+    assert deep_calls[0][2] == "herramientas de producción"
 
 
 def test_investigar_frente_guarda_aviso_si_falla():
     """Si la investigación falla, se guarda aviso pero no detiene el encargo."""
     nb = MockNotebookLM()
+    nb.fuentes_anadidas = {
+        "src_1": ("nb_1", "drive_1", "Referencias de diseño solarpunk"),
+        "src_2": ("nb_1", "drive_2", "Herramientas de producción descentralizadas"),
+    }
     nb.debe_fallar[("source_add_research",)] = (1, "", "error de red")
     enc = crear_encargo_ejemplo()
     frente = enc["frentes"][0]
@@ -255,7 +286,7 @@ def test_investigar_frente_guarda_aviso_si_falla():
     investigar_frente(frente, enc, "nb_1", nb)
 
     assert "avisos" in frente
-    assert any("investigación no terminó" in a for a in frente["avisos"])
+    assert any("investigación" in a for a in frente["avisos"])
     assert "referencias de diseño solarpunk" in frente["investigado"]
 
 

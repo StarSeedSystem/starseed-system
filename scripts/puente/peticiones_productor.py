@@ -32,6 +32,221 @@ AhoraFn = Callable[[], datetime]
 LeerClaveFn = Callable[[str], str | None]
 LogFn = Callable[[str], None]
 
+# ─────────────────────────────── Investigacion con criterio (PET1116C §3.3) ───────────────────────────────
+
+def _investigar_con_criterio(
+    nb: Any,
+    cuaderno_id: str,
+    consultas: list[str],
+    tema: str,
+    max_fuentes: int = 25,
+    log_fn: LogFn | None = None,
+) -> dict[str, Any]:
+    """Investigación profunda con criterio de importación (PET1116C §3.3).
+
+    En vez de --import-all:
+    - Solo fuentes citadas y relevantes al tema (título y source guide frente al tema y StarSeed)
+    - Máximo max_fuentes (default 25)
+    - source clean: elimina las no relevantes
+    - Lo descartado nunca vuelve a entrar (se registra en temas_descartados.json)
+    """
+    import json
+    import time
+    from pathlib import Path
+
+    if log_fn is None:
+        def log_defecto(msg: str) -> None:
+            print(f"[peticiones_productor] {msg}", flush=True)
+        log_fn = log_defecto
+
+    RAIZ_DEF = Path(__file__).parent.parent.parent
+    ALCANCE_DIR = RAIZ_DEF / "starseed_memory_root" / "alcance"
+    DESCARTES_FILE = ALCANCE_DIR / "temas_descartados.json"
+
+    PALABRAS_STARSEED = (
+        "descentralizad", "soberan", "protocol", "federad", "local-first", "local first",
+        "p2p", "peer-to-peer", "commons", "cooperativ", "autogobiern", "identidad digital",
+        "datos personales", "privacidad", "vigilancia", "censura", "red social", "gobernanza",
+        "dao", "holochain", "ipfs", "libp2p", "matrix", "nostr", "activitypub", "atproto",
+        "solid", "web3", "blockchain", "cripto", "token", "wallet", "firma digital",
+        "verificable", "credencial", "did", "vc", "ssi", "identidad auto-soberana",
+    )
+
+    def _leer_json(ruta: Path, defecto: Any = None) -> Any:
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return defecto
+
+    def _escribir_atomico(ruta: Path, datos: Any) -> None:
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        import tempfile
+        fd, tmp = tempfile.mkstemp(dir=ruta.parent, prefix=".tmp_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=1)
+                f.write("\n")
+            os.replace(tmp, ruta)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
+
+    def _cargar_temas_descartados() -> dict[str, list[str]]:
+        return _leer_json(DESCARTES_FILE, {})
+
+    def _guardar_tema_descartado(cuaderno_id: str, tema: str) -> None:
+        descartados = _cargar_temas_descartados()
+        if cuaderno_id not in descartados:
+            descartados[cuaderno_id] = []
+        if tema not in descartados[cuaderno_id]:
+            descartados[cuaderno_id].append(tema)
+        _escribir_atomico(DESCARTES_FILE, descartados)
+
+    def _es_tema_descartado(cuaderno_id: str, tema: str) -> bool:
+        descartados = _cargar_temas_descartados()
+        return tema in descartados.get(cuaderno_id, [])
+
+    def _calcular_relevancia(titulo: str, source_guide: str, tema: str) -> float:
+        texto = f"{titulo} {source_guide} {tema}".lower()
+        puntuacion = 0.0
+        for palabra in PALABRAS_STARSEED:
+            if palabra in texto:
+                puntuacion += 15.0
+        palabras_tema = [p for p in tema.lower().split() if len(p) > 3]
+        for p in palabras_tema:
+            if p in texto:
+                puntuacion += 8.0
+        palabras_titulo = [p for p in titulo.lower().split() if len(p) > 3]
+        for p in palabras_titulo:
+            if p in texto:
+                puntuacion += 3.0
+        palabras_ajenas = ("cocina", "receta", "rallador", "sinaí", "sinai", "carne humana", "etnograf", "antropolog")
+        for p in palabras_ajenas:
+            if p in texto:
+                puntuacion -= 50.0
+        return max(0.0, min(100.0, puntuacion))
+
+    def _filtrar_fuentes_relevantes(cuaderno_id: str, tema: str) -> list[dict[str, Any]]:
+        rc, out, err = _llamar_nb(nb, "source_add_research", cuaderno_id, "", mode="list", timeout=180)
+        if rc != 0:
+            if log_fn:
+                log_fn(f"Error listando fuentes: {err[-200:]}")
+            return []
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            return []
+        fuentes = data.get("sources", [])
+        if not fuentes:
+            return []
+        relevantes = []
+        for f in fuentes:
+            if f.get("status") != "ready":
+                continue
+            if _es_tema_descartado(cuaderno_id, f.get("title", "")):
+                continue
+            titulo = f.get("title", "")
+            source_guide = f.get("source_guide", "") or f.get("summary", "") or ""
+            relevancia = _calcular_relevancia(titulo, source_guide, tema)
+            if relevancia > 20.0:
+                relevantes.append({
+                    "id": f.get("id"),
+                    "title": titulo,
+                    "source_guide": source_guide,
+                    "relevancia": relevancia,
+                })
+        relevantes.sort(key=lambda x: x["relevancia"], reverse=True)
+        return relevantes[:max_fuentes]
+
+    def _limpiar_fuentes_no_relevantes(cuaderno_id: str, ids_mantener: list[str]) -> int:
+        if not ids_mantener:
+            return 0
+        ids_set = set(ids_mantener)
+        rc, out, err = _llamar_nb(nb, "source_add_research", cuaderno_id, "", mode="list", timeout=180)
+        if rc != 0:
+            if log_fn:
+                log_fn(f"Error listando fuentes para limpiar: {err[-200:]}")
+            return 0
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            return 0
+        fuentes = data.get("sources", [])
+        eliminadas = 0
+        for f in fuentes:
+            sid = f.get("id")
+            if sid and sid not in ids_set:
+                try:
+                    _llamar_nb(nb, "source_add_research", cuaderno_id, "", mode="delete", source_id=sid, timeout=60)
+                    eliminadas += 1
+                    if log_fn:
+                        log_fn(f"Fuente eliminada por source clean: {sid} ({f.get('title', '')[:50]})")
+                except Exception:
+                    pass
+        return eliminadas
+
+    resultados = {
+        "consultas_procesadas": 0,
+        "fuentes_importadas": 0,
+        "fuentes_limpiadas": 0,
+        "temas_descartados": [],
+        "errores": [],
+    }
+
+    for i, consulta in enumerate(consultas):
+        if log_fn:
+            log_fn(f"Investigando con criterio ({i+1}/{len(consultas)}): {consulta[:80]}")
+
+        rc, out, err = _llamar_nb(nb, "source_add_research", cuaderno_id, consulta, mode="deep", timeout=3300)
+        if rc != 0:
+            resultados["errores"].append(f"Consulta {i+1}: {err[-200:]}")
+            if log_fn:
+                log_fn(f"  Falló: {err[-200:]}")
+            continue
+
+        time.sleep(10)
+
+        relevantes = _filtrar_fuentes_relevantes(cuaderno_id, tema)
+
+        if not relevantes:
+            if log_fn:
+                log_fn(f"  No hay fuentes relevantes para: {consulta[:60]}")
+            continue
+
+        ids_mantener = [f["id"] for f in relevantes]
+        resultados["fuentes_importadas"] += len(ids_mantener)
+
+        eliminadas = _limpiar_fuentes_no_relevantes(cuaderno_id, ids_mantener)
+        resultados["fuentes_limpiadas"] += eliminadas
+
+        rc, out, err = _llamar_nb(nb, "source_add_research", cuaderno_id, "", mode="list", timeout=180)
+        if rc == 0:
+            try:
+                data = json.loads(out)
+                for f in data.get("sources", []):
+                    titulo = f.get("title", "")
+                    if f.get("status") != "ready" or f.get("id") in ids_mantener:
+                        continue
+                    if _calcular_relevancia(titulo, f.get("source_guide", "") or "", tema) <= 20.0:
+                        if not _es_tema_descartado(cuaderno_id, titulo):
+                            _guardar_tema_descartado(cuaderno_id, titulo)
+                            resultados["temas_descartados"].append(titulo)
+            except json.JSONDecodeError:
+                pass
+
+        resultados["consultas_procesadas"] += 1
+
+    if log_fn:
+        log_fn(f"Investigación con criterio completada: {resultados['consultas_procesadas']} consultas, "
+               f"{resultados['fuentes_importadas']} fuentes importadas, "
+               f"{resultados['fuentes_limpiadas']} limpiadas, "
+               f"{len(resultados['temas_descartados'])} temas descartados")
+
+    return resultados
+
+
 # ─────────────────────────────── Utilidades HTTP ───────────────────────────────
 
 def _respuesta_http(abrir: Callable[[], Any]) -> dict[str, Any]:
@@ -546,17 +761,36 @@ def _anadir_fuente_drive(cuaderno_id: str, drive_id: str, titulo: str, nb: Any) 
     return sid
 
 
-def investigar_frente(frente: dict[str, Any], enc: dict[str, Any], cuaderno_id: str, nb: Any) -> None:
-    """Lanza investigación profunda (source add-research --mode deep) para cada consulta del frente."""
+def investigar_frente(frente: dict[str, Any], enc: dict[str, Any], cuaderno_id: str, nb: Any,
+                      log_fn: LogFn | None = None) -> None:
+    """Investigación profunda con criterio de importación (PET1116C §3.3).
+
+    En vez de --import-all:
+    - Solo fuentes citadas y relevantes al tema (título y source guide frente al tema y StarSeed)
+    - Máximo 25 fuentes
+    - source clean: elimina las no relevantes
+    - Lo descartado nunca vuelve a entrar
+    """
+    consultas = [q for q in frente.get("investigacion", []) if q not in frente.get("investigado", [])]
+    if not consultas:
+        return
+
+    tema = f"{enc.get('titulo', '')} · {frente.get('nombre', '')}"
+    resultado = _investigar_con_criterio(nb, cuaderno_id, consultas, tema, max_fuentes=25, log_fn=log_fn)
+
     investigadas = set(frente.get("investigado", []))
-    for q in frente.get("investigacion", []):
-        if q in investigadas:
-            continue
-        rc, out, err = _llamar_nb(nb, "source_add_research", cuaderno_id, q, mode="deep", timeout=3300)
-        if rc != 0:
-            frente.setdefault("avisos", []).append(f"investigación no terminó: {q[:80]}")
+    for q in consultas:
         investigadas.add(q)
     frente["investigado"] = list(investigadas)
+
+    if resultado["errores"]:
+        for err in resultado["errores"]:
+            frente.setdefault("avisos", []).append(f"investigación: {err}")
+    if resultado["temas_descartados"]:
+        frente.setdefault("avisos", []).append(
+            f"Temas descartados (no volverán a entrar): {', '.join(resultado['temas_descartados'][:3])}"
+            + ("..." if len(resultado['temas_descartados']) > 3 else "")
+        )
 
 
 def _instrucciones(enc: dict[str, Any], e: dict[str, Any]) -> str:
@@ -795,12 +1029,18 @@ def ejecutar_encargo(
             raise
 
         # Investigar (con manejo de sesión)
+        def _log_investigacion(msg: str) -> None:
+            if enviar_avance:
+                enviar_avance(f"[Investigación] {msg}")
+            else:
+                print(f"[peticiones_productor] {msg}", flush=True)
+
         try:
-            investigar_frente(frente, enc, cid, nb)
+            investigar_frente(frente, enc, cid, nb, log_fn=_log_investigacion)
         except SesionTransitoria:
             import time
             time.sleep(5)
-            investigar_frente(frente, enc, cid, nb)
+            investigar_frente(frente, enc, cid, nb, log_fn=_log_investigacion)
         except SesionCaducada:
             # Investigación fallida por sesión, continuar con entregables en modo degradado
             pass
