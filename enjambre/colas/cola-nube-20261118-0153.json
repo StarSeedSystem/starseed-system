@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "AQ07",
+   "ola": "AUD1117",
+   "titulo": "Capacidades: anunciar la oferta de cómputo, almacenamiento e internet de cada neurona",
+   "archivos": [
+    "src/lib/recursos/oferta.ts",
+    "src/lib/neurons/presencia.ts",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F7 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: la oferta que la persona tiene encendida en este aparato (cómputo, almacenamiento, internet) viaja en su presencia/ficha, y las tres capas `oferta-*` del mapa dejan de decir «sin fuente» para las neuronas que anuncian; las que no anuncian siguen «desconocido». Nada se ofrece que la persona no haya encendido. Prueba: unitaria de la ficha (con y sin oferta) y de las capas (anuncia → valor; no anuncia → desconocido).",
+   "dependencias_ya_en_main": [
+    "AQ05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1117-193401.json": [
+   "AQ07"
+  ]
+ }
+}
