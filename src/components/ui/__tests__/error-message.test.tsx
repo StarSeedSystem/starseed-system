@@ -3,7 +3,9 @@ import { render, screen } from "@testing-library/react"
 import "@testing-library/jest-dom/vitest"
 import { ErrorMessage, type ErrorMessageProps } from "../error-message"
 
-const renderErrorMessage = (props: Partial<ErrorMessageProps> = {}) => {
+type ErrorMessageTestProps = Omit<ErrorMessageProps, "message"> & { message: string }
+
+const renderErrorMessage = (props: ErrorMessageTestProps) => {
   return render(<ErrorMessage {...props} />)
 }
 
