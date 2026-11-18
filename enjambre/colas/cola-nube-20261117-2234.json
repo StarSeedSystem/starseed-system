@@ -1,0 +1,90 @@
+{
+ "ola": "nube-20261117",
+ "tareas": [
+  {
+   "id": "AN04b",
+   "ola": "AUD1117",
+   "titulo": "Malla: un enlace Bluetooth que no recibe nada se marca «mudo»",
+   "archivos": [
+    "src/lib/malla/bluetooth-directo-motor.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F4 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: un enlace con latidos enviados y `recibido` en 0 B tras 60 s se marca `mudo`: la línea `enlace-cerrado` (o la de estado que ya exista) lo dice con `mudo=si`, y esa neurona deja de contar como alcanzable por ese enlace hasta que llegue un byte. Nada se cierra por la fuerza. Prueba: unitaria con reloj inyectado: 60 s con envío y sin recepción → mudo; llega un byte → deja de serlo."
+  },
+  {
+   "id": "AQ00",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: una línea de registro por cambio de estado del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/use-marcas-geo.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F0 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el mapa deja huella en el registro de enlaces, una línea por CAMBIO de estado y nunca con latitud, longitud ni nombres: `mapa · canal-posicion · union=unido|rechazado motivo=<código>`, `mapa · ubicacion · permiso=concedido|denegado`, `mapa · marcas · total=<n> colocadas=<m>`. Prueba: se emiten una vez por cambio y ninguna contiene números con forma de coordenada."
+  },
+  {
+   "id": "AQ05",
+   "ola": "AUD1117",
+   "titulo": "Capacidades: publicar la ficha de capacidades al arrancar la malla, sin abrir ningún panel",
+   "archivos": [
+    "src/lib/network/malla-neuronas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F5 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: al arrancar la malla con la capa mesh encendida se llama `iniciarPublicacionCapacidades` (hoy solo arranca desde el panel Cerebro → Servidores, `device-network-panel.tsx`), una sola vez, y se detiene al apagar la capa; el panel sigue funcionando sin duplicar la publicación. Prueba: unitaria con transporte falso (arranca con la capa encendida, no con ella apagada, no duplica, se detiene)."
+  },
+  {
+   "id": "AN07",
+   "ola": "AUD1117",
+   "titulo": "Malla: una línea de registro por archivo y por mensaje que viajan por la malla",
+   "archivos": [
+    "src/lib/network/archivos-malla.ts",
+    "src/lib/mensajeria/neuronas/buzon.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F7 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: al enviar, recibir y verificar un archivo por la malla se emite UNA línea por evento en el registro de enlaces, con la forma `archivo · enviado|recibido|hash-ok id=<8> via=<medio> bytes=<n>`; al enviar y al entregar un mensaje por la malla, `mensaje-malla · enviado|entregado via=<medio>`. Usa el mismo emisor de notas que ya usan los módulos vecinos de la malla para `enlaces.log`. Prueba: unitaria que comprueba que cada línea sale una vez por evento y que no contiene el texto del mensaje ni el nombre del archivo."
+  },
+  {
+   "id": "AN06",
+   "ola": "AUD1117",
+   "titulo": "Llamadas: guion que comprueba si producción entrega un servidor TURN",
+   "archivos": [
+    "scripts/comprobar-turn.mjs",
+    "src/lib/llamadas/ice-servidor.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F6 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: `node scripts/comprobar-turn.mjs [url-base]` pide la misma ruta que usa `ice-servidor.ts` (solo lectura; no cambies ese archivo salvo exportar la ruta como constante) e imprime `turn=si|no urls=<n> turns=<n>` sin mostrar usuarios, credenciales ni URLs completas (solo el esquema y el host). Sale con código 0 si hay TURN y 2 si no. Prueba: unitaria de la función pura que clasifica la respuesta (con TURN, solo STUN, vacía, error)."
+  },
+  {
+   "id": "AN02",
+   "ola": "AUD1117",
+   "titulo": "Malla: montar el motor de la retícula para que su panel tenga datos reales",
+   "archivos": [
+    "src/app/layout.tsx",
+    "src/components/malla/motor-cristal-mount.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F2 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: `MotorCristalMount` se monta una vez en el árbol raíz, junto a los demás montajes de la malla, de modo que `panel-reticula` y `recibos-chips` reciban recibos reales; el montaje no bloquea el primer pintado (carga diferida como sus vecinos) y no arranca nada si la capa de malla está apagada. Prueba: la existente del montaje más una que comprueba que con la capa apagada no se suscribe a nada."
+  },
+  {
+   "id": "AN05",
+   "ola": "AUD1117",
+   "titulo": "Apps por la malla: anfitrión web para transmitir una app a la ventana remota",
+   "archivos": [
+    "src/lib/apps-remotas/anfitrion.ts",
+    "src/components/apps-remotas/montaje-anfitrion.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F5 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el anfitrión de `apps-remotas` queda importado y montado donde se montan los demás servicios de la malla, y responde al cliente que ya existe: abrir una app pedida por otra neurona de la misma cuenta y transmitirla a su ventana remota. Sin petición no hace nada. Prueba: integración del par anfitrión–cliente con un canal en memoria (pedir, recibir cuadros, cerrar)."
+  },
+  {
+   "id": "AQ09",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: sin internet aparece el esquema con su aviso",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/pestana-mapa.tsx",
+    "src/components/mesh/mapa-senales/vista-plana.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F9 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: cuando la base geográfica no puede cargarse (sin red), la pestaña cae al esquema plano con las mismas marcas y el aviso «sin base geográfica», y vuelve al mapa del mundo al volver la red; hoy solo sale un aviso ámbar. Prueba: de componente con la carga de teselas fallando y luego funcionando."
+  }
+ ]
+}
