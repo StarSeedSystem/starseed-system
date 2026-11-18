@@ -1096,6 +1096,35 @@ def recibir(upd: dict[str, Any]) -> None:
         )
         return
     
+    # SIN1116F: Comandos de síntesis y libro de recomendaciones
+    if texto == "/sintesis":
+        _comando_sintesis_lanzar()
+        return
+    if texto.startswith("/sintesis estado"):
+        _comando_sintesis_estado()
+        return
+    if texto.startswith("/sintesis contexto"):
+        _comando_sintesis_contexto()
+        return
+    
+    # Comandos de libro de recomendaciones: aprobar <id>, rechazar <id>, ya existe <id>, encarga <id>
+    if texto.startswith("aprobar "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_recomendacion_actualizar(rec_id.strip(), "aprobada")
+        return
+    if texto.startswith("rechazar "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_recomendacion_actualizar(rec_id.strip(), "rechazada")
+        return
+    if texto.startswith("ya existe "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_recomendacion_actualizar(rec_id.strip(), "ya_existe")
+        return
+    if texto.startswith("encarga "):
+        _, rec_id = texto.split(" ", 1)
+        _comando_recomendacion_encargar(rec_id.strip())
+        return
+    
     # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
