@@ -28,7 +28,15 @@ import {
 } from "lucide-react";
 
 import { ACENTOS, acentoDeIndice, clasesAcento, type Acento } from "@/lib/ui/acentos";
-import { AREAS_TRABAJO, CLAVES_MEMORIA_OS, type AreaTrabajo } from "@/lib/mando/areas";
+import {
+    AREAS_TRABAJO,
+    CLAVES_MEMORIA_OS,
+    CLASES_MENSAJE,
+    mensajeFalloCarga,
+    mensajeSinActividad,
+    type AreaTrabajo,
+    type RecursoPanelAreas,
+} from "@/lib/mando/areas";
 import { cargarEventos } from "@/lib/mando/eventos";
 import type { EventoRelevo } from "@/lib/mando/tipos";
 import { EstadoPermiso } from "@/lib/permisos/contrato";
@@ -129,6 +137,7 @@ function TarjetaArea({
 }) {
     const clases = clasesAcento(acento);
     const ultimo = eventos.find((evento) => eventoDelArea(evento, area)) ?? null;
+    const sinActividad = mensajeSinActividad(area);
 
     return (
         <article className={`rounded-xl border ${clases.borde} bg-black/30 p-4`}>
@@ -177,16 +186,17 @@ function TarjetaArea({
                 </ul>
             </div>
 
-            <p className="mt-2 text-[11px] text-white/50">
-                {ultimo ? (
-                    <>
-                        <span className="text-white/70">Última actividad:</span>{" "}
-                        {ultimo.texto.slice(0, 140)}
-                    </>
-                ) : (
-                    "Sin actividad reciente registrada en los eventos."
-                )}
-            </p>
+            {ultimo ? (
+                <p className="mt-2 text-[11px] text-white/50">
+                    <span className="text-white/70">Última actividad:</span>{" "}
+                    {ultimo.texto.slice(0, 140)}
+                </p>
+            ) : (
+                <div role="status" className={`mt-2 ${CLASES_MENSAJE[sinActividad.tono]}`}>
+                    <p className="font-semibold">{sinActividad.titulo}</p>
+                    <p className="mt-0.5">{sinActividad.texto}</p>
+                </div>
+            )}
             {area.olas.length > 0 && (
                 <p className="mt-1 text-[11px] text-white/40">
                     Olas: {area.olas.join(" · ")}
@@ -256,18 +266,41 @@ export function PanelAreas() {
     const [eventos, setEventos] = useState<EventoRelevo[]>([]);
     const [permisos, setPermisos] = useState<PermisoNavegador[]>([]);
     const [cargando, setCargando] = useState(false);
+    const [fallo, setFallo] = useState<RecursoPanelAreas | null>(null);
 
     const cargar = useCallback(async () => {
         setCargando(true);
-        const [lista, permisosVivos] = await Promise.all([cargarEventos(0, 300), leerPermisos()]);
-        setEventos(lista);
-        setPermisos(permisosVivos);
+        const [resultadoEventos, resultadoPermisos] = await Promise.allSettled([
+            cargarEventos(0, 300),
+            leerPermisos(),
+        ] as const);
+
+        let falloDetectado: RecursoPanelAreas | null = null;
+        if (resultadoEventos.status === "rejected") {
+            falloDetectado = "eventos";
+        } else {
+            setEventos(resultadoEventos.value);
+            const sinRed = typeof navigator !== "undefined" && !navigator.onLine;
+            if (resultadoEventos.value.length === 0 && sinRed) falloDetectado = "eventos";
+        }
+
+        if (resultadoPermisos.status === "rejected") {
+            if (!falloDetectado) falloDetectado = "permisos";
+        } else {
+            setPermisos(resultadoPermisos.value);
+            const hayDesconocido = resultadoPermisos.value.some((p) => p.estado === "desconocido");
+            if (!falloDetectado && hayDesconocido) falloDetectado = "permisos";
+        }
+
+        setFallo(falloDetectado);
         setCargando(false);
     }, []);
 
     useEffect(() => {
         void cargar();
     }, [cargar]);
+
+    const falloMensaje = fallo ? mensajeFalloCarga(fallo) : null;
 
     return (
         <section className="space-y-4">
@@ -286,6 +319,13 @@ export function PanelAreas() {
                     Actualizar
                 </button>
             </header>
+
+            {falloMensaje && (
+                <div role="alert" className={CLASES_MENSAJE[falloMensaje.tono]}>
+                    <p className="font-semibold">{falloMensaje.titulo}</p>
+                    <p className="mt-0.5">{falloMensaje.texto}</p>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {AREAS_TRABAJO.map((area, índice) => (
