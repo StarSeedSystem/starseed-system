@@ -225,15 +225,51 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
       return q === null ? { tramo: "desconocido", texto: `${a.valor}; calidad sin medir`, t: a.t, medida: false } : { tramo: tramoDeCalidad(q), texto: a.valor, t: a.t, medida: true };
     },
   },
-  ...(["computo", "almacenamiento", "internet"] as const).map((k): CapaSenal => ({
-    id: `oferta-${k}`, grupo: "oferta",
-    etiqueta: k === "computo" ? "Cómputo" : k === "almacenamiento" ? "Almacenamiento" : "Internet compartido",
-    descripcion: k === "computo" ? "Aparatos que ofrecen cómputo" : k === "almacenamiento" ? "Aparatos que ofrecen almacenamiento" : "Aparatos que comparten su internet",
-    estado: "sin-fuente",
-    fuente: `Sin fuente: ${SIN_OFERTA}`,
-    tramos: [DESC],
-    valor: () => desconocido("desconocido: aún no se anuncia"),
-  })),
+  {
+    id: "oferta-computo", grupo: "oferta",
+    etiqueta: "Cómputo", descripcion: "Aparatos que ofrecen cómputo",
+    estado: "parcial",
+    fuente: "Permiso `compute` que cada neurona anuncia en la presencia de la cuenta (`o.computo`); la de este aparato, de sus propios ajustes",
+    tramos: [
+      { id: "si", etiqueta: "Ofrece cómputo", color: "#22c55e", estilo: "relleno" },
+      { id: "no", etiqueta: "No ofrece", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      if (!m.oferta) return desconocido();
+      return { tramo: m.oferta.computo ? "si" : "no", texto: m.oferta.computo ? "ofrece cómputo" : "no ofrece cómputo", t: null, medida: true };
+    },
+  },
+  {
+    id: "oferta-almacenamiento", grupo: "oferta",
+    etiqueta: "Almacenamiento", descripcion: "Aparatos que ofrecen almacenamiento",
+    estado: "parcial",
+    fuente: "Permiso `storage` que cada neurona anuncia en la presencia de la cuenta (`o.almacenamiento`); la de este aparato, de sus propios ajustes",
+    tramos: [
+      { id: "si", etiqueta: "Ofrece almacenamiento", color: "#22c55e", estilo: "relleno" },
+      { id: "no", etiqueta: "No ofrece", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      if (!m.oferta) return desconocido();
+      return { tramo: m.oferta.almacenamiento ? "si" : "no", texto: m.oferta.almacenamiento ? "ofrece almacenamiento" : "no ofrece almacenamiento", t: null, medida: true };
+    },
+  },
+  {
+    id: "oferta-internet", grupo: "oferta",
+    etiqueta: "Internet compartido", descripcion: "Aparatos que comparten su internet",
+    estado: "parcial",
+    fuente: "Ajuste `offerPublicInternet` que cada neurona anuncia en la presencia de la cuenta (`o.internet`); la de este aparato, de sus propios ajustes",
+    tramos: [
+      { id: "si", etiqueta: "Comparte internet", color: "#22c55e", estilo: "relleno" },
+      { id: "no", etiqueta: "No comparte", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      if (!m.oferta) return desconocido();
+      return { tramo: m.oferta.internet ? "si" : "no", texto: m.oferta.internet ? "comparte internet" : "no comparte internet", t: null, medida: true };
+    },
+  },
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
     estado: "parcial",

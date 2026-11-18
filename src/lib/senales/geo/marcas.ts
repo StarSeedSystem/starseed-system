@@ -80,6 +80,8 @@ export interface MarcaGeo {
   aparato: { so?: string; soV?: string; equipo?: string; arq?: string; medio?: string } | null;
   versionWeb?: string;
   versionNativa?: string;
+  /** (AQ07) Oferta de recursos que esta neurona anuncia (cómputo, almacenamiento, internet). */
+  oferta?: { computo: boolean; almacenamiento: boolean; internet: boolean } | null;
 }
 
 export interface EntradaYoGeo {
@@ -224,6 +226,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
     const capasLista = esYo ? capasDeLista(e.yo.capas) : capasDeLista(ultimo?.c);
     const d = ultimo?.d;
     const ficha = esYo ? e.yo.ficha : fila?.ficha;
+    const oferta = ultimo?.o ?? null;
 
     marcas.push({
       id: `neurona:${neuronaId}`,
@@ -246,6 +249,7 @@ export function construirMarcas(e: EntradaMarcas): MarcaGeo[] {
       aparato: d ? { so: d.so, soV: d.soV, equipo: d.equipo, arq: d.arq, medio: d.medio } : ultimo ? { medio: ultimo.tipo } : null,
       versionWeb: ultimo?.v?.interfaz,
       versionNativa: ultimo?.v?.nativa,
+      oferta,
     });
   };
 

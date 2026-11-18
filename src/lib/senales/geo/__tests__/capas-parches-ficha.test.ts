@@ -42,8 +42,8 @@ describe("capas: una sola tabla para leyenda y pintura", () => {
       const { tramo } = pintarMarca(c, m);
       expect(tramo.id).toBe("desconocido");
     }
-    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); lo que sigue sin fuente es la oferta de recursos y la red externa.
-    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["oferta-computo", "oferta-almacenamiento", "oferta-internet", "red-externa"]);
+    // Bluetooth y Wi-Fi ya tienen fuente real (enlaces medidos); la oferta de recursos ahora tiene fuente parcial; solo red-externa sigue sin fuente.
+    expect(CAPAS_SENALES.filter((x) => x.estado === "sin-fuente").map((x) => x.id)).toEqual(["red-externa"]);
   });
 
   it("internet 10 Mb/s: calidad media, con color", () => {
