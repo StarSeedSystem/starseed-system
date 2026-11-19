@@ -2,19 +2,33 @@
  * CTL1119F · pantalla sin WebRTC: selección de vía por capacidades y aviso a los 10 s.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PantallaDestino, type DepsDestino } from "../pantalla-destino";
+import { PantallaDestino, type DepsDestino, type CanalDestinoLike, type PeerDestinoLike } from "../pantalla-destino";
 import type { RespuestaOrden } from "../orden";
 import { trocear } from "../senal-partes";
+import type { CapacidadesNativas } from "../nativo";
 
-class CanalFalso implements import("../pantalla-destino").CanalDestinoLike {
+vi.mock("../canal", () => ({
+    comprobarWebRtcUtilizable: vi.fn(),
+    decidirViaPantalla: vi.fn(),
+}));
+
+const { comprobarWebRtcUtilizable, decidirViaPantalla } = await import("../canal");
+
+type ComprobarWebRtcUtilizable = () => Promise<{ usable: boolean; faltaWebRtc?: string; detalle?: string }>;
+type DecidirViaPantalla = (capsControlador: Awaited<ReturnType<typeof import("../nativo").capacidadesNativas>> | null, _capsControlado: unknown) => Promise<{ via: "webrtc" | "malla"; razon: string }>;
+
+const comprobarWebRtcUtilizableMock = comprobarWebRtcUtilizable as unknown as import("vitest").Mock<ComprobarWebRtcUtilizable>;
+const decidirViaPantallaMock = decidirViaPantalla as unknown as import("vitest").Mock<DecidirViaPantalla>;
+
+class CanalFalso implements CanalDestinoLike {
     readyState = "open";
     onopen: (() => void) | null = null;
-    onmessage: import("../pantalla-destino").CanalDestinoLike["onmessage"] = null;
+    onmessage: CanalDestinoLike["onmessage"] = null;
     onclose: (() => void) | null = null;
     send() { /* nada */ }
     close() { this.readyState = "closed"; }
 }
-class PeerFalso implements import("../pantalla-destino").PeerDestinoLike {
+class PeerFalso implements PeerDestinoLike {
     localDescription: { sdp?: string } | null = null;
     connectionState = "new";
     onicecandidate: import("../pantalla-destino").PeerDestinoLike["onicecandidate"] = null;
@@ -39,8 +53,6 @@ let peer: PeerFalso;
 let lineas: string[];
 let pedidos: { nombre: string; args: Record<string, unknown> }[];
 let respPartes: Record<string, unknown>[] = [];
-let hayWebRtc: boolean;
-let falloSenal: boolean;
 let numero: number;
 let pintados: { ancho: number; alto: number; bytes: number }[];
 let liberado: boolean;
@@ -48,8 +60,17 @@ let camino: "directo" | "capa";
 let avisosVentana: { fase: string; mensaje: string }[];
 
 function montar(opts: { hayWebRtc: boolean; falloSenal?: boolean; conMalla?: boolean } = { hayWebRtc: false }) {
-    hayWebRtc = opts.hayWebRtc;
-    falloSenal = opts.falloSenal ?? false;
+    const { hayWebRtc, falloSenal = false, conMalla = true } = opts;
+    comprobarWebRtcUtilizableMock.mockResolvedValue(
+        hayWebRtc ? { usable: true } : { usable: false, faltaWebRtc: "webrtc-linux", detalle: "faltan elementos de GStreamer" }
+    );
+    decidirViaPantallaMock.mockImplementation(async (_capsControlador: Awaited<ReturnType<typeof import("../nativo").capacidadesNativas>> | null, _capsControlado: unknown) => {
+        const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable();
+        if (usable) return { via: "webrtc" as const, razon: "WebRTC disponible en el controlador" };
+        const causa = faltaWebRtc === "webrtc-linux" ? `Linux sin WebRTC (${detalle})` : "WebRTC no disponible";
+        return { via: "malla" as const, razon: `Pantalla por cuadros: ${causa}` };
+    });
+
     const deps: DepsDestino = {
         mandar: async (nombre, args) => {
             pedidos.push({ nombre, args });
@@ -78,7 +99,7 @@ function montar(opts: { hayWebRtc: boolean; falloSenal?: boolean; conMalla?: boo
         flujoDe: (p) => ({ pista: p }) as unknown as MediaStream,
         ahora: () => Date.now(),
         anotar: (l) => void lineas.push(l),
-        malla: opts.conMalla !== false ? {
+        malla: conMalla ? {
             hayWebRtc: () => hayWebRtc,
             crearLienzo: () => ({
                 pintar: async (j, ancho, alto) => { pintados.push({ ancho, alto, bytes: j.length }); return true; },
@@ -104,6 +125,7 @@ beforeEach(async () => {
     liberado = false;
     camino = "directo";
     avisosVentana = [];
+    vi.clearAllMocks();
 });
 afterEach(() => vi.useRealTimers());
 
