@@ -9,7 +9,9 @@ import importlib.util
 import json
 import os
 import tempfile
+import time
 import unittest
+from unittest import mock
 
 _RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nube-gh.py")
 _spec = importlib.util.spec_from_file_location("nube_gh", _RUTA)
@@ -99,3 +101,80 @@ class ColaCreada(unittest.TestCase):
         """(2026-10-13) El director tomó la cola que «Buscar más capacidad» creó ese minuto."""
         salida = "[reparto] Reparto a la nube 20261013: 0 tareas (ninguna) (simulación)\n"
         self.assertIsNone(nube_gh.cola_creada(salida, {"cola-nube-20261013-1544.json"}))
+
+
+class PushConReintento(unittest.TestCase):
+    """(2026-11-19) El empuje de la rama de la cola a GitHub reintenta con espera
+    y no deja el job sin salir: si el push falla por motivo transitorio (cerrojo,
+    red), espera y reintenta antes de rendirse."""
+
+    def test_push_reintenta_en_cerrojo_y_luego_exita(self):
+        """Simula un cerrojo de git en el primer intento y exito en el segundo."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Preparar un repo git minimo
+            os.chdir(tmp)
+            os.system("git init -q && git config user.email 'test@test.com' && git config user.name 'Test'")
+            with open("README.md", "w") as f:
+                f.write("test")
+            os.system("git add . && git commit -q -m 'init'")
+            os.system("git branch -m main")
+
+            # Crear cola de prueba
+            cola_dir = os.path.join(tmp, "enjambre", "colas")
+            os.makedirs(cola_dir)
+            cola_path = os.path.join(cola_dir, "cola-test.json")
+            with open(cola_path, "w") as f:
+                json.dump({"tareas": [{"id": "T1", "archivos": ["a.ts"]}]}, f)
+
+            # Mock _sh_rc para fallar la primera vez (cerrojo) y exito la segunda
+            llamadas = []
+            def mock_sh_rc(orden, timeout=120):
+                if orden[:3] == ["git", "push", "-q"]:
+                    llamadas.append(1)
+                    if len(llamadas) == 1:
+                        return 1, "error: failed to push some refs to 'origin'\nremote: error: locking failed: lock file exists"
+                    return 0, ""
+                return 0, ""
+
+            with mock.patch.object(nube_gh, "_sh_rc", side_effect=mock_sh_rc):
+                with mock.patch.object(nube_gh, "RAIZ", tmp):
+                    with mock.patch.object(nube_gh, "_esperar_run", return_value="12345"):
+                        with mock.patch.object(nube_gh, "soltar_cedidas", return_value=[]):
+                            with mock.patch.object(nube_gh, "_anotar_lanzamiento"):
+                                with mock.patch.object(nube_gh, "_podar_ramas_de_cola"):
+                                    with mock.patch.object(nube_gh, "WORKFLOW", "enjambre-nube.yml"):
+                                        # No debe lanzar excepcion, debe reintentar y tener exito
+                                        try:
+                                            nube_gh.lanzar(["--cola", "enjambre/colas/cola-test.json", "--trabajadores", "2", "--minutos", "60"])
+                                        except SystemExit as e:
+                                            self.fail("Deberia reintentar y no salir: %s" % e)
+            self.assertEqual(len(llamadas), 2, "Debe reintentar el push una vez")
+
+    def test_push_falla_tras_reintentos_y_no_deja_job_sin_salir(self):
+        """Si el push falla persistentemente, sale con error claro, no se queda colgado."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            os.system("git init -q && git config user.email 'test@test.com' && git config user.name 'Test'")
+            with open("README.md", "w") as f:
+                f.write("test")
+            os.system("git add . && git commit -q -m 'init'")
+            os.system("git branch -m main")
+
+            cola_dir = os.path.join(tmp, "enjambre", "colas")
+            os.makedirs(cola_dir)
+            cola_path = os.path.join(cola_dir, "cola-test.json")
+            with open(cola_path, "w") as f:
+                json.dump({"tareas": [{"id": "T1", "archivos": ["a.ts"]}]}, f)
+
+            def mock_sh_rc(orden, timeout=120):
+                if orden[:3] == ["git", "push", "-q"]:
+                    return 1, "error: failed to push some refs to 'origin'\nremote: error: persistent failure"
+                return 0, ""
+
+            with mock.patch.object(nube_gh, "_sh_rc", side_effect=mock_sh_rc):
+                with mock.patch.object(nube_gh, "RAIZ", tmp):
+                    with mock.patch.object(nube_gh, "WORKFLOW", "enjambre-nube.yml"):
+                        with self.assertRaises(SystemExit) as ctx:
+                            nube_gh.lanzar(["--cola", "enjambre/colas/cola-test.json", "--trabajadores", "2", "--minutos", "60"])
+                        self.assertIn("no pude empujar la rama de la cola", str(ctx.exception))
+                        self.assertIn("persistent failure", str(ctx.exception))

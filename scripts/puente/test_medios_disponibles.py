@@ -52,11 +52,17 @@ class Clasificar(unittest.TestCase):
         self.assertEqual(M.clasificar_hf({"name": "x", "isPro": True}, [], None)["estado"], "usable")
 
     def test_gcloud_usable_solo_con_cuenta_activa(self):
-        self.assertEqual(M.clasificar_gcloud(False, [], "", [])["estado"], "requiere_alex")
-        self.assertEqual(M.clasificar_gcloud(True, [], "", [])["estado"], "requiere_alex")
-        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}])
+        self.assertEqual(M.clasificar_gcloud(False, [], "", [], billing_enabled=False)["estado"], "requiere_alex")
+        self.assertEqual(M.clasificar_gcloud(True, [], "", [], billing_enabled=False)["estado"], "requiere_alex")
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], billing_enabled=True)
         self.assertEqual(d["estado"], "usable")
         self.assertIn("proy", d["detalle"])
+
+    def test_gcloud_sin_facturacion_requiere_alex_y_explica(self):
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], billing_enabled=False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
+        self.assertIn("billing", d["siguiente_paso"].lower())
 
     def test_ningun_medio_inventa_un_estado(self):
         for m in (M.clasificar_mac(None), M.clasificar_claude(None, 1.0),

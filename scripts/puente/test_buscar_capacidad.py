@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import buscar_capacidad as B  # noqa: E402
@@ -899,3 +900,71 @@ class FrenoMismoMotivo(unittest.TestCase):
         # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
         self.assertEqual(r["sumados"], 2)
         self.assertIn("Freno por mismo motivo: no se pudo calcular", "\n".join(r["lineas"]))
+
+
+class GuardiaDiscoYNube(unittest.TestCase):
+    """(2026-11-19) Cuando la Mac está frenada por la guardia de disco, las tareas listas
+    van a la nube en vez de esperar. El tope efectivo de la Mac pasa a 0."""
+
+    def test_plan_nube_con_guardia_disco_envia_todo_a_nube(self):
+        """Si la guardia de disco retiene arranques, tope_mac efectivo = 0 → todas las listas van a nube."""
+        # Simula: 3 listas, tope 3, pero guardia de disco activa → tope_mac=0
+        p = B.plan_nube(["A", "B", "C"], [], 0, None, {}, AHORA, listas_mac=3, tope_mac=0)
+        self.assertEqual(p["lanzar"], 1)  # 3 tareas / 6 por run = 1 job
+        self.assertEqual(p["trabajadores"], 3)
+        self.assertIn("3 tarea(s) para la nube", p["por_que"])
+
+    def test_texto_mac_con_guardia_disco_dice_que_no_hay_hueco(self):
+        """La línea de la Mac explica que el freno es por disco."""
+        estado = {"ocupados": ["A", "B", "C"], "tope": 3, "listas": ["X", "Y", "Z"],
+                  "motivo_tope": "guardia de disco: quedan 1.2 GB (umbral 5 GB)"}
+        t = B.texto_mac(estado, {}, [])
+        self.assertIn("guardia de disco", t)
+        self.assertIn("sin hueco", t)
+
+    def test_causas_sin_suma_incluye_guardia_disco(self):
+        """La cabecera del resumen dice qué frena a cada medio, incluyendo la guardia de disco."""
+        mac = {"ocupados": ["A", "B", "C"], "tope": 3, "listas": ["X"] * 10,
+               "motivo_tope": "guardia de disco: quedan 1.2 GB (umbral 5 GB)"}
+        plan = {"lanzar": 0, "por_que": "no hay trabajo que la nube pueda coger"}
+        causas = B.causas_sin_suma(mac, plan, "")
+        self.assertIn("la Mac está en su tope (3 de 3 por disco)", causas)
+
+
+class A1EnLaPasada(unittest.TestCase):
+    """(2026-11-19) «Buscar más capacidad» también lanza tareas en el A1 si tiene CPU y memoria libres."""
+
+    class LanzadorA1:
+        def __init__(self, lanzado=None, falla=False):
+            self.llamadas = []
+            self.lanzado = lanzado or {"ok": True, "ids": ["A1T1", "A1T2"], "motivo": ""}
+            self.falla = falla
+
+        def __call__(self, tope=6, simular=False, cola_dada=None, ceder=True):
+            self.llamadas.append((tope, simular, cola_dada, ceder))
+            if self.falla:
+                return {"ok": False, "motivo": "error simulado"}
+            return self.lanzado
+
+    def test_aplicar_lanza_en_a1_si_hay_cedibles(self):
+        """Si hay tareas cedibles para el A1, las lanza."""
+        lanzador = self.LanzadorA1({"ok": True, "ids": ["A1T1"], "motivo": ""})
+        sumadas, linea = B.a1(True, ["A1T1", "A1T2"], AHORA, lanzador=lanzador)
+        self.assertEqual(sumadas, 1)
+        self.assertIn("1 lanzadas", linea)
+
+    def test_comprobar_dice_lo_que_haria_en_a1(self):
+        """En seco (comprobar), dice lo que lanzaría sin hacerlo."""
+        lanzador = self.LanzadorA1({"ok": True, "ids": ["A1T1", "A1T2"], "motivo": ""})
+        sumadas, linea = B.a1(False, ["A1T1", "A1T2"], AHORA, lanzador=lanzador)
+        self.assertEqual(sumadas, 0)
+        self.assertIn("lanzaría 2", linea)
+        self.assertEqual(lanzador.llamadas[0][1], True)  # simular=True
+
+    def test_si_a1_no_esta_listo_no_lanza(self):
+        """Si el A1 no está listo (sin orquestador), no lanza."""
+        def lanzar_no_listo(*a, **k):
+            return {"ok": False, "motivo": "A1 sin orquestador"}
+        sumadas, linea = B.a1(True, ["A1T1"], AHORA, lanzador=lanzar_no_listo)
+        self.assertEqual(sumadas, 0)
+        self.assertIn("sin orquestador", linea)

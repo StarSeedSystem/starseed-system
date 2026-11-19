@@ -292,11 +292,18 @@ def sondear_cloudroom(sondear=None) -> dict:
                  "no pude sondearlo (%s)" % motivo, "comprueba scripts/puente/medio_cloudroom.py")
 
 
-def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servicios: list[dict]) -> dict:
+def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servicios: list[dict], billing_enabled: bool | None = None) -> dict:
     if not instalado:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud no instalado", "brew install --cask google-cloud-sdk && gcloud auth login")
     if not cuentas:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud sin cuenta activa", "gcloud auth login")
+    if billing_enabled is False:
+        return medio(
+            "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex",
+            "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
+            "cuenta %s · proyecto %s · facturación DESACTIVADA: Cloud Run no arranca sin cuenta de facturación" % (cuentas[0], proyecto or "?"),
+            "activa la facturación en https://console.cloud.google.com/billing/linked?project=%s" % (proyecto or ""),
+        )
     return medio(
         "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "usable",
         "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
@@ -346,12 +353,21 @@ def sondear() -> dict:
     except Exception:
         cuentas = []
     _, proyecto, _ = _sh(["gcloud", "config", "get-value", "project"], timeout=15)
+    proyecto = (proyecto or "").strip()
+    billing_enabled = None
+    if cuentas and proyecto:
+        rc_b, out_b, _ = _sh(["gcloud", "beta", "billing", "projects", "describe", proyecto, "--format=json"], timeout=30)
+        if rc_b == 0 and out_b:
+            try:
+                billing_enabled = json.loads(out_b).get("billingEnabled", False)
+            except Exception:
+                billing_enabled = None
     rc_c, out_c, _ = _sh(["gcloud", "run", "services", "list", "--format=json"], timeout=40) if cuentas else (1, "", "")
     try:
         servicios = json.loads(out_c) if rc_c == 0 and out_c else []
     except Exception:
         servicios = []
-    medios.append(clasificar_gcloud(instalado and rc_g == 0, cuentas, (proyecto or "").strip(), servicios))
+    medios.append(clasificar_gcloud(instalado and rc_g == 0, cuentas, proyecto, servicios, billing_enabled))
     medios.append(medio("colab", "Google Colab / Kaggle", "requiere_alex", "Colab: 2 vCPU · 12 GB · sesiones ≤12 h · Kaggle: 4 vCPU · 30 GB · 30 h/semana", "sin API: hace falta un cuaderno lanzador que clone el repo y corra el orquestador con las claves pegadas en la sesión", "medio por diseñar (cola futura): deploy/colab/enjambre.ipynb"))
     ruta_oracle = os.environ.get("ORACLE_JSON") or RUTA_ORACLE_JSON
     try:

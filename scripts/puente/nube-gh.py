@@ -288,10 +288,21 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
-    if rc_push != 0:
+    # (2026-11-19) Reintento con espera ante fallos transitorios de push (cerrojo, red).
+    # No deja el job sin salir: si falla persistentemente, sale con error claro.
+    push_orden = ["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)]
+    for intento in range(3):
+        rc_push, salida_push = _sh_rc(push_orden)
+        if rc_push == 0:
+            break
+        if intento < 2:
+            espera = 5 * (intento + 1)  # 5s, 10s
+            print("push falló (intento %d/3), reintentando en %ds: %s" % (
+                intento + 1, espera, motivo_push(salida_push)[:200]))
+            time.sleep(espera)
+    else:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
+        sys.exit("no pude empujar la rama de la cola tras 3 intentos: %s" % motivo_push(salida_push))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,

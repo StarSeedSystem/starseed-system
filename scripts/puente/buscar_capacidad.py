@@ -804,8 +804,12 @@ def causas_sin_suma(estado_mac, plan, linea_cloudroom=""):
     tope = estado_mac.get("tope")
     listas = len(estado_mac.get("listas") or [])
     if tope is not None and ocupados >= int(tope):
-        motivo = str(estado_mac.get("motivo_tope") or "")
-        por = " por memoria" if ("swap" in motivo or "RAM" in motivo or "memoria" in motivo) else ""
+        motivo = str(estado_mac.get("motivo_tope") or "").lower()
+        por = ""
+        if "swap" in motivo or "ram" in motivo or "memoria" in motivo:
+            por = " por memoria"
+        elif "disco" in motivo or "guardia" in motivo:
+            por = " por disco"
         causas.append("la Mac está en su tope (%d de %d%s)" % (ocupados, int(tope), por))
     elif not listas:
         causas.append("la Mac no tiene tareas listas")
@@ -1085,6 +1089,31 @@ def _texto_preguntas(preguntas):
         return ""
 
 
+def a1(aplicar, cedibles, ahora, lanzador=None):
+    """Lanza tareas en el A1 (Oracle Always Free) si está listo y hay cedibles.
+    El A1 sube de agentes mientras tenga CPU y memoria libres, con su propio tope
+    (STARSEED_A1_TRABAJADORES, base 2). Devuelve (sumadas, linea)."""
+    if not cedibles:
+        return 0, "%s: no hay tareas cedibles" % NOMBRES["oracle"]
+    try:
+        if lanzador is None:
+            import oracle_nodo as ON
+
+            lanzador = ON.lanzar
+        res = lanzador(tope=len(cedibles), simular=not aplicar, cola_dada=None, ceder=True)
+    except Exception as e:  # noqa: BLE001
+        return 0, "%s: no pude mirarlo (%s)" % (NOMBRES["oracle"], type(e).__name__)
+    if not res.get("ok"):
+        motivo = res.get("motivo") or "sin motivo"
+        return 0, "%s: %s" % (NOMBRES["oracle"], motivo)
+    ids = res.get("ids") or []
+    if not ids:
+        return 0, "%s: %s" % (NOMBRES["oracle"], res.get("motivo") or "no hay atraso que pueda ir al A1")
+    if aplicar:
+        return len(ids), "%s: %d lanzadas · %s" % (NOMBRES["oracle"], len(ids), ", ".join(ids))
+    return 0, "%s: lanzaría %d (%s)" % (NOMBRES["oracle"], len(ids), ", ".join(ids))
+
+
 def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=None):
     """Una pasada por todos los medios. Devuelve {resumen, lineas, sumados, hechas, nube, ...}."""
     from concurrent.futures import ThreadPoolExecutor
@@ -1122,6 +1151,18 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             import asignar_huecos
 
             estado_mac = asignar_huecos.reunir()
+            # (2026-11-19) Si la guardia de disco retiene arranques, el tope efectivo para
+            # nuevas tareas es 0: las listas van a la nube en vez de esperar.
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("guardia_disco", os.path.join(RAIZ, "scripts", "enjambre", "guardia_disco.py"))
+                GD = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(GD)
+                if GD.FRENO.retiene_arranques():
+                    estado_mac["tope"] = 0
+                    estado_mac["motivo_tope"] = "guardia de disco: no arranca ninguna tarea nueva"
+            except Exception:
+                pass
             decision = asignar_huecos.decidir(estado_mac)
             hechas_mac = asignar_huecos.aplicar(estado_mac, decision) if (aplicar and mac and decision.get("puede")) else []
             if hechas_mac:
@@ -1237,6 +1278,22 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
                                  tope=tope, por_traer=por_traer))
         lineas.append(linea_cr)
+
+        # 2c · A1 (Oracle Always Free): lanza lo que la Mac cede, si el A1 tiene CPU y memoria libres.
+        # El A1 sube de agentes mientras tenga CPU y memoria libres, con su propio tope
+        # (STARSEED_A1_TRABAJADORES, base 2). Lo que coge el A1 sale de lo que se reparte a GitHub Actions.
+        para_a1 = list(nube["clases"].get("elegibles") or [])
+        _traer_a1 = set(nube.get("por_traer") or ())
+        para_a1 += [t for t in ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in _traer_a1],
+                                                     nube.get("dependientes") or {}, nube.get("capacidad") or ())
+                    if t not in para_a1]
+        sumadas_a1, linea_a1 = a1(aplicar, para_a1, ahora)
+        if sumadas_a1:
+            sumados += sumadas_a1
+            hechas.append("A1: %d lanzadas (%s)" % (sumadas_a1, ", ".join(para_a1[:sumadas_a1])))
+        if ids_a1 := (res_a1 := {}) and False:  # placeholder para futura lógica de ids
+            pass
+        lineas.append(linea_a1)
 
         # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
         try:
