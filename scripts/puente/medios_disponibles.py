@@ -215,14 +215,20 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, con
     if nodo.get("vivo") and nodo.get("latido") and ahora - float(nodo["latido"]) < 2700:
         g = nodo.get("guardian") or {}
         verde = ("guardián de main %s" % ("verde" if g.get("ok") else "ROJO")) if g.get("t") else "guardián sin pasada aún"
+        detalle = "A1 RUNNING · nodo de MetaGenesis vivo (%s, %s)%s" % (nodo.get("fase") or "?", verde, extra)
+        if libre:
+            detalle += " · %s" % libre
         return medio(
             "oracle", "Oracle Always Free", "listo", capacidad,
-            "A1 RUNNING · nodo de MetaGenesis vivo (%s, %s)%s" % (nodo.get("fase") or "?", verde, extra), "",
+            detalle, "",
         )
     if ultimo and ahora - ultimo < 600:
+        detalle = "A1 RUNNING y orquestador anunciado por el bus hace %d s%s" % (int(ahora - ultimo), extra)
+        if libre:
+            detalle += " · %s" % libre
         return medio(
             "oracle", "Oracle Always Free", "listo", capacidad,
-            "A1 RUNNING y orquestador anunciado por el bus hace %d s%s" % (int(ahora - ultimo), extra), "",
+            detalle, "",
         )
     return medio(
         "oracle", "Oracle Always Free", "usable", capacidad,
@@ -297,6 +303,17 @@ def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servic
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud no instalado", "brew install --cask google-cloud-sdk && gcloud auth login")
     if not cuentas:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud sin cuenta activa", "gcloud auth login")
+    # Si no hay servicios Cloud Run, suele ser porque la facturación está desactivada
+    # (Cloud Run no funciona sin cuenta de facturación desde el 2026-09-25).
+    # Una lista vacía también puede ser "aún no se creó nada", pero el paso siguiente
+    # es habilitar facturación y desplegar un servicio.
+    if not servicios:
+        return medio(
+            "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex",
+            "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
+            "cuenta %s · proyecto %s · 0 servicios Cloud Run (facturación desactivada o sin desplegar)" % (cuentas[0], proyecto or "?"),
+            "habilita facturación en https://console.cloud.google.com/billing y despliega: gcloud run deploy",
+        )
     return medio(
         "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "usable",
         "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",

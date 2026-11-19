@@ -803,10 +803,16 @@ def causas_sin_suma(estado_mac, plan, linea_cloudroom=""):
     ocupados = len(estado_mac.get("ocupados") or [])
     tope = estado_mac.get("tope")
     listas = len(estado_mac.get("listas") or [])
+    motivo = str(estado_mac.get("motivo_tope") or "").lower()
+    mac_frenada_por_guardia = ("disco" in motivo or "swap" in motivo or "ram" in motivo or "memoria" in motivo)
     if tope is not None and ocupados >= int(tope):
-        motivo = str(estado_mac.get("motivo_tope") or "")
         por = " por memoria" if ("swap" in motivo or "RAM" in motivo or "memoria" in motivo) else ""
+        por = por or (" por disco" if "disco" in motivo else "")
         causas.append("la Mac está en su tope (%d de %d%s)" % (ocupados, int(tope), por))
+    elif mac_frenada_por_guardia and listas:
+        # La Mac tiene huecos pero está frenada por guardia: las tareas van a la nube
+        por = " por disco" if "disco" in motivo else " por memoria"
+        causas.append("la Mac tiene %d lista(s) pero está frenada%s: van a la nube" % (listas, por))
     elif not listas:
         causas.append("la Mac no tiene tareas listas")
     elif tope is not None:
@@ -1209,10 +1215,18 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                               escritores_nube, vivos=vivos)
         if freno_frase:
             tope = (vivos, freno_frase)
+        # Si la Mac está frenada por guardia de disco o memoria, su capacidad efectiva es 0:
+        # todas las tareas listas van a la nube en vez de esperar.
+        motivo_tope_mac = str(estado_mac.get("motivo_tope") or "").lower()
+        mac_frenada_por_guardia = ("disco" in motivo_tope_mac or
+                                   "swap" in motivo_tope_mac or
+                                   "ram" in motivo_tope_mac or
+                                   "memoria" in motivo_tope_mac)
+        tope_mac_efectivo = 0 if mac_frenada_por_guardia else int(estado_mac.get("tope") or 0)
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
+            tope_mac=tope_mac_efectivo, tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
             potenciado=pot_gh,
         )
         if not pot_gh:
@@ -1281,27 +1295,52 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             "mac_cede": (nube.get("mac") or {}).get("cedibles") or [], "preguntas": preguntas}
 
 
+#: Reintentos de push a GitHub cuando falla por timeout (120 s en nube-gh.py).
+#: No se insiste indefinidamente: 3 intentos con backoff exponencial (30 s, 60 s, 120 s).
+MAX_REINTENTOS_PUSH = 3
+BACKOFF_PUSH_BASE_S = 30
+
+
+def _es_error_push_timeout(salida: str) -> bool:
+    """PURA: ¿la salida indica timeout de git push (120 s) en nube-gh.py?"""
+    s = (salida or "").lower()
+    return ("timeout" in s or "timed out" in s) and "push" in s
+
+
 def desplegar(runs, trabajadores):
     """Lanza `runs` jobs seguidos con `nube-gh.py lanzar` (cada uno reparte su propia cola) y
-    deja el resultado en el Chat Director."""
+    deja el resultado en el Chat Director. Si un job falla por timeout de push, reintenta
+    con backoff exponencial antes de rendirse."""
     hechos, lanzados, fallo = [], 0, ""
     for i in range(max(0, int(runs))):
         # `--ceder` (2026-10-10, CAP1010): la tanda viva de la Mac cede lo que no alcanza pronto.
-        r = subprocess.run(
-            [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
-             str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
-             "--ceder"],
-            cwd=RAIZ, capture_output=True, text=True, timeout=600,
-        )
-        salida = ((r.stdout or "") + (r.stderr or "")).strip()
-        print(salida, flush=True)
-        lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
-        if r.returncode != 0 or not lanzado:
+        intento = 0
+        while True:
+            r = subprocess.run(
+                [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
+                 str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
+                 "--ceder"],
+                cwd=RAIZ, capture_output=True, text=True, timeout=600,
+            )
+            salida = ((r.stdout or "") + (r.stderr or "")).strip()
+            print(salida, flush=True)
+            lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
+            if r.returncode == 0 and lanzado:
+                lanzados += 1
+                hechos.append(lanzado[-1])
+                break
             fallo = (salida.splitlines() or ["?"])[-1][:200]
+            if _es_error_push_timeout(salida) and intento < MAX_REINTENTOS_PUSH - 1:
+                espera = BACKOFF_PUSH_BASE_S * (2 ** intento)
+                hechos.append("job %d: push timeout, reintento en %ds (%d/%d)" %
+                             (i + 1, espera, intento + 1, MAX_REINTENTOS_PUSH))
+                time.sleep(espera)
+                intento += 1
+                continue
             hechos.append("job %d no salió: %s" % (i + 1, fallo))
             break
-        lanzados += 1
-        hechos.append(lanzado[-1])
+        if r.returncode != 0 or not lanzado:
+            break
     # (2026-10-10, CAP1010) Lo «en camino» pasa a ser lo que SALIÓ de verdad: antes se quedaban
     # contados como vivos los jobs pedidos aunque el reparto hubiera dicho «0 tareas».
     estado = _leer_json(ESTADO, {})

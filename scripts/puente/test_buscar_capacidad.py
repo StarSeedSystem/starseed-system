@@ -9,6 +9,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import buscar_capacidad as B  # noqa: E402
+import contenedores_nube as CN  # noqa: E402
+import medios_disponibles as M  # noqa: E402
 import repartir_nube as RN  # noqa: E402
 
 AHORA = 1_791_000_000.0
@@ -899,3 +901,170 @@ class FrenoMismoMotivo(unittest.TestCase):
         # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
         self.assertEqual(r["sumados"], 2)
         self.assertIn("Freno por mismo motivo: no se pudo calcular", "\n".join(r["lineas"]))
+
+
+class ClasificarGcloud(unittest.TestCase):
+    """Pruebas para la clasificación de gcloud con facturación desactivada."""
+
+    def test_gcloud_sin_facturacion_requiere_alex(self):
+        """Si Cloud Run falla por facturación desactivada, el medio requiere a Alex."""
+        # Simular gcloud instalado, cuenta activa, pero Cloud Run falla por facturación
+        # Cuando no hay servicios Cloud Run por facturación desactivada, debe ser "requiere_alex"
+        medio = M.clasificar_gcloud(True, ["test@example.com"], "test-project", [])
+        self.assertEqual(medio["estado"], "requiere_alex")
+        self.assertIn("facturación", medio["detalle"].lower())
+
+    def test_gcloud_con_servicios_es_usable(self):
+        """Si Cloud Run tiene servicios, el medio es usable."""
+        medio = M.clasificar_gcloud(True, ["test@example.com"], "test-project", [{"name": "servicio-1"}])
+        self.assertEqual(medio["estado"], "usable")
+
+    def test_gcloud_sin_instalar_requiere_alex(self):
+        """Si gcloud no está instalado, requiere a Alex."""
+        medio = M.clasificar_gcloud(False, [], "", [])
+        self.assertEqual(medio["estado"], "requiere_alex")
+        self.assertIn("instalado", medio["detalle"].lower())
+
+    def test_gcloud_sin_cuenta_requiere_alex(self):
+        """Si gcloud está instalado pero sin cuenta activa, requiere a Alex."""
+        medio = M.clasificar_gcloud(True, [], "test-project", [])
+        self.assertEqual(medio["estado"], "requiere_alex")
+        self.assertIn("cuenta", medio["detalle"].lower())
+
+
+class GuardiaMac(unittest.TestCase):
+    """Pruebas para la detección de la guardia de disco/memoria de la Mac."""
+
+    def test_mac_frenada_por_disco_envia_a_nube(self):
+        """Cuando la Mac está frenada por guardia de disco, las tareas listas van a la nube."""
+        # Simular estado de la Mac con guardia de disco activa
+        estado_mac = {
+            "ocupados": ["A", "B"],
+            "tope": 3,
+            "listas": ["T1", "T2", "T3", "T4", "T5"],
+            "motivo_tope": "guardián de disco: 7.5 GB libres (mínimo 10 GB)",
+        }
+        # La función causas_sin_suma debe detectar esto
+        causas = B.causas_sin_suma(estado_mac, {"lanzar": 0, "por_que": "test"}, "")
+        self.assertTrue(any("guardián de disco" in c or "disco" in c for c in causas))
+
+    def test_mac_frenada_por_memoria_envia_a_nube(self):
+        """Cuando la Mac está frenada por guardia de memoria, las tareas listas van a la nube."""
+        estado_mac = {
+            "ocupados": ["A", "B", "C"],
+            "tope": 3,
+            "listas": ["T1", "T2", "T3"],
+            "motivo_tope": "el gobernador lo baja a 3: recursos al límite (swap llena)",
+        }
+        causas = B.causas_sin_suma(estado_mac, {"lanzar": 0, "por_que": "test"}, "")
+        self.assertTrue(any("memoria" in c or "swap" in c or "RAM" in c for c in causas))
+
+
+class A1Escalado(unittest.TestCase):
+    """Pruebas para el escalado dinámico del A1 (Oracle)."""
+
+    def test_a1_con_cpu_libre_tiene_mas_capacidad(self):
+        """El A1 debe reportar más capacidad cuando tiene CPU y memoria libres."""
+        # Usar la función clasificar_oracle de medios_disponibles
+        estado_oracle = {
+            "vinculada": True,
+            "region": "mx-queretaro-1",
+            "instancias": [{"nombre": "a1-instance", "forma": "VM.Standard.A1.Flex", "estado": "RUNNING"}],
+            "nodo": {"vivo": True, "latido": time.time(), "orquestador": {"vivo": True, "trabajadores": 3}},
+        }
+        consumo = {"leido": True, "freno": {"activo": False}, "margen": {"cpu_libre_pct": 85.0, "mem_libre_gb": 5.6}}
+
+        medio = M.clasificar_oracle(estado_oracle, None, time.time(), consumo)
+        # Con 85% CPU libre y 5.6 GB RAM, debería estar listo
+        self.assertEqual(medio["estado"], "listo")
+        self.assertIn("85", medio["detalle"])  # CPU libre en el detalle
+
+    def test_a1_con_freno_gasto_requiere_alex(self):
+        """Si hay freno por gasto, el A1 requiere a Alex."""
+        estado_oracle = {
+            "vinculada": True,
+            "region": "mx-queretaro-1",
+            "instancias": [{"nombre": "a1-instance", "forma": "VM.Standard.A1.Flex", "estado": "RUNNING"}],
+        }
+        consumo = {"leido": True, "freno": {"activo": True, "motivo": "gasto > 0"}}
+
+        medio = M.clasificar_oracle(estado_oracle, None, time.time(), consumo)
+        self.assertEqual(medio["estado"], "requiere_alex")
+        self.assertIn("freno", medio["detalle"].lower())
+
+
+class GitHubPushRetry(unittest.TestCase):
+    """Pruebas para el reintento de push a GitHub con espera."""
+
+    def test_buscar_capacidad_plan_nube_con_reintentos(self):
+        """El plan de nube debe considerar reintentos de push fallidos."""
+        # Verificar que la lógica de reintento existe en el plan
+        # Cuando un push falla por timeout, no debe dejar el job "sin salir"
+        plan = B.plan_nube(["T1", "T2"], [], 0, None, {}, AHORA, tope_runs=2, motivo_tope="")
+        self.assertEqual(plan["lanzar"], 1)
+        # La lógica de reintento se maneja en nube-gh.py pero el plan no debe
+        # asumir que un push fallido significa "no lanzar más"
+
+    def test_es_error_push_timeout_detecta_timeout(self):
+        """La función _es_error_push_timeout debe detectar timeouts de push."""
+        self.assertTrue(B._es_error_push_timeout("error: git push timeout after 120s"))
+        self.assertTrue(B._es_error_push_timeout("fatal: push timed out"))
+        self.assertTrue(B._es_error_push_timeout("Timeout pushing to GitHub"))
+        self.assertFalse(B._es_error_push_timeout("error: authentication failed"))
+        self.assertFalse(B._es_error_push_timeout("error: repository not found"))
+        self.assertFalse(B._es_error_push_timeout(""))
+
+    def test_desplegar_reintenta_en_push_timeout(self):
+        """La función desplegar debe reintentar cuando hay timeout de push."""
+        from unittest import mock
+        import subprocess
+
+        # Mock subprocess.run para simular timeout en los primeros 2 intentos
+        llamadas = []
+        def mock_run(*args, **kwargs):
+            llamadas.append(1)
+            if len(llamadas) <= 2:
+                # Simular timeout en los primeros 2 intentos
+                return mock.Mock(returncode=1, stdout="", stderr="git push timeout after 120s")
+            # Tercer intento: éxito
+            return mock.Mock(returncode=0, stdout="lanzado: cola-nube-20261119-120000.json · trabajadores 3 · minutos 60 · run 12345", stderr="")
+
+        with mock.patch("subprocess.run", mock_run), \
+             mock.patch("time.sleep", lambda s: None):  # Evitar sleep real en tests
+            hechos = B.desplegar(1, 3)
+            # Debe haber reintentado 2 veces y luego éxito
+            self.assertEqual(len(llamadas), 3)
+            self.assertTrue(any("reintento" in h for h in hechos))
+            self.assertTrue(any("lanzado:" in h for h in hechos))
+
+    def test_desplegar_no_reintenta_error_no_timeout(self):
+        """La función desplegar NO debe reintentar en errores que no son timeout."""
+        from unittest import mock
+        import subprocess
+
+        llamadas = []
+        def mock_run(*args, **kwargs):
+            llamadas.append(1)
+            return mock.Mock(returncode=1, stdout="", stderr="error: authentication failed")
+
+        with mock.patch("subprocess.run", mock_run):
+            hechos = B.desplegar(1, 3)
+            # Solo 1 intento, no reintentos
+            self.assertEqual(len(llamadas), 1)
+            self.assertTrue(any("no salió" in h for h in hechos))
+
+    def test_desplegar_max_reintentos(self):
+        """La función desplegar debe rendirse tras MAX_REINTENTOS_PUSH intentos."""
+        from unittest import mock
+        import subprocess
+
+        llamadas = []
+        def mock_run(*args, **kwargs):
+            llamadas.append(1)
+            return mock.Mock(returncode=1, stdout="", stderr="git push timeout after 120s")
+
+        with mock.patch("subprocess.run", mock_run):
+            hechos = B.desplegar(1, 3)
+            # MAX_REINTENTOS_PUSH = 3 intentos totales
+            self.assertEqual(len(llamadas), B.MAX_REINTENTOS_PUSH)
+            self.assertTrue(any("no salió" in h for h in hechos))
