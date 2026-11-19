@@ -18,7 +18,7 @@ function bloque(sql: string, inicio: string): string {
   return sql.slice(i, fin);
 }
 
-describe("migración spaces_rol_grupo (SVF1A1f)", () => {
+describe("migración spaces_rol_grupo (SVF1A1)", () => {
   it("define os_group_rank con SECURITY DEFINER, search_path y permiso solo a authenticated", () => {
     expect(subir).toMatch(/CREATE OR REPLACE FUNCTION public\.os_group_rank\(_slug text\)/);
     expect(subir).toMatch(/SECURITY DEFINER/);
