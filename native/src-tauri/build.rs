@@ -167,6 +167,7 @@ const COMANDOS_APP: &[&str] = &[
     "control_entrada_aceptar",
     "control_entrada_aceptados",
     "control_entrada_quitar", // PENB2
+    "banco_latido_activar", // PENA1
     "control_pantalla_iniciar",
     "control_pantalla_cuadro",
     "control_pantalla_parar",
