@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "EFI1119B",
+   "ola": "EFI1119",
+   "titulo": "Modo automático de rendimiento por sistema operativo: batería, ahorro de energía, temperatura y tareas pesadas",
+   "archivos": [
+    "native/src-tauri/src/energia.rs",
+    "src/lib/perf/modo-rendimiento.ts",
+    "src/lib/perf/device-tier.ts"
+   ],
+   "depende": [],
+   "prompt": "Perfeccionar auto, alto, eco y eficiente para cada sistema operativo. Tarea: native/src-tauri/src/energia.rs informa a la web del estado de energía: macOS (modo de bajo consumo y batería), Android (ahorro de batería y nivel), Linux (power-profiles-daemon/UPower si existen), Windows (ahorro de energía); en web, Battery API cuando exista. En «auto», una función pura decide fase y modo según batería, ahorro del sistema, gama del aparato (device-tier.ts), temperatura si se conoce y tareas pesadas en curso (control remoto, llamadas, transmisiones): por ejemplo, pasa a «eficiente» mientras se transmite pantalla en un equipo lento y vuelve solo al terminar. Nunca cambia ajustes guardados de la persona (regla pétrea de Alex). Pruebas de la decisión con casos por sistema.",
+   "dependencias_ya_en_main": [
+    "EFI1119A"
+   ]
+  },
+  {
+   "id": "LNX1118WD",
+   "ola": "LNX1118W",
+   "titulo": "Linux por defecto: «Preparar este Linux» en la lista de permisos de la neurona (grupos, entrada virtual, red, Bluetooth) con el diálogo del sistema",
+   "archivos": [
+    "native/src-tauri/src/permisos_sistema.rs",
+    "native/src-tauri/recursos/preparar-linux.sh",
+    "src/components/neurona/permisos-linux.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex: lo que el guion del nodo hace a mano debe venir por defecto. Lee claude/nodo/starseed-os-nodo.sh (copia en starseed_memory_root/pruebas/../ no existe: pídelo con `git show` si está en el repo, si no usa este resumen): grupos netdev bluetooth audio video render input plugdev dialout; /dev/uinput para el grupo input (regla udev y módulo); regla de polkit para que el grupo netdev gestione NetworkManager; Bluetooth encendido; paquetes gstreamer1.0-nice gstreamer1.0-plugins-bad si no hay AppImage con GStreamer. Tarea: en Linux, la lista de permisos de la neurona mide qué falta (lógica pura con pruebas sobre salidas de ejemplo de `id`, `ls -l /dev/uinput`, `systemctl is-active bluetooth`) y ofrece «Preparar este Linux», que lanza con pkexec un guion incluido en la app (native/src-tauri/recursos/preparar-linux.sh, idempotente, sin red salvo apt si hace falta) y avisa de que hay que cerrar sesión. Aparte, un interruptor «Neurona nodo: no apagar pantalla ni bloquear» (lo de sin-reposo del guion) apagado por defecto. Nada se ejecuta sin que la persona acepte el diálogo del sistema. Evidencia (Maggabox, Debian 13 Xfce X11, Mac mini 2011 con Intel HD 3000 + Radeon HD 6630M, AppImage 0.5.1-prueba.55, 18-11 23:10 UTC): ~/.local/share/app.starseed.os/enlaces.log dice «[capas] no se pudo leer la web publicada (curl terminó con exit status: 1 (curl: /tmp/.mount_StarSe…/usr/lib/libcrypt…» y «llamada webrtc-linux faltan=webrtcbin,nicesrc,dtlssrtpenc,opusenc,vp8enc,rtpvp8pay» aunque el sistema tiene gstreamer1.0-nice y gstreamer1.0-plugins-bad; tras reiniciar, la ventana mostró «WebKit encountered an internal error» (~/.xsession-errors: WebLoaderStrategy.cpp(640) internallyFailedLoadTimerFired). Alex (18-11): lo que hoy se instala o configura a mano en el nodo Linux debe venir por defecto con StarSeed OS. Reglas: código en native/src-tauri; lógica pura con pruebas (cargo test del módulo); no cambies los topes de tiempo del CI (canal-pruebas-flujo.test.ts los vigila); nada se ejecuta como root sin el diálogo del sistema que acepta la persona; español neutro.",
+   "dependencias_ya_en_main": [
+    "LNX1118WA"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "LNX1118WD",
+   "EFI1119B"
+  ]
+ }
+}
