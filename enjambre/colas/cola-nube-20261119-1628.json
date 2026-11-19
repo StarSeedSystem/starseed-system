@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "IMA16",
+   "ola": "TRA1116-IDIOMAS",
+   "titulo": "Editor de paquete: pantalla para traducir las claves pendientes y guardar el borrador",
+   "archivos": [
+    "src/components/idiomas/editor-paquete.tsx",
+    "src/components/idiomas/__tests__/editor-paquete.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Pantalla del editor de IMA15: cabecera con idioma, progreso («12 de 40»), lista de pendientes con su campo de traducción (se guarda al salir del campo), botones «Guardar borrador» (instala el paquete en edición con `guardarPaquete` si valida), «Exportar archivo» y «Cerrar edición». Si hay una traducción hecha por motor automático se rotula «Sugerencia automática» y solo entra si la persona la acepta. Accesible, teclado, 360 px. PRUEBAS: traducir un pendiente lo mueve a completadas; guardar un borrador inválido muestra el motivo.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "IMA15",
+    "IMA14"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMA16"
+  ]
+ }
+}
