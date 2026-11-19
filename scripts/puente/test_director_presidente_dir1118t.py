@@ -114,6 +114,8 @@ class TestAtenderConTimeoutCreciente(unittest.TestCase):
         # Mock de correr: primera vez timeout, segunda vez responde
         def correr_mock(orden, **kwargs):
             segundos = kwargs.get("segundos", 120)
+            if orden[0] == "agy":
+                return -9, "[tiempo agotado]"  # GEM1118A: agy usa su propio tope y también agota
             if segundos == 120:
                 return -9, "[tiempo agotado]"
             return 0, '{"result": "ok", "usage": {}}'

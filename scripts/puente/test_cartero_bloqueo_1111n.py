@@ -146,8 +146,8 @@ class TestTiempoLimite(unittest.TestCase):
             m = dc.publicar("hola", de="alex", rol="alex", tipo="mensaje", canales=[P.CANAL], raiz=raiz)
             P.atender(m, {"atendidos": []}, raiz=raiz, correr=falso, existe=lambda n: True,
                       limites=limites(), ahora=AHORA, sesion_hermes=None)
-        self.assertEqual({"claude", "hermes", "codex"}, {v[0] for v in vistos})
-        self.assertTrue(all(s <= 120 for _, s in vistos), vistos)
+        self.assertEqual({"claude", "hermes", "agy", "codex"}, {v[0] for v in vistos})
+        self.assertTrue(all(s <= (M.SEGUNDOS_AGY if motor == "agy" else 120) for motor, s in vistos), vistos)
 
     def test_la_sesion_nueva_de_hermes_en_el_cartero_dura_dos_minutos_como_mucho(self):
         aviso = "⏸ This chat is paused. Hermes couldn't confirm how the last turn ended. " \

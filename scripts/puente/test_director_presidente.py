@@ -155,10 +155,11 @@ class TestDisponibilidadClaude(unittest.TestCase):
         self.assertIn("tope de Opus", m)
 
     def test_ordenar_con_enfriados(self):
-        disp = {"claude": (False, "límite"), "hermes": (True, ""), "chatgpt": (True, "")}
+        disp = {"claude": (False, "límite"), "hermes": (True, ""), "agy": (False, "sin sesión de Google"),
+                "chatgpt": (True, "")}
         cand, desc = P.ordenar(disp, {"hermes": {"hasta": AHORA + 10, "motivo": "rc=1"}}, AHORA)
         self.assertEqual(["chatgpt"], cand)
-        self.assertEqual(["claude", "hermes"], [p for p, _ in desc])
+        self.assertEqual(["claude", "hermes", "agy"], [p for p, _ in desc])
         cand, _ = P.ordenar(disp, {"hermes": {"hasta": AHORA - 1}}, AHORA)
         self.assertEqual(["hermes", "chatgpt"], cand)
 
@@ -189,15 +190,17 @@ class TestAtender(Base):
     def test_hermes_falla_y_contesta_chatgpt(self):
         falso = Falso(claude=(1, "Credit balance is too low"),
                       hermes=(0, "every provider in the fallback chain kept failing over"),
+                      agy=(1, ""),
                       codex=(0, "Respuesta de Codex"))
         self.assertEqual("respondido", self.atender(falso))
         r = self.respuestas()[-1]
         self.assertEqual("chatgpt", r["eleccion"]["proveedor"])
-        self.assertEqual(["claude", "hermes"], [d["proveedor"] for d in r["eleccion"]["descartes"]])
+        self.assertEqual(["claude", "hermes", "agy"],
+                         [d["proveedor"] for d in r["eleccion"]["descartes"]])
         self.assertIn("hermes", self.estado["presidente"]["enfriados"])
 
     def test_nadie_puede_queda_en_cola_visible_sin_frase_hecha(self):
-        falso = Falso(hermes=(1, ""))
+        falso = Falso(hermes=(1, ""), agy=(1, ""))
         sin_codex = lambda n: n != "codex"  # noqa: E731
         self.assertEqual("cola", self.atender(falso, existe=sin_codex, lim={}))
         self.assertEqual([], self.respuestas())
@@ -354,10 +357,12 @@ class TestHermesPausado(Base):
 
     def test_pausada_y_fresca_falla_pasa_al_siguiente_proveedor(self):
         class Dos(FalsoHermesPausado):
-            def __call__(self, orden, **k):
+            def __call__(self, orden, entrada=None, segundos=300, env=None, cwd=None):
                 if orden[0] == "codex":
                     return (0, "Respuesta de Codex")
-                return super().__call__(orden, **k)
+                if orden[0] == "agy":
+                    return (1, "")
+                return super().__call__(orden, entrada, segundos, env, cwd)
 
         falso = Dos(fresca=(1, "boom"))
         r = P.atender(self.alex, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: n != "claude",

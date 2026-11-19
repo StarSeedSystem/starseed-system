@@ -55,9 +55,11 @@ tarea:
 | --- | --- | --- |
 | 1 | los gratuitos más fuertes y creativos: OpenCode Zen (`glm-5.3-flash-free`, `deepseek-v4.1-flash-free`, `minimax-m3.1-flash-free`, `big-pickle`), NIM (`kimi-k3`), el Gemini más nuevo con cuota gratis | 0 |
 | 2 | Codex / ChatGPT | suscripción |
-| 3 | Antigravity `agy` (Gemini más nuevo) — cuando su modo sin pantalla funcione | suscripción |
+| 3 | Antigravity `agy` (CLI 1.5.11, cuenta de Google de Alex) | cuota de Antigravity |
 | 4a | **sesiones de Claude Code en la nube** con Opus 5.5 (`claude --model claude-opus-5-5 --cloud …`) | **crédito de sesiones en la nube** (250 $, vence el 4-11 a las 23:59 PT): no toca el límite semanal |
 | 4b | agentes Opus 5.5 en el contenedor de la sesión de dirección (Cowork) — solo sin crédito de nube | límite semanal de Claude |
+
+**`agy` en el Director presidente (GEM1118A, 2026-11-18):** el orden es Claude → Hermes → `agy` → Codex; usa la sesión de la cuenta de Google de Alex en la Mac (`~/.local/bin/agy`), sin clave de API, con `gemini-3.8-flash-medium` (`gemini-4-neon-medium` para mensajes largos o de plan), `--mode plan`, stdin cerrado y tope de 135 s; vacío, cuota, sesión caída o tiempo agotado pasan al motor siguiente y nunca se publican.
 
 **El crédito de 250 $ solo lo gastan las sesiones de Claude Code en la nube** (2026-10-22, medido).
 - Lo gastan las que se abren desde claude.ai/code, la pestaña Code del móvil, la app de escritorio con «Nube» o `claude --cloud`.

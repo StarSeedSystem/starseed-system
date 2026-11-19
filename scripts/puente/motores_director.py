@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Motores por línea de órdenes del Chat Director de Genesis.
 
-Módulo puro salvo `correr`: construye órdenes para Claude (Mac), Hermes y
-Codex (ChatGPT) y traduce sus salidas. Nunca guarda ni imprime claves.
+Módulo puro salvo `correr`: construye órdenes para Claude (Mac), Hermes,
+Antigravity (`agy`, con la sesión de Google de Alex) y Codex (ChatGPT) y
+traduce sus salidas. Nunca guarda ni imprime claves.
 """
 
 import contextlib
@@ -14,6 +15,10 @@ import subprocess
 import sys
 
 MODELO_DIRECTOR = "claude-opus-5-5"
+#: GEM1118A · Antigravity CLI (`agy`) con la cuenta de Google de Alex: cuota de Antigravity,
+#: sin clave de API ni plan de Claude. El modelo de plan es para mensajes largos o de plan.
+MODELO_AGY = "gemini-3.8-flash-medium"
+MODELO_AGY_PLAN = "gemini-4-neon-medium"
 
 _CLAVES_PROHIBIDAS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
@@ -253,6 +258,124 @@ SEGUNDOS_PROVEEDOR_PRESIDENTE = 120
 SEGUNDOS_SESION_FRESCA = 120
 SEGUNDOS_AVISO_TELEGRAM = 60
 
+# ── GEM1118A · Antigravity CLI (`agy`) como motor de la dirección ────────────────
+# `agy` pide la entrada por terminal si no se le cierra: sin `stdin=DEVNULL` se queda colgado
+# hasta que alguien escribe. `SIN_ENTRADA` es la marca para que `_correr` abra DEVNULL.
+SEGUNDOS_AGY = SEGUNDOS_PROVEEDOR_PRESIDENTE + 15
+#: Un prompt más largo que esto (o una revisión de plan) usa el modelo de plan.
+TOPE_PROMPT_AGY = 6000
+SIN_ENTRADA = object()
+
+_AGY_FALLOS = (
+    "quota", "rate limit", "ratelimit", "resource exhausted", "too many requests",
+    "429", "402", "not logged in", "login required", "please log in", "unauthorized",
+    "unauthenticated", "authentication", "session expired", "no session", "invalid api key",
+    "api key", "permission denied", "insufficient", "credit", "billing",
+    "tiempo agotado", "timed out", "timeout",
+)
+_AGY_TOPE_FALLO = 600
+
+
+def orden_agy(prompt: str, modelo=None, segundos=None) -> list:
+    """La orden de `agy` con la sesión de Google de Alex.
+
+    `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
+    El tope del proceso y el `--print-timeout` son el mismo: SEGUNDOS_AGY.
+    """
+    segundos = int(segundos or SEGUNDOS_AGY)
+    return [
+        "agy",
+        "-p",
+        prompt,
+        "--model",
+        modelo or MODELO_AGY,
+        "--mode",
+        "plan",
+        "--print-timeout",
+        "%ds" % segundos,
+        "--output-format",
+        "json",
+    ]
+
+
+def _texto_agy(datos) -> str:
+    if not isinstance(datos, dict):
+        return ""
+    for clave in ("response", "result", "text", "output", "content"):
+        valor = datos.get(clave)
+        if isinstance(valor, str) and valor.strip():
+            return valor.strip()
+    return ""
+
+
+def _error_agy(datos) -> str:
+    if not isinstance(datos, dict):
+        return ""
+    for clave in ("error", "errorMessage", "error_message"):
+        valor = datos.get(clave)
+        if isinstance(valor, dict):
+            valor = valor.get("message") or valor.get("type")
+        if valor:
+            return str(valor).strip()
+    if datos.get("is_error") or datos.get("success") is False:
+        return str(datos.get("message") or datos.get("response") or "agy devolvió un error").strip()
+    if str(datos.get("status") or "").lower() in ("error", "failed", "failure"):
+        return str(datos.get("message") or "agy devolvió un error").strip()
+    return ""
+
+
+def _uso_agy(datos):
+    uso = datos.get("usage") if isinstance(datos, dict) else None
+    uso = uso if isinstance(uso, dict) else {}
+
+    def entero(*claves):
+        for clave in claves:
+            valor = uso.get(clave)
+            if isinstance(valor, (int, float)):
+                return int(valor)
+        return 0
+
+    return entero("input_tokens", "prompt_tokens"), entero("output_tokens", "completion_tokens")
+
+
+def leer_agy(salida, rc=0) -> dict:
+    """PURA. Traduce la salida de `agy` (JSON o texto) al dict común del Director.
+
+    Respuesta vacía, código distinto de 0, «[tiempo agotado]», cuota o sesión caída
+    cuentan como fallo: `texto` sale vacío y `error` dice el motivo, para que el
+    Director pase al motor siguiente y nunca publique un error como respuesta.
+    """
+    crudo = (salida or "").strip()
+    datos = None
+    try:
+        leido = json.loads(crudo)
+        datos = leido if isinstance(leido, dict) else None
+    except (TypeError, ValueError):
+        datos = None
+
+    error = _error_agy(datos)
+    texto = _texto_agy(datos) if datos is not None else crudo
+    modelo = datos.get("model") if isinstance(datos, dict) else None
+    tokens_entrada, tokens_salida = _uso_agy(datos)
+
+    bajo = crudo.lower()
+    if "[tiempo agotado]" in bajo:
+        error = error or "tiempo agotado"
+    elif rc != 0 and not error:
+        error = "agy salió con código %s" % rc
+    if not error and not texto:
+        error = "respuesta vacía de agy"
+    if not error and len(texto) < _AGY_TOPE_FALLO and any(m in texto.lower() for m in _AGY_FALLOS):
+        error = texto
+    return {
+        "texto": "" if error else texto,
+        "modelo": modelo,
+        "tokens_entrada": tokens_entrada,
+        "tokens_salida": tokens_salida,
+        "error": error or None,
+    }
+
+
 #: DIR1111N · gancho opcional: un `callable` que devuelve un gestor de contexto. El cartero lo usa para
 #: soltar el cerrojo de su estado mientras dura la llamada bloqueante (nadie espera detrás de un proveedor).
 SOLTAR_DURANTE_LLAMADA = None
@@ -269,9 +392,13 @@ def correr(orden, entrada=None, segundos=300, env=None, cwd=None):
 
 
 def _correr(orden, entrada, segundos, env, cwd):
+    if entrada is SIN_ENTRADA:  # GEM1118A: `agy` espera si hereda la entrada; DEVNULL lo cierra.
+        entrada, stdin = None, subprocess.DEVNULL
+    else:
+        stdin = subprocess.PIPE if entrada is not None else None
     proc = subprocess.Popen(
         orden,
-        stdin=subprocess.PIPE if entrada is not None else None,
+        stdin=stdin,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         env=env,
