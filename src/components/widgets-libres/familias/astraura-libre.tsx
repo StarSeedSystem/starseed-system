@@ -31,7 +31,7 @@ import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
 const TURQUESA = "#23d5ab";
-const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
+export const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
 
 type EstadoVoz = "calma" | "escuchando" | "hablando" | "pensando";
 const TEXTO_VOZ: Record<EstadoVoz, string> = { calma: "En calma", escuchando: "Escuchando…", hablando: "Hablando", pensando: "Pensando…" };
@@ -86,7 +86,7 @@ function Orbe({ tam, estado, onClick }: { tam: number; estado: EstadoVoz; onClic
 }
 
 /** El campo para preguntar: la pregunta va a la Aurora global; si no está, no se pierde. */
-function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugerencias?: number; compacto?: boolean }) {
+export function Preguntar({ tactil, sugerencias, compacto }: { tactil: boolean; sugerencias?: number; compacto?: boolean }) {
     const [texto, setTexto] = React.useState("");
     const [estado, setEstado] = React.useState<"listo" | "enviando" | "enviado" | "sin-aurora">("listo");
     const enviar = async (pregunta: string) => {
