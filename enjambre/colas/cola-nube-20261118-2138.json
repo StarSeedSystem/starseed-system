@@ -1,0 +1,103 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario (parte 3 de 3)",
+   "archivos": [
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 3 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-te: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/mando/areas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-te",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-corregir-te-d2"
+   ]
+  },
+  {
+   "id": "SIN1116Cs",
+   "titulo": "Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield) · lo que faltó: scripts/puente/test_salud_directores.py",
+   "archivos": [
+    "scripts/puente/test_salud_directores.py"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de SIN1116C, que ya está integrada (sha 8dc3f59bd69c). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_salud_directores.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Sanador: arreglar sus averías propias y no confundirlas con caídas (falsa alarma de Higgsfield)\n\n--- encargo original, como contexto ---\nLee architecture/sintesis-autonoma-contexto-1116.md. §2.4 y §3.3. Verificado en el A1: higgsfield da «[Errno 2] No such file or directory: 'account'» (argv mal: el binario no va primero), notebooklm da «name 'subprocess' is not defined» y el escalado da «sin canal de envío». En realidad `higgsfield account` y NotebookLM funcionan. (1) Arregla las tres averías. (2) Una excepción de programación (NameError, TypeError, ImportError, FileNotFoundError del argv) cuenta como avería del sanador: no se avisa «X cayó», se marca «sin comprobar», salud_directores abre en el acto cola-auto-salud con la traza saneada y se avisa al Mando. (3) Todo aviso de caída enviado lleva después su «✓ resuelto (causa · arreglo)»; manda hoy uno para Higgsfield: falsa alarma del sanador, Higgsfield estaba bien. (4) Prueba que ejecuta cada comprobación con su constructor de argv real contra un binario falso que registra los argumentos. (5) La unidad versionada fija HOME y PATH; el despliegue retira /etc/systemd/system/starseed-sanador.service.d/path.conf.",
+   "ola": "SIN1116",
+   "adelantar": "2026-11-16 19:30 · Maggasukha (chat de producción): «arregla todo, que se autorrepare y se dirija por MetaGenesis»",
+   "dependencias_ya_en_main": [
+    "SIN1116A"
+   ],
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "MRI4b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa: las ofertas de internet de la red aparecen como capa y el panel vive en los ajustes del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/ajustes-centro.tsx",
+    "src/lib/senales/geo/capas.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/components/mesh/mapa-senales/ajustes-centro.tsx` (ya muestra el radar público: `describirRadarPublico`) añade, en un bloque aditivo `// MAP1116`, `PanelRedCompartida` (import dinámico) y los datos de `sugerirComparticion` con las puertas reales (`src/lib/malla/cristal/usar-cristal.ts`; si no hay puertas, el texto dice «este aparato no declara salida a internet»). En `src/lib/senales/geo/capas.ts` añade UNA capa del grupo `oferta` («Internet que ofrece la red») alimentada solo por lo que los dueños anuncian (`offersPublic` de los faros: `src/ai/astraura/mesh/signals.ts:344-379`) y por filas publicadas con medio `internet`; sin anuncios → «sin fuente: nadie lo anuncia aún». No cambies capas existentes (≤40 líneas por archivo). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo src/components/mesh/mapa-senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRI4b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRI3b",
+    "MRA9"
+   ]
+  },
+  {
+   "id": "PRM1119B",
+   "ola": "PRM1119",
+   "titulo": "Permisos completos en todos los medios: pedir al instalar o al abrir si faltan, sin insistir en los denegados a mano",
+   "archivos": [
+    "docs/contratos/permisos-por-medio.md",
+    "src/lib/permisos/matriz.ts",
+    "starseed_memory_root/olas/cola-permisos-por-medio-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): revisar los permisos completos de todos los sistemas —macOS, Android, Linux, Windows, iOS, navegadores web, terminal y cualquier medio donde se use StarSeed OS— y pedirlos desde la instalación o al abrir la app cuando se detecte que faltan, salvo los que la persona haya denegado a mano. Lee AUDITORIA-PRM.md y el código de la lista de permisos de la neurona (grep «permisos» en src/lib y native/src-tauri/src). Tarea: (1) docs/contratos/permisos-por-medio.md con la matriz real permiso × medio (micrófono, cámara, pantalla, accesibilidad/control, ubicación, Bluetooth, red local, notificaciones, segundo plano, almacenamiento/archivos, entrada virtual, energía…): cómo se detecta, cómo se pide, si hay enlace directo a ajustes, y cómo distinguir «falta» de «denegado a mano» en cada medio; (2) src/lib/permisos/matriz.ts puro con esa matriz y la regla: al instalar y al abrir, pedir lo que falte y sea útil; si la persona lo denegó a mano, no volver a pedirlo solo, pero mostrarlo en la lista con «Abrir ajustes»; con pruebas; (3) una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-permisos-por-medio-1119.json para aplicarlo por medio. Nunca se concede nada por la persona. Español neutro."
+  },
+  {
+   "id": "RST06",
+   "ola": "RST1116A",
+   "titulo": "Del lado del aparato controlado: la petición de fuente llega a lo nativo y se devuelve la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/nativo-comandos.ts",
+    "src/lib/control-remoto/__tests__/pantalla-origen-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `nativo-comandos.ts:11`: `control_pantalla_iniciar: [\"sesion\", \"lado_max\", \"calidad\", \"fuente\"]` (la lista de claves permitidas; lee el archivo para ver cómo se valida). (2) `pantalla-origen.ts` (:161 el caso `pantalla-iniciar` y :186-198): si `args.fuente` es `\"proyeccion\"`, pásalo a `control_pantalla_iniciar` como `fuente`; si no está o es `\"auto\"`, NO lo mandes (igual que hoy). La `fuente` que se devuelve y se guarda sigue siendo la que CONTESTA lo nativo (`r.fuente`), nunca la pedida. Si se pidió `proyeccion` y lo nativo contesta otra cosa o no la ofrece, la sesión sigue con lo que haya (no se cierra) y el resultado lleva `fuente_pedida: \"proyeccion\"` además de la real, para que el otro lado pueda avisar (con `RST04`). ≤40 líneas de diferencia en cada archivo. PRUEBAS (`pantalla-origen.test.ts` como guía, `invocar` simulado): con `fuente:\"proyeccion\"` el invocador recibe `fuente`; sin ella no; si lo nativo contesta `accesibilidad`, el resultado dice `fuente:\"accesibilidad\"` y `fuente_pedida:\"proyeccion\"`; si contesta `proyeccion`, dice `proyeccion`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  },
+  {
+   "id": "FMT1119B",
+   "ola": "FMT1119",
+   "titulo": "Recibir archivos y carpetas libre y seguro: aceptar siempre (salvo neuronas reconocidas elegidas) y análisis de seguridad de Astraura al recibir",
+   "archivos": [
+    "src/lib/transferencias/aceptacion.ts",
+    "src/lib/transferencias/__tests__/aceptacion.test.ts",
+    "src/lib/transferencias/analisis-seguridad.ts"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): la transferencia de archivos debe ser libre y segura, con aceptación universal de formatos y agentes de Astraura que ofrezcan analizar la seguridad al recibir la información; siempre debe aceptarse a mano, salvo que venga de una neurona ya reconocida si se elige esa opción. Busca dónde se reciben hoy archivos, carpetas y sincronizaciones de cerebros por la malla (grep «recibir», «transferencia», «enjambre») y conéctalo ahí. Tarea: (1) aceptacion.ts puro: cada envío entrante (archivo, carpeta, sincronización de cerebro) pide aceptación con nombre, tamaño, tipo real, neurona de origen y medio; ajuste por neurona reconocida «aceptar sin preguntar» apagado por defecto, que la persona puede encender neurona a neurona; nunca se acepta solo de neuronas desconocidas. (2) analisis-seguridad.ts: al recibir, Astraura ofrece analizar (y lo hace solo si la persona quiere o si lo dejó activado): tipo real frente a extensión, huella, firma del ejecutable si la tiene, señales de riesgo (ejecutables, macros, scripts, comprimidos anidados, rutas peligrosas en comprimidos), y antivirus del sistema si existe (ClamAV, XProtect, Defender) por su orden; el resultado se muestra antes de abrir. (3) Lo recibido queda en cuarentena hasta aceptar y analizar si así se eligió. Pruebas de las reglas de aceptación y del análisis con archivos de ejemplo inofensivos. Reglas: nada se ejecuta ni se instala sin que la persona lo acepte (el agente propone, explica qué es, de dónde viene y qué riesgo tiene); lo recibido se analiza sin abrirlo ni ejecutarlo; nunca se borra nada de la persona; lógica pura con pruebas. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "SIN1116Cs",
+   "MRI4b",
+   "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "RST06",
+   "PRM1119B",
+   "FMT1119B"
+  ]
+ }
+}
