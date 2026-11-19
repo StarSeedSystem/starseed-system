@@ -342,7 +342,9 @@ class TestEncargarPorFlota(unittest.TestCase):
         self._tmp.cleanup()
 
     def _tarea(self, n=1):
-        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": "2026-11-12T06:24:00Z",
+        from datetime import datetime, timezone
+        ahora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": ahora,
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
