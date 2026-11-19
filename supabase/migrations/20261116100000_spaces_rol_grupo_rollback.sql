@@ -1,8 +1,9 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- Reversa de SVF1A1f (20261116100000_spaces_rol_grupo.sql).
--- NO APLICAR sin la palabra de Alex · devuelve `space_can_edit` y `sp_update` al
--- texto original de 20260712090100_missing_core_tables_spaces.sql y quita
--- `os_group_rank`. No toca datos.
+-- SVF1A1 (SES1116) — Reversa de 20261116100000_spaces_rol_grupo.sql.
+-- NO APLICAR sin la palabra de Alex · reversa: aplica esta solo si se aplicó la
+-- ida · devuelve `space_can_edit` y `sp_update` al texto original copiado de
+-- 20260712090100_missing_core_tables_spaces.sql y quita `os_group_rank`.
+-- No toca datos.
 -- ════════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION public.space_can_edit(_space_id uuid)
