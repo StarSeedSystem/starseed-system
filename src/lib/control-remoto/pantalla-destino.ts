@@ -399,6 +399,13 @@ export class PantallaDestino {
         }
         if (this.cerrada) return;
         if (this.d.malla) this.despues(ESPERA_ICE_MS, () => this.snap.estado === "conectando" && !this.enMalla && this.pasarAMalla("ice-sin-conexion"));
+        // CTL1119F: a los 10 s en "conectando" sin pantalla, avisar la causa y la vía intentada.
+        this.despues(10_000, () => {
+            if (this.snap.estado === "conectando" && !this.enMalla && !this.snap.motivo) {
+                const causa = this.d.malla ? "negociación WebRTC" : "sin WebRTC";
+                this.poner({ motivo: `Conectando… (${causa}). Se intentará pantalla por cuadros.` });
+            }
+        });
         this.despues(ESPERA_CONEXION_MS, () => {
             if (this.snap.estado === "conectando" && !this.enMalla) void this.cerrar("sin-conexion", true);
         });
@@ -504,7 +511,8 @@ export class PantallaDestino {
         this.lienzoMalla = l;
         const e = this.d.malla.enlace();
         this.anotar(lineaVia({ via: "malla", enlace: e.medio ? `${e.camino}:${e.medio}` : null, cuadrosS: null, causa }));
-        this.poner({ via: "malla", ...(e.medio ? { enlace: `${e.camino}:${e.medio}` } : {}), flujo: l.flujo() as MediaStream | null, lienzo: (l.elemento?.() as HTMLCanvasElement | null | undefined) ?? null });
+        const motivoMalla = "Pantalla por cuadros: sin vídeo WebRTC en este aparato";
+        this.poner({ via: "malla", ...(e.medio ? { enlace: `${e.camino}:${e.medio}` } : {}), flujo: l.flujo() as MediaStream | null, lienzo: (l.elemento?.() as HTMLCanvasElement | null | undefined) ?? null, motivo: motivoMalla });
         void this.bucleMalla(l);
     }
 
@@ -537,7 +545,7 @@ export class PantallaDestino {
             const res = (r.resultado ?? {}) as Record<string, unknown>;
             if (res.nuevo === false) {
                 vacios += 1;
-                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo" });
+                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
                 await m.esperar(esperaSinCuadro(vacios));
                 continue;
             }
@@ -567,7 +575,7 @@ export class PantallaDestino {
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
             if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
                 cuadros += 1;
-                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo" });
+                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
             }
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
