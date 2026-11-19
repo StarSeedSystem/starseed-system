@@ -1134,6 +1134,8 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             lineas.append(texto_mac(estado_mac, decision, hechas_mac))
         except Exception as e:
             lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
+            estado_mac = {}
+            decision = {}
 
         # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
         sin_escritores = False

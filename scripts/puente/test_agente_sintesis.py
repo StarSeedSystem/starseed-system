@@ -28,10 +28,10 @@ import huerfanas_criticas as HC
 import contexto_sintesis as CS
 
 
-AHORA_CDMX_00 = datetime(2026, 11, 11, 7, 0, tzinfo=timezone.utc)  # 01:00 CDMX
-AHORA_CDMX_06 = datetime(2026, 11, 11, 12, 30, tzinfo=timezone.utc)  # 06:30 CDMX
-AHORA_CDMX_07 = datetime(2026, 11, 11, 13, 54, tzinfo=timezone.utc)  # 07:54 CDMX
-FECHA = "2026-11-11"
+AHORA_CDMX_00 = datetime(2026, 11, 19, 7, 0, tzinfo=timezone.utc)  # 01:00 CDMX
+AHORA_CDMX_06 = datetime(2026, 11, 19, 12, 30, tzinfo=timezone.utc)  # 06:30 CDMX
+AHORA_CDMX_07 = datetime(2026, 11, 19, 13, 54, tzinfo=timezone.utc)  # 07:54 CDMX
+FECHA = "2026-11-19"
 
 
 def ctx_base():
@@ -342,7 +342,8 @@ class TestEncargarPorFlota(unittest.TestCase):
         self._tmp.cleanup()
 
     def _tarea(self, n=1):
-        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": "2026-11-12T06:24:00Z",
+        # Fecha dentro del rango de poda (dentro de últimos 7 días)
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": "2026-11-18T06:24:00Z",
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
@@ -469,7 +470,7 @@ class TestRespaldo(unittest.TestCase):
         self.assertTrue(estado["respaldo"])
 
     def test_antes_de_0754_sin_sintesis_espera(self):
-        ahora = datetime(2026, 11, 11, 13, 0, tzinfo=timezone.utc)  # 07:00 CDMX
+        ahora = datetime(2026, 11, 19, 13, 0, tzinfo=timezone.utc)  # 07:00 CDMX
         r = A.ciclo(self.raiz, ahora, encargar=False, jev=False, home=self.home, seco=True)
         self.assertEqual(r["resultado"]["accion"], "esperando_redaccion")
 
@@ -600,10 +601,10 @@ class TestHiggsfieldPropuestas(unittest.TestCase):
     hasta 2 propuestas al día para proyectos oficiales, registradas como pendientes,
     marcadas REQUIERE APROBACIÓN y con comando /higgsfield aprobar <id>."""
 
-    # Usar fecha fija como el resto de tests: 2026-11-11 en UTC = 2026-11-10 en CDMX a ciertas horas
-    # AHORA_CDMX_07 = 2026-11-11 13:54 UTC = 07:54 CDMX (fecha CDMX = 2026-11-11)
-    FECHA_TEST = "2026-11-11"
-    AHORA_TEST = datetime(2026, 11, 11, 13, 54, tzinfo=timezone.utc)  # 07:54 CDMX
+    # Usar fecha fija como el resto de tests: 2026-11-19 en UTC = 2026-11-18/19 en CDMX según hora
+    # AHORA_CDMX_07 = 2026-11-19 13:54 UTC = 07:54 CDMX (fecha CDMX = 2026-11-19)
+    FECHA_TEST = "2026-11-19"
+    AHORA_TEST = datetime(2026, 11, 19, 13, 54, tzinfo=timezone.utc)  # 07:54 CDMX
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -821,8 +822,8 @@ class TestSeccionesAlcance1113(unittest.TestCase):
         self.assertIn("Todos los formatos", texto)
 
     def test_seccion_promocion_rota_por_dia(self):
-        hoy = A._seccion_promocion_canales(self.raiz, FECHA)  # día 315 % 7 = 0
-        manana = A._seccion_promocion_canales(self.raiz, "2026-11-12")  # día 316 % 7 = 1
+        hoy = A._seccion_promocion_canales(self.raiz, "2026-11-18")  # día 322 % 7 = 0 -> fediverso
+        manana = A._seccion_promocion_canales(self.raiz, "2026-11-19")  # día 323 % 7 = 1 -> nostr
         self.assertIn("Rotación diaria: **fediverso**", hoy)
         self.assertIn("Rotación diaria: **nostr**", manana)
         self.assertNotEqual(hoy, manana)
@@ -913,10 +914,10 @@ class TestContextoSintesisNucleo(unittest.TestCase):
     def test_contexto_vivo_devuelve_seis_fuentes(self):
         """El contexto vivo incluye las 6 fuentes descritas en §3.4."""
         hoy = FECHA
-        self._escribir("starseed_memory_root/produccion-audiovisual/sintesis/2026-11-10.md",
-                       "# Síntesis 2026-11-10\n## Mañana\n- Vídeos: Vídeo 1\n- Contactos: Cole Hastings\n")
-        self._escribir("starseed_memory_root/alcance/github/2026-11-11.json", [{"nombre_publico": "org/proj", "que_hacen": "algo"}])
-        self._escribir("starseed_memory_root/alcance/borradores/borradores-2026-11-11.json", [{"id": "b1", "estado": "esperando-aprobacion"}])
+        self._escribir("starseed_memory_root/produccion-audiovisual/sintesis/2026-11-18.md",
+                       "# Síntesis 2026-11-18\n## Mañana\n- Vídeos: Vídeo 1\n- Contactos: Cole Hastings\n")
+        self._escribir("starseed_memory_root/alcance/github/2026-11-19.json", [{"nombre_publico": "org/proj", "que_hacen": "algo"}])
+        self._escribir("starseed_memory_root/alcance/borradores/borradores-2026-11-19.json", [{"id": "b1", "estado": "esperando-aprobacion"}])
         self._escribir("starseed_memory_root/produccion/higgsfield/propuestas.json", [{"id": "h1", "proyecto": "sistema-diseno"}])
         self._escribir("architecture/test.md", "# Test Architecture\nPrimer párrafo.")
         self._escribir("memory/workflow-actual.md", "Workflow content")
@@ -1127,7 +1128,7 @@ class TestIntegracionAgenteSintesis(unittest.TestCase):
                        "# Síntesis 2026-11-10\n## Mañana\n- Vídeos: Vídeo 1\n")
 
         ctx = CS.contexto_vivo(self.raiz, hoy)
-        resultado = CS.encargar_con_paquetes(self.raiz, ctx, ahora=datetime(2026, 11, 11, 12, 0, tzinfo=timezone.utc).timestamp())
+        resultado = CS.encargar_con_paquetes(self.raiz, ctx, ahora=datetime(2026, 11, 19, 12, 0, tzinfo=timezone.utc).timestamp())
 
         self.assertTrue(resultado["ok"])
         self.assertEqual(len(resultado["tareas"]), 7)

@@ -14,23 +14,27 @@ class Rechazados(unittest.TestCase):
     def test_detecta_google_gemini_rechazado(self):
         log = """2026-11-18 10:00:00 Google Gemini rejected this API key's type. Google began rejecting legacy 'Standard' Google Cloud keys for the Gemini API on June 19, 2026
 2026-11-18 10:00:01 provider=gemini"""
-        rechazados = E.proveedores_con_clave_rechazada(log.splitlines())
+        ahora = datetime(2026, 11, 18, 12, 0, 0)  # 2h después del log, dentro de 24h
+        rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertIn("gemini", rechazados)
 
     def test_detecta_por_provider_en_linea_siguiente(self):
         log = """2026-11-18 10:00:00 API key not valid for this provider
 2026-11-18 10:00:01 provider=openrouter"""
-        rechazados = E.proveedores_con_clave_rechazada(log.splitlines())
+        ahora = datetime(2026, 11, 18, 12, 0, 0)
+        rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertIn("openrouter", rechazados)
 
     def test_detecta_api_key_invalid(self):
         log = """2026-11-18 10:00:00 Error: API_KEY_INVALID provider=apinex"""
-        rechazados = E.proveedores_con_clave_rechazada(log.splitlines())
+        ahora = datetime(2026, 11, 18, 12, 0, 0)
+        rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertIn("apinex", rechazados)
 
     def test_detecta_permission_denied(self):
         log = """2026-11-18 10:00:00 PERMISSION_DENIED: Invalid credentials provider=tokenrouter"""
-        rechazados = E.proveedores_con_clave_rechazada(log.splitlines())
+        ahora = datetime(2026, 11, 18, 12, 0, 0)
+        rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertIn("tokenrouter", rechazados)
 
     def test_ignora_lineas_sin_patron(self):
@@ -41,13 +45,15 @@ class Rechazados(unittest.TestCase):
 
     def test_solo_ultimas_300_lineas(self):
         log = ["2026-11-18 10:00:00 Google Gemini rejected this API key's type"] + ["2026-11-18 10:00:%02d INFO: ok" % i for i in range(350)]
-        rechazados = E.proveedores_con_clave_rechazada(log)
+        ahora = datetime(2026, 11, 18, 12, 0, 0)
+        rechazados = E.proveedores_con_clave_rechazada(log, ahora=ahora)
         self.assertNotIn("gemini", rechazados)  # la línea de rechazo quedó fuera de las últimas 300
 
     def test_normaliza_nombres_proveedor(self):
         log = """2026-11-18 10:00:00 Google Gemini rejected this API key's type
 2026-11-18 10:00:01 provider=gemini"""
-        rechazados = E.proveedores_con_clave_rechazada(log.splitlines())
+        ahora = datetime(2026, 11, 18, 12, 0, 0)
+        rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertIn("gemini", rechazados)
         self.assertNotIn("Google Gemini", rechazados)
 
