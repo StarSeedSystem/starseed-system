@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "ola": "PEN1116",
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "PENA1-d1",
+   "titulo": "Mac: latido desde Rust para que el banco de llamadas siga sondeando con la ventana en otro escritorio (parte 1 de 3)",
+   "archivos": [
+    "native/src-tauri/src/banco_latido.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado leyendo `architecture/ronda-automatica-llamadas.md` §9.5 «Ventana en otro escritorio»): el sondeo del banco de llamadas es un temporizador de la página (`src/lib/banco-llamadas/app.ts`, `setInterval`); macOS lo frena si la ventana no está a la vista y la serie armada se queda sin sondear. «Hacerlo despertar desde Rust no se ha podido comprobar sin la Mac, así que no se ha construido».\nConstruye SOLO el lado Rust: `banco_latido.rs` con (a) una función pura `toca_latido(ultimo_ms: u64, ahora_ms: u64, periodo_ms: u64) -> bool` y un `PERIODO_MS = 20_000`; (b) el comando `banco_latido_activar(app, webview, activo: bool) -> Result<Value, String>` que, SOLO en macOS (`cfg(target_os = \"macos\")`; en otros sistemas devuelve `{\"ok\": false, \"motivo\": \"sin-soporte\"}`), arranca o para UN hilo (nunca dos: guarda un `AtomicBool`/handle) que cada 20 s emite `app.emit(\"banco-llamadas-latido\", json!({\"t\": ahora_ms}))` mientras esté activo, y se para solo al apagar; copia de `control_neuronas.rs` la guarda de página (`pagina_ok`) que usan los demás comandos; (c) el alta del módulo y del comando en `lib.rs` (`mod` + `invoke_handler`, UNA línea cada uno, con comentario `// PENA1`) y en la lista de comandos permitidos de `native/src-tauri/build.rs` (donde está `\"control_entrada_aceptados\"`, una línea). El latido NO lee ni escribe `~/.starseed`: solo despierta a la página.\nPRUEBAS `cargo test --lib banco_latido`: `toca_latido` en los bordes (justo en el periodo, antes, reloj que retrocede = false); activar dos veces no crea dos hilos (con el hilo falso inyectable); desactivar para. COMPRUEBA: `cd native/src-tauri && cargo test --lib banco_latido` en verde y `cargo check` sin errores nuevos. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas `cargo test --lib` (en `native/src-tauri`) y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENA1:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 1 DE 3 (la dirección dividió PENA1: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: native/src-tauri/src/banco_latido.rs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PENA1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "CAP1119Eb",
+   "ola": "CAP1119",
+   "titulo": "El botón «Buscar más capacidad» de los medidores no falla: corre en segundo plano y dice qué pasó",
+   "archivos": [
+    "src/app/api/mando/medidores/route.ts",
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): el botón de los medidores de agentes dice «No pude buscar más capacidad: Command failed: python3 scripts/puente/buscar_capacidad.py buscar --aplicar --json --origen boton». Diagnóstico de la dirección: desde la terminal el mismo comando termina bien (rc=0; sin --aplicar tarda 46 s con la Mac cargada; con --aplicar lanzó 1 job de nube y reabrió MRI4b), pero la ruta /api/mando/medidores (acción buscar-capacidad y potenciar→activar, route.ts ~l.1210 y ~l.1227) lo espera con execFile y tope de 150 s; con la Mac ahogada y el empuje de la rama de la cola a GitHub (que ya agotó 120 s otras veces) se pasa del tope o sale con error, y el mensaje solo muestra «Command failed». Tarea: (1) la ruta lanza buscar_capacidad en segundo plano (proceso desacoplado, una sola ejecución a la vez con un candado) y responde enseguida «Buscando capacidad…»; el resultado se guarda en un archivo de estado que el medidor lee y muestra al terminar (y se publica en el Chat Director como hoy); (2) buscar_capacidad.py no aborta si falla el empuje a GitHub o un medio: reintenta con espera, sigue con los demás medios y devuelve un resumen parcial con lo que falló; (3) si algo falla, el medidor muestra las últimas líneas reales del error, no solo «Command failed». Pruebas: la parte pura (resumen parcial ante fallos, candado) en test_buscar_capacidad.py; tsc y vitest de la ruta si hay pruebas. Español neutro.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44459896953`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 44483723061) falla «pruebas del puente»: lError: cannot access local variable 'estado_mac' where it is not associated with a value\n2026-11-19T08:02:31.7105130Z \n2026-11-19T08:02:31.7105429Z scripts/puente/buscar_capacidad.py:1329: UnboundLocalError\n2026-11-19T08:02:31.7105960Z =========================== short test summary info ============================\n2026-11-19T08:02:31.7107081Z FAILED scripts/puente/test_buscar_capacidad.py::CloudroomEnLaPasada::test_lo_que_coge_cloudroom_no_se_reparte_a_github - UnboundLocalError: cannot access local variable 'estado_mac' where it is not associated with a value\n2026-11-19T08:02:31.7107903Z 1 failed, 95 passed in 0.18s\n2026-11-19T08:02:31.7426039Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44459896953:refs/remotes/origin/nube/44459896953\"` y `git cherry-pick --no-commit 56c561521e5c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/buscar_capacidad.py, scripts/puente/test_buscar_capacidad.py, src/app/api/mando/medidores/route.ts, src/lib/mando/medidores.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44459896953"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CAP1119Eb",
+   "PENA1-d1"
+  ]
+ }
+}
