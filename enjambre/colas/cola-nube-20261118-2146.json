@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SEG1119C",
+   "ola": "SEG1119",
+   "titulo": "Contrato de los agentes de seguridad ligeros y autoaprendibles de Astraura (antivirus inteligente por contexto, con decisiones democráticas)",
+   "archivos": [
+    "docs/contratos/agentes-de-seguridad.md",
+    "starseed_memory_root/olas/cola-agentes-seguridad-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): mantener activamente la seguridad y la privacidad con agentes y bots eficientes y ligeros pero efectivos, especializados, autoaprendibles y autodesarrollados de seguridad, como antivirus inteligentes personalizados para cada caso y contexto, con los sistemas de Astraura y las decisiones democráticas. Tarea: docs/contratos/agentes-de-seguridad.md con «Lo que ya existe» (grep: análisis de lo recibido, revisor de secretos de la autopublicación, sanador, guardias de nodos, permisos), el diseño (agentes pequeños por contexto: recepción de archivos y sincronizaciones de cerebros, claves y accesos anómalos, integridad de respaldos, secretos en el código, salud de nodos públicos y privados; aprendizaje de cada incidente con Jev/Laya; políticas de comunidad por voto y las de un aparato personal solo por su dueño; modelos locales ligeros primero) y una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-agentes-seguridad-1119.json. Sin código de producto en esta tarea. Lee primero starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md (memoria fundamental de seguridad y respaldos, 19-11). Reglas: ningún agente lee, imprime, mueve ni descifra claves; nada de secretos en el repo ni en claro fuera de la Mac; nada se concede, acepta ni instala por la persona; lógica pura con pruebas. Español neutro."
+  },
+  {
+   "id": "SEG1119D",
+   "ola": "SEG1119",
+   "titulo": "Respaldos cifrados de la base de datos y de las memorias de MetaGenesis en tres medios",
+   "archivos": [
+    "scripts/puente/respaldo_datos.py",
+    "scripts/puente/test_respaldo_datos.py"
+   ],
+   "depende": [],
+   "prompt": "Sin dependencias únicas también para los datos. Tarea: scripts/puente/respaldo_datos.py con `plan` y `respaldar [--seco]`: volcado diario de la base de Supabase del OS (solo lectura, con las credenciales que ya están en variables de entorno, sin imprimirlas) y de starseed_memory_root, cifrados con la misma contraseña del llavero de Alex (servicio starseed-respaldo-claves, leída con `security find-generic-password -w`, nunca guardada) y enviados a la Maggabox, al A1 y a Google Drive con comprobación de huella, como hace ~/.starseed/respaldo-claves/respaldar-claves.sh; conserva los últimos 14 por destino sin borrar nada más. Pruebas de la lógica de plan y rotación. Lee primero starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md (memoria fundamental de seguridad y respaldos, 19-11). Reglas: ningún agente lee, imprime, mueve ni descifra claves; nada de secretos en el repo ni en claro fuera de la Mac; nada se concede, acepta ni instala por la persona; lógica pura con pruebas. Español neutro.",
+   "dependencias_ya_en_main": [
+    "ALM1118B"
+   ]
+  },
+  {
+   "id": "SEG1119B",
+   "ola": "SEG1119",
+   "titulo": "Inventario de accesos sin secretos, guía de recuperación desde cualquier medio y prueba de las tres copias de claves",
+   "archivos": [
+    "starseed_memory_root/fundamentos/accesos-y-recuperacion.md",
+    "scripts/puente/vigia_respaldos.py",
+    "scripts/puente/test_vigia_respaldos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): MetaGenesis debe recordar cómo acceder desde cualquier medio a múltiples respaldos, sin dependencias únicas de claves ni de accesos y permisos al programa completo. Tarea: (1) starseed_memory_root/fundamentos/accesos-y-recuperacion.md: inventario SIN secretos de cada acceso (GitHub, Vercel, Supabase, Oracle, Google Drive/Cloud, Cloudroom, proveedores de IA, bots de Telegram, dominio/DNS): quién administra, en qué copia cifrada está su clave, cómo se recupera y desde qué otro medio se opera; y guía paso a paso para recuperar el servicio en otro host. (2) scripts/puente/vigia_respaldos.py: cada día lee ~/.starseed/respaldo-claves/respaldo.log y compara solo HUELLAS y fechas de los archivos claves-mac-*.gpg en la Maggabox, el A1 y Google Drive (sin abrirlos); si una copia falta o difiere dos días seguidos, avisa en el Chat Director y en «Te toca a ti» con la orden exacta. Pruebas con registros de ejemplo. Lee primero starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md (memoria fundamental de seguridad y respaldos, 19-11). Reglas: ningún agente lee, imprime, mueve ni descifra claves; nada de secretos en el repo ni en claro fuera de la Mac; nada se concede, acepta ni instala por la persona; lógica pura con pruebas. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "SEG1119C",
+   "SEG1119D",
+   "SEG1119B"
+  ]
+ }
+}
