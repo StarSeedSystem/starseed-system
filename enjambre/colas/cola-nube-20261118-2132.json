@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "FMT1119A",
+   "ola": "FMT1119",
+   "titulo": "Contrato de formatos universales: abrir cualquier archivo de cualquier sistema y adaptarse solo a los desconocidos",
+   "archivos": [
+    "docs/contratos/formatos-universales.md",
+    "starseed_memory_root/olas/cola-formatos-universales-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): aceptación universal de formatos de archivo y de conexión, sin exclusividad ni discriminación (macOS, Windows, Linux, Android, iOS, SteamOS y todo lo posible); ante un formato nuevo o desconocido, herramientas autoadaptables e inteligentes, con libertad de ajustes y modificaciones, para investigar e instalar lo necesario para abrirlo o ejecutarlo. Tarea: docs/contratos/formatos-universales.md con «Lo que ya existe» (rutas exactas de visores, Protomolécula, Biblioteca, envío de archivos; con grep), el diseño (reconocer el tipo por su contenido —bytes mágicos— y no solo por la extensión; visores y conversores incluidos para los formatos comunes de cada sistema —.dmg, .pkg, .app, .exe, .msi, .deb, .rpm, .AppImage, .flatpak, .apk, .aab, .ipa, documentos, imágenes, audio, vídeo, 3D, comprimidos, proyectos de código—; para lo desconocido, un agente de Astraura investiga el formato, propone el programa o el contenedor/emulador adecuado de la Biblioteca o de su fuente oficial y lo instala solo si la persona acepta; ajustes libres por formato) y una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-formatos-universales-1119.json (mismo formato que esta). Sin código de producto en esta tarea. Reglas: nada se ejecuta ni se instala sin que la persona lo acepte (el agente propone, explica qué es, de dónde viene y qué riesgo tiene); lo recibido se analiza sin abrirlo ni ejecutarlo; nunca se borra nada de la persona; lógica pura con pruebas. Español neutro."
+  },
+  {
+   "id": "FMT1119B",
+   "ola": "FMT1119",
+   "titulo": "Recibir archivos y carpetas libre y seguro: aceptar siempre (salvo neuronas reconocidas elegidas) y análisis de seguridad de Astraura al recibir",
+   "archivos": [
+    "src/lib/transferencias/aceptacion.ts",
+    "src/lib/transferencias/__tests__/aceptacion.test.ts",
+    "src/lib/transferencias/analisis-seguridad.ts"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): la transferencia de archivos debe ser libre y segura, con aceptación universal de formatos y agentes de Astraura que ofrezcan analizar la seguridad al recibir la información; siempre debe aceptarse a mano, salvo que venga de una neurona ya reconocida si se elige esa opción. Busca dónde se reciben hoy archivos, carpetas y sincronizaciones de cerebros por la malla (grep «recibir», «transferencia», «enjambre») y conéctalo ahí. Tarea: (1) aceptacion.ts puro: cada envío entrante (archivo, carpeta, sincronización de cerebro) pide aceptación con nombre, tamaño, tipo real, neurona de origen y medio; ajuste por neurona reconocida «aceptar sin preguntar» apagado por defecto, que la persona puede encender neurona a neurona; nunca se acepta solo de neuronas desconocidas. (2) analisis-seguridad.ts: al recibir, Astraura ofrece analizar (y lo hace solo si la persona quiere o si lo dejó activado): tipo real frente a extensión, huella, firma del ejecutable si la tiene, señales de riesgo (ejecutables, macros, scripts, comprimidos anidados, rutas peligrosas en comprimidos), y antivirus del sistema si existe (ClamAV, XProtect, Defender) por su orden; el resultado se muestra antes de abrir. (3) Lo recibido queda en cuarentena hasta aceptar y analizar si así se eligió. Pruebas de las reglas de aceptación y del análisis con archivos de ejemplo inofensivos. Reglas: nada se ejecuta ni se instala sin que la persona lo acepte (el agente propone, explica qué es, de dónde viene y qué riesgo tiene); lo recibido se analiza sin abrirlo ni ejecutarlo; nunca se borra nada de la persona; lógica pura con pruebas. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "FMT1119A",
+   "FMT1119B"
+  ]
+ }
+}
