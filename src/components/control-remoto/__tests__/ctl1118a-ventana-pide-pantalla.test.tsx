@@ -59,7 +59,7 @@ describe("CTL1118A · cada elección de fuente llega a pantalla-iniciar con su v
         ["proyeccion", { fuente: "proyeccion" }],
         ["algo-raro", {}],
     ] as const)("fuente %s → args %j", async (pedida, args) => {
-        const { unmount } = renderHook(() => usarPantallaRemota("tableta-1", pedida as FuentePedida));
+        const { unmount } = renderHook(() => usarPantallaRemota("tableta-1", { fuente: pedida as FuentePedida }));
         await dejarCorrer();
         expect(iniciares()).toHaveLength(1);
         expect(iniciares()[0].args).toEqual(args);
@@ -67,9 +67,9 @@ describe("CTL1118A · cada elección de fuente llega a pantalla-iniciar con su v
     });
 
     it("cambiar la fuente reabre la pantalla: sale otra pantalla-iniciar con la fuente nueva", async () => {
-        const { rerender, unmount } = renderHook(({ f }: { f: FuentePedida }) => usarPantallaRemota("tableta-1", f), { initialProps: { f: "auto" as FuentePedida } });
+        const { rerender, unmount } = renderHook(({ f }: { f: { fuente?: FuentePedida } }) => usarPantallaRemota("tableta-1", f), { initialProps: { f: { fuente: "auto" as FuentePedida } } });
         await dejarCorrer();
-        rerender({ f: "proyeccion" });
+        rerender({ f: { fuente: "proyeccion" as FuentePedida } });
         await dejarCorrer();
         expect(iniciares().map((m) => m.args)).toEqual([{}, { fuente: "proyeccion" }]);
         unmount();
