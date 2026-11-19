@@ -38,6 +38,9 @@ except Exception:
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
 SALIDA = os.path.join(RAIZ, "starseed_memory_root", "mando", "acciones-de-alex.json")
+#: (CAP1119A) UN pedido de fichaje por día y pasarela. La tarjeta sigue en la lista
+#: mientras la sonda diga «fichaje»; lo que no se repite es el aviso de petición.
+PEDIDOS = os.path.join(RAIZ, "starseed_memory_root", "mando", "fichajes-diarios.json")
 
 _spec = importlib.util.spec_from_file_location(
     "pasarelas", os.path.join(os.path.dirname(os.path.abspath(__file__)), "pasarelas.py"))
@@ -495,6 +498,71 @@ def clave_de_accion(id_accion):
     return clave or None
 
 
+def es_id_de_fichaje(id_accion):
+    """PURA: identifica el aviso diario de una pasarela (id estable, sin día)."""
+    texto = str(id_accion or "")
+    return texto.startswith("pasarela-") and texto.endswith("-fichaje")
+
+
+def _dia_local(ahora=None):
+    """PURA: día local del momento inyectado (o de ahora) como «AAAA-MM-DD»."""
+    import time as _t
+    import datetime as _dt
+    if ahora is None:
+        return _t.strftime("%Y-%m-%d")
+    if isinstance(ahora, (int, float)):
+        return _dt.datetime.fromtimestamp(ahora).strftime("%Y-%m-%d")
+    if isinstance(ahora, _dt.datetime):
+        return ahora.strftime("%Y-%m-%d")
+    return str(ahora)[:10]
+
+
+def pedido_diario(acciones, pedidos, ahora=None):
+    """PURA: (acciones, marcas) con UN pedido de fichaje por día y pasarela.
+
+    La tarjeta NO se esconde: mientras la sonda siga pidiendo fichaje debe verse
+    en Genesis y seguir teniendo su botón «Ya lo hice». Lo que cambia es el campo
+    `nuevo_hoy`, que solo vale True en el primer pedido del día. Cuando la sonda
+    vuelve a escribir no hay tarjeta y la marca se retira: si mañana vuelve a
+    hacer falta, vuelve a pedirse.
+    """
+    dia = _dia_local(ahora)
+    marcas = {k: v for k, v in (pedidos or {}).items() if es_id_de_fichaje(k)}
+    visibles = []
+    for accion in acciones or []:
+        if es_id_de_fichaje(accion.get("id")):
+            id_accion = str(accion["id"])
+            visibles.append(dict(accion, nuevo_hoy=marcas.get(id_accion) != dia, dia=dia))
+            marcas[id_accion] = dia
+        else:
+            visibles.append(accion)
+    presentes = {str(a.get("id")) for a in visibles if es_id_de_fichaje(a.get("id"))}
+    return visibles, {k: v for k, v in marcas.items() if k in presentes}
+
+
+def _leer_pedidos(ruta):
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            dato = json.load(f)
+        return dato if isinstance(dato, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def registrar_pedido_diario(acciones, ahora=None, ruta=PEDIDOS):
+    """Guarda la marca del día (atómico) y devuelve las acciones con su marca."""
+    visibles, marcas = pedido_diario(acciones, _leer_pedidos(ruta), ahora)
+    try:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(marcas, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    except OSError:
+        pass
+    return visibles
+
+
 def actualizar_pasarela(pasarelas, clave, medida):
     """PURA: la lista de pasarelas con la entrada de `clave` sustituida por la medida nueva
     (http, estado, segundos, comprobado). Si no estaba, se añade."""
@@ -613,7 +681,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
     if real:
-        guardar_lista(vivas)
+        guardar_lista(registrar_pedido_diario(vivas, ahora))
     if id_accion is None:
         return {
             "comprobado": momento,
@@ -666,8 +734,9 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
-    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                                  a1_tiene_token=a1_tiene_clave())
+    acciones = registrar_pedido_diario(
+        construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
+                           a1_tiene_token=a1_tiene_clave()))
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

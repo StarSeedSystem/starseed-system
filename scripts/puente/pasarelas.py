@@ -79,6 +79,19 @@ _PISTAS = (
     ("daily check-in required", FICHAJE),
     ("check-in required", FICHAJE),
     ("checkin required", FICHAJE),
+    # (CAP1119A, 19-11) apinex contestó 402 «sin crédito» y el informe lo archivó
+    # como «modelo fuera», así que acciones-de-alex.json no pedía el fichaje.
+    # Un 402 (payment required), una verificación humana o un «sin crédito»
+    # exigen una acción de Alex; decir «cambia de modelo» es un aviso inútil.
+    ("sin crédito", FICHAJE),
+    ("sin credito", FICHAJE),
+    ("check in to use", FICHAJE),
+    ("human verification", FICHAJE),
+    ("verificación humana", FICHAJE),
+    ("verificacion humana", FICHAJE),
+    ("verification required", FICHAJE),
+    ("verifica tu cuenta", FICHAJE),
+    ("captcha", FICHAJE),
     ("no available channel", SIN_CANAL),
     ("model_not_found", MODELO_FUERA),
     ("does not exist", MODELO_FUERA),
@@ -173,7 +186,12 @@ def clasificar(http, cuerpo="", hubo_tokens=False, consejero=None):
         return SIN_CLAVE
     if http == 429:
         return SIN_CUPO
-    if http in (402, 404):
+    # Un 402 sin cuerpo conocido pide una acción de persona (fichar, verificar
+    # o recargar), no un cambio de modelo: «sin crédito (402)» de apinex debe
+    # llegar a la lista de Alex con su enlace de fichaje diario.
+    if http == 402:
+        return FICHAJE
+    if http == 404:
         return MODELO_FUERA
     # (2026-10-28) 503 de Google es «overloaded, try again later»: saturación
     # pasajera, no caída. Igual 500, 502, 504 y 529 (overloaded de Cloudflare).
