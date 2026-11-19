@@ -160,6 +160,12 @@ describe("lo negado o la omisión no se vuelven a preguntar solos", () => {
     const g = guardadoTras(GUARDADO_VACIO, e);
     expect(debeAbrirseSolo("macos", g, { bluetooth: "denegado" })).toBe(false);
   });
+  it("lo denegado a mano se muestra con Abrir ajustes aunque el sistema lo pregunte al usarlo", () => {
+    const mac = abrirAsistente("macos", GUARDADO_VACIO, true, { ubicacion: "denegado" });
+    expect(accionEn(mac, mac.lista.find((d) => d.id === "ubicacion")!)).toBe("abrir-ajustes");
+    const win = abrirAsistente("windows", GUARDADO_VACIO, true, { microfono: "denegado" });
+    expect(accionEn(win, win.lista.find((d) => d.id === "microfono")!)).toBe("abrir-ajustes");
+  });
   it("cerrar a medias solo guarda lo contestado (el resto se vuelve a ofrecer)", () => {
     const e = aplicar(abrirAsistente("macos", GUARDADO_VACIO), { t: "empezar" }, { t: "pedir" }, { t: "resultado", id: "bluetooth", r: "concedido" }, { t: "cerrar" });
     const g = guardadoTras(GUARDADO_VACIO, e);

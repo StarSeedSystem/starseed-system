@@ -21,11 +21,21 @@ import {
   registroDe,
   sistemaDePermisos,
   IDS_PERMISO,
+  type AccionPermiso,
   type DefPermiso as DefRegistro,
   type EstadoSistema,
   type IdPermiso as IdRegistro,
   type SistemaPermisos,
 } from "./permisos-registro";
+import {
+  celdaDe,
+  celdasDe,
+  decidir,
+  type Enlace as EnlaceMatriz,
+  type Medio as MedioMatriz,
+  type Observado,
+  type Permiso as PermisoMatriz,
+} from "@/lib/permisos/matriz";
 
 export type SistemaAsistente = SistemaPermisos;
 export type IdPermiso = IdRegistro;
@@ -183,9 +193,82 @@ export function permisoActual(e: EstadoAsistente): DefPermiso | null {
   return e.fase === "pidiendo" && e.indice < e.cola.length ? e.cola[e.indice] : null;
 }
 
-/** La acción que toca a `d` en este estado. */
+/* ══════════════════════════ La matriz permiso × medio (PRM1119) ══════════════════════════ */
+
+/** El medio de `src/lib/permisos/matriz.ts` que corresponde a cada sistema de la lista. */
+const MEDIO_DE_MATRIZ: Record<SistemaAsistente, MedioMatriz> = {
+  macos: "macos",
+  android: "android",
+  windows: "windows",
+  "linux-x11": "linux",
+  "linux-wayland": "linux",
+};
+
+/** Los ids del registro que son el mismo permiso que una celda de la matriz. */
+const PERMISO_DE_MATRIZ: Partial<Record<IdPermiso, PermisoMatriz>> = {
+  microfono: "microfono",
+  camara: "camara",
+  pantalla: "pantalla",
+  accesibilidad: "control",
+  "monitor-entrada": "entrada-virtual",
+  ubicacion: "ubicacion",
+  "ubicacion-wifi": "ubicacion",
+  bluetooth: "bluetooth",
+  cercanos: "bluetooth",
+  "red-local": "red-local",
+  notificaciones: "notificaciones",
+  arranque: "segundo-plano",
+  bateria: "energia",
+  carpetas: "archivos",
+  "disco-completo": "archivos",
+  "todos-archivos": "archivos",
+};
+
+/** Pantallas de Ajustes que el sistema sí deja abrir (las demás no dan un botón honesto). */
+const ENLACES_ABRIBLES: readonly EnlaceMatriz[] = ["directo", "lista", "ficha"];
+
+/** El estado del registro traducido a los estados de la matriz. Puro. */
+function observadoDe(estado: EstadoSistema | undefined): Observado {
+  switch (estado) {
+    case "concedido":
+      return "concedido";
+    case "denegado":
+      return "denegado-a-mano";
+    case "no-aplica":
+      return "no-aplica";
+    case "sin-preguntar":
+    case "no-concedido":
+      return "falta";
+    default:
+      return "no-se-puede-saber";
+  }
+}
+
+/**
+ * Lo que la MATRIZ manda para este permiso, o null si el medio no lo contempla. Pura.
+ * Solo se usa para lo denegado a mano: ahí la matriz manda abrir Ajustes aunque el registro
+ * lo dejaría en «por-uso» (p. ej. la ubicación en macOS o el micrófono en Windows).
+ */
+function accionMatriz(sistema: SistemaAsistente, id: IdPermiso, estado: EstadoSistema | undefined): AccionPermiso | null {
+  const permiso = PERMISO_DE_MATRIZ[id];
+  if (!permiso) return null;
+  const medio = MEDIO_DE_MATRIZ[sistema];
+  // Se comprueba que la celda exista en ese medio y se lee por permiso: la matriz es la que decide.
+  if (!celdasDe(medio).some((c) => c.permiso === permiso)) return null;
+  const celda = celdaDe(medio, permiso);
+  if (!celda || !ENLACES_ABRIBLES.includes(celda.enlace)) return null;
+  return decidir(celda, observadoDe(estado));
+}
+
+/**
+ * La acción que toca a `d` en este estado. La del registro, salvo lo denegado a mano: eso no
+ * se vuelve a pedir solo y, si el medio tiene pantalla de Ajustes, se abre desde la lista.
+ */
 export function accionEn(e: EstadoAsistente, d: DefPermiso) {
-  return accionDe(d, e.estados[d.id], e.avisos.includes(d.id));
+  const base = accionDe(d, e.estados[d.id], e.avisos.includes(d.id));
+  if (!e.sistema || base === "mas-adelante" || base === "listo" || base === "nada") return base;
+  if (observadoDe(e.estados[d.id]) !== "denegado-a-mano") return base;
+  return accionMatriz(e.sistema, d.id, e.estados[d.id]) === "abrir-ajustes" ? "abrir-ajustes" : base;
 }
 
 /** Avanza saltando lo que entretanto quedó concedido (la persona lo dio en Ajustes por su cuenta). */
