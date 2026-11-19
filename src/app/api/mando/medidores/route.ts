@@ -77,6 +77,17 @@ import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/l
 import { leerAjustes, leerPropuestas, leerPropuestasConFiltro } from "@/lib/mando/imaginacion-servidor";
 import { leerAmbito, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
+async function leerBuscarCapacidadEstado(): Promise<DatosMedidores["buscarCapacidad"]> {
+    try {
+        const estado = path.join(os.homedir(), ".starseed", "buscar-capacidad.json");
+        const crudo = await readFile(estado, "utf8");
+        const d = JSON.parse(crudo) as DatosMedidores["buscarCapacidad"];
+        return d && typeof d === "object" ? d : null;
+    } catch {
+        return null;
+    }
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -984,6 +995,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         // que `construirDetalle` recibia `undefined` y no podia filtrar nada. El filtro
         // estaba bien escrito; lo que faltaba era darle el dato.
         asuntosDeMain,
+        buscarCapacidad: await leerBuscarCapacidadEstado().catch(() => null),
     };
 }
 
@@ -1224,25 +1236,20 @@ export async function POST(peticion: Request): Promise<Response> {
 
     if (accion === "buscar-capacidad") {
         try {
-            const { stdout } = await correr(
+            const hijo = spawn(
                 "python3",
                 ["scripts/puente/buscar_capacidad.py", "buscar", "--aplicar", "--json", "--origen", "boton"],
-                { cwd: RAÍZ, timeout: 150_000, windowsHide: true },
+                { cwd: RAÍZ, detached: true, stdio: "ignore" },
             );
-            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
-                resumen?: string;
-                sumados?: number;
-                hechas?: string[];
-            };
+            hijo.unref();
             return Response.json({
                 ok: true,
-                resumen: r.resumen || "Busqué en todos los medios.",
-                sumados: r.sumados ?? 0,
-                hechas: r.hechas ?? [],
+                resumen: "Buscando capacidad…",
+                en_curso: true,
             });
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
-            return Response.json({ error: `No pude buscar más capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
+            return Response.json({ error: `No pude lanzar la búsqueda de capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
         }
     }
 
