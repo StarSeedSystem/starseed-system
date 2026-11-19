@@ -1,0 +1,111 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-profunda-corregir-te-d3",
+   "titulo": "Ajustar temporizador de guía para no interrumpir navegación del usuario (parte 3 de 3)",
+   "archivos": [
+    "src/lib/mando/areas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Ajustar temporizador de guía para no interrumpir navegación del usuario. ## Problema\nEl temporizador que muestra la guía de aurora interrumpe la navegación del usuario al expirar, forzando un cambio de pantalla sin su consentimiento. Esto genera fricción y reduce la experiencia fluida.\n\n## Solución propuesta\n- **Reemplazar temporizador fijo por evento de interacción**: En lugar de depender de un timeout automático, el temporizador se reinicia cada vez que el usuario realiza una acción (scroll, click, movimiento del mouse).\n- **Añadir opción explícita de cierre**: Incluir un botón visible para que el usuario decida cuándo terminar la guía.\n- **Persistencia parcial d Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 3 DE 3 (la dirección dividió IMG-agentes-reimaginada-profunda-corregir-te: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/mando/areas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-corregir-te",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG-agentes-reimaginada-profunda-corregir-te-d2"
+   ]
+  },
+  {
+   "ola": "PEN1116",
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "PENA1-d1",
+   "titulo": "Mac: latido desde Rust para que el banco de llamadas siga sondeando con la ventana en otro escritorio (parte 1 de 3)",
+   "archivos": [
+    "native/src-tauri/src/banco_latido.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado leyendo `architecture/ronda-automatica-llamadas.md` §9.5 «Ventana en otro escritorio»): el sondeo del banco de llamadas es un temporizador de la página (`src/lib/banco-llamadas/app.ts`, `setInterval`); macOS lo frena si la ventana no está a la vista y la serie armada se queda sin sondear. «Hacerlo despertar desde Rust no se ha podido comprobar sin la Mac, así que no se ha construido».\nConstruye SOLO el lado Rust: `banco_latido.rs` con (a) una función pura `toca_latido(ultimo_ms: u64, ahora_ms: u64, periodo_ms: u64) -> bool` y un `PERIODO_MS = 20_000`; (b) el comando `banco_latido_activar(app, webview, activo: bool) -> Result<Value, String>` que, SOLO en macOS (`cfg(target_os = \"macos\")`; en otros sistemas devuelve `{\"ok\": false, \"motivo\": \"sin-soporte\"}`), arranca o para UN hilo (nunca dos: guarda un `AtomicBool`/handle) que cada 20 s emite `app.emit(\"banco-llamadas-latido\", json!({\"t\": ahora_ms}))` mientras esté activo, y se para solo al apagar; copia de `control_neuronas.rs` la guarda de página (`pagina_ok`) que usan los demás comandos; (c) el alta del módulo y del comando en `lib.rs` (`mod` + `invoke_handler`, UNA línea cada uno, con comentario `// PENA1`) y en la lista de comandos permitidos de `native/src-tauri/build.rs` (donde está `\"control_entrada_aceptados\"`, una línea). El latido NO lee ni escribe `~/.starseed`: solo despierta a la página.\nPRUEBAS `cargo test --lib banco_latido`: `toca_latido` en los bordes (justo en el periodo, antes, reloj que retrocede = false); activar dos veces no crea dos hilos (con el hilo falso inyectable); desactivar para. COMPRUEBA: `cd native/src-tauri && cargo test --lib banco_latido` en verde y `cargo check` sin errores nuevos. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas `cargo test --lib` (en `native/src-tauri`) y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENA1:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 1 DE 3 (la dirección dividió PENA1: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: native/src-tauri/src/banco_latido.rs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PENA1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "ola": "CAP1119",
+   "id": "CAP1119B-d1",
+   "titulo": "Usar todos los contenedores en la nube que ya están disponibles: Cloudroom, el A1 al completo y la nube de GitHub sin atascos (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/repartir_nube.py",
+    "scripts/puente/medios_disponibles.py"
+   ],
+   "depende": [],
+   "prompt": "Auditoría de la dirección (19-11, 21:00 local) con medios_disponibles.py y ~/.starseed/salud-proveedores.json: mac listo (2 agentes, recursos al límite, disco 7,5 GB → la guardia de 10 GB frena la tanda); claude usable (sin usar hace 12 días); cloudroom usable con 100 agentes/30 días gratis y 0 hilos abiertos (SIN USAR); nube-gh listo (2 ejecuciones; el último empuje de la cola falló por tiempo agotado de git push a los 120 s); hf requiere PRO; gcloud marcado «usable» pero la facturación está desactivada desde el 25-09 (Cloud Run no arranca sin cuenta de facturación: revisar la clasificación); colab/kaggle requieren un cuaderno lanzador; oracle A1 listo con solo 15 % de CPU usada y 5,6 GB libres (INFRAUTILIZADO). Proveedores: groq, tokenrouter y explabs vivos; xkiro, openrouter y freellmapi con el cupo del día agotado (429); nim con un modelo colgado; aihubmix bloqueado por abuso; llm7 caído; apinex «sin crédito (402)» y aun así acciones-de-alex.json NO pide el check-in diario (solo tiene 2 aprobaciones de Higgsfield). Faltan en la salud de proveedores: abliteration, Antigravity (agy), Ollama del A1 (qwen 4B), Codex y OpenCode Zen. Además starseed_memory_root/olas/medios.json tiene 2336 medios acumulados (codex:mac:mac:<puerto> y opencode:mac:mac:<puerto>, casi todos inactivos). Alex (19-11): «verifica que se estén usando todos los contenedores en nube disponibles de MetaGenesis… creo que faltan activar contenedores que se pueden usar». Tarea: (1) «Buscar más capacidad» y el reparto envían tareas a Cloudroom (100 agentes/30 días, cuenta conectada, cloudroom_modelos.py) respetando su cupo mensual; (2) el A1 sube de agentes mientras tenga CPU y memoria libres (hoy 15 % de CPU), con su propio tope; (3) cuando la Mac está frenada por la guardia de disco o de memoria, las tareas listas van a la nube en vez de esperar; (4) el empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir; (5) medios_disponibles.py clasifica bien gcloud con la facturación desactivada (no «usable» si Cloud Run exige facturación) y explica qué haría falta. Pruebas de las decisiones de reparto. Reglas: nunca imprimir ni guardar claves fuera de variables de entorno; no bajar ningún freno de publicación ni la guardia de disco; lógica pura con pruebas. Español neutro.\n\n## PARTE 1 DE 2 (la dirección dividió CAP1119B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/buscar_capacidad.py, scripts/puente/repartir_nube.py, scripts/puente/medios_disponibles.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAP1119B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "id": "MQA6",
+   "ola": "MOD1116",
+   "titulo": "Astraura: registrar el proveedor «abliteration» en el índice de proveedores",
+   "archivos": [
+    "src/ai/providers/types.ts",
+    "src/ai/providers/index.ts",
+    "src/ai/providers/__tests__/abliteration-registro.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade `\"abliteration\"` a la unión `ProviderId` de `src/ai/providers/types.ts` (línea 15) y registra `abliterationProvider` en `src/ai/providers/index.ts` junto a `groqProvider` (importación, tabla de proveedores y lista de orden ≈ líneas 12, 36 y 56), de modo que NO quede entre los primeros de la lista de orden por defecto (ni en «gratis primero»): al final y sin selección automática. Quita el `as` y el comentario `// MQA6` de `abliteration.ts` si existen (no es uno de tus archivos: déjalo y di en la prueba qué debe quitar quien lo revise). PRUEBA: el proveedor está registrado, su `info.requiresKey` es true y ocupa la última posición de la lista de orden; los demás ids siguen en su sitio.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni pytest, ni tsc, ni git, ni node, ni npm, ni curl): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj, entorno y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves (solo NOMBRES de variables, nunca valores; nunca una IP, un OCID ni un token); nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado. En Python: las pruebas son `unittest` con carpetas temporales y falsos, como las vecinas `scripts/puente/test_*.py`, y no tocan el `~/.starseed` real.",
+   "dependencias_ya_en_main": [
+    "MQA5"
+   ]
+  },
+  {
+   "id": "PRM1119B",
+   "ola": "PRM1119",
+   "titulo": "Permisos completos en todos los medios: pedir al instalar o al abrir si faltan, sin insistir en los denegados a mano",
+   "archivos": [
+    "docs/contratos/permisos-por-medio.md",
+    "src/lib/permisos/matriz.ts",
+    "starseed_memory_root/olas/cola-permisos-por-medio-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): revisar los permisos completos de todos los sistemas —macOS, Android, Linux, Windows, iOS, navegadores web, terminal y cualquier medio donde se use StarSeed OS— y pedirlos desde la instalación o al abrir la app cuando se detecte que faltan, salvo los que la persona haya denegado a mano. Lee AUDITORIA-PRM.md y el código de la lista de permisos de la neurona (grep «permisos» en src/lib y native/src-tauri/src). Tarea: (1) docs/contratos/permisos-por-medio.md con la matriz real permiso × medio (micrófono, cámara, pantalla, accesibilidad/control, ubicación, Bluetooth, red local, notificaciones, segundo plano, almacenamiento/archivos, entrada virtual, energía…): cómo se detecta, cómo se pide, si hay enlace directo a ajustes, y cómo distinguir «falta» de «denegado a mano» en cada medio; (2) src/lib/permisos/matriz.ts puro con esa matriz y la regla: al instalar y al abrir, pedir lo que falte y sea útil; si la persona lo denegó a mano, no volver a pedirlo solo, pero mostrarlo en la lista con «Abrir ajustes»; con pruebas; (3) una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-permisos-por-medio-1119.json para aplicarlo por medio. Nunca se concede nada por la persona. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CAP1119B-d1",
+   "PENA1-d1",
+   "PRU1118A-d3",
+   "PRM1119B",
+   "MQA6",
+   "IMG-agentes-reimaginada-profunda-corregir-te-d3"
+  ]
+ }
+}
