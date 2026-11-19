@@ -56,13 +56,13 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
-  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
