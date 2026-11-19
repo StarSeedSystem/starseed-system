@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "ola": "CAP1119",
+   "id": "CAP1119B-d1",
+   "titulo": "Usar todos los contenedores en la nube que ya están disponibles: Cloudroom, el A1 al completo y la nube de GitHub sin atascos (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/repartir_nube.py",
+    "scripts/puente/medios_disponibles.py"
+   ],
+   "depende": [],
+   "prompt": "Auditoría de la dirección (19-11, 21:00 local) con medios_disponibles.py y ~/.starseed/salud-proveedores.json: mac listo (2 agentes, recursos al límite, disco 7,5 GB → la guardia de 10 GB frena la tanda); claude usable (sin usar hace 12 días); cloudroom usable con 100 agentes/30 días gratis y 0 hilos abiertos (SIN USAR); nube-gh listo (2 ejecuciones; el último empuje de la cola falló por tiempo agotado de git push a los 120 s); hf requiere PRO; gcloud marcado «usable» pero la facturación está desactivada desde el 25-09 (Cloud Run no arranca sin cuenta de facturación: revisar la clasificación); colab/kaggle requieren un cuaderno lanzador; oracle A1 listo con solo 15 % de CPU usada y 5,6 GB libres (INFRAUTILIZADO). Proveedores: groq, tokenrouter y explabs vivos; xkiro, openrouter y freellmapi con el cupo del día agotado (429); nim con un modelo colgado; aihubmix bloqueado por abuso; llm7 caído; apinex «sin crédito (402)» y aun así acciones-de-alex.json NO pide el check-in diario (solo tiene 2 aprobaciones de Higgsfield). Faltan en la salud de proveedores: abliteration, Antigravity (agy), Ollama del A1 (qwen 4B), Codex y OpenCode Zen. Además starseed_memory_root/olas/medios.json tiene 2336 medios acumulados (codex:mac:mac:<puerto> y opencode:mac:mac:<puerto>, casi todos inactivos). Alex (19-11): «verifica que se estén usando todos los contenedores en nube disponibles de MetaGenesis… creo que faltan activar contenedores que se pueden usar». Tarea: (1) «Buscar más capacidad» y el reparto envían tareas a Cloudroom (100 agentes/30 días, cuenta conectada, cloudroom_modelos.py) respetando su cupo mensual; (2) el A1 sube de agentes mientras tenga CPU y memoria libres (hoy 15 % de CPU), con su propio tope; (3) cuando la Mac está frenada por la guardia de disco o de memoria, las tareas listas van a la nube en vez de esperar; (4) el empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir; (5) medios_disponibles.py clasifica bien gcloud con la facturación desactivada (no «usable» si Cloud Run exige facturación) y explica qué haría falta. Pruebas de las decisiones de reparto. Reglas: nunca imprimir ni guardar claves fuera de variables de entorno; no bajar ningún freno de publicación ni la guardia de disco; lógica pura con pruebas. Español neutro.\n\n## PARTE 1 DE 2 (la dirección dividió CAP1119B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/buscar_capacidad.py, scripts/puente/repartir_nube.py, scripts/puente/medios_disponibles.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAP1119B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "id": "RST06",
+   "ola": "RST1116A",
+   "titulo": "Del lado del aparato controlado: la petición de fuente llega a lo nativo y se devuelve la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/nativo-comandos.ts",
+    "src/lib/control-remoto/__tests__/pantalla-origen-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `nativo-comandos.ts:11`: `control_pantalla_iniciar: [\"sesion\", \"lado_max\", \"calidad\", \"fuente\"]` (la lista de claves permitidas; lee el archivo para ver cómo se valida). (2) `pantalla-origen.ts` (:161 el caso `pantalla-iniciar` y :186-198): si `args.fuente` es `\"proyeccion\"`, pásalo a `control_pantalla_iniciar` como `fuente`; si no está o es `\"auto\"`, NO lo mandes (igual que hoy). La `fuente` que se devuelve y se guarda sigue siendo la que CONTESTA lo nativo (`r.fuente`), nunca la pedida. Si se pidió `proyeccion` y lo nativo contesta otra cosa o no la ofrece, la sesión sigue con lo que haya (no se cierra) y el resultado lleva `fuente_pedida: \"proyeccion\"` además de la real, para que el otro lado pueda avisar (con `RST04`). ≤40 líneas de diferencia en cada archivo. PRUEBAS (`pantalla-origen.test.ts` como guía, `invocar` simulado): con `fuente:\"proyeccion\"` el invocador recibe `fuente`; sin ella no; si lo nativo contesta `accesibilidad`, el resultado dice `fuente:\"accesibilidad\"` y `fuente_pedida:\"proyeccion\"`; si contesta `proyeccion`, dice `proyeccion`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CAP1119B-d1",
+   "RST06"
+  ]
+ }
+}
