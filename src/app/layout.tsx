@@ -111,6 +111,7 @@ import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
 // servidor local por la red (architecture/apps-autonomas-sin-internet.md).
 import { AvisoSinConexion } from "@/components/nativa/aviso-sin-conexion";
 import { AvisoMigracionOrigen } from "@/components/nativa/aviso-migracion-origen";
+import { AvisoCambioOrigen } from "@/components/nativa/aviso-cambio-origen";
 import { AsistentePermisos } from "@/components/nativa/asistente-permisos";
 // UpdateBanner: aviso de nuevo contenido web/PWA listo (service worker actualizado).
 // Se muestra temporalmente antes de la recarga automática; sin él, la app se
@@ -314,6 +315,8 @@ export default function RootLayout({
         <AvisoSinConexion />
         {/* (APP1107B · T4) La app de escritorio trajo (o no pudo traer) los datos de la versión anterior. */}
         <AvisoMigracionOrigen />
+        {/* (CTL1119F) Vuelta al puerto principal tras rescate: aviso y botón para recrear clave del aparato. */}
+        <AvisoCambioOrigen />
         <AsistentePermisos />
         <UpdateBanner />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
