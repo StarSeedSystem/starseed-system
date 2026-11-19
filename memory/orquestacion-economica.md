@@ -275,6 +275,7 @@ repositorio).
 | **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
 | **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo de Genesis |
 | **Higgsfield** (pago, créditos limitados) | `https://mcp.higgsfield.ai/mcp` (Claude) · `@higgsfield/cli` (nodos) | `HIGGSFIELD_API_KEY` (cuenta Fundación) | modelos de vídeo/imagen/audio Cinema Studio | aprobado por Maggasukha, presupuesto por proyecto | **solo con aprobación**: vía `higgsfield_aprobado.py`; nunca tareas rutinarias ni respaldo automático |
+| **Antigravity (agy)** | CLI `agy` (binario local) | **ninguna** (cuenta Google de Alex, OAuth) | `gemini-3.8-flash-*`, `gemini-4-neon-*`, `gemini-4-argon-*`, `gemini-4-hydrogen-*`, `claude-opus-5.5-*`, `claude-sonnet-5.5-*`, `gpt-oss-120b-medium` | cuota de Antigravity | **Director presidente** (orden: Claude → Hermes → agy → Codex); sin clave de API |
 
 ### Catálogos de proveedores gratuitos (2026-09-05)
 

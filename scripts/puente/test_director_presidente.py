@@ -38,7 +38,7 @@ def limites(pct_sesion=20, pct_semana=30, hace_min=10):
 
 
 class Falso:
-    """`correr` falso: responde por el primer elemento de la orden (claude/hermes/codex)."""
+    """`correr` falso: responde por el primer elemento de la orden (claude/hermes/agy/codex)."""
 
     def __init__(self, **respuestas):
         self.respuestas = respuestas
@@ -51,6 +51,11 @@ class Falso:
         if r is None:
             raise AssertionError("no se esperaba llamar a %s" % motor)
         return r
+
+
+def agy_ok(texto="Respuesta de agy"):
+    return (0, json.dumps({"result": texto, "session_id": "s1",
+                           "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.0}))
 
 
 def claude_ok(texto="Respuesta de Claude"):
@@ -155,12 +160,12 @@ class TestDisponibilidadClaude(unittest.TestCase):
         self.assertIn("tope de Opus", m)
 
     def test_ordenar_con_enfriados(self):
-        disp = {"claude": (False, "límite"), "hermes": (True, ""), "chatgpt": (True, "")}
+        disp = {"claude": (False, "límite"), "hermes": (True, ""), "agy": (True, ""), "chatgpt": (True, "")}
         cand, desc = P.ordenar(disp, {"hermes": {"hasta": AHORA + 10, "motivo": "rc=1"}}, AHORA)
-        self.assertEqual(["chatgpt"], cand)
+        self.assertEqual(["agy", "chatgpt"], cand)
         self.assertEqual(["claude", "hermes"], [p for p, _ in desc])
         cand, _ = P.ordenar(disp, {"hermes": {"hasta": AHORA - 1}}, AHORA)
-        self.assertEqual(["hermes", "chatgpt"], cand)
+        self.assertEqual(["hermes", "agy", "chatgpt"], cand)
 
 
 class TestAtender(Base):
@@ -189,30 +194,34 @@ class TestAtender(Base):
     def test_hermes_falla_y_contesta_chatgpt(self):
         falso = Falso(claude=(1, "Credit balance is too low"),
                       hermes=(0, "every provider in the fallback chain kept failing over"),
+                      agy=(1, "cuota agotada"),
                       codex=(0, "Respuesta de Codex"))
         self.assertEqual("respondido", self.atender(falso))
         r = self.respuestas()[-1]
         self.assertEqual("chatgpt", r["eleccion"]["proveedor"])
-        self.assertEqual(["claude", "hermes"], [d["proveedor"] for d in r["eleccion"]["descartes"]])
+        self.assertEqual(["claude", "hermes", "agy"], [d["proveedor"] for d in r["eleccion"]["descartes"]])
         self.assertIn("hermes", self.estado["presidente"]["enfriados"])
+        self.assertIn("agy", self.estado["presidente"]["enfriados"])
 
     def test_nadie_puede_queda_en_cola_visible_sin_frase_hecha(self):
         falso = Falso(hermes=(1, ""))
-        sin_codex = lambda n: n != "codex"  # noqa: E731
-        self.assertEqual("cola", self.atender(falso, existe=sin_codex, lim={}))
+        sin_codex_ni_agy = lambda n: n not in ("codex", "agy")  # noqa: E731
+        self.assertEqual("cola", self.atender(falso, existe=sin_codex_ni_agy, lim={}))
         self.assertEqual([], self.respuestas())
         e = self.entregas()[-1]
         self.assertEqual("pendiente", e["estado"])
         self.assertTrue(e["detalle"].startswith("En cola:"))
         self.assertIn("Claude", e["detalle"])
+        self.assertIn("Antigravity", e["detalle"])
         self.assertIn("ChatGPT", e["detalle"])
         n = len(self.entregas())
+        sin_codex_ni_agy = lambda n: n not in ("codex", "agy")  # noqa: E731
         # Antes de los 2 min no se reintenta ni se repite la entrega.
-        self.assertEqual("espera", self.atender(falso, existe=sin_codex, lim={}, ahora=AHORA + 30))
+        self.assertEqual("espera", self.atender(falso, existe=sin_codex_ni_agy, lim={}, ahora=AHORA + 30))
         self.assertEqual(n, len(self.entregas()))
         # Al volver un proveedor, se contesta.
         vuelve = Falso(hermes=(0, "Hermes ha vuelto"))
-        r = self.atender(vuelve, existe=sin_codex, lim={}, ahora=AHORA + P.ENFRIAMIENTO_S + 1)
+        r = self.atender(vuelve, existe=sin_codex_ni_agy, lim={}, ahora=AHORA + P.ENFRIAMIENTO_S + 1)
         self.assertEqual("respondido", r)
         self.assertEqual("Hermes ha vuelto", self.respuestas()[-1]["texto"])
         self.assertNotIn(self.alex["id"], self.estado["presidente"]["cola"])
@@ -355,6 +364,8 @@ class TestHermesPausado(Base):
     def test_pausada_y_fresca_falla_pasa_al_siguiente_proveedor(self):
         class Dos(FalsoHermesPausado):
             def __call__(self, orden, **k):
+                if orden[0] == "agy":
+                    return (1, "cuota agotada")
                 if orden[0] == "codex":
                     return (0, "Respuesta de Codex")
                 return super().__call__(orden, **k)

@@ -52,11 +52,12 @@ except Exception:
     TOPE_CONTEXTO_PRESIDENTE = 16000
 
 #: Mismo orden e ids que `PROVEEDORES_PRESIDENTE` de `src/lib/mando/chat-director-tipos.ts`.
-PROVEEDORES = ("claude", "hermes", "chatgpt")
-NOMBRES = {"claude": "Claude", "hermes": "Hermes", "chatgpt": "ChatGPT"}
+PROVEEDORES = ("claude", "hermes", "agy", "chatgpt")
+NOMBRES = {"claude": "Claude", "hermes": "Hermes", "agy": "Antigravity", "chatgpt": "ChatGPT"}
 MODELOS = {
     "claude": "claude-mac/" + motores_director.MODELO_DIRECTOR,
     "hermes": "hermes/predeterminado",
+    "agy": "agy/" + motores_director.MODELO_AGY_POR_DEFECTO,
     "chatgpt": "codex/gpt-5-codex",
 }
 CANAL = "director-presidente"
@@ -342,6 +343,10 @@ def _llamar_chatgpt(prompt, correr):
     return texto, "", {}
 
 
+def _llamar_agy(prompt, correr):
+    return motores_director.llamar_agy(prompt, correr, cwd=str(RAIZ))
+
+
 # ── HER1111K · avisos de la sesión de Hermes en pausa ────────────────────────────
 
 def _hora_local(epoch):
@@ -598,6 +603,7 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         "claude": disponibilidad_claude(datos_limites, ahora, int(estado.get("opus_hoy") or 0), tope_opus)
         if existe("claude") else (False, "la orden claude no está instalada"),
         "hermes": (True, "") if existe("hermes") else (False, "la orden hermes no está instalada"),
+        "agy": (True, "") if existe("agy") else (False, "la orden agy no está instalada"),
         "chatgpt": (True, "") if existe("codex") else (False, "la orden codex no está instalada"),
     }
     candidatos, descartes = ordenar(disponibilidad, enfriados, ahora)
@@ -642,6 +648,8 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
                     avisar_pausa_hermes(estado, info["pausa"], raiz=raiz, ahora=ahora)
                 elif texto and sesion_hermes:
                     hermes_reabierta(estado, sesion_hermes, raiz=raiz)
+            elif p == "agy":
+                texto, motivo, uso = _llamar_agy(prompt, correr)
             else:
                 texto, motivo, uso = _llamar_chatgpt(prompt, correr)
         except OSError as e:
@@ -713,7 +721,7 @@ __all__ = [
     "prompt_presidente", "prompt_sesion_fresca",
     "disponibilidad_claude", "ordenar", "texto_descartes",
     "intervalo_cola", "detalle_cola", "huella_proveedores", "despertar_cola",
-    "_llamar_claude", "_llamar_hermes", "_llamar_chatgpt",
+    "_llamar_claude", "_llamar_hermes", "_llamar_agy", "_llamar_chatgpt",
     "texto_aviso_pausa", "texto_aviso_recuperada", "avisar_pausa_hermes",
     "hermes_reabierta", "descripcion_sesion_nueva", "fuera_de_vista",
     "existe_cli", "leer_limites", "atender",

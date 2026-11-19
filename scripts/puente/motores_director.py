@@ -12,8 +12,15 @@ import re
 import signal
 import subprocess
 import sys
+from typing import Any, Dict, List, Optional
+
+import director_chat  # noqa: PLC0415 — mismo directorio
 
 MODELO_DIRECTOR = "claude-opus-5-5"
+
+#: Modelos de agy (Antigravity CLI) — cuenta de Google de Alex, sin clave de API.
+MODELO_AGY_POR_DEFECTO = "gemini-3.8-flash-medium"
+MODELO_AGY_PLAN = "gemini-4-neon-medium"
 
 _CLAVES_PROHIBIDAS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
@@ -224,6 +231,100 @@ def orden_codex(modelo: str, raiz: str) -> list:
         raiz,
         "-",
     ]
+
+
+def orden_agy(prompt: str, modelo: str = MODELO_AGY_POR_DEFECTO, sesion=None) -> list:
+    """Orden para Antigravity CLI (agy).
+
+    stdin=DEVNULL para que no espere entrada interactiva.
+    cwd en la raíz del repo.
+    Timeout: SEGUNDOS_PROVEEDOR_PRESIDENTE + 15.
+    """
+    orden = [
+        "agy",
+        "-p",
+        prompt,
+        "--model",
+        modelo,
+        "--mode",
+        "plan",
+        "--print-timeout",
+        "%d" % (SEGUNDOS_PROVEEDOR_PRESIDENTE + 15),
+        "--output-format",
+        "json",
+    ]
+    if sesion:
+        orden += ["--resume", sesion]
+    return orden
+
+
+def leer_agy(salida: str) -> dict:
+    """Traduce el JSON de `agy --output-format json` a un dict común."""
+    try:
+        datos = json.loads(salida)
+    except (json.JSONDecodeError, TypeError):
+        return {
+            "texto": "",
+            "sesion": None,
+            "tokens_entrada": 0,
+            "tokens_salida": 0,
+            "coste": 0.0,
+            "error": "salida de agy no es JSON válido",
+        }
+    uso = datos.get("usage") or {}
+    error = None
+    if datos.get("is_error"):
+        error = datos.get("result") or "error de agy"
+    elif datos.get("error"):
+        error = str(datos.get("error"))
+    elif not (datos.get("result") or "").strip():
+        error = "respuesta de agy vacía"
+    return {
+        "texto": datos.get("result") or "",
+        "sesion": datos.get("session_id"),
+        "tokens_entrada": uso.get("input_tokens") or 0,
+        "tokens_salida": uso.get("output_tokens") or 0,
+        "coste": datos.get("total_cost_usd") or 0.0,
+        "error": error,
+    }
+
+
+def llamar_agy(prompt: str, correr, cwd=None) -> tuple:
+    """Llama a agy y devuelve (texto, motivo, uso).
+
+    - texto: respuesta limpia o None si fallo
+    - motivo: cadena vacía si éxito, descripción del fallo si no
+    - uso: dict con tokensEntrada, tokensSalida, coste, segundos
+    """
+    import time
+    inicio = time.time()
+    try:
+        rc, salida = correr(
+            orden_agy(prompt),
+            entrada=None,
+            segundos=SEGUNDOS_PROVEEDOR_PRESIDENTE + 15,
+            env=entorno_sin_claves_api(dict(os.environ)),
+            cwd=cwd,
+        )
+    except OSError as e:
+        return None, "no se pudo lanzar: %s" % e, {}
+    # Detectar timeout en la salida cruda antes de parsear JSON
+    if "[tiempo agotado]" in (salida or "").lower():
+        return None, "[tiempo agotado]", {}
+    lectura = leer_agy(salida)
+    if rc != 0 or lectura.get("error") or not lectura.get("texto"):
+        motivo = lectura.get("error") or salida or "rc=%s" % rc
+        # Normalizar "quota" a "cuota" para consistencia
+        if "quota" in motivo.lower():
+            motivo = motivo.replace("quota", "cuota").replace("Quota", "Cuota")
+        return None, director_chat.tachar((motivo or "sin salida")[:200]), {}
+    uso = {
+        "tokensEntrada": lectura["tokens_entrada"],
+        "tokensSalida": lectura["tokens_salida"],
+        "coste": lectura["coste"],
+        "segundos": round(time.time() - inicio, 1),
+    }
+    return lectura["texto"].strip(), "", uso
 
 
 def prompt_director(pregunta: str, historial: list, contexto: str) -> str:

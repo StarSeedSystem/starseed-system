@@ -114,6 +114,7 @@ export const MODELO_DIRECTOR_DEFECTO = MODELO_PRESIDENTE;
 export const PROVEEDORES_PRESIDENTE = [
     { id: "claude", nombre: "Claude Opus 5.5 (Mac)" },
     { id: "hermes", nombre: "Hermes" },
+    { id: "agy", nombre: "Antigravity (agy)" },
     { id: "chatgpt", nombre: "ChatGPT (Codex)" },
 ] as const;
 
