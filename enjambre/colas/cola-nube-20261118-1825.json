@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "PRM1119A",
+   "ola": "PRM1119",
+   "titulo": "Linux: la ubicación funciona (el gestor de permisos de la ventana no conoce la geolocalización)",
+   "archivos": [
+    "native/src-tauri/src/permisos_medios.rs",
+    "native/src-tauri/src/ubicacion_linux.rs"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): en la Maggabox (Debian 13 Xfce, AppImage .55) no funciona el permiso de ubicación. Hallazgo de la dirección: en native/src-tauri/src/permisos_medios.rs, `al_pedir_permiso` (Builder::on_permission_request) solo reconoce micrófono, cámara y pantalla; PermissionKind::Geolocation cae en «PorDefecto» y WebKitGTK la deniega (hay una prueba que lo fija). En el nodo, geoclue está disponible (servicio por D-Bus y agente de demostración en marcha). Tarea: añadir Medio::Ubicacion: conceder la geolocalización a las páginas propias de StarSeed OS igual que micrófono y cámara (mismas reglas de origen de decidir()), y en Linux, si WebKitGTK no da posición, una vía nativa por geoclue (D-Bus org.freedesktop.GeoClue2, con el identificador de escritorio de la app) expuesta como comando; destino de ajustes por plataforma para ubicación (macOS Privacy_LocationServices, Windows ms-settings:privacy-location, Android ficha de la app). Actualiza la prueba que hoy espera Default para Geolocation y añade casos. Español neutro."
+  },
+  {
+   "id": "PRM1119B",
+   "ola": "PRM1119",
+   "titulo": "Permisos completos en todos los medios: pedir al instalar o al abrir si faltan, sin insistir en los denegados a mano",
+   "archivos": [
+    "docs/contratos/permisos-por-medio.md",
+    "src/lib/permisos/matriz.ts",
+    "starseed_memory_root/olas/cola-permisos-por-medio-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): revisar los permisos completos de todos los sistemas —macOS, Android, Linux, Windows, iOS, navegadores web, terminal y cualquier medio donde se use StarSeed OS— y pedirlos desde la instalación o al abrir la app cuando se detecte que faltan, salvo los que la persona haya denegado a mano. Lee AUDITORIA-PRM.md y el código de la lista de permisos de la neurona (grep «permisos» en src/lib y native/src-tauri/src). Tarea: (1) docs/contratos/permisos-por-medio.md con la matriz real permiso × medio (micrófono, cámara, pantalla, accesibilidad/control, ubicación, Bluetooth, red local, notificaciones, segundo plano, almacenamiento/archivos, entrada virtual, energía…): cómo se detecta, cómo se pide, si hay enlace directo a ajustes, y cómo distinguir «falta» de «denegado a mano» en cada medio; (2) src/lib/permisos/matriz.ts puro con esa matriz y la regla: al instalar y al abrir, pedir lo que falte y sea útil; si la persona lo denegó a mano, no volver a pedirlo solo, pero mostrarlo en la lista con «Abrir ajustes»; con pruebas; (3) una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-permisos-por-medio-1119.json para aplicarlo por medio. Nunca se concede nada por la persona. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "PRM1119A",
+   "PRM1119B"
+  ]
+ }
+}
