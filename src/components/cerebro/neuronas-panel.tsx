@@ -58,7 +58,8 @@ import {
    type NeuronKind,
    type NeuronRole,
    type NeuronSettings,
- } from "@/lib/neurons/neurons";
+} from "@/lib/neurons/neurons";
+import { getPerfMode, setPerfMode, type PerfMode } from "@/lib/perf/device-tier";
 import { botonesNeurona, estimarDesdeNavegador, comandoInstalar, SenalesNavegador, soDesdeAgente, type NeuronaColmena, type Boton, type SO, type ContenedorNodo } from "@/lib/metagenesis/colmena";
 import { useHermioneStatus } from "@/lib/aurora/hermione-autosync";
 import { sendAccountBroadcast } from "@/lib/sync/realtime-sync";
@@ -68,6 +69,7 @@ import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-
 import InsomneFicha from "@/components/cerebro/insomne-ficha";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 import {
+   Battery,
    Monitor,
    Laptop,
    Smartphone,
@@ -96,6 +98,8 @@ import {
    Sparkles,
    Library,
    Globe,
+   Zap,
+   Leaf,
 } from "lucide-react";
 
 /* ─────────────────────────── Constantes de UI ─────────────────────────── */
@@ -669,6 +673,44 @@ function NeuronCard({
           />
         )}
       </div>
+
+      {/* ── Rendimiento (solo en esta neurona = dispositivo actual) ── */}
+      {n.isThisDevice && (() => {
+        const perfMode = getPerfMode();
+        const opciones = [
+          { id: "auto" as PerfMode, rotulo: "Auto", icono: Sparkles, titulo: "El sistema elige según tu aparato" },
+          { id: "alto" as PerfMode, rotulo: "Alto", icono: Zap, titulo: "Todos los efectos visuales" },
+          { id: "eco" as PerfMode, rotulo: "Eco", icono: Leaf, titulo: "Menos animaciones y fondos más ligeros" },
+          { id: "eficiente" as PerfMode, rotulo: "Eficiente", icono: Battery, titulo: "Pausa animaciones, transiciones, desenfoques, reflejos y dinamismo; ahorra batería" },
+        ];
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-white/50 inline-flex items-center gap-1.5">
+                <Battery className="w-3.5 h-3.5 text-amber-300/80" /> Modo de rendimiento:
+              </span>
+              <div className="inline-flex rounded-lg border border-white/10 overflow-hidden">
+                {opciones.map((o) => (
+                  <button
+                    key={o.id}
+                    title={o.titulo}
+                    onClick={() => setPerfMode(o.id)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs transition-colors cursor-pointer whitespace-normal flex items-center gap-1.5",
+                      perfMode === o.id
+                        ? "bg-amber-500/20 text-amber-100"
+                        : "text-white/55 hover:bg-white/5",
+                    )}
+                  >
+                    <o.icono className="w-3.5 h-3.5" />
+                    {o.rotulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Rol ── */}
       <div className="flex items-center gap-2 flex-wrap">

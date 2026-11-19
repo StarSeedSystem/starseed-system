@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, CloudUpload, Gauge, Layers, LogIn, Moon, RadioTower, Settings, Sparkles, Sun, SunDim, Video, Zap, Leaf, SlidersHorizontal, Wand2 } from "lucide-react";
+import { Battery, Bot, CloudUpload, Gauge, Layers, LogIn, Moon, RadioTower, Settings, Sparkles, Sun, SunDim, Video, Zap, Leaf, SlidersHorizontal, Wand2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
@@ -79,6 +79,7 @@ const OPCIONES_RENDIMIENTO = [
     { id: "auto" as PerfMode, rotulo: "Auto", icono: Sparkles, titulo: "El sistema elige según tu aparato" },
     { id: "high" as PerfMode, rotulo: "Alto", icono: Zap, titulo: "Todos los efectos visuales" },
     { id: "eco" as PerfMode, rotulo: "Eco", icono: Leaf, titulo: "Menos animaciones y fondos más ligeros" },
+    { id: "eficiente" as PerfMode, rotulo: "Eficiente", icono: Battery, titulo: "Pausa animaciones, transiciones, desenfoques, reflejos y dinamismo; ahorra batería" },
 ];
 
 function haceCuanto(ts: number | null | undefined): string {

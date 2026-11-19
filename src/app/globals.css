@@ -3964,3 +3964,214 @@ html.ss-gesto [data-ventana-escritorio] {
 .ss-titulo-seguro { overflow-wrap: anywhere; min-width: 0; }
 /* Barras de pestañas / botones que no caben: pasan a varias filas. */
 .ss-barra-ajusta { display: flex; flex-wrap: wrap; gap: 0.25rem; height: auto; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MODO RENDIMIENTO — data-rendimiento en <html>
+   ────────────────────────────────────────────────────────────────────────
+   Modos: auto | alto | eco | eficiente
+   "eficiente" pausa TODAS las animaciones, transiciones, backdrop-filter,
+   desenfoques, reflejos y dinamismo interactivo; fondos dinámicos → cuadro fijo;
+   canvas/WebGL/rAF → 0–10 fps (gestionado por hook común en JS).
+   El modo actúa SOLO en tiempo de ejecución; no borra ni desactiva ajustes guardados.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── eco (legacy + nuevo modo eco) ── */
+html[data-rendimiento="eco"],
+html[data-perf="eco"] {
+  /* Animaciones y transiciones globales */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0.01ms !important;
+  }
+  /* Desactiva backdrop-filter / desenfoques */
+  .liquid-glass-ui,
+  .glass-card,
+  .card-glass,
+  .crystal-panel,
+  .crystal-card,
+  .liquid-glass-panel,
+  .bento-base,
+  [data-liquid-ui="true"] *,
+  .liquid-ui-enabled * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Reduce reflejos y sombras complejas */
+  .crystal-edge-glow,
+  .crystal-widget:hover .crystal-edge-glow {
+    box-shadow:
+      inset 0 0.5px 0 0.5px rgba(255, 255, 255, 0.15),
+      inset 0 -0.5px 0 0.5px rgba(255, 255, 255, 0.05),
+      0 0 15px rgba(0, 0, 0, 0.1),
+      0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  }
+  /* Fondos animados → estáticos */
+  .animate-liquid-flow,
+  .animate-bg-pan,
+  .animate-bg-zoom,
+  .animate-bg-pulse,
+  .animate-bg-scroll,
+  .animate-blob,
+  .animate-gradient-x,
+  .animate-forge-pulse,
+  .crystal-bg-layer,
+  .crystal-caustics,
+  .orb,
+  .bg-orbs .orb,
+  .nebula-element,
+  .breathing-element,
+  .crystal-border {
+    animation: none !important;
+    background-position: 50% 50% !important;
+  }
+  /* Spline / WebGL canvas: hint para bajar FPS (el hook JS hace el trabajo real) */
+  canvas[data-spline],
+  canvas[webgl],
+  [data-r3f-canvas] {
+    /* will-change removido para ahorrar VRAM */
+    will-change: auto !important;
+  }
+}
+
+/* ── eficiente (máximo ahorro) ── */
+html[data-rendimiento="eficiente"] {
+  /* TODAS las animaciones y transiciones pausadas */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+  /* backdrop-filter / desenfoques COMPLETAMENTE desactivados */
+  .liquid-glass-ui,
+  .glass-card,
+  .card-glass,
+  .crystal-panel,
+  .crystal-card,
+  .liquid-glass-panel,
+  .bento-base,
+  [data-liquid-ui="true"] *,
+  .liquid-ui-enabled *,
+  .spline-primary-button,
+  .liquid-glass-panel,
+  .crystal-window {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+  }
+  /* Reflejos, sombras complejas, aberración cromática → eliminados */
+  .crystal-edge-glow,
+  .crystal-widget:hover .crystal-edge-glow,
+  .crystal-panel::before,
+  .crystal-card::before,
+  .crystal-panel::after,
+  .crystal-card::after,
+  .liquid-glass-ui,
+  .crystal-button {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  .liquid-glass-ui {
+    box-shadow: none !important;
+    border: 1px solid hsl(var(--border-hsl) / 0.2) !important;
+    background: hsl(var(--card-hsl) / 0.8) !important;
+  }
+  /* Fondos dinámicos → cuadro fijo (color sólido del tema) */
+  .animate-liquid-flow,
+  .animate-bg-pan,
+  .animate-bg-zoom,
+  .animate-bg-pulse,
+  .animate-bg-scroll,
+  .animate-blob,
+  .animate-gradient-x,
+  .animate-forge-pulse,
+  .crystal-bg-layer,
+  .crystal-caustics,
+  .orb,
+  .bg-orbs .orb,
+  .nebula-element,
+  .breathing-element,
+  .crystal-border,
+  .ss-girar,
+  .ss-contragirar,
+  .ss-flotar,
+  .ss-respirar,
+  .ss-latir,
+  .ss-derivar,
+  .ss-caer,
+  .ss-destello,
+  .ss-ola {
+    animation: none !important;
+    display: none !important;
+  }
+  .bg-orbs {
+    display: none !important;
+  }
+  /* Botones: sin transform, sin glow, sin transiciones */
+  button,
+  [role="button"],
+  .shadcn-button,
+  .crystal-button,
+  .spline-primary-button {
+    transform: none !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+  button:hover,
+  [role="button"]:hover,
+  .shadcn-button:hover,
+  .crystal-button:hover,
+  .spline-primary-button:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  /* Spline / WebGL / rAF: hint para 0-10 fps (hook JS aplica requestAnimationFrame throttling) */
+  canvas[data-spline],
+  canvas[webgl],
+  [data-r3f-canvas],
+  canvas {
+    will-change: auto !important;
+    /* El hook JS en modo eficiente limita a ~10 fps via rAF throttling */
+  }
+  /* Scroll suave desactivado */
+  html {
+    scroll-behavior: auto !important;
+  }
+  /* Hover effects desactivados */
+  .os-widget-shell:hover,
+  .explore-card:hover,
+  .theme-preset-card:hover,
+  .card-glass:hover,
+  .glass-card:hover,
+  .crystal-card:hover,
+  .liquid-ui-enabled [data-component="card"]:hover,
+  .liquid-ui-enabled [data-component="button"]:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background: inherit !important;
+  }
+  /* Focus visible sin animación */
+  *:focus-visible {
+    transition: none !important;
+  }
+}
+
+/* ── auto y alto: sin restricciones extra (comportamiento normal) ── */
+html[data-rendimiento="auto"],
+html[data-rendimiento="alto"] {
+  /* Restaurar valores por defecto si vienen de eco/eficiente */
+  *,
+  *::before,
+  *::after {
+    animation: initial;
+    transition: initial;
+  }
+}

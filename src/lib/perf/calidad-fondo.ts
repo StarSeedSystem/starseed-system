@@ -23,14 +23,37 @@
  *   baja    → 0,5  px por px CSS   (≈6 %)
  *   mínima  → 0,35 px por px CSS   (≈3 %)
  *
+ * Modo «eficiente» (2026-11-18): fuerza calidad «mínima» y FPS 0 (estático / cuadro fijo).
+ *
  * PURO (sin DOM): la parte viva está en `useCalidadFondo` / `SplineBackground`.
  */
+
+import type { ModoRendimiento } from "./modo-rendimiento";
+import { MODOS } from "./modo-rendimiento";
 
 export type CalidadFondo = "alta" | "media" | "baja" | "minima";
 export type PreferenciaCalidadFondo = "auto" | CalidadFondo;
 
 /** De más rica a más ligera. */
 export const NIVELES: readonly CalidadFondo[] = ["alta", "media", "baja", "minima"] as const;
+
+/** Techo de calidad impuesto por el modo de rendimiento actual (puro, sin DOM). */
+export function techoPorModo(modo: ModoRendimiento): CalidadFondo {
+  const cfg = MODOS[modo];
+  if (cfg.modo === "eficiente") return "minima";
+  if (cfg.modo === "eco") return "baja";
+  return "alta";
+}
+
+/** FPS objetivo impuesto por el modo de rendimiento actual (0 = sin límite / estático en eficiente). */
+export function fpsPorModo(modo: ModoRendimiento): number {
+  return MODOS[modo].fpsObjetivo;
+}
+
+/** Escala de fondo impuesta por el modo de rendimiento actual. */
+export function escalaPorModo(modo: ModoRendimiento): number {
+  return MODOS[modo].escalaFondo;
+}
 
 export interface PerfilCalidad {
     /** Píxeles de render por píxel CSS. `null` = el del monitor (devicePixelRatio, máx. 2). */
@@ -124,6 +147,8 @@ export interface Capacidades {
     ahorro?: boolean;
     /** Nivel aplicado por el sistema de rendimiento del OS ('high' | 'mid' | 'eco'). */
     perf?: "high" | "mid" | "eco";
+    /** Modo de rendimiento completo ('auto' | 'alto' | 'eco' | 'eficiente'). */
+    modoRendimiento?: ModoRendimiento;
 }
 
 /** GPU por software o muy modesta: nunca «alta» ni «media». */
@@ -134,6 +159,7 @@ const GPU_MODESTA = /mali-[gt]\d{2}\b|adreno \(tm\) [3-5]\d\d|powervr|intel\(r\)
  * Techo (lo máximo que se le permite) y arranque (por dónde empieza) según el equipo.
  * Arrancar un nivel por debajo del techo y subir si sobra es más barato que empezar
  * alto y dar tirones mientras el gobernador reacciona.
+ * El modo de rendimiento (auto/alto/eco/eficiente) impone un techo adicional.
  */
 export function techoYArranque(c: Capacidades): { techo: CalidadFondo; arranque: CalidadFondo; motivo: string } {
     const motivos: string[] = [];
@@ -144,6 +170,7 @@ export function techoYArranque(c: Capacidades): { techo: CalidadFondo; arranque:
             motivos.push(m);
         }
     };
+    // Techo por hardware (legacy)
     if (c.perf === "mid") bajarTecho("media", "equipo de gama media");
     if (c.gpu && GPU_SOFTWARE.test(c.gpu)) bajarTecho("minima", "GPU por software");
     else if (c.gpu && GPU_MODESTA.test(c.gpu)) bajarTecho("baja", "GPU modesta");
@@ -151,10 +178,15 @@ export function techoYArranque(c: Capacidades): { techo: CalidadFondo; arranque:
     if (typeof c.nucleos === "number" && c.nucleos <= 4) bajarTecho("media", `${c.nucleos} núcleos`);
     if (c.tactil && (c.memoriaGb ?? 8) <= 6) bajarTecho("media", "móvil o tableta");
     if (c.ahorro) bajarTecho("baja", "ahorro de energía o de datos");
-    // Pantallas enormes (4K o más a resolución nativa): «alta» costaría demasiado.
     if ((c.pixelesAlta ?? 0) > 8_000_000) bajarTecho("media", "pantalla muy grande");
-    // Se arranca uno por debajo del techo (salvo que el techo ya sea lo mínimo) y se sube
-    // si el gobernador ve que sobra.
+    // Techo por modo de rendimiento (nuevo): tiene prioridad sobre hardware
+    if (c.modoRendimiento) {
+        const techoModo = techoPorModo(c.modoRendimiento);
+        if (indice(techoModo) > indice(techo)) {
+            techo = techoModo;
+            motivos.push(`modo ${c.modoRendimiento}`);
+        }
+    }
     const arranque = techo === "alta" ? "media" : techo === "minima" ? "minima" : bajarUno(techo);
     return { techo, arranque, motivo: motivos.join(" · ") || "equipo sin límites conocidos" };
 }
@@ -184,6 +216,7 @@ export const HOLGURA_PARA_SUBIR_MS = 15_000;
  * Decide el siguiente nivel. Baja en cuanto la página entera (no el fondo) deja de ir
  * fluida o el hilo principal se atasca; sube solo tras 15 s seguidos de holgura, un
  * nivel cada vez, y nunca por encima del techo ni del límite que pida el sistema.
+ * Respeta el FPS objetivo del modo de rendimiento (0 = estático en eficiente).
  */
 export function gobernar(
     estado: EstadoGobernador,
@@ -191,13 +224,16 @@ export function gobernar(
     techo: CalidadFondo,
     limite: CalidadFondo | null,
     ahora: number,
+    modoRendimiento?: ModoRendimiento,
 ): EstadoGobernador {
     const tope = limite ? masLigera(techo, limite) : techo;
     // Un límite nuevo del sistema se aplica al instante (voz, trabajo pesado…).
     if (indice(estado.actual) < indice(tope)) {
         return { actual: tope, ultimoCambio: ahora, holguraDesde: null };
     }
-    const objetivo = Math.min(m.refresco || 60, 60);
+    // FPS objetivo según modo: en "eficiente" es 0 (estático), en "eco" 30, en otros 60
+    const fpsModo = modoRendimiento ? fpsPorModo(modoRendimiento) : 0;
+    const objetivo = fpsModo > 0 ? Math.min(fpsModo, m.refresco || 60) : Math.min(m.refresco || 60, 60);
     const atascada = m.fpsPagina < objetivo * 0.75 || m.tareasLargas >= 2;
     const holgada = m.fpsPagina >= objetivo * 0.95 && m.tareasLargas === 0;
     const puedeCambiar = ahora - estado.ultimoCambio >= ESPERA_ENTRE_CAMBIOS_MS;
@@ -215,7 +251,6 @@ export function gobernar(
         }
         return { ...estado, holguraDesde: desde };
     }
-    // Ni atascada ni holgada: se mantiene, pero la cuenta de holgura vuelve a empezar.
     return { ...estado, holguraDesde: null };
 }
 
