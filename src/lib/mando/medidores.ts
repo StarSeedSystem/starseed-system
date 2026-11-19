@@ -1627,6 +1627,16 @@ export interface DatosMedidores {
         pausado?: boolean;
         tono?: "normal" | "aviso" | "peligro";
     } | null;
+    /** (CAP1119E) Estado de la búsqueda de capacidad (`~/.starseed/buscar-capacidad.json`). */
+    buscarCapacidad?: {
+        resumen: string;
+        lineas: string[];
+        sumados: number;
+        hechas: string[];
+        en_curso: boolean;
+        error?: string;
+        visto?: string;
+    } | null;
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
