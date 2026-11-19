@@ -87,3 +87,47 @@ La latencia de voz en tiempo real suma reconocer + traducir + hablar; en un Mac 
 
 ## A3. Herramientas de traducción en el clic derecho
 Sobre el menú de §1 se registran, para cualquier texto seleccionado: **Traducir selección** (existe); **Reemplazar por la traducción** (solo si la selección está en un campo editable: necesita que el menú se abra también en editables cuando hay selección, hoy no lo hace, `menu-texto.tsx:60`; se cambia con cuidado para no estorbar al menú del navegador sin selección); **Leer en voz alta** (en el idioma detectado, con `speechSynthesis` o la voz de Astraura; si no hay voz del idioma, lo dice); **Añadir al paquete de idioma en edición** (si hay un paquete abierto en el editor, guarda el texto español seleccionado como clave pendiente de traducir); **Abrir en el Traductor**. Cada una dice qué motor usa y respeta el modo privado.
+
+## Estado de la fase 1 (cola TRA1116-APP-F1)
+
+Punteros leídos en el código de este repo el 19-11 (no promesas): todo lo de la fase 1 está en `src/lib/traductor/` y `src/components/traductor/`.
+
+| Archivo | Qué hace |
+|---|---|
+| `lib/traductor/tipos.ts` | Tipos puros (`ParIdiomas`, `IdMotor`, `ResultadoTraductor`, `EstadoPar`); nunca lanza. |
+| `lib/traductor/detectar.ts` | Detecta idioma por escritura y ~25 palabras frecuentes; confianza acotada; `null` con <12 letras. |
+| `lib/traductor/decidir-traducir.ts` | Reglas de cuándo un agente traduce solo: idioma distinto, petición, varias personas. |
+| `lib/traductor/servicio.ts` | Orquesta detectar → motores → historial/avisos; tope 5000; motores, almacenes y reloj inyectados. |
+| `lib/traductor/motores-traductor.ts` | Orden de motores y filtro por privacidad (`construirMotores`, `motoresDeEsteTexto`). |
+| `lib/traductor/motor-local.ts` | Adaptador de transformers.js (ONNX) como `MotorTraduccion`; lotes de 8. |
+| `lib/traductor/motor-paquete-local.ts` | Carga el pipeline del paquete instalado; no descarga por su cuenta. |
+| `lib/traductor/modelos-locales.ts` | Catálogo de pares OPUS-MT con inglés de centro; `modeloPara`, `estadoDePar`, `ruta2saltos`. |
+| `lib/traductor/descargar.ts` | Descarga con progreso, cancelación y verificación de hash; red, reloj y almacén inyectados. |
+| `lib/traductor/gestion-paquetes.ts` | Índice y almacén de binarios; borrar por par y resumen de espacio usado/tope. |
+| `lib/traductor/indice-paquetes.ts` | Índice local persistente (`localStorage` inyectable), evento `starseed:traductor-paquetes`; ignora valores corruptos. |
+| `lib/traductor/historial.ts` | Historial local, tope 50 entradas y 2000 caracteres; opción «sin historial». |
+| `lib/traductor/idioma-por-persona.ts` | Mapa persona→idioma con racha y confianza, tope 500; almacén inyectable. |
+| `lib/traductor/privacidad.ts` | Aviso por motor (qué sale del aparato) y su aceptación. |
+| `lib/traductor/conversacion.ts` | Máquina de turnos A/B de la conversación por voz; reloj, traducción y voz inyectados. |
+| `lib/traductor/voz-escucha.ts` | Reconocimiento unificado (navegador u OSS), estados provisionales y errores. |
+| `lib/traductor/voz-habla.ts` | Síntesis por `lang`, cola de frases y «no hay voz de ese idioma» sin usar otra. |
+| `lib/traductor/herramienta-astraura.ts` | La herramienta `traductor-universal` (entrada/salida explícita) para Astraura. |
+| `components/traductor/traductor-app.tsx` | App de tres pestañas con el servicio real; Astraura queda fuera del modo privado. |
+| `components/traductor/panel-texto.tsx` | Caja de origen y resultado, tope 5000, traducir-mientras-escribo, copiar, voz y aviso. |
+| `components/traductor/selector-par.tsx` | Dos desplegables buscables, intercambio e insignia «sin internet / descarga / solo internet». |
+| `components/traductor/gestor-paquetes.tsx` | Descarga y borrado de paquetes con progreso, cancelación y estado. |
+| `components/traductor/widget-traductor.tsx` | Widget compacto (par, resultado, copiar, voz) con ajustes. |
+| `components/traductor/aviso-privacidad.tsx` | Diálogo de aviso ante la primera traducción con un motor. |
+
+### Modelos que siguen `verificado:false`
+
+Los **10** pares de `src/lib/traductor/modelos-locales.ts` están `verificado:false`, con `hash:""` y bytes estimados (60 MB), no medidos: `Xenova/opus-mt-es-en`, `opus-mt-en-es`, `opus-mt-fr-en`, `opus-mt-en-fr`, `opus-mt-de-en`, `opus-mt-en-de`, `opus-mt-pt-en`, `opus-mt-en-pt`, `opus-mt-it-en` y `opus-mt-en-it`. Mientras no se verifiquen repo, tamaño y hash, **ningún par se puede prometer como «sin internet»**: `estadoDePar` devuelve `sin-internet` solo si el repo figura en `instalados`, y esa lista no está validada aquí.
+
+### Lo que sigue y no está hecho
+
+- **Bergamot**: solo evaluado como alternativa (§3.3); no hay motor ni modelos integrados.
+- **Documentos** (.txt, .md, .srt): no hay traductor que conserve el formato; es fase 2.
+- **Préstamo de paquetes por la malla**: el formato y el hash están descritos (§3), pero no hay transporte ni verificación contra el índice firmado.
+- **OCR** (cámara/imagen): no implementado; es fase 3.
+- **Subtítulos en vivo** de llamadas o transmisiones: no implementados; es fase 3.
+- **Latencia real por aparato**: sin medir. Las cifras de §9 son [conocimiento] y la app muestra «traduciendo…» sin fingir simultaneidad.
