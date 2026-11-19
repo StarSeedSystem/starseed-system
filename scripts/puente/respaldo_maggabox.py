@@ -458,6 +458,8 @@ def aliviar(
     es_directorio_fn: Optional[Callable[[str], bool]] = None,
     listar_fn: Optional[Callable[[str], List[str]]] = None,
     mtime_fn: Optional[Callable[[str], float]] = None,
+    tamano_fn: Optional[Callable[[str], int]] = None,
+    contar_fn: Optional[Callable[[str], int]] = None,
 ) -> Dict[str, Any]:
     """Libera espacio en la Mac moviendo lo regenerable a pesados/ con copia verificada."""
     cola_activa_ids = cola_activa_ids or set()
@@ -465,6 +467,8 @@ def aliviar(
     es_directorio_fn = es_directorio_fn or os.path.isdir
     listar_fn = listar_fn or os.listdir
     mtime_fn = mtime_fn or os.path.getmtime
+    tamano_fn = tamano_fn or _tamano_directorio
+    contar_fn = contar_fn or _contar_entradas
 
     if seco:
         return {"estado": "seco", "mensaje": "Simulación (--seco), no se ejecuta nada"}
@@ -517,9 +521,9 @@ def aliviar(
     for cand in candidatos:
         if liberado_gb >= (objetivo_gb - libre_gb):
             break
-        tam_kb = _tamano_directorio(cand)
+        tam_kb = tamano_fn(cand)
         tam_gb = tam_kb / (1024 * 1024)
-        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco)
+        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, tamano_fn=tamano_fn, contar_fn=contar_fn)
         movidos.append(res)
         if res.get("verificado"):
             liberado_gb += tam_gb

@@ -19,7 +19,7 @@ import respaldo_maggabox as R  # noqa: E402
 # Constantes de prueba
 MAC_ROOT = "/Users/alex/Documents/starseed-os-main"
 STARSEED_MEMORY_ROOT = os.path.join(MAC_ROOT, "starseed_memory_root")
-WT_ROOT = os.path.expanduser("~/Documents/starseed-wt")
+WT_ROOT = os.path.expanduser("~/Documents/starseed-wd")
 ENV_PATH = os.path.expanduser("~/.starseed/env")
 SSH_KEY = os.path.expanduser("~/.ssh/starseed_nodo1")
 DEST_HOST = "maggasukha@starseed-nodo-1.local"
@@ -82,15 +82,28 @@ class SSHSimulado:
             # find para contar entradas
             if "find" in cmd and "-printf" in cmd:
                 ruta = argv[argv.index("find") + 1] if "find" in argv else ""
-                if ruta in self.archivos_remotos and self.archivos_remotos[ruta].get("is_dir"):
-                    # Simular entradas
-                    return MagicMock(returncode=0, stdout="." * 100, stderr="")
+                if ruta in self.archivos_remotos:
+                    meta = self.archivos_remotos[ruta]
+                    entradas = meta.get("entradas", 100)  # Usar entradas si está definido
+                    return MagicMock(returncode=0, stdout="." * entradas, stderr="")
                 return MagicMock(returncode=0, stdout="", stderr="")
 
             return MagicMock(returncode=0, stdout="", stderr="")
 
-        # rsync local
+        # rsync local - simular que el archivo se copia al destino remoto
         if argv[0] == "rsync":
+            # rsync -az --delete --info=progress2 --exclude=<excl> origen/ destino/
+            # El origen está en argv[-2] (sin trailing slash), el destino en argv[-1]
+            if len(argv) >= 4:
+                # Buscar el origen: el segundo último argumento que no empieza con --
+                origen = None
+                destino = argv[-1].rstrip("/")
+                for i in range(len(argv) - 2, -1, -1):
+                    if not argv[i].startswith("--"):
+                        origen = argv[i].rstrip("/")
+                        break
+                if origen and origen in self.archivos_remotos:
+                    self.archivos_remotos[destino] = self.archivos_remotos[origen].copy()
             return MagicMock(returncode=0, stdout="", stderr="")
 
         # tar local
@@ -273,7 +286,7 @@ class TestAliviar(unittest.TestCase):
 
     def test_aliviar_no_hace_nada_si_hay_espacio(self):
         # Simular 30 GB libres
-        with patch("shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 30_000_000_000)):
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 30_000_000_000)):
             resultado = R.aliviar(
                 ssh_fn=self.ssh,
                 mac_root=MAC_ROOT,
@@ -287,7 +300,7 @@ class TestAliviar(unittest.TestCase):
 
     def test_aliviar_mueve_caches_next(self):
         # Simular poco espacio
-        with patch("shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
             # Rutas simuladas
             wt_ola1 = os.path.join(WT_ROOT, "starseed-wt-ola1")
             next_cache = os.path.join(MAC_ROOT, ".next/cache")
@@ -325,7 +338,7 @@ class TestAliviar(unittest.TestCase):
         self.assertTrue(len(resultado["movidos"]) > 0)
 
     def test_aliviar_nunca_toca_datos_cuenta_ni_proyecto_en_uso(self):
-        with patch("shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
             # Simular datos de cuenta (deben estar en lista negra)
             self.ssh.archivos_remotos[os.path.expanduser("~/.starseed/env")] = {"size_kb": 100, "is_dir": False}
             self.ssh.archivos_remotos[os.path.join(MAC_ROOT, ".env.local")] = {"size_kb": 100, "is_dir": False}
@@ -349,25 +362,62 @@ class TestAliviar(unittest.TestCase):
             self.assertNotIn("starseed-wt-ola2", movido["origen"])
 
     def test_aliviar_copia_verificada_antes_de_borrar(self):
-        with patch("shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
-            origen = os.path.join(MAC_ROOT, ".next/cache")
-            self.ssh.archivos_remotos[origen] = {"size_kb": 3_000_000, "is_dir": True}
+        import tempfile
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
+            # Crear directorio temporal para simular .next/cache
+            with tempfile.TemporaryDirectory() as tmpdir:
+                next_cache = os.path.join(tmpdir, ".next", "cache")
+                os.makedirs(next_cache, exist_ok=True)
+                # Crear algunos archivos en el cache
+                with open(os.path.join(next_cache, "file1"), "w") as f:
+                    f.write("test")
+                with open(os.path.join(next_cache, "file2"), "w") as f:
+                    f.write("test")
 
-            resultado = R.aliviar(
-                ssh_fn=self.ssh,
-                mac_root=MAC_ROOT,
-                wt_root=WT_ROOT,
-                destino_base=DEST_BASE,
-                objetivo_gb=25,
-                seco=False,
-                guardar_log=self.guardados.append,
-                cola_activa_ids=set(),
-            )
+                origen = next_cache
+                # Simular archivo en remoto ANTES del rsync (para el tamaño del origen)
+                # El campo 'entradas' se usará para que el mock de find copie el contador correcto
+                self.ssh.archivos_remotos[origen] = {"size_kb": 3_000_000, "is_dir": True, "entradas": 2}
+                # Simular filesystem local
+                def existe_fn(path):
+                    return path == origen
+                def es_directorio_fn(path):
+                    return path == origen
+                def listar_fn(path):
+                    return ["file1", "file2"]
+                def mtime_fn(path):
+                    return time.time() - 40 * 86400  # 40 días
 
-        # Verificar que cada item movido tiene verificación de tamaño y entradas
-        for movido in resultado["movidos"]:
-            self.assertIn("verificado", movido)
-            self.assertTrue(movido["verificado"])
+                # Mocks para tamano_fn y contar_fn que usan los metadata del ssh
+                def tamano_fn(path):
+                    meta = self.ssh.archivos_remotos.get(path, {})
+                    return meta.get("size_kb", 0)  # du -sk devuelve KB
+                def contar_fn(path):
+                    meta = self.ssh.archivos_remotos.get(path, {})
+                    return meta.get("entradas", 0)
+
+                resultado = R.aliviar(
+                    ssh_fn=self.ssh,
+                    mac_root=tmpdir,
+                    wt_root=WT_ROOT,
+                    destino_base=DEST_BASE,
+                    objetivo_gb=25,
+                    seco=False,
+                    guardar_log=self.guardados.append,
+                    cola_activa_ids=set(),
+                    existe_fn=existe_fn,
+                    es_directorio_fn=es_directorio_fn,
+                    listar_fn=listar_fn,
+                    mtime_fn=mtime_fn,
+                    tamano_fn=tamano_fn,
+                    contar_fn=contar_fn,
+                )
+
+            # Verificar que cada item movido tiene verificación de tamaño y entradas
+            for movido in resultado.get("movidos", []):
+                print(f"DEBUG movido: {movido}")
+                self.assertIn("verificado", movido)
+                self.assertTrue(movido["verificado"])
 
 
 class TestEstado(unittest.TestCase):
@@ -384,7 +434,7 @@ class TestEstado(unittest.TestCase):
         self.ssh.archivos_remotos["respaldos/mac/starseed_memory_root"] = {"size_kb": 5000, "is_dir": True}
         self.ssh.archivos_remotos["respaldos/mac/respaldos.log"] = {"size_kb": 100, "is_dir": False}
 
-        with patch("shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 50_000_000_000)):
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 50_000_000_000)):
             estado = R.estado(
                 ssh_fn=self.ssh,
                 mac_root=MAC_ROOT,
