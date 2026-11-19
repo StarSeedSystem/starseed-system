@@ -363,6 +363,11 @@ class ServicioProyeccionPantalla : Service() {
         stopSelf()
     }
 
+    override fun onStop() {
+        super.onStop()
+        detener()
+    }
+
     override fun onDestroy() {
         detener()
         super.onDestroy()
