@@ -56,13 +56,15 @@ export const PROVIDER_ORDER: ProviderId[] = [
   "ollama",
   "deepseek",
   "groq",
-  "abliteration",
   "openrouter",
   "nvidia",
   "openai",
   "anthropic",
   "google",
   "openai-compatible",
+  // abliteration.ai se paga con saldo en USD y no entra en «gratis primero»:
+  // va al final y nunca se selecciona automáticamente.
+  "abliteration",
 ];
 
 export function getProvider(id: ProviderId): Provider {
