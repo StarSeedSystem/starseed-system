@@ -168,7 +168,9 @@ describe("cabecera del cuadro", () => {
 describe("pantalla-iniciar", () => {
     it("pide la fuente con la sesión nativa y devuelve lo que dijo lo nativo", async () => {
         const r = (await origen.ejecutar("pantalla-iniciar", { lado: 1000 }, ctx())) as Record<string, unknown>;
-        expect(n("control_pantalla_iniciar")[0].args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "auto" });
+        const args = n("control_pantalla_iniciar")[0].args;
+        expect(args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60 });
+        expect("fuente" in args).toBe(false);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
         expect((r.capacidades as { entrada: { max_dedos: number } }).entrada.max_dedos).toBe(10);
         await origen.parar("fin");
