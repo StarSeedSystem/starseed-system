@@ -699,10 +699,14 @@ class ServicioControlEntrada : AccessibilityService() {
         super.onDestroy()
     }
 
-    /** Fin de sesión o servicio que se va: suelta los dedos (también el gesto en curso, FSG1116 · M6) y para la captura. */
+    /** Fin de sesión o servicio que se va: suelta los dedos (también el gesto en curso, FSG1116 · M6), la captura y la proyección. */
     fun parar() {
         capturando = false
+        // PENC1: el cierre de sesión SUELTA la proyección (no espera al vigía) y apaga la pantalla pedida para que
+        // `volverAAccesibilidad` no la reanude al soltarla. El consentimiento no se guarda: la próxima sesión vuelve a preguntar.
+        ControlEntradaNativo.pantallaPedida = false
         ControlEntradaNativo.borrarCuadro()
+        ProyeccionPantalla.parar()
         cortar()
     }
 

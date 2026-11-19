@@ -757,4 +757,17 @@ mod pruebas {
         assert!(p.contains("if (hacia && eraActual) File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()"));
         assert!(p.contains("if (hacia && eraActual) principal.post"));
     }
+
+    #[test]
+    fn penc1_el_cierre_de_sesion_suelta_la_proyeccion_y_no_la_reanuda() {
+        // `ServicioControlEntrada.parar()` es lo que corre al cerrar la sesión. Debe soltar la proyección en el
+        // acto y apagar `pantallaPedida` ANTES, o `volverAAccesibilidad` la reanudaría al soltarla.
+        let k = KOTLIN;
+        let f = k.find("fun parar() {\n        capturando = false").expect("parar() del servicio de accesibilidad");
+        let cuerpo = &k[f..f + 520];
+        assert!(cuerpo.contains("pantallaPedida = false"));
+        assert!(cuerpo.contains("ProyeccionPantalla.parar()"));
+        let (pedida, suelta) = (cuerpo.find("pantallaPedida = false").unwrap(), cuerpo.find("ProyeccionPantalla.parar()").unwrap());
+        assert!(pedida < suelta, "primero se apaga la pantalla pedida y después se suelta la proyección");
+    }
 }
