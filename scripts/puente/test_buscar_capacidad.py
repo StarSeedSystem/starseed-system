@@ -62,6 +62,21 @@ class PlanNube(unittest.TestCase):
         self.assertEqual(p["lanzar"], 0)
         self.assertIn("agotadas", p["por_que"])
 
+    def test_mac_bloqueada_por_guardia_disco_memoria_tareas_van_a_nube(self):
+        """Cuando la Mac está frenada por guardia de disco o memoria, TODAS las tareas listas van a la nube."""
+        # Mac con tope 3 pero bloqueada por guardia de disco → tope efectivo 0 para la nube
+        p = B.plan_nube([], ["A", "B", "C"], 0, None, {}, AHORA, listas_mac=3, tope_mac=3,
+                        motivo_tope_mac="guardia de disco: 7.5 GB libres (mínimo 10 GB)")
+        self.assertEqual(p["lanzar"], 1)  # 3 tareas / 6 por run = 1 job
+        self.assertEqual(p["reabrir"], ["A", "B", "C"])
+        self.assertIn("guardia", p["por_que"].lower())
+        # Mac con tope 3 pero bloqueada por memoria (swap llena)
+        p = B.plan_nube(["X", "Y"], ["A", "B", "C"], 0, None, {}, AHORA, listas_mac=5, tope_mac=3,
+                        motivo_tope_mac="gobernador lo baja a 2: swap llena (5542 de 6144 MB)")
+        # 5 listas, tope efectivo 0 → 5 tareas para nube, 2 elegibles + 3 reabiertas = 5, 1 job
+        self.assertEqual(p["lanzar"], 1)
+        self.assertEqual(len(p["reabrir"]), 3)
+
     def test_no_reabre_lo_reabierto_hace_poco(self):
         p = B.plan_nube([], ["A", "B"], 0, None, {"A": [AHORA - 60]}, AHORA, listas_mac=20, tope_mac=3)
         self.assertEqual(p["reabrir"], ["B"])
