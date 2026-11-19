@@ -26,6 +26,22 @@ import {
   type IdPermiso as IdRegistro,
   type SistemaPermisos,
 } from "./permisos-registro";
+import {
+  VERSION_MATRIZ,
+  leerGuardado,
+  serializarGuardado,
+  yaPedidoAviso,
+  colaPendientes,
+  debeAbrirseSolo as debeAbrirseSoloMatriz,
+  marcarVisto,
+  marcarAviso,
+  type GuardadoPermisos as GuardadoMatriz,
+  type DefPermiso as DefMatriz,
+  type IdPermiso as IdMatriz,
+  type EstadoSistema as EstadoMatriz,
+  type Medio,
+  GUARDADO_VACIO as GUARDADO_VACIO_MATRIZ,
+} from "@/lib/permisos/matriz";
 
 export type SistemaAsistente = SistemaPermisos;
 export type IdPermiso = IdRegistro;
@@ -50,6 +66,21 @@ export function catalogoDe(sistema: SistemaAsistente): DefPermiso[] {
 
 /* ══════════════════════════ Lo guardado ══════════════════════════ */
 
+/** Mapea el sistema nativo al medio de la matriz unificada. */
+function medioDeSistema(s: SistemaAsistente): Medio {
+  return s as Medio;
+}
+
+/** Convierte el guardado nativo al formato de la matriz (compatibles). */
+function aGuardadoMatriz(g: GuardadoPermisos | Pick<GuardadoPermisos, "avisos">): GuardadoMatriz {
+  return g as GuardadoMatriz;
+}
+
+/** Convierte el guardado de la matriz al formato nativo (compatibles). */
+function aGuardadoNativo(g: GuardadoMatriz): GuardadoPermisos {
+  return g as GuardadoPermisos;
+}
+
 export interface GuardadoPermisos {
   version: number;
   /** Permisos que la persona ya vio (concedió, negó u omitió): no se vuelven a preguntar solos. */
@@ -59,50 +90,25 @@ export interface GuardadoPermisos {
   avisos?: IdPermiso[];
 }
 
-export const GUARDADO_VACIO: GuardadoPermisos = { version: 0, vistos: [], resultados: {} };
-
-const IDS: readonly string[] = IDS_PERMISO;
-const RESULTADOS: readonly string[] = ["concedido", "denegado", "omitido", "no-disponible"];
-
-function listaIds(x: unknown): IdPermiso[] {
-  return Array.isArray(x) ? (Array.from(new Set(x.filter((v): v is IdPermiso => typeof v === "string" && IDS.includes(v)))) as IdPermiso[]) : [];
-}
+export const GUARDADO_VACIO: GuardadoPermisos = GUARDADO_VACIO_MATRIZ;
 
 /** Normaliza lo guardado; lo ilegible cuenta como «nunca visto». Nunca lanza. */
 export function leerGuardadoPermisos(raw: string | null | undefined): GuardadoPermisos {
-  if (!raw) return GUARDADO_VACIO;
-  try {
-    const o: unknown = JSON.parse(raw);
-    if (!o || typeof o !== "object") return GUARDADO_VACIO;
-    const g = o as { version?: unknown; vistos?: unknown; resultados?: unknown; avisos?: unknown };
-    const resultados: GuardadoPermisos["resultados"] = {};
-    if (g.resultados && typeof g.resultados === "object") {
-      for (const [k, v] of Object.entries(g.resultados as Record<string, unknown>)) {
-        if (IDS.includes(k) && typeof v === "string" && RESULTADOS.includes(v)) resultados[k as IdPermiso] = v as ResultadoPermiso;
-      }
-    }
-    const version = typeof g.version === "number" && Number.isFinite(g.version) && g.version >= 0 ? Math.floor(g.version) : 0;
-    const avisos = listaIds(g.avisos);
-    return avisos.length ? { version, vistos: listaIds(g.vistos), resultados, avisos } : { version, vistos: listaIds(g.vistos), resultados };
-  } catch {
-    return GUARDADO_VACIO;
-  }
+  return aGuardadoNativo(leerGuardado(raw));
 }
 
 export function serializarGuardadoPermisos(g: GuardadoPermisos): string {
-  return JSON.stringify(g);
+  return serializarGuardado(aGuardadoMatriz(g));
 }
 
 /** ¿Ya salió el aviso del sistema de `id`? */
 export function yaPedido(g: Pick<GuardadoPermisos, "avisos">, id: IdPermiso): boolean {
-  return !!g.avisos?.includes(id);
+  return yaPedidoAviso(aGuardadoMatriz(g), id);
 }
 
 /** Los permisos que se pueden pedir ahora y no están concedidos (todos, o solo los que esa persona no vio). */
 export function colaDe(sistema: SistemaAsistente, g: GuardadoPermisos, estados: EstadosSistema = {}, forzar = false): DefPermiso[] {
-  return catalogoDe(sistema).filter(
-    (d) => esAccionable(accionDe(d, estados[d.id], yaPedido(g, d.id))) && (forzar || !g.vistos.includes(d.id)),
-  );
+  return colaPendientes(medioDeSistema(sistema), aGuardadoMatriz(g), estados, forzar);
 }
 
 /** Los permisos que aún no se le han preguntado en este sistema y que hace falta pedir (en orden). */
@@ -113,7 +119,8 @@ export function permisosPendientes(sistema: SistemaAsistente, g: GuardadoPermiso
 /** ¿Se abre sola? Solo si hay permisos que esa persona no ha visto y que no están ya concedidos. */
 export function debeAbrirseSolo(plataforma: string, g: GuardadoPermisos, estados: EstadosSistema = {}, sesion?: string | null): boolean {
   const s = sistemaDeAsistente(plataforma, sesion);
-  return !!s && permisosPendientes(s, g, estados).length > 0;
+  if (!s) return false;
+  return debeAbrirseSoloMatriz(medioDeSistema(s), aGuardadoMatriz(g), estados);
 }
 
 /* ══════════════════════════ Máquina de estados ══════════════════════════ */
@@ -243,18 +250,20 @@ export function reducirAsistente(e: EstadoAsistente, ev: EventoAsistente): Estad
 
 /** Lo que se guarda al cerrar: todo lo preguntado (aunque se omitiera) cuenta como visto. */
 export function guardadoTras(g: GuardadoPermisos, e: EstadoAsistente): GuardadoPermisos {
-  const vistos = new Set<IdPermiso>(g.vistos);
-  const resultados = { ...g.resultados };
+  let gm = aGuardadoMatriz(g);
   for (const d of e.lista) {
     const r = e.resultados[d.id];
     if (r) {
-      vistos.add(d.id);
-      resultados[d.id] = r;
+      gm = marcarVisto(gm, d.id, r);
     }
   }
-  const avisos = Array.from(new Set([...(g.avisos ?? []), ...e.avisos]));
-  const base = { version: VERSION_ASISTENTE, vistos: Array.from(vistos), resultados };
-  return avisos.length ? { ...base, avisos } : base;
+  for (const id of e.avisos) {
+    if (!gm.avisos?.includes(id)) {
+      gm = marcarAviso(gm, id);
+    }
+  }
+  const gn = aGuardadoNativo(gm);
+  return { ...gn, version: VERSION_ASISTENTE };
 }
 
 /** Frase corta del resultado de este recorrido. */

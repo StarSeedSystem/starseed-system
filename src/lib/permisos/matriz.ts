@@ -592,6 +592,10 @@ export function enlaceDe(medio: Medio, id: IdPermiso): EnlaceAjustes | null {
   return ENLACES_POR_MEDIO[medio][id] ?? null;
 }
 
+export function filasDe(medio: Medio): [IdPermiso, EnlaceAjustes][] {
+  return Object.entries(ENLACES_POR_MEDIO[medio]) as [IdPermiso, EnlaceAjustes][];
+}
+
 export function hayBotonAjustes(enlace: EnlaceAjustes | null): boolean {
   return !!enlace && (enlace.nivel === "directo" || enlace.nivel === "lista" || enlace.nivel === "ficha");
 }
@@ -724,14 +728,14 @@ export function leerGuardado(raw: string | null | undefined): GuardadoPermisos {
     const resultados: GuardadoPermisos["resultados"] = {};
     if (g.resultados && typeof g.resultados === "object") {
       for (const [k, v] of Object.entries(g.resultados as Record<string, unknown>)) {
-        if (IDS_PERMISO.includes(k) && typeof v === "string" && ["concedido", "denegado", "omitido", "no-disponible"].includes(v)) {
+        if (IDS_PERMISO.includes(k as IdPermiso) && typeof v === "string" && ["concedido", "denegado", "omitido", "no-disponible"].includes(v)) {
           resultados[k as IdPermiso] = v as GuardadoPermisos["resultados"][IdPermiso];
         }
       }
     }
     const version = typeof g.version === "number" && Number.isFinite(g.version) && g.version >= 0 ? Math.floor(g.version) : 0;
-    const vistos = Array.isArray(g.vistos) ? g.vistos.filter((v): v is IdPermiso => typeof v === "string" && IDS_PERMISO.includes(v)) : [];
-    const avisos = Array.isArray(g.avisos) ? g.avisos.filter((v): v is IdPermiso => typeof v === "string" && IDS_PERMISO.includes(v)) : [];
+    const vistos = Array.isArray(g.vistos) ? g.vistos.filter((v): v is IdPermiso => typeof v === "string" && IDS_PERMISO.includes(v as IdPermiso)) : [];
+    const avisos = Array.isArray(g.avisos) ? g.avisos.filter((v): v is IdPermiso => typeof v === "string" && IDS_PERMISO.includes(v as IdPermiso)) : [];
     return avisos.length ? { version, vistos, resultados, avisos } : { version, vistos, resultados };
   } catch {
     return GUARDADO_VACIO;

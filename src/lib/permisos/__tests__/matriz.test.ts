@@ -420,7 +420,7 @@ describe("marcarVisto / marcarAviso", () => {
   it("marcarAviso no duplica", () => {
     let g = marcarAviso(GUARDADO_VACIO, "pantalla");
     g = marcarAviso(g, "pantalla");
-    expect(g.avisos.filter((v) => v === "pantalla").length).toBe(1);
+    expect(g.avisos?.filter((v) => v === "pantalla").length ?? 0).toBe(1);
   });
 });
 

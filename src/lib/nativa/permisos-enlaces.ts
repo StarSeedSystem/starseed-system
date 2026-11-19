@@ -17,6 +17,7 @@
  */
 
 import type { IdPermiso, SistemaPermisos } from "./permisos-registro";
+import { hayBotonAjustes, enlaceDe as enlaceDeMatriz, filasDe as filasDeMatriz, type EnlaceAjustes } from "@/lib/permisos/matriz";
 
 export type NivelEnlace = "directo" | "lista" | "ficha" | "aviso" | "sin-enlace" | "no-hace-falta";
 
@@ -122,17 +123,22 @@ const TABLA: Record<SistemaPermisos, Partial<Record<IdPermiso, Enlace>>> = {
 
 /** El enlace (o la razón de que no lo haya) de un permiso en un sistema. null si el permiso no existe allí. Pura. */
 export function enlaceDe(sistema: SistemaPermisos | null | undefined, id: IdPermiso): Enlace | null {
-  return (sistema && TABLA[sistema][id]) || null;
+  if (!sistema) return null;
+  const medio = sistema as "macos" | "android" | "windows" | "linux-x11" | "linux-wayland";
+  const e = enlaceDeMatriz(medio, id);
+  if (!e) return null;
+  return { nivel: e.nivel, pantalla: e.pantalla, pulsa: e.pulsa };
 }
 
 /** Todas las filas de un sistema (para el documento y las pruebas). Pura. */
 export function filasDe(sistema: SistemaPermisos): [IdPermiso, Enlace][] {
-  return Object.entries(TABLA[sistema]) as [IdPermiso, Enlace][];
+  const medio = sistema as "macos" | "android" | "windows" | "linux-x11" | "linux-wayland";
+  return filasDeMatriz(medio) as [IdPermiso, Enlace][];
 }
 
 /** ¿Tiene sentido un botón «Abrir Ajustes»? Solo si el sistema deja abrir algo. Pura. */
 export function hayBoton(e: Enlace | null): boolean {
-  return !!e && (e.nivel === "directo" || e.nivel === "lista" || e.nivel === "ficha");
+  return hayBotonAjustes(e as EnlaceAjustes | null);
 }
 
 /** La línea que la ventana enseña bajo el permiso: qué pantalla y qué pulsar, o la verdad de que no hay enlace. Pura. */
