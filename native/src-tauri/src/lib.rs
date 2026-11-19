@@ -183,6 +183,7 @@ mod control_pantalla; // AND1115K
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
 mod control_entrada_macos_logica; // CTL1117M (pura: se prueba en todas las plataformas)
+mod control_macos_logica; // PEND1 (pura: permisos y regla G de macOS, se prueba en todas las plataformas)
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod control_aceptados_escritorio; // CTL1117M · CTL1118L: macOS y Linux
 #[cfg(target_os = "macos")]
