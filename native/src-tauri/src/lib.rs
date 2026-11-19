@@ -80,6 +80,8 @@ mod avisos_mensajes;
 mod banco_latido; // PENA1
 mod carpetas;
 mod disco;
+// (EFI1119B) Estado de energía del aparato (batería, ahorro, temperatura) para el modo «auto».
+mod energia;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
 mod enlace_wifi;
 mod enlace_wifi_logica;
@@ -883,6 +885,7 @@ pub fn run() {
                 permisos_sistema::permisos_sistema_pedir,
                 permisos_sistema::permisos_sistema_abrir,
                 recursos_ia::recursos_ia_detectar,
+                energia::energia_estado, // EFI1119B
                 nativa::antenas_estado,
                 nativa::antenas_medir,
                 nativa::antenas_config,
