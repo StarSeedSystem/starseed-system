@@ -102,26 +102,48 @@ describe("PanelConversacion", () => {
         expect(ladoB).toHaveClass("rotate-180");
     });
 
-    it("muestra 'Aún no hay turnos en este lado' cuando no hay turnos para ese lado", () => {
+    it("muestra 'Aún no hay turnos en el lado A/B' cuando no hay turnos para ese lado", () => {
         montar({ turnos: [] });
-        expect(screen.getByText("Aún no hay turnos en este lado.")).toBeInTheDocument();
+        expect(screen.getByText("Aún no hay turnos en el lado A.")).toBeInTheDocument();
+        expect(screen.getByText("Aún no hay turnos en el lado B.")).toBeInTheDocument();
     });
 
     describe("estadoDeLado cubre todas las fases", () => {
         it("devuelve 'Traduciendo…' en fase traduciendo", () => {
-            const estado = { fase: "traduciendo", quien: "A", inicioMs: 0, cola: [] } as const;
+            const estado = {
+                fase: "traduciendo",
+                quien: "A" as const,
+                inicioMs: 0,
+                textoOriginal: "hola",
+                inicioTraduccionMs: 100,
+            } as const;
             expect(estadoDeLado(estado, "A")).toBe("Traduciendo…");
             expect(estadoDeLado(estado, "B")).toBe("En espera");
         });
 
         it("devuelve 'Hablando…' en fase hablando", () => {
-            const estado = { fase: "hablando", quien: "B", inicioMs: 0 } as const;
+            const estado = {
+                fase: "hablando",
+                quien: "B" as const,
+                inicioMs: 0,
+                texto: "hola",
+                traduccion: "hello",
+                inicioTraduccionMs: 100,
+                inicioHablaMs: 200,
+            } as const;
             expect(estadoDeLado(estado, "B")).toBe("Hablando…");
             expect(estadoDeLado(estado, "A")).toBe("En espera");
         });
 
         it("devuelve 'Esperando turno (N)' en fase esperandoTurno", () => {
-            const estado = { fase: "esperandoTurno", quien: "A", inicioMs: 0, cola: ["x", "y"] } as const;
+            const estado = {
+                fase: "esperandoTurno" as const,
+                quien: "A" as const,
+                cola: [
+                    { quien: "B" as const, texto: "x", traduccion: "x" },
+                    { quien: "B" as const, texto: "y", traduccion: "y" },
+                ],
+            };
             expect(estadoDeLado(estado, "A")).toBe("Esperando turno (2)");
         });
     });

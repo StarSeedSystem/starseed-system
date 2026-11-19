@@ -81,7 +81,7 @@ function Mitad({ quien, idioma, reconocimiento, voz, estado, turno, girar, onPul
                     </p>
                 </div>
             ) : (
-                <p className="text-sm text-white/50">Aún no hay turnos en este lado.</p>
+                <p className="text-sm text-white/50">Aún no hay turnos en el lado {quien}.</p>
             )}
             {(!reconocimiento || !voz) && (
                 <div className="mt-auto flex flex-col gap-2">
