@@ -23,6 +23,7 @@ import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, per
 import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
+import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -330,6 +331,23 @@ export class PantallaDestino {
         this.temporizadores.add(t);
     }
 
+    /** CTL1119F: obtiene las capacidades nativas del controlador (este aparato) para decidir la vía. */
+    private async capacidadesControlador(): Promise<Awaited<ReturnType<typeof import("./nativo").capacidadesNativas>> | null> {
+        try {
+            const { capacidadesNativas } = await import("./nativo");
+            return await capacidadesNativas();
+        } catch {
+            return null;
+        }
+    }
+
+    /** CTL1119F: convierte la razón larga en un código corto para el registro (compatibilidad con lineaVia). */
+    private causaCorto(razon: string): string {
+        if (razon.includes("Linux sin WebRTC")) return "sin-webrtc";
+        if (razon.includes("WebRTC no disponible")) return "sin-webrtc";
+        return "sin-webrtc";
+    }
+
     // ── abrir ────────────────────────────────────────────────────────────────────────────────
 
     async iniciar(): Promise<void> {
@@ -375,12 +393,17 @@ export class PantallaDestino {
             ...(alcanceDeNativo(res.capacidades, res) ? { alcance: alcanceDeNativo(res.capacidades, res) } : {}), // CTL1117J · S2
         });
         this.inicioConexion = this.d.ahora();
-        if (this.d.malla && !this.d.malla.hayWebRtc()) {
-            // CTL1118M: sin RTCPeerConnection utilizable en este aparato, la pantalla viaja por la malla desde el principio.
-            this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
-            this.pasarAMalla("sin-webrtc");
-            void this.leerAparato();
-            return;
+        // CTL1119F: decidir la vía de pantalla según capacidades (WebRTC o malla).
+        let viaRazon: { via: "webrtc" | "malla"; razon: string } | null = null;
+        if (this.d.malla) {
+            const capsControlador = await this.capacidadesControlador();
+            viaRazon = await decidirViaPantalla(capsControlador, null);
+            if (viaRazon.via === "malla") {
+                this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+                this.pasarAMalla(this.causaCorto(viaRazon.razon));
+                void this.leerAparato();
+                return;
+            }
         }
         try {
             await this.negociar();
@@ -402,7 +425,7 @@ export class PantallaDestino {
         // CTL1119F: a los 10 s en "conectando" sin pantalla, avisar la causa y la vía intentada.
         this.despues(10_000, () => {
             if (this.snap.estado === "conectando" && !this.enMalla && !this.snap.motivo) {
-                const causa = this.d.malla ? "negociación WebRTC" : "sin WebRTC";
+                const causa = viaRazon?.razon ?? (this.d.malla ? "negociación WebRTC" : "sin WebRTC");
                 this.poner({ motivo: `Conectando… (${causa}). Se intentará pantalla por cuadros.` });
             }
         });
