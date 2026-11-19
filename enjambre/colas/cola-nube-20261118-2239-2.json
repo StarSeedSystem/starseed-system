@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "CAP1119E",
+   "ola": "CAP1119",
+   "titulo": "El botón «Buscar más capacidad» de los medidores no falla: corre en segundo plano y dice qué pasó",
+   "archivos": [
+    "src/app/api/mando/medidores/route.ts",
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): el botón de los medidores de agentes dice «No pude buscar más capacidad: Command failed: python3 scripts/puente/buscar_capacidad.py buscar --aplicar --json --origen boton». Diagnóstico de la dirección: desde la terminal el mismo comando termina bien (rc=0; sin --aplicar tarda 46 s con la Mac cargada; con --aplicar lanzó 1 job de nube y reabrió MRI4b), pero la ruta /api/mando/medidores (acción buscar-capacidad y potenciar→activar, route.ts ~l.1210 y ~l.1227) lo espera con execFile y tope de 150 s; con la Mac ahogada y el empuje de la rama de la cola a GitHub (que ya agotó 120 s otras veces) se pasa del tope o sale con error, y el mensaje solo muestra «Command failed». Tarea: (1) la ruta lanza buscar_capacidad en segundo plano (proceso desacoplado, una sola ejecución a la vez con un candado) y responde enseguida «Buscando capacidad…»; el resultado se guarda en un archivo de estado que el medidor lee y muestra al terminar (y se publica en el Chat Director como hoy); (2) buscar_capacidad.py no aborta si falla el empuje a GitHub o un medio: reintenta con espera, sigue con los demás medios y devuelve un resumen parcial con lo que falló; (3) si algo falla, el medidor muestra las últimas líneas reales del error, no solo «Command failed». Pruebas: la parte pura (resumen parcial ante fallos, candado) en test_buscar_capacidad.py; tsc y vitest de la ruta si hay pruebas. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CAP1119E"
+  ]
+ }
+}
