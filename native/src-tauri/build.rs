@@ -66,6 +66,9 @@ const COMANDOS_APP: &[&str] = &[
     "permisos_sistema_estado",
     "permisos_sistema_pedir",
     "permisos_sistema_abrir",
+    // (LNX1118WD) Linux nodo: medir lo que falta y prepararlo con el diálogo del sistema (pkexec).
+    "permisos_linux_nodo_estado",
+    "permisos_linux_preparar",
     "recursos_ia_detectar",
     // (MOD1110B) Instalación guiada de Ollama (solo escritorio).
     "ollama_instalador_descargar",

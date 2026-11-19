@@ -317,11 +317,15 @@ pub fn permisos_linux_preparar(sin_reposo: bool) -> Result<String, String> {
         use std::io::Write;
         use std::process::{Command, Stdio};
         let arg = if sin_reposo { "1" } else { "0" };
+        // Si la app corre desde una AppImage, su GStreamer ya viaja dentro: el guion no instala paquetes.
+        let gst_propio = if std::env::var_os("APPIMAGE").is_some() || std::env::var_os("APPDIR").is_some() { "1" } else { "0" };
         let mut hijo = Command::new("pkexec")
             .arg("/bin/sh")
             .arg("-s")
             .arg("--")
+            .arg("starseed-nodo")
             .arg(arg)
+            .arg(gst_propio)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

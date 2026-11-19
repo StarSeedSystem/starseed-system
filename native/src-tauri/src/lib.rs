@@ -994,6 +994,8 @@ pub fn run() {
         acceso_equipo::acceso_equipo_estado, // SEG1111U
         acceso_equipo::acceso_equipo_pedir, // SEG1111U
         acceso_equipo::acceso_equipo_revocar, // SEG1111U
+        permisos_sistema::permisos_linux_nodo_estado, // LNX1118WD
+        permisos_sistema::permisos_linux_preparar, // LNX1118WD
         ventana_remota::ventanas_prestables,
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,

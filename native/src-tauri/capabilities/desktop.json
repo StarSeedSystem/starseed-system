@@ -36,6 +36,8 @@
     "allow-servidor-local-estado",
     "allow-ollama-instalador-descargar",
     "allow-ollama-instalador-cancelar",
-    "allow-ollama-instalador-abrir"
+    "allow-ollama-instalador-abrir",
+    "allow-permisos-linux-nodo-estado",
+    "allow-permisos-linux-preparar"
   ]
 }

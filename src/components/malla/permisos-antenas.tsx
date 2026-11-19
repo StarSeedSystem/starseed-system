@@ -9,6 +9,9 @@ import { ControlEntreNeuronasPanel } from '../control-remoto/banda-control'; // 
 // (PER1108A) Reabrir el asistente de permisos del primer arranque (solo en la app nativa).
 import { esAppNativa } from '../../lib/nativa/puente';
 import { EVENTO_ABRIR_ASISTENTE } from '../../lib/nativa/permisos-inicio';
+// (LNX1118WD) Linux nodo: lo que falta (grupos, /dev/uinput, Bluetooth) y «Preparar este Linux» con pkexec.
+import { PermisosLinux } from '../neurona/permisos-linux';
+import { esLinuxEscritorio } from '../../lib/control-remoto/webrtc-linux';
 
 export default function PermisosAntenas() {
   const [estado, setEstado] = useState<{
@@ -130,6 +133,12 @@ export default function PermisosAntenas() {
           >
             Permisos de esta neurona
           </button>
+        </div>
+      )}
+      {esAppNativa() && esLinuxEscritorio(typeof navigator !== 'undefined' ? navigator.userAgent : '') && (
+        <div className="mb-4">
+          {/* LNX1118WD: la lista de permisos del nodo Linux mide lo que falta y prepara el sistema. */}
+          <PermisosLinux />
         </div>
       )}
       <BluetoothDirectoPanel />

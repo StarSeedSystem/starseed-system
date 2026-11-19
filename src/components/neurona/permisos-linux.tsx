@@ -53,7 +53,7 @@ export function faltasDe(e: EstadoNodoLinux | null): FaltaNodo[] {
     faltas.push({ clave: "grupos", titulo: "Grupos del sistema", detalle: `Faltan: ${e.grupos_faltan.map(nombreGrupo).join(", ")}.` });
   }
   if (!e.uinput) {
-    faltas.push({ clave: "uinput", titulo: "Mando virtual (/dev/uinput)", detalle: "Falta /dev/uinput para el grupo input: sin él no se controlan el ratón y el teclado." });
+    faltas.push({ clave: "uinput", titulo: "Entrada virtual (/dev/uinput)", detalle: "Falta /dev/uinput para el grupo input: sin él no se controlan el ratón y el teclado." });
   }
   if (!e.bluetooth) {
     faltas.push({ clave: "bluetooth", titulo: "Bluetooth del sistema", detalle: "El servicio bluetooth no está encendido: las antenas no arrancan." });
