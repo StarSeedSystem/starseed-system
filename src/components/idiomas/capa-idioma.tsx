@@ -4,6 +4,9 @@
  * IDI1115N · Monta la capa de idioma en el layout raíz: lee el idioma que rige (neurona › cuenta ›
  * español), carga su catálogo del paquete y lo aplica a todo el cuerpo; reacciona al evento
  * `starseed:idioma` (elección nueva) y a `storage` (otra pestaña). Sin UI propia.
+ *
+ * HAL1116A · La PRIMERA aplicación espera a que el documento esté hidratado (HAL04) para no
+ * reescribir el HTML antes de que React lo adopte. Una elección con la página ya viva no espera.
  */
 import { useEffect } from "react";
 import { iniciarCapa, fijarDocumento, type CapaActiva } from "@/lib/idiomas/capa";
@@ -17,8 +20,10 @@ export function CapaIdioma(): null {
         let capa: CapaActiva | null = null;
         let vivo = true;
         const aplicar = async (): Promise<void> => {
-            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
-            if (!vivo) return;
+            if (!capa) {
+                await cuandoEsSeguroTraducir(entornoDelNavegador(window));
+                if (!vivo) return;
+            }
             const { codigo } = idiomaEfectivo();
             const cat = codigo === IDIOMA_FUENTE ? null : await cargarCatalogo(codigo);
             if (!vivo) return;
