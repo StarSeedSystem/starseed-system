@@ -62,6 +62,10 @@ mod ubicacion;
 mod ubicacion_logica;
 #[cfg(target_os = "macos")]
 mod ubicacion_macos;
+// (PRM1119A) Linux: la vía nativa por GeoClue2 cuando WebKitGTK no da posición.
+#[cfg(target_os = "linux")]
+#[allow(dead_code)]
+mod ubicacion_linux;
 mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;

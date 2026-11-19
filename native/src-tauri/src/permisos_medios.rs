@@ -1,15 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// permisos_medios — micrófono, cámara y pantalla en la app nativa (MIC1108A, 2026-11-08).
-// Contrato: architecture/apps-autonomas-sin-internet.md §13.
+// permisos_medios — micrófono, cámara, pantalla y ubicación en la app nativa (MIC1108A, 2026-11-08).
+// Contrato: architecture/apps-autonomas-sin-internet.md §13 y architecture/ubicacion-nativa.md.
 // ---------------------------------------------------------------------------
-// Qué responde la app cuando la página pide un medio (getUserMedia / getDisplayMedia):
+// Qué responde la app cuando la página pide un medio (getUserMedia / getDisplayMedia / geolocation):
 //   · página de un origen PROPIO (el servidor local http://127.0.0.1:47610…47619 o la web
 //     publicada de OS, Nexus o Café: los mismos orígenes de capabilities/default.json) → el motor
 //     web lo concede y es el SISTEMA quien pregunta a la persona (macOS: TCC con los textos de
 //     Info.plist; Android: permiso en tiempo de ejecución; Windows: Privacidad del sistema);
 //   · página de otro origen → se deniega;
 //   · página aún desconocida → lo de siempre del motor (que pregunta él).
-// El resto de permisos (ubicación, notificaciones…) no se toca.
+// (PRM1119A) La ubicación se decide igual que el micrófono y la cámara: WebKitGTK la denegaba en
+// Linux porque caía en «PorDefecto». El resto de permisos (notificaciones…) no se toca.
 //
 // wry no dice qué origen pide: se usa la URL de la ÚLTIMA página cargada en esa ventana
 // (`on_page_load`), guardada aquí. Nunca se llama a `webview.url()` dentro del manejador: en
@@ -25,7 +26,8 @@ use std::sync::Mutex;
 use crate::pista_neurona::{es_origen_local, origen_de};
 
 /// Sube si cambia lo que la app hace con los medios (la web lo lee con `medios_estado`).
-pub const VERSION_MEDIOS: u32 = 1;
+/// (PRM1119A) 2: la ubicación se concede a las páginas propias, como micrófono y cámara.
+pub const VERSION_MEDIOS: u32 = 2;
 
 /// Las webs publicadas que la app abre como propias (las de `capabilities/default.json`).
 pub const WEBS_PUBLICADAS: [&str; 3] = [
@@ -40,6 +42,8 @@ pub enum Medio {
     Microfono,
     Camara,
     Pantalla,
+    /// (PRM1119A) Geolocalización de la página (`navigator.geolocation`).
+    Ubicacion,
     /// Cualquier otro permiso: no se toca.
     Otro,
 }
@@ -74,12 +78,13 @@ pub fn decidir(medio: Medio, pagina: Option<&str>) -> Decision {
     }
 }
 
-/// «microfono» | «camara» | «pantalla» (lo que manda la web a `medios_abrir_ajustes`).
+/// «microfono» | «camara» | «pantalla» | «ubicacion» (lo que manda la web a `medios_abrir_ajustes`).
 pub fn medio_de_texto(t: &str) -> Option<Medio> {
     match t.trim().to_ascii_lowercase().as_str() {
         "microfono" | "micrófono" | "audio" => Some(Medio::Microfono),
         "camara" | "cámara" | "video" | "vídeo" => Some(Medio::Camara),
         "pantalla" => Some(Medio::Pantalla),
+        "ubicacion" | "ubicación" | "geolocalizacion" | "geolocalización" => Some(Medio::Ubicacion),
         _ => None,
     }
 }
@@ -92,9 +97,11 @@ pub fn destino_ajustes(plataforma: &str, medio: Medio) -> Option<&'static str> {
         ("macos", Medio::Microfono) => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"),
         ("macos", Medio::Camara) => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"),
         ("macos", Medio::Pantalla) => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"),
+        ("macos", Medio::Ubicacion) => Some("x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"),
         ("windows", Medio::Microfono) => Some("ms-settings:privacy-microphone"),
         ("windows", Medio::Camara) => Some("ms-settings:privacy-webcam"),
-        ("android", Medio::Microfono | Medio::Camara) => Some("ajustes"),
+        ("windows", Medio::Ubicacion) => Some("ms-settings:privacy-location"),
+        ("android", Medio::Microfono | Medio::Camara | Medio::Ubicacion) => Some("ajustes"),
         _ => None,
     }
 }
@@ -127,6 +134,8 @@ fn medio_de(kind: PermissionKind) -> Medio {
         PermissionKind::Microphone => Medio::Microfono,
         PermissionKind::Camera => Medio::Camara,
         PermissionKind::DisplayCapture => Medio::Pantalla,
+        // (PRM1119A) Igual que los demás medios: propia → conceder, ajena → denegar.
+        PermissionKind::Geolocation => Medio::Ubicacion,
         _ => Medio::Otro,
     }
 }
@@ -186,7 +195,7 @@ pub fn medios_estado() -> EstadoMediosNativo {
 }
 
 /// Abre los ajustes del sistema donde se da (o se quita) el permiso de `tipo`
-/// («microfono» | «camara» | «pantalla»). Solo direcciones fijas: nada de la web llega a un proceso.
+/// («microfono» | «camara» | «pantalla» | «ubicacion»). Solo direcciones fijas: nada de la web llega a un proceso.
 #[tauri::command]
 pub fn medios_abrir_ajustes(tipo: String) -> Result<bool, String> {
     let medio = medio_de_texto(&tipo).ok_or_else(|| format!("No sé qué ajustes abrir para «{tipo}»."))?;
@@ -246,6 +255,9 @@ pub fn encender_medios_linux<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
             ajustes.set_enable_mediasource(true);
             ajustes.set_enable_media_capabilities(true);
             ajustes.set_enable_webaudio(true);
+            // (PRM1119A) La geolocalización de WebKitGTK venía apagada; sin esto `navigator.geolocation`
+            // ni existe. Si su proveedor interno (GeoClue) no da posición, la app tiene su vía nativa.
+            ajustes.set_enable_geolocation(true);
             ajustes.set_enable_mock_capture_devices(false);
         }
     });
@@ -386,13 +398,35 @@ mod pruebas {
     fn decide_solo_los_medios() {
         let propia = Some("http://127.0.0.1:47611/mensajes");
         let ajena = Some("https://evil.example/");
-        for m in [Medio::Microfono, Medio::Camara, Medio::Pantalla] {
+        // (PRM1119A) La ubicación se decide con las MISMAS reglas de origen que los demás medios.
+        for m in [Medio::Microfono, Medio::Camara, Medio::Pantalla, Medio::Ubicacion] {
             assert_eq!(decidir(m, propia), Decision::Conceder);
             assert_eq!(decidir(m, ajena), Decision::Denegar);
             assert_eq!(decidir(m, None), Decision::PorDefecto, "sin página: lo de siempre del motor");
         }
-        assert_eq!(decidir(Medio::Otro, propia), Decision::PorDefecto, "ubicación, notificaciones… no se tocan");
+        assert_eq!(decidir(Medio::Otro, propia), Decision::PorDefecto, "notificaciones y demás no se tocan");
         assert_eq!(decidir(Medio::Otro, ajena), Decision::PorDefecto);
+    }
+
+    #[test]
+    fn la_ubicacion_se_concede_solo_a_las_paginas_propias() {
+        // PRM1119A: la prueba que antes fijaba «Default» para Geolocation ahora fija «Allow» en la propia.
+        for u in [
+            "http://127.0.0.1:47610/",
+            "https://starseed-os.vercel.app/mapa",
+            "https://starseed-nexus.vercel.app/",
+            "https://starseed-cafe.vercel.app/",
+        ] {
+            assert_eq!(decidir(Medio::Ubicacion, Some(u)), Decision::Conceder, "{u}");
+        }
+        for u in [
+            "https://evil.example/",
+            "https://starseed-os.vercel.app.evil.example/",
+            "http://127.0.0.1:47620/",
+            "tauri://localhost/index.html",
+        ] {
+            assert_eq!(decidir(Medio::Ubicacion, Some(u)), Decision::Denegar, "{u}");
+        }
     }
 
     #[test]
@@ -412,10 +446,13 @@ mod pruebas {
         assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Microphone), PermissionResponse::Allow);
         assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Camera), PermissionResponse::Allow);
         assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::DisplayCapture), PermissionResponse::Allow);
-        assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Geolocation), PermissionResponse::Default);
+        // PRM1119A: la geolocalización ya NO cae en «Default» para una página propia.
+        assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Geolocation), PermissionResponse::Allow);
         assert_eq!(al_pedir_permiso("prueba-tauri-sin", PermissionKind::Microphone), PermissionResponse::Default);
+        assert_eq!(al_pedir_permiso("prueba-tauri-sin", PermissionKind::Geolocation), PermissionResponse::Default);
         recordar_pagina("prueba-tauri", "https://evil.example/");
         assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Microphone), PermissionResponse::Deny);
+        assert_eq!(al_pedir_permiso("prueba-tauri", PermissionKind::Geolocation), PermissionResponse::Deny);
     }
 
     #[test]
@@ -423,20 +460,27 @@ mod pruebas {
         assert_eq!(medio_de_texto("microfono"), Some(Medio::Microfono));
         assert_eq!(medio_de_texto(" Cámara "), Some(Medio::Camara));
         assert_eq!(medio_de_texto("pantalla"), Some(Medio::Pantalla));
+        assert_eq!(medio_de_texto("ubicacion"), Some(Medio::Ubicacion));
+        assert_eq!(medio_de_texto("Geolocalización"), Some(Medio::Ubicacion));
         assert_eq!(medio_de_texto("rm -rf /"), None);
         assert!(destino_ajustes("macos", Medio::Microfono).unwrap().ends_with("Privacy_Microphone"));
         assert!(destino_ajustes("macos", Medio::Camara).unwrap().ends_with("Privacy_Camera"));
         assert!(destino_ajustes("macos", Medio::Pantalla).unwrap().ends_with("Privacy_ScreenCapture"));
+        // PRM1119A: la ubicación tiene su pantalla en cada sistema.
+        assert!(destino_ajustes("macos", Medio::Ubicacion).unwrap().ends_with("Privacy_LocationServices"));
         assert_eq!(destino_ajustes("windows", Medio::Microfono), Some("ms-settings:privacy-microphone"));
         assert_eq!(destino_ajustes("windows", Medio::Camara), Some("ms-settings:privacy-webcam"));
+        assert_eq!(destino_ajustes("windows", Medio::Ubicacion), Some("ms-settings:privacy-location"));
         assert_eq!(destino_ajustes("windows", Medio::Pantalla), None);
         assert_eq!(destino_ajustes("android", Medio::Microfono), Some("ajustes"));
+        assert_eq!(destino_ajustes("android", Medio::Ubicacion), Some("ajustes"));
         assert_eq!(destino_ajustes("android", Medio::Pantalla), None, "Android WebView no comparte pantalla");
         assert_eq!(destino_ajustes("linux", Medio::Microfono), None);
+        assert_eq!(destino_ajustes("linux", Medio::Ubicacion), None);
         assert_eq!(destino_ajustes("ios", Medio::Microfono), None);
         // Solo direcciones fijas, sin espacios ni nada que una shell pudiera leer de otra forma.
         for p in ["macos", "windows", "android"] {
-            for m in [Medio::Microfono, Medio::Camara, Medio::Pantalla] {
+            for m in [Medio::Microfono, Medio::Camara, Medio::Pantalla, Medio::Ubicacion] {
                 if let Some(d) = destino_ajustes(p, m) {
                     assert!(d.chars().all(|c| c.is_ascii_alphanumeric() || ".:?_-".contains(c)), "{d}");
                 }
