@@ -805,6 +805,66 @@ def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
     assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
 
 
+class MacBloqueadaPorGuardia(unittest.TestCase):
+    """(CAP1119B) Cuando la Mac está frenada por la guardia de disco o memoria, las tareas listas van a la nube."""
+
+    def test_mac_en_tope_por_memoria_nube_recibe_tareas(self):
+        """Mac al tope por memoria (guardia): la nube debe poder coger las tareas listas."""
+        mac = {"ocupados": ["A", "B", "C"], "tope": 3, "listas": ["X", "Y", "Z"],
+               "motivo_tope": "el gobernador lo baja a 2: recursos al límite (swap llena)"}
+        plan = B.plan_nube(["T1", "T2"], [], 0, None, {}, AHORA, listas_mac=3, tope_mac=3)
+        # La nube tiene sitio (tope_runs > runs_vivos) y la Mac está llena
+        self.assertGreater(plan["lanzar"], 0)
+        self.assertIn("tarea(s) para la nube", plan["por_que"])
+
+    def test_mac_sin_huecos_por_guardia_disco_nube_no_espera(self):
+        """Guardia de disco (menos de 10 GB): la nube coge el trabajo sin que la Mac espere."""
+        mac = {"ocupados": ["A", "B"], "tope": 2, "listas": ["L1", "L2", "L3", "L4"],
+               "motivo_tope": "guardián de disco: 7.5 GB libres (mínimo 10 GB)"}
+        plan = B.plan_nube(["T1", "T2", "T3"], [], 0, None, {}, AHORA, listas_mac=4, tope_mac=2)
+        self.assertGreater(plan["lanzar"], 0)
+
+    def test_mac_con_huecos_pero_sin_listas_nube_no_recibe_nada(self):
+        """Mac tiene huecos pero no hay tareas listas: la nube no recibe trabajo inventado."""
+        mac = {"ocupados": ["A"], "tope": 3, "listas": []}
+        plan = B.plan_nube([], [], 0, None, {}, AHORA, listas_mac=0, tope_mac=3)
+        self.assertEqual(plan["lanzar"], 0)
+        self.assertIn("no hay trabajo", plan["por_que"])
+
+
+class A1EscalaAgentes(unittest.TestCase):
+    """(CAP1119B) El A1 sube de agentes mientras tenga CPU y memoria libres, con su propio tope."""
+
+    def test_a1_con_cpu_baja_sube_agentes(self):
+        """A1 con 15% CPU y 5.6 GB libres: el orquestador en el A1 puede lanzar más trabajadores."""
+        import medios_disponibles as M
+        ahora = 1_000_000.0
+        datos = {"vinculada": True, "region": "mx-queretaro-1",
+                 "instancias": [{"nombre": "starseed-a1", "forma": "VM.Standard.A1.Flex",
+                                 "ocpus": 2, "gb": 12, "estado": "RUNNING", "ip_publica": "203.0.113.10"}]}
+        consumo = {"leido": "2026-10-10T01:00:00Z", "freno": {"activo": False},
+                   "margen": {"cpu_libre_pct": 85.0, "mem_libre_gb": 5.6}}
+        reg = {"medios": {"o1": {"origen": "oracle", "latido": ahora - 60}}}
+        d = M.clasificar_oracle(datos, reg, ahora, consumo)
+        self.assertEqual(d["estado"], "listo")
+        self.assertIn("85,0 % CPU", d["capacidad"])
+        self.assertIn("5,6 GB", d["capacidad"])
+
+    def test_a1_tope_propio_no_sobrepasa_hardware(self):
+        """El A1 tiene su propio tope (núcleos - 1 = 1 trabajador permanente)."""
+        import medios_disponibles as M
+        ahora = 1_000_000.0
+        datos = {"vinculada": True, "region": "mx-queretaro-1",
+                 "instancias": [{"nombre": "starseed-a1", "forma": "VM.Standard.A1.Flex",
+                                 "ocpus": 2, "gb": 12, "estado": "RUNNING"}]}
+        consumo = {"leido": "2026-10-10T01:00:00Z", "freno": {"activo": False},
+                   "margen": {"cpu_libre_pct": 15.0, "mem_libre_gb": 5.6}}
+        reg = {"medios": {"o1": {"origen": "oracle", "latido": ahora - 60}}}
+        d = M.clasificar_oracle(datos, reg, ahora, consumo)
+        self.assertEqual(d["estado"], "listo")
+        # El detalle menciona que es A1 con 2 OCPU (1 trabajador por núcleo - 1)
+
+
 class FrenoMismoMotivo(unittest.TestCase):
     """(HAL09) Freno por mismo motivo en Buscar más capacidad."""
 

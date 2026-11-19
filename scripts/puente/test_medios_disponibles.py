@@ -54,8 +54,10 @@ class Clasificar(unittest.TestCase):
     def test_gcloud_usable_solo_con_cuenta_activa(self):
         self.assertEqual(M.clasificar_gcloud(False, [], "", [])["estado"], "requiere_alex")
         self.assertEqual(M.clasificar_gcloud(True, [], "", [])["estado"], "requiere_alex")
+        # Cloud Run exige facturación: sin billingEnabled explícito, no es usable
         d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}])
-        self.assertEqual(d["estado"], "usable")
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
         self.assertIn("proy", d["detalle"])
 
     def test_ningun_medio_inventa_un_estado(self):
@@ -149,3 +151,29 @@ class Oracle(unittest.TestCase):
         self.assertEqual("requiere_alex", d["estado"])
         self.assertIn("freno", d["detalle"])
         self.assertIn("cloud.oracle.com", d["siguiente_paso"])
+
+
+class GcloudConFacturacionDesactivada(unittest.TestCase):
+    """(CAP1119B) gcloud NO es 'usable' si Cloud Run exige facturación y está desactivada."""
+
+    def test_gcloud_sin_facturacion_no_es_usable(self):
+        """Cloud Run no arranca sin cuenta de facturación: el medio sale 'requiere_alex' con explicación."""
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{"name": "servicio-1"}])
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
+        self.assertIn("Cloud Run", d["detalle"])
+        self.assertIn("necesita", d["siguiente_paso"].lower())
+
+    def test_gcloud_con_facturacion_activa_es_usable(self):
+        """Si la facturación está activa (simulado), el medio es usable."""
+        # Simulamos que el proyecto tiene facturación activa añadiendo un campo
+        servicios = [{"name": "servicio-1", "billingEnabled": True}]
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", servicios)
+        self.assertEqual(d["estado"], "usable")
+        self.assertIn("Cloud Run", d["capacidad"])
+
+    def test_gcloud_sin_servicios_cloudrun_es_usable_pero_explica(self):
+        """Sin servicios de Cloud Run, el medio es usable pero dice que no hay servicios."""
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [])
+        self.assertEqual(d["estado"], "usable")
+        self.assertIn("0 servicio", d["detalle"])

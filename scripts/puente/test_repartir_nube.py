@@ -900,5 +900,57 @@ class UnSoloRepartidor(unittest.TestCase):
                 with self.assertRaises(TimeoutError):
                     with R.CerrojoReparto(espera_s=0, ruta=ruta):
                         pass
-            with R.CerrojoReparto(espera_s=0, ruta=ruta):
-                pass  # libre otra vez
+                with R.CerrojoReparto(espera_s=0, ruta=ruta):
+                    pass  # libre otra vez
+
+
+class GitHubPushRetry(unittest.TestCase):
+    """(CAP1119B) El empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir."""
+
+    def _import_nube_gh(self):
+        import importlib.util
+        import os
+        ruta = os.path.join(os.path.dirname(__file__), "nube-gh.py")
+        spec = importlib.util.spec_from_file_location("nube_gh", ruta)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_motivo_push_gh013_da_detalle_util(self):
+        """GH013 (secretos detectados) devuelve tipos, rutas y enlaces para desbloquear."""
+        NGH = self._import_nube_gh()
+        texto = """remote: — GitHub Actions Secret —
+remote: path: .github/workflows/enjambre-nube.yml
+remote: To unblock: https://github.com/StarSeedSystem/starseed-system/security/secret-scanning/unblock-secret/abc123"""
+        motivo = NGH.motivo_push(texto)
+        self.assertIn("GH013", motivo)
+        self.assertIn("GitHub Actions Secret", motivo)
+        self.assertIn(".github/workflows/enjambre-nube.yml", motivo)
+        self.assertIn("unblock-secret", motivo)
+
+    def test_motivo_push_generico_corta_a_300_chars(self):
+        """Otros errores se cortan a 300 caracteres."""
+        NGH = self._import_nube_gh()
+        texto = "x" * 500
+        motivo = NGH.motivo_push(texto)
+        self.assertLessEqual(len(motivo), 300)
+
+    def test_no_lanzada_renombra_cola_a_no_lanzada(self):
+        """_no_lanzada renombra la cola a .no-lanzada para que no cuente como envío."""
+        import tempfile
+        import os as _os
+        from unittest import mock
+        NGH = self._import_nube_gh()
+
+        with tempfile.TemporaryDirectory() as d:
+            cola_dir = _os.path.join(d, "enjambre", "colas")
+            _os.makedirs(cola_dir)
+            cola_path = _os.path.join(cola_dir, "cola-nube-20261019-1200.json")
+            with open(cola_path, "w") as f:
+                f.write('{"tareas": [{"id": "T1"}]}')
+
+            with mock.patch.object(NGH, "RAIZ", d):
+                NGH._no_lanzada("enjambre/colas/cola-nube-20261019-1200.json")
+
+            self.assertTrue(_os.path.exists(cola_path + ".no-lanzada"))
+            self.assertFalse(_os.path.exists(cola_path))

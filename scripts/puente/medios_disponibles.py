@@ -292,15 +292,44 @@ def sondear_cloudroom(sondear=None) -> dict:
                  "no pude sondearlo (%s)" % motivo, "comprueba scripts/puente/medio_cloudroom.py")
 
 
+def _facturacion_activa(servicios: list[dict]) -> bool:
+    """PURA: ¿hay al menos un servicio de Cloud Run con facturación activa explícita?
+    Cloud Run EXIGE facturación; si no se confirma explícita, se asume desactivada."""
+    for s in servicios or []:
+        if isinstance(s, dict) and s.get("billingEnabled") is True:
+            return True
+    return False
+
+
+def _tiene_servicios(servicios: list[dict]) -> bool:
+    """PURA: ¿la lista de servicios no está vacía?"""
+    return bool(servicios)
+
+
 def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servicios: list[dict]) -> dict:
     if not instalado:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud no instalado", "brew install --cask google-cloud-sdk && gcloud auth login")
     if not cuentas:
         return medio("gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex", "Cloud Run Jobs 180.000 vCPU·s/mes gratis (Cloud Shell no sirve para agentes desatendidos)", "gcloud sin cuenta activa", "gcloud auth login")
+    if _tiene_servicios(servicios) and not _facturacion_activa(servicios):
+        return medio(
+            "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "requiere_alex",
+            "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
+            "cuenta %s · proyecto %s · facturación DESACTIVADA (Cloud Run no arranca sin ella)" % (cuentas[0], proyecto or "?"),
+            "necesita activar facturación en el proyecto de Google Cloud: https://console.cloud.google.com/billing/linkedaccount?project=%s" % (proyecto or "TU_PROYECTO"),
+        )
+    if not _tiene_servicios(servicios):
+        return medio(
+            "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "usable",
+            "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
+            "cuenta %s · proyecto %s · 0 servicio(s) Cloud Run" % (cuentas[0], proyecto or "?"),
+            "medio por abrir: job de Cloud Run con deploy/nube (mismo patrón que nube-gh)",
+        )
+    # facturacion activa confirmada
     return medio(
         "gcloud", "Google Cloud (Cloud Run · Cloud Shell)", "usable",
         "Cloud Run Jobs 180.000 vCPU·s/mes gratis (≈25 h de 2 vCPU) · Cloud Shell NO sirve: mata las sesiones no interactivas a los 40 min",
-        "cuenta %s · proyecto %s · %d servicio(s) Cloud Run" % (cuentas[0], proyecto or "?", len(servicios)),
+        "cuenta %s · proyecto %s · %d servicio(s) Cloud Run (facturación activa)" % (cuentas[0], proyecto or "?", len(servicios)),
         "medio por abrir: job de Cloud Run con deploy/nube (mismo patrón que nube-gh)",
     )
 

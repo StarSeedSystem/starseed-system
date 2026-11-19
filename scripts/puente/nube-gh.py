@@ -288,10 +288,10 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
+    rc_push, salida_push = _push_con_reintentos(ref, rama)
     if rc_push != 0:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
+        sys.exit("no pude empujar la rama de la cola tras reintentos: %s" % motivo_push(salida_push))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,
@@ -417,6 +417,28 @@ def _sh_rc(orden: list[str], timeout: int = 120):
         return r.returncode, (r.stdout or "") + (r.stderr or "")
     except Exception as e:
         return 1, "%s: %s" % (type(e).__name__, e)
+
+
+#: (CAP1119B) Reintentos de git push a GitHub: espera entre intentos y no abandona el job.
+PUSH_REINTENTOS_MAX = 3
+PUSH_ESPERA_BASE_S = 10
+
+
+def _push_con_reintentos(ref: str, rama: str, max_reintentos: int = PUSH_REINTENTOS_MAX, espera_base_s: int = PUSH_ESPERA_BASE_S) -> tuple[int, str]:
+    """PURA salvo E/S: empuja `ref` a `rama` en origin con reintentos y espera exponencial.
+    Devuelve (returncode, salida). Si falla tras todos los reintentos, devuelve el último error."""
+    rc, salida = 1, ""
+    for intento in range(1, max_reintentos + 1):
+        rc, salida = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)], timeout=180)
+        if rc == 0:
+            return 0, salida
+        if intento < max_reintentos:
+            espera = espera_base_s * (2 ** (intento - 1))
+            print("push falló (intento %d/%d), reintentando en %d s: %s" % (intento, max_reintentos, espera, motivo_push(salida)[:200]))
+            time.sleep(espera)
+        else:
+            print("push falló tras %d intentos: %s" % (max_reintentos, motivo_push(salida)[:300]))
+    return rc, salida
 
 
 def _esperar_run(rama: str, segundos: int = 40):
