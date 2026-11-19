@@ -19,6 +19,10 @@ import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
 
+const PALETA_ASTRAURA = PALETAS.astraura;
+const VIOLETA = PALETA_ASTRAURA.colores[0]!;
+const TURQUESA = PALETA_ASTRAURA.colores[2]!;
+
 function abrirChat() {
     try { window.dispatchEvent(new CustomEvent(AURORA_EXOCORTEX_OPEN_EVENT)); } catch { /* defensivo */ }
 }
@@ -26,8 +30,6 @@ function abrirChat() {
 function Preguntar({ tactil, compacto }: { tactil: boolean; compacto?: boolean }) {
     const [texto, setTexto] = React.useState("");
     const [estado, setEstado] = React.useState<"listo" | "enviando" | "enviado" | "sin-aurora">("listo");
-    const VIOLETA = PALETAS.astraura.colores[0];
-    const TURQUESA = PALETAS.astraura.colores[2];
     const enviar = async (pregunta: string) => {
         const p = pregunta.trim();
         if (!p || estado === "enviando") return;
@@ -92,7 +94,7 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
         : <p className="text-[12.5px] text-white/65">{entradas === null ? "…" : "Aún no habéis hablado."}</p>;
 
     const botonVoz = voz ? (
-        <Accion icono={estado === "escuchando" ? MicOff : Mic} color={PALETAS.astraura.colores[2]} grande={tactil} onClick={estado === "escuchando" ? callar : escuchar}
+        <Accion icono={estado === "escuchando" ? MicOff : Mic} color={TURQUESA} grande={tactil} onClick={estado === "escuchando" ? callar : escuchar}
             aria-label={estado === "escuchando" ? "Dejar de escuchar" : "Hablar con Astraura por voz"}>
             {estado === "escuchando" ? "Parar" : "Hablar"}
         </Accion>
@@ -100,7 +102,7 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
 
     return (
         <div ref={ref} className="h-full w-full">
-            <WidgetLibre forma="ninguna" acento={PALETAS.astraura.colores[0]} acento2={PALETAS.astraura.colores[2]} etiqueta={ultima ? `Astraura dijo: ${ultima.text.slice(0, 80)}` : "Astraura"}>
+            <WidgetLibre forma="ninguna" acento={VIOLETA} acento2={TURQUESA} etiqueta={ultima ? `Astraura dijo: ${ultima.text.slice(0, 80)}` : "Astraura"}>
                 {({ clase: medida, ancho, alto }) => {
                     const clase = forzada ?? medida;
                     const { base: b } = disenoDe(clase);
@@ -219,7 +221,7 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
                                 <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,.6)" }}>{vivaAhora === "calma" ? "En calma" : vivaAhora === "escuchando" ? "Escuchando…" : vivaAhora === "pensando" ? "Pensando…" : "Hablando"}</span>
                                 <div className="flex flex-wrap justify-center gap-1.5">
                                     {botonVoz}
-                                    <Accion icono={MessageCircle} color={PALETAS.astraura.colores[0]} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
+                                    <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
                                     <SelectorDisenoAstraura valor={diseno} onCambiar={elegir} degradado={false} />
                                 </div>
                             </div>
