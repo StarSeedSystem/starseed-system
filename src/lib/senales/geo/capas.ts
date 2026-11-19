@@ -143,6 +143,35 @@ function capasOferta(): readonly CapaSenal[] {
   return capas;
 }
 
+/** MAP1116: «Internet que ofrece la red» — solo lo que su dueño anuncia (faro/presencia) o publica. */
+function capaOfertaInternetRed(): CapaSenal {
+  return {
+    id: "oferta-internet-red",
+    grupo: "oferta",
+    etiqueta: "Internet que ofrece la red",
+    descripcion: "Aparatos que anuncian su salida a internet, y señales publicadas con medio internet",
+    estado: "parcial",
+    fuente: "Lo que cada dueño anuncia: `offersPublic` del faro (`ai/astraura/mesh/signals.ts`) que viaja en la presencia como `of.i`, y filas publicadas del espectrómetro con medio `internet`. Lo que nadie anuncia no se estima.",
+    tramos: [
+      { id: "anunciado", etiqueta: "Anunciado por su dueño", color: "#0ea5e9", estilo: "relleno" },
+      { id: "publicada", etiqueta: "Publicada · medio internet", color: "#06b6d4", estilo: "relleno" },
+      { id: "anunciado-publicada", etiqueta: "Anunciado y publicado", color: "#0891b2", estilo: "relleno" },
+      { ...DESC, etiqueta: "Sin fuente: nadie lo anuncia aún" },
+    ],
+    valor: (m) => {
+      const filas = (m.publicadas ?? []).filter((s) => s.medio === "internet");
+      const ultima = filas.length
+        ? filas.reduce((a, b) => ((b.medidoEn ?? -Infinity) >= (a.medidoEn ?? -Infinity) ? b : a))
+        : null;
+      const anunciado = m.oferta?.internet === true;
+      if (anunciado && ultima) return { tramo: "anunciado-publicada", texto: `anunciado y publicada · ${ultima.banda}`, t: ultima.medidoEn, medida: ultima.origen === "medida" };
+      if (anunciado) return { tramo: "anunciado", texto: "anunciado por su dueño", t: null, medida: true };
+      if (ultima) return { tramo: "publicada", texto: `publicada · ${ultima.banda}${ultima.zona ? ` · ${ultima.zona}` : ""}`, t: ultima.medidoEn, medida: ultima.origen === "medida" };
+      return { tramo: "desconocido", texto: "sin fuente: nadie lo anuncia aún", t: null, medida: false };
+    },
+  };
+}
+
 function antena(m: MarcaGeo, kind: string) {
   return m.antenas.find((a) => a.kind === kind);
 }
@@ -298,6 +327,7 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     },
   },
   ...capasOferta(),
+  capaOfertaInternetRed(),
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
     estado: "parcial",

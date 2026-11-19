@@ -10,7 +10,8 @@
  * solo hay controles claros; el efecto real (qué lleva el faro) lo decide `server-relay.ts`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
 import { Eye, EyeOff, Globe2, MapPin, Settings2, ShieldCheck, Smartphone, Tag, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,10 @@ import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/i
 import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 import { SeccionInternet } from "./internet/seccion-internet";
 import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from "@/lib/malla/internet/textos-internet";
+import { sugerirComparticion, type EstadoDispositivo } from "@/lib/malla/auto-compartir";
+import type { PuertaInternet } from "@/lib/malla/cristal/puertas-internet";
+import { aPreferenciasCompartida, guardarPreferenciasRed, leerPreferenciasRed, PREFERENCIAS_POR_DEFECTO, type PreferenciasRedAparato } from "@/lib/malla/preferencias-red-compartida";
+import { estadoPuerta, suscribirPuerta } from "@/lib/malla/puerta/servicio";
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -131,6 +136,78 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "visible", texto: "Visible", nota: "las demás cuentas ven lo que marques abajo" },
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
+
+// MAP1116 — Red compartida: el panel vive aquí, en los ajustes del mapa.
+const PanelRedCompartida = dynamic(
+  () => import("./panel-red-compartida").then((m) => m.PanelRedCompartida),
+  { ssr: false },
+);
+
+/** Lo que el navegador sabe de ESTE aparato; lo que no se sabe no se inventa (null/0). */
+function estadoDeEsteAparato(): EstadoDispositivo {
+  const nav = typeof navigator === "undefined"
+    ? null
+    : (navigator as Navigator & { connection?: { type?: string; saveData?: boolean } });
+  const tipo = nav?.connection?.type;
+  return {
+    enWifi: tipo ? tipo === "wifi" : true,
+    cargando: false,
+    bateriaPct: null,
+    medida: nav?.connection?.saveData === true,
+    usoMb: 0,
+  };
+}
+
+/** Puertas que este aparato declara: su salida real a internet, sin cifras inventadas. */
+function puertasDeEsteAparato(
+  neuronaId: string | null,
+  prefs: PreferenciasRedAparato,
+  conInternet: boolean,
+  esMedida: boolean,
+): PuertaInternet[] {
+  if (!conInternet) return [];
+  return [{
+    id: neuronaId ?? "este-aparato",
+    neurona: neuronaId ?? "este-aparato",
+    cuenta: "",
+    tipo: esMedida ? "movil-4g" : "wifi-externa",
+    bajadaKbps: 0,
+    subidaKbps: 0,
+    latenciaMs: 0,
+    medida: esMedida,
+    usadoMesMb: 0,
+    compartir: prefs.compartir ? prefs.maximoCon : "nadie",
+  }];
+}
+
+function RedCompartidaAjustes({ neuronaId }: { neuronaId: string | null }) {
+  const [prefs, setPrefs] = useState<PreferenciasRedAparato>(PREFERENCIAS_POR_DEFECTO);
+  const servicio = useSyncExternalStore(suscribirPuerta, estadoPuerta, estadoPuerta);
+  useEffect(() => { setPrefs(leerPreferenciasRed()); }, []);
+  const puertas = useMemo(
+    () => puertasDeEsteAparato(neuronaId, prefs, servicio.conInternet, servicio.movil.medida),
+    [neuronaId, prefs, servicio.conInternet, servicio.movil.medida],
+  );
+  const decisiones = useMemo(
+    () => sugerirComparticion({ puertas, preferencias: aPreferenciasCompartida(prefs), estado: estadoDeEsteAparato(), ahora: 0 }).decisiones,
+    [puertas, prefs],
+  );
+  if (!puertas.length) {
+    return (
+      <p data-testid="red-compartida-sin-puertas" className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2 text-[10px] leading-snug text-white/55">
+        Este aparato no declara salida a internet.
+      </p>
+    );
+  }
+  return (
+    <PanelRedCompartida
+      preferencias={prefs}
+      puertas={puertas}
+      decisiones={decisiones}
+      onCambiar={(patch) => { const next = { ...prefs, ...patch }; setPrefs(next); guardarPreferenciasRed(next); }}
+    />
+  );
+}
 
 export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
   centro: CentroNeurona;
@@ -279,6 +356,14 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         extra={TEXTOS_EXTRA_INTERNET}
         clasificacion={clasificacion}
       />
+
+      {/* MAP1116: la red compartida vive en los ajustes del mapa. */}
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-2.5">
+        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+          <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Internet que ofrece la red
+        </p>
+        <RedCompartidaAjustes neuronaId={neuronaId} />
+      </div>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Así te ven las demás cuentas</p>
