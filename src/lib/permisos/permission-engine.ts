@@ -16,6 +16,17 @@ import {
   type PermisoOS,
   type ResultadoPermisoOS,
 } from "@/lib/permisos/contrato";
+import {
+  detectarMedioActual,
+  obtenerReglasParaMedio,
+  decidirAccion,
+  tieneEnlaceDirecto,
+  obtenerEnlaceDirecto,
+  type MedioId,
+  type PermisoId,
+  type EstadoPermiso as EstadoPermisoMatriz,
+  type AccionPermiso,
+} from "@/lib/permisos/matriz";
 
 export type PermissionId = PermisoOS;
 
@@ -33,6 +44,11 @@ export interface PermissionEngine {
   list(): PermissionState[];
   listWithState(): Promise<PermissionState[]>;
   subscribe(id: PermissionId, cb: (state: EstadoPermiso) => void): () => void;
+  getMedioActual(): MedioId;
+  getReglasParaMedio(): ReturnType<typeof obtenerReglasParaMedio>;
+  decidirAccionPara(id: PermissionId, estadoActual: EstadoPermiso): { accion: AccionPermiso; fraseHumana?: string; enlaceDirecto?: string };
+  tieneEnlaceDirectoPara(id: PermissionId): boolean;
+  obtenerEnlaceDirectoPara(id: PermissionId): string | undefined;
 }
 
 const PERMISSION_LABELS: Record<PermissionId, string> = {
@@ -115,6 +131,8 @@ async function queryNativePermission(_id: PermissionId): Promise<EstadoPermiso> 
 
 export function createPermissionEngine(): PermissionEngine {
   const subscribers = new Map<PermissionId, Set<(state: EstadoPermiso) => void>>();
+  const medioActual = typeof window !== "undefined" ? detectarMedioActual() : ("web-chromium" as MedioId);
+  const reglasMedio = obtenerReglasParaMedio(medioActual);
 
   function notifySubscribers(id: PermissionId, state: EstadoPermiso) {
     const set = subscribers.get(id);
@@ -131,6 +149,14 @@ export function createPermissionEngine(): PermissionEngine {
         notifySubscribers(detail.permiso as PermissionId, state);
       }
     });
+  }
+
+  function permisoIdAMatriz(id: PermissionId): PermisoId {
+    return id as PermisoId;
+  }
+
+  function estadoAMatriz(e: EstadoPermiso): EstadoPermisoMatriz {
+    return e as EstadoPermisoMatriz;
   }
 
   return {
@@ -176,6 +202,33 @@ export function createPermissionEngine(): PermissionEngine {
           state: isWebPermission(p.id) ? await queryWebPermission(p.id) : await queryNativePermission(p.id),
         }))
       );
+    },
+
+    getMedioActual(): MedioId {
+      return medioActual;
+    },
+
+    getReglasParaMedio(): typeof reglasMedio {
+      return reglasMedio;
+    },
+
+    decidirAccionPara(id: PermissionId, estadoActual: EstadoPermiso): { accion: AccionPermiso; fraseHumana?: string; enlaceDirecto?: string } {
+      const permisoMatriz = permisoIdAMatriz(id);
+      const estadoMatriz = estadoAMatriz(estadoActual);
+      const decision = decidirAccion(permisoMatriz, medioActual, estadoMatriz);
+      return {
+        accion: decision.accion,
+        fraseHumana: decision.fraseHumana,
+        enlaceDirecto: decision.enlaceDirecto,
+      };
+    },
+
+    tieneEnlaceDirectoPara(id: PermissionId): boolean {
+      return tieneEnlaceDirecto(permisoIdAMatriz(id), medioActual);
+    },
+
+    obtenerEnlaceDirectoPara(id: PermissionId): string | undefined {
+      return obtenerEnlaceDirecto(permisoIdAMatriz(id), medioActual);
     },
 
     subscribe(id: PermissionId, cb: (state: EstadoPermiso) => void): () => void {

@@ -1388,7 +1388,7 @@ export function detectarMedioActual(): MedioId {
 
   const ua = navigator.userAgent.toLowerCase();
   const isTauri = "__TAURI__" in window;
-  const isPWA = window.matchMedia("(display-mode: standalone)").matches;
+  const isPWA = typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches;
 
   if (isTauri) {
     const platform = (navigator as any).platform?.toLowerCase() || "";

@@ -42,6 +42,7 @@ import {
 } from "@/lib/nativa/permisos-inicio";
 import { leerEstadosSistema, pedirPermisoInicio, type DepsEjecutor } from "@/lib/nativa/permisos-inicio-ejecutor";
 import { aplicarDefectosAntenas } from "@/lib/nativa/defectos-antenas-aplicar";
+import { detectarMedioActual, decidirAccion, type MedioId, type PermisoId, type EstadoPermiso as EstadoPermisoMatriz, type AccionPermiso } from "@/lib/permisos/matriz";
 import { ListaPermisos } from "./lista-permisos";
 
 function leerAlmacen(clave: string): string | null {
@@ -112,6 +113,7 @@ export function AsistentePermisos() {
   const [estado, enviar] = useReducer(reductor, ASISTENTE_OCULTO);
   const enCurso = useRef(false);
   const plataforma = useRef<{ plat: string; sesion: string | null } | null>(null);
+  const medioActual = useRef<MedioId>(typeof window !== "undefined" ? detectarMedioActual() : "web-chromium");
   const visible = estado.fase !== "oculto";
   // Turno: la lista solo se pinta cuando el primer plano está libre (ver el orden arriba).
   const [turno, setTurno] = useState(false);
@@ -195,13 +197,26 @@ export function AsistentePermisos() {
     };
   }, [visible, leer]);
 
+  function idPermisoAMatriz(id: string): PermisoId {
+    return id as PermisoId;
+  }
+
+  function estadoSistemaAMatriz(e: string | undefined): EstadoPermisoMatriz {
+    if (!e) return "no-disponible";
+    return e as EstadoPermisoMatriz;
+  }
+
   const pedir = useCallback(
     async (def: DefPermiso, e: EstadoAsistente) => {
       if (enCurso.current || !e.sistema) return;
       enCurso.current = true;
-      const accion = accionEn(e, def);
+      const accionNativa = accionEn(e, def);
+      const permisoMatriz = idPermisoAMatriz(def.id);
+      const estadoMatriz = estadoSistemaAMatriz(e.estados[def.id]);
+      const decision = decidirAccion(permisoMatriz, medioActual.current, estadoMatriz);
+      const accion = decision.accion as "pedir" | "abrir-ajustes" | "ninguna" | "mostrar-en-lista" | "por-uso" | "nada" | "mas-adelante" | "listo";
       enviar({ t: "pedir", id: def.id });
-      const r = await pedirPermisoInicio(def.id, e.sistema, depsReales(), accion);
+      const r = await pedirPermisoInicio(def.id, e.sistema, depsReales(), accionNativa);
       const l = await leer();
       enviar({ t: "estados", estados: l.estados });
       enviar({ t: "resultado", id: def.id, r });
