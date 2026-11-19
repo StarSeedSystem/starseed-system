@@ -730,7 +730,7 @@ mod pruebas {
         // La captura nunca se para desde fuera si la proyección no escribe: `fuente_activa` dice la verdad en las capacidades.
         assert!(k.contains("\"fuente_activa\", ControlEntradaNativo.fuenteActiva()"));
         // Si la proyección se corta con la sesión a la vista, la accesibilidad toma el relevo; una parada pedida (o apagar el interruptor) lo impide.
-        assert!(p.contains("if (hacia) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() }"));
+        assert!(p.contains("if (hacia && eraActual) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() }"));
         assert!(k.contains("\"pantalla-parar\" -> { pantallaPedida = false; srv?.parar(); ProyeccionPantalla.parar(); null }"));
         let v = k.find("fun volverAAccesibilidad()").unwrap();
         let cuerpo = &k[v..v + 700];
@@ -743,5 +743,18 @@ mod pruebas {
         let n = crate::control_neuronas_parche::KOTLIN;
         assert!(n.contains("\"cancel_ms\"") && n.contains("\"cancel_lag_ms\""));
         assert!(k.contains("principal.post { if (mio == idDespacho) lagPrincipalMs = System.currentTimeMillis() - ahora }"));
+    }
+
+    #[test]
+    fn penc1_una_proyeccion_vieja_no_le_quita_nada_a_la_nueva() {
+        // Dos servicios pueden solaparse al cambiar de sesión (el viejo suelta tarde). El que se va libera
+        // SOLO lo suyo: si no, le borraría a la sesión nueva el consentimiento y el cuadro, y le arrancaría
+        // la accesibilidad por debajo.
+        let p = KOTLIN_PROYECCION;
+        assert!(p.contains("val eraActual = ProyeccionPantalla.servicio === this"));
+        assert!(p.contains("if (eraActual) ProyeccionPantalla.consentidaPara = null"));
+        assert!(p.contains("if (eraActual) ProyeccionPantalla.servicio = null"));
+        assert!(p.contains("if (hacia && eraActual) File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()"));
+        assert!(p.contains("if (hacia && eraActual) principal.post"));
     }
 }
