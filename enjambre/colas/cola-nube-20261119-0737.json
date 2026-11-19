@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "RST10",
+   "ola": "RST1116A",
+   "titulo": "El anfitrión de control pide la fuente elegida y se acuerda por neurona",
+   "archivos": [
+    "src/components/control-remoto/anfitrion-control.tsx",
+    "src/components/control-remoto/__tests__/anfitrion-control-fuente.test.tsx"
+   ],
+   "depende": [
+    "RST07"
+   ],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. Lee `anfitrion-control.tsx` (:71 `const p = usarPantallaRemota(neurona)` y el montaje de `VentanaControl`). Cambio ACOTADO (≤40 líneas): un estado `fuente: FuentePedida` leído de `localStorage` con la clave `starseed.control.fuente.v1` (un objeto `{ [neuronaId]: FuentePedida }`, con try/catch y `fuentePedidaValida`; el primer render usa `auto` y lo guardado entra en un efecto para no desajustar la hidratación), pasado a `usarPantallaRemota(neurona, { fuente })` (RST07) y a la ventana como `fuentePedida`, `fuenteReal={p.fuente ?? null}`, `avisoFuente={p.veredicto.aviso}` y `alCambiarFuente` (que guarda el cambio por neurona). Por defecto SIEMPRE `auto`: nunca se pide la fluida sin que la persona lo elija. PRUEBAS: sin nada guardado la ventana pide `auto`; elegir «Fluida» guarda la elección de ESA neurona y vuelve a abrir la pantalla con `proyeccion`; otra neurona sigue en `auto`; una elección guardada se recupera al remontar; con el almacén roto no falla.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST09"
+   ]
+  },
+  {
+   "id": "RST07",
+   "ola": "RST1116A",
+   "titulo": "El gancho de la pantalla remota acepta la fuente pedida y la cambia sin perder la sesión sin avisar",
+   "archivos": [
+    "src/lib/control-remoto/usar-pantalla-remota.ts",
+    "src/lib/control-remoto/__tests__/usar-pantalla-remota-fuente.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. `usarPantallaRemota(neurona: string | null, opciones?: { fuente?: FuentePedida })`: pasa `opciones.fuente` a `crearPantallaDestino` (RST05) y vuelve a abrir la pantalla cuando la fuente pedida CAMBIA (igual que `reintentar`: cierra la sesión de pantalla y abre otra; mira que el efecto :34-47 ya depende de `neurona` e `intento`; añade `fuente` a sus dependencias). Devuelve además `fuentePedida` (la que se pidió) y `veredicto: ReturnType<typeof veredictoFuente>` calculado con `veredictoFuente(fuentePedida, snap.fuente ?? null)` (RST04). Con `neurona` null sigue sin hacer nada. ≤30 líneas de diferencia. PRUEBAS con `crearPantallaDestino` simulado: abre con la fuente pedida; cambiar de `auto` a `proyeccion` cierra la anterior y abre otra con `proyeccion`; si la instantánea dice `accesibilidad` tras pedir `proyeccion`, el `veredicto` trae el aviso; sin neurona no abre nada.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "RST07",
+   "RST10"
+  ]
+ }
+}
