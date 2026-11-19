@@ -10,7 +10,8 @@
  * solo hay controles claros; el efecto real (qué lleva el faro) lo decide `server-relay.ts`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
 import { Eye, EyeOff, Globe2, MapPin, Settings2, ShieldCheck, Smartphone, Tag, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,16 @@ import type { AjustesBanco, EstadoConexion, FuenteLimitada } from "@/lib/malla/i
 import { clasificarConexion } from "@/lib/malla/internet/conexion-limitada";
 import { SeccionInternet } from "./internet/seccion-internet";
 import { TEXTOS_INTERNET, TEXTOS_EXTRA_INTERNET } from "@/lib/malla/internet/textos-internet";
+import { aPreferenciasCompartida, guardarPreferenciasRed, leerPreferenciasRed, type PreferenciasRedAparato } from "@/lib/malla/preferencias-red-compartida";
+import { sugerirComparticion } from "@/lib/malla/auto-compartir";
+import type { PuertaInternet } from "@/lib/malla/cristal/puertas-internet";
+import { estadoPuerta, suscribirPuerta, type PuertaVista } from "@/lib/malla/puerta/servicio";
+
+// MAP1116 · el panel de red compartida pesa: se carga solo al abrir los ajustes del mapa.
+const PanelRedCompartida = dynamic(
+  () => import("./panel-red-compartida").then((m) => m.PanelRedCompartida),
+  { ssr: false, loading: () => <p className="text-[10px] text-white/45">Cargando la red compartida…</p> },
+);
 
 /** La privacidad de la malla de ESTE dispositivo, viva (se vuelve a leer al cambiar desde cualquier panel). */
 export function useMeshPrivacidad(): { privacidad: MeshPrivacySettings; internetPublico: boolean } {
@@ -131,6 +142,55 @@ const MODOS: { id: PublicRadarMode; texto: string; nota: string }[] = [
   { id: "visible", texto: "Visible", nota: "las demás cuentas ven lo que marques abajo" },
   { id: "off", texto: "Oculta", nota: "no emites faro: invisible entre cuentas" },
 ];
+
+// MAP1116 · puertas reales que ve el servicio de la malla. Lo que una puerta no declara (velocidad,
+// latencia) no se inventa: `medida` es el dato real y el tope de subida es el que eligió el dueño.
+function puertasParaSugerencia(puertas: readonly PuertaVista[], prefs: PreferenciasRedAparato): PuertaInternet[] {
+  return puertas.map((p) => ({
+    id: p.id,
+    neurona: p.id,
+    cuenta: p.id,
+    tipo: "cable",
+    bajadaKbps: prefs.kbpsSubidaMax,
+    subidaKbps: prefs.kbpsSubidaMax,
+    latenciaMs: 0,
+    medida: p.medida,
+    compartir: prefs.maximoCon,
+  }));
+}
+
+function SeccionRedCompartida() {
+  const [prefs, setPrefs] = useState<PreferenciasRedAparato>(() => leerPreferenciasRed());
+  const servicio = useSyncExternalStore(suscribirPuerta, estadoPuerta, estadoPuerta);
+  const puertas = useMemo(() => puertasParaSugerencia(servicio.puertas, prefs), [servicio.puertas, prefs]);
+  const { decisiones } = useMemo(
+    () => sugerirComparticion({
+      puertas,
+      preferencias: aPreferenciasCompartida(prefs),
+      estado: { enWifi: true, cargando: false, bateriaPct: null, medida: false, usoMb: 0 },
+      ahora: Date.now(),
+    }),
+    [puertas, prefs],
+  );
+  const cambiar = (patch: Partial<PreferenciasRedAparato>) => {
+    setPrefs((p) => {
+      const next = { ...p, ...patch };
+      guardarPreferenciasRed(next);
+      return next;
+    });
+  };
+  return (
+    <div className="space-y-1.5 border-t border-white/10 pt-2.5" data-testid="red-compartida">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+        <Globe2 className="h-3.5 w-3.5 text-sky-300" aria-hidden /> Internet que ofrece la red
+      </p>
+      <PanelRedCompartida preferencias={prefs} puertas={puertas} decisiones={decisiones} onCambiar={cambiar} />
+      {puertas.length === 0 && (
+        <p className="text-[9px] leading-snug text-white/45">este aparato no declara salida a internet</p>
+      )}
+    </div>
+  );
+}
 
 export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, onNombre }: {
   centro: CentroNeurona;
@@ -279,6 +339,9 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         extra={TEXTOS_EXTRA_INTERNET}
         clasificacion={clasificacion}
       />
+
+      {/* MAP1116 · Red compartida: el panel de compartir internet vive aquí, en los ajustes del mapa. */}
+      <SeccionRedCompartida />
 
       <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-2" aria-label="Así te ven las demás cuentas">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">Así te ven las demás cuentas</p>
