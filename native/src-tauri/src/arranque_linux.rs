@@ -20,7 +20,7 @@ use std::env;
 use std::fs;
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -82,7 +82,7 @@ pub fn configurar_dmabuf_si_hace_falta() {
 #[derive(Default)]
 struct EstadoReintentos {
     intento: AtomicU32,
-    ultima_url: Option<String>,
+    ultima_url: Mutex<Option<String>>,
 }
 
 impl EstadoReintentos {
@@ -93,10 +93,10 @@ impl EstadoReintentos {
         self.intento.fetch_add(1, Ordering::Relaxed) + 1
     }
     fn set_url(&self, url: String) {
-        self.ultima_url = Some(url);
+        *self.ultima_url.lock().unwrap() = Some(url);
     }
     fn url(&self) -> Option<String> {
-        self.ultima_url.clone()
+        self.ultima_url.lock().unwrap().clone()
     }
 }
 
