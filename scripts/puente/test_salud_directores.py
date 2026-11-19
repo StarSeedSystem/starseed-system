@@ -172,6 +172,71 @@ class SaludDirectoresTest(unittest.TestCase):
         self.assertEqual(r["accion"], "ya_abierta")
         self.assertEqual(len(self._tareas_cola()), 1)
 
+    # ── Averías propias del sanador (SIN1116C) ───────────────────────────────
+
+    def _averia(self, token="sk-abcdefgh0123456789abcd"):
+        return {
+            "ok": False,
+            "motivo": "avería del sanador (NameError): name 'subprocess' is not defined",
+            "sin_comprobar": True,
+            "traza": "Traceback (most recent call last): token %s" % token,
+            "tipo_averia": "NameError",
+        }
+
+    def test_averia_sanador_abre_tarea_a_la_primera(self):
+        r = self._sd().evaluar("notebooklm", self._averia(), reparacion_mal())
+        self.assertEqual(r["accion"], "tarea_abierta")
+        self.assertEqual(r["causa"], "averia-sanador")
+        tareas = self._tareas_cola()
+        self.assertEqual(len(tareas), 1)
+        self.assertEqual(tareas[0]["id"], r["id"])
+        self.assertIn("averia-sanador", tareas[0]["prompt"])
+        self.assertIn("NameError", tareas[0]["prompt"])
+
+    def test_averia_sanador_no_se_cuenta_como_caida(self):
+        sd = self._sd()
+        sd.evaluar("notebooklm", self._averia(), reparacion_mal())
+        e = sd.estado()["sesiones"]["notebooklm"]
+        self.assertEqual(e["fallos_seguidos"], 0)
+        self.assertIsNone(e["caida_desde"])
+        self.assertEqual(e["tiempo_sin_servicio_s"], 0)
+
+    def test_averia_sanador_con_firma_conocida_no_espera(self):
+        fir = SD.firma(self._averia()["motivo"])
+        sd = SD.SaludDirectores(raiz=self.raiz,
+                                ahora_fn=lambda: self.hora, firmas_conocidas={fir})
+        r = sd.evaluar("notebooklm", self._averia(), reparacion_mal())
+        self.assertEqual(r["accion"], "tarea_abierta")
+        self.assertEqual(r["causa"], "averia-sanador")
+
+    def test_averia_sanador_repetida_no_duplica_tarea(self):
+        sd = self._sd()
+        r1 = sd.evaluar("notebooklm", self._averia(), reparacion_mal())
+        r2 = sd.evaluar("notebooklm", self._averia(), reparacion_mal())
+        self.assertEqual(r2["accion"], "ya_abierta")
+        self.assertEqual(r2["id"], r1["id"])
+        self.assertEqual(len(self._tareas_cola()), 1)
+
+    def test_averia_sanador_sanea_la_traza_sin_secretos(self):
+        r = self._sd().evaluar("notebooklm", self._averia(), reparacion_mal())
+        t = self._tareas_cola()[0]
+        self.assertNotIn("sk-abcdefgh0123456789", t["prompt"])
+        self.assertIn("[REDACTADO]", t["prompt"])
+        self.assertIn("TRAZA NameError", t["prompt"])
+        self.assertEqual(t["id"], r["id"])
+
+    def test_resolver_firma_no_reabre_a_la_primera_caida(self):
+        sd = self._sd()
+        fir = SD.firma(caida()["motivo"])
+        sd.evaluar("notebooklm", caida(), reparacion_mal())
+        self.assertEqual(sd.evaluar("notebooklm", {"ok": True, "motivo": ""})["accion"], "viva")
+        resuelta = sd.estado()["firmas"][fir]
+        self.assertEqual(resuelta["tarea_id"], "")
+        self.assertIn("resuelta", resuelta)
+        # Tras resolverse, una sola caída de la misma firma ya no reabre en el acto.
+        self.assertEqual(sd.evaluar("notebooklm", caida(), reparacion_mal())["accion"], "espera")
+        self.assertEqual(len(self._tareas_cola()), 1)
+
     # ── Tests para evaluar_peticion_fallida (PET1116C) ────────────────────────
 
     def test_peticion_firma_nueva_abre_tarea_inmediatamente(self):
