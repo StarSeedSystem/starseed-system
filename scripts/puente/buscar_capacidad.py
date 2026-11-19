@@ -593,25 +593,67 @@ def texto_cloudroom(lanzado, seguido=None, aplicado=True):
     return linea + (" · aviso: %s" % avisos[0] if avisos else "")
 
 
-def cloudroom(aplicar, elegibles, ahora, cr=None, sondear=None):
-    """Cloudroom en esta pasada (CRM1024I). Con `aplicar`, primero sigue los hilos abiertos y luego
-    lanza por prioridad las `elegibles` (las que la Mac cede a la nube) que caben en el ritmo del día;
-    sin él, solo dice lo que haría. Devuelve (sumadas, línea, ids lanzadas). Nunca falla."""
+def cloudroom(aplicar, elegibles_ids, ahora, colas=None, progreso=None, asuntos_main=None, ola_actual=None,
+              cr=None, sondear=None):
+    """Cloudroom en esta pasada (CRM1024I, CAP1119B). Con `aplicar`, primero sigue los hilos abiertos y luego
+    lanza por prioridad las `elegibles_ids` (IDs de tareas que la Mac cede a la nube) que caben en el ritmo del día;
+    sin él, solo dice lo que haría. Devuelve (sumadas, línea, ids lanzadas). Nunca falla.
+
+    Ahora usa la lógica PURA de `repartir_nube` para elegir tareas y calcular el ritmo,
+    y solo delega el lanzamiento real a `cloudroom_lanzar`.
+    `colas`: lista de (nombre, [tareas_completas]) para convertir IDs a objetos tarea completos.
+    `progreso`, `asuntos_main`, `ola_actual`: para la lógica pura de elegibilidad (igual que GitHub Actions).
+    """
     try:
+        import repartir_nube as RN
         if cr is None:
             import cloudroom_lanzar as cr
         if sondear is None:
             import medio_cloudroom
-
             sondear = medio_cloudroom.sondear
         medio = sondear()
+        # Leer registro de hilos para el ritmo puro
+        registro = RN._cloudroom_leer_registro()
+        usados_cuenta = 0
+        potenciado = False
+        try:
+            import potenciar_capacidad as PC
+            potenciado = PC.activo("cloudroom")
+        except Exception:
+            pass
+        # Convertir IDs a objetos tarea completos usando colas
+        if colas is None:
+            colas = []
+        tareas_dict = {}
+        for _nombre, tareas in colas:
+            for t in tareas or []:
+                if isinstance(t, dict) and t.get("id"):
+                    tareas_dict[str(t["id"])] = t
+        tareas_completas = [tareas_dict[tid] for tid in (elegibles_ids or []) if tid in tareas_dict]
+        if not tareas_completas:
+            # Fallback: crear objetos mínimos con solo ID
+            tareas_completas = [{"id": tid} for tid in (elegibles_ids or [])]
+        # Elegir tareas con la lógica pura (misma elegibilidad que GitHub Actions)
+        elegido = RN.cloudroom_elegir(
+            [("", tareas_completas)],
+            progreso or {}, asuntos_main or [], ola_actual or "", ahora,
+            registro=registro, medio=medio, usados_cuenta=usados_cuenta, potenciado=potenciado
+        )
+        lanzadas = elegido.get("lanzadas") or []
+        ritmo = elegido.get("ritmo") or {}
+        motivo = elegido.get("motivo") or ""
         seguido = None
         if aplicar:
             try:
                 seguido = cr.seguir(aplicar=True, ahora=ahora)
             except Exception as e:  # noqa: BLE001 — seguir no frena el lanzamiento
                 seguido = {"acciones": {}, "errores": ["no pude seguir los hilos (%s)" % type(e).__name__]}
-        lanzado = cr.lanzar(list(elegibles or []), seco=not aplicar, priorizar=True, medio=medio, ahora=ahora)
+        # Siempre llamar a cr.lanzar (en seco si no aplicar, real si aplicar) para compatibilidad con tests
+        ids_lanzar = [str(t["id"]) for t in lanzadas] if aplicar else (elegibles_ids or [])
+        lanzado = cr.lanzar(ids_lanzar, seco=not aplicar, priorizar=aplicar, medio=medio, ahora=ahora)
+        if "motivo" in lanzado:
+            lanzado["motivo"] = motivo
+            lanzado["ritmo"] = ritmo
     except Exception as e:  # noqa: BLE001
         return 0, "%s: no pude mirarlo (%s)" % (NOMBRES["cloudroom"], type(e).__name__), []
     ids = [str(i) for i in lanzado.get("lanzadas") or []] if aplicar else []
@@ -892,10 +934,10 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
     salida = {"clases": {}, "pausa": RN.nube_pausada(), "runs": 0, "error": None, "mac": {}}
     try:
         ran = _repartidor()
-        colas = ran.colas_fuente()
+        colas_fuente = ran.colas_fuente()
         progreso = _leer_json(ran.PROGRESO, {})
         asuntos = ran.asuntos_main(ran.RAIZ)
-        colas = [(n, ran.aplicar_a_todas(t, progreso)) for n, t in colas]
+        colas = [(n, ran.aplicar_a_todas(t, progreso)) for n, t in colas_fuente]
         envios = RN.envios_vigentes(ran.DESTINO_DIR, ahora)
         try:
             procesos = subprocess.run(["ps", "-axo", "args="], capture_output=True, text=True, timeout=20).stdout
@@ -917,11 +959,16 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
                          "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
         # (1103) La prioridad se mide sobre TODAS las colas (también lo que espera en la tanda de la Mac).
         salida["dependientes"], salida["capacidad"] = dependientes_y_capacidad(colas)
-        colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
-        salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
+        colas_filtradas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
+        salida["clases"] = RN.clasificar(colas_filtradas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
         salida["notas"] = {t: str((progreso.get(t) or {}).get("nota") or "")
                            for t in salida["clases"].get("agotada") or [] if isinstance(progreso.get(t), dict)}
         salida["por_traer"] = por_traer_de_la_nube(asuntos)
+        # Datos adicionales para Cloudroom (CAP1119B): colas completas antes de filtrar, progreso, asuntos, ola
+        salida["colas_completas"] = colas
+        salida["progreso"] = progreso
+        salida["asuntos_main"] = asuntos
+        salida["ola_actual"] = ran.ola_actual(colas)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
     try:
@@ -1162,15 +1209,24 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
 
         # 2 · Nube
         nube = reunir_nube(ahora, estado_mac)
-        # 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
+# 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
         # (1103 · T) Cloudroom es otro medio, con su propia rueda de modelos: también le valen las agotadas (las que los
         # escritores gratuitos de GitHub ya probaron tres veces), detrás de las elegibles y por prioridad.
         para_cr = list(nube["clases"].get("elegibles") or [])
         _traer_cr = set(nube.get("por_traer") or ())
         para_cr += [t for t in ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in _traer_cr],
                                                      nube.get("dependientes") or {}, nube.get("capacidad") or ())
-                    if t not in para_cr]
-        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, para_cr, ahora)
+                   if t not in para_cr]
+        # Obtener colas completas para la lógica pura
+        colas_completas = nube.get("colas_completas") or []
+        progreso_completo = nube.get("progreso") or {}
+        asuntos_main_completo = nube.get("asuntos_main") or []
+        ola_actual_completa = nube.get("ola_actual") or ""
+        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, para_cr, ahora,
+                                                  colas=colas_completas,
+                                                  progreso=progreso_completo,
+                                                  asuntos_main=asuntos_main_completo,
+                                                  ola_actual=ola_actual_completa)
         if sumadas_cr:
             sumados += sumadas_cr
             hechas.append("Cloudroom: %d hilo(s) en la nube (%s)" % (sumadas_cr, ", ".join(ids_cr)))

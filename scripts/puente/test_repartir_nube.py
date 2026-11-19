@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Puertas de repartir_nube: qué se va a la nube y qué se queda en la Mac."""
 
-import datetime, json, os, shutil, sys, tempfile, unittest
+import datetime, json, os, shutil, sys, tempfile, time, unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -902,3 +902,193 @@ class UnSoloRepartidor(unittest.TestCase):
                         pass
             with R.CerrojoReparto(espera_s=0, ruta=ruta):
                 pass  # libre otra vez
+
+
+class CloudroomReparto(unittest.TestCase):
+    """(CAP1119B) Lógica pura de reparto a Cloudroom: ritmo, elegibilidad, no relanzar."""
+
+    AHORA = 1_791_000_000.0
+
+    def _medio_usable(self):
+        return {"id": "cloudroom", "estado": "usable", "detalle": "cuenta conectada"}
+
+    def _tarea(self, tid, archivos=None, depende=None, privado=False):
+        t = {"id": tid, "ola": "Ola 900", "archivos": archivos or ["a.ts"]}
+        if depende:
+            t["depende"] = depende
+        if privado:
+            t["privado"] = True
+        return t
+
+    def test_ritmo_sin_registro_cabe_todo_hasta_tope_dia(self):
+        r = R.cloudroom_ritmo([], self.AHORA)
+        self.assertEqual(r["quedan"], R.CLOUDROOM_CUPO_CICLO)
+        self.assertGreater(r["hoy"], 0)
+        self.assertLessEqual(r["hoy"], R.CLOUDROOM_TOPE_DIA)
+        self.assertIn("caben", r["motivo"])
+
+    def test_ritmo_ciclo_agotado_sin_cupo(self):
+        registro = [{"tarea": "T%d" % i, "hilo": "h%d" % i, "t": self.AHORA - 86400 * 10} for i in range(100)]
+        r = R.cloudroom_ritmo(registro, self.AHORA)
+        self.assertEqual(r["hoy"], 0)
+        self.assertEqual(r["quedan"], 0)
+        self.assertIn("sin cupo:", r["motivo"])
+
+    def test_ritmo_max_vivos_frena(self):
+        registro = [{"tarea": "T%d" % i, "hilo": "h%d" % i, "t": self.AHORA - 3600} for i in range(3)]
+        r = R.cloudroom_ritmo(registro, self.AHORA)
+        self.assertEqual(r["hoy"], 0)
+        self.assertIn("sin cupo ahora", r["motivo"])
+
+    def test_ritmo_potenciado_ignora_reparto_dia(self):
+        # Hilos cerrados (final=devuelta) para que no cuenten como "vivos"
+        registro = [{"tarea": "T%d" % i, "hilo": "h%d" % i, "t": self.AHORA - 86400 * 10, "final": "devuelta"} for i in range(50)]
+        r = R.cloudroom_ritmo(registro, self.AHORA, potenciado=True)
+        self.assertTrue(r.get("potenciado"))
+        self.assertIn("potenciado", r["motivo"])
+        self.assertGreater(r["hoy"], 0)
+
+    def test_frena_el_ritmo_solo_por_reparto_dia(self):
+        r = {"hoy": 2, "quedan": 10, "motivo": "caben 2 (quedan 10 para 20 día(s): 1 al día, tope 6)"}
+        self.assertTrue(R.cloudroom_frena_el_ritmo(5, r))
+        self.assertFalse(R.cloudroom_frena_el_ritmo(2, r))
+        self.assertFalse(R.cloudroom_frena_el_ritmo(5, {**r, "potenciado": True}))
+        self.assertFalse(R.cloudroom_frena_el_ritmo(5, {"motivo": "sin cupo ahora: 3 hilos abiertos (tope 3)"}))
+
+    def test_no_relanzar_excluye_abiertos_y_recientes(self):
+        registro = [
+            {"tarea": "A", "hilo": "h1", "t": self.AHORA - 3600},  # abierto
+            {"tarea": "B", "hilo": "h2", "t": self.AHORA - 7200, "final": "devuelta"},  # cerrado hace 2h
+            {"tarea": "C", "hilo": "h3", "t": self.AHORA - 25 * 3600, "final": "devuelta"},  # cerrado hace 25h
+            {"tarea": "D", "hilo": "h4", "t": self.AHORA - 10 * 3600, "final": "medio", "intentos": 1},  # fallo medio
+        ]
+        no_relanzar = R.cloudroom_no_relanzar(registro, self.AHORA)
+        self.assertIn("A", no_relanzar)  # abierto
+        self.assertIn("B", no_relanzar)  # cerrado hace menos de 24h
+        self.assertNotIn("C", no_relanzar)  # cerrado hace más de 24h
+        self.assertNotIn("D", no_relanzar)  # fallo del medio no cuenta
+
+    def test_pausa_por_medio_dos_fallos_seguidos(self):
+        registro = [
+            {"tarea": "A", "hilo": "h1", "t": self.AHORA - 3600, "final": "medio", "t_final": self.AHORA - 1800},
+            {"tarea": "B", "hilo": "h2", "t": self.AHORA - 7200, "final": "medio", "t_final": self.AHORA - 3600},
+        ]
+        pausa = R.cloudroom_pausa_por_medio(registro, self.AHORA)
+        self.assertIn("pausa:", pausa)
+        self.assertIn("vuelve a probar a las", pausa)
+
+    def test_pausa_por_medio_no_pausa_si_hace_tiempo(self):
+        registro = [
+            {"tarea": "A", "hilo": "h1", "t": self.AHORA - 20 * 3600, "final": "medio", "t_final": self.AHORA - 19 * 3600},
+        ]
+        pausa = R.cloudroom_pausa_por_medio(registro, self.AHORA)
+        self.assertEqual(pausa, "")
+
+    def test_motivo_medio_usable_vacio(self):
+        self.assertEqual(R.cloudroom_motivo_medio(self._medio_usable()), "")
+
+    def test_motivo_medio_requiere_alex(self):
+        medio = {"estado": "requiere_alex", "siguiente_paso": "inicia sesión"}
+        self.assertIn("sin sesión", R.cloudroom_motivo_medio(medio))
+
+    def test_elegir_misma_elegibilidad_que_github(self):
+        colas = [("c", [self._tarea("A"), self._tarea("B", archivos=list("abcd")), self._tarea("C", privado=True)])]
+        progreso = {}
+        elegido = R.cloudroom_elegir(colas, progreso, [], "", self.AHORA, registro=[], medio=self._medio_usable())
+        self.assertEqual([t["id"] for t in elegido["lanzadas"]], ["A"])
+        self.assertIn("caben", elegido["motivo"])
+
+    def test_elegir_respeta_ritmo(self):
+        colas = [("c", [self._tarea("T%d" % i) for i in range(10)])]
+        registro = [{"tarea": "T%d" % i, "hilo": "h%d" % i, "t": self.AHORA - 86400 * 10} for i in range(50)]
+        elegido = R.cloudroom_elegir(colas, {}, [], "", self.AHORA, registro=registro, medio=self._medio_usable())
+        self.assertLessEqual(len(elegido["lanzadas"]), R.CLOUDROOM_TOPE_DIA)
+
+    def test_elegir_potenciado_usa_max_vivos(self):
+        colas = [("c", [self._tarea("T%d" % i) for i in range(10)])]
+        registro = [{"tarea": "T%d" % i, "hilo": "h%d" % i, "t": self.AHORA - 86400 * 10} for i in range(50)]
+        elegido = R.cloudroom_elegir(colas, {}, [], "", self.AHORA, registro=registro, medio=self._medio_usable(), potenciado=True)
+        self.assertLessEqual(len(elegido["lanzadas"]), R.CLOUDROOM_MAX_VIVOS)
+
+
+class A1Escalado(unittest.TestCase):
+    """(CAP1119B) El A1 escala agentes según CPU y memoria libres."""
+
+    AHORA = 1_791_000_000.0
+    CONSUMO_BASE = {"leido": "2026-10-19T21:00:00Z", "freno": {"activo": False},
+                    "margen": {"cpu_libre_pct": 85.0, "mem_libre_gb": 10.0},
+                    "reclamacion": {"riesgo": False}}
+
+    def test_sin_consumo_usa_tope_minimo(self):
+        r = R.a1_escalar_agentes(None)
+        self.assertEqual(r["agentes"], R.MIN_AGENTES_A1)
+        self.assertIn("sin medidor", r["motivo"])
+
+    def test_consumo_sin_leido_usa_tope_minimo(self):
+        r = R.a1_escalar_agentes({"leido": False})
+        self.assertEqual(r["agentes"], R.MIN_AGENTES_A1)
+
+    def test_freno_por_gasto_cero_agentes(self):
+        consumo = dict(self.CONSUMO_BASE, freno={"activo": True, "motivo": "gasto > 0"})
+        r = R.a1_escalar_agentes(consumo)
+        self.assertEqual(r["agentes"], 0)
+        self.assertIn("freno", r["motivo"])
+
+    def test_cpu_libre_calcula_agentes(self):
+        # 2 OCPU * 85% = 1.7 -> ceil = 2 agentes
+        r = R.a1_escalar_agentes(self.CONSUMO_BASE)
+        self.assertEqual(r["agentes"], 2)
+        self.assertIn("CPU: 2", r["motivo"])
+
+    def test_memoria_limita_agentes(self):
+        # 2 OCPU * 85% = 1.7 -> 2 por CPU, pero 10 GB / 3 = 3.3 -> 3 por RAM
+        # Resultado: min(2, 3, 4) = 2
+        consumo = dict(self.CONSUMO_BASE, margen={"cpu_libre_pct": 85.0, "mem_libre_gb": 4.0})
+        r = R.a1_escalar_agentes(consumo)
+        self.assertEqual(r["agentes"], 1)  # 4 GB / 3 = 1.3 -> 1, min(2, 1, 4) = 1
+
+    def test_tope_maximo(self):
+        # CPU libre 100% = 2 OCPU -> 2 agentes, pero tope_max=1
+        consumo = dict(self.CONSUMO_BASE, margen={"cpu_libre_pct": 100.0, "mem_libre_gb": 12.0})
+        r = R.a1_escalar_agentes(consumo, tope_max=1)
+        self.assertEqual(r["agentes"], 1)
+
+    def test_motivo_medio_usable_vacio(self):
+        self.assertEqual(R.a1_motivo_medio({"estado": "usable"}), "")
+        self.assertEqual(R.a1_motivo_medio({"estado": "listo"}), "")
+
+    def test_motivo_medio_requiere_alex(self):
+        medio = {"estado": "requiere_alex", "siguiente_paso": "desplegar A1"}
+        self.assertIn("sin A1 listo", R.a1_motivo_medio(medio))
+
+
+class MacGuardadaVaANubeReparto(unittest.TestCase):
+    """(CAP1119B) Cuando la Mac está frenada por guardia de disco/memoria, la nube coge TODO el trabajo."""
+
+    AHORA = 1_791_000_000.0
+
+    def _tarea(self, tid):
+        return {"id": tid, "ola": "Ola 900", "archivos": ["a.ts"]}
+
+    def test_motivo_fuera_urgente_cuando_mac_guardada(self):
+        """Tareas urgentes que la Mac no puede coger por guardia SÍ van a la nube."""
+        # Usar la estructura correcta para urgencia_tarea: urgente=True o titulo empieza con URGENTE
+        tarea = self._tarea("URG1")
+        tarea["urgente"] = True
+        # Mac guardada por memoria: la nube debería coger la tarea urgente
+        # La lógica está en buscar_capacidad.plan_nube con mac_guardada=True
+        # Aquí verificamos que motivo_fuera bloquea por "urgente" si la Mac NO está guardada
+        # (la decisión final de enviar a nube o no cuando Mac SÍ está guardada está en plan_nube)
+        prog = {"URG1": {"estado": "pendiente", "t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.AHORA))}}
+        # Sin Mac guardada: urgente se queda en Mac (motivo_fuera devuelve "urgente")
+        self.assertEqual(R.motivo_fuera(tarea, prog, [], None, ahora=self.AHORA), "urgente")
+        # Si la tarea ya falló, ya no es urgente
+        prog_fallo = {"URG1": {"estado": "fallo", "t": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.AHORA))}}
+        self.assertIsNone(R.motivo_fuera(tarea, prog_fallo, [], None, ahora=self.AHORA))
+        # Si la tarea lleva más de 90 min esperando, ya no retiene la Mac
+        prog_viejo = {"URG1": {"estado": "pendiente", "t": "2020-01-01 00:00:00"}}
+        self.assertIsNone(R.motivo_fuera(tarea, prog_viejo, [], None, ahora=self.AHORA))
+
+
+if __name__ == "__main__":
+    unittest.main()

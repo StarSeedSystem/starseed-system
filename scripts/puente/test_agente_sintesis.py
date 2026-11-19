@@ -346,7 +346,8 @@ class TestEncargarPorFlota(unittest.TestCase):
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
-        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        ahora = datetime.fromisoformat("2026-11-12T12:00:00+00:00")
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[], apto=(True, 100.0), libre=(True, 100.0), ahora=ahora)
         self.assertEqual(d["accion"], "cola_lista")
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         with open(ruta, encoding="utf-8") as f:
@@ -367,7 +368,8 @@ class TestEncargarPorFlota(unittest.TestCase):
 
     def test_poda_lo_propio_viejo(self):
         vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
-        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        ahora = datetime.fromisoformat("2026-11-15T12:00:00+00:00")
+        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0), ahora=ahora)
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         with open(ruta, encoding="utf-8") as f:
             cola = json.load(f)

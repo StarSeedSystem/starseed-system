@@ -10,6 +10,7 @@ nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
 import json
+import math
 import os
 import re
 import time
@@ -387,10 +388,11 @@ class CerrojoReparto:
     def __exit__(self, *exc):
         import fcntl
 
-        try:
-            fcntl.flock(self.f, fcntl.LOCK_UN)
-        finally:
-            self.f.close()
+        if self.f is not None:
+            try:
+                fcntl.flock(self.f, fcntl.LOCK_UN)
+            finally:
+                self.f.close()
         return False
 
 
@@ -1044,6 +1046,265 @@ def marcar(progreso, ids, fecha, ahora=None):
             t_reasignada=ahora,
         )
     return p
+
+
+# ── Cloudroom ───────────────────────────────────────────────────────────────────
+#: (CRM1024I, CAP1119B) Cloudroom: 100 hilos de la nube cada 30 días en el plan gratis.
+#: El reparto a Cloudroom usa la MISMA lógica de elegibilidad que GitHub Actions
+#: (estado repartible, sin dependencias abiertas, ≤3 archivos, no privada, no urgente),
+#: pero con su propio cupo mensual y su propia rueda de modelos (opencode/pi gratis,
+#: Codex < 80 %, Claude Code semana < 30 %). Lo que coge Cloudroom NO se reparte a GitHub.
+CLOUDROOM_CICLO_DIAS = 30
+CLOUDROOM_CUPO_CICLO = 100
+CLOUDROOM_MAX_VIVOS = 3
+CLOUDROOM_TOPE_DIA = 6
+CLOUDROOM_PAUSA_MEDIO_H = 12
+CLOUDROOM_REPETIR_TRAS_H = 24
+CLOUDROOM_MAX_POR_TAREA = 2
+CLOUDROOM_GRACIA_H = 12
+CLOUDROOM_GRACIA_SIN_EMPEZAR_H = 2
+CLOUDROOM_MIN_PARCHE_S = 600
+CLOUDROOM_REGISTRO = os.path.expanduser("~/.starseed/cloudroom-hilos.json")
+CLOUDROOM_MEDIDORES = os.path.expanduser("~/.starseed/medidores-credito.json")
+CLOUDROOM_LIMITES = os.path.expanduser("~/.starseed/limites-claude.json")
+CLOUDROOM_SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
+
+
+def _cloudroom_leer_registro(ruta=None):
+    """PURA salvo disco: lee el registro de hilos de Cloudroom. Nunca lanza."""
+    try:
+        with open(ruta or CLOUDROOM_REGISTRO, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return d if isinstance(d, list) else []
+
+
+def _cloudroom_filas(registro):
+    """PURA: filas del registro con tarea e hilo válidos."""
+    return [x for x in (registro or []) if isinstance(x, dict) and x.get("tarea") and x.get("hilo")]
+
+
+def _cloudroom_abiertos(registro):
+    """PURA: hilos del registro sin estado final ('traida', 'parche', 'devuelta', 'olvidada', 'medio')."""
+    return [x for x in _cloudroom_filas(registro) if not x.get("final")]
+
+
+def _cloudroom_medianoche(ahora):
+    """PURA salvo zona horaria: inicio del día local de `ahora`."""
+    t = time.localtime(ahora)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def _cloudroom_t(x):
+    """PURA: timestamp de una fila del registro."""
+    try:
+        return float(x.get("t") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def cloudroom_ritmo(registro, ahora, total=CLOUDROOM_CUPO_CICLO, usados_cuenta=0,
+                    max_vivos=CLOUDROOM_MAX_VIVOS, tope_dia=CLOUDROOM_TOPE_DIA, potenciado=False):
+    """PURA. {"hoy", "quedan", "motivo", "por_dia"}: cuántos hilos de Cloudroom caben AHORA sin agotar el ciclo.
+
+    Cada hilo cuenta 30 días (ventana móvil); lo usado es lo mayor entre el registro y lo que diga la cuenta.
+    El cupo de HOY (el día local) = lo que quedaba al empezar el día ÷ días hasta que el hilo más viejo salga del ciclo (30 sin ninguno), hacia ARRIBA y con `tope_dia`, menos lo lanzado hoy.
+    Con menos de uno al día, uno cada 1/ritmo días desde el último.
+    Si `potenciado` (Alex lo pidió desde "Buscar más capacidad"), ignora el reparto por día y usa solo el tope a la vez.
+    """
+    ventana = sorted(_cloudroom_t(x) for x in _cloudroom_filas(registro) if ahora - _cloudroom_t(x) < CLOUDROOM_CICLO_DIAS * 86400)
+    usados = max(len(ventana), int(usados_cuenta or 0))
+    quedan = max(0, int(total) - usados)
+    if quedan <= 0:
+        return {"hoy": 0, "quedan": 0, "por_dia": 0.0,
+                "motivo": "sin cupo: %d de %d hilos de la nube usados en %d días" % (usados, total, CLOUDROOM_CICLO_DIAS)}
+    vivos = len(_cloudroom_abiertos(registro))
+    hoy_ya = sum(1 for t in ventana if t >= _cloudroom_medianoche(ahora))
+    dias = max(1.0, (ventana[0] + CLOUDROOM_CICLO_DIAS * 86400 - ahora) / 86400) if ventana else float(CLOUDROOM_CICLO_DIAS)
+    crudo = (quedan + hoy_ya) / dias
+    por_dia = float(min(int(tope_dia), int(math.ceil(crudo)))) if crudo >= 1 else crudo
+    reparto = "quedan %d para %.0f día(s): %s, tope %d" % (
+        quedan, dias, ("%d al día" % por_dia) if por_dia >= 1 else ("1 cada %.0f días" % (1 / por_dia)), int(tope_dia))
+    if vivos >= max_vivos:
+        return {"hoy": 0, "quedan": quedan, "por_dia": por_dia,
+                "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
+    if potenciado:
+        hoy = max(0, min(quedan, max_vivos - vivos))
+        return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "potenciado": True,
+                "motivo": "potenciado: caben %d ahora (quedan %d del ciclo, sin reparto por día)" % (hoy, quedan)}
+    if por_dia >= 1:
+        hoy = int(por_dia) - hoy_ya
+    else:
+        hoy = 1 if not hoy_ya and (not ventana or ahora - ventana[-1] >= 86400 / por_dia) else 0
+    hoy = max(0, min(hoy, quedan, max_vivos - vivos))
+    motivo = ("caben %d (%s)" % (hoy, reparto)) if hoy else ("sin cupo hoy: ya van %d hoy (%s)" % (hoy_ya, reparto))
+    return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "motivo": motivo}
+
+
+def cloudroom_frena_el_ritmo(n_ids, r):
+    """PURA. ¿Lo que deja tareas fuera es el REPARTO por día del ciclo (que Alex puede potenciar) y no
+    el tope de hilos a la vez del plan ni el ciclo agotado?"""
+    if not n_ids or (r or {}).get("potenciado"):
+        return False
+    quedan, hoy = int((r or {}).get("quedan") or 0), int((r or {}).get("hoy") or 0)
+    if quedan <= hoy or int(n_ids) <= hoy:
+        return False
+    return not str((r or {}).get("motivo") or "").startswith(("sin cupo ahora", "sin cupo:"))
+
+
+def cloudroom_no_relanzar(registro, ahora):
+    """PURA: tareas con hilo abierto, lanzadas hace menos de 24 h o ya MAX_POR_TAREA veces.
+    Un hilo que acabó por fallo del medio ('medio') no cuenta: la tarea no tuvo su oportunidad."""
+    from repartir_nube import ESTADOS_REPARTIBLES
+    FALLO_MEDIO = "medio"
+    contadas = [x for x in _cloudroom_filas(registro) if x.get("final") != FALLO_MEDIO]
+    return ({str(x["tarea"]) for x in contadas
+            if (ahora - _cloudroom_t(x) < CLOUDROOM_REPETIR_TRAS_H * 3600)
+               or (int(x.get("intentos") or 0) >= CLOUDROOM_MAX_POR_TAREA)}
+            | {str(x["tarea"]) for x in _cloudroom_abiertos(registro)})
+
+
+def cloudroom_pausa_por_medio(registro, ahora, horas=CLOUDROOM_PAUSA_MEDIO_H):
+    """PURA: por qué no se lanza nada ahora ("" si se lanza): los dos últimos hilos cerrados acabaron
+    sin el repo en su sandbox hace menos de `horas`. Sin esta pausa, devolver sin gastar la tarea
+    haría que la siguiente pasada la relanzara una y otra vez contra el mismo medio roto."""
+    def t_final(x):
+        try:
+            return float(x.get("t_final") or x.get("t") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    ultimas = sorted((x for x in _cloudroom_filas(registro) if x.get("final")), key=t_final)[-2:]
+    if len(ultimas) < 2 or any(x.get("final") != "medio" for x in ultimas) or ahora - t_final(ultimas[-1]) >= horas * 3600:
+        return ""
+    return ("pausa: los 2 últimos hilos acabaron sin el repo en su sandbox (revisa el proyecto conectado en la app "
+            "Cloudroom); vuelve a probar a las %s" % time.strftime("%H:%M", time.localtime(t_final(ultimas[-1]) + horas * 3600)))
+
+
+def cloudroom_motivo_medio(medio):
+    """PURA: por qué no se puede usar Cloudroom (vacío si se puede), en las palabras del parte."""
+    medio = medio if isinstance(medio, dict) else {}
+    estado, detalle = medio.get("estado"), str(medio.get("detalle") or "")
+    if estado in ("usable", "listo"):
+        return ""
+    if estado == "requiere_alex":
+        return "sin sesión (%s)" % (medio.get("siguiente_paso") or detalle or "inicia sesión en la app Cloudroom")
+    return "app sin instalar" if "sin instalar" in detalle or not detalle else "no disponible (%s)" % detalle
+
+
+def cloudroom_elegir(colas, progreso, asuntos_main, ola_actual, ahora,
+                     envios=None, max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE,
+                     mismo_lote=(), registro=None, medio=None, usados_cuenta=0, potenciado=False):
+    """PURA. Selecciona tareas para Cloudroom con la MISMA elegibilidad que GitHub Actions,
+    pero filtrando por el ritmo de Cloudroom y su registro de hilos.
+
+    Devuelve {"lanzadas": [tareas], "quedan": int, "motivo": str, "ritmo": dict, "modelos": {tarea: "harness/modelo"}}.
+    `registro`: hilos de Cloudroom (lista de dicts); `medio`: resultado de `medios_disponibles.sondear_cloudroom()`;
+    `usados_cuenta`: hilos que la cuenta dice que usó (de `cloud status`); `potenciado`: si Alex lo pidió.
+    """
+    import math
+    from repartir_nube import motivo_fuera, ESTADOS_REPARTIBLES
+
+    res = {"lanzadas": [], "quedan": 0, "motivo": "", "ritmo": {}, "modelos": {}}
+    if medio is None:
+        res["motivo"] = "sin sonda de Cloudroom"
+        return res
+    motivo_m = cloudroom_motivo_medio(medio)
+    if motivo_m:
+        res["motivo"] = motivo_m
+        return res
+    registro = registro or _cloudroom_leer_registro()
+    res["motivo"] = cloudroom_pausa_por_medio(registro, ahora)
+    if res["motivo"]:
+        return res
+    # Calcular ritmo
+    r = cloudroom_ritmo(registro, ahora, usados_cuenta=usados_cuenta, potenciado=potenciado)
+    res["ritmo"] = r
+    res["quedan"] = r["quedan"]
+    if r["hoy"] <= 0:
+        res["motivo"] = r["motivo"]
+        return res
+    # Elegir tareas con la misma lógica que GitHub Actions
+    n_actual = numero_ola(str(ola_actual)) if ola_actual else None
+    envios = envios or {}
+    elegibles = []
+    for nombre, tareas in colas:
+        for tarea in tareas:
+            if not isinstance(tarea, dict) or not tarea.get("id"):
+                continue
+            tid = str(tarea["id"])
+            if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios, max_archivos, max_envios, mismo_lote, ahora):
+                continue
+            elegibles.append(tarea)
+    # Ordenar por prioridad (urgente primero, luego menos archivos)
+    elegibles.sort(key=lambda t: (-urgencia_tarea.prioridad_de_tarea(t), len(t.get("archivos") or [])))
+    # Filtrar no relanzar
+    no_relanzar = cloudroom_no_relanzar(registro, ahora)
+    elegibles = [t for t in elegibles if str(t["id"]) not in no_relanzar]
+    # Filtrar privadas
+    elegibles = [t for t in elegibles if not es_privada(t)]
+    # Tomar hasta el cupo de hoy
+    lanzadas = elegibles[:r["hoy"]]
+    # Asignar modelos usando la rueda de Cloudroom (simplificado: delega a cloudroom_lanzar)
+    # Aquí solo devolvemos las tareas seleccionadas; la asignación de modelos la hace cloudroom_lanzar
+    res["lanzadas"] = lanzadas
+    res["motivo"] = "caben %d (%s)" % (len(lanzadas), r["motivo"]) if lanzadas else "0 lanzadas: ninguna de las %d elegibles cabe" % len(elegibles)
+    return res
+
+
+# ── Oracle A1: escalado de agentes ──────────────────────────────────────────────
+#: (OC1010, CAP1119B) El A1 sube agentes mientras tenga CPU y memoria libres, con su propio tope.
+#: Capacidad base del A1 (Always Free): 2 OCPU · 12 GB. El gobernador de la Mac no manda allí.
+CAPACIDAD_A1_OCPU = 2
+CAPACIDAD_A1_GB = 12
+#: Tope de agentes en el A1: 1 agente por OCPU libre (mínimo 1, máximo 4 por hardware).
+MAX_AGENTES_A1 = 4
+MIN_AGENTES_A1 = 1
+
+
+def a1_escalar_agentes(consumo, ahora=None, tope_max=MAX_AGENTES_A1, tope_min=MIN_AGENTES_A1):
+    """PURA. Cuántos agentes puede correr el A1 AHORA según su consumo medido.
+
+    `consumo`: dict de `~/.starseed/oracle-consumo.json` (lo escribe `medidor_oracle.py` cada 30 min).
+    Devuelve {"agentes": int, "capacidad": str, "motivo": str}.
+    Si hay freno por gasto (> 0), devuelve 0 agentes.
+    """
+    ahora = time.time() if ahora is None else ahora
+    if not isinstance(consumo, dict) or not consumo.get("leido"):
+        return {"agentes": tope_min, "capacidad": "A1 2 OCPU · 12 GB (sin medidor: tope mínimo)",
+                "motivo": "sin medidor de consumo: usa tope mínimo (%d)" % tope_min}
+    freno = consumo.get("freno") or {}
+    if freno.get("activo"):
+        return {"agentes": 0, "capacidad": "A1 2 OCPU · 12 GB",
+                "motivo": "freno: %s" % (freno.get("motivo") or "el gasto del mes pasó de 0")}
+    margen = consumo.get("margen") or {}
+    cpu_libre = margen.get("cpu_libre_pct")
+    mem_libre = margen.get("mem_libre_gb")
+    if cpu_libre is None or mem_libre is None:
+        return {"agentes": tope_min, "capacidad": "A1 2 OCPU · 12 GB (margen desconocido: tope mínimo)",
+                "motivo": "margen sin datos: usa tope mínimo (%d)" % tope_min}
+    # 1 agente por OCPU libre (2 OCPU * cpu_libre_pct / 100), redondeado arriba, mínimo 1, máximo tope_max
+    ocpu_libres = max(0.0, CAPACIDAD_A1_OCPU * float(cpu_libre) / 100.0)
+    agentes_por_cpu = max(tope_min, int(math.ceil(ocpu_libres)))
+    # También limitado por memoria: 1 agente necesita ~3 GB
+    agentes_por_mem = max(tope_min, int(float(mem_libre) / 3.0))
+    agentes = min(tope_max, agentes_por_cpu, agentes_por_mem)
+    if agentes < tope_min:
+        agentes = tope_min
+    cap_str = "A1 2 OCPU · 12 GB · libre ahora: %.1f %% CPU · %.1f GB" % (float(cpu_libre), float(mem_libre))
+    return {"agentes": agentes, "capacidad": cap_str,
+            "motivo": "%d agente(s) (CPU: %d, RAM: %d, tope %d)" % (agentes, agentes_por_cpu, agentes_por_mem, tope_max)}
+
+
+def a1_motivo_medio(medio):
+    """PURA: por qué no se puede usar el A1 (vacío si se puede), en las palabras del parte."""
+    medio = medio if isinstance(medio, dict) else {}
+    estado, detalle = medio.get("estado"), str(medio.get("detalle") or "")
+    if estado in ("usable", "listo"):
+        return ""
+    if estado == "requiere_alex":
+        return "sin A1 listo (%s)" % (medio.get("siguiente_paso") or detalle or "vincula la cuenta y despliega el A1")
+    return "no disponible (%s)" % (detalle or "estado desconocido")
 
 
 #: (2026-10-04) Interruptor de la nube. Siete corridas seguidas de GitHub Actions acabaron
