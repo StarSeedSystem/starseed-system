@@ -14,6 +14,7 @@ import { Check, CircleAlert, CircleDashed, Clock, Loader2, Minus, ShieldCheck, X
 import { ORDEN_GRUPOS, TITULO_GRUPO, textoEstado, type AccionPermiso } from "@/lib/nativa/permisos-registro";
 import { enlaceDe, textoEnlace } from "@/lib/nativa/permisos-enlaces";
 import { accionEn, permisoActual, textoResultado, type DefPermiso, type EstadoAsistente } from "@/lib/nativa/permisos-inicio";
+import { PanelPermisosLinux } from "@/components/neurona/permisos-linux";
 
 const NOMBRE_SISTEMA: Record<string, string> = {
   macos: "macOS",
@@ -153,6 +154,11 @@ export function ListaPermisos({ estado, onEmpezar, onOmitir, onOmitirTodo, onPed
               </section>
             );
           })}
+          {estado.sistema?.startsWith("linux") && (
+            <div className="mt-3">
+              <PanelPermisosLinux plataforma="linux" />
+            </div>
+          )}
         </div>
 
         {esperando && (
