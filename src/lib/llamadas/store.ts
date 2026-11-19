@@ -9,6 +9,7 @@ import { useSyncExternalStore } from "react";
 import type { TipoLlamada } from "@/lib/mensajeria/formato-tipos";
 import type { MotorLlamada } from "@/lib/llamadas/motor";
 import type { AdjuntoLlamadaRegistro, EstadoLlamada } from "@/lib/llamadas/tipos";
+import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { silenciarTodos } from "./timbre-sonido";
 
 export interface LlamadaActiva {
@@ -58,6 +59,8 @@ export interface EstadoLlamadas {
 
 const INICIAL: EstadoLlamadas = { activa: null, timbres: [], hosts: 0 };
 let estado: EstadoLlamadas = INICIAL;
+/** Tarea pesada de la llamada en curso (alimenta el modo «auto» de rendimiento). */
+let soltarOcupado: (() => void) | null = null;
 const oyentes = new Set<() => void>();
 
 function cambiar(p: Partial<EstadoLlamadas>) {
@@ -85,12 +88,16 @@ export function suscribirLlamadas(cb: () => void): () => void {
 export function ponerActiva(a: LlamadaActiva) {
     // TIM1115B: contestar una llamada corta TODO sonido de timbre del aparato (antes solo se quitaba la tarjeta de esa sesión).
     silenciarTodos("contestada");
+    soltarOcupado?.();
+    soltarOcupado = marcarOcupado(`llamada:${a.sesionId}`, "llamada");
     cambiar({ activa: a, timbres: estado.timbres.filter((t) => t.sesionId !== a.sesionId) });
 }
 
 export function quitarActiva(a?: Pick<LlamadaActiva, "motor">) {
     // Se compara el motor: minimizar crea un objeto nuevo de la misma llamada.
     if (a && estado.activa?.motor !== a.motor) return;
+    soltarOcupado?.();
+    soltarOcupado = null;
     silenciarTodos("llamada-acabada"); // TIM1115B
     cambiar({ activa: null });
 }
@@ -147,6 +154,8 @@ export function registrarHost(): () => void {
 /** Solo pruebas. */
 export function __reiniciarLlamadas() {
     COLGADAS.clear();
+    soltarOcupado?.();
+    soltarOcupado = null;
     estado = INICIAL;
 }
 

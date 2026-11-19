@@ -3975,8 +3975,9 @@ html.ss-gesto [data-ventana-escritorio] {
    El modo actúa SOLO en tiempo de ejecución; no borra ni desactiva ajustes guardados.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* ── eco (legacy + nuevo modo eco) ── */
+/* ── eco (legacy + nuevo modo eco; también la decisión de «auto») ── */
 html[data-rendimiento="eco"],
+html[data-rendimiento-efectivo="eco"],
 html[data-perf="eco"] {
   /* Animaciones y transiciones globales */
   *,
@@ -4037,8 +4038,9 @@ html[data-perf="eco"] {
   }
 }
 
-/* ── eficiente (máximo ahorro) ── */
-html[data-rendimiento="eficiente"] {
+/* ── eficiente (máximo ahorro; también la decisión de «auto») ── */
+html[data-rendimiento="eficiente"],
+html[data-rendimiento-efectivo="eficiente"] {
   /* TODAS las animaciones y transiciones pausadas */
   *,
   *::before,
@@ -4164,8 +4166,10 @@ html[data-rendimiento="eficiente"] {
   }
 }
 
-/* ── auto y alto: sin restricciones extra (comportamiento normal) ── */
-html[data-rendimiento="auto"],
+/* ── auto y alto: sin restricciones extra (comportamiento normal) ──
+   Ojo: si «auto» resolvió eco/eficiente, mandan las reglas de arriba y esta
+   restauración NO debe pisarlas. */
+html[data-rendimiento="auto"]:not([data-rendimiento-efectivo="eco"]):not([data-rendimiento-efectivo="eficiente"]),
 html[data-rendimiento="alto"] {
   /* Restaurar valores por defecto si vienen de eco/eficiente */
   *,

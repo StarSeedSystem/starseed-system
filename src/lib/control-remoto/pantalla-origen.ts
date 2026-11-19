@@ -22,6 +22,7 @@ import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
+import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -172,6 +173,8 @@ const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
+    /** Tarea pesada de la pantalla de control (alimenta el modo «auto» de rendimiento). */
+    private soltarOcupado: (() => void) | null = null;
     /** CTL1118F: cuántas veces se pidió la pantalla fluida en cada sesión de control (por su token): sola, UNA; después, solo si la persona lo pide. */
     private readonly fluidaPedidas = new Map<string, number>();
 
@@ -269,6 +272,8 @@ export class OrigenPantalla {
             respuestas: new Map(),
         };
         this.activa = a;
+        this.soltarOcupado?.();
+        this.soltarOcupado = marcarOcupado(`control-pantalla:${a.token}`, "control");
         // CTL1117C: mide el segundo plano mientras dure esta pantalla (nada corre sin ella).
         try {
             this.d.vigia?.arrancar({
@@ -653,6 +658,8 @@ export class OrigenPantalla {
         if (!a) return;
         this.activa = null;
         a.parado = true;
+        this.soltarOcupado?.();
+        this.soltarOcupado = null;
         try {
             this.d.vigia?.parar();
         } catch {

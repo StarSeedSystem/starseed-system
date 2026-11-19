@@ -15,17 +15,35 @@
  */
 
 import { puedeRecargarSuave } from "@/lib/pwa/aviso-version";
+import { actualizarTareasPesadas } from "@/lib/perf/device-tier";
+import type { TareaPesada } from "@/lib/perf/modo-rendimiento";
 import type { ContextoMomento } from "./momento";
 
 export const CLAVE_DATOS_PERMITIDOS = "starseed.actualizaciones.datos-moviles.v1";
 
-const ocupados = new Map<string, "llamada" | "directo">();
+type Ocupacion = "llamada" | "directo" | "control";
 
-/** Una llamada o un directo avisan de que empiezan (y devuelven con qué terminar). */
-export function marcarOcupado(id: string, tipo: "llamada" | "directo"): () => void {
+const ocupados = new Map<string, Ocupacion>();
+
+/** Lo ocupado ahora mismo, traducido a las tareas pesadas que entiende el modo «auto». */
+function tareasDeOcupados(): TareaPesada[] {
+  const tareas = new Set<TareaPesada>();
+  for (const tipo of ocupados.values()) {
+    if (tipo === "llamada") tareas.add("llamada");
+    else if (tipo === "directo") tareas.add("transmision");
+    else tareas.add("control-remoto");
+  }
+  return [...tareas];
+}
+
+/** Una llamada, un directo o un control avisan de que empiezan (y devuelven con qué terminar). */
+export function marcarOcupado(id: string, tipo: Ocupacion): () => void {
   ocupados.set(id, tipo);
+  actualizarTareasPesadas(tareasDeOcupados());
   return () => {
+    if (ocupados.get(id) !== tipo) return;
     ocupados.delete(id);
+    actualizarTareasPesadas(tareasDeOcupados());
   };
 }
 
