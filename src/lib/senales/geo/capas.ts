@@ -298,6 +298,30 @@ export const CAPAS_SENALES: readonly CapaSenal[] = [
     },
   },
   ...capasOferta(),
+  // MAP1116 · Internet que ofrece la red: SOLO anuncios de sus dueños (faro `offersPublic` / presencia
+  // `offerPublicInternet`) y filas publicadas con medio «internet». Sin anuncio no hay dato.
+  {
+    id: "oferta-internet-red", grupo: "oferta", etiqueta: "Internet que ofrece la red",
+    descripcion: "Aparatos de la red que anuncian salida a internet a los demás",
+    estado: "parcial",
+    fuente: "Lo que anuncia cada dueño: `offersPublic` del faro (ai/astraura/mesh/signals.ts) y filas del espectrómetro con medio 'internet'. Si nadie lo anuncia, no se supone.",
+    tramos: [
+      { id: "si", etiqueta: "Ofrece internet · anunciado por su dueño", color: "#0ea5e9", estilo: "relleno" },
+      { id: "no", etiqueta: "No lo anuncia", color: "#94a3b8", estilo: "anillo" },
+      DESC,
+    ],
+    valor: (m) => {
+      const filas = (m.publicadas ?? []).filter((s) => s.medio === "internet");
+      if (filas.length) {
+        const s = filas.reduce((a, b) => ((b.medidoEn ?? -Infinity) >= (a.medidoEn ?? -Infinity) ? b : a));
+        return { tramo: "si", texto: `anunciado (${s.origen}) · internet${s.banda ? ` · ${s.banda}` : ""}`, t: s.medidoEn, medida: s.origen === "medida" };
+      }
+      if (m.oferta) return m.oferta.internet
+        ? { tramo: "si", texto: "anunciado por su dueño", t: null, medida: true }
+        : { tramo: "no", texto: "no lo anuncia", t: null, medida: true };
+      return desconocido("sin fuente: nadie lo anuncia aún");
+    },
+  },
   {
     id: "oferta-modelos", grupo: "oferta", etiqueta: "Modelos de Astraura", descripcion: "Aparatos que pueden servir modelos de Astraura a la malla",
     estado: "parcial",
