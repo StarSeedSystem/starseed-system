@@ -398,11 +398,12 @@ def _mover_a_pesados(
     destino_base: str,
     ssh_fn: Callable[..., Any],
     seco: bool,
+    mac_root: str = MAC_ROOT,
     tamano_fn: Callable[[str], int] = _tamano_directorio,
     contar_fn: Callable[[str], int] = _contar_entradas,
 ) -> Dict[str, Any]:
     """Mueve origen a pesados/ en destino con copia verificada."""
-    rel = os.path.relpath(origen, MAC_ROOT)
+    rel = os.path.relpath(origen, mac_root)
     destino = os.path.join(destino_base, "pesados", rel)
 
     if seco:
@@ -516,7 +517,7 @@ def aliviar(
             break
         tam_kb = tamano_fn(cand)
         tam_gb = tam_kb / (1024 * 1024)
-        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, tamano_fn=tamano_fn, contar_fn=contar_fn)
+        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, mac_root=mac_root, tamano_fn=tamano_fn, contar_fn=contar_fn)
         movidos.append(res)
         if res.get("verificado"):
             liberado_gb += tam_gb
