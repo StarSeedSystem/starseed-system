@@ -166,6 +166,20 @@ export const AREAS_TRABAJO: AreaTrabajo[] = [
         ],
         olas: ["219", "231"],
     },
+    {
+        id: "guia",
+        nombre: "Guía de StarSeed",
+        descripcion:
+            "Guía dinámica de bienvenida y ayuda de StarSeed OS — presenta la interfaz, resalta capacidades clave y guía al usuario por cada zona del sistema operativo social.",
+        color: "emerald",
+        rutas: [{ etiqueta: "Guía", href: "/guia" }],
+        documentos: [
+            "src/lib/onboarding/guia-temporizador.ts",
+            "src/lib/onboarding/director-rito.ts",
+            "src/components/onboarding/aurora-guide.tsx",
+        ],
+        olas: ["1025U", "1025J", "1025C"],
+    },
 ];
 
 /**
