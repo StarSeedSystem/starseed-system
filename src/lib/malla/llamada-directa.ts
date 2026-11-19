@@ -27,6 +27,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { decidirCorteEnlace, ESPERA_RECONECTANDO_MS, ESPERA_RECONEXION_MS, MOTIVO_RECONEXION_AGOTADA } from "@/lib/llamadas/carriles";
 import type { AjustesMedios } from "@/lib/llamadas/permiso-medios";
 import { explicarFalloMedios } from "@/lib/nativa/medios-nativos";
 import {
@@ -246,6 +247,7 @@ function pararLocal(): void {
 
 function terminar(ev: EventoLlamada, motivo: string | null, fin: FinLlamadaDirecta): void {
   pararEsperaVuelta(); // LLA1112A
+  perdidoEn = 0;
   if (temporizador) clearTimeout(temporizador);
   temporizador = null;
   const e = estado.enlaceId ? enlaceLocal(estado.enlaceId) : undefined;
@@ -292,14 +294,13 @@ function soltarStream(s: MediaStream | null | undefined): void {
 /* ── LLA1112A: la conversación sobrevive a que su enlace se caiga y vuelva ───────────────────── */
 
 /**
- * (LLA1112A) Lo que una conversación espera a que vuelva un enlace con la otra neurona antes de darse por perdida. 90 s: el enlace
- * WebRTC local se rehace solo al volver la red (la malla de la cuenta lo vuelve a abrir, y `asegurarEnlace` lo pide por el
- * canal de la app), el Bluetooth de la prueba 39 tardó 1–6 s en religar (`reconectado · b3 … tras 1 s sin enlace`, la tableta
- * `tras 6 s`), y es algo más que los 15 s sin audio con los que el motor de llamadas da por fallida una llamada que no arranca
- * (`LIMITE_CONECTANDO_MS`): una persona espera eso con «Reconectando…» antes de colgar ella.
+ * AUD1117 · Momento en que se enseña «Reconectando…» en una conversación que perdió su enlace. Ya no es el fin: el fin
+ * llega a `ESPERA_RECONEXION_MS` (90 s). El enlace WebRTC local se rehace solo al volver la red (la malla de la cuenta lo
+ * vuelve a abrir, y `asegurarEnlace` lo pide por el canal de la app); el Bluetooth de la prueba 39 tardó 1–6 s en religar.
  */
-export const ESPERA_VUELTA_ENLACE_MS = 90_000;
+export const ESPERA_VUELTA_ENLACE_MS = ESPERA_RECONECTANDO_MS;
 let esperaVuelta: ReturnType<typeof setTimeout> | null = null;
+let finEsperaVuelta: ReturnType<typeof setTimeout> | null = null;
 let perdidoEn = 0;
 
 function anotarDirecta(detalle: string): void {
@@ -311,6 +312,8 @@ function anotarDirecta(detalle: string): void {
 function pararEsperaVuelta(): void {
   if (esperaVuelta) clearTimeout(esperaVuelta);
   esperaVuelta = null;
+  if (finEsperaVuelta) clearTimeout(finEsperaVuelta);
+  finEsperaVuelta = null;
 }
 
 /** El enlace de la conversación desapareció: se pasa a otro vivo con esa neurona o se espera a que vuelva uno. */
@@ -324,18 +327,30 @@ function perderEnlaceEnCurso(): void {
   perdidoEn = Date.now();
   // El último flujo remoto se queda (la ventana no pasa a negro de golpe); el aviso dice lo que pasa.
   poner({ enlaceId: null, motivo: "Se cortó el enlace directo (¿se apagó el Wi-Fi?). Reconectando…" });
-  anotarDirecta(`enlace-perdido espera=${ESPERA_VUELTA_ENLACE_MS}ms`);
+  anotarDirecta(`enlace-perdido espera=${ESPERA_RECONEXION_MS}ms`);
   pararEsperaVuelta();
+  const corte = (sinEnlaceMs: number) =>
+    decidirCorteEnlace({ sinEnlaceMs, estabaEnPie: true, otroCarril: false, enlaceVuelve: false });
+  // AUD1117: los 20 s ya no son el fin; solo el momento de enseñar «Reconectando…».
   esperaVuelta = setTimeout(() => {
     esperaVuelta = null;
     if (estado.id !== id || estado.fase !== "en-curso" || estado.enlaceId) return;
-    anotarDirecta(`fin motivo=sin-enlace tras=${Date.now() - perdidoEn}ms`);
-    terminar("enlace-perdido", `Se perdió el enlace directo y no volvió en ${Math.round(ESPERA_VUELTA_ENLACE_MS / 1000)} s.`, "fallo");
+    if (corte(Date.now() - perdidoEn) === "terminar") return;
+    poner({ motivo: "Se cortó el enlace directo (¿se apagó el Wi-Fi?). Reconectando…" });
   }, ESPERA_VUELTA_ENLACE_MS);
+  // AUD1117: pasados 90 s sin que vuelva, la espera se agota y se dice el motivo en los dos extremos.
+  finEsperaVuelta = setTimeout(() => {
+    finEsperaVuelta = null;
+    if (estado.id !== id || estado.fase !== "en-curso" || estado.enlaceId) return;
+    const sinEnlaceMs = Date.now() - perdidoEn;
+    if (corte(sinEnlaceMs) !== "terminar") return;
+    anotarDirecta(`fin motivo=sin-enlace tras=${sinEnlaceMs}ms`);
+    terminar("enlace-perdido", MOTIVO_RECONEXION_AGOTADA, "fallo");
+  }, ESPERA_RECONEXION_MS);
   // Se pide ya un enlace nuevo por el canal de la app (si lo hay): el primero que llegue retoma la conversación.
   if (estado.neurona && respaldo?.asegurarEnlace) {
     void respaldo
-      .asegurarEnlace(estado.neurona, ESPERA_VUELTA_ENLACE_MS)
+      .asegurarEnlace(estado.neurona, ESPERA_RECONEXION_MS)
       .then((e) => {
         if (e && estado.id === id && estado.fase === "en-curso" && !estado.enlaceId) reanudarCon(e, "asegurado");
       })
@@ -382,16 +397,16 @@ export function asegurarEscuchaLlamadas(): void {
     });
   });
   suscribirEnlacesLocales(() => {
-    // LLA1112A: esperando a que vuelva el enlace de una conversación: el primero vivo con esa neurona la retoma.
-    if (estado.fase === "en-curso" && !estado.enlaceId && esperaVuelta) {
+    // LLA1112A/AUD1117: esperando a que vuelva el enlace de una conversación (hasta 90 s): el primero vivo con esa neurona la retoma.
+    if (estado.fase === "en-curso" && !estado.enlaceId && perdidoEn > 0) {
       const otro = estado.neurona ? enlaceVivoMasNuevoCon(estado.neurona) : null;
       if (otro) reanudarCon(otro, "enlace-nuevo");
       return;
     }
     if (!estado.enlaceId || estado.fase === "inactiva" || estado.fase === "terminada" || enlaceLocal(estado.enlaceId)) return;
-    // LLA1112A: sin el enlace del audio, la conversación ya NO se acaba al instante (prueba 39: apagar el Wi-Fi de la tableta
-    // colgaba con «Se perdió el enlace directo»): espera a que vuelva (`ESPERA_VUELTA_ENLACE_MS`). Mientras suena, el timbre
-    // sigue por el canal de la app.
+    // LLA1112A/AUD1117: sin el enlace del audio, la conversación ya NO se acaba al instante (prueba 39: apagar el Wi-Fi de la
+    // tableta colgaba con «Se perdió el enlace directo»): espera hasta 90 s a que vuelva (`ESPERA_RECONEXION_MS`). Mientras
+    // suena, el timbre sigue por el canal de la app.
     if (estado.fase === "en-curso") perderEnlaceEnCurso();
     else if (!respaldo || !estado.neurona) terminar("enlace-perdido", "Se perdió el enlace directo.", "fallo");
     else poner({ enlaceId: null });

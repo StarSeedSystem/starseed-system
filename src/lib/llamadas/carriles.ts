@@ -84,6 +84,12 @@ export function esperaReintentoIce(n: number): number {
  */
 export const ESPERA_RECONEXION_MS = 90_000;
 
+/**
+ * AUD1117 · Momento (20 s) en que la llamada directa enseña «Reconectando…» al perder su único enlace. No es el fin:
+ * el fin solo llega a `ESPERA_RECONEXION_MS`. El motor de llamadas usa su propio umbral de 15 s (`LIMITE_CONECTANDO_MS`).
+ */
+export const ESPERA_RECONECTANDO_MS = 20_000;
+
 /** AUD1117 · Motivo visible en los dos extremos cuando el enlace no vuelve en `ESPERA_RECONEXION_MS`. */
 export const MOTIVO_RECONEXION_AGOTADA = `Se perdió el enlace con el otro aparato y no volvió en ${Math.round(ESPERA_RECONEXION_MS / 1000)} s. Comprueba que sigue cerca y vuelve a intentarlo.`;
 

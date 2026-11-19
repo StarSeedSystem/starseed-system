@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capacidadCarril, decidirCorteEnlace, ESPERA_RECONEXION_MS, esperaReintentoIce, MARGEN_CAPACIDAD, MOTIVO_RECONEXION_AGOTADA, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type EntradaCorteEnlace, type MuestraCarril } from "@/lib/llamadas/carriles";
+import { capacidadCarril, decidirCorteEnlace, ESPERA_RECONECTANDO_MS, ESPERA_RECONEXION_MS, esperaReintentoIce, MARGEN_CAPACIDAD, MOTIVO_RECONEXION_AGOTADA, ordenPorCapacidad, REGLAS, SelectorCarriles, SILENCIO_WEBRTC_MS, type EntradaCorteEnlace, type MuestraCarril } from "@/lib/llamadas/carriles";
 
 
 const web = (arriba: boolean): MuestraCarril => ({ carril: "webrtc", arriba, rttMs: 20 });
@@ -44,7 +44,7 @@ describe("AUD1117 · una caída corta del enlace no cuelga la llamada", () => {
   const corte = (sinEnlaceMs: number, extra: Partial<EntradaCorteEnlace> = {}) =>
     decidirCorteEnlace({ sinEnlaceMs, estabaEnPie: true, otroCarril: false, enlaceVuelve: false, ...extra });
 
-  it("un corte de 60 s que vuelve: sigue viva sin colgar y se recupera sola", () => {
+  it("un corte de 60 s que vuelve: sigue viva y se enseña «Reconectando…»", () => {
     const caeEn = 1_000;
     for (let ahora = caeEn; ahora <= caeEn + 60_000; ahora += 500) {
       expect(corte(ahora - caeEn)).toBe("reconectando");
@@ -58,10 +58,16 @@ describe("AUD1117 · una caída corta del enlace no cuelga la llamada", () => {
     expect(corte(ESPERA_RECONEXION_MS - 1)).toBe("reconectando");
   });
 
-  it("un corte de 95 s termina a los 90 s con un motivo visible", () => {
+  it("un corte de 95 s: termina a los 90 s con motivo visible", () => {
     expect(corte(ESPERA_RECONEXION_MS)).toBe("terminar");
     expect(corte(95_000)).toBe("terminar");
     expect(MOTIVO_RECONEXION_AGOTADA).toMatch(/90 s/);
+  });
+
+  it("los 20 s de la llamada directa son el aviso, no el fin", () => {
+    expect(ESPERA_RECONECTANDO_MS).toBe(20_000);
+    expect(ESPERA_RECONECTANDO_MS).toBeLessThan(ESPERA_RECONEXION_MS);
+    expect(corte(ESPERA_RECONECTANDO_MS)).toBe("reconectando");
   });
 
   it("con otro carril vivo, o si la llamada no llegó a estar en pie, manda lo de siempre", () => {
