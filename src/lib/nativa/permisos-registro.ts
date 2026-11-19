@@ -13,6 +13,8 @@
  * permisos, ni interfaces privadas, ni clics por guion en los diálogos del sistema.
  */
 
+import { PERMISOS, celdaDe, queHacer, type Decision, type EstadoPermiso as EstadoCelda, type Medio, type Permiso } from "@/lib/permisos/matriz";
+
 export type SistemaPermisos = "macos" | "android" | "windows" | "linux-x11" | "linux-wayland";
 
 export type IdPermiso =
@@ -465,12 +467,47 @@ export function normalizarEstados(raw: unknown): Partial<Record<IdPermiso, Estad
 }
 
 /**
+ * El medio de la matriz que corresponde a este sistema; Linux queda fuera porque la matriz no separa X11 de Wayland.
+ */
+const MEDIO_DE_MATRIZ: Partial<Record<SistemaPermisos, Medio>> = { macos: "macos", android: "android", windows: "windows" };
+
+function permisoDeMatriz(id: IdPermiso): Permiso | null {
+  return (PERMISOS as readonly string[]).includes(id) ? (id as Permiso) : null;
+}
+
+function estadoDeMatriz(estado: EstadoSistema | undefined): EstadoCelda {
+  if (estado === "concedido") return "concedido";
+  if (estado === "denegado") return "denegado-mano";
+  return "falta";
+}
+
+function accionDeMatriz(d: Decision): AccionPermiso {
+  switch (d) {
+    case "listo":
+      return "listo";
+    case "pedir":
+      return "pedir";
+    case "abrir-ajustes":
+      return "abrir-ajustes";
+    case "por-uso":
+      return "por-uso";
+    default:
+      return "nada";
+  }
+}
+
+/**
  * Qué ofrece la lista para `def` con su estado real. `yaPedido`: el aviso del sistema ya salió una vez (macOS no
  * lo vuelve a enseñar: desde entonces solo se da en Ajustes). Pura.
  */
-export function accionDe(def: DefPermiso, estado: EstadoSistema | undefined, yaPedido = false): AccionPermiso {
+export function accionDe(def: DefPermiso, estado: EstadoSistema | undefined, yaPedido = false, sistema?: SistemaPermisos): AccionPermiso {
   if (def.fase > FASE_ACTUAL) return "mas-adelante";
   if (estado === "concedido" || estado === "no-aplica") return "listo";
+  // La matriz es la fuente de verdad para los permisos que nombra; los ids propios del registro
+  // (arranque, llamadas, superposición…) siguen con su forma de pedir de aquí.
+  const medio = sistema ? MEDIO_DE_MATRIZ[sistema] : undefined;
+  const permiso = permisoDeMatriz(def.id);
+  if (medio && permiso && celdaDe(medio, permiso)) return accionDeMatriz(queHacer(medio, permiso, estadoDeMatriz(estado), yaPedido));
   switch (def.como) {
     case "nada":
     case "declaracion":
@@ -531,7 +568,7 @@ export function necesitaPara(
       continue;
     }
     // En `necesitaPara` no hay «más adelante»: quien pregunta ES la función que lo necesita.
-    const accion = accionDe({ ...d, fase: Math.min(d.fase, FASE_ACTUAL) }, e, yaPedidos.includes(d.id));
+    const accion = accionDe({ ...d, fase: Math.min(d.fase, FASE_ACTUAL) }, e, yaPedidos.includes(d.id), sistema);
     faltan.push({ id: d.id, titulo: d.titulo, accion });
   }
   return { funcion, construida, listo: construida && faltan.length === 0, faltan, porUso };

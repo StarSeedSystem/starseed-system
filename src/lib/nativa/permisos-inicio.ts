@@ -101,7 +101,7 @@ export function yaPedido(g: Pick<GuardadoPermisos, "avisos">, id: IdPermiso): bo
 /** Los permisos que se pueden pedir ahora y no están concedidos (todos, o solo los que esa persona no vio). */
 export function colaDe(sistema: SistemaAsistente, g: GuardadoPermisos, estados: EstadosSistema = {}, forzar = false): DefPermiso[] {
   return catalogoDe(sistema).filter(
-    (d) => esAccionable(accionDe(d, estados[d.id], yaPedido(g, d.id))) && (forzar || !g.vistos.includes(d.id)),
+    (d) => esAccionable(accionDe(d, estados[d.id], yaPedido(g, d.id), sistema)) && (forzar || !g.vistos.includes(d.id)),
   );
 }
 
@@ -185,7 +185,7 @@ export function permisoActual(e: EstadoAsistente): DefPermiso | null {
 
 /** La acción que toca a `d` en este estado. */
 export function accionEn(e: EstadoAsistente, d: DefPermiso) {
-  return accionDe(d, e.estados[d.id], e.avisos.includes(d.id));
+  return accionDe(d, e.estados[d.id], e.avisos.includes(d.id), e.sistema ?? undefined);
 }
 
 /** Avanza saltando lo que entretanto quedó concedido (la persona lo dio en Ajustes por su cuenta). */
