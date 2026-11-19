@@ -93,12 +93,12 @@ describe("CTL1118F · pantalla fluida por defecto", () => {
         const m = mundo();
         const r = (await m.origen.ejecutar("pantalla-iniciar", {}, ctx)) as { ok: boolean; fuente: string };
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad" });
-        expect(m.llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("auto");
+        expect("fuente" in (m.llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args ?? {})).toBe(false);
         await hasta(() => cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === "proyeccion") >= 1);
         m.conceder();
         await hasta(() => m.notas.some((l) => l.includes("paso=cambio de=accesibilidad a=proyeccion")));
         expect(cuenta(m, "control_pantalla_parar")).toBe(0);
-        expect(cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === "auto")).toBe(1);
+        expect(cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === undefined)).toBe(1);
         const lee = (await m.origen.ejecutar("leer-aparato", {}, ctx)) as { fuente?: string };
         expect(lee.fuente).toBe("proyeccion");
         // los cuadros siguen llegando por el mismo bucle
@@ -132,12 +132,12 @@ describe("CTL1118F · pantalla fluida por defecto", () => {
         await m.origen.ejecutar("pantalla-iniciar", {}, ctx);
         conPeer(m);
         await hasta(() => m.notas.some((l) => l.includes("resultado=sin-respuesta-de-la-persona")), 4000);
-        const autos = cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === "auto");
+        const autos = cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === undefined);
         const r = (await m.origen.ejecutar("pantalla-iniciar", { mantener: true, fuente: "proyeccion" }, ctx)) as { ok: boolean; mantenida?: boolean };
         expect(r).toMatchObject({ ok: true, mantenida: true });
         m.conceder();
         await hasta(() => m.notas.some((l) => l.includes("paso=cambio de=accesibilidad a=proyeccion")));
-        expect(cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === "auto")).toBe(autos);
+        expect(cuenta(m, "control_pantalla_iniciar", (a) => a?.fuente === undefined)).toBe(autos);
         expect(cuenta(m, "control_pantalla_parar")).toBe(0);
     });
 

@@ -1,6 +1,6 @@
 /**
- * PENC3 · pedir la pantalla con la fuente «auto», reflejar la REAL que contesta el aparato y decir lo que falta con las
- * palabras del contrato. Lo que viaja en los cuadros y el motor de llamadas no se tocan.
+ * PENC3 · reflejar la fuente REAL que contesta el aparato y decir lo que falta con las palabras del contrato.
+ * RST1116A: la fuente pedida viaja en la orden («proyeccion»), pero la que se enseña es siempre la real.
  */
 import { describe, expect, it } from "vitest";
 import { OrigenPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
@@ -33,10 +33,11 @@ function origenCon(respuesta: unknown) {
 }
 
 describe("PENC3 · fuente de pantalla", () => {
-    it("pide «auto» aunque quien manda pida otra: la elige el aparato", async () => {
+    it("la fuente pedida llega a lo nativo, pero la que se refleja es la que contesta el aparato", async () => {
         const { origen, llamadas } = origenCon({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
-        await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
-        expect(llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("auto");
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("proyeccion");
+        expect(r).toMatchObject({ fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         await origen.parar("fin");
     });
 
