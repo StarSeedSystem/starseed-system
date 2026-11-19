@@ -1872,6 +1872,7 @@ export class MotorLlamada {
             switch (accion) {
                 case "usar-datos":
                     void this.activarVozDatos(id);
+                    desde = reloj.ahora();
                     break;
                 case "volver-webrtc":
                     // (LLA1110D) Ya solo llega aquí con la voz por datos degradada (ver `decidirAccionMedio`); el «fin» lleva el
@@ -1881,25 +1882,43 @@ export class MotorLlamada {
                     desde = reloj.ahora();
                     break;
                 case "mantener":
-                    if (par.conexion === "conectado") {
-                        if (!anotadoWebrtc) {
-                            anotadoWebrtc = true;
-                            anotarLlamada("medio=webrtc", neurona, `par=${id}`);
-                        }
-                        // Si la conexión se cae más tarde, el plazo cuenta desde la caída.
-                        desde = reloj.ahora();
+                    enPie = true;
+                    if (par.conexion === "conectado" && !anotadoWebrtc) {
+                        anotadoWebrtc = true;
+                        anotarLlamada("medio=webrtc", neurona, `par=${id}`);
                     }
+                    // Si el enlace se cae más tarde, el plazo cuenta desde el último tic con audio.
+                    desde = reloj.ahora();
                     break;
-                case "fallar":
+                case "fallar": {
                     if (this.hayAudioEnAlgunPar()) {
                         // En un grupo, un par sin audio no tumba la llamada con los demás.
                         par.conexion = "fallida";
                         this.pararVigilante(id);
                         this.emitir();
+                        break;
+                    }
+                    const sinEnlaceMs = reloj.ahora() - desde;
+                    const corte = decidirCorteEnlace({
+                        sinEnlaceMs,
+                        estabaEnPie: enPie,
+                        otroCarril: this.estadoDatosPar(id) !== "sin-enlace" || par.conexion === "conectado",
+                    });
+                    if (corte === "reconectando") {
+                        // AUD1117: los 15 s ya no son el fin; se sigue en «Reconectando…» hasta los 90 s.
+                        if (par.conexion !== "reconectando") {
+                            par.conexion = "reconectando";
+                            this.emitir();
+                        }
+                        break;
+                    }
+                    if (corte === "terminar") {
+                        this.fallarSinAudio(MOTIVO_RECONEXION_AGOTADA, `enlace-sin-volver tras=${Math.round(sinEnlaceMs / 1000)}s`);
                     } else {
                         this.fallarSinAudio();
                     }
                     break;
+                }
                 default:
                     break;
             }
@@ -2674,12 +2693,12 @@ export class MotorLlamada {
     }
 
     /** Ni WebRTC ni el enlace de datos dieron audio a tiempo: se acaba diciéndolo, en los dos extremos. */
-    private fallarSinAudio() {
+    private fallarSinAudio(motivo: string = MOTIVO_SIN_AUDIO, detalle = "sin audio a los 15 s: ni webrtc ni enlace-datos") {
         if (this.cerrado) return;
-        anotarLlamada("fallo", this.opc.vozDatos?.neurona ?? null, "sin audio a los 15 s: ni webrtc ni enlace-datos");
+        anotarLlamada("fallo", this.opc.vozDatos?.neurona ?? null, detalle);
         this.puedeReintentar = true;
-        this.enviar({ tipo: "fallo", de: this.miId, motivo: MOTIVO_SIN_AUDIO });
-        this.terminar("error", MOTIVO_SIN_AUDIO);
+        this.enviar({ tipo: "fallo", de: this.miId, motivo });
+        this.terminar("error", motivo);
     }
 
     /** Lo que la superficie necesita saber del medio: cuál es, cómo va y si todavía se está conectando el audio. */
@@ -2850,8 +2869,8 @@ export class MotorLlamada {
             const par = this.pares.get(p.id);
             // LLA1112A: con la voz por el enlace de datos en marcha (abierta y llevando audio en algún sentido) o el vídeo ligero
             // llegando, el par ESTÁ conectado aunque WebRTC esté reintentando por una ruta IP: un intento no es «Reconectando…».
-            const vd = this.vozDatos.get(p.id)?.estado();
-            const porDatos = !!vd && (vd.recibiendo || (vd.activa && vd.enviadas > 0)) || !!this.videoDatos.get(p.id)?.estado().recibiendo;
+            // AUD1117: si el enlace desapareció, la sesión deja de contar aunque siga «activa»: es «Reconectando…».
+            const porDatos = this.estadoDatosPar(p.id) === "activo" || !!this.videoDatos.get(p.id)?.estado().recibiendo;
             return {
                 ...p,
                 nombre: this.nombrePar(p.id) ?? p.nombre,
