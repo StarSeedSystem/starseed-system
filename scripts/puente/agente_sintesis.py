@@ -27,7 +27,7 @@ import re
 import sys
 import time
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
@@ -415,11 +415,18 @@ def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=No
     ruta_cola = os.path.join(r["olas"], NOMBRE_COLA)
     previas = S._leer_json(ruta_cola, [])
     lista = previas if isinstance(previas, list) else (previas.get("tareas") or [] if isinstance(previas, dict) else [])
-    limite = _iso(momento - timedelta(days=DIAS_COLA))
+    limite_date = (momento - timedelta(days=DIAS_COLA)).date()
+
+    def _parse_iso_date(iso_str):
+        try:
+            return _como_fecha(datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))).date()
+        except (ValueError, TypeError):
+            return None
 
     def podar(ts):
         return [t for t in ts if isinstance(t, dict)
-                and (t.get("agente") != AGENTE or str(t.get("creada") or "") >= limite)]
+                and (t.get("agente") != AGENTE
+                     or (_parse_iso_date(t.get("creada")) or date.min) >= limite_date)]
 
     fusion = fundir or S.fundir_tareas
     S._escribir_json(ruta_cola, fusion(podar(lista), podar(tareas)))

@@ -149,17 +149,17 @@ def proveedores_con_clave_rechazada(lineas, *, ahora=None, ventana_horas=24, max
 
     Args:
         lineas: iterable de líneas del log (más recientes al final).
-        ahora: datetime de referencia (por defecto ahora real). Para tests.
+        ahora: datetime de referencia (por defecto ahora real, o el último timestamp hallado en las líneas). Para tests.
         ventana_horas: horas de antigüedad máxima para considerar el rechazo vigente.
         max_lineas: cuántas líneas finales examinar (por defecto 300).
 
     Returns:
         set[str]: ids de proveedor (p. ej. "gemini", "openrouter") con rechazo vigente.
     """
-    if ahora is None:
-        ahora = datetime.now()
-    corte = ahora - timedelta(hours=ventana_horas)
     lineas = list(lineas)[-max_lineas:]
+    if ahora is None:
+        ahora = _ultimo_timestamp_en_lineas(lineas) or datetime.now()
+    corte = ahora - timedelta(hours=ventana_horas)
     rechazados = set()
     patron_rechazo = re.compile("|".join(PATRONES_RECHAZO), re.IGNORECASE)
     patron_provider = re.compile(r"provider=([a-z0-9_-]+)", re.IGNORECASE)
@@ -191,6 +191,24 @@ def proveedores_con_clave_rechazada(lineas, *, ahora=None, ventana_horas=24, max
         if prov:
             rechazados.add(prov)
     return rechazados
+
+
+def _ultimo_timestamp_en_lineas(lineas):
+    """Extrae el timestamp más reciente de las líneas (formato YYYY-MM-DD HH:MM:SS al inicio)."""
+    patron_fecha = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+    ts_max = None
+    for linea in lineas:
+        m = patron_fecha.match(linea)
+        if m:
+            try:
+                ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+                if ts_max is None or ts > ts_max:
+                    ts_max = ts
+            except ValueError:
+                pass
+    if ts_max:
+        return ts_max + timedelta(hours=1)
+    return None
 
 
 def proveedores_de_hermes(texto):
