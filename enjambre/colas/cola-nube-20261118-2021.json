@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "CTL1119D",
+   "ola": "CTL1119",
+   "titulo": "Contrato del transporte adaptativo común multiantena por flujos: lo aprendido con el control aplicado a archivos e internet compartido",
+   "archivos": [
+    "docs/contratos/transporte-adaptativo.md",
+    "starseed_memory_root/olas/cola-transporte-adaptativo-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): lo aprendido con el control remoto debe aplicarse a las demás funciones de la malla P2P: transmisión de archivos y capas de internet de la malla comunitaria compartida local multicapa. Tarea: docs/contratos/transporte-adaptativo.md con «Lo que ya existe» (rutas exactas del control, del envío de archivos/enjambre de datos y del internet compartido por la malla, con grep) y el diseño de un módulo común: latidos y vida por latidos, reanudación sin perder sesión ni transferencia, bucle de calidad/caudal, elección y cambio de antena con histéresis y reparto multiantena, medidas comunes (fps o caudal, retardo, pérdidas, medio) para los medidores de Genesis; y una cola de 3 a 6 tareas pequeñas en starseed_memory_root/olas/cola-transporte-adaptativo-1119.json (mismo formato) para llevarlo a archivos e internet compartido con sus pruebas. Añadido de Alex (18-11, noche): en las transmisiones, usar varios medios P2P a la vez cuando sea más eficiente, con autoenrutado inteligente por tipo de flujo; por ejemplo vídeo por Wi-Fi Direct, audio por el Wi-Fi del router y control por Bluetooth directo, o la combinación que convenga en cada caso. El contrato debe incluir: separar cada sesión en flujos (control, audio, vídeo/pantalla, archivos, datos de internet compartido) con requisitos propios (retardo, caudal, fiabilidad); medir cada antena disponible; asignar cada flujo a la antena que mejor lo cumpla (o repartirlo entre varias), con cambio en caliente e histéresis, y con el control siempre por la vía más fiable y de menor retardo; y el registro de qué flujo va por qué medio, visible en el medidor de calidad. Sin código de producto en esta tarea. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CTL1119D"
+  ]
+ }
+}
