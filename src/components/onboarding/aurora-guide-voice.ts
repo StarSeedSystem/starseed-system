@@ -121,7 +121,11 @@ export function auroraTranscript(): string {
   try {
     const s = auroraBridge()?.getState?.();
     return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("[aurora-guide-voice] auroraTranscript falló:", e);
+    }
     return "";
   }
 }
@@ -130,7 +134,11 @@ export function auroraTranscript(): string {
 export function auroraIsEnabled(): boolean {
   try {
     return auroraBridge()?.getState?.()?.enabled === true;
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("[aurora-guide-voice] auroraIsEnabled falló:", e);
+    }
     return false;
   }
 }
