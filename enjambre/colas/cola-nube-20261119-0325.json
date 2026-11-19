@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "ola": "CAP1119",
+   "id": "CAP1119B-d1",
+   "titulo": "Usar todos los contenedores en la nube que ya están disponibles: Cloudroom, el A1 al completo y la nube de GitHub sin atascos (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/repartir_nube.py",
+    "scripts/puente/medios_disponibles.py"
+   ],
+   "depende": [],
+   "prompt": "Auditoría de la dirección (19-11, 21:00 local) con medios_disponibles.py y ~/.starseed/salud-proveedores.json: mac listo (2 agentes, recursos al límite, disco 7,5 GB → la guardia de 10 GB frena la tanda); claude usable (sin usar hace 12 días); cloudroom usable con 100 agentes/30 días gratis y 0 hilos abiertos (SIN USAR); nube-gh listo (2 ejecuciones; el último empuje de la cola falló por tiempo agotado de git push a los 120 s); hf requiere PRO; gcloud marcado «usable» pero la facturación está desactivada desde el 25-09 (Cloud Run no arranca sin cuenta de facturación: revisar la clasificación); colab/kaggle requieren un cuaderno lanzador; oracle A1 listo con solo 15 % de CPU usada y 5,6 GB libres (INFRAUTILIZADO). Proveedores: groq, tokenrouter y explabs vivos; xkiro, openrouter y freellmapi con el cupo del día agotado (429); nim con un modelo colgado; aihubmix bloqueado por abuso; llm7 caído; apinex «sin crédito (402)» y aun así acciones-de-alex.json NO pide el check-in diario (solo tiene 2 aprobaciones de Higgsfield). Faltan en la salud de proveedores: abliteration, Antigravity (agy), Ollama del A1 (qwen 4B), Codex y OpenCode Zen. Además starseed_memory_root/olas/medios.json tiene 2336 medios acumulados (codex:mac:mac:<puerto> y opencode:mac:mac:<puerto>, casi todos inactivos). Alex (19-11): «verifica que se estén usando todos los contenedores en nube disponibles de MetaGenesis… creo que faltan activar contenedores que se pueden usar». Tarea: (1) «Buscar más capacidad» y el reparto envían tareas a Cloudroom (100 agentes/30 días, cuenta conectada, cloudroom_modelos.py) respetando su cupo mensual; (2) el A1 sube de agentes mientras tenga CPU y memoria libres (hoy 15 % de CPU), con su propio tope; (3) cuando la Mac está frenada por la guardia de disco o de memoria, las tareas listas van a la nube en vez de esperar; (4) el empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir; (5) medios_disponibles.py clasifica bien gcloud con la facturación desactivada (no «usable» si Cloud Run exige facturación) y explica qué haría falta. Pruebas de las decisiones de reparto. Reglas: nunca imprimir ni guardar claves fuera de variables de entorno; no bajar ningún freno de publicación ni la guardia de disco; lógica pura con pruebas. Español neutro.\n\n## PARTE 1 DE 2 (la dirección dividió CAP1119B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/buscar_capacidad.py, scripts/puente/repartir_nube.py, scripts/puente/medios_disponibles.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAP1119B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "id": "CTL1119B",
+   "ola": "CTL1119",
+   "titulo": "Medidor activo de calidad del control: fps, retardo, kbps, resolución y medio en tiempo real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/calidad.ts",
+    "src/components/control-remoto/medidor-calidad.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11) quiere información activa de los fps y de la calidad de transmisión. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: módulo puro src/lib/control-remoto/calidad.ts que, a partir de los cuadros recibidos y de los acuses de las órdenes, calcula fps (ventana de 3 s), retardo de ida y vuelta, kbps, resolución, calidad/códec, pérdidas y medio en uso (red local, Bluetooth, relé…); componente medidor-calidad.tsx compacto en la ventana de control (y en el panel del punto del aparato controlado: fps enviados y medio), con el diseño StarSeed y que no tape la pantalla; una línea de registro cada 10 s `control-calidad fps= rtt_ms= kbps= lado= calidad= medio=` en ambos lados (nativo: control_pantalla_escritorio.rs y equivalentes de Android/macOS emiten sus medidas). Pruebas del cálculo. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CAP1119B-d1",
+   "CTL1119B",
+   "SVF1B5b"
+  ]
+ }
+}
