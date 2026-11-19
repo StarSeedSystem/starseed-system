@@ -236,7 +236,7 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
                                 ) : (
                                     <p className="text-[12.5px] text-white/60">Aún no habéis hablado. Pregúntale lo que quieras.</p>
                                 )}
-                                <Preguntar tactil={tactil} sugerencias={b === "xl" ? 3 : alto >= 300 ? 2 : 0} />
+                                <Preguntar tactil={tactil} compacto />
                             </div>
                         </div>
                     );
