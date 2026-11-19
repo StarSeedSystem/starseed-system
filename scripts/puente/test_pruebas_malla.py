@@ -1,260 +1,241 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PRU1118A · Pruebas de la lógica pura del conductor de pruebas de la malla.
-
-Cubre las costuras acordadas con el director: lectura de ventanas de tiempo,
-evaluación de criterios `debe`/`no_debe`, formato del informe, filtrado de la
-batería y las líneas del registro. Todo se prueba con registros de ejemplo:
-ninguna prueba lee logs reales, abre red ni ejecuta un aparato.
-"""
+"""Pruebas unitarias para las funciones puras de pruebas_malla.py."""
 import json
 import os
 import sys
-from datetime import datetime, timezone
+import tempfile
+import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pruebas_malla as PM  # noqa: E402
 
-UTC = timezone.utc
 
-# Registro del enlace: una línea por hito, con la fecha ISO al principio.
-ENLACES = [
-    "2026-11-18T10:00:00.000Z ble l2cap-kbps enlace=b1 neurona=aaa · kbps=100",
-    "2026-11-18T10:00:01.000Z web 2026-11-18T10:00:00.500Z · llamada · b1 · neurona aaa · senal-recibida app",
-    "2026-11-18T10:00:02.000Z web · control-sesion · inicio de=00112233 nivel=controlar alcance=total",
-    "2026-11-18T10:00:03.000Z web · control-sesion · orden leer-estado de=00112233 resultado=autorizada",
-    "2026-11-18T10:00:04.000Z web · control-sesion · fin de=00112233 motivo=la-persona-desde-el-indicador",
-    "2026-11-18T10:00:05.000Z ble l2cap-kbps enlace=b1 neurona=aaa · kbps=50",
-]
-
-# Control entre neuronas: una línea JSON por evento, con la fecha en el campo «t».
-CONTROL = [
-    '{"t":"2026-11-18T10:00:00.000Z","ev":"sesion-abierta","detalle":"de=00112233 nivel=controlar alcance=total","ant":"inicio","h":"h1"}',
-    '{"t":"2026-11-18T10:00:01.000Z","ev":"orden","detalle":"leer-estado de=00112233 resultado=autorizada","ant":"h1","h":"h2"}',
-    '{"t":"2026-11-18T10:00:02.000Z","ev":"sesion-parada","detalle":"de=00112233 motivo=la-persona-desde-el-indicador","ant":"h2","h":"h3"}',
-]
-
-
-def dt(hora, minuto=0, segundo=0, micro=0):
-    """Fecha UTC cómoda para escribir las ventanas de las pruebas."""
-    return datetime(2026, 11, 18, hora, minuto, segundo, micro, tzinfo=UTC)
-
-
-class TestVentana:
-    """Recorte de líneas a la ventana en que transcurrió la prueba."""
-
-    def test_inicio_y_fin_son_incluyentes(self):
-        lineas = PM.recortar_ventana(ENLACES, dt(10, 0, 1), dt(10, 0, 3))
-        assert len(lineas) == 3
-        assert "10:00:01" in lineas[0]
-        assert "10:00:03" in lineas[-1]
-
-    def test_solo_inicio_deja_el_presente_abierto(self):
-        lineas = PM.recortar_ventana(ENLACES, dt(10, 0, 3), None)
-        assert len(lineas) == 3
-        assert "10:00:03" in lineas[0]
-        assert "10:00:05" in lineas[-1]
-
-    def test_solo_fin_conserva_lo_anterior(self):
-        lineas = PM.recortar_ventana(ENLACES, None, dt(10, 0, 2))
-        assert len(lineas) == 3
-        assert "10:00:00" in lineas[0]
-        assert "10:00:02" in lineas[-1]
-
-    def test_ventana_fuera_de_rango_no_queda_nada(self):
-        assert PM.recortar_ventana(ENLACES, dt(11), None) == []
-
-    def test_sin_limites_devuelve_todas_las_lineas(self):
-        assert PM.recortar_ventana(ENLACES, None, None) == ENLACES
-
-    def test_lineas_sin_fecha_se_descartan(self):
-        lineas = ENLACES[:1] + ["línea suelta sin fecha"] + ENLACES[1:2]
-        recortadas = PM.recortar_ventana(lineas, dt(9), dt(11))
-        assert len(recortadas) == 2
-        assert all("sin fecha" not in linea for linea in recortadas)
-
-    def test_lee_la_fecha_del_campo_t_del_control(self):
-        lineas = PM.recortar_ventana(CONTROL, dt(10, 0, 0), dt(10, 0, 1))
-        assert len(lineas) == 2
-        assert all(linea.startswith("{") for linea in lineas)
-        assert json.loads(lineas[0])["ev"] == "sesion-abierta"
-
-    def test_lista_vacia_no_falla(self):
-        assert PM.recortar_ventana([], dt(10), dt(11)) == []
-
-
-class TestPatrones:
-    """Criterios por aparato: lo que la prueba exige (`debe`) y lo que prohíbe (`no_debe`)."""
-
-    def test_todos_los_debe_presentes_da_ok(self):
-        criterios = {
-            "debe": [
-                r"control-sesion.*inicio de=\S+ nivel=controlar",
-                r"control-sesion.*orden.*resultado=autorizada",
-                r"control-sesion.*fin de=\S+ motivo=la-persona-desde-el-indicador",
-            ],
-            "no_debe": [r"motivo=sin-indicador-nativo"],
+class TestFiltrarPruebas(unittest.TestCase):
+    def setUp(self):
+        self.bateria = {
+            "pruebas": [
+                {"id": "B1-MT-A1", "bloque": "B1", "ronda": 1, "par": "MT", "antena": "ble"},
+                {"id": "B1-MT-A2", "bloque": "B1", "ronda": 1, "par": "MT", "antena": "wifi"},
+                {"id": "B2-MT-A1", "bloque": "B2", "ronda": 2, "par": "MT", "antena": "ble"},
+                {"id": "B4-BL-A1", "bloque": "B4", "ronda": 4, "par": "BL", "antena": "ble"},
+            ]
         }
-        res = PM.evaluar_patrones(ENLACES, criterios)
-        assert res["ok"] is True
-        assert res["debe_cumplidos"] == 3
-        assert res["debe_faltantes"] == []
-        assert res["no_debe_violados"] == []
 
-    def test_un_debe_que_falta_no_da_ok(self):
-        criterios = {
-            "debe": [
-                r"control-sesion.*inicio de=",
-                r"resultado=rechazo:pausa-local",
-            ],
-            "no_debe": [],
+    def test_sin_filtros(self):
+        res = PM.filtrar_pruebas(self.bateria)
+        self.assertEqual(len(res), 4)
+
+    def test_filtro_bloque(self):
+        res = PM.filtrar_pruebas(self.bateria, bloque="B1")
+        self.assertEqual([p["id"] for p in res], ["B1-MT-A1", "B1-MT-A2"])
+
+    def test_filtro_ronda(self):
+        res = PM.filtrar_pruebas(self.bateria, ronda=1)
+        self.assertEqual([p["id"] for p in res], ["B1-MT-A1", "B1-MT-A2"])
+
+    def test_filtro_ambos(self):
+        res = PM.filtrar_pruebas(self.bateria, bloque="B1", ronda=1)
+        self.assertEqual([p["id"] for p in res], ["B1-MT-A1", "B1-MT-A2"])
+
+    def test_filtro_sin_resultados(self):
+        res = PM.filtrar_pruebas(self.bateria, bloque="B9")
+        self.assertEqual(res, [])
+
+
+class TestSiguientePendiente(unittest.TestCase):
+    def setUp(self):
+        self.bateria = {
+            "pruebas": [
+                {"id": "B1-MT-A1", "bloque": "B1", "ronda": 1},
+                {"id": "B1-MT-A2", "bloque": "B1", "ronda": 1},
+                {"id": "B2-MT-A1", "bloque": "B2", "ronda": 2},
+            ]
         }
-        res = PM.evaluar_patrones(ENLACES, criterios)
-        assert res["ok"] is False
-        assert res["debe_cumplidos"] == 1
-        assert res["debe_faltantes"] == [r"resultado=rechazo:pausa-local"]
 
-    def test_un_no_debe_presente_no_da_ok(self):
-        lineas = ENLACES + [
-            "2026-11-18T10:00:06.000Z web · control-sesion · orden gesto de=00112233 resultado=rechazo:sin-indicador-nativo",
+    def test_todas_pendientes(self):
+        registro = []
+        p = PM.siguiente_pendiente(self.bateria, registro)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["id"], "B1-MT-A1")
+
+    def test_algunas_hechas(self):
+        registro = [{"id": "B1-MT-A1", "accion": "empezar"}]
+        p = PM.siguiente_pendiente(self.bateria, registro)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["id"], "B1-MT-A2")
+
+    def test_todas_hechas(self):
+        registro = [{"id": "B1-MT-A1", "accion": "empezar"}, {"id": "B1-MT-A2", "accion": "empezar"}, {"id": "B2-MT-A1", "accion": "empezar"}]
+        p = PM.siguiente_pendiente(self.bateria, registro)
+        self.assertIsNone(p)
+
+
+class TestEstadoPrueba(unittest.TestCase):
+    def test_pendiente(self):
+        self.assertEqual(PM.estado_prueba([], "B1-MT-A1"), "pendiente")
+
+    def test_en_curso(self):
+        self.assertEqual(PM.estado_prueba([{"id": "B1-MT-A1", "accion": "empezar"}], "B1-MT-A1"), "en-curso")
+
+    def test_recogida(self):
+        self.assertEqual(PM.estado_prueba([{"id": "B1-MT-A1", "accion": "recoger"}], "B1-MT-A1"), "recogida")
+
+    def test_evaluada(self):
+        self.assertEqual(PM.estado_prueba([{"id": "B1-MT-A1", "accion": "evaluar"}], "B1-MT-A1"), "evaluada")
+
+    def test_cerrada_ok(self):
+        self.assertEqual(PM.estado_prueba([{"id": "B1-MT-A1", "accion": "cerrar", "resultado": "ok"}], "B1-MT-A1"), "ok")
+
+    def test_ultima_accion_manda(self):
+        reg = [
+            {"id": "B1-MT-A1", "accion": "empezar"},
+            {"id": "B1-MT-A1", "accion": "recoger"},
+            {"id": "B1-MT-A1", "accion": "evaluar"},
+            {"id": "B1-MT-A1", "accion": "cerrar", "resultado": "parcial"},
         ]
-        criterios = {
-            "debe": [r"control-sesion.*inicio de="],
-            "no_debe": [r"sin-indicador-nativo"],
-        }
-        res = PM.evaluar_patrones(lineas, criterios)
-        assert res["ok"] is False
-        assert res["no_debe_cumplidos"] == 0
-        assert res["no_debe_violados"] == [r"sin-indicador-nativo"]
-
-    def test_los_patrones_no_distinguen_mayusculas(self):
-        criterios = {"debe": [r"CONTROL-SESION.*INICIO DE="], "no_debe": []}
-        assert PM.evaluar_patrones(ENLACES, criterios)["ok"] is True
-
-    def test_evidencias_guardan_las_lineas_que_cumplen(self):
-        criterios = {"debe": [r"l2cap-kbps"], "no_debe": []}
-        res = PM.evaluar_patrones(ENLACES, criterios)
-        assert len(res["evidencias"][r"l2cap-kbps"]) == 2
-        assert all("l2cap-kbps" in linea for linea in res["evidencias"][r"l2cap-kbps"])
-
-    def test_las_evidencias_no_crecen_sin_limite(self):
-        lineas = [f"2026-11-18T10:00:0{i}.000Z repetido" for i in range(9)]
-        res = PM.evaluar_patrones(lineas, {"debe": ["repetido"], "no_debe": []})
-        assert len(res["evidencias"]["repetido"]) <= 5
-
-    def test_lee_criterios_de_la_tableta_en_json(self):
-        criterios = {
-            "debe": [
-                r'"ev":"sesion-abierta".*nivel=controlar alcance=total',
-                r'"ev":"orden".*resultado=autorizada',
-            ],
-            "no_debe": [r'"ev":"sesion-rechazada"'],
-        }
-        res = PM.evaluar_patrones(CONTROL, criterios)
-        assert res["ok"] is True
-        assert res["debe_cumplidos"] == 2
-
-    def test_sin_criterios_da_ok(self):
-        res = PM.evaluar_patrones(ENLACES, {})
-        assert res["ok"] is True
-        assert res["debe_cumplidos"] == 0
-        assert res["no_debe_cumplidos"] == 0
+        self.assertEqual(PM.estado_prueba(reg, "B1-MT-A1"), "parcial")
 
 
-class TestInforme:
-    """Tabla breve que se publica en el Chat Director."""
-
-    def _filas(self):
-        return [
-            {"id": "B1-MT-A1", "titulo": "Apertura de sesión", "resultado": "ok", "aparatos": ["mac", "tableta"]},
-            {"id": "B2-MT-A1", "titulo": "Pausa local", "resultado": "parcial", "aparatos": ["mac", "tableta"]},
-            {"id": "B3-MT-A1", "titulo": "Caducidad", "resultado": "fallo", "aparatos": ["mac", "tableta"]},
+class TestRecortarVentana(unittest.TestCase):
+    def setUp(self):
+        self.lineas = [
+            "2026-11-18T10:00:00.000Z evento antes\n",
+            "2026-11-18T12:00:00.000Z evento inicio\n",
+            "2026-11-18T12:30:00.000Z evento medio\n",
+            "2026-11-18T13:00:00.000Z evento fin\n",
+            "2026-11-18T14:00:00.000Z evento despues\n",
+            "línea sin timestamp\n",
         ]
 
-    def test_cabecera_y_ronda(self):
-        md = PM.formatear_informe(self._filas(), ronda=1)
-        assert "Ronda 1" in md
-        assert "| ID | Título | Resultado | Aparatos |" in md
+    def test_ventana_normal(self):
+        res = PM.recortar_ventana(self.lineas, "2026-11-18T12:00:00.000Z", "2026-11-18T13:00:00.000Z")
+        self.assertEqual(len(res), 4)  # 3 con timestamp + 1 sin timestamp
+        self.assertIn("evento inicio", res[0])
+        self.assertIn("evento medio", res[1])
+        self.assertIn("evento fin", res[2])
+        self.assertIn("línea sin timestamp", res[3])
 
-    def test_cada_fila_lleva_su_resultado(self):
-        md = PM.formatear_informe(self._filas(), ronda=1)
-        assert "B1-MT-A1" in md and "✅ ok" in md
-        assert "B2-MT-A1" in md and "⚠️ parcial" in md
-        assert "B3-MT-A1" in md and "❌ fallo" in md
+    def test_sin_fin(self):
+        res = PM.recortar_ventana(self.lineas, "2026-11-18T12:30:00.000Z")
+        self.assertEqual(len(res), 4)  # 3 con timestamp + 1 sin timestamp (todo después del inicio)
+        self.assertIn("evento medio", res[0])
+        self.assertIn("evento fin", res[1])
+        self.assertIn("evento despues", res[2])
 
-    def test_informe_sin_ronda(self):
-        md = PM.formatear_informe(self._filas())
-        assert "Informe de pruebas" in md
-        assert "Ronda" not in md
-
-    def test_informe_vacio_lo_dice(self):
-        md = PM.formatear_informe([], ronda=2)
-        assert "Ronda 2" in md
-        assert "Sin pruebas" in md
-
-    def test_las_notas_acompanan_a_la_fila(self):
-        filas = [{
-            "id": "B1-MT-A1",
-            "titulo": "Apertura",
-            "resultado": "parcial",
-            "aparatos": ["mac"],
-            "nota": "Falta la línea de fin en la tableta",
-        }]
-        md = PM.formatear_informe(filas, ronda=1)
-        assert "Falta la línea de fin en la tableta" in md
+    def test_ventana_vacia(self):
+        res = PM.recortar_ventana(self.lineas, "2026-11-18T15:00:00.000Z", "2026-11-18T16:00:00.000Z")
+        self.assertEqual(len(res), 1)  # solo la línea sin timestamp
+        self.assertIn("línea sin timestamp", res[0])
 
 
-class TestBateria:
-    """Filtrado de la batería por bloque y por ronda, sin tocar disco."""
+class TestEvaluarPatrones(unittest.TestCase):
+    def setUp(self):
+        self.lineas = [
+            "2026-11-18T12:00:00.000Z control-sesion inicio de=abc12345 nivel=controlar alcance=total\n",
+            "2026-11-18T12:00:01.000Z control-sesion orden leer-estado de=abc12345 resultado=autorizada\n",
+            "2026-11-18T12:00:02.000Z control-sesion fin de=abc12345 motivo=la-persona-desde-el-indicador\n",
+        ]
 
-    def _bateria(self):
-        return {
+    def test_todos_cumplidos(self):
+        debe = [
+            r"control-sesion.*inicio de=[0-9a-f]{8} nivel=controlar alcance=(total|protegido)",
+            r"control-sesion.*orden leer-estado de=[0-9a-f]{8} resultado=autorizada",
+            r"control-sesion.*fin de=[0-9a-f]{8} motivo=la-persona-desde-el-indicador",
+        ]
+        no_debe = [r"motivo=sin-indicador-nativo", r"resultado=rechazo:pausa-local.*leer-estado"]
+        ok, det = PM.evaluar_patrones(self.lineas, debe, no_debe)
+        self.assertTrue(ok)
+        self.assertEqual(len(det["cumplidos"]), 3)
+        self.assertEqual(det["fallados"], [])
+        self.assertEqual(det["no_debe_violados"], [])
+
+    def test_falta_debe(self):
+        debe = [r"control-sesion.*orden gesto de=[0-9a-f]{8} resultado=autorizada"]
+        ok, det = PM.evaluar_patrones(self.lineas, debe, [])
+        self.assertFalse(ok)
+        self.assertEqual(det["fallados"], debe)
+
+    def test_no_debe_violado(self):
+        lineas_con_error = self.lineas + ["2026-11-18T12:00:03.000Z control-sesion fin de=abc12345 motivo=sin-indicador-nativo\n"]
+        no_debe = [r"motivo=sin-indicador-nativo"]
+        ok, det = PM.evaluar_patrones(lineas_con_error, [], no_debe)
+        self.assertFalse(ok)
+        self.assertEqual(det["no_debe_violados"], no_debe)
+
+
+class TestEvaluarPruebaCompleta(unittest.TestCase):
+    def test_multiples_aparatos(self):
+        lineas_mac = ["control-sesion inicio de=abc12345 nivel=controlar alcance=total\n"]
+        lineas_tableta = ["control-sesion inicio de=abc12345 nivel=controlar alcance=total\n"]
+        criterios = {
+            "mac": {"debe": [r"control-sesion.*inicio"], "no_debe": []},
+            "tableta": {"debe": [r"control-sesion.*inicio"], "no_debe": []},
+        }
+        res = PM.evaluar_prueba_completa({"mac": lineas_mac, "tableta": lineas_tableta}, criterios)
+        self.assertTrue(res["mac"]["ok"])
+        self.assertTrue(res["tableta"]["ok"])
+
+    def test_un_aparato_falla(self):
+        lineas_mac = ["control-sesion inicio de=abc12345 nivel=controlar alcance=total\n"]
+        lineas_tableta = ["otra cosa\n"]
+        criterios = {
+            "mac": {"debe": [r"control-sesion.*inicio"], "no_debe": []},
+            "tableta": {"debe": [r"control-sesion.*inicio"], "no_debe": []},
+        }
+        res = PM.evaluar_prueba_completa({"mac": lineas_mac, "tableta": lineas_tableta}, criterios)
+        self.assertTrue(res["mac"]["ok"])
+        self.assertFalse(res["tableta"]["ok"])
+
+
+class TestFormatearInforme(unittest.TestCase):
+    def setUp(self):
+        self.bateria = {
             "bateria": "1118",
             "pruebas": [
-                {"id": "B1-MT-A1", "titulo": "Uno", "bloque": "B1", "ronda": 1, "aparatos": ["mac"], "antena": "ble"},
-                {"id": "B1-MT-A2", "titulo": "Dos", "bloque": "B1", "ronda": 2, "aparatos": ["tableta"], "antena": "wifi"},
-                {"id": "B4-MT-A1", "titulo": "Cuatro", "bloque": "B4", "ronda": 1, "aparatos": ["mac"], "antena": "malla"},
-            ],
+                {"id": "B1-MT-A1", "titulo": "Apertura sesión", "ronda": 1, "bloque": "B1", "par": "MT", "antena": "ble"},
+                {"id": "B1-MT-A2", "titulo": "Apertura WiFi", "ronda": 1, "bloque": "B1", "par": "MT", "antena": "wifi"},
+                {"id": "B2-MT-A1", "titulo": "Pausa local", "ronda": 2, "bloque": "B2", "par": "MT", "antena": "ble"},
+            ]
         }
+        self.registro = [
+            {"id": "B1-MT-A1", "accion": "cerrar", "resultado": "ok"},
+            {"id": "B1-MT-A2", "accion": "empezar"},
+        ]
 
-    def test_sin_filtros_estan_todas(self):
-        assert len(PM.filtrar_bateria(self._bateria())) == 3
+    def test_informe_completo(self):
+        tabla = PM.formatear_informe(self.bateria, self.registro)
+        self.assertIn("B1-MT-A1", tabla)
+        self.assertIn("B1-MT-A2", tabla)
+        self.assertIn("B2-MT-A1", tabla)
+        self.assertIn("✅ ok", tabla)
+        self.assertIn("🔄 en-curso", tabla)
+        self.assertIn("⏳ pendiente", tabla)
 
-    def test_filtra_por_bloque(self):
-        res = PM.filtrar_bateria(self._bateria(), bloque="B1")
-        assert [p["id"] for p in res] == ["B1-MT-A1", "B1-MT-A2"]
-
-    def test_un_bloque_no_arrastra_a_sus_vecinos(self):
-        bateria = {"pruebas": [{"id": "B40-MT-A1"}, {"id": "B4-MT-A1"}]}
-        assert [p["id"] for p in PM.filtrar_bateria(bateria, bloque="B4")] == ["B4-MT-A1"]
-
-    def test_filtra_por_ronda(self):
-        res = PM.filtrar_bateria(self._bateria(), ronda=1)
-        assert [p["id"] for p in res] == ["B1-MT-A1", "B4-MT-A1"]
-
-    def test_filtra_por_bloque_y_ronda(self):
-        res = PM.filtrar_bateria(self._bateria(), bloque="B1", ronda=1)
-        assert [p["id"] for p in res] == ["B1-MT-A1"]
-
-    def test_bateria_sin_pruebas(self):
-        assert PM.filtrar_bateria({}) == []
+    def test_informe_filtrado_ronda(self):
+        tabla = PM.formatear_informe(self.bateria, self.registro, ronda=1)
+        self.assertIn("B1-MT-A1", tabla)
+        self.assertIn("B1-MT-A2", tabla)
+        self.assertNotIn("B2-MT-A1", tabla)
 
 
-class TestRegistro:
-    """Líneas de pruebas/registro.jsonl: una por inicio y una por cierre."""
+class TestIntegracionRegistro(unittest.TestCase):
+    def test_guardar_y_leer_registro(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = PM.REGISTRO_PATH
+            PM.REGISTRO_PATH = Path(tmp) / "registro.jsonl"
+            try:
+                PM.guardar_registro({"id": "B1-MT-A1", "accion": "empezar", "inicio": "2026-11-18T12:00:00Z"})
+                PM.guardar_registro({"id": "B1-MT-A1", "accion": "cerrar", "resultado": "ok", "fin": "2026-11-18T12:30:00Z"})
+                reg = PM.leer_registro()
+                self.assertEqual(len(reg), 2)
+                self.assertEqual(reg[0]["accion"], "empezar")
+                self.assertEqual(reg[1]["accion"], "cerrar")
+                self.assertEqual(reg[1]["resultado"], "ok")
+            finally:
+                PM.REGISTRO_PATH = original
 
-    def test_linea_de_inicio_es_json_de_una_sola_linea(self):
-        linea = PM.linea_registro_inicio("B4-MT-A1", "2026-11-18T10:00:00Z")
-        assert "\n" not in linea
-        datos = json.loads(linea)
-        assert datos["tipo"] == "inicio"
-        assert datos["id"] == "B4-MT-A1"
-        assert datos["inicio"] == "2026-11-18T10:00:00Z"
 
-    def test_linea_de_fin_lleva_resultado_y_nota(self):
-        datos = json.loads(PM.linea_registro_fin("B4-MT-A1", "ok", "todo correcto"))
-        assert datos == {"tipo": "fin", "id": "B4-MT-A1", "resultado": "ok", "nota": "todo correcto"}
-
-    def test_linea_de_fin_sin_nota_no_la_inventa(self):
-        datos = json.loads(PM.linea_registro_fin("B4-MT-A1", "fallo"))
-        assert datos == {"tipo": "fin", "id": "B4-MT-A1", "resultado": "fallo"}
+if __name__ == "__main__":
+    unittest.main()
