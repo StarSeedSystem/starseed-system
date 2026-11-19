@@ -7,6 +7,20 @@ import { PantallaDestino, type CanalDestinoLike, type DepsDestino, type PeerDest
 import type { RespuestaOrden } from "../orden";
 import { PARTE_CUADRO_MAX, partirCuadro } from "../cuadro-malla";
 import { trocear } from "../senal-partes";
+import type { CapacidadesNativas } from "../nativo";
+
+vi.mock("../canal", () => ({
+    comprobarWebRtcUtilizable: vi.fn(),
+    decidirViaPantalla: vi.fn(),
+}));
+
+const { comprobarWebRtcUtilizable, decidirViaPantalla } = await import("../canal");
+
+type ComprobarWebRtcUtilizable = () => Promise<{ usable: boolean; faltaWebRtc?: string; detalle?: string }>;
+type DecidirViaPantalla = (capsControlador: Awaited<ReturnType<typeof import("../nativo").capacidadesNativas>> | null, _capsControlado: unknown) => Promise<{ via: "webrtc" | "malla"; razon: string }>;
+
+const comprobarWebRtcUtilizableMock = comprobarWebRtcUtilizable as unknown as import("vitest").Mock<ComprobarWebRtcUtilizable>;
+const decidirViaPantallaMock = decidirViaPantalla as unknown as import("vitest").Mock<DecidirViaPantalla>;
 
 class Canal implements CanalDestinoLike {
     readyState = "open";
@@ -53,6 +67,16 @@ let falloSenal: boolean;
 let respPartes: Record<string, unknown>[] = [];
 
 function montar() {
+    comprobarWebRtcUtilizableMock.mockResolvedValue(
+        hayWebRtc ? { usable: true } : { usable: false, faltaWebRtc: "webrtc-linux", detalle: "faltan elementos de GStreamer" }
+    );
+    decidirViaPantallaMock.mockImplementation(async (_capsControlador: Awaited<ReturnType<typeof import("../nativo").capacidadesNativas>> | null, _capsControlado: unknown) => {
+        const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable();
+        if (usable) return { via: "webrtc" as const, razon: "WebRTC disponible en el controlador" };
+        const causa = faltaWebRtc === "webrtc-linux" ? `Linux sin WebRTC (${detalle})` : "WebRTC no disponible";
+        return { via: "malla" as const, razon: `Pantalla por cuadros: ${causa}` };
+    });
+
     const deps: DepsDestino = {
         mandar: async (nombre, args) => {
             pedidos.push({ nombre, args });
@@ -113,6 +137,7 @@ beforeEach(async () => {
     hayWebRtc = false;
     falloSenal = false;
     respPartes = (await trocear("v=0\r\nrespuesta", "respuesta", "negociacion1")).map((p) => ({ ...p }));
+    vi.clearAllMocks();
 });
 afterEach(() => vi.useRealTimers());
 
