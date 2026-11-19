@@ -252,30 +252,48 @@ fn arrancar(app: AppHandle) {
             );
         }
         crate::servidor_capas::registrar_sirve(); // ACT1114H: qué build de la web sirve este arranque
-        let espera = if eleccion.a_prueba() { c::ESPERA_SALUD_MS } else { l::ESPERA_LISTO_MS };
-        let rescatar = !std::mem::replace(&mut rescate_hecho, true);
-        match lanzar_y_esperar(&app, &rutas, registro.as_ref(), puerto_previo, espera, rescatar) {
-            Ok(puerto) => {
-                crate::servidor_capas::tras_lista(&eleccion);
-                // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
-                crate::origen_local::tras_servir(&app, puerto);
-                let origen = l::origen_local(puerto);
-                con_estado(|e| {
-                    e.fase = "local".into();
-                    e.puerto = Some(puerto);
-                    e.origen = Some(origen.clone());
-                    e.motivo = None;
-                });
-                if puerto_previo.is_some() && puerto_previo != Some(puerto) {
-                    escribir_registro(registro.as_ref(), &format!(
-                        "[servidor-local] el puerto {:?} estaba ocupado: ahora {puerto}. El origen cambia y con él el almacenamiento local de la web.",
-                        puerto_previo
-                    ));
+let espera = if eleccion.a_prueba() { c::ESPERA_SALUD_MS } else { l::ESPERA_LISTO_MS };
+    let rescatar = !std::mem::replace(&mut rescate_hecho, true);
+    match lanzar_y_esperar(&app, &rutas, registro.as_ref(), puerto_previo, espera, rescatar) {
+        Ok(puerto) => {
+            crate::servidor_capas::tras_lista(&eleccion);
+            // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
+            let cambio_origen = crate::origen_local::tras_servir(&app, puerto);
+            let origen = l::origen_local(puerto);
+            let principal = crate::origen_local::leer(&app).principal;
+            let volvio_al_principal = principal.is_some_and(|p| p == puerto) && puerto_previo.is_some_and(|pp| pp != puerto);
+            let mut mensaje_migracion: Option<String> = None;
+            if volvio_al_principal && rescatar {
+                if let Some(resumen) = crate::origen_local::rescatar(&app, puerto, |m| avisar(&app, "arrancando", m)) {
+                    mensaje_migracion = Some(resumen);
+                    escribir_registro(registro.as_ref(), &format!("[servidor-local] origen cambio de={} a={} causa=rescate migrado={}", puerto_previo.unwrap_or(0), puerto, if resumen.contains("traído") { "si" } else { "no" }));
                 }
-                puerto_previo = Some(puerto);
-                avisar(&app, "local", "Listo: StarSeed OS funciona en esta neurona, con o sin internet.");
-                let ya_local = ventana_en_local(&app, puerto);
-                navegar_si_hace_falta(&app, puerto);
+            }
+            con_estado(|e| {
+                e.fase = "local".into();
+                e.puerto = Some(puerto);
+                e.origen = Some(origen.clone());
+                e.motivo = None;
+            });
+            if puerto_previo.is_some() && puerto_previo != Some(puerto) {
+                escribir_registro(registro.as_ref(), &format!(
+                    "[servidor-local] el puerto {:?} estaba ocupado: ahora {puerto}. El origen cambia y con él el almacenamiento local de la web.",
+                    puerto_previo
+                ));
+            }
+            puerto_previo = Some(puerto);
+            let aviso = if let Some(m) = mensaje_migracion {
+                if m.contains("no se pudieron") || m.contains("fallido") || m.contains("error") {
+                    format!("{m}. Si falta la clave del aparato, use el botón para crearla de nuevo.")
+                } else {
+                    format!("{m}")
+                }
+            } else {
+                "Listo: StarSeed OS funciona en esta neurona, con o sin internet.".into()
+            };
+            avisar(&app, "local", &aviso);
+            let ya_local = ventana_en_local(&app, puerto);
+            navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
                     recargar_ventana(&app);
                 }
