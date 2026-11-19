@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """Pruebas de «Buscar más capacidad» (buscar_capacidad.py) y de la segunda oportunidad en la
 nube (repartir_nube: motivo_fuera, clasificar, reaperturas)."""
+import json
 import os
 import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import buscar_capacidad as B  # noqa: E402
@@ -899,3 +901,90 @@ class FrenoMismoMotivo(unittest.TestCase):
         # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
         self.assertEqual(r["sumados"], 2)
         self.assertIn("Freno por mismo motivo: no se pudo calcular", "\n".join(r["lineas"]))
+
+
+class CandadoYEstadoParcial(unittest.TestCase):
+    """(CAP1119E) Candado de ejecución única y guardado de estado parcial."""
+
+    def test_tomar_y_liberar_candado(self):
+        """El candado impide ejecuciones concurrentes."""
+        with tempfile.TemporaryDirectory() as d:
+            candado = os.path.join(d, "candado.test")
+            with mock.patch.object(B, "CANDADO", candado):
+                # Primera vez: debe conseguir el candado
+                self.assertTrue(B._tomar_candado())
+                self.assertTrue(os.path.exists(candado))
+                # Segunda vez: debe fallar
+                self.assertFalse(B._tomar_candado())
+                # Liberar
+                B._liberar_candado()
+                self.assertFalse(os.path.exists(candado))
+                # Tercera vez: debe conseguir de nuevo
+                self.assertTrue(B._tomar_candado())
+                B._liberar_candado()
+
+    def test_guardar_estado_parcial(self):
+        """El estado parcial se guarda y se puede leer."""
+        with tempfile.TemporaryDirectory() as d:
+            estado = os.path.join(d, "estado.test")
+            with mock.patch.object(B, "ESTADO", estado):
+                B._guardar_estado_parcial({}, ["línea 1", "línea 2"], 5, ["hecha 1"], None, en_curso=False)
+                self.assertTrue(os.path.exists(estado))
+                with open(estado, encoding="utf-8") as f:
+                    datos = json.load(f)
+                self.assertEqual(datos["sumados"], 5)
+                self.assertEqual(datos["hechas"], ["hecha 1"])
+                self.assertEqual(datos["lineas"], ["línea 1", "línea 2"])
+                self.assertFalse(datos["en_curso"])
+                self.assertIsNone(datos.get("error"))
+
+    def test_guardar_estado_parcial_con_error(self):
+        """El estado parcial guarda el error si se proporciona."""
+        with tempfile.TemporaryDirectory() as d:
+            estado = os.path.join(d, "estado.test")
+            with mock.patch.object(B, "ESTADO", estado):
+                B._guardar_estado_parcial({}, ["línea 1"], 0, [], "algo falló", en_curso=True)
+                with open(estado, encoding="utf-8") as f:
+                    datos = json.load(f)
+                self.assertEqual(datos["error"], "algo falló")
+                self.assertTrue(datos["en_curso"])
+
+
+class LanzarJobConReintentos(unittest.TestCase):
+    """(CAP1119E) Reintentos al lanzar jobs de GitHub Actions."""
+
+    def test_exito_en_primer_intento(self):
+        """Si el job sale a la primera, devuelve éxito."""
+        from unittest import mock
+        with mock.patch.object(B, "_lanzar_job_con_reintentos", lambda t: (True, "lanzado: job 123")):
+            exito, msg = B._lanzar_job_con_reintentos(3)
+            self.assertTrue(exito)
+            self.assertEqual(msg, "lanzado: job 123")
+
+    def test_fallo_y_reintento(self):
+        """Si el job falla, se reintenta y avisa."""
+        from unittest import mock
+        # Simular fallo en todos los reintentos pasando max_reintentos explícitamente
+        with mock.patch.object(B, "ESPERA_REINTENTO_GITHUB_S", 0), \
+             mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=1, stdout="error", stderr="fallo")
+            exito, msg = B._lanzar_job_con_reintentos(3, max_reintentos=2)
+            self.assertFalse(exito)
+            self.assertIn("2 intentos", msg)
+            self.assertEqual(mock_run.call_count, 2)
+
+    def test_continua_despues_de_fallo(self):
+        """desplegar continua con los siguientes jobs aunque uno falle."""
+        from unittest import mock
+        with mock.patch.object(B, "_lanzar_job_con_reintentos", side_effect=[
+            (True, "lanzado: job 1"),
+            (False, "job 2 falló"),
+            (True, "lanzado: job 3"),
+        ]):
+            hechos = B.desplegar(3, 3)
+            # desplegar añade los éxitos a hechos y los fallos al final como "fallos: job N: ..."
+            self.assertEqual(len(hechos), 3)
+            self.assertIn("lanzado: job 1", hechos[0])
+            self.assertIn("lanzado: job 3", hechos[1])
+            self.assertIn("fallos: job 2:", hechos[2])

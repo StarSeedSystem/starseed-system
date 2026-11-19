@@ -62,10 +62,14 @@ import urgencia_tarea  # noqa: E402  AUT1116A
 from freno_mismo_motivo import frenar_por_mismo_motivo
 
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
+CANDADO = os.path.expanduser("~/.starseed/buscar-capacidad.lock")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
 LATIDOS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 REGISTRO = "/tmp/starseed-capacidad.log"
 WORKFLOW = "enjambre-nube.yml"
+#: Reintentos y espera para el empuje a GitHub (nube-gh.py lanzar).
+REINTENTOS_GITHUB = 3
+ESPERA_REINTENTO_GITHUB_S = 30
 
 #: Jobs de GitHub Actions a la vez cuando no se sabe nada más (sin sondas ni salud): el de siempre.
 TOPE_RUNS_NUBE = 2
@@ -864,6 +868,49 @@ def _guardar(datos):
         pass
 
 
+def _tomar_candado() -> bool:
+    """Intenta tomar el candado para ejecución exclusiva. Devuelve True si lo consiguió."""
+    try:
+        os.makedirs(os.path.dirname(CANDADO), exist_ok=True)
+        fd = os.open(CANDADO, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w") as f:
+            f.write(str(os.getpid()))
+        return True
+    except FileExistsError:
+        return False
+    except OSError:
+        return False
+
+
+def _liberar_candado() -> None:
+    """Libera el candado."""
+    try:
+        os.remove(CANDADO)
+    except OSError:
+        pass
+
+
+def _guardar_estado_parcial(estado_prev: dict, lineas: list, sumados: int, hechas: list, error: str | None = None, en_curso: bool = True) -> None:
+    """Guarda el estado parcial para que el medidor pueda leerlo aunque falle."""
+    datos = {
+        "visto": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "origen": "boton",
+        "sumados": sumados,
+        "hechas": hechas,
+        "lineas": lineas,
+        "resumen": "\n".join(["· " + l for l in lineas if l]) if lineas else "En curso…",
+        "error": error,
+        "en_curso": en_curso,
+    }
+    try:
+        tmp = ESTADO + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ESTADO)
+    except OSError:
+        pass
+
+
 def _repartidor():
     """El módulo `repartir-a-nube.py` (con guion: no se importa con `import`)."""
     import importlib.util
@@ -1090,203 +1137,232 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
     from concurrent.futures import ThreadPoolExecutor
     import repartir_nube as RN
 
-    ahora = time.time() if ahora is None else ahora
-    estado_prev = _leer_json(ESTADO, {})
-    hechas, lineas, sumados = [], [], 0
-
-    with ThreadPoolExecutor(2) as ex:
-        futuro_medios = ex.submit(_otros_medios) if sondear_medios else None
-
-        # 1 · Mac
-        estado_mac, decision = {}, {}
-        # (2026-10-08) Alex: «hay listas pendientes sin proceso activo» y el botón contestaba
-        # «no cabe más». Había un orquestador VIVO sin ninguna tarea en marcha: el botón ni lo
-        # miraba. Ahora, si una persona lo pulsa y el orquestador está parado con listas, se
-        # reinicia en el acto (no tiene nada en marcha: no se pierde trabajo).
-        if aplicar and mac:
-            try:
-                import atasco_orquestador
-
-                cura = atasco_orquestador.curar(persiste_s=0 if origen == "boton" else atasco_orquestador.PERSISTE_S,
-                                                # (2026-10-21) 120 s mataba orquestadores que acababan de
-                                                # repartir sus primeras tareas: la misma edad para todos.
-                                                edad_min_s=atasco_orquestador.EDAD_MIN_S)
-                if cura.get("accion") == "reiniciado":
-                    hechas.append("orquestador parado reiniciado")
-                    sumados += len(cura.get("listas") or [])
-                    lineas.append("%s: el orquestador estaba vivo pero PARADO (%s) → lo reinicio y el vigilante "
-                                  "lanza una tanda nueva ya" % (NOMBRES["mac"], cura.get("motivo")))
-            except Exception as e:  # noqa: BLE001
-                lineas.append("%s: no pude mirar si el orquestador está parado (%s)" % (NOMBRES["mac"], type(e).__name__))
-        try:
-            import asignar_huecos
-
-            estado_mac = asignar_huecos.reunir()
-            decision = asignar_huecos.decidir(estado_mac)
-            hechas_mac = asignar_huecos.aplicar(estado_mac, decision) if (aplicar and mac and decision.get("puede")) else []
-            if hechas_mac:
-                hechas += hechas_mac
-                sumados += int(decision.get("huecos") or 0)
-                # Despertar al vigilante para una tanda nueva SÍ suma agentes: antes salía
-                # «no cabe más ahora mismo» justo cuando arrancaba una tanda.
-                if decision.get("despertar_vigilante") and not decision.get("huecos"):
-                    sumados += min(len(estado_mac.get("listas") or []), int(estado_mac.get("tope") or 3)) or 1
-            lineas.append(texto_mac(estado_mac, decision, hechas_mac))
-        except Exception as e:
-            lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
-
-        # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
-        sin_escritores = False
-        sondas = []
-        if origen == "boton" and sondear_medios:
-            try:
-                sondas = _sondear_escritores()
-                linea_esc, alguno = texto_escritores(sondas, ahora)
-                lineas.append(linea_esc)
-                lineas.append(texto_fuera_de_escritura())
-                sin_escritores = not alguno
-            except Exception as e:
-                lineas.append("Escritores: no pude sondearlos (%s)" % type(e).__name__)
-
-        # 1b · Modelos: sin modelos que contesten, un hueco no es capacidad.
-        try:
-            lineas.append(texto_modelos(_leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"),
-                                        esperando_pasarela(_leer_latidos(), ahora)))
-        except Exception:
-            pass
-
-        # 2 · Nube
-        nube = reunir_nube(ahora, estado_mac)
-        # 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
-        # (1103 · T) Cloudroom es otro medio, con su propia rueda de modelos: también le valen las agotadas (las que los
-        # escritores gratuitos de GitHub ya probaron tres veces), detrás de las elegibles y por prioridad.
-        para_cr = list(nube["clases"].get("elegibles") or [])
-        _traer_cr = set(nube.get("por_traer") or ())
-        para_cr += [t for t in ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in _traer_cr],
-                                                     nube.get("dependientes") or {}, nube.get("capacidad") or ())
-                    if t not in para_cr]
-        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, para_cr, ahora)
-        if sumadas_cr:
-            sumados += sumadas_cr
-            hechas.append("Cloudroom: %d hilo(s) en la nube (%s)" % (sumadas_cr, ", ".join(ids_cr)))
-        if ids_cr:
-            nube["clases"]["elegibles"] = [t for t in nube["clases"].get("elegibles") or [] if t not in ids_cr]
-            nube["clases"]["agotada"] = [t for t in nube["clases"].get("agotada") or [] if t not in ids_cr]
-        vivos = nube["runs"] + en_camino(estado_prev, ahora)
-        reaperturas = RN.leer_reaperturas(ahora)
-        # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
-        # llegan a la nube; ya no es un 2 fijo.
-        escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
-        # (CAP1025D) Lo que la nube ya integró no se reabre: se trae (`traer_nube`), no se vuelve a escribir.
-        por_traer = set(nube.get("por_traer") or ())
-        # (1103) Por prioridad (capacidad, y lo que más desbloquea) y sin gastar intentos lo no intentado.
-        notas = nube.get("notas") or {}
-        agotadas = ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in por_traer],
-                                         nube.get("dependientes") or {}, nube.get("capacidad") or ())
-        pot_gh = _potenciado("nube-gh", ahora)
-        reabribles = [t for t in agotadas if (puede_reabrir_potenciada(reaperturas.get(t), ahora) if pot_gh
-                                              else puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, "")))]
-        # (HAL09) Freno por mismo motivo: si varias tareas recientes fallaron igual, no lanzar runs nuevos.
-        freno_frase = ""
-        try:
-            progreso = _leer_json(os.path.join(LATIDOS, "progreso.json"), {})
-            entradas = []
-            for tid, v in (progreso or {}).items():
-                if not isinstance(v, dict):
-                    continue
-                estado = v.get("estado")
-                nota = v.get("nota")
-                fin = v.get("fin")
-                if estado or nota or fin:
-                    entradas.append({"estado": estado, "nota": nota, "fin": fin})
-            freno, frase = frenar_por_mismo_motivo(entradas)
-            if freno:
-                freno_frase = frase
-        except Exception:
-            lineas.append("Freno por mismo motivo: no se pudo calcular")
-        # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
-        tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
-                              escritores_nube, vivos=vivos)
-        if freno_frase:
-            tope = (vivos, freno_frase)
-        plan = plan_nube(
-            nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
-            reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
-            potenciado=pot_gh,
-        )
-        if not pot_gh:
-            _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
-            if _q:
-                _preguntar("nube-gh", *_q)
-        lineas_previas = texto_ultimo_despliegue(estado_prev, ahora)
-        if lineas_previas:
-            lineas.append(lineas_previas)
-        lanzados = None
-        if nube["error"]:
-            lanzados = "no pude leer el trabajo (%s)" % nube["error"][:160]
-        elif aplicar and plan["lanzar"] > 0:
-            if plan["reabrir"]:
-                RN.anotar_reaperturas(plan["reabrir"], ahora)
-                hechas.append("reabiertas a la nube: %s" % ", ".join(plan["reabrir"]))
-            _lanzar_en_fondo(plan["lanzar"], plan["trabajadores"])
-            estado_prev.update(en_camino=plan["lanzar"], en_camino_hasta=ahora + EN_CAMINO_S * plan["lanzar"])
-            sumados += plan["lanzar"] * plan["trabajadores"]
-            lanzados = "lanzando %d job(s) de %d agente(s) en segundo plano" % (plan["lanzar"], plan["trabajadores"])
-            hechas.append(lanzados)
-        lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
-                                 tope=tope, por_traer=por_traer))
-        lineas.append(linea_cr)
-
-        # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
-        try:
-            sumadas_claude, linea_claude = claude_nube(aplicar, ahora)
-            if sumadas_claude:
-                sumados += sumadas_claude
-                hechas.append("sesiones de Claude en la nube: %d" % sumadas_claude)
-            lineas.append(linea_claude)
-        except Exception as e:  # noqa: BLE001
-            lineas.append("%s: no pude mirarlas (%s)" % (NOMBRES["claude-nube"], type(e).__name__))
-
-        # 3 · Los demás medios
-        if futuro_medios is not None:
-            lineas += [texto_medio(m) for m in futuro_medios.result()]
-
-    sin_trabajo = (not (estado_mac.get("listas") or []) and not (nube["clases"].get("elegibles") or [])
-                   and not plan.get("reabrir"))
-    if sin_trabajo:
-        try:
-            lineas.insert(1, texto_sin_trabajo(_leer_json(os.path.join(LATIDOS, "progreso.json"), {})))
-        except Exception:
-            pass
-    posibles = 0 if aplicar else (int(plan.get("lanzar") or 0) * int(plan.get("trabajadores") or 0)
-                                  + int((decision or {}).get("huecos") or 0))
-    causas = list(causas_sin_suma(estado_mac, plan, linea_cr))
-    if freno_frase:
-        causas.append(freno_frase)
-    texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
-                    causas=causas if causas else (), posibles=posibles)
-    # (1103 · U) Lo que frenó por un reparto NUESTRO del crédito o del cupo del mes se pregunta, no se calla.
-    preguntas = _preguntas_vigentes(ahora)
-    if preguntas:
-        texto = texto + "\n" + _texto_preguntas(preguntas)
-    estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
-                       hechas=hechas, resumen=texto)
+    # Candado para ejecución exclusiva (solo cuando se aplica)
+    candado_tomado = False
     if aplicar:
-        _guardar(estado_prev)
-    if aplicar and (origen == "boton" or sumados):
-        _avisar(("Buscar más capacidad (%s):\n" % ("botón de Genesis" if origen == "boton" else origen)) + texto)
-    return {"ok": True, "resumen": texto, "lineas": lineas, "sumados": sumados, "hechas": hechas,
-            "plan_nube": plan, "runs_nube": vivos, "tope_nube": list(tope), "escritores_nube": escritores_nube,
-            "mac_cede": (nube.get("mac") or {}).get("cedibles") or [], "preguntas": preguntas}
+        candado_tomado = _tomar_candado()
+        if not candado_tomado:
+            # Ya hay una ejecución en curso: devolver estado actual
+            estado_actual = _leer_json(ESTADO, {})
+            if estado_actual.get("en_curso"):
+                return {
+                    "ok": True,
+                    "resumen": "Otra búsqueda en curso…",
+                    "lineas": estado_actual.get("lineas", []),
+                    "sumados": estado_actual.get("sumados", 0),
+                    "hechas": estado_actual.get("hechas", []),
+                    "en_curso": True,
+                }
+            # Candado huérfano: forzar y continuar
+            pass
+            ahora = time.time() if ahora is None else ahora
+            estado_prev = _leer_json(ESTADO, {})
+            hechas, lineas, sumados = [], [], 0
+
+            # Estado inicial: "en curso"
+            if aplicar:
+                _guardar_estado_parcial(estado_prev, ["Buscando capacidad…"], 0, [], None, en_curso=True)
+
+            with ThreadPoolExecutor(2) as ex:
+                futuro_medios = ex.submit(_otros_medios) if sondear_medios else None
+
+                # 1 · Mac
+                estado_mac, decision = {}, {}
+                # (2026-10-08) Alex: «hay listas pendientes sin proceso activo» y el botón contestaba
+                # «no cabe más». Había un orquestador VIVO sin ninguna tarea en marcha: el botón ni lo
+                # miraba. Ahora, si una persona lo pulsa y el orquestador está parado con listas, se
+                # reinicia en el acto (no tiene nada en marcha: no se pierde trabajo).
+                if aplicar and mac:
+                    try:
+                        import atasco_orquestador
+
+                        cura = atasco_orquestador.curar(persiste_s=0 if origen == "boton" else atasco_orquestador.PERSISTE_S,
+                                                        # (2026-10-21) 120 s mataba orquestadores que acababan de
+                                                        # repartir sus primeras tareas: la misma edad para todos.
+                                                        edad_min_s=atasco_orquestador.EDAD_MIN_S)
+                        if cura.get("accion") == "reiniciado":
+                            hechas.append("orquestador parado reiniciado")
+                            sumados += len(cura.get("listas") or [])
+                            lineas.append("%s: el orquestador estaba vivo pero PARADO (%s) → lo reinicio y el vigilante "
+                                          "lanza una tanda nueva ya" % (NOMBRES["mac"], cura.get("motivo")))
+                    except Exception as e:  # noqa: BLE001
+                        lineas.append("%s: no pude mirar si el orquestador está parado (%s)" % (NOMBRES["mac"], type(e).__name__))
+
+                # Guardar estado parcial tras la Mac
+                if aplicar:
+                    _guardar_estado_parcial(estado_prev, lineas, sumados, hechas, None, en_curso=True)
+
+                try:
+                    import asignar_huecos
+
+                    estado_mac = asignar_huecos.reunir()
+                    decision = asignar_huecos.decidir(estado_mac)
+                    hechas_mac = asignar_huecos.aplicar(estado_mac, decision) if (aplicar and mac and decision.get("puede")) else []
+                    if hechas_mac:
+                        hechas += hechas_mac
+                        sumados += int(decision.get("huecos") or 0)
+                        # Despertar al vigilante para una tanda nueva SÍ suma agentes: antes salía
+                        # «no cabe más ahora mismo» justo cuando arrancaba una tanda.
+                        if decision.get("despertar_vigilante") and not decision.get("huecos"):
+                            sumados += min(len(estado_mac.get("listas") or []), int(estado_mac.get("tope") or 3)) or 1
+                    lineas.append(texto_mac(estado_mac, decision, hechas_mac))
+                except Exception as e:
+                    lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
+
+            # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
+            sin_escritores = False
+            sondas = []
+            if origen == "boton" and sondear_medios:
+                try:
+                    sondas = _sondear_escritores()
+                    linea_esc, alguno = texto_escritores(sondas, ahora)
+                    lineas.append(linea_esc)
+                    lineas.append(texto_fuera_de_escritura())
+                    sin_escritores = not alguno
+                except Exception as e:
+                    lineas.append("Escritores: no pude sondearlos (%s)" % type(e).__name__)
+
+            # 1b · Modelos: sin modelos que contesten, un hueco no es capacidad.
+            try:
+                lineas.append(texto_modelos(_leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"),
+                                            esperando_pasarela(_leer_latidos(), ahora)))
+            except Exception:
+                pass
+
+            # 2 · Nube
+            nube = reunir_nube(ahora, estado_mac)
+            # 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
+            # (1103 · T) Cloudroom es otro medio, con su propia rueda de modelos: también le valen las agotadas (las que los
+            # escritores gratuitos de GitHub ya probaron tres veces), detrás de las elegibles y por prioridad.
+            para_cr = list(nube["clases"].get("elegibles") or [])
+            _traer_cr = set(nube.get("por_traer") or ())
+            para_cr += [t for t in ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in _traer_cr],
+                                                         nube.get("dependientes") or {}, nube.get("capacidad") or ())
+                        if t not in para_cr]
+            sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, para_cr, ahora)
+            if sumadas_cr:
+                sumados += sumadas_cr
+                hechas.append("Cloudroom: %d hilo(s) en la nube (%s)" % (sumadas_cr, ", ".join(ids_cr)))
+            if ids_cr:
+                nube["clases"]["elegibles"] = [t for t in nube["clases"].get("elegibles") or [] if t not in ids_cr]
+                nube["clases"]["agotada"] = [t for t in nube["clases"].get("agotada") or [] if t not in ids_cr]
+            vivos = nube["runs"] + en_camino(estado_prev, ahora)
+            reaperturas = RN.leer_reaperturas(ahora)
+            # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
+            # llegan a la nube; ya no es un 2 fijo.
+            escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
+            # (CAP1025D) Lo que la nube ya integró no se reabre: se trae (`traer_nube`), no se vuelve a escribir.
+            por_traer = set(nube.get("por_traer") or ())
+            # (1103) Por prioridad (capacidad, y lo que más desbloquea) y sin gastar intentos lo no intentado.
+            notas = nube.get("notas") or {}
+            agotadas = ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in por_traer],
+                                             nube.get("dependientes") or {}, nube.get("capacidad") or ())
+            pot_gh = _potenciado("nube-gh", ahora)
+            reabribles = [t for t in agotadas if (puede_reabrir_potenciada(reaperturas.get(t), ahora) if pot_gh
+                                                  else puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, "")))]
+            # (HAL09) Freno por mismo motivo: si varias tareas recientes fallaron igual, no lanzar runs nuevos.
+            freno_frase = ""
+            try:
+                progreso = _leer_json(os.path.join(LATIDOS, "progreso.json"), {})
+                entradas = []
+                for tid, v in (progreso or {}).items():
+                    if not isinstance(v, dict):
+                        continue
+                    estado = v.get("estado")
+                    nota = v.get("nota")
+                    fin = v.get("fin")
+                    if estado or nota or fin:
+                        entradas.append({"estado": estado, "nota": nota, "fin": fin})
+                freno, frase = frenar_por_mismo_motivo(entradas)
+                if freno:
+                    freno_frase = frase
+            except Exception:
+                lineas.append("Freno por mismo motivo: no se pudo calcular")
+            # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
+            tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
+                                  escritores_nube, vivos=vivos)
+            if freno_frase:
+                tope = (vivos, freno_frase)
+            plan = plan_nube(
+                nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
+                reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
+                tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
+                potenciado=pot_gh,
+            )
+            if not pot_gh:
+                _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
+                if _q:
+                    _preguntar("nube-gh", *_q)
+            lineas_previas = texto_ultimo_despliegue(estado_prev, ahora)
+            if lineas_previas:
+                lineas.append(lineas_previas)
+            lanzados = None
+            if nube["error"]:
+                lanzados = "no pude leer el trabajo (%s)" % nube["error"][:160]
+            elif aplicar and plan["lanzar"] > 0:
+                if plan["reabrir"]:
+                    RN.anotar_reaperturas(plan["reabrir"], ahora)
+                    hechas.append("reabiertas a la nube: %s" % ", ".join(plan["reabrir"]))
+                _lanzar_en_fondo(plan["lanzar"], plan["trabajadores"])
+                estado_prev.update(en_camino=plan["lanzar"], en_camino_hasta=ahora + EN_CAMINO_S * plan["lanzar"])
+                sumados += plan["lanzar"] * plan["trabajadores"]
+                lanzados = "lanzando %d job(s) de %d agente(s) en segundo plano" % (plan["lanzar"], plan["trabajadores"])
+                hechas.append(lanzados)
+            lineas.append(texto_nube(nube["clases"], plan, vivos, lanzados, aplicado=aplicar, mac=nube.get("mac"),
+                                     tope=tope, por_traer=por_traer))
+            lineas.append(linea_cr)
+
+            # 2b · Sesiones de Claude Code en la nube (crédito propio, no el límite semanal).
+            try:
+                sumadas_claude, linea_claude = claude_nube(aplicar, ahora)
+                if sumadas_claude:
+                    sumados += sumadas_claude
+                    hechas.append("sesiones de Claude en la nube: %d" % sumadas_claude)
+                lineas.append(linea_claude)
+            except Exception as e:  # noqa: BLE001
+                lineas.append("%s: no pude mirarlas (%s)" % (NOMBRES["claude-nube"], type(e).__name__))
+
+            # 3 · Los demás medios
+            if futuro_medios is not None:
+                lineas += [texto_medio(m) for m in futuro_medios.result()]
+
+        sin_trabajo = (not (estado_mac.get("listas") or []) and not (nube["clases"].get("elegibles") or [])
+                       and not plan.get("reabrir"))
+        if sin_trabajo:
+            try:
+                lineas.insert(1, texto_sin_trabajo(_leer_json(os.path.join(LATIDOS, "progreso.json"), {})))
+            except Exception:
+                pass
+        posibles = 0 if aplicar else (int(plan.get("lanzar") or 0) * int(plan.get("trabajadores") or 0)
+                                      + int((decision or {}).get("huecos") or 0))
+        causas = list(causas_sin_suma(estado_mac, plan, linea_cr))
+        if freno_frase:
+            causas.append(freno_frase)
+        texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
+                        causas=causas if causas else (), posibles=posibles)
+        # (1103 · U) Lo que frenó por un reparto NUESTRO del crédito o del cupo del mes se pregunta, no se calla.
+        preguntas = _preguntas_vigentes(ahora)
+        if preguntas:
+            texto = texto + "\n" + _texto_preguntas(preguntas)
+        estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
+                           hechas=hechas, resumen=texto)
+        if aplicar:
+            _guardar(estado_prev)
+            _guardar_estado_parcial(estado_prev, lineas, sumados, hechas, None, en_curso=False)
+        if aplicar and (origen == "boton" or sumados):
+            _avisar(("Buscar más capacidad (%s):\n" % ("botón de Genesis" if origen == "boton" else origen)) + texto)
+        if candado_tomado:
+            _liberar_candado()
+        resultado = {"ok": True, "resumen": texto, "lineas": lineas, "sumados": sumados, "hechas": hechas,
+                "plan_nube": plan, "runs_nube": vivos, "tope_nube": list(tope), "escritores_nube": escritores_nube,
+                "mac_cede": (nube.get("mac") or {}).get("cedibles") or [], "preguntas": preguntas}
+        return resultado
 
 
-def desplegar(runs, trabajadores):
-    """Lanza `runs` jobs seguidos con `nube-gh.py lanzar` (cada uno reparte su propia cola) y
-    deja el resultado en el Chat Director."""
-    hechos, lanzados, fallo = [], 0, ""
-    for i in range(max(0, int(runs))):
-        # `--ceder` (2026-10-10, CAP1010): la tanda viva de la Mac cede lo que no alcanza pronto.
+def _lanzar_job_con_reintentos(trabajadores: int, max_reintentos: int = REINTENTOS_GITHUB) -> tuple[bool, str]:
+    """Lanza un job con reintentos. Devuelve (exito, salida_o_error)."""
+    salida = ""
+    for intento in range(max_reintentos):
         r = subprocess.run(
             [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
              str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
@@ -1296,20 +1372,40 @@ def desplegar(runs, trabajadores):
         salida = ((r.stdout or "") + (r.stderr or "")).strip()
         print(salida, flush=True)
         lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
-        if r.returncode != 0 or not lanzado:
-            fallo = (salida.splitlines() or ["?"])[-1][:200]
-            hechos.append("job %d no salió: %s" % (i + 1, fallo))
-            break
-        lanzados += 1
-        hechos.append(lanzado[-1])
+        if r.returncode == 0 and lanzado:
+            return True, lanzado[-1]
+        # Si falló, esperar antes de reintentar (excepto en el último intento)
+        if intento < max_reintentos - 1:
+            time.sleep(ESPERA_REINTENTO_GITHUB_S)
+    # Todos los reintentos fallaron
+    fallo = (salida.splitlines() or ["?"])[-1][:200]
+    return False, "job no salió tras %d intentos: %s" % (max_reintentos, fallo)
+
+
+def desplegar(runs, trabajadores):
+    """Lanza `runs` jobs seguidos con `nube-gh.py lanzar` (cada uno reparte su propia cola) y
+    deja el resultado en el Chat Director. No aborta si un job falla: continúa con los demás."""
+    hechos, lanzados, fallos = [], 0, []
+    for i in range(max(0, int(runs))):
+        # `--ceder` (2026-10-10, CAP1010): la tanda viva de la Mac cede lo que no alcanza pronto.
+        exito, resultado = _lanzar_job_con_reintentos(trabajadores)
+        if exito:
+            lanzados += 1
+            hechos.append(resultado)
+        else:
+            fallos.append("job %d: %s" % (i + 1, resultado))
+            # Continuar con el siguiente job en lugar de abortar
     # (2026-10-10, CAP1010) Lo «en camino» pasa a ser lo que SALIÓ de verdad: antes se quedaban
     # contados como vivos los jobs pedidos aunque el reparto hubiera dicho «0 tareas».
     estado = _leer_json(ESTADO, {})
     ahora = time.time()
+    fallo_combinado = "; ".join(fallos) if fallos else ""
     estado.update(en_camino=lanzados, en_camino_hasta=(ahora + EN_CAMINO_S) if lanzados else 0,
-                  ultimo_despliegue={"t": ahora, "pedidos": int(runs), "lanzados": lanzados, "fallo": fallo})
+                  ultimo_despliegue={"t": ahora, "pedidos": int(runs), "lanzados": lanzados, "fallo": fallo_combinado})
     _guardar(estado)
-    _avisar("Capacidad en la nube: %s" % "; ".join(hechos or ["nada que lanzar"]))
+    _avisar("Capacidad en la nube: %s" % ("; ".join(hechos) if hechos else "nada que lanzar"))
+    if fallos:
+        hechos.append("fallos: %s" % "; ".join(fallos))
     return hechos
 
 
