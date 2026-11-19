@@ -16,22 +16,38 @@ export function CapaIdioma(): null {
     useEffect(() => {
         let capa: CapaActiva | null = null;
         let vivo = true;
+
         const aplicar = async (): Promise<void> => {
-            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
-            if (!vivo) return;
             const { codigo } = idiomaEfectivo();
             const cat = codigo === IDIOMA_FUENTE ? null : await cargarCatalogo(codigo);
             if (!vivo) return;
-            const aplicado = cat ? codigo : IDIOMA_FUENTE; // sin catálogo no se miente en `lang` ni en `dir`
+            const aplicado = cat ? codigo : IDIOMA_FUENTE;
             if (capa) capa.cambiar(cat, aplicado);
             else capa = iniciarCapa(document.body, document, aplicado, cat);
             if (!cat) fijarDocumento(document, IDIOMA_FUENTE);
         };
-        const alAlmacenar = (e: StorageEvent): void => { if (e.key === CLAVE_IDIOMA_NEURONA || e.key === null) void aplicar(); };
-        void aplicar();
-        window.addEventListener(EVENTO_IDIOMA, aplicar);
-        window.addEventListener("storage", alAlmacenar);
-        return () => { vivo = false; window.removeEventListener(EVENTO_IDIOMA, aplicar); window.removeEventListener("storage", alAlmacenar); capa?.parar(); };
+
+        const alAlmacenar = (e: StorageEvent): void => {
+            if (e.key === CLAVE_IDIOMA_NEURONA || e.key === null) void aplicar();
+        };
+
+        const iniciar = async (): Promise<void> => {
+            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
+            if (!vivo) return;
+            await aplicar();
+        };
+
+        void iniciar().then(() => {
+            if (!vivo) return;
+            window.addEventListener(EVENTO_IDIOMA, aplicar);
+            window.addEventListener("storage", alAlmacenar);
+        });
+        return () => {
+            vivo = false;
+            window.removeEventListener(EVENTO_IDIOMA, aplicar);
+            window.removeEventListener("storage", alAlmacenar);
+            capa?.parar();
+        };
     }, []);
     return null;
 }
