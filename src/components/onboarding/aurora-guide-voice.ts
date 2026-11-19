@@ -118,12 +118,19 @@ export function auroraEnsureListening(): void {
 
 /** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
 export function auroraTranscript(): string {
+  const bridge = auroraBridge();
+  if (!bridge?.getState) return "";
+  let state: ReturnType<NonNullable<typeof bridge.getState>>;
   try {
-    const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
+    state = bridge.getState();
   } catch {
     return "";
   }
+  if (!state) return "";
+  const transcript = state.transcript ?? "";
+  const interim = state.interim ?? "";
+  const combined = (transcript + " " + interim).trim();
+  return combined;
 }
 
 /** ¿Aurora está actualmente encendida (enabled) según su estado? */
