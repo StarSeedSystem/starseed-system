@@ -2,19 +2,19 @@
  * CTL1119F · pantalla sin WebRTC: selección de vía por capacidades y aviso a los 10 s.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PantallaDestino, type DepsDestino } from "../pantalla-destino";
+import { PantallaDestino, type DepsDestino, type CanalDestinoLike, type PeerDestinoLike } from "../pantalla-destino";
 import type { RespuestaOrden } from "../orden";
 import { trocear } from "../senal-partes";
 
-class CanalFalso implements import("../pantalla-destino").CanalDestinoLike {
+class CanalFalso implements CanalDestinoLike {
     readyState = "open";
     onopen: (() => void) | null = null;
-    onmessage: import("../pantalla-destino").CanalDestinoLike["onmessage"] = null;
+    onmessage: CanalDestinoLike["onmessage"] = null;
     onclose: (() => void) | null = null;
     send() { /* nada */ }
     close() { this.readyState = "closed"; }
 }
-class PeerFalso implements import("../pantalla-destino").PeerDestinoLike {
+class PeerFalso implements PeerDestinoLike {
     localDescription: { sdp?: string } | null = null;
     connectionState = "new";
     onicecandidate: import("../pantalla-destino").PeerDestinoLike["onicecandidate"] = null;
