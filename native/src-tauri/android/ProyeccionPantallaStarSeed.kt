@@ -343,6 +343,10 @@ class ServicioProyeccionPantalla : Service() {
         if (deteniendo) return
         deteniendo = true
         val hacia = capturando
+        // Una sesión nueva puede haber arrancado otra proyección antes de que esta termine de soltarse.
+        // En ese caso esta solo libera lo suyo: no le borra el consentimiento, ni el cuadro, ni le
+        // arranca la accesibilidad por debajo.
+        val eraActual = ProyeccionPantalla.servicio === this
         capturando = false
         principal.removeCallbacks(vigia)
         try { unregisterReceiver(apagada) } catch (_: Throwable) {}
@@ -354,11 +358,11 @@ class ServicioProyeccionPantalla : Service() {
         reuso = null
         hilo?.quitSafely()
         hilo = null; trabajo = null
-        if (hacia) File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
-        ProyeccionPantalla.consentidaPara = null
-        if (ProyeccionPantalla.servicio === this) ProyeccionPantalla.servicio = null
+        if (hacia && eraActual) File(ControlEntradaNativo.carpeta(), ControlEntradaNativo.CUADRO).delete()
+        if (eraActual) ProyeccionPantalla.consentidaPara = null
+        if (eraActual) ProyeccionPantalla.servicio = null
         // CTL1118F: si la proyección se cortó con la sesión aún a la vista y la pantalla pedida, la accesibilidad toma el relevo (no se cierra nada ni se vuelve a preguntar).
-        if (hacia) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() } catch (_: Throwable) {} }
+        if (hacia && eraActual) principal.post { try { ControlEntradaNativo.volverAAccesibilidad() } catch (_: Throwable) {} }
         try { if (Build.VERSION.SDK_INT >= 24) stopForeground(Service.STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true) } catch (_: Throwable) {}
         stopSelf()
     }
