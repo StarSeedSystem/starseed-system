@@ -113,6 +113,14 @@ import {
 } from "@/lib/malla/cristal/resonancias";
 import { analizarArchivo } from "@/lib/malla/cristal/centinela";
 import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
+import {
+  decidirAceptacion,
+  crearConfiguracionDefecto,
+  type ConfiguracionAceptacion,
+  type EnvioEntrante,
+  type ResultadoAceptacion,
+} from "@/lib/transferencias/aceptacion";
+import { analizarSeguridad, type EntradaAnalisis, type ResultadoAnalisisSeguridad } from "@/lib/transferencias/analisis-seguridad";
 import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
 import { anotarArchivo, type HitoArchivo } from "@/lib/network/archivos-diagnostico"; // ARC1110A
 import { emisorMalla } from "@/lib/network/malla-registro"; // AUD1117·F7
@@ -1525,6 +1533,8 @@ export const POLITICA_REINTENTO_POR_DEFECTO: Required<PoliticaReintento> = {
 export interface ConfigMotorArchivos {
   almacen?: AlmacenTrozos;
   politica?: PoliticaRecepcion;
+  /** Configuración de aceptación de envíos entrantes (neuronas reconocidas, auto-aceptar). */
+  aceptacion?: ConfiguracionAceptacion;
   /** Política de reintento automático para envíos. Por defecto: 5 intentos con backoff exponencial. */
   reintento?: PoliticaReintento;
   /** Se dispara cuando una oferta entrante necesita confirmación humana (fase "preguntar"). */
@@ -1668,6 +1678,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const AVISO_BYTES = config.limiteAvisoBytes ?? 500 * 1024 * 1024;
   const MAX_BYTES = config.limiteMaxBytes ?? 4 * 1024 * 1024 * 1024;
   const reintentoConfig = { ...POLITICA_REINTENTO_POR_DEFECTO, ...config.reintento };
+  const aceptacionConfig: ConfiguracionAceptacion = config.aceptacion ?? crearConfiguracionDefecto();
 
   const canalPorId = new Map<string, CanalArchivos>();
   const intentosReintento = new Map<string, number>();
@@ -2761,20 +2772,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       escrituras.delete(msg.id);
       aceptadas.delete(msg.id);
     }
-    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
-    // «Cuarentena y pregunta»: nunca auto-aceptar un hash en cuarentena, y un
-    // aviso tampoco se esconde — pasa a «preguntar» con el motivo en la tarjeta.
-    const resonancia = decisionSobre(msg.sha256);
-    const avisoResonancia: Record<DecisionResonancia, string | undefined> = {
-      cuarentena: `En CUARENTENA de la red: ${resonancia.motivo}. No se auto-acepta.`,
-      aviso: `Aviso de la red: ${resonancia.motivo}.`,
-      limpio: undefined,
-      'sin-datos': undefined,
-    };
-    const aviso = avisoResonancia[resonancia.decision];
 
-    // Lo que ya hay de este archivo (reanudar tras recargar o tras un corte) y el centinela (§5), que
-    // analiza el inicio del archivo si su primer trozo ya está guardado (si no, el inicio vacío).
+    // Lo que ya hay de este archivo (reanudar tras recargar o tras un corte).
     let yaGuardados: number[] = [];
     try {
       yaGuardados = (await almacen.indicesGuardados(msg.id)).filter((i) => Number.isInteger(i) && i >= 0 && i < msg.trozos);
@@ -2787,13 +2786,33 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       const primerTrozo = await almacen.leerTrozo(msg.id, 0).catch(() => null);
       if (primerTrozo) inicioBuf = new Uint8Array(primerTrozo);
     }
-    const analisisArchivo = analizarArchivo({
+
+    // Análisis de seguridad con el nuevo módulo (tipo real vs extensión, huella, firma, señales de riesgo, antivirus).
+    const entradaAnalisis: EntradaAnalisis = {
       nombre: msg.nombre,
       tipoDeclarado: msg.tipo,
       inicio: inicioBuf,
       tamano: msg.tamano,
-    });
-    const entrada = decidirEntrada(analisisArchivo, resonancia ? { decision: resonancia.decision } : null);
+      entradasZip: msg.contenido?.map((c) => ({ ruta: c.ruta, tamano: c.tamano ?? 0, comprimido: c.comprimido ?? 0 })),
+    };
+    const analisisSeguridad: ResultadoAnalisisSeguridad = await analizarSeguridad(entradaAnalisis);
+
+    // Resonancia (§5.6): lo que la red ya sabe de este hash informa la política.
+    const resonancia = decisionSobre(msg.sha256);
+    const avisoResonancia: Record<DecisionResonancia, string | undefined> = {
+      cuarentena: `En CUARENTENA de la red: ${resonancia.motivo}. No se auto-acepta.`,
+      aviso: `Aviso de la red: ${resonancia.motivo}.`,
+      limpio: undefined,
+      'sin-datos': undefined,
+    };
+    const avisoResonanciaTexto = avisoResonancia[resonancia.decision];
+
+    // Combinar avisos: resonancia + análisis de seguridad.
+    let avisoFinal = avisoResonanciaTexto;
+    if (analisisSeguridad.señalesRiesgo.length > 0) {
+      const motivosSeguridad = analisisSeguridad.señalesRiesgo.map((s) => s.descripcion).join('; ');
+      avisoFinal = avisoFinal ? `${avisoFinal} | ${motivosSeguridad}` : motivosSeguridad;
+    }
 
     const base: EstadoTransferencia = {
       id: msg.id,
@@ -2810,26 +2829,22 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       actualizadoMs: Date.now(),
       ...extrasDeOferta(msg, ctx),
       ...rutaDeOferta(canal, msg),
+      motivo: avisoFinal,
     };
 
-    // Aplicación inmediata del centinela (rechazar no pasa por política de recepción).
-    if (entrada.accion === 'rechazar') {
-      const motivoRechazo = entrada.texto ? `Rechazado por el centinela: ${entrada.texto}` : 'Rechazado por el centinela.';
+    // Rechazar si el análisis de seguridad detecta nivel alto (cuarentena por seguridad).
+    // La política de aceptación (misma cuenta / neurona reconocida) se aplica después.
+    if (analisisSeguridad.nivelRiesgo === 'alto') {
+      const motivoRechazo = `Archivo con riesgo alto detectado: ${analisisSeguridad.señalesRiesgo.map((s) => s.descripcion).join('; ')}`;
       emitir({ ...base, progreso: 0, fase: 'rechazada', motivo: motivoRechazo });
       canal.enviar(JSON.stringify({ t: 'archivo.rechazar', id: msg.id, motivo: motivoRechazo } satisfies MsgRechazar));
       ofertasEntrantes.delete(msg.id);
       return;
     }
 
-    // Avisos: se añade al aviso existente (resonancia o centinela).
-    let avisoFinal = aviso;
-    if (entrada.accion === 'avisar' && entrada.texto) {
-      avisoFinal = aviso ? `${aviso} | ${entrada.texto}` : entrada.texto;
-    }
-    const estadoBase: EstadoTransferencia = { ...base, ...(avisoFinal ? { motivo: avisoFinal } : {}) };
+    const estadoBase: EstadoTransferencia = { ...base, motivo: avisoFinal };
 
-    // (ARC1108B) ¿Cabe? Se dice ANTES de aceptar (y antes de preguntar a la persona), no a mitad de
-    // camino con la app sin memoria: memoria con tope, o la cuota del disco de la página.
+    // (ARC1108B) ¿Cabe? Se dice ANTES de aceptar (y antes de preguntar a la persona).
     if (!mismoArchivo && almacen.espacioPara) {
       const falta = Math.max(0, msg.tamano - tenidos.size * (msg.tamanoTrozo > 0 ? msg.tamanoTrozo : TAM_TROZO_POR_DEFECTO));
       const cabe = await almacen.espacioPara(falta).catch(() => ({ ok: true, motivo: undefined }));
@@ -2852,21 +2867,50 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
-    const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
+    // Política de recepción: misma cuenta → auto-aceptar (por defecto), otra cuenta → preguntar/denegar.
+    const decisionPolitica = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
-    if (decision === "denegar") {
+    if (decisionPolitica === "denegar") {
       emitir({ ...estadoBase, fase: "rechazada", motivo: "Sin permiso para recibir archivos de esta cuenta." });
       canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "denegado por política de permisos" } satisfies MsgRechazar));
       ofertasEntrantes.delete(msg.id);
       return;
     }
 
-    if ((decision === "auto-aceptar" || preAceptada) && !avisoFinal) {
+    // Si la política dice "auto-aceptar" (misma cuenta con preferencia activada), auto-aceptar.
+    // Si la política dice "preguntar" (otra cuenta con permiso, o misma cuenta sin auto-aceptar),
+    // aplicar la lógica de neuronas reconocidas: si es neurona reconocida con auto-aceptar encendido → auto-aceptar.
+    let accionFinal: 'auto-aceptar' | 'pedir' = decisionPolitica === 'auto-aceptar' ? 'auto-aceptar' : 'pedir';
+
+    if (decisionPolitica === 'preguntar') {
+      // Construir envío entrante para decisión de aceptación por neurona reconocida.
+      const envioEntrante: EnvioEntrante = {
+        tipo: msg.destino?.tipo === 'cerebro' ? 'cerebro' : (msg.ruta ? 'carpeta' : 'archivo'),
+        nombre: msg.nombre,
+        tamano: msg.tamano,
+        tipoReal: analisisSeguridad.tipoReal,
+        cantidadArchivos: msg.contenido?.length,
+        neuronaOrigen: ctx.nodoId ?? msg.origen ?? 'desconocida',
+        medio: ctx.via ?? 'malla',
+      };
+      const decisionAceptacion: ResultadoAceptacion = decidirAceptacion(envioEntrante, aceptacionConfig);
+      if (decisionAceptacion.accion === 'auto-aceptar') {
+        accionFinal = 'auto-aceptar';
+      }
+    }
+
+    // (ARC1110A) Si se aceptó de antemano con el anuncio, auto-aceptar al llegar la oferta.
+    if (preAceptada) {
+      accionFinal = 'auto-aceptar';
+    }
+
+    if (accionFinal === 'auto-aceptar' && !avisoFinal) {
       pedirTrozos(canal, msg, tenidos, estadoBase);
       return;
     }
 
     // "preguntar": queda pendiente hasta que la UI llame aceptarOferta/rechazarOferta.
+    // El análisis de seguridad se muestra en la tarjeta (motivo).
     recibidosPorId.set(msg.id, tenidos);
     emitir(estadoBase);
     if (!notificadas.delete(msg.id)) config.onOfertaEntrante?.({
