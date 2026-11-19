@@ -20,7 +20,7 @@ function cuadro(numero: number, ancho = 800, alto = 1280, giro = 0, cero = 0, jp
 }
 
 const SESION: SesionViva = { token: "a".repeat(32), de: "h".repeat(64), nivel: "controlar" };
-const ctx = (nivel = "controlar", sobre: unknown = { v: 1, carga: "c", firma: "f" }) => ({ sobre, sesion: { token: SESION.token, nivel } });
+const ctx = (nivel = "controlar", sobre: unknown = { v: 1, carga: "c", firma: "f" }) => ({ sobre, sesion: { token: SESION.token, de: SESION.de, nivel } });
 const pausa = (ms = 2) => new Promise<void>((r) => setTimeout(r, ms));
 async function hasta(c: () => boolean, ms = 1500) {
     const t0 = Date.now();
@@ -171,6 +171,35 @@ describe("pantalla-iniciar", () => {
         expect(n("control_pantalla_iniciar")[0].args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "auto" });
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
         expect((r.capacidades as { entrada: { max_dedos: number } }).entrada.max_dedos).toBe(10);
+        await origen.parar("fin");
+    });
+    it("con fuente:proyeccion pide 'auto' al nativo; si contesta accesibilidad, devuelve fuente real y fuente_pedida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0]?.args).toMatchObject({ sesion: SESION.token, fuente: "auto" });
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        await origen.parar("fin");
+    });
+    it("con fuente:proyeccion y nativo contesta proyeccion, devuelve proyeccion sin fuente_pedida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "proyeccion", ancho: 800, alto: 1280, giro: 0 };
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0]?.args).toMatchObject({ sesion: SESION.token, fuente: "auto" });
+        expect(r).toMatchObject({ ok: true, fuente: "proyeccion" });
+        expect(r.fuente_pedida).toBeUndefined();
+        await origen.parar("fin");
+    });
+    it("sin fuente o con auto manda 'auto' al nativo", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+        const r1 = (await origen.ejecutar("pantalla-iniciar", {}, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0]?.args).toEqual({ sesion: SESION.token, lado_max: 1280, calidad: 60, fuente: "auto" });
+        expect(r1).toMatchObject({ ok: true, fuente: "accesibilidad" });
+        expect(r1.fuente_pedida).toBeUndefined();
+        await origen.parar("fin");
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+        const r2 = (await origen.ejecutar("pantalla-iniciar", { fuente: "auto" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0]?.args).toEqual({ sesion: SESION.token, lado_max: 1280, calidad: 60, fuente: "auto" });
+        expect(r2).toMatchObject({ ok: true, fuente: "accesibilidad" });
+        expect(r2.fuente_pedida).toBeUndefined();
         await origen.parar("fin");
     });
     it("si lo nativo no puede, la orden se cumple y dice qué falta (sin arrancar nada)", async () => {

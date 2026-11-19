@@ -8,7 +8,7 @@ import type { RespuestaOrden } from "../orden";
 import { PALABRAS_FALTA, palabrasMotivo } from "../palabras";
 
 const SESION: SesionViva = { token: "a".repeat(32), de: "h".repeat(64), nivel: "ver" };
-const ctx = () => ({ sobre: { v: 1, carga: "c", firma: "f" }, sesion: { token: SESION.token, nivel: "ver" } });
+const ctx = () => ({ sobre: { v: 1, carga: "c", firma: "f" }, sesion: { token: SESION.token, de: SESION.de, nivel: "ver" } });
 
 function origenCon(respuesta: unknown) {
     const llamadas: { cmd: string; args?: Record<string, unknown> }[] = [];

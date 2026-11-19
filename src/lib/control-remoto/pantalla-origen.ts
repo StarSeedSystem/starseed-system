@@ -177,6 +177,8 @@ export class OrigenPantalla {
     private soltarOcupado: (() => void) | null = null;
     /** CTL1118F: cuántas veces se pidió la pantalla fluida en cada sesión de control (por su token): sola, UNA; después, solo si la persona lo pide. */
     private readonly fluidaPedidas = new Map<string, number>();
+    /** Guardia para evitar llamadas concurrentes a parar. */
+    private parando = false;
 
     constructor(private readonly d: DepsOrigen) {}
 
@@ -224,17 +226,18 @@ export class OrigenPantalla {
     private async iniciar(s: SesionViva, args: Args): Promise<unknown> {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
+        this.parando = false;
         await this.parar("reinicio");
-        // CTL1118F: SIEMPRE se arranca con lo que el aparato tenga («auto»: la fluida si la persona ya la dio en esta sesión, si no accesibilidad)
-        // para que haya imagen YA; si va por accesibilidad, más abajo el aparato pide él solo la fluida (diálogo nativo, solo con su «Sí»).
-        // Lo que pida quien manda (`fuente: "proyeccion"`) se pasa a lo nativo; si no está o es «auto», se manda «auto» (igual que hoy).
-        const fuentePedida = args.fuente === "proyeccion" ? "proyeccion" : "auto";
-        const r = await inv("control_pantalla_iniciar", {
+        // PENC3: el aparato elige la fuente; siempre se pide «auto» (o no se manda la clave).
+        // Lo que pida quien manda (`fuente: "proyeccion"`) se usa solo para decidir si buscar fluida después.
+        const pedirProyeccion = args.fuente === "proyeccion";
+        const params: Record<string, unknown> = {
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
             calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            fuente: fuentePedida,
-        }).catch(() => null);
+            fuente: "auto",
+        };
+        const r = await inv("control_pantalla_iniciar", params).catch(() => null);
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
             const motivo = esObjeto(r) && typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "sin-soporte";
@@ -287,9 +290,9 @@ export class OrigenPantalla {
             /* el diagnóstico nunca impide la pantalla */
         }
         void this.bucle(a);
-        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${args.fuente === "proyeccion" ? "proyeccion" : "auto"}`);
+        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${pedirProyeccion ? "proyeccion" : "auto"}`);
         // CTL1118F: la pantalla ya sale; lo fluido se pide sin esperar y sin cerrar nada.
-        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, args.fuente === "proyeccion")) void this.buscarFluida(a, args.fuente === "proyeccion");
+        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, pedirProyeccion)) void this.buscarFluida(a, pedirProyeccion);
         const capacidades = await inv("control_capacidades").catch(() => null);
         const resultado: Record<string, unknown> = {
             ok: true,
@@ -659,8 +662,10 @@ export class OrigenPantalla {
 
     /** Para la pantalla y suelta todo: la fuente nativa, la conexión, el canal y el lienzo. Idempotente. */
     async parar(motivo: string): Promise<void> {
+        if (this.parando) return;
         const a = this.activa;
-        if (!a) return;
+        if (!a || a.parado) return;
+        this.parando = true;
         this.activa = null;
         a.parado = true;
         this.soltarOcupado?.();

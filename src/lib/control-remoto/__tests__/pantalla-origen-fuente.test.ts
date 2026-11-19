@@ -7,7 +7,7 @@ import { OrigenPantalla, type DepsOrigen, type SesionViva } from "../pantalla-or
 import type { RespuestaOrden } from "../orden";
 
 const SESION: SesionViva = { token: "a".repeat(32), de: "h".repeat(64), nivel: "controlar" };
-const ctx = (nivel = "controlar", sobre: unknown = { v: 1, carga: "c", firma: "f" }) => ({ sobre, sesion: { token: SESION.token, nivel } });
+const ctx = (nivel = "controlar", sobre: unknown = { v: 1, carga: "c", firma: "f" }) => ({ sobre, sesion: { token: SESION.token, de: SESION.de, nivel } });
 const pausa = (ms = 2) => new Promise<void>((r) => setTimeout(r, ms));
 async function hasta(c: () => boolean, ms = 1500) {
     const t0 = Date.now();
@@ -79,10 +79,11 @@ describe("pantalla-iniciar con fuente", () => {
         await origen.parar("fin");
     });
 
-    it("con fuente: 'proyeccion' la pasa a lo nativo", async () => {
+    it("con fuente: 'proyeccion' pide 'auto' al nativo y marca fuente_pedida", async () => {
         const r = (await origen.ejecutar("pantalla-iniciar", { lado: 1000, fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(n("control_pantalla_iniciar")[0].args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "proyeccion" });
-        expect(r.fuente).toBe("accesibilidad"); // lo nativo contestó accesibilidad
+        const iniciarCalls = n("control_pantalla_iniciar");
+        expect(iniciarCalls[0]?.args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "auto" });
+        expect(r.fuente).toBe("accesibilidad");
         expect(r.fuente_pedida).toBe("proyeccion");
         await origen.parar("fin");
     });
@@ -90,7 +91,8 @@ describe("pantalla-iniciar con fuente", () => {
     it("si lo nativo concede proyección, devuelve proyección sin fuente_pedida", async () => {
         respuestas.control_pantalla_iniciar = { ok: true, fuente: "proyeccion", ancho: 800, alto: 1280, giro: 0 };
         const r = (await origen.ejecutar("pantalla-iniciar", { lado: 1000, fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(n("control_pantalla_iniciar")[0].args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "proyeccion" });
+        const iniciarCalls = n("control_pantalla_iniciar");
+        expect(iniciarCalls[0]?.args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60, fuente: "auto" });
         expect(r.fuente).toBe("proyeccion");
         expect(r.fuente_pedida).toBeUndefined();
         await origen.parar("fin");
