@@ -22,6 +22,10 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+// LNX1118WD: la lógica pura del nodo Linux vive aparte para probarla con `rustc --test` sin compilar Tauri.
+#[path = "permisos_linux_logica.rs"]
+mod permisos_linux_logica;
+
 /// Sube si cambia lo que esta lectura sabe decir (la web lo guarda con la lista).
 pub const VERSION_PERMISOS_SISTEMA: u32 = 1;
 
@@ -251,6 +255,95 @@ pub fn permisos_sistema_abrir(id: String) -> Result<bool, String> {
     {
         let _ = destino;
         Err("Este sistema no tiene una pantalla de ajustes que la app sepa abrir.".into())
+    }
+}
+
+/// LNX1118WD · lo que mide la lista de permisos en un nodo Linux (una sola lectura, sin pedir nada).
+#[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct EstadoNodoLinux {
+    /// Grupos del nodo que faltan (los de `recursos/preparar-linux.sh`).
+    pub grupos_faltan: Vec<String>,
+    /// `/dev/uinput` existe, es de tipo carácter y el grupo `input` puede leer y escribir.
+    pub uinput: bool,
+    /// El servicio `bluetooth` está `active`.
+    pub bluetooth: bool,
+    /// No falta nada: no hace falta «Preparar este Linux».
+    pub completo: bool,
+}
+
+/// El guion incluido en la app. Va al `sh` de `pkexec` por la entrada estándar: nunca se deja un archivo
+/// escribible por la persona ejecutándose como root (evita que se cambie entre el diálogo y la orden).
+const GUION_NODO_LINUX: &str = include_str!("../recursos/preparar-linux.sh");
+
+/// Salida estándar de una orden del sistema; si no existe o falla, vacío (la medida dice «no»).
+#[cfg(target_os = "linux")]
+fn salida_de(programa: &str, args: &[&str]) -> String {
+    std::process::Command::new(programa)
+        .args(args)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
+}
+
+/// Mide lo que le falta a este Linux para ser nodo, con las tres lecturas que el guion prepara a mano.
+#[tauri::command]
+pub fn permisos_linux_nodo_estado() -> Result<EstadoNodoLinux, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let id = salida_de("id", &["-Gn"]);
+        let ls = salida_de("ls", &["-l", "/dev/uinput"]);
+        let bt = salida_de("systemctl", &["is-active", "bluetooth"]);
+        let m = permisos_linux_logica::medir(&id, &ls, &bt);
+        Ok(EstadoNodoLinux {
+            grupos_faltan: m.grupos_faltan.clone(),
+            uinput: m.uinput,
+            bluetooth: m.bluetooth,
+            completo: permisos_linux_logica::completo(&m),
+        })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err("Esta medida es de un nodo Linux.".into())
+    }
+}
+
+/// «Preparar este Linux»: lanza el guion incluido con el diálogo del sistema (pkexec). Nada se ejecuta como
+/// root sin que la persona acepte ese diálogo. `sin_reposo` enciende además lo de no apagar pantalla ni bloquear.
+/// Devuelve el aviso de cerrar sesión; el guion es idempotente y no usa red salvo `apt` si falta GStreamer.
+#[tauri::command]
+pub fn permisos_linux_preparar(sin_reposo: bool) -> Result<String, String> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+        let arg = if sin_reposo { "1" } else { "0" };
+        let mut hijo = Command::new("pkexec")
+            .arg("/bin/sh")
+            .arg("-s")
+            .arg("--")
+            .arg(arg)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el diálogo del sistema para preparar este Linux: {e}"))?;
+        if let Some(mut entrada) = hijo.stdin.take() {
+            entrada
+                .write_all(GUION_NODO_LINUX.as_bytes())
+                .map_err(|e| format!("No se pudo entregar el guion al diálogo del sistema: {e}"))?;
+        }
+        let salida = hijo.wait_with_output().map_err(|e| format!("El diálogo del sistema no terminó: {e}"))?;
+        if salida.status.success() {
+            Ok("Preparado. Cierra sesión y vuelve a entrar: los grupos nuevos solo valen en una sesión nueva.".into())
+        } else {
+            let error = String::from_utf8_lossy(&salida.stderr);
+            Err(format!("No se preparó el sistema: {}", error.trim()))
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = sin_reposo;
+        Err("Esto prepara un nodo Linux.".into())
     }
 }
 
