@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { etiquetaEnlaceNuevaPestana } from '@/lib/onboarding/aviso-pestana';
+import { stepKindUtils } from '@/lib/mando/stepUtils';
 import {
   User, Users, LogIn, UserPlus, Palette, BookOpen, Sparkles, Image as ImageIcon,
   Cpu, Brain, ChevronRight, ChevronLeft, SkipForward, Check, ArrowRight, Leaf, Building, Castle, Eye, Wrench, Server,
@@ -201,6 +202,13 @@ export default function OnboardingPage() {
 // ── Pasos ────────────────────────────────────────────────────────────
 
 function StepKind({ state, setState, onNext }: any) {
+  const individualLabel = stepKindUtils.getKindLabel('individual');
+  const individualDesc = stepKindUtils.getKindDescription('individual');
+  const individualIcon = stepKindUtils.getKindIcon('individual');
+  const grupoLabel = stepKindUtils.getKindLabel('grupo');
+  const grupoDesc = stepKindUtils.getKindDescription('grupo');
+  const grupoIcon = stepKindUtils.getKindIcon('grupo');
+
   return (
     <div className="space-y-4 text-center">
       <h1 className="text-3xl font-bold font-headline bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-purple-300 to-amber-200">
@@ -210,8 +218,12 @@ function StepKind({ state, setState, onNext }: any) {
         Antes de empezar, dinos quién eres en esta red. Tu cuenta puede ser personal o representar a una comunidad.
       </p>
       <div className="grid sm:grid-cols-2 gap-3 mt-6">
-        <KindCard icon={User} label="Individuo" desc="Una persona soberana en la red." selected={state.kind === 'individual'} onClick={() => { setState({ ...state, kind: 'individual' }); }} />
-        <KindCard icon={Users} label="Grupo" desc="Comunidad / Sangha / colectivo." selected={state.kind === 'grupo'} onClick={() => { setState({ ...state, kind: 'grupo' }); }} />
+        {individualLabel && individualDesc && individualIcon && (
+          <KindCard icon={individualIcon} label={individualLabel} desc={individualDesc} selected={state.kind === 'individual'} onClick={() => { setState({ ...state, kind: 'individual' }); }} />
+        )}
+        {grupoLabel && grupoDesc && grupoIcon && (
+          <KindCard icon={grupoIcon} label={grupoLabel} desc={grupoDesc} selected={state.kind === 'grupo'} onClick={() => { setState({ ...state, kind: 'grupo' }); }} />
+        )}
       </div>
       <Button onClick={onNext} disabled={!state.kind} className="mt-4">
         Continuar <ArrowRight className="w-3 h-3 ml-1" />
