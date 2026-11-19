@@ -87,4 +87,4 @@ export interface PropsDiseno {
     onSugerencia: (t: string) => void;
 }
 
-export type EstadoAsistente = "calma" | "escuchando" | "hablando" | "pensando";
+export type EstadoAsistente = "calma" | "escuchando" | "pensando" | "hablando" | "error";

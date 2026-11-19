@@ -62,6 +62,7 @@ vi.mock("lucide-react", () => ({
     Send: () => <svg data-testid="send" />,
     Sparkles: () => <svg data-testid="sparkles" />,
     Target: () => <svg data-testid="target" />,
+    Radar: () => <svg data-testid="radar" />,
 }));
 
 global.window.matchMedia = global.window.matchMedia || function () {
