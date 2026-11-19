@@ -412,6 +412,37 @@ def trabajadores_para(base, ahora_utc, colibri_activo, automejora_encendida):
     return max(1, n)
 
 
+def trabajadores_optimos_a1(base, cpu_pct, mem_pct, ram_total_gb, nucleos):
+    """PURA. Calcula los trabajadores óptimos para el A1 según CPU y memoria actuales.
+    
+    Sube desde `base` mientras haya recursos libres, sin pasar del tope por hardware.
+    `cpu_pct`: porcentaje de CPU usado (0-100). `mem_pct`: porcentaje de memoria usado (0-100).
+    `ram_total_gb`: RAM total en GB. `nucleos`: núcleos lógicos (os.cpu_count()).
+    
+    Tope por hardware: min(por_ram, por_cpu) donde:
+      - por_ram: ≤8.5 GB→3, ≤16.5→5, ≤32.5→8, más→12
+      - por_cpu: núcleos - 1
+    """
+    base = int(base or 0)
+    if base < 1:
+        return 1
+    # Tope por hardware (igual que gobernador_recursos.maximo_por_hardware)
+    por_ram = 3 if ram_total_gb <= 8.5 else 5 if ram_total_gb <= 16.5 else 8 if ram_total_gb <= 32.5 else 12
+    por_cpu = max(1, int(nucleos or 2) - 1)
+    tope_hw = max(1, min(por_ram, por_cpu))
+    
+    # Si CPU < 50% y memoria < 70%, se puede subir 1 (hasta tope_hw)
+    # Si CPU < 30% y memoria < 50%, se puede subir 2 (hasta tope_hw)
+    # Nunca más de tope_hw.
+    n = base
+    if cpu_pct is not None and mem_pct is not None:
+        if cpu_pct < 30 and mem_pct < 50:
+            n = min(tope_hw, base + 2)
+        elif cpu_pct < 50 and mem_pct < 70:
+            n = min(tope_hw, base + 1)
+    return max(1, min(n, tope_hw))
+
+
 def sin_secretos(texto):
     """PURA. Quita de un texto lo que nunca debe salir del A1: IPs, ids de Oracle y valores con
     forma de clave. Para los resúmenes que viajan en el estado."""
@@ -922,16 +953,25 @@ class Nodo:
             return False
 
     def _trabajadores_cola(self, ahora):
-        """(n, motivo) para una cola que empieza en `ahora`; como mucho TRABAJADORES cuando la
-        máquina está sola, uno menos por Colibri y otro por Meta^n dentro de su franja nocturna."""
+        """(n, motivo) para una cola que empieza en `ahora`; sube según CPU/memoria libres
+        (hasta tope por hardware), baja por Colibri y Meta^n en franja nocturna."""
         colibri = self._colibri_activo()
         automejora = self._automejora_encendida()
-        n = trabajadores_para(TRABAJADORES, ahora, colibri, automejora and en_franja_nocturna(ahora))
+        base = trabajadores_para(TRABAJADORES, ahora, colibri, automejora and en_franja_nocturna(ahora))
+        # Usar la última muestra de CPU/memoria para decidir si subir
+        cpu_pct = self.muestras[-1][1] if self.muestras else None
+        mem_pct = self.muestras[-1][2] if self.muestras else None
+        # A1: 2 OCPU = 4 hilos lógicos, 12 GB RAM
+        n = trabajadores_optimos_a1(base, cpu_pct, mem_pct, 12.0, 4)
         motivos = ["base %d" % TRABAJADORES]
         if colibri:
             motivos.append("Colibri -1")
-        if n < TRABAJADORES - int(colibri):
+        if automejora and en_franja_nocturna(ahora):
             motivos.append("Meta^n -1 (franja 00:40-05:40 UTC)")
+        if n > base:
+            motivos.append("recursos libres +%d" % (n - base))
+        elif n < base:
+            motivos.append("recursos ajustados -%d" % (base - n))
         return n, " + ".join(motivos)
 
     def _correr_cola(self, clave, sha, cola):

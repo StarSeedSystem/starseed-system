@@ -61,6 +61,21 @@ if DIRECTORIO not in sys.path:
 import urgencia_tarea  # noqa: E402  AUT1116A
 from freno_mismo_motivo import frenar_por_mismo_motivo
 
+#: (CAP1119B-d1) Guardia de disco del enjambre: si retiene arranques, la Mac no puede empezar
+#: tareas nuevas aunque el gobernador dé tope > 0. La nube debe coger el trabajo listo.
+def _guardia_disco_activa():
+    """PURA salvo E/S: True si la guardia de disco retiene arranques (disco < 10 GB)."""
+    try:
+        import importlib.util
+        ruta = os.path.join(os.path.dirname(DIRECTORIO), "enjambre", "guardia_disco.py")
+        spec = importlib.util.spec_from_file_location("guardia_disco_buscar", ruta)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        est = modulo.estado("/")
+        return bool(est.get("retiene_arranques"))
+    except Exception:
+        return False
+
 ESTADO = os.path.expanduser("~/.starseed/buscar-capacidad.json")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
 LATIDOS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -1135,6 +1150,13 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         except Exception as e:
             lineas.append("%s: no pude mirarla (%s: %s)" % (NOMBRES["mac"], type(e).__name__, e))
 
+        # (CAP1119B-d1) Si la guardia de disco retiene arranques (disco < 10 GB), la Mac no puede
+        # empezar tareas nuevas: para el reparto a la nube, su tope efectivo es 0.
+        tope_mac_efectivo = int(estado_mac.get("tope") or 0)
+        if _guardia_disco_activa():
+            tope_mac_efectivo = 0
+            lineas.append("%s: guardia de disco activa (retiene arranques) → tope efectivo 0 para la nube" % NOMBRES["mac"])
+
         # 1a · Escritores: una sonda de 1 token por proveedor (solo al pulsar el botón).
         sin_escritores = False
         sondas = []
@@ -1212,7 +1234,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
+            tope_mac=tope_mac_efectivo, tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
             potenciado=pot_gh,
         )
         if not pot_gh:

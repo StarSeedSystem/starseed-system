@@ -288,17 +288,22 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
+    # (CAP1119B-d1) Reintentar git push con espera exponencial: GitHub a veces rechaza
+    # empujes por rate limit, bloqueo temporal o conflictos de rama. No dejar el job sin salir.
+    push_cmd = ["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)]
+    rc_push, salida_push = _reintentar_push(push_cmd)
     if rc_push != 0:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
-    rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
-                                 "-f", "cola=%s" % cola,
-                                 "-f", "trabajadores=%s" % trabajadores,
-                                 "-f", "minutos=%s" % minutos])
+        sys.exit("no pude empujar la rama de la cola tras reintentos: %s" % motivo_push(salida_push))
+    # Reintentar gh workflow run si falla por rate limit o error temporal
+    run_cmd = ["gh", "workflow", "run", WORKFLOW, "--ref", rama,
+               "-f", "cola=%s" % cola,
+               "-f", "trabajadores=%s" % trabajadores,
+               "-f", "minutos=%s" % minutos]
+    rc_run, salida_run = _reintentar_gh_run(run_cmd)
     if rc_run != 0:
         _no_lanzada(cola)
-        sys.exit("gh no pudo disparar el workflow: %s" % (salida_run.strip()[-300:] or "?"))
+        sys.exit("gh no pudo disparar el workflow tras reintentos: %s" % (salida_run.strip()[-300:] or "?"))
     run_id = _esperar_run(rama)
     if not run_id:
         sys.exit("el workflow se disparó pero GitHub no registró ningún run en 40 s: "

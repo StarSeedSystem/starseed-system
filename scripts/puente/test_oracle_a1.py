@@ -245,6 +245,37 @@ class OrquestadorDeLaCola(unittest.TestCase):
         self.assertEqual(A.orquestador_para(d, explicito="/a-mano", defecto="/instalado"), "/a-mano")
 
 
+class TrabajadoresOptimosA1(unittest.TestCase):
+    """(CAP1119B-d1) El A1 sube trabajadores mientras tenga CPU/memoria libres, con tope por hardware."""
+
+    def test_tope_por_hardware_a1_2ocpu_12gb(self):
+        # A1: 2 OCPU = 4 hilos lógicos, 12 GB RAM → por_cpu=3, por_ram=5 → tope=3
+        # CPU 10%, mem 10% → +2 (base 1 → 3, tope 3)
+        self.assertEqual(A.trabajadores_optimos_a1(1, 10, 10, 12.0, 4), 3)
+        self.assertEqual(A.trabajadores_optimos_a1(2, 10, 10, 12.0, 4), 3)
+        self.assertEqual(A.trabajadores_optimos_a1(3, 10, 10, 12.0, 4), 3)
+        self.assertEqual(A.trabajadores_optimos_a1(4, 10, 10, 12.0, 4), 3)  # no pasa del tope
+
+    def test_sube_con_cpu_baja_y_memoria_baja(self):
+        # CPU < 30% y mem < 50% → +2 hasta tope
+        self.assertEqual(A.trabajadores_optimos_a1(1, 20, 40, 12.0, 4), 3)
+        self.assertEqual(A.trabajadores_optimos_a1(2, 20, 40, 12.0, 4), 3)
+        # CPU < 50% y mem < 70% → +1 hasta tope
+        self.assertEqual(A.trabajadores_optimos_a1(1, 40, 60, 12.0, 4), 2)
+        self.assertEqual(A.trabajadores_optimos_a1(2, 40, 60, 12.0, 4), 3)
+
+    def test_no_sube_con_cpu_alta_o_memoria_alta(self):
+        self.assertEqual(A.trabajadores_optimos_a1(1, 60, 40, 12.0, 4), 1)  # CPU alta
+        self.assertEqual(A.trabajadores_optimos_a1(1, 20, 80, 12.0, 4), 1)  # mem alta
+        self.assertEqual(A.trabajadores_optimos_a1(2, 60, 60, 12.0, 4), 2)  # ambas altas
+
+    def test_nunca_baja_de_1_ni_pasa_de_tope_hw(self):
+        self.assertEqual(A.trabajadores_optimos_a1(0, 10, 10, 12.0, 4), 1)
+        self.assertEqual(A.trabajadores_optimos_a1(5, 10, 10, 12.0, 4), 3)  # tope HW = 3
+        # 8 GB RAM, 2 núcleos → por_ram=3, por_cpu=1 → tope=1
+        self.assertEqual(A.trabajadores_optimos_a1(1, 10, 10, 8.0, 2), 1)
+
+
 class ModelosOllama(unittest.TestCase):
     """(2026-10-19) La fila «Ollama» del A1 en Genesis dice qué modelos locales tiene y cuánto pesan."""
 
