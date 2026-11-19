@@ -14,7 +14,9 @@ nuevas de modelos: se reutiliza lo que Genesis ya tiene.
      «peligro», y el tope diario de Opus del cartero sin agotar.
   2. Hermes (`hermes -z`), que ya se autoenruta por los proveedores gratuitos vivos
      (`enrutar-hermes.py` ordena su cadena con el informe de pasarelas).
-  3. ChatGPT por Codex (`codex exec`), si está instalado.
+  3. Antigravity (`agy`, GEM1118A), con la sesión de la cuenta de Google de Alex: cuota de
+     Antigravity, sin clave de API. Si el binario no existe, se salta.
+  4. ChatGPT por Codex (`codex exec`), si está instalado.
 
 Si el primero no está o falla, se prueba el siguiente y la respuesta dice por qué. Si
 nadie puede, el mensaje queda EN COLA (entrega «pendiente» con su detalle visible) y se
@@ -52,11 +54,12 @@ except Exception:
     TOPE_CONTEXTO_PRESIDENTE = 16000
 
 #: Mismo orden e ids que `PROVEEDORES_PRESIDENTE` de `src/lib/mando/chat-director-tipos.ts`.
-PROVEEDORES = ("claude", "hermes", "chatgpt")
-NOMBRES = {"claude": "Claude", "hermes": "Hermes", "chatgpt": "ChatGPT"}
+PROVEEDORES = ("claude", "hermes", "agy", "chatgpt")
+NOMBRES = {"claude": "Claude", "hermes": "Hermes", "agy": "Antigravity", "chatgpt": "ChatGPT"}
 MODELOS = {
     "claude": "claude-mac/" + motores_director.MODELO_DIRECTOR,
     "hermes": "hermes/predeterminado",
+    "agy": "agy/" + motores_director.MODELO_AGY,
     "chatgpt": "codex/gpt-5-codex",
 }
 CANAL = "director-presidente"
@@ -333,6 +336,30 @@ def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
     return texto, "", uso
 
 
+def _llamar_agy(prompt, correr, plan=False):
+    """GEM1118A. Antigravity (`agy`) con la sesión de Google de Alex.
+
+    Sin `SIN_ENTRADA` (stdin DEVNULL) agy espera a que alguien escriba y se cuelga. El prompt
+    largo o de plan usa el modelo de plan. Toda salida que no sea una respuesta (vacía, cuota,
+    sesión, tiempo agotado) es un fallo: nunca se publica un error como respuesta.
+    """
+    modelo = motores_director.MODELO_AGY_PLAN if plan or len(prompt or "") > motores_director.TOPE_PROMPT_AGY \
+        else motores_director.MODELO_AGY
+    rc, salida = correr(
+        motores_director.orden_agy(prompt, modelo),
+        entrada=motores_director.SIN_ENTRADA,
+        cwd=str(RAIZ),
+        segundos=motores_director.SEGUNDOS_AGY,
+    )
+    lectura = motores_director.leer_agy(salida, rc)
+    if lectura.get("error") or not lectura.get("texto"):
+        motivo = lectura.get("error") or salida or "sin salida (rc=%s)" % rc
+        return None, director_chat.tachar(str(motivo)[:200]), {}
+    uso = {"tokensEntrada": lectura["tokens_entrada"], "tokensSalida": lectura["tokens_salida"],
+           "coste": 0.0, "modelo": lectura.get("modelo") or modelo}
+    return lectura["texto"].strip(), "", uso
+
+
 def _llamar_chatgpt(prompt, correr):
     rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt,
                         segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
@@ -598,6 +625,7 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         "claude": disponibilidad_claude(datos_limites, ahora, int(estado.get("opus_hoy") or 0), tope_opus)
         if existe("claude") else (False, "la orden claude no está instalada"),
         "hermes": (True, "") if existe("hermes") else (False, "la orden hermes no está instalada"),
+        "agy": (True, "") if existe("agy") else (False, "la orden agy no está instalada"),
         "chatgpt": (True, "") if existe("codex") else (False, "la orden codex no está instalada"),
     }
     candidatos, descartes = ordenar(disponibilidad, enfriados, ahora)
@@ -642,6 +670,8 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
                     avisar_pausa_hermes(estado, info["pausa"], raiz=raiz, ahora=ahora)
                 elif texto and sesion_hermes:
                     hermes_reabierta(estado, sesion_hermes, raiz=raiz)
+            elif p == "agy":
+                texto, motivo, uso = _llamar_agy(prompt, correr, plan=es_encargo)
             else:
                 texto, motivo, uso = _llamar_chatgpt(prompt, correr)
         except OSError as e:
@@ -655,7 +685,11 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         enfriados.pop(p, None)
         uso = dict(uso)
         uso["segundos"] = round(time.time() - inicio, 1)
-        eleccion = {"proveedor": p, "modelo": MODELOS[p]}
+        # GEM1118A: el medidor de motores anota «agy/<modelo real>», no solo el de por defecto.
+        modelo_publicado = MODELOS[p]
+        if p == "agy":
+            modelo_publicado = "agy/" + str(uso.pop("modelo", None) or motores_director.MODELO_AGY)
+        eleccion = {"proveedor": p, "modelo": modelo_publicado}
 
         # PET1112I: Para encargo, la respuesta es el plan mejorado (JSON)
         if es_encargo and datos_encargo:
@@ -681,7 +715,7 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         if descartes:
             eleccion["descartes"] = [{"proveedor": d, "motivo": m} for d, m in descartes]
         director_chat.publicar(
-            texto, de=CANAL, rol="director", tipo="respuesta", canal=CANAL, modelo=MODELOS[p],
+            texto, de=CANAL, rol="director", tipo="respuesta", canal=CANAL, modelo=modelo_publicado,
             responde_a=idm, uso=uso, raiz=raiz, sintesis=True, eleccion=eleccion,
         )
         director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
@@ -713,7 +747,7 @@ __all__ = [
     "prompt_presidente", "prompt_sesion_fresca",
     "disponibilidad_claude", "ordenar", "texto_descartes",
     "intervalo_cola", "detalle_cola", "huella_proveedores", "despertar_cola",
-    "_llamar_claude", "_llamar_hermes", "_llamar_chatgpt",
+    "_llamar_claude", "_llamar_hermes", "_llamar_agy", "_llamar_chatgpt",
     "texto_aviso_pausa", "texto_aviso_recuperada", "avisar_pausa_hermes",
     "hermes_reabierta", "descripcion_sesion_nueva", "fuera_de_vista",
     "existe_cli", "leer_limites", "atender",
