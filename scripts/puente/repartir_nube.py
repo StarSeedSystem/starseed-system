@@ -10,8 +10,11 @@ nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
 import json
+import math
 import os
 import re
+import shutil
+import subprocess
 import time
 
 import urgencia_tarea
@@ -1068,6 +1071,296 @@ def motivo_pausa(datos, ahora_local=None):
             return None
     return str(datos.get("motivo") or "pausada a mano").strip()
 
+
+# ── Cloudroom: reparto respetando el cupo mensual (100 hilos / 30 días) ─────────────
+#: Cupo del plan gratis de Cloudroom: 100 hilos en 30 días (ventana móvil).
+CLOUDROOM_CICLO_DIAS = 30
+CLOUDROOM_CICLO_S = CLOUDROOM_CICLO_DIAS * 86400
+CLOUDROOM_TOTAL_HILOS = 100
+#: Tope de hilos abiertos a la vez (como el carril de Claude en la nube).
+CLOUDROOM_MAX_VIVOS = 3
+#: Tope por día (se puede sobrescribir con STARSEED_CLOUDROOM_TOPE_DIA).
+CLOUDROOM_TOPE_DIA = int(os.environ.get("STARSEED_CLOUDROOM_TOPE_DIA") or 6)
+
+
+def _leer_registro_cloudroom(ruta=None):
+    """Lee el registro de hilos de Cloudroom (~/.starseed/cloudroom-hilos.json). PURA salvo E/S."""
+    ruta = ruta or os.path.expanduser("~/.starseed/cloudroom-hilos.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return d if isinstance(d, list) else []
+
+
+def _filas_abiertas_cloudroom(registro):
+    """Hilos del registro sin estado final ('traida', 'parche', 'devuelta', 'olvidada', 'medio')."""
+    FALLO_MEDIO = "medio"
+    return [x for x in registro if isinstance(x, dict) and x.get("tarea") and x.get("hilo")
+            and x.get("final") not in ("traida", "parche", "devuelta", "olvidada", FALLO_MEDIO)]
+
+
+def _contar_hilos_ciclo(registro, ahora, total=CLOUDROOM_TOTAL_HILOS):
+    """PURA: cuántos hilos del ciclo de 30 días se han usado (ventana móvil)."""
+    ventana = sorted(_t(x) for x in _filas_abiertas_cloudroom(registro)
+                     if ahora - _t(x) < CLOUDROOM_CICLO_S)
+    usados = max(len(ventana), 0)
+    quedan = max(0, int(total) - usados)
+    return usados, quedan
+
+
+def _t(x):
+    try:
+        return float(x.get("t") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _medianoche(ahora):
+    """PURA salvo zona horaria: inicio del día local de `ahora`."""
+    t = time.localtime(ahora)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def ritmo_cloudroom(registro, ahora, total=CLOUDROOM_TOTAL_HILOS, usados_cuenta=0,
+                    max_vivos=CLOUDROOM_MAX_VIVOS, tope_dia=CLOUDROOM_TOPE_DIA, potenciado=False):
+    """PURA. {"hoy", "quedan", "motivo", "por_dia"}: cuántos hilos caben AHORA sin agotar el ciclo.
+
+    Cada hilo cuenta 30 días (ventana móvil); lo usado es lo mayor entre el registro y lo que diga la
+    cuenta. El cupo de HOY = lo que quedaba al empezar el día ÷ días hasta que el hilo más viejo
+    salga del ciclo (30 sin ninguno), hacia ARRIBA y con `tope_dia`, menos lo lanzado hoy.
+    """
+    usados, quedan = _contar_hilos_ciclo(registro, ahora, total)
+    if quedan <= 0:
+        return {"hoy": 0, "quedan": 0, "por_dia": 0.0,
+                "motivo": "sin cupo: %d de %d hilos de la nube usados en %d días" % (usados, total, CLOUDROOM_CICLO_DIAS)}
+    vivos = len(_filas_abiertas_cloudroom(registro))
+    hoy_ya = sum(1 for x in _filas_abiertas_cloudroom(registro) if _t(x) >= _medianoche(ahora))
+    ventana = sorted(_t(x) for x in _filas_abiertas_cloudroom(registro)
+                     if ahora - _t(x) < CLOUDROOM_CICLO_S)
+    dias = max(1.0, (ventana[0] + CLOUDROOM_CICLO_S - ahora) / 86400.0) if ventana else float(CLOUDROOM_CICLO_DIAS)
+    crudo = (quedan + hoy_ya) / dias
+    por_dia = float(min(int(tope_dia), int(math.ceil(crudo)))) if crudo >= 1 else crudo
+    reparto = "quedan %d para %.0f día(s): %s, tope %d" % (
+        quedan, dias, ("%d al día" % por_dia) if por_dia >= 1 else ("1 cada %.0f días" % (1 / por_dia)), int(tope_dia))
+    if vivos >= max_vivos:
+        return {"hoy": 0, "quedan": quedan, "por_dia": por_dia,
+                "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
+    if potenciado:
+        hoy = max(0, min(quedan, max_vivos - vivos))
+        return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "potenciado": True,
+                "motivo": "potenciado: caben %d ahora (quedan %d del ciclo, sin reparto por día)" % (hoy, quedan)}
+    if por_dia >= 1:
+        hoy = int(por_dia) - hoy_ya
+    else:
+        hoy = 1 if not hoy_ya and (not ventana or ahora - ventana[-1] >= 86400.0 / por_dia) else 0
+    hoy = max(0, min(hoy, quedan, max_vivos - vivos))
+    motivo = ("caben %d (%s)" % (hoy, reparto)) if hoy else ("sin cupo hoy: ya van %d hoy (%s)" % (hoy_ya, reparto))
+    return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "motivo": motivo}
+
+
+def elegir_para_cloudroom(colas, progreso, asuntos_main, ola_actual, registro, ahora,
+                          envios=None, max_archivos=MAX_ARCHIVOS_NUBE, max_envios=MAX_ENVIOS_NUBE,
+                          mismo_lote=(), potenciado=False):
+    """PURA. Hasta `tope` candidatas para Cloudroom, deduplicadas, ordenadas por prioridad.
+
+    Cloudroom respeta el mismo filtro que GitHub Actions (`motivo_fuera`) PERO:
+    - No descarta por `grande` (Cloudroom no tiene límite de 3 archivos; el agente corre en la nube)
+    - Respeta el ritmo mensual (100 hilos / 30 días) via `ritmo_cloudroom`
+    - Las tareas elegidas se marcan `reasignada · cloudroom`
+    """
+    import math
+    r = ritmo_cloudroom(registro, ahora, potenciado=potenciado)
+    if r["hoy"] <= 0:
+        return [], r
+    tope = r["hoy"]
+    # Mismo filtro que `elegir` pero SIN el límite de archivos (Cloudroom no lo tiene)
+    salida, vistas = [], set()
+    n_actual = numero_ola(str(ola_actual)) if ola_actual else None
+    for nombre, tareas in colas:
+        for tarea in tareas:
+            if not isinstance(tarea, dict) or not tarea.get("id"):
+                continue
+            tid = str(tarea["id"])
+            if tid in vistas:
+                continue
+            # Cloudroom: no filtra por `grande` (max_archivos = infinito)
+            if motivo_fuera(tarea, progreso, asuntos_main, n_actual, envios,
+                            max_archivos=10**6, max_envios=max_envios, mismo_lote=mismo_lote, ahora=ahora):
+                continue
+            vistas.add(tid)
+            candidata = dict(tarea)
+            if MODELO_NUBE:
+                candidata["modelo"] = MODELO_NUBE
+            deps = candidata.get("depende") or candidata.get("depende_de") or []
+            if deps:
+                deps = list(deps) if isinstance(deps, list) else [deps]
+                lote = set(str(x) for x in mismo_lote or ())
+                en_lote = [d for d in deps if str(d) in lote]
+                hechas = [d for d in deps if str(d) not in lote]
+                candidata["depende"] = en_lote
+                candidata.pop("depende_de", None)
+                if hechas:
+                    candidata["dependencias_ya_en_main"] = hechas
+            salida.append(candidata)
+    salida.sort(key=lambda t: (-urgencia_tarea.prioridad_de_tarea(t), _n_archivos(t)))
+    return salida[:tope], r
+
+
+# ── A1 (Oracle Always Free): escalado según CPU y memoria libres ──────────────────
+#: Capacidad del A1 (contrato architecture/oracle-nube.md §1, medido 2026-10-07).
+CAPACIDAD_A1_CPU = 2  # OCPU
+CAPACIDAD_A1_MEM_GB = 12
+#: Reserva para el sistema y el orquestador del A1.
+A1_RESERVA_CPU_PCT = 15  # % de CPU reservado
+A1_RESERVA_MEM_GB = 2    # GB reservados
+#: Un agente del enjambre en el A1 consume aprox.
+AGENTE_A1_CPU_PCT = 5    # % de CPU por agente
+AGENTE_A1_MEM_GB = 1.5   # GB por agente
+#: Tope máximo de agentes en el A1 (por hardware y estabilidad).
+MAX_AGENTES_A1 = 4
+
+
+def capacidad_a1(oracle_datos, consumo=None, ahora=None):
+    """PURA. Cuántos agentes puede correr el A1 AHORA según su CPU y memoria libres.
+
+    `oracle_datos`: dict de `oracle.json` con `instancias` y `nodo`.
+    `consumo`: dict de `oracle-consumo.json` con `margen` (cpu_libre_pct, mem_libre_gb).
+    Devuelve: (agentes_posibles, motivo, cpu_libre_pct, mem_libre_gb).
+    """
+    ahora = time.time() if ahora is None else ahora
+    if not oracle_datos or not oracle_datos.get("vinculada"):
+        return 0, "Oracle no vinculada", 0, 0
+    instancias = oracle_datos.get("instancias") or []
+    a1 = next((i for i in instancias if isinstance(i, dict)
+               and "a1" in (str(i.get("nombre")) + str(i.get("forma"))).lower()), {})
+    if str(a1.get("estado") or "").upper() != "RUNNING":
+        return 0, "A1 no está RUNNING", 0, 0
+    # CPU y memoria libres desde el medidor de consumo (medidor_oracle.py cada 30 min)
+    cpu_libre = 100.0 - A1_RESERVA_CPU_PCT
+    mem_libre = CAPACIDAD_A1_MEM_GB - A1_RESERVA_MEM_GB
+    if consumo and isinstance(consumo, dict) and consumo.get("leido"):
+        margen = consumo.get("margen") or {}
+        if isinstance(margen.get("cpu_libre_pct"), (int, float)):
+            cpu_libre = max(0.0, float(margen["cpu_libre_pct"]) - A1_RESERVA_CPU_PCT)
+        if isinstance(margen.get("mem_libre_gb"), (int, float)):
+            mem_libre = max(0.0, float(margen["mem_libre_gb"]) - A1_RESERVA_MEM_GB)
+    # Agentes que caben por CPU y por memoria
+    por_cpu = int(cpu_libre / AGENTE_A1_CPU_PCT) if cpu_libre > 0 else 0
+    por_mem = int(mem_libre / AGENTE_A1_MEM_GB) if mem_libre > 0 else 0
+    agentes = min(por_cpu, por_mem, MAX_AGENTES_A1)
+    motivo = ("A1: %d agentes (CPU libre %.1f %%, MEM libre %.1f GB, tope %d)"
+              % (agentes, cpu_libre, mem_libre, MAX_AGENTES_A1))
+    return agentes, motivo, cpu_libre, mem_libre
+
+
+# ── Guardia de disco/memoria de la Mac: cuando frena, la nube coge el trabajo ───────
+#: Umbral de disco libre (GB) bajo el cual la guardia retiene arranques.
+GUARDIA_DISCO_GB = 10.0
+#: Umbral de memoria libre (MB) bajo el cual el gobernador baja el tope.
+GUARDIA_MEMORIA_MB = 1024.0
+
+
+def guardia_mac_activa(gobernador=None, disco_raiz="/"):
+    """PURA salvo E/S: True si la guardia de disco O el gobernador por memoria retienen arranques.
+
+    `gobernador`: dict de `~/.starseed/gobernador.json` (trabajadores, tope, motivo_tope, ram_libre_mb).
+    `disco_raiz`: ruta para comprobar espacio libre (por defecto "/").
+    """
+    # Guardia de disco
+    try:
+        import shutil
+        libre = shutil.disk_usage(disco_raiz).free / (1024 ** 3)
+        if libre < GUARDIA_DISCO_GB:
+            return True
+    except Exception:
+        pass
+    # Gobernador por memoria (tope bajado por swap/RAM)
+    if gobernador:
+        motivo = str(gobernador.get("motivo_tope") or gobernador.get("motivo") or "")
+        if ("swap" in motivo.lower() or "ram" in motivo.lower() or "memoria" in motivo.lower()
+                or "recursos" in motivo.lower()):
+            return True
+        ram_libre = float(gobernador.get("ram_libre_mb") or 0)
+        if ram_libre > 0 and ram_libre < GUARDIA_MEMORIA_MB:
+            return True
+    return False
+
+
+def tope_mac_efectivo(gobernador=None, disco_raiz="/"):
+    """PURA. Tope efectivo de la Mac para el reparto: 0 si la guardia frena, si no el tope del gobernador."""
+    if guardia_mac_activa(gobernador, disco_raiz):
+        return 0, "guardia de disco/memoria activa: la Mac no arranca tareas nuevas"
+    if gobernador and isinstance(gobernador.get("trabajadores"), int):
+        return int(gobernador["trabajadores"]), ""
+    return 3, "tope por defecto (3)"
+
+
+# ── GitHub push: reintento con espera exponencial (no deja el job sin salir) ────────
+def _reintentar_push(cmd, intentos=5, espera_base=5, espera_max=120):
+    """PURA salvo subprocess: ejecuta `git push` con reintentos y espera exponencial.
+
+    Devuelve (returncode, salida_combinada). No lanza: el llamador decide qué hacer.
+    """
+    import subprocess
+    espera = espera_base
+    for i in range(intentos):
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            if p.returncode == 0:
+                return 0, p.stdout + p.stderr
+            salida = (p.stdout or "") + (p.stderr or "")
+            # Rate limit, bloqueo temporal, conflicto de rama → reintentar
+            if any(k in salida for k in ("rate limit", "temporarily blocked", "lock", "conflict",
+                                          "GH013", "push declined", "403", "429")):
+                if i + 1 < intentos:
+                    time.sleep(min(espera, espera_max))
+                    espera *= 2
+                    continue
+            return p.returncode, salida
+        except subprocess.TimeoutExpired:
+            if i + 1 < intentos:
+                time.sleep(min(espera, espera_max))
+                espera *= 2
+                continue
+            return 1, "timeout tras %d intentos" % intentos
+        except Exception as e:
+            return 1, "%s: %s" % (type(e).__name__, e)
+    return 1, "agotados %d reintentos" % intentos
+
+
+def _reintentar_gh_run(cmd, intentos=3, espera_base=10, espera_max=60):
+    """PURA salvo subprocess: ejecuta `gh workflow run` con reintentos.
+
+    Devuelve (returncode, salida_combinada). No lanza.
+    """
+    import subprocess
+    espera = espera_base
+    for i in range(intentos):
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if p.returncode == 0:
+                return 0, p.stdout + p.stderr
+            salida = (p.stdout or "") + (p.stderr or "")
+            if any(k in salida for k in ("rate limit", "429", "temporar", "503", "504")):
+                if i + 1 < intentos:
+                    time.sleep(min(espera, espera_max))
+                    espera *= 2
+                    continue
+            return p.returncode, salida
+        except subprocess.TimeoutExpired:
+            if i + 1 < intentos:
+                time.sleep(min(espera, espera_max))
+                espera *= 2
+                continue
+            return 1, "timeout tras %d intentos" % intentos
+        except Exception as e:
+            return 1, "%s: %s" % (type(e).__name__, e)
+    return 1, "agotados %d reintentos" % intentos
+
+
+import math
 
 def nube_pausada(ruta=PAUSA_NUBE):
     """Motivo de la pausa de la nube, o None si se puede repartir. Nunca lanza."""
