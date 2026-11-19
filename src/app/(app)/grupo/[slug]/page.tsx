@@ -452,9 +452,79 @@ function GrupoPageContent() {
                 </GlassCard>
             ),
         });
+        // SES1115Q · Pestañas del espacio (P1-B): leídas de la clave `espacio` y añadidas
+        // al final; se referencian, no se duplican. Con error o cargando no se añade nada.
+        const refEspacio = useMemo(() => entityRef ?? { kind: "group" as const, id: "" }, [entityRef]);
+        const espacio = usarEspacio(refEspacio, { rango: isOwner ? 4 : 0, roles: SIN_ROLES_ESPACIO });
+        const pestanasEspacio = useMemo(() => {
+            if (espacio.error || espacio.cargando) return [];
+            const idsBase = new Set(baseTabs.map((t) => t.id));
+            return aPestanasDePagina(
+                espacio.pestanas.filter((p) => !idsBase.has(p.id)),
+                EN_DIRECTO_ESPACIO,
+                (p) => (
+                    <GlassCard className="p-6 text-center">
+                        <p className="font-headline text-lg font-semibold">{p.titulo}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">Sesión en vivo de este espacio ({p.tipo}).</p>
+                        <Button asChild size="sm" variant="outline" className="mt-4 cursor-pointer gap-1.5">
+                            <Link href={`/vivo/${p.sesionId}`}>Abrir la sesión en vivo</Link>
+                        </Button>
+                    </GlassCard>
+                ),
+            );
+        }, [espacio.pestanas, espacio.error, espacio.cargando, baseTabs]);
+
         list.push({
             id: "biblioteca",
             label: "Biblioteca",
+            node: (
+                <EntityLibraryPanel
+                    ref={libraryRef("group", group.slug)}
+                    accent={accentForTabs}
+                    title={`Biblioteca de ${group.name}`}
+                    subtitle="Referencias guardadas por los miembros del grupo, organizadas en folders propios."
+                />
+            ),
+        });
+        list.push({ id: "colecciones", label: "Colecciones", node: <CollectionsGrid /> });
+        list.push({
+            id: "secciones",
+            label: "Secciones",
+            node: (
+                <FreeSectionsBlock
+                    sections={layout.sections}
+                    isOwner={isOwner}
+                    accent={accentForTabs}
+                    onAdd={addSection}
+                    onUpdate={updateSection}
+                    onRemove={removeSection}
+                    emptyHint="Añade bloques de contenido propios para este grupo (markdown libre)."
+                />
+            ),
+        });
+        if (layout.integrations.educacion) {
+            list.push({ id: "integracion-educacion", label: "Educación", node: <GroupEducationPanel slug={group.slug} accent={accentForTabs} entityKind="group" /> });
+        }
+        if (layout.integrations.gobernanza) {
+            list.push({ id: "integracion-gobernanza", label: "Gobernanza", node: <DecisionesSection kind={group.kind} slug={group.slug} accent={accentForTabs} name={group.name} /> });
+            list.push({ id: "integracion-justicia", label: "Justicia restaurativa", node: <MediationSection entityKind="group" slug={group.slug} accent={accentForTabs} name={group.name} /> });
+        }
+        if (layout.integrations.galeria) {
+            list.push({
+                id: "integracion-galeria",
+                label: "Galería",
+                node: (
+                    <EntityGalleryBlock
+                        images={layout.gallery}
+                        isOwner={isOwner}
+                        onAdd={addGalleryImage}
+                        onRemove={removeGalleryImage}
+                        emptyHint="Añade imágenes destacadas de este grupo."
+                    />
+                ),
+            });
+        }
+        return list;
             node: (
                 <EntityLibraryPanel
                     ref={libraryRef("group", group.slug)}
