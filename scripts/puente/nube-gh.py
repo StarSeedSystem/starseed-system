@@ -288,10 +288,26 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
+
+    def _push_con_reintentos(orden_push, max_intentos=3):
+        """Ejecuta git push con reintentos y espera exponencial. Devuelve (rc, salida)."""
+        for intento in range(1, max_intentos + 1):
+            rc, salida = _sh_rc(orden_push)
+            if rc == 0:
+                return rc, salida
+            if intento < max_intentos:
+                espera = 2 ** intento
+                print("push falló (intento %d/%d): %s — reintentando en %ds" %
+                      (intento, max_intentos, motivo_push(salida)[:120], espera))
+                time.sleep(espera)
+        return rc, salida
+
+    rc_push, salida_push = _push_con_reintentos(
+        ["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)]
+    )
     if rc_push != 0:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
+        sys.exit("no pude empujar la rama de la cola tras 3 intentos: %s" % motivo_push(salida_push))
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,

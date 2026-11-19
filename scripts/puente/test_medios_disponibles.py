@@ -58,6 +58,16 @@ class Clasificar(unittest.TestCase):
         self.assertEqual(d["estado"], "usable")
         self.assertIn("proy", d["detalle"])
 
+    def test_gcloud_requiere_alex_si_facturacion_deshabilitada(self):
+        # Cloud Run requiere facturación habilitada; si no lo está, no es usable
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion=False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
+        self.assertIn("billing", d["siguiente_paso"])
+        # Con facturación habilitada vuelve a usable
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion=True)
+        self.assertEqual(d["estado"], "usable")
+
     def test_ningun_medio_inventa_un_estado(self):
         for m in (M.clasificar_mac(None), M.clasificar_claude(None, 1.0),
                   M.clasificar_gh(True, True, ["X"], []), M.clasificar_hf(None, None, "sin_token"),

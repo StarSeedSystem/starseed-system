@@ -125,6 +125,42 @@ class OracleTieneCapacidadReal(unittest.TestCase):
         self.assertIn("vincular", c["falta"])
 
 
+class OracleCapacidadDinamica(unittest.TestCase):
+    """(CAP1119B) El A1 escala sus agentes según CPU y memoria libres, con su propio tope."""
+
+    CONSUMO_CPU_LIBRE = {"leido": "2026-11-19T00:00:00Z", "freno": {"activo": False},
+                         "margen": {"apto": True, "cpu_libre_pct": 85.0, "mem_libre_gb": 10.0}}
+    CONSUMO_CPU_JUSTA = {"leido": "2026-11-19T00:00:00Z", "freno": {"activo": False},
+                         "margen": {"apto": True, "cpu_libre_pct": 20.0, "mem_libre_gb": 2.0}}
+    CONSUMO_SIN_MARGEN = {"leido": "2026-11-19T00:00:00Z", "freno": {"activo": False},
+                          "margen": {}}
+
+    def _cat_base(self):
+        return {"jobs_simultaneos": 1, "agentes_por_job": 3, "coste": "Always Free"}
+
+    def test_con_mucho_cpu_y_memoria_libres_sube_hasta_el_tope(self):
+        # A1: 2 OCPU, 12 GB. Con 85% CPU libre y 10 GB libres, caben más agentes.
+        # Tope razonable: 6 agentes (3 por OCPU)
+        cat = C._catalogo_oracle_medido(self._cat_base(), self.CONSUMO_CPU_LIBRE)
+        # Con 85% CPU libre de 2 OCPU = 1.7 OCPU libres → ~5 agentes, pero tope 6
+        self.assertGreaterEqual(cat["jobs_simultaneos"], 1)
+        self.assertLessEqual(cat["jobs_simultaneos"], 2)  # jobs, no agentes directos
+
+    def test_con_poco_cpu_y_memoria_se_queda_en_minimo(self):
+        cat = C._catalogo_oracle_medido(self._cat_base(), self.CONSUMO_CPU_JUSTA)
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+
+    def test_sin_datos_de_margen_usa_catalogo_base(self):
+        cat = C._catalogo_oracle_medido(self._cat_base(), self.CONSUMO_SIN_MARGEN)
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+
+    def test_el_tope_maximo_es_6_agentes(self):
+        # 2 OCPU × 3 agentes/OCPU = 6 agentes máximo
+        cat = C._catalogo_oracle_medido({"jobs_simultaneos": 1, "agentes_por_job": 6, "coste": "Always Free"},
+                                         self.CONSUMO_CPU_LIBRE)
+        self.assertLessEqual(cat["jobs_simultaneos"] * cat["agentes_por_job"], 6)
+
+
 class ClaudeEnLaNube(unittest.TestCase):
     """(ALT1022C) Las sesiones de Claude Code en la nube son un medio: tienen crédito propio."""
 

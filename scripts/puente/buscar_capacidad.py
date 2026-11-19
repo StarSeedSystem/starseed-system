@@ -324,13 +324,15 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
 
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
               tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
-              motivo_tope="", notas=None, potenciado=False):
+              motivo_tope="", notas=None, potenciado=False, mac_guardada=False):
     """PURA. Qué hacer con la nube: {"lanzar": n, "reabrir": [ids], "trabajadores": w, "por_que": str}.
 
     - En pausa o con los jobs al tope: nada, diciendo por qué es ese el tope (`motivo_tope`).
     - Las elegibles van primero. Si no llenan el sitio libre, se reabren agotadas (las que
       `puede_reabrir`), pero nunca tantas que la Mac se quede sin trabajo para su tope:
       la nube suma, no le quita a la Mac lo que la Mac ya puede hacer.
+    - Si `mac_guardada` (guardia de disco/memoria), la Mac no puede coger más trabajo:
+      la nube ignora el límite de `sobra_mac` y coge todo lo que quepa.
     """
     nada = {"lanzar": 0, "reabrir": [], "trabajadores": 0}
     if pausa:
@@ -345,7 +347,10 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
     elegibles = list(elegibles or [])
     reabrir = []
     if len(elegibles) < sitio:
-        sobra_mac = max(0, int(listas_mac) - int(tope_mac))
+        if mac_guardada:
+            sobra_mac = sitio - len(elegibles)
+        else:
+            sobra_mac = max(0, int(listas_mac) - int(tope_mac))
         cupo = min(max_reabrir, sitio - len(elegibles), sobra_mac)
         candidatas = [t for t in (agotadas or [])
                       if (puede_reabrir_potenciada((reaperturas or {}).get(t), ahora) if potenciado
@@ -1209,11 +1214,14 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                               escritores_nube, vivos=vivos)
         if freno_frase:
             tope = (vivos, freno_frase)
+        # Detectar si la Mac está frenada por guardia de disco/memoria
+        motivo_tope_mac = str(estado_mac.get("motivo_tope") or "").lower()
+        mac_guardada = any(p in motivo_tope_mac for p in ("swap", "memoria", "ram", "disco"))
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
             tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
-            potenciado=pot_gh,
+            potenciado=pot_gh, mac_guardada=mac_guardada,
         )
         if not pot_gh:
             _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))

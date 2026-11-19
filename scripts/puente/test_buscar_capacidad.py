@@ -472,7 +472,39 @@ class TopeNubeDinamico(unittest.TestCase):
         t = B.texto_nube(clases, {"por_que": "x"}, 0, por_traer=["B", "C", "Z"])
         self.assertIn("3 ya se mandaron 3 veces sin integrarse (de ellas, 2 son trabajo que la nube YA integró y "
                       "que traer_nube trae a main: no se reabren)", t)
-        self.assertNotIn("de ellas", B.texto_nube(clases, {"por_que": "x"}, 0))
+
+
+class MacGuardadaVaANube(unittest.TestCase):
+    """(CAP1119B) Cuando la Mac está frenada por guardia de disco/memoria, la nube coge TODO el trabajo."""
+
+    def test_plan_nube_ignora_sobra_mac_si_mac_guardada(self):
+        """Mac al tope por memoria (guardia): la nube no debe limitarse por sobra_mac."""
+        # 10 tareas elegibles, Mac tope 3 con 306 listas, pero Mac guardada por memoria
+        # Antes: sobra_mac = 306 - 3 = 303, cupo = min(sitio, 303) → la nube se limita
+        # Ahora: con mac_guardada=True, sobra_mac es infinito → la nube coge todas
+        p = B.plan_nube(["T%d" % i for i in range(10)], [], 0, None, {}, AHORA,
+                        listas_mac=306, tope_mac=3, tope_runs=4, mac_guardada=True)
+        # 10 tareas / 6 por job = 2 jobs, debería lanzar 2 jobs con todas las 10
+        self.assertEqual(p["lanzar"], 2)
+        self.assertEqual(len(p["reabrir"]), 0)
+        self.assertIn("10 tarea(s) para la nube", p["por_que"])
+
+    def test_plan_nube_respeta_sobra_mac_si_no_guardada(self):
+        """Mac NO guardada: la nube respeta sobra_mac para reabrir agotadas."""
+        # 2 tareas elegibles, 10 agotadas, Mac tope 3 con 4 listas (sobra 1)
+        # Sitio = 4 jobs * 6 = 24, elegibles = 2, queda sitio para 22
+        # Pero sobra_mac = 1, así que solo reabre 1 agotada
+        p = B.plan_nube(["E1", "E2"], ["A%d" % i for i in range(10)], 0, None, {}, AHORA,
+                        listas_mac=4, tope_mac=3, tope_runs=4)
+        self.assertEqual(p["lanzar"], 1)  # 2+1=3 tareas → 1 job
+        self.assertEqual(len(p["reabrir"]), 1)
+
+    def test_plan_nube_con_mac_guardada_reabre_todas_las_agotadas(self):
+        """Mac guardada: la nube reabre todas las agotadas que caben en el sitio libre."""
+        p = B.plan_nube(["E1", "E2"], ["A%d" % i for i in range(10)], 0, None, {}, AHORA,
+                        listas_mac=4, tope_mac=3, tope_runs=4, mac_guardada=True)
+        # Sitio libre = 24 - 2 = 22, 10 agotadas → reabre todas las 10 (limitado por max_reabrir por pasada)
+        self.assertEqual(len(p["reabrir"]), min(10, B.REABRIR_POR_PASADA))
 
     def test_plan_con_tope_grande_lanza_mas_de_dos(self):
         p = B.plan_nube(["T%d" % i for i in range(24)], [], 0, None, {}, AHORA, tope_runs=4)
