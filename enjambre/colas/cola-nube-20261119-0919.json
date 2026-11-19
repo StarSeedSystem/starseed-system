@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "SVF1B5b",
+   "ola": "SES1116B",
+   "titulo": "Grupo: las mismas pestañas dinámicas del espacio",
+   "archivos": [
+    "src/app/(app)/grupo/[slug]/page.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato: architecture/sesiones-en-vivo-entidades-y-transmisiones.md §10 (P1-B). Repite en `src/app/(app)/grupo/[slug]/page.tsx` (`baseTabs` ~línea 323) EXACTAMENTE lo que SVF1B4 hizo en la página de entidad: UN bloque aditivo `// SES1115Q` con `usarEspacio` y `aPestanasDePagina` (`src/lib/entidad-espacio/`), pestañas al final, sin romper si hay `error`. No modifiques nada más (≤30 líneas). COMPRUEBA: tsc acotado sin errores nuevos en ese archivo y `NODE_ENV=test npx vitest run src/lib/entidad-espacio` verde; en el commit di cómo comprobaste que la página sigue montando.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `SVF1B5b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "SVF1B4b"
+   ]
+  },
+  {
+   "id": "PRM1119B",
+   "ola": "PRM1119",
+   "titulo": "Permisos completos en todos los medios: pedir al instalar o al abrir si faltan, sin insistir en los denegados a mano",
+   "archivos": [
+    "docs/contratos/permisos-por-medio.md",
+    "src/lib/permisos/matriz.ts",
+    "starseed_memory_root/olas/cola-permisos-por-medio-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): revisar los permisos completos de todos los sistemas —macOS, Android, Linux, Windows, iOS, navegadores web, terminal y cualquier medio donde se use StarSeed OS— y pedirlos desde la instalación o al abrir la app cuando se detecte que faltan, salvo los que la persona haya denegado a mano. Lee AUDITORIA-PRM.md y el código de la lista de permisos de la neurona (grep «permisos» en src/lib y native/src-tauri/src). Tarea: (1) docs/contratos/permisos-por-medio.md con la matriz real permiso × medio (micrófono, cámara, pantalla, accesibilidad/control, ubicación, Bluetooth, red local, notificaciones, segundo plano, almacenamiento/archivos, entrada virtual, energía…): cómo se detecta, cómo se pide, si hay enlace directo a ajustes, y cómo distinguir «falta» de «denegado a mano» en cada medio; (2) src/lib/permisos/matriz.ts puro con esa matriz y la regla: al instalar y al abrir, pedir lo que falte y sea útil; si la persona lo denegó a mano, no volver a pedirlo solo, pero mostrarlo en la lista con «Abrir ajustes»; con pruebas; (3) una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-permisos-por-medio-1119.json para aplicarlo por medio. Nunca se concede nada por la persona. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "PRM1119B",
+   "SVF1B5b"
+  ]
+ }
+}
