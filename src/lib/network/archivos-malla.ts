@@ -113,10 +113,18 @@ import {
 } from "@/lib/malla/cristal/resonancias";
 import { analizarArchivo } from "@/lib/malla/cristal/centinela";
 import { decidirEntrada } from "@/lib/malla/cristal/centinela-archivos";
-import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
+import { extensionDe, listarZip, tipoRealPorBytes } from "@/lib/network/inspeccion-archivos";
 import { anotarArchivo, type HitoArchivo } from "@/lib/network/archivos-diagnostico"; // ARC1110A
 import { emisorMalla } from "@/lib/network/malla-registro"; // AUD1117·F7
 import { prepararArchivo } from "@/lib/malla/preparacion-archivo"; // ARC1110A
+import {
+  PREFERENCIAS_RECEPCION_POR_DEFECTO,
+  recibirOferta,
+  type ClaseEnvio,
+  type MedioRecepcion,
+  type OfertaRecepcion,
+  type PreferenciasRecepcion,
+} from "@/lib/transferencias/aceptacion"; // FMT1119
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1396,6 +1404,71 @@ export function setPreferenciaAutoAceptarMismaCuenta(v: boolean): void {
   }
 }
 
+/* (FMT1119) Ajustes de recepción por neurona: «aceptar sin preguntar» y «analizar siempre».
+ * Apagados por defecto; solo una neurona reconocida y elegida puede aceptarse sola. */
+const CLAVE_PREFERENCIAS_RECEPCION = "starseed.recepcion.preferencias.v1";
+
+/** Lee los ajustes de recepción guardados en este aparato. Nunca lanza. */
+export function leerPreferenciasRecepcion(): Required<PreferenciasRecepcion> {
+  const porDefecto: Required<PreferenciasRecepcion> = {
+    aceptarSinPreguntar: { ...PREFERENCIAS_RECEPCION_POR_DEFECTO.aceptarSinPreguntar },
+    analizarAlRecibir: PREFERENCIAS_RECEPCION_POR_DEFECTO.analizarAlRecibir,
+  };
+  if (typeof window === "undefined") return porDefecto;
+  try {
+    const raw = window.localStorage.getItem(CLAVE_PREFERENCIAS_RECEPCION);
+    if (!raw) return porDefecto;
+    const o: unknown = JSON.parse(raw);
+    if (!o || typeof o !== "object") return porDefecto;
+    const datos = o as { aceptarSinPreguntar?: unknown; analizarAlRecibir?: unknown };
+    const mapa: Record<string, boolean> = {};
+    if (datos.aceptarSinPreguntar && typeof datos.aceptarSinPreguntar === "object") {
+      for (const [id, activo] of Object.entries(datos.aceptarSinPreguntar as Record<string, unknown>)) {
+        if (id && activo === true) mapa[id] = true;
+      }
+    }
+    return {
+      aceptarSinPreguntar: mapa,
+      analizarAlRecibir: datos.analizarAlRecibir === "siempre" ? "siempre" : "preguntar",
+    };
+  } catch {
+    return porDefecto;
+  }
+}
+
+/** Guarda los ajustes de recepción en este aparato (best-effort). */
+export function guardarPreferenciasRecepcion(p: PreferenciasRecepcion): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      CLAVE_PREFERENCIAS_RECEPCION,
+      JSON.stringify({
+        aceptarSinPreguntar: p.aceptarSinPreguntar ?? {},
+        analizarAlRecibir: p.analizarAlRecibir === "siempre" ? "siempre" : "preguntar",
+      }),
+    );
+  } catch {
+    /* sin almacenamiento: vale para esta sesión */
+  }
+}
+
+/** Medio de recepción legible a partir de la vía que anotó el motor. Puro. */
+export function medioDeRecepcion(via?: string | null): MedioRecepcion {
+  const v = String(via ?? "").toLowerCase();
+  if (v.includes("bluetooth")) return "bluetooth";
+  if (v.includes("nube") || v.includes("supabase")) return "nube";
+  if (v.includes("red local") || v.includes("lan") || v.includes("wifi")) return "lan";
+  if (v.includes("malla") || v.includes("p2p") || v.includes("webrtc")) return "malla";
+  if (v.includes("enlace")) return "enlace";
+  return "desconocido";
+}
+
+/** Clase de envío: sincronización de cerebro, carpeta (trae ruta) o archivo suelto. Puro. */
+export function claseDeRecepcion(destino: DestinoArchivo | undefined, ruta?: string | null): ClaseEnvio {
+  if (destino?.tipo === "cerebro") return "cerebro";
+  return ruta ? "carpeta" : "archivo";
+}
+
 /**
  * verificarPermisoArchivosPorDefecto — hasta que el módulo de vínculos entre
  * CUENTAS DISTINTAS (`os_mesh_vinculos`, de otra área de esta misma ola) dé el
@@ -1457,6 +1530,8 @@ export interface EstadoTransferencia {
   destino?: DestinoArchivo;
   /** Solo rol "recibir": etiqueta legible de quién ofrece. */
   origen?: string;
+  /** (FMT1119) Id de la neurona de origen para el ajuste «aceptar sin preguntar» de esa neurona. */
+  origenId?: string;
   inicioMs: number;
   actualizadoMs: number;
   /** (ARC1108A) En «error»: código corto (`archivo.error.motivo`) y lado donde falló. */
@@ -2628,7 +2703,25 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (contenido) extras.contenido = contenido;
     if (ctx.via) extras.via = ctx.via.slice(0, 160);
     if (ctx.verificacion) extras.verificacion = ctx.verificacion;
+    const origenId = ctx.nodoId ?? ctx.verificacion?.huella;
+    if (origenId) extras.origenId = origenId;
     return extras;
+  }
+
+  /** (FMT1119) La oferta tal como la juzga `aceptacion.ts`: nombre, tamaño, tipo real, neurona y medio. */
+  function ofertaRecepcionDe(e: EstadoTransferencia, ctx: ContextoRecepcion, tipoReal: string | null): OfertaRecepcion {
+    const nombreOrigen = e.origen ?? ctx.etiquetaOrigen ?? "Remitente sin nombre";
+    const reconocida = ctx.mismaCuenta === true || (!!ctx.verificacion && ctx.verificacion.tipo !== "ninguna");
+    return {
+      id: e.id,
+      clase: claseDeRecepcion(e.destino, e.ruta),
+      nombre: e.nombre,
+      tamano: e.tamano,
+      tipoReal: tipoReal ?? e.tipo,
+      origen: { id: e.origenId ?? ctx.nodoId ?? ctx.verificacion?.huella ?? nombreOrigen, nombre: nombreOrigen, reconocida },
+      medio: medioDeRecepcion(e.via),
+      ...(typeof e.loteTotal === "number" && e.loteTotal > 0 ? { archivos: e.loteTotal } : {}),
+    };
   }
 
   /**
@@ -2861,7 +2954,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
-    if ((decision === "auto-aceptar" || preAceptada) && !avisoFinal) {
+    // (FMT1119) La neurona reconocida que la persona marcó «aceptar sin preguntar» se acepta sola;
+    // una desconocida nunca, y un aviso del centinela o de la red sigue preguntando.
+    const recepcion = recibirOferta(ofertaRecepcionDe(estadoBase, ctx, tipoRealPorBytes(inicioBuf)), leerPreferenciasRecepcion());
+    if ((decision === "auto-aceptar" || preAceptada || recepcion.autoaceptada) && !avisoFinal) {
       pedirTrozos(canal, msg, tenidos, estadoBase);
       return;
     }

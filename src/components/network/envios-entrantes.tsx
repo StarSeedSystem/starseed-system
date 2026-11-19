@@ -31,7 +31,37 @@ import { CifradoViasArchivo } from "@/components/network/cifrado-vias-archivo"; 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ACENTO, CLASE_ITEM, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { tamanoLegible, tipoSeguroPara, vistaPrevia, type VistaPrevia } from "@/lib/mensajeria/neuronas/datos-neurona";
-import type { EstadoTransferencia, MotorArchivos } from "@/lib/network/archivos-malla";
+import {
+  guardarPreferenciasRecepcion,
+  leerPreferenciasRecepcion,
+  medioDeRecepcion,
+  claseDeRecepcion,
+  type EstadoTransferencia,
+  type MotorArchivos,
+} from "@/lib/network/archivos-malla";
+import {
+  PREFERENCIAS_RECEPCION_POR_DEFECTO,
+  aceptarRecepcion,
+  ajustarAceptarSinPreguntar,
+  decidirAceptacion,
+  fichaDeOferta,
+  marcarAnalisisHecho,
+  nombreClase,
+  recibirOferta,
+  rechazarRecepcion,
+  solicitarAnalisis,
+  type OfertaRecepcion,
+  type PreferenciasRecepcion,
+  type Recepcion,
+} from "@/lib/transferencias/aceptacion";
+import {
+  ORDEN_ANTIVIRUS,
+  analizarSeguridad,
+  elegirAntivirus,
+  type EntradaAnalisis,
+  type MotorAntivirus,
+  type ResultadoAnalisis,
+} from "@/lib/transferencias/analisis-seguridad";
 import {
   agruparEnvios,
   arbolDeEnvio,
@@ -87,6 +117,68 @@ async function inspeccionReal(a: EstadoTransferencia, blob: Blob): Promise<Resul
     entradasZip = listarZip(new Uint8Array(await blob.slice(blob.size - cola).arrayBuffer()), blob.size);
   }
   return inspeccionarArchivo({ nombre: a.nombre, tipo: a.tipo, tamano: blob.size, inicio, ...(entradasZip ? { entradasZip, zipSegun: "archivo" as const } : {}) });
+}
+
+/* ══════════════════════════ FMT1119 · recepción y análisis ══════════════════════════ */
+
+/** Antivirus del sistema que se pueden ofrecer desde este aparato, en el orden acordado. */
+function antivirusDelSistema(): MotorAntivirus[] {
+  if (typeof navigator === "undefined") return [];
+  const p = `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`.toLowerCase();
+  const presentes: MotorAntivirus[] = [];
+  if (p.includes("mac")) presentes.push("XProtect");
+  if (p.includes("win")) presentes.push("Defender");
+  // ClamAV no se puede comprobar desde el navegador; si el sistema lo expone, entra por `ORDEN_ANTIVIRUS`.
+  return ORDEN_ANTIVIRUS.filter((motor) => presentes.includes(motor));
+}
+
+/** La oferta del envío tal como la juzga `aceptacion.ts`: clase, nombre, tamaño, tipo real, neurona y medio. */
+function ofertaDeEnvio(envio: EnvioEntrante): OfertaRecepcion {
+  const primero = envio.archivos[0];
+  const reconocida = !!envio.verificacion && envio.verificacion.tipo !== "ninguna";
+  return {
+    id: envio.clave,
+    clase: claseDeRecepcion(primero?.destino, primero?.ruta),
+    nombre: envio.archivos.length === 1 ? (primero?.nombre ?? envio.clave) : `${envio.archivos.length} archivos`,
+    tamano: envio.bytes,
+    tipoReal: envio.archivos.length === 1 ? primero?.tipo || "sin determinar" : "Varios tipos",
+    origen: {
+      id: primero?.origenId ?? envio.verificacion?.huella ?? envio.origen,
+      nombre: envio.origen,
+      reconocida,
+    },
+    medio: medioDeRecepcion(envio.via),
+    ...(envio.archivos.length > 1 ? { archivos: envio.archivos.length } : {}),
+  };
+}
+
+/** Entrada del análisis puro con lo que ya se sabe de la oferta o con los bytes REALES recibidos. */
+async function entradaAnalisisDe(a: EstadoTransferencia, blob?: Blob): Promise<EntradaAnalisis> {
+  let inicio = bytesDeB64(a.inicioB64);
+  let entradasComprimido = a.contenido ?? null;
+  let tamano = a.tamano;
+  if (blob) {
+    inicio = new Uint8Array(await blob.slice(0, 64 * 1024).arrayBuffer());
+    tamano = blob.size;
+    if (inicio[0] === 0x50 && inicio[1] === 0x4b) {
+      const cola = Math.min(blob.size, 256 * 1024);
+      entradasComprimido = listarZip(new Uint8Array(await blob.slice(blob.size - cola).arrayBuffer()), blob.size);
+    }
+  }
+  return {
+    nombre: a.nombre,
+    tamano,
+    tipoDeclarado: a.tipo,
+    sha256: a.sha256 ?? null,
+    inicio,
+    entradasComprimido,
+  };
+}
+
+/** Astraura analiza lo recibido sin abrirlo ni ejecutarlo, con el antivirus del sistema en su orden. */
+async function analizarRecibido(a: EstadoTransferencia, blob?: Blob): Promise<ResultadoAnalisis> {
+  const antivirus = elegirAntivirus(antivirusDelSistema());
+  return analizarSeguridad(await entradaAnalisisDe(a, blob), { antivirusDisponibles: antivirus.orden });
 }
 
 const COLOR_NIVEL: Record<NivelInspeccion, string> = { limpio: ACENTO.esmeralda, aviso: ACENTO.ambar, peligro: ACENTO.carmesi };
@@ -449,6 +541,16 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
   const [panelIA, setPanelIA] = useState(false);
   const [conFragmentos, setConFragmentos] = useState(false);
   const [ia, setIA] = useState<EstadoIA>({ fase: "inactiva" });
+  const [prefs, setPrefs] = useState<PreferenciasRecepcion>(() => ({ ...PREFERENCIAS_RECEPCION_POR_DEFECTO, ...leerPreferenciasRecepcion() }));
+  const oferta = useMemo(() => ofertaDeEnvio(envio), [envio]);
+  const ficha = useMemo(() => fichaDeOferta(oferta), [oferta]);
+  const decision = useMemo(() => decidirAceptacion(oferta, prefs), [oferta, prefs]);
+  const [recepcion, setRecepcion] = useState<Recepcion>(() => recibirOferta(oferta, prefs));
+  const [analisisSeguridad, setAnalisisSeguridad] = useState<Record<string, ResultadoAnalisis>>({});
+  const [analizando, setAnalizando] = useState(false);
+  const [errorAnalisis, setErrorAnalisis] = useState<string | null>(null);
+  const analisisEnCurso = useRef(false);
+  const blobDe = acciones.blobDe;
 
   const pendientes = useMemo(() => new Set(idsPendientes(envio)), [envio]);
   const locales = useMemo(() => {
@@ -470,8 +572,33 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
     });
   }, [envio.archivos, locales]);
 
+  // (FMT1119) Astraura analiza al recibir si la persona lo pidió o lo dejó activado; nunca abre ni ejecuta.
+  async function pedirAnalisis(): Promise<void> {
+    if (analisisEnCurso.current) return;
+    analisisEnCurso.current = true;
+    setAnalizando(true);
+    setErrorAnalisis(null);
+    setRecepcion((r) => solicitarAnalisis(r));
+    try {
+      const pares = await Promise.all(envio.archivos.map(async (a) => [a.id, await analizarRecibido(a, blobDe?.(a.id))] as const));
+      setAnalisisSeguridad(Object.fromEntries(pares));
+      setRecepcion((r) => marcarAnalisisHecho(r));
+    } catch {
+      setErrorAnalisis("No se pudo completar el análisis. No se abrió ni se ejecutó nada.");
+    } finally {
+      analisisEnCurso.current = false;
+      setAnalizando(false);
+    }
+  }
+
+  useEffect(() => {
+    if (recepcion.analisis !== "pendiente" || analisisEnCurso.current) return;
+    void pedirAnalisis();
+    // Solo cuando la recepción pide análisis (al recibir con «analizar siempre» o al pulsar el botón).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recepcion.analisis]);
+
   // Con el archivo ya aquí, la inspección se repite con sus bytes REALES.
-  const blobDe = acciones.blobDe;
   const inspeccionando = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!blobDe) return;
@@ -507,13 +634,30 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
       /* solo comodidad */
     }
   };
+  // (FMT1119) Aceptar y rechazar pasan por la recepción: cuarentena, análisis pendiente y nada borrado.
+  const aceptar = (ids: string[]) => {
+    const previo = recepcion.analisis;
+    let siguiente = aceptarRecepcion(recepcion, { analizar: previo === "pendiente" });
+    if (previo === "hecho") siguiente = marcarAnalisisHecho(siguiente);
+    setRecepcion(siguiente);
+    acciones.aceptar(ids);
+  };
+  const rechazar = (ids: string[]) => {
+    setRecepcion(rechazarRecepcion(recepcion));
+    acciones.rechazar(ids);
+  };
+  const alternarAuto = (activo: boolean) => {
+    const siguientes = ajustarAceptarSinPreguntar(prefs, oferta.origen.id, activo);
+    setPrefs(siguientes);
+    guardarPreferenciasRecepcion(siguientes);
+  };
   const aceptarTodos = () => {
     if (conPeligro.length && !confirmarPeligro) {
       setConfirmarPeligro(true);
       return;
     }
     setConfirmarPeligro(false);
-    acciones.aceptar(Array.from(pendientes));
+    aceptar(Array.from(pendientes));
   };
   const preguntarIA = async () => {
     if (!acciones.inspeccionarIA) return;
@@ -590,6 +734,24 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
         )}
       </header>
 
+      {/* (FMT1119) La ficha de lo que llega: nombre, tamaño, tipo real, neurona de origen y medio. */}
+      <details className={cn(CLASE_ITEM, "mx-4 mb-2 space-y-2 p-3 text-[11.5px] text-white/75 sm:mx-5")} data-testid="ficha-recepcion">
+        <summary className="cursor-pointer font-medium text-white/85">Ficha de recepción · {nombreClase(oferta.clase)}</summary>
+        <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-white/70">{ficha.resumen}</pre>
+        <p className="text-white/60">Decisión: {decision.motivo}</p>
+        {oferta.origen.reconocida && (
+          <label className="flex cursor-pointer items-start gap-2 text-white/80">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 cursor-pointer accent-[#10B981]"
+              checked={!!prefs.aceptarSinPreguntar?.[oferta.origen.id]}
+              onChange={(e) => alternarAuto(e.target.checked)}
+            />
+            <span>Aceptar sin preguntar los envíos de {oferta.origen.nombre}. Apagado por defecto y solo para esta neurona en este aparato.</span>
+          </label>
+        )}
+      </details>
+
       {/* Barra: seleccionar, lista/cuadrícula, inspección con IA. */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-2 sm:px-5">
         <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/80">
@@ -645,6 +807,41 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
         </section>
       )}
 
+      {/* (FMT1119) Astraura ofrece analizar la seguridad al recibir y enseña el resultado antes de abrir. */}
+      {recepcion.analisis !== "no-pedido" && recepcion.fase !== "rechazada" && (
+        <section className={cn(CLASE_ITEM, "mx-4 mb-2 space-y-2 p-3 sm:mx-5")} aria-label="Análisis de seguridad de Astraura" data-testid="analisis-seguridad">
+          <p className="text-[11.5px] text-white/75">Astraura revisa lo recibido sin abrirlo ni ejecutarlo. Nada se instala sin tu aceptación.</p>
+          <p className="text-[10.5px] text-white/55">Antivirus del sistema, por orden: {ORDEN_ANTIVIRUS.join(" → ")}</p>
+          {recepcion.analisis === "ofrecido" && (
+            <button type="button" onClick={() => void pedirAnalisis()} className={BOTON} style={pildoraFantasma(ACENTO.aurora)}>
+              <ShieldCheck className="h-3.5 w-3.5" /> Analizar la seguridad antes de abrir
+            </button>
+          )}
+          {recepcion.analisis === "pendiente" && (
+            <p className="flex items-center gap-1.5 text-[11.5px] text-white/75" role="status">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analizando sin abrir…
+            </p>
+          )}
+          {Object.entries(analisisSeguridad).map(([id, r]) => {
+            const archivo = envio.archivos.find((a) => a.id === id);
+            return (
+              <div key={id} className="space-y-0.5">
+                <p className="flex items-center gap-1.5 text-[11.5px] text-white/85">
+                  <IconoNivel nivel={r.nivel} />
+                  {archivo?.nombre ?? id}: {TEXTO_NIVEL[r.nivel].toLowerCase()}
+                </p>
+                <pre className="whitespace-pre-wrap break-words text-[10.5px] text-white/60">{r.resumen}</pre>
+              </div>
+            );
+          })}
+          {errorAnalisis && (
+            <p className="text-[11.5px]" style={{ color: ACENTO.carmesi }} role="alert">
+              {errorAnalisis}
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Archivos: carpetas (rutas relativas) y archivos, en lista o cuadrícula. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2 sm:px-5" aria-label="Archivos del envío">
         {hayCarpetas ? (
@@ -677,10 +874,10 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
                 <Minimize2 className="h-3.5 w-3.5" /> Más tarde
               </button>
             )}
-            <button type="button" onClick={() => acciones.rechazar(Array.from(pendientes))} className={BOTON} style={{ background: "rgba(255,255,255,.14)" }}>
+            <button type="button" onClick={() => rechazar(Array.from(pendientes))} className={BOTON} style={{ background: "rgba(255,255,255,.14)" }}>
               <X className="h-3.5 w-3.5" /> Rechazar todos
             </button>
-            <button type="button" disabled={marcados.length === 0} onClick={() => acciones.aceptar(marcados)} className={BOTON} style={pildoraFantasma(ACENTO.esmeralda)}>
+            <button type="button" disabled={marcados.length === 0} onClick={() => aceptar(marcados)} className={BOTON} style={pildoraFantasma(ACENTO.esmeralda)}>
               <Check className="h-3.5 w-3.5" /> Aceptar seleccionados ({marcados.length})
             </button>
             <button type="button" onClick={aceptarTodos} className={BOTON} style={{ background: confirmarPeligro ? ACENTO.carmesi : ACENTO.esmeralda }}>
@@ -749,7 +946,7 @@ export function EnviosEntrantes({ motor, transferencias }: { motor: MotorArchivo
           }}
         >
           <DialogContent className="w-[96vw] max-w-3xl gap-0 border-white/10 p-0 sm:rounded-[22px]">
-            <VentanaEnvio envio={envio} acciones={acciones} onMinimizar={() => aplazar(envio.clave)} />
+            <VentanaEnvio key={envio.clave} envio={envio} acciones={acciones} onMinimizar={() => aplazar(envio.clave)} />
           </DialogContent>
         </Dialog>
       )}
