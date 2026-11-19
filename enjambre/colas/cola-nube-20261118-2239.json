@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "SEG1119B",
+   "ola": "SEG1119",
+   "titulo": "Inventario de accesos sin secretos, guía de recuperación desde cualquier medio y prueba de las tres copias de claves",
+   "archivos": [
+    "starseed_memory_root/fundamentos/accesos-y-recuperacion.md",
+    "scripts/puente/vigia_respaldos.py",
+    "scripts/puente/test_vigia_respaldos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): MetaGenesis debe recordar cómo acceder desde cualquier medio a múltiples respaldos, sin dependencias únicas de claves ni de accesos y permisos al programa completo. Tarea: (1) starseed_memory_root/fundamentos/accesos-y-recuperacion.md: inventario SIN secretos de cada acceso (GitHub, Vercel, Supabase, Oracle, Google Drive/Cloud, Cloudroom, proveedores de IA, bots de Telegram, dominio/DNS): quién administra, en qué copia cifrada está su clave, cómo se recupera y desde qué otro medio se opera; y guía paso a paso para recuperar el servicio en otro host. (2) scripts/puente/vigia_respaldos.py: cada día lee ~/.starseed/respaldo-claves/respaldo.log y compara solo HUELLAS y fechas de los archivos claves-mac-*.gpg en la Maggabox, el A1 y Google Drive (sin abrirlos); si una copia falta o difiere dos días seguidos, avisa en el Chat Director y en «Te toca a ti» con la orden exacta. Pruebas con registros de ejemplo. Lee primero starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md (memoria fundamental de seguridad y respaldos, 19-11). Reglas: ningún agente lee, imprime, mueve ni descifra claves; nada de secretos en el repo ni en claro fuera de la Mac; nada se concede, acepta ni instala por la persona; lógica pura con pruebas. Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "SEG1119B"
+  ]
+ }
+}
