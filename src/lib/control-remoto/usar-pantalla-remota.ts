@@ -6,7 +6,7 @@
  * Con `neurona` null no hace nada (estado «cerrada»).
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FUENTE_DEFECTO, type FuentePedida, veredictoFuente, type VeredictoFuente } from "./fuente-pantalla";
 import { crearPantallaDestino, type EntradaControl, type InstantaneaPantalla, type PantallaDestino } from "./pantalla-destino";
 
@@ -41,8 +41,14 @@ export function usarPantallaRemota(
     const fuentePedida = opciones?.fuente ?? FUENTE_DEFECTO;
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
+    const prevFuentePedidaRef = useRef(fuentePedida);
+    const currentFuentePedidaRef = useRef(fuentePedida);
+    currentFuentePedidaRef.current = fuentePedida;
 
     useEffect(() => {
+        const prevFuentePedida = prevFuentePedidaRef.current;
+        prevFuentePedidaRef.current = fuentePedida;
+
         if (!neurona) {
             setObj(null);
             return;
@@ -51,7 +57,8 @@ export function usarPantallaRemota(
         setObj(p);
         void p.iniciar();
         return () => {
-            void p.cerrar("desmontada", true);
+            const motivo = prevFuentePedida !== currentFuentePedidaRef.current ? "fuente-cambiada" : "desmontada";
+            void p.cerrar(motivo, true);
         };
     }, [neurona, intento, fuentePedida]);
 

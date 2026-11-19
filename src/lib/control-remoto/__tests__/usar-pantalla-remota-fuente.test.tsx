@@ -5,10 +5,11 @@
  * veredicto con aviso, auto siempre cumplida, sin llamada a crearPantallaDestino, y null cierra sesión.
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usarPantallaRemota } from "../usar-pantalla-remota";
-import type { FuentePedida, FuenteReal, InstantaneaPantalla, PantallaDestino } from "../pantalla-destino";
-import type { VeredictoFuente } from "../fuente-pantalla";
+import type { PantallaRemota } from "../usar-pantalla-remota";
+import type { InstantaneaPantalla, PantallaDestino } from "../pantalla-destino";
+import type { FuentePedida, FuenteReal, VeredictoFuente } from "../fuente-pantalla";
 
 const VACIA: InstantaneaPantalla = {
     estado: "cerrada",
@@ -21,12 +22,14 @@ const VACIA: InstantaneaPantalla = {
     aparato: null,
 };
 
-const mockFactoryRef = { current: (neurona: string, opciones: { fuente: FuentePedida }) => {
+import type { OpcionesPantallaDestino } from "../pantalla-destino";
+
+const mockFactoryRef = { current: (neurona: string, opciones: OpcionesPantallaDestino): PantallaDestino => {
     throw new Error("crearPantallaDestino no configurado");
 } };
 
 vi.mock("../pantalla-destino", () => ({
-    crearPantallaDestino: (neurona: string, opciones: { fuente: FuentePedida }) => mockFactoryRef.current(neurona, opciones),
+    crearPantallaDestino: vi.fn((neurona: string, opciones: OpcionesPantallaDestino): PantallaDestino => mockFactoryRef.current(neurona, opciones)),
 }));
 
 import { crearPantallaDestino } from "../pantalla-destino";
@@ -40,7 +43,7 @@ function crearPantallaDestinoMock(config: {
     let estado = config.estadoInicial ?? "en-vivo";
     const oyentes = new Set<() => void>();
 
-    const snap: InstantaneaPantalla = {
+    let snap: InstantaneaPantalla = {
         ...VACIA,
         estado,
         desde: Date.now(),
@@ -49,7 +52,7 @@ function crearPantallaDestinoMock(config: {
 
     const mock: PantallaDestino = {
         instantanea: () => snap,
-        suscribir: (cb) => {
+        suscribir: (cb: () => void) => {
             oyentes.add(cb);
             return () => oyentes.delete(cb);
         },
@@ -64,7 +67,7 @@ function crearPantallaDestinoMock(config: {
         mock,
         actualizarFuente: (f: FuenteReal | null) => {
             fuenteActual = f ?? "accesibilidad";
-            snap.fuente = fuenteActual;
+            snap = { ...snap, fuente: fuenteActual };
             for (const o of [...oyentes]) o();
         },
     };
@@ -85,9 +88,9 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
     it("abre con la fuente pedida (auto por defecto)", () => {
         const { mock } = crearPantallaDestinoMock({ fuenteInicial: "auto", fuenteRespuesta: "accesibilidad" });
         mockFactoryRef.current = () => mock;
-        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "auto" }));
+        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "auto" as FuentePedida }));
 
-        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "auto" });
+        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "auto" as FuentePedida });
         expect(result.current.fuentePedida).toBe("auto");
         expect(result.current.veredicto.cumplida).toBe(true);
     });
@@ -95,9 +98,9 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
     it("abre con «proyeccion» cuando se pide", () => {
         const { mock } = crearPantallaDestinoMock({ fuenteInicial: "proyeccion", fuenteRespuesta: "proyeccion" });
         mockFactoryRef.current = () => mock;
-        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "proyeccion" }));
+        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "proyeccion" as FuentePedida }));
 
-        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "proyeccion" });
+        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "proyeccion" as FuentePedida });
         expect(result.current.fuentePedida).toBe("proyeccion");
     });
 
@@ -107,18 +110,18 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         mockFactoryRef.current = () => mock1;
         const { result, rerender } = renderHook(
             ({ neurona, opciones }) => usarPantallaRemota(neurona, opciones),
-            { initialProps: { neurona: "tableta", opciones: { fuente: "auto" } } }
+            { initialProps: { neurona: "tableta", opciones: { fuente: "auto" as FuentePedida } } }
         );
 
         expect(crearPantallaDestino).toHaveBeenCalledTimes(1);
         expect(mock1.cerrar).not.toHaveBeenCalled();
 
         mockFactoryRef.current = () => mock2;
-        rerender({ neurona: "tableta", opciones: { fuente: "proyeccion" } });
+        rerender({ neurona: "tableta", opciones: { fuente: "proyeccion" as FuentePedida } });
 
         expect(mock1.cerrar).toHaveBeenCalledWith("fuente-cambiada", true);
         expect(crearPantallaDestino).toHaveBeenCalledTimes(2);
-        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "proyeccion" });
+        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "proyeccion" as FuentePedida });
         expect(result.current.fuentePedida).toBe("proyeccion");
     });
 
@@ -128,14 +131,14 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         mockFactoryRef.current = () => mock1;
         const { result, rerender } = renderHook(
             ({ neurona, opciones }) => usarPantallaRemota(neurona, opciones),
-            { initialProps: { neurona: "tableta", opciones: { fuente: "proyeccion" } } }
+            { initialProps: { neurona: "tableta", opciones: { fuente: "proyeccion" as FuentePedida } } }
         );
 
         mockFactoryRef.current = () => mock2;
-        rerender({ neurona: "tableta", opciones: { fuente: "auto" } });
+        rerender({ neurona: "tableta", opciones: { fuente: "auto" as FuentePedida } });
 
         expect(mock1.cerrar).toHaveBeenCalledWith("fuente-cambiada", true);
-        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "auto" });
+        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "auto" as FuentePedida });
         expect(result.current.fuentePedida).toBe("auto");
     });
 
@@ -145,7 +148,7 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
             fuenteRespuesta: "accesibilidad",
         });
         mockFactoryRef.current = () => mock;
-        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "proyeccion" }));
+        const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "proyeccion" as FuentePedida }));
 
         expect(result.current.veredicto.cumplida).toBe(false);
         expect(result.current.veredicto.aviso).toBe(
@@ -167,13 +170,13 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         for (const real of ["accesibilidad", "proyeccion", null] as const) {
             const { mock } = crearPantallaDestinoMock({ fuenteInicial: "auto", fuenteRespuesta: real });
             mockFactoryRef.current = () => mock;
-            const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "auto" }));
+            const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "auto" as FuentePedida }));
             expect(result.current.veredicto).toEqual({ cumplida: true, aviso: null });
         }
     });
 
     it("sin neurona no llama a crearPantallaDestino", () => {
-        renderHook(() => usarPantallaRemota(null, { fuente: "proyeccion" }));
+        renderHook(() => usarPantallaRemota(null, { fuente: "proyeccion" as FuentePedida }));
         expect(crearPantallaDestino).not.toHaveBeenCalled();
     });
 
@@ -181,11 +184,11 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         const { mock } = crearPantallaDestinoMock({ fuenteInicial: "proyeccion", fuenteRespuesta: "proyeccion" });
         mockFactoryRef.current = () => mock;
         const { result, rerender } = renderHook(
-            ({ neurona, opciones }) => usarPantallaRemota(neurona, opciones),
-            { initialProps: { neurona: "tableta", opciones: { fuente: "proyeccion" } } }
+            ({ neurona, opciones }: { neurona: string | null; opciones: { fuente?: FuentePedida } }) => usarPantallaRemota(neurona, opciones),
+            { initialProps: { neurona: "tableta" as string | null, opciones: { fuente: "proyeccion" as FuentePedida } } }
         );
 
-        rerender({ neurona: null, opciones: { fuente: "proyeccion" } });
+        rerender({ neurona: null, opciones: { fuente: "proyeccion" as FuentePedida } });
 
         expect(mock.cerrar).toHaveBeenCalledWith("desmontada", true);
         expect(result.current).toMatchObject(VACIA);
