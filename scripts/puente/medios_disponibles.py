@@ -16,12 +16,15 @@ ya usadas… (que no sea Oracle)». Sondea, sin inventar y sin imprimir jamás u
   · colab     — Google Colab / Kaggle: sin API; medio por abrir con un cuaderno lanzador
   · cloudroom — Cloudroom (2026-10-24, CRM1024D/I): agentes de código en hilos de su nube (100 cada
                 30 días en el plan gratis); sonda de `medio_cloudroom` (status, cloud status, thread count)
+  · agy       — Antigravity CLI (`~/.local/bin/agy` con sesión de Google de Alex): escritores
+                gemini-3.8-flash-medium / gemini-4-neon-high / claude-sonnet-5-5-medium (cuota Antigravity)
 Salida: JSON por stdout (`--json`) o texto. Funciones puras (clasificar_*) probadas.
 """
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -229,6 +232,47 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, con
     )
 
 
+def clasificar_agy(binario: str | None, medidor: dict | None, ahora: float) -> dict:
+    """PURA. Estado de Antigravity CLI (agy).
+    - listo: binario existe y modelos principales no pausados por cuota
+    - usable: binario existe pero modelos principales pausados (fallback disponible)
+    - requiere_alex: binario no encontrado (falta instalar Antigravity CLI y login Google)
+    """
+    if not binario:
+        return medio(
+            "agy", "Antigravity CLI (agy)", "requiere_alex",
+            "gemini-3.8-flash-medium / gemini-4-neon-high / claude-sonnet-5-5-medium",
+            "agy no encontrado en ~/.local/bin/agy ni en PATH",
+            "instalar Antigravity CLI y `agy login` con cuenta de Google de Alex",
+        )
+    medidor = medidor or {}
+    def pausado(modelo: str) -> bool:
+        m = medidor.get(modelo) or {}
+        return float(m.get("pausado_hasta") or 0) > ahora
+    principales = ("gemini-3.8-flash-medium", "gemini-4-neon-high")
+    disponibles = [m for m in principales if not pausado(m)]
+    if disponibles:
+        return medio(
+            "agy", "Antigravity CLI (agy)", "listo",
+            " · ".join(disponibles) + " · claude-sonnet-5-5-medium (fallback)",
+            "sesión de Google activa · %d modelo(s) principal(es) con cuota" % len(disponibles),
+            "",
+        )
+    if not pausado("claude-sonnet-5-5-medium"):
+        return medio(
+            "agy", "Antigravity CLI (agy)", "usable",
+            "claude-sonnet-5-5-medium (fallback)",
+            "sesión de Google activa · modelos principales pausados por cuota",
+            "esperar a medianoche o revisar cuota en Antigravity",
+        )
+    return medio(
+        "agy", "Antigravity CLI (agy)", "usable",
+        "todos los modelos pausados por cuota",
+        "sesión de Google activa · sin cuota en ningún modelo",
+        "esperar a medianoche (reinicio de cuota diaria)",
+    )
+
+
 def sondear_cloudroom(sondear=None) -> dict:
     """Cloudroom, por la sonda de `medio_cloudroom` (CRM1024D). Si la sonda falla, devuelve algo que
     no se entiende o aún no está en main, el medio sale «no_disponible» con el motivo: nunca tumba el
@@ -322,6 +366,13 @@ def sondear() -> dict:
     except (OSError, ValueError):
         oracle_consumo = None
     medios.append(clasificar_oracle(oracle_datos, reg, ahora, oracle_consumo))
+    # Antigravity CLI (agy)
+    agy_bin = shutil.which("agy") or (os.path.expanduser("~/.local/bin/agy") if os.path.exists(os.path.expanduser("~/.local/bin/agy")) else None)
+    try:
+        medidor_agy = json.load(open(os.path.expanduser("~/.starseed/agy-medidor.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        medidor_agy = None
+    medios.append(clasificar_agy(agy_bin, medidor_agy, ahora))
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
 
