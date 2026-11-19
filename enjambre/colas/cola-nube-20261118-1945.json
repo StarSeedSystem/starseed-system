@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261118",
+ "tareas": [
+  {
+   "id": "PENA1",
+   "ola": "PEN1116",
+   "titulo": "Mac: latido desde Rust para que el banco de llamadas siga sondeando con la ventana en otro escritorio",
+   "archivos": [
+    "native/src-tauri/src/banco_latido.rs",
+    "native/src-tauri/src/lib.rs",
+    "native/src-tauri/build.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado leyendo `architecture/ronda-automatica-llamadas.md` §9.5 «Ventana en otro escritorio»): el sondeo del banco de llamadas es un temporizador de la página (`src/lib/banco-llamadas/app.ts`, `setInterval`); macOS lo frena si la ventana no está a la vista y la serie armada se queda sin sondear. «Hacerlo despertar desde Rust no se ha podido comprobar sin la Mac, así que no se ha construido».\nConstruye SOLO el lado Rust: `banco_latido.rs` con (a) una función pura `toca_latido(ultimo_ms: u64, ahora_ms: u64, periodo_ms: u64) -> bool` y un `PERIODO_MS = 20_000`; (b) el comando `banco_latido_activar(app, webview, activo: bool) -> Result<Value, String>` que, SOLO en macOS (`cfg(target_os = \"macos\")`; en otros sistemas devuelve `{\"ok\": false, \"motivo\": \"sin-soporte\"}`), arranca o para UN hilo (nunca dos: guarda un `AtomicBool`/handle) que cada 20 s emite `app.emit(\"banco-llamadas-latido\", json!({\"t\": ahora_ms}))` mientras esté activo, y se para solo al apagar; copia de `control_neuronas.rs` la guarda de página (`pagina_ok`) que usan los demás comandos; (c) el alta del módulo y del comando en `lib.rs` (`mod` + `invoke_handler`, UNA línea cada uno, con comentario `// PENA1`) y en la lista de comandos permitidos de `native/src-tauri/build.rs` (donde está `\"control_entrada_aceptados\"`, una línea). El latido NO lee ni escribe `~/.starseed`: solo despierta a la página.\nPRUEBAS `cargo test --lib banco_latido`: `toca_latido` en los bordes (justo en el periodo, antes, reloj que retrocede = false); activar dos veces no crea dos hilos (con el hilo falso inyectable); desactivar para. COMPRUEBA: `cd native/src-tauri && cargo test --lib banco_latido` en verde y `cargo check` sin errores nuevos. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas `cargo test --lib` (en `native/src-tauri`) y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENA1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "PENC1",
+   "ola": "PEN1116",
+   "titulo": "Android: pantalla fluida por proyección (servicio y consentimiento por sesión)",
+   "archivos": [
+    "native/src-tauri/android/ProyeccionPantallaStarSeed.kt",
+    "native/src-tauri/android/ControlEntradaStarSeed.kt",
+    "native/src-tauri/src/control_entrada_parche.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Contrato `architecture/control-remoto-entre-neuronas.md` §12 («Las dos fuentes de pantalla»): hoy solo hay capturas por accesibilidad (pocos cuadros por segundo, `takeScreenshot` en `native/src-tauri/android/ControlEntradaStarSeed.kt` ~línea 639, cada cuadro a `ControlEntradaNativo.CUADRO` = `cuadro.bin` con escritura atómica ~línea 681). Falta la PROYECCIÓN: fluida, Android pregunta en CADA sesión y no se puede saltar.\nEscribe `ProyeccionPantallaStarSeed.kt`: servicio en primer plano con tipo `mediaProjection` (notificación visible «Compartiendo la pantalla»), que tras el consentimiento (`MediaProjectionManager.createScreenCaptureIntent()` pedido desde la actividad del diálogo nativo, igual que `dialogoPantalla`/`dialogoAceptar`) crea `VirtualDisplay` + `ImageReader`, y escribe cada cuadro con el MISMO formato y la MISMA escritura atómica que ya usa `cuadro.bin` (JPEG, `lado_max`/`calidad` de la orden, cuadros ya derechos como pide §12.1 e) a ≤15 cuadros/s y SIN cola (si el anterior no se leyó, descarta). En `native/src-tauri/android/ControlEntradaStarSeed.kt`: `pantalla-iniciar` acepta `fuente` = `proyeccion`; si hay consentimiento de ESTA sesión la usa; si no, responde `no(\"sin-consentimiento\",\"consentimiento-proyeccion\")` y la persona lo concede con el diálogo (nuevo caso en `abrir-ajuste`); `pantalla-parar` y el cierre de sesión la paran y SUELTAN la proyección. El consentimiento NO se guarda entre sesiones. Los cuadros no se guardan ni se anotan. En `native/src-tauri/src/control_entrada_parche.rs` (el que parchea el manifiesto de Android en el build; mira cómo declara `ServicioAntenas` y permisos) añade el `<service … foregroundServiceType=\"mediaProjection\">` y el permiso `FOREGROUND_SERVICE_MEDIA_PROJECTION`; si el archivo no es el lugar correcto, dilo y no inventes otro.\nCOMPRUEBA: `cargo test --lib control_entrada_parche` si ese archivo lleva pruebas; compilación de Kotlin si el entorno la ofrece; si no, dilo. Es la pieza MÁS difícil de la lista y NO se puede ver aquí: marca claro en el commit qué quedó sin comprobar (cuadros por segundo reales, el aviso de Android, el giro, lo que pasa al apagar la pantalla). NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas pruebas si existen y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENC1:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "PENA1",
+   "PENC1"
+  ]
+ }
+}
