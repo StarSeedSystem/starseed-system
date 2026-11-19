@@ -202,6 +202,95 @@ class YaLoHiceMideLaPasarelaAhora(unittest.TestCase):
         self.assertEqual(despues[1], antes[1])
 
 
+class Respuesta402EsFichaje(unittest.TestCase):
+    """(CAP1119A) Alex: apinex contestó 402 «sin crédito» y nadie le pidió el fichaje."""
+
+    CUERPO = '{"error":{"message":"sin crédito: daily check-in required","code":402}}'
+
+    def test_402_sin_credito_es_fichaje_no_modelo_fuera(self):
+        self.assertEqual(A._pas.clasificar(402, self.CUERPO), "fichaje")
+
+    def test_402_sin_cuerpo_es_fichaje(self):
+        self.assertEqual(A._pas.clasificar(402, ""), "fichaje")
+
+    def test_verificacion_humana_es_fichaje(self):
+        self.assertEqual(A._pas.clasificar(403, "Human verification required"), "fichaje")
+
+    def test_saldo_agotado_de_otra_pasarela_sigue_siendo_cupo(self):
+        self.assertEqual(A._pas.clasificar(402, "You are out of credits."), "sin_cupo")
+
+    def test_402_de_apinex_crea_la_accion_con_el_enlace(self):
+        pas = [{"clave": "apinex", "estado": A._pas.clasificar(402, "sin crédito"),
+                "http": 402, "modelo": "free/glm-5.3-flash"}]
+        acciones = A.construir_acciones(pas, TODOS, CATALOGO)
+        ids = [a["id"] for a in acciones]
+        self.assertIn("pasarela-apinex-fichaje", ids)
+        accion = acciones[ids.index("pasarela-apinex-fichaje")]
+        self.assertEqual("https://apinex.bond/airdrop?tab=quests", accion["enlace"])
+        self.assertEqual("alta", accion["urgencia"])
+
+    def test_cualquier_pasarela_con_verificacion_humana_crea_su_accion(self):
+        pas = [{"clave": "groq", "estado": A._pas.clasificar(403, "Human verification required"),
+                "http": 403, "modelo": "x"}]
+        acciones = A.construir_acciones(pas, TODOS, CATALOGO)
+        ids = [a["id"] for a in acciones]
+        self.assertIn("pasarela-groq-fichaje", ids)
+        self.assertEqual("https://console.groq.com/keys",
+                         acciones[ids.index("pasarela-groq-fichaje")]["enlace"])
+
+
+class FichajeSePideUnaVezAlDia(unittest.TestCase):
+    DIA = "2026-11-19 21:00:00"
+
+    def _accion(self):
+        return {"id": "pasarela-apinex-fichaje", "titulo": "apinex: fichaje diario",
+                "enlace": "https://apinex.bond/airdrop?tab=quests", "urgencia": "alta",
+                "por_que": "sin crédito", "comando": "", "detalle": "http 402",
+                "por_que_no_lo_hago_yo": "hay que pulsar un botón en su web"}
+
+    def test_primera_peticion_del_dia_se_marca(self):
+        visibles, pedidos = A.pedido_diario([self._accion()], {}, ahora=self.DIA)
+        self.assertEqual(1, len(visibles))
+        self.assertTrue(visibles[0]["nuevo_hoy"])
+        self.assertEqual({"pasarela-apinex-fichaje": "2026-11-19"}, pedidos)
+
+    def test_la_misma_tarde_no_vuelve_a_pedirse_pero_sigue_visible(self):
+        _, pedidos = A.pedido_diario([self._accion()], {}, ahora=self.DIA)
+        visibles, otra = A.pedido_diario([self._accion()], pedidos, ahora="2026-11-19 23:00:00")
+        self.assertEqual(1, len(visibles))
+        self.assertFalse(visibles[0]["nuevo_hoy"])
+        self.assertEqual(pedidos, otra)
+
+    def test_al_dia_siguiente_vuelve_a_pedirse(self):
+        _, pedidos = A.pedido_diario([self._accion()], {}, ahora=self.DIA)
+        visibles, _ = A.pedido_diario([self._accion()], pedidos, ahora="2026-11-20 08:00:00")
+        self.assertTrue(visibles[0]["nuevo_hoy"])
+
+    def test_si_la_sonda_vuelve_a_escribir_la_marca_se_retira(self):
+        _, pedidos = A.pedido_diario([self._accion()], {}, ahora=self.DIA)
+        visibles, otra = A.pedido_diario([], pedidos, ahora=self.DIA)
+        self.assertEqual([], visibles)
+        self.assertEqual({}, otra)
+
+    def test_construir_no_pide_fichaje_cuando_la_sonda_escribe(self):
+        pas = [{"clave": "apinex", "estado": "escribe", "http": 200, "modelo": "x"}]
+        self.assertNotIn("pasarela-apinex-fichaje",
+                         [a["id"] for a in A.construir_acciones(pas, TODOS, CATALOGO)])
+
+    def test_la_marca_del_dia_se_guarda_y_se_retira_sola(self):
+        import tempfile
+        ruta = os.path.join(tempfile.mkdtemp(), "fichajes-diarios.json")
+        visibles = A.registrar_pedido_diario([self._accion()], ahora=self.DIA, ruta=ruta)
+        self.assertTrue(visibles[0]["nuevo_hoy"])
+        with open(ruta, encoding="utf-8") as f:
+            self.assertEqual("2026-11-19", __import__("json").load(f)["pasarela-apinex-fichaje"])
+        visibles = A.registrar_pedido_diario([self._accion()], ahora="2026-11-19 22:00:00", ruta=ruta)
+        self.assertFalse(visibles[0]["nuevo_hoy"])
+        self.assertEqual([], A.registrar_pedido_diario([], ahora=self.DIA, ruta=ruta))
+        with open(ruta, encoding="utf-8") as f:
+            self.assertEqual({}, __import__("json").load(f))
+
+
 if __name__ == "__main__":
     unittest.main()
 
