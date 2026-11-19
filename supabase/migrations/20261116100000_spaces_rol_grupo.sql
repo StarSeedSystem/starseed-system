@@ -1,16 +1,14 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- SVF1A1f — Editar un espacio de grupo exige rol (rango ≥ 2).
+-- SVF1A1 (SES1116) — Editar un espacio de grupo exige rango ≥ 2.
 -- NO APLICAR sin la palabra de Alex · reversa: 20261116100000_spaces_rol_grupo_rollback.sql · no toca datos
 -- ----------------------------------------------------------------------------
--- Hoy `os_is_group_member(group_slug)` deja EDITAR un espacio a cualquier miembro
--- del grupo, también a un «observador» (contrato SES1115Q §3.3). Aquí la rama de
--- grupo de `space_can_edit` y de `sp_update` pasa a exigir `os_group_rank >= 2`.
+-- Hoy la mera pertenencia al grupo deja EDITAR un espacio a cualquier miembro,
+-- también a un «observador» (contrato SES1116 §3.3). Aquí la rama de grupo de
+-- `space_can_edit` y de `sp_update` pasa a exigir `os_group_rank >= 2`.
 -- Leer NO cambia: `sp_select` y el resto de políticas quedan como están.
--- Rango = el mayor de `os_memberships` y `os_entity_roles` (access_role_rank).
--- `os_memberships.role` también guarda el vocabulario que escribe su guarda
--- (moderator/mod/moderador, administrator, propietario/dueno): se traduce igual
--- que `traduccion-roles.ts` para no dejar sin edición a quien hoy modera o dirige.
--- «miembro», «member» y «pending» valen 0: ya no editan.
+-- Rango = el mayor de `access_role_rank(role)` en `os_memberships`
+-- (group_slug = _slug, user_id = auth.uid()) y en `os_entity_roles`
+-- (entity_id::text = _slug, account_id = auth.uid()); 0 sin sesión o sin fila.
 -- ════════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION public.os_group_rank(_slug text)
@@ -18,25 +16,17 @@ RETURNS int
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COALESCE(MAX(t.r), 0)::int
+  SELECT COALESCE(MAX(r), 0)::int
   FROM (
-    SELECT GREATEST(
-             public.access_role_rank(m.role),
-             CASE lower(COALESCE(trim(m.role), ''))
-               WHEN 'propietario' THEN 4
-               WHEN 'dueno'       THEN 4
-               WHEN 'administrator' THEN 3
-               WHEN 'moderator'   THEN 2
-               WHEN 'moderador'   THEN 2
-               WHEN 'mod'         THEN 2
-               ELSE 0
-             END) AS r
+    SELECT public.access_role_rank(m.role) AS r
     FROM public.os_memberships m
-    WHERE m.group_slug = _slug AND m.user_id = auth.uid()
+    WHERE m.group_slug = _slug
+      AND m.user_id = auth.uid()
     UNION ALL
-    SELECT public.access_role_rank(e.role)
+    SELECT public.access_role_rank(e.role) AS r
     FROM public.os_entity_roles e
-    WHERE e.entity_id::text = _slug AND e.account_id = auth.uid()
+    WHERE e.entity_id::text = _slug
+      AND e.account_id = auth.uid()
   ) t
   WHERE _slug IS NOT NULL AND auth.uid() IS NOT NULL;
 $$;
