@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, Download, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Download, Edit, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import type { PaqueteIdioma } from "@/lib/idiomas/paquete/formato";
 import type { AlmacenPaquetes } from "@/lib/idiomas/paquete/almacen";
 import { mapearClaves } from "@/lib/idiomas/paquete/mapear";
@@ -9,6 +9,7 @@ import { validarPaquete } from "@/lib/idiomas/paquete/validar";
 import type { ResultadoImportacion as ResultadoImportacionPo } from "@/lib/idiomas/paquete/importar-po";
 import type { ResultadoImportacion as ResultadoImportacionXml } from "@/lib/idiomas/paquete/importar-xml-strings";
 import type { ResultadoImportacion as ResultadoImportacionJsonCsv } from "@/lib/idiomas/paquete/importar-json-csv";
+import { EditorPaquete } from "./editor-paquete";
 
 type ResultadoImportacion = (ResultadoImportacionPo | ResultadoImportacionXml) & { avisos?: string[] } | (ResultadoImportacionJsonCsv & { avisos?: string[] });
 
@@ -123,6 +124,7 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
   const [erroresValidacion, setErroresValidacion] = useState<string[]>([]);
   const [confirmarQuitar, setConfirmarQuitar] = useState<string | null>(null);
   const [ayudaVisible, setAyudaVisible] = useState(false);
+  const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
   const store = almacen ?? (typeof window !== "undefined" ? (window as unknown as { __almacenPaquetes?: AlmacenPaquetes }).__almacenPaquetes : undefined);
@@ -264,6 +266,14 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
       return codigo;
     });
   }, [store]);
+
+  const alClickEditar = useCallback((codigo: string) => {
+    setEditandoCodigo(codigo);
+  }, []);
+
+  const alCerrarEditor = useCallback(() => {
+    setEditandoCodigo(null);
+  }, []);
 
   const exportarPaquete = useCallback(async (paquete: PaqueteIdioma) => {
     const { nombreDeArchivo } = await import("@/lib/idiomas/paquete/formato");
@@ -437,6 +447,14 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
+                onClick={() => alClickEditar(paquete.codigo)}
+                className="min-h-[44px] min-w-[44px] cursor-pointer rounded-lg bg-white/5 p-2 text-white/70 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300 transition-colors"
+                aria-label={`Editar ${paquete.nombre}`}
+              >
+                <Edit className="h-5 w-5" aria-hidden />
+              </button>
+              <button
+                type="button"
                 onClick={() => exportarPaquete(paquete)}
                 className="min-h-[44px] min-w-[44px] cursor-pointer rounded-lg bg-white/5 p-2 text-white/70 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300 transition-colors"
                 aria-label={`Exportar ${paquete.nombre}`}
@@ -476,6 +494,19 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
           </li>
         ))}
       </ul>
+      {editandoCodigo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editor de paquete de idioma"
+          onClick={alCerrarEditor}
+        >
+          <div className="w-full max-w-[360px] bg-black/95 border border-white/10 rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <EditorPaquete codigo={editandoCodigo} almacen={store!} onCerrar={alCerrarEditor} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

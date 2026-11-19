@@ -272,4 +272,88 @@ describe("PanelPaquetesIdioma", () => {
     URL.revokeObjectURL = originalRevokeObjectURL;
     vi.restoreAllMocks();
   });
+
+  it("muestra botón editar para cada paquete", async () => {
+    const almacen = crearAlmacenFalso();
+    const paquete = crearPaqueteValido("eo", "Esperanto");
+    almacen.guardarPaquete(paquete);
+
+    render(<PanelPaquetesIdioma fuente={fuenteBase} almacen={almacen} />);
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+
+    const botonEditar = screen.getByRole("button", { name: /editar esperanto/i });
+    expect(botonEditar).toBeInTheDocument();
+  });
+
+  it("click en editar abre el editor del paquete", async () => {
+    const almacen = crearAlmacenFalso();
+    const paquete = crearPaqueteValido("eo", "Esperanto");
+    almacen.guardarPaquete(paquete);
+
+    render(<PanelPaquetesIdioma fuente={fuenteBase} almacen={almacen} />);
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+
+    const botonEditar = screen.getByRole("button", { name: /editar esperanto/i });
+    await act(async () => {
+      fireEvent.click(botonEditar);
+    });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Esperanto" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /guardar borrador/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Completadas/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /exportar archivo/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /cerrar edición/i })[1]).toBeInTheDocument();
+  });
+
+  it("cerrar editor vuelve a la lista de paquetes", async () => {
+    const almacen = crearAlmacenFalso();
+    const paquete = crearPaqueteValido("eo", "Esperanto");
+    almacen.guardarPaquete(paquete);
+
+    render(<PanelPaquetesIdioma fuente={fuenteBase} almacen={almacen} />);
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+
+    const botonEditar = screen.getByRole("button", { name: /editar esperanto/i });
+    await act(async () => {
+      fireEvent.click(botonEditar);
+    });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Esperanto" })).toBeInTheDocument());
+
+    const botonCerrar = screen.getAllByRole("button", { name: /cerrar edición/i })[1];
+    await act(async () => {
+      fireEvent.click(botonCerrar);
+    });
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+    expect(screen.queryByText(/guardar borrador/i)).not.toBeInTheDocument();
+  });
+
+  it("click fuera del editor lo cierra", async () => {
+    const almacen = crearAlmacenFalso();
+    const paquete = crearPaqueteValido("eo", "Esperanto");
+    almacen.guardarPaquete(paquete);
+
+    render(<PanelPaquetesIdioma fuente={fuenteBase} almacen={almacen} />);
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+
+    const botonEditar = screen.getByRole("button", { name: /editar esperanto/i });
+    await act(async () => {
+      fireEvent.click(botonEditar);
+    });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Esperanto" })).toBeInTheDocument());
+
+    const overlay = document.querySelector('[role="dialog"]');
+    await act(async () => {
+      fireEvent.click(overlay!);
+    });
+
+    await waitFor(() => expect(screen.getByTestId("paquete-eo")).toBeInTheDocument());
+    expect(screen.queryByText(/guardar borrador/i)).not.toBeInTheDocument();
+  });
 });
