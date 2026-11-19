@@ -899,3 +899,75 @@ class FrenoMismoMotivo(unittest.TestCase):
         # Con 2 elegibles y 1 escritor (opencode), tope=1 job → 2 trabajadores
         self.assertEqual(r["sumados"], 2)
         self.assertIn("Freno por mismo motivo: no se pudo calcular", "\n".join(r["lineas"]))
+
+
+class MacGuardia(unittest.TestCase):
+    """(CAP1119) Cuando la Mac está frenada por guardia de disco/memoria, la nube toma el relevo."""
+
+    def test_mac_bloqueada_por_guardia_detecta_swap(self):
+        self.assertTrue(B._mac_bloqueada_por_guardia("swap llena (5542 de 6144 MB)"))
+        self.assertTrue(B._mac_bloqueada_por_guardia("el gobernador lo baja a 2: recursos al límite (swap llena)"))
+
+    def test_mac_bloqueada_por_guardia_detecta_memoria(self):
+        self.assertTrue(B._mac_bloqueada_por_guardia("RAM libre 50 MB"))
+        self.assertTrue(B._mac_bloqueada_por_guardia("memoria al límite"))
+        self.assertTrue(B._mac_bloqueada_por_guardia("gobernador: memoria"))
+
+    def test_mac_bloqueada_por_guardia_detecta_disco(self):
+        self.assertTrue(B._mac_bloqueada_por_guardia("disco 7.5 GB, guardia de 10 GB"))
+        self.assertTrue(B._mac_bloqueada_por_guardia("guardia de disco"))
+
+    def test_mac_bloqueada_por_guardia_no_falso_positivo(self):
+        self.assertFalse(B._mac_bloqueada_por_guardia("máximo 3 por hardware (8 GB)"))
+        self.assertFalse(B._mac_bloqueada_por_guardia("máximo por hardware"))
+        self.assertFalse(B._mac_bloqueada_por_guardia(""))
+        self.assertFalse(B._mac_bloqueada_por_guardia(None))
+
+    def test_plan_nube_sin_guardia_limita_por_sobra_mac(self):
+        """Sin guardia: reabrir limitado por sobra_mac (la Mac necesita su trabajo)."""
+        p = B.plan_nube(
+            [], ["A", "B", "C", "D", "E"], 0, None, {}, AHORA,
+            listas_mac=5, tope_mac=3, tope_runs=2, por_run=6,
+            mac_motivo_tope="máximo 3 por hardware (8 GB)"
+        )
+        # sitio = 2*6=12, elegibles=0, sobra_mac=5-3=2 → cupo=min(REABRIR_POR_PASADA, 12, 2)=2
+        self.assertEqual(len(p["reabrir"]), 2)
+        self.assertNotIn("guardia", p["por_que"])
+
+    def test_plan_nube_con_guardia_no_limita_por_sobra_mac(self):
+        """Con guardia: reabrir NO limitado por sobra_mac (la Mac no puede procesarlas)."""
+        p = B.plan_nube(
+            [], ["A", "B", "C", "D", "E"], 0, None, {}, AHORA,
+            listas_mac=5, tope_mac=3, tope_runs=2, por_run=6,
+            mac_motivo_tope="swap llena (5542 de 6144 MB)"
+        )
+        # sitio = 12, elegibles=0, sin límite sobra_mac → cupo=min(REABRIR_POR_PASADA, 12)=5 (todas)
+        self.assertEqual(len(p["reabrir"]), 5)
+        self.assertIn("guardia", p["por_que"])
+        self.assertIn("relevo", p["por_que"])
+
+    def test_plan_nube_con_guardia_y_pocas_agotadas(self):
+        """Con guardia y menos agotadas que sitio: reabre todas las que puede."""
+        p = B.plan_nube(
+            [], ["A", "B"], 0, None, {}, AHORA,
+            listas_mac=10, tope_mac=2, tope_runs=2, por_run=6,
+            mac_motivo_tope="disco 7.5 GB, guardia de 10 GB"
+        )
+        self.assertEqual(p["reabrir"], ["A", "B"])
+        self.assertIn("guardia", p["por_que"])
+
+    def test_plan_nube_elegibles_tienen_prioridad_sobre_reabrir(self):
+        """Las elegibles siempre van primero, guardia o no."""
+        p = B.plan_nube(
+            ["X", "Y"], ["A", "B", "C"], 0, None, {}, AHORA,
+            listas_mac=5, tope_mac=3, tope_runs=1, por_run=6,
+            mac_motivo_tope="swap llena"
+        )
+        # sitio = 6, elegibles=2 → queda sitio para 4 reabrir, pero solo hay 3 agotadas
+        self.assertEqual(p["reabrir"], ["A", "B", "C"])
+        self.assertEqual(len(p["reabrir"]), 3)
+        self.assertIn("guardia", p["por_que"])
+
+
+if __name__ == "__main__":
+    unittest.main()

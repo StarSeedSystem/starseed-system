@@ -54,14 +54,27 @@ class Clasificar(unittest.TestCase):
     def test_gcloud_usable_solo_con_cuenta_activa(self):
         self.assertEqual(M.clasificar_gcloud(False, [], "", [])["estado"], "requiere_alex")
         self.assertEqual(M.clasificar_gcloud(True, [], "", [])["estado"], "requiere_alex")
-        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}])
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=True)
         self.assertEqual(d["estado"], "usable")
         self.assertIn("proy", d["detalle"])
+
+    def test_gcloud_requiere_alex_si_facturacion_desactivada(self):
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación DESACTIVADA", d["detalle"])
+        self.assertIn("activar facturación", d["siguiente_paso"])
+        self.assertIn("cloud.google.com/billing", d["siguiente_paso"])
+
+    def test_gcloud_usable_con_facturacion_activa(self):
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=True)
+        self.assertEqual(d["estado"], "usable")
+        self.assertIn("facturación activa", d["detalle"])
+        self.assertEqual(d["siguiente_paso"], "medio por abrir: job de Cloud Run con deploy/nube (mismo patrón que nube-gh)")
 
     def test_ningun_medio_inventa_un_estado(self):
         for m in (M.clasificar_mac(None), M.clasificar_claude(None, 1.0),
                   M.clasificar_gh(True, True, ["X"], []), M.clasificar_hf(None, None, "sin_token"),
-                  M.clasificar_gcloud(True, ["a"], "p", [])):
+                  M.clasificar_gcloud(True, ["a"], "p", [], facturacion_activa=True)):
             self.assertIn(m["estado"], M.ESTADOS)
             self.assertTrue(m["id"] and m["nombre"])
 
