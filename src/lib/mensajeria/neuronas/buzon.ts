@@ -859,8 +859,38 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid, { ll, neurona: c.de.n, nombre: c.de.nom, at: c.at }))
             .catch(() => undefined);
     }
-    // (NEU1107A) Un archivo: se sigue su transferencia (y se guarda aquí cuando se verifique).
+    // (NEU1107A) Archivo entrante: solicitud de aceptación con nombre, tamaño, tipo y neurona origen.
     if (c.adj) {
+        const adjunto = c.adj;
+        const detalle: import("../../transferencias/aceptacion").DetalleEnvio = {
+            id: adjunto.id || crypto.randomUUID().toString(),
+            nombre: adjunto.nombre || "archivo sin nombre",
+            tamano: adjunto.tamano || 0,
+            tipo: adjunto.tipo || "application/octet-stream",
+            neuronaOrigen: c.de.n || "desconocida",
+            medio: viaEntra.medio || "desconocido",
+            esNeuronaConocida: false,
+        };
+        const solicitud = await import("../../transferencias/aceptacion");
+        const aviso = solicitud.crearSolicitudAceptacion(detalle);
+        // Verificar si la neurona es conocida para autoaceptar (desactivado por defecto)
+        const auto = await import("../../transferencias/aceptacion");
+        const autoAceptar = auto.debeAutoAceptar(aviso.esNeuronaConocida, false);
+        if (autoAceptar) {
+            // Autoaceptar: proceder al análisis de seguridad y cuarentena
+            const analisis = await import("../../transferencias/analisis-seguridad");
+            const resultado = analisis.analizarSeguridad(
+                aviso.tipo,
+                aviso.nombre,
+                undefined,
+                false
+            );
+            // Mostrar resultado antes de abrir (quedará en cuarentena)
+            void avisarSeguridad(c.mid, aviso, resultado);
+        } else {
+            // Requiere confirmación manual (neurona desconocida o autoaceptar desactivado)
+            void mostrarAvisoAceptacion(c.mid, aviso);
+        }
         void import("./archivos-neurona")
             .then((a) => a.alAnunciarArchivo(clave, c.mid))
             .catch(() => undefined);
@@ -1216,4 +1246,33 @@ export function iniciarBuzonMalla(): () => void {
 /** ¿Está escuchando el buzón? (para que la interfaz lo diga con honestidad). */
 export function buzonEscuchando(): boolean {
     return arrancado > 0;
+}
+
+/** Muestra el aviso de aceptación al usuario con los detalles del archivo. */
+function mostrarAvisoAceptacion(clave: string, aviso: ReturnType<typeof import("../../transferencias/aceptacion").crearSolicitudAceptacion>): void {
+    // En un entorno real, esto dispararía un diálogo o toast UI.
+    // Por ahora, solo registra por consola/persistencia la decisión pendente.
+    console.log(`Aceptación requerida para archivo: ${aviso.nombre}`);
+    console.log(`• Tamaño: ${aviso.tamano}`);
+    console.log(`• Tipo: ${aviso.tipo}`);
+    console.log(`• Neurona origen: ${aviso.neuronaOrigen} ${aviso.esNeuronaConocida ? "(conocida)" : "(desconocida)"}`);
+    console.log(`• Medio: ${aviso.medio}`);
+    console.log(`Texto: ${aviso.textoAviso}`);
+}
+
+/** Avisa del resultado del análisis de seguridad antes de abrir el archivo. */
+async function avisarSeguridad(
+    mid: string,
+    aviso: ReturnType<typeof import("../../transferencias/aceptacion").crearSolicitudAceptacion>,
+    resultado: ReturnType<typeof import("../../transferencias/analisis-seguridad").analizarSeguridad>
+): Promise<void> {
+    // Mostrar resultado del análisis antes de permitir la apertura
+    console.log(`Análisis de seguridad para archivo: ${aviso.nombre}`);
+    console.log(`• Tipo real: ${resultado.tipoReal}`);
+    console.log(`• Riesgos detectados: ${resultado.riesgo.mensaje}`);
+    console.log(`• Seguro: ${resultado.seguro}`);
+    console.log(`• Huella: ${resultado.huella ?? "N/A"}`);
+    console.log(`• Firma: ${resultado.firma ?? "N/A"}`);
+    // El archivo queda en cuarentena hasta que la persona acepte explícitamente
+    // (la UI manejaría la decisión final; aquí solo se registra el análisis).
 }

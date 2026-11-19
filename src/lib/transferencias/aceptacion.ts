@@ -144,4 +144,3 @@ export function esNeuronaConocida(
     return neuronasConocidas.has(neuronaId);
 }
 
-export type { DetalleEnvio, EstadoEnvio };

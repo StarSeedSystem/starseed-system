@@ -188,9 +188,10 @@ describe("transferencias/analisis-seguridad", () => {
                 contenido
             );
 
-            expect(resultado.huella).toBeDefined();
-            expect(typeof resultado.huella).toBe("string");
-            expect(resultado.huella.length).toBe(64); // SHA-256 hex tiene 64 caracteres
+            const huella = resultado.huella!;
+            expect(huella).toBeDefined();
+            expect(typeof huella).toBe("string");
+            expect(huella.length).toBe(64); // SHA-256 hex tiene 64 caracteres
         });
 
         it("debe analizar un archivo con rutas peligrosas dentro de compresión", () => {

@@ -307,11 +307,9 @@ function detectarSeñalesRiesgo(
 
     // Construir mensaje final
     const mensajes = resultado.mensaje;
-    if (mensajes.length === 0) {
-        resultado.mensaje = "No se detectaron riesgos específicos";
-    } else {
-        resultado.mensaje = mensajes.join(". ") + ".";
-    }
+    const mensajeFinal = mensajes.length === 0
+        ? "No se detectaron riesgos específicos"
+        : mensajes.join(". ") + ".";
 
     return {
         ejecutable: resultado.ejecutable,
@@ -320,7 +318,7 @@ function detectarSeñalesRiesgo(
         comprimidoAnidado: resultado.comprimidoAnidado,
         rutasPeligrosas: resultado.rutasPeligrosas,
         virusSistema: resultado.virusSistema,
-        mensaje: resultado.mensaje,
+        mensaje: mensajeFinal,
     };
 }
 
@@ -415,5 +413,4 @@ function generarExplicacion(tipoReal: string, riesgo: {
 }
 
 // Exportar tipos y funciones auxiliares
-export type { ResultadoAnalisis, TipoArchivo };
 export { coincideExtensionNombre };
