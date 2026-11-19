@@ -19,8 +19,9 @@ import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type
 import { PuertaControl, sanearPermiso, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
-import { alPararNativo, puenteNativoControl } from "./nativo"; // ORD1114Q
+import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
 import { RegistroSesiones, registroGlobal, type MandarSesion } from "./registro-sesiones"; // CTL1117A
+import { puenteNativo } from "@/lib/nativa/puente"; // CTL1119F
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
 export const ESPERA_RESPUESTA_MS = 15_000;
@@ -375,4 +376,143 @@ export class SesionHacia {
         this.token = null;
         if (t) await this.registro.soltar(this.para, t, this.porAqui, false);
     }
+}
+
+// ── origen estable: migración de puerto y clave del aparato (CTL1119F) ────────────────────────
+
+export interface EstadoOrigenLocal {
+    principal: number | null;
+    ultimo_puerto: number | null;
+    puertos_usados: number[];
+    cambios: number;
+    ultimo_rescate: string | null;
+}
+
+/** Llama al comando Tauri `origen_local_estado` para leer el estado del origen local. */
+export async function leerEstadoOrigen(): Promise<EstadoOrigenLocal | null> {
+    try {
+        const p = puenteNativo();
+        if (!p.disponible) return null;
+        const r = await p.llamar("origen_local_estado");
+        if (r.ok && r.valor) return r.valor as EstadoOrigenLocal;
+    } catch {
+        /* no disponible */
+    }
+    return null;
+}
+
+/** Registra un cambio de origen en el formato requerido: `origen cambio de=<de> a=<a> causa=<causa> migrado=<si|no>`. */
+export function registrarCambioOrigen(de: number, a: number, causa: string, migrado: boolean): void {
+    const linea = `origen cambio de=${de} a=${a} causa=${causa} migrado=${migrado ? "si" : "no"}`;
+    anotar(linea);
+}
+
+/** Comprueba si la clave del aparato existe en el origen actual. */
+export async function claveAparatoExiste(): Promise<boolean> {
+    try {
+        const { claveAparatoPerdida } = await import("@/lib/chats-genesis/firma-aparato");
+        const perdida = await claveAparatoPerdida();
+        return perdida === null;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Inicia la migración de datos del origen anterior al actual.
+ * Usa los comandos Tauri del rescate (`rescate_origen_exportar`, `rescate_origen_estado`, `rescate_origen_datos`, `rescate_origen_confirmar`).
+ * Devuelve un resumen de lo migrado y lo que falló.
+ */
+export async function migrarDatosOrigen(
+    origenAnterior: number,
+    origenActual: number,
+    avisar: (mensaje: string) => void
+): Promise<{ migrado: string[]; fallido: string[]; resumen: string }> {
+    const p = puenteNativo();
+    if (!p.disponible) {
+        return { migrado: [], fallido: ["sin-puente-nativo"], resumen: "Puente nativo no disponible" };
+    }
+
+    const migrado: string[] = [];
+    const fallido: string[] = [];
+
+    try {
+        avisar(`Buscando datos en el puerto ${origenAnterior}…`);
+        const exportar = await p.llamar("rescate_origen_exportar", { puerto: origenAnterior });
+        if (!exportar.ok) {
+            fallido.push(`exportar-${origenAnterior}`);
+        } else {
+            avisar(`Trayendo datos al puerto ${origenActual}…`);
+            const importar = await p.llamar("rescate_origen_confirmar", { origen: origenActual, desde: origenAnterior });
+            if (importar.ok) {
+                migrado.push(`puerto-${origenAnterior}`);
+            } else {
+                fallido.push(`importar-${origenAnterior}`);
+            }
+        }
+    } catch (e) {
+        fallido.push(`excepcion-${origenAnterior}:${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    const resumen = migrado.length
+        ? `traído de ${migrado.join(", ")}`
+        : `no se pudieron traer los datos de ${fallido.join(", ")}`;
+
+    return { migrado, fallido, resumen };
+}
+
+/**
+ * Crea una nueva clave del aparato (llama a `crearClaveAparato` de firma-aparato).
+ * Para usar cuando la migración falló y la persona quiere recrear la clave.
+ */
+export async function recrearClaveAparato(nombre: string, cuenta: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const { crearClaveAparato } = await import("@/lib/chats-genesis/firma-aparato");
+        await crearClaveAparato(nombre, cuenta);
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
+/**
+ * Comprueba si WebRTC es utilizable en ESTE aparato (el que controla).
+ * En Linux verifica también GStreamer (nice, webrtcbin) vía `capacidadesNativas`.
+ * Devuelve `true` si hay WebRTC usable, `false` si falta (y deja la causa en `faltaWebRtc`).
+ */
+export async function comprobarWebRtcUtilizable(): Promise<{ usable: boolean; faltaWebRtc?: string; detalle?: string }> {
+    const hayPeer = typeof RTCPeerConnection === "function";
+    if (!hayPeer) {
+        return { usable: false, faltaWebRtc: "webrtc-linux", detalle: "RTCPeerConnection no existe en este navegador" };
+    }
+
+    try {
+        const caps = await capacidadesNativas();
+        if (caps && caps.falta.includes("webrtc-linux")) {
+            const detalle = caps.falta.filter((f) => f.startsWith("webrtc")).join(", ") || "faltan elementos de GStreamer";
+            return { usable: false, faltaWebRtc: "webrtc-linux", detalle };
+        }
+    } catch {
+        /* si falla la comprobación nativa, asumimos que WebRTC del navegador basta */
+    }
+
+    return { usable: true };
+}
+
+/**
+ * Decide la vía de pantalla según capacidades de ambos lados.
+ * - Si el controlador tiene WebRTC usable → "webrtc"
+ * - Si no → "malla" (pantalla-cuadro)
+ * Devuelve la vía elegida y la razón.
+ */
+export async function decidirViaPantalla(
+    capsControlador: Awaited<ReturnType<typeof capacidadesNativas>> | null,
+    _capsControlado: unknown
+): Promise<{ via: "webrtc" | "malla"; razon: string }> {
+    const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable();
+    if (usable) {
+        return { via: "webrtc", razon: "WebRTC disponible en el controlador" };
+    }
+    const causa = faltaWebRtc === "webrtc-linux" ? `Linux sin WebRTC (${detalle})` : "WebRTC no disponible";
+    return { via: "malla", razon: `Pantalla por cuadros: ${causa}` };
 }
