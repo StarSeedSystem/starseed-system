@@ -18,6 +18,7 @@
 // Lo de decidir es puro (se prueba sin Tauri); el pegamento con Tauri va al final.
 // ═══════════════════════════════════════════════════════════════════════════
 
+use crate::entorno_hijos::limpiar_entorno;
 use serde::Serialize;
 use std::sync::Mutex;
 
@@ -267,9 +268,21 @@ pub const ELEMENTOS_WEBRTC: [(&str, &str, &str, &str); 6] = [
 #[cfg(target_os = "linux")]
 pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
     use std::process::{Command, Stdio};
+    let mut cmd = Command::new("gst-inspect-1.0");
+    if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
+        let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
+        let limpio = limpiar_entorno(vars, Path::new(&appdir));
+        for (k, v) in limpio {
+            if let Some(val) = v {
+                cmd.env(k, val);
+            } else {
+                cmd.env_remove(k);
+            }
+        }
+    }
     let mut faltan = Vec::new();
     for (el, ..) in ELEMENTOS_WEBRTC {
-        let r = Command::new("gst-inspect-1.0").args(["--exists", el]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        let r = cmd.args(["--exists", el]).stdout(Stdio::null()).stderr(Stdio::null()).status();
         match r {
             Err(_) => return None,
             Ok(s) if !s.success() => faltan.push(el),

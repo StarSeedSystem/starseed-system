@@ -17,12 +17,14 @@
 // Solo std: se prueba sin Tauri (pruebas al final).
 // ═══════════════════════════════════════════════════════════════════════════
 
+use crate::entorno_hijos::limpiar_entorno;
 use crate::sha256::{es_sha256_hex, sha256_archivo};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `Command` que en Windows no abre una consola negra (la app es gráfica).
+/// `Command` que en Windows no abre una consola negra (la app es gráfica)
+/// y en Linux limpia el entorno si estamos en una AppImage.
 pub fn orden(programa: &str) -> Command {
     #[allow(unused_mut)]
     let mut c = Command::new(programa);
@@ -30,6 +32,20 @@ pub fn orden(programa: &str) -> Command {
     {
         use std::os::windows::process::CommandExt;
         c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
+            let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
+            let limpio = limpiar_entorno(vars, Path::new(&appdir));
+            for (k, v) in limpio {
+                if let Some(val) = v {
+                    c.env(k, val);
+                } else {
+                    c.env_remove(k);
+                }
+            }
+        }
     }
     c
 }
