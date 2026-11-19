@@ -62,10 +62,6 @@ mod ubicacion;
 mod ubicacion_logica;
 #[cfg(target_os = "macos")]
 mod ubicacion_macos;
-// (PRM1119A) Linux: la vía nativa por GeoClue2 cuando WebKitGTK no da posición.
-#[cfg(target_os = "linux")]
-#[allow(dead_code)]
-mod ubicacion_linux;
 mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;
@@ -80,8 +76,6 @@ mod avisos_mensajes;
 mod banco_latido; // PENA1
 mod carpetas;
 mod disco;
-// (EFI1119B) Estado de energía del aparato (batería, ahorro, temperatura) para el modo «auto».
-mod energia;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
 mod enlace_wifi;
 mod enlace_wifi_logica;
@@ -103,10 +97,6 @@ mod enlace_wifi_linux_logica;
 mod enlace_wifi_linux;
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
-// LNX1118WC: arranque en Linux (DMABUF, reintentos de carga, respaldo).
-mod arranque_linux_logica;
-#[cfg(target_os = "linux")]
-mod arranque_linux;
 mod faro;
 // (LLA1108D) Las llamadas como llamadas del teléfono: Telecom, aviso CallStyle, audio y proximidad (Android).
 mod llamada_entrante;
@@ -193,7 +183,7 @@ mod control_pantalla; // AND1115K
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
 mod control_entrada_macos_logica; // CTL1117M (pura: se prueba en todas las plataformas)
-mod control_macos_logica; // PEND1b-d1
+mod control_macos_logica; // PEND1 (pura: permisos y regla G de macOS, se prueba en todas las plataformas)
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod control_aceptados_escritorio; // CTL1117M · CTL1118L: macOS y Linux
 #[cfg(target_os = "macos")]
@@ -752,9 +742,6 @@ pub fn run() {
     // (WebView2 solo lee `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` al nacer). Si no se puede, no pasa nada.
     #[cfg(target_os = "windows")]
     puerta_proxy_windows::instalar();
-    // LNX1118WC: configurar DMABUF antes de crear el primer webview en Linux.
-    #[cfg(target_os = "linux")]
-    arranque_linux::configurar_dmabuf_si_hace_falta();
     let mut builder = tauri::Builder::default();
 
     // Autostart + Updater: SOLO escritorio (en móvil ni compilan; ver Cargo.toml
@@ -840,9 +827,6 @@ pub fn run() {
                     }
                 }
             });
-            // LNX1118WC: arranque en Linux (reintentos de carga, respaldo).
-            #[cfg(target_os = "linux")]
-            arranque_linux::iniciar(app.handle());
             // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
             #[cfg(desktop)]
             servidor_local::iniciar(app.handle());
@@ -886,7 +870,6 @@ pub fn run() {
                 permisos_sistema::permisos_sistema_pedir,
                 permisos_sistema::permisos_sistema_abrir,
                 recursos_ia::recursos_ia_detectar,
-                energia::energia_estado, // EFI1119B
                 nativa::antenas_estado,
                 nativa::antenas_medir,
                 nativa::antenas_config,
