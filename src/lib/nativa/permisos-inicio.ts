@@ -26,6 +26,7 @@ import {
   type IdPermiso as IdRegistro,
   type SistemaPermisos,
 } from "./permisos-registro";
+import { clasificarEstado, planDePermisos } from "../permisos/matriz";
 
 export type SistemaAsistente = SistemaPermisos;
 export type IdPermiso = IdRegistro;
@@ -100,9 +101,12 @@ export function yaPedido(g: Pick<GuardadoPermisos, "avisos">, id: IdPermiso): bo
 
 /** Los permisos que se pueden pedir ahora y no están concedidos (todos, o solo los que esa persona no vio). */
 export function colaDe(sistema: SistemaAsistente, g: GuardadoPermisos, estados: EstadosSistema = {}, forzar = false): DefPermiso[] {
-  return catalogoDe(sistema).filter(
-    (d) => esAccionable(accionDe(d, estados[d.id], yaPedido(g, d.id))) && (forzar || !g.vistos.includes(d.id)),
-  );
+  const clasificados: EstadosSistema = {};
+  for (const id of Object.keys(estados) as IdPermiso[]) clasificados[id] = clasificarEstado(estados[id]);
+  const momento = g.version === 0 && !g.vistos.length ? "instalar" : "abrir";
+  const plan = planDePermisos(sistema, clasificados, momento, { yaPedidos: g.avisos });
+  const pedibles = new Set<IdPermiso>([...plan.pedir, ...plan.ajustes]);
+  return catalogoDe(sistema).filter((d) => pedibles.has(d.id) && (forzar || !g.vistos.includes(d.id)));
 }
 
 /** Los permisos que aún no se le han preguntado en este sistema y que hace falta pedir (en orden). */

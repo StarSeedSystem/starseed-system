@@ -70,7 +70,7 @@ describe("acción por permiso", () => {
   });
 
   it("el texto de la acción es el que ve la persona", () => {
-    expect(["pedir", "abrir-ajustes", "por-uso", "nada", "listo"].map(textoAccion)).toEqual(["Pedir permiso", "Abrir ajustes", "Se pedirá al usarlo", "Sin acción", "Listo"]);
+    expect((["pedir", "abrir-ajustes", "por-uso", "nada", "listo"] as const).map(textoAccion)).toEqual(["Pedir permiso", "Abrir ajustes", "Se pedirá al usarlo", "Sin acción", "Listo"]);
   });
 });
 
@@ -92,7 +92,7 @@ describe("plan al instalar y al abrir", () => {
   });
 
   it("al abrir no insiste en lo denegado ni en lo ya pedido", () => {
-    const opciones = { yaPedidos: ["pantalla"], utiles };
+    const opciones = { yaPedidos: ["pantalla"] as const, utiles };
     const abrir = planDePermisos("macos", estado, "abrir", opciones);
     const instalar = planDePermisos("macos", estado, "instalar", opciones);
     expect({ pedir: abrir.pedir, ajustes: abrir.ajustes, esperar: abrir.esperar, sinCambios: abrir.sinCambios }).toEqual({ pedir: instalar.pedir, ajustes: instalar.ajustes, esperar: instalar.esperar, sinCambios: instalar.sinCambios });

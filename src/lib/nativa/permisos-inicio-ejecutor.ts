@@ -13,6 +13,7 @@
 
 import type { EstadosSistema, IdPermiso, ResultadoPermiso, SistemaAsistente } from "./permisos-inicio";
 import { normalizarEstados, type AccionPermiso, type EstadoSistema } from "./permisos-registro";
+import { clasificarEstado } from "../permisos/matriz";
 
 export interface DepsEjecutor {
   /** Llama a un comando de la app. */
@@ -242,7 +243,13 @@ export async function leerEstadosSistema(sistema: SistemaAsistente | null, d: De
   try {
     const r = await d.llamar<{ plataforma?: unknown; sesion?: unknown; estados?: unknown }>("permisos_sistema_estado");
     if (r.ok && r.valor) {
-      out.estados = normalizarEstados(r.valor.estados);
+      const crudos: Record<string, string> = {};
+      if (r.valor.estados && typeof r.valor.estados === "object") {
+        for (const [id, raw] of Object.entries(r.valor.estados as Record<string, unknown>)) {
+          if (typeof raw === "string") crudos[id] = clasificarEstado(raw);
+        }
+      }
+      out.estados = normalizarEstados(crudos);
       if (typeof r.valor.plataforma === "string") out.plataforma = r.valor.plataforma;
       if (typeof r.valor.sesion === "string" && r.valor.sesion) out.sesion = r.valor.sesion;
     }
