@@ -343,6 +343,10 @@ class ServicioProyeccionPantalla : Service() {
         if (deteniendo) return
         deteniendo = true
         val hacia = capturando
+        // Una sesión nueva puede haber arrancado otra proyección antes de que esta termine de soltarse.
+        // En ese caso esta solo libera lo suyo: no le borra el consentimiento, ni el cuadro, ni le
+        // arranca la accesibilidad por debajo.
+        val eraActual = ProyeccionPantalla.servicio === this
         capturando = false
         principal.removeCallbacks(vigia)
         try { unregisterReceiver(apagada) } catch (_: Throwable) {}
