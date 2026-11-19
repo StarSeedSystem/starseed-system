@@ -148,9 +148,15 @@ describe("EditorPaquete", () => {
       fireEvent.blur(inputEliminar);
     });
 
-    await waitFor(() => expect(screen.getByTestId("completada-Eliminar")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText(/4 de 6/i)).toBeInTheDocument());
     expect(screen.queryByTestId("pendiente-Eliminar")).not.toBeInTheDocument();
+
+    const botonCompletadas = screen.getByRole("button", { name: /completadas/i });
+    await act(async () => {
+      fireEvent.click(botonCompletadas);
+    });
+
+    await waitFor(() => expect(screen.getByTestId("completada-Eliminar")).toBeInTheDocument());
   });
 
   it("muestra 'Sugerencia automática' para traducciones automáticas y solo aplica si se acepta", async () => {
@@ -168,12 +174,17 @@ describe("EditorPaquete", () => {
 
     render(<EditorPaquete codigoIdioma="eo" fuente={fuenteBase} almacen={almacen} onCerrar={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText(/sugerencia automática/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/sugerencia automática/i).length).toBeGreaterThan(0));
 
     const inputNuevo = screen.getByTestId("input-Nuevo");
     await act(async () => {
       fireEvent.change(inputNuevo, { target: { value: "Nova" } });
       fireEvent.blur(inputNuevo);
+    });
+
+    const botonCompletadas = screen.getByRole("button", { name: /completadas/i });
+    await act(async () => {
+      fireEvent.click(botonCompletadas);
     });
 
     await waitFor(() => expect(screen.getByTestId("completada-Nuevo")).toBeInTheDocument());

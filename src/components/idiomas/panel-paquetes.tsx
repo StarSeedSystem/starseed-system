@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, Download, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Download, Edit, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import type { PaqueteIdioma } from "@/lib/idiomas/paquete/formato";
 import type { AlmacenPaquetes } from "@/lib/idiomas/paquete/almacen";
 import { mapearClaves } from "@/lib/idiomas/paquete/mapear";
 import { validarPaquete } from "@/lib/idiomas/paquete/validar";
+import { EditorPaquete } from "./editor-paquete";
 import type { ResultadoImportacion as ResultadoImportacionPo } from "@/lib/idiomas/paquete/importar-po";
 import type { ResultadoImportacion as ResultadoImportacionXml } from "@/lib/idiomas/paquete/importar-xml-strings";
 import type { ResultadoImportacion as ResultadoImportacionJsonCsv } from "@/lib/idiomas/paquete/importar-json-csv";
@@ -123,6 +124,7 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
   const [erroresValidacion, setErroresValidacion] = useState<string[]>([]);
   const [confirmarQuitar, setConfirmarQuitar] = useState<string | null>(null);
   const [ayudaVisible, setAyudaVisible] = useState(false);
+  const [paqueteEditando, setPaqueteEditando] = useState<string | null>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
   const store = almacen ?? (typeof window !== "undefined" ? (window as unknown as { __almacenPaquetes?: AlmacenPaquetes }).__almacenPaquetes : undefined);
@@ -443,6 +445,14 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
               >
                 <Download className="h-5 w-5" aria-hidden />
               </button>
+              <button
+                type="button"
+                onClick={() => setPaqueteEditando(paquete.codigo)}
+                className="min-h-[44px] min-w-[44px] cursor-pointer rounded-lg bg-white/5 p-2 text-white/70 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300 transition-colors"
+                aria-label={`Editar ${paquete.nombre}`}
+              >
+                <Edit className="h-5 w-5" aria-hidden />
+              </button>
               {confirmarQuitar === paquete.codigo ? (
                 <div className="flex items-center gap-2">
                   <button
@@ -476,6 +486,14 @@ export function PanelPaquetesIdioma({ fuente, leerArchivo, digest = "auto", alma
           </li>
         ))}
       </ul>
+      {paqueteEditando && (
+        <EditorPaquete
+          codigoIdioma={paqueteEditando}
+          fuente={fuente}
+          almacen={store}
+          onCerrar={() => setPaqueteEditando(null)}
+        />
+      )}
     </div>
   );
 }

@@ -192,7 +192,7 @@ export function EditorPaquete({ codigoIdioma, fuente, almacen, onCerrar }: Edito
           type="button"
           onClick={onCerrar}
           className="min-h-[44px] min-w-[44px] cursor-pointer rounded-lg bg-white/5 p-2 text-white/70 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-cyan-300 transition-colors"
-          aria-label="Cerrar edición"
+          aria-label="Cerrar"
         >
           <X className="h-5 w-5" aria-hidden />
         </button>
