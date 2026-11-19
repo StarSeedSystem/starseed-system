@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { nombreParaMostrar, type QuienControla } from "@/lib/control-remoto/quien-controla";
 import { PALABRAS_INDICADOR as P } from "@/lib/control-remoto/palabras-indicador";
+import { MedidorPuntoAparato } from "./medidor-calidad";
 
 function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -121,6 +122,9 @@ export function PuntoControl({ quien, onTerminar, onQuitarPermiso, plegarMs = PL
                             <dd data-testid="punto-control-color">{quien.color}</dd>
                         </div>
                     </dl>
+                    {quien.calidad && (
+                        <MedidorPuntoAparato metricas={quien.calidad} className="self-center" />
+                    )}
                     <p className="text-white/50">{P.punto.terminarAyuda}</p>
                     <div className="flex flex-wrap gap-2 pt-1">
                         <button type="button" onClick={onTerminar} className="min-h-9 flex-1 cursor-pointer rounded-lg bg-[#DC143C] px-3 py-1 font-medium transition-colors hover:bg-[#b01030]">

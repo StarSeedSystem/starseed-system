@@ -6,6 +6,7 @@
 
 import type { Controlador, PermisoControl, SesionActiva } from "./sesion";
 import { colorDe, colorValido } from "@/lib/neurons/color-publico";
+import type { MetricasCalidad } from "./calidad";
 
 export interface QuienControla {
     nombre: string;
@@ -15,6 +16,8 @@ export interface QuienControla {
     color: string;
     /** Id de la neurona que controla, si se conoce. */
     neurona: string | null;
+    /** CTL1119B: métricas de calidad del lado del aparato (fps enviados, medio, etc.). */
+    calidad?: MetricasCalidad;
 }
 
 export function quienControla(sesion: SesionActiva | null, permiso: Pick<PermisoControl, "controladores"> | null): QuienControla | null {

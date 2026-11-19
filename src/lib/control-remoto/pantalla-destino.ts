@@ -23,6 +23,7 @@ import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, per
 import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
+import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, VENTANA_FPS_MS, INTERVALO_REGISTRO_MS } from "./calidad"; // CTL1119B
 
 export type EntradaControl =
     | { tipo: "gesto"; dedos: { id: number; puntos: [number, number, number][] }[]; sigue: boolean }
@@ -73,6 +74,8 @@ export interface InstantaneaPantalla {
     caduca?: number;
     /** CTL1117J · S2: hasta dónde llega el control en el aparato controlado, tal como él lo dijo (null: no lo dijo, aparato anterior). */
     alcance?: "total" | "protegido";
+    /** CTL1119B: métricas de calidad calculadas (fps, rtt, kbps, resolución, codec, calidad, pérdidas, medio). */
+    calidad?: MetricasCalidad;
 }
 
 /** (CTL1117J · S2) El `alcance` que dice el aparato controlado en su respuesta de capacidades; un valor raro no se inventa. */
@@ -209,7 +212,7 @@ export interface PeerDestinoLike {
     createOffer(): Promise<{ type?: string; sdp?: string }>;
     setLocalDescription(d?: unknown): Promise<void>;
     setRemoteDescription(d: { type: string; sdp: string }): Promise<void>;
-    getStats(): Promise<{ forEach(cb: (v: Record<string, unknown>) => void): void }>;
+    getStats(): Promise<{ forEach(cb: (v: Record<string, unknown>) => void): void; get?(id: string): Record<string, unknown> | undefined }>;
     close(): void;
 }
 
@@ -289,6 +292,11 @@ export class PantallaDestino {
     private enMalla = false; // CTL1118M
     private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void } | null = null;
     private inicioConexion = 0;
+    /** CTL1119B: estado de calidad (cuadros, acuses, métricas). */
+    private calidad: EstadoCalidad = { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: "sin-determinar", lado: "controlador" };
+    private ultimaCalidad: MetricasCalidad | null = null;
+    /** CTL1119B: órdenes pendientes por el canal de control (nonce → tiempo de envío). */
+    private pendientesControl = new Map<string, number>();
 
     constructor(
         readonly neurona: string,
@@ -298,6 +306,7 @@ export class PantallaDestino {
         this.registro = d.registro ?? new RegistroSesiones(d.ahora);
         this.carrilCompartido = this.registro.carrilDe(neurona);
         this.snap = { estado: "conectando", desde: d.ahora(), flujo: null, pantalla: null, nivel: "ver", capacidades: SIN_CAPACIDADES, aparato: null };
+        this.calidad = { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: "sin-determinar", lado: "controlador" };
     }
 
     // ── observable ───────────────────────────────────────────────────────────────────────────
@@ -404,6 +413,7 @@ export class PantallaDestino {
         });
         this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
         this.cada(MEDIDA_MS, () => void this.medir());
+        this.cada(500, () => void this.actualizarCalidad()); // CTL1119B
         void this.leerAparato();
     }
 
@@ -568,6 +578,9 @@ export class PantallaDestino {
             if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
                 cuadros += 1;
                 if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo" });
+                // CTL1119B: alimentar cuadro a calidad (malla)
+                const t = this.d.ahora();
+                añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
             }
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
@@ -724,21 +737,43 @@ export class PantallaDestino {
             const st = await peer.getStats();
             let decodificados: number | null = null;
             let rtt: number | null = null;
+            let bytesRecibidos: number | null = null;
+            let ancho: number | null = null;
+            let alto: number | null = null;
+            let codec: string | null = null;
             st.forEach((v) => {
-                if (v.type === "inbound-rtp" && v.kind === "video" && typeof v.framesDecoded === "number") decodificados = v.framesDecoded;
+                if (v.type === "inbound-rtp" && v.kind === "video") {
+                    if (typeof v.framesDecoded === "number") decodificados = v.framesDecoded;
+                    if (typeof v.bytesReceived === "number") bytesRecibidos = v.bytesReceived;
+                    if (typeof v.frameWidth === "number") ancho = v.frameWidth;
+                    if (typeof v.frameHeight === "number") alto = v.frameHeight;
+                    if (typeof v.codecId === "string") {
+                        const codecStat = st.get?.(v.codecId);
+                        if (codecStat && typeof codecStat.mimeType === "string") codec = codecStat.mimeType.replace("video/", "");
+                    }
+                }
                 if (v.type === "candidate-pair" && v.nominated === true && typeof v.currentRoundTripTime === "number") rtt = v.currentRoundTripTime * 1000;
             });
             const t = this.d.ahora();
             if (decodificados !== null) {
                 const dt = (t - this.ultimosCuadros.t) / 1000;
                 const primera = this.ultimosCuadros.t === 0;
-                const fps = !primera && dt > 0 ? Math.max(0, (decodificados - this.ultimosCuadros.n) / dt) : 0;
+                const cuadrosAnteriores = this.ultimosCuadros.n;
+                const fps = !primera && dt > 0 ? Math.max(0, (decodificados - cuadrosAnteriores) / dt) : 0;
                 this.ultimosCuadros = { n: decodificados, t };
                 this.sinCuadros = !primera && fps === 0 ? this.sinCuadros + 1 : 0;
                 this.poner({ fps: Math.round(fps * 10) / 10 });
                 // Tres medidas seguidas sin un cuadro nuevo: no se enseña como vivo lo que no llega.
                 if (this.sinCuadros >= 3 && this.snap.estado === "en-vivo") this.poner({ estado: "sin-pantalla", motivo: "sin-cuadros" });
                 if (this.sinCuadros === 0 && this.snap.estado === "sin-pantalla" && this.snap.motivo === "sin-cuadros") this.poner({ estado: "en-vivo" });
+                // CTL1119B: alimentar cuadro a calidad (aprox. 1 cuadro por muestra)
+                if (!primera && bytesRecibidos !== null && ancho !== null && alto !== null && dt > 0) {
+                    const cuadrosNuevos = Math.max(1, decodificados - cuadrosAnteriores);
+                    const bytesPorCuadro = Math.round(bytesRecibidos / cuadrosNuevos);
+                    if (bytesPorCuadro > 0) {
+                        añadirCuadro(this.calidad, { t, bytes: bytesPorCuadro, ancho, alto, codec: codec ?? undefined, completo: true });
+                    }
+                }
             }
             if (rtt !== null) {
                 this.rtt = rtt;
@@ -746,6 +781,26 @@ export class PantallaDestino {
             }
         } catch {
             /* sin estadísticas: la latencia sale de las órdenes */
+        }
+    }
+
+    /** CTL1119B: calcula métricas de calidad, actualiza medio y emite registro cada 10 s. */
+    private actualizarCalidad(): void {
+        if (this.cerrada) return;
+        const ahora = this.d.ahora();
+        // Actualizar medio actual
+        const medioSnap = instantaneaMedio(this.neurona);
+        const medio: TipoMedio = (medioSnap.pantalla.medio as TipoMedio) ?? (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+        actualizarMedio(this.calidad, medio);
+        // Calcular métricas
+        const metricas = calcularMetricas(this.calidad, ahora);
+        this.ultimaCalidad = metricas;
+        this.poner({ calidad: metricas });
+        // Registro cada 10 s
+        if (tocaRegistro(this.calidad, ahora)) {
+            const linea = lineaRegistro(metricas);
+            this.anotar(linea);
+            marcarRegistro(this.calidad, ahora);
         }
     }
 
@@ -830,7 +885,10 @@ export class PantallaDestino {
                     }
                 }
             }
-            return this.d.mandar(nombre, args, { ...o, esperaMs: 4000 });
+            const tEnvio = this.d.ahora();
+            const r = await this.d.mandar(nombre, args, { ...o, esperaMs: 4000 });
+            if (r.nonce) this.pendientesControl.set(r.nonce, tEnvio);
+            return r;
         });
         if (sale) this.alRespuestaEntrada(sale, e, "control");
     }
@@ -847,12 +905,26 @@ export class PantallaDestino {
         const p = this.pendientes.get(x.nonce);
         if (!p) return;
         this.pendientes.delete(x.nonce);
-        this.tomarLatencia(this.d.ahora() - p.t);
+        const ahora = this.d.ahora();
+        this.tomarLatencia(ahora - p.t);
+        // CTL1119B: alimentar acuse a calidad
+        const medioSnap = instantaneaMedio(this.neurona);
+        const medio: TipoMedio = (medioSnap.entrada.medio as TipoMedio) ?? "sin-determinar";
+        añadirAcuse(this.calidad, { nonce: x.nonce, tEnvio: p.t, tAcuse: ahora, medio, ok: x.ok });
         this.alRespuestaEntrada(x, p.entrada, "datos");
     }
 
     private alRespuestaEntrada(r: RespuestaOrden, entrada?: EntradaControl, via?: "datos" | "control"): void {
         if (this.cerrada) return;
+        // CTL1119B: alimentar acuse a calidad (canal de control)
+        if (r.nonce) {
+            const ahora = this.d.ahora();
+            const tEnvio = this.pendientesControl.get(r.nonce) ?? (ahora - 50);
+            this.pendientesControl.delete(r.nonce);
+            const medioSnap = instantaneaMedio(this.neurona);
+            const medio: TipoMedio = (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+            añadirAcuse(this.calidad, { nonce: r.nonce, tEnvio, tAcuse: ahora, medio, ok: r.ok });
+        }
         if (r.ok) {
             if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
             // CTL1117A · S9: un aviso de una orden anterior no se queda cuando la siguiente sí se cumplió.

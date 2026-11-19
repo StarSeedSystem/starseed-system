@@ -23,6 +23,8 @@ import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteR
 import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
+import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
+import { instantaneaMedio } from "./medio-estado";
 
 export const LADO_MAX_DEFECTO = 1280;
 export const CALIDAD_DEFECTO = 60;
@@ -162,6 +164,9 @@ interface Activa {
     envio: { num: number; partes: ParteCuadro[]; ancho: number; alto: number } | null;
     reens: Reensamblador; // SEN1116A: partes de la oferta; se tira con la sesión
     respuestas: Map<string, ParteSenal[]>;
+    /** CTL1119B: estado de calidad (cuadros enviados, acuses, métricas). */
+    calidad: EstadoCalidad;
+    ultimaCalidad: MetricasCalidad | null;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -177,6 +182,8 @@ export class OrigenPantalla {
     private soltarOcupado: (() => void) | null = null;
     /** CTL1118F: cuántas veces se pidió la pantalla fluida en cada sesión de control (por su token): sola, UNA; después, solo si la persona lo pide. */
     private readonly fluidaPedidas = new Map<string, number>();
+    /** CTL1119B: intervalos para actualización de calidad. */
+    private intervalos = new Set<ReturnType<typeof setInterval>>();
 
     constructor(private readonly d: DepsOrigen) {}
 
@@ -188,6 +195,11 @@ export class OrigenPantalla {
     /** Cuadros pintados desde que empezó (solo un contador; nunca el contenido). */
     cuadrosPintados(): number {
         return this.activa?.cuadros ?? 0;
+    }
+
+    /** CTL1119B: métricas de calidad actuales (fps, rtt, kbps, resolución, codec, calidad, pérdidas, medio). */
+    calidad(): MetricasCalidad | null {
+        return this.activa?.ultimaCalidad ?? null;
     }
 
     /** Ejecuta una orden de pantalla o de entrada YA validada por la puerta. Lanza con un motivo corto. */
@@ -244,6 +256,8 @@ export class OrigenPantalla {
         const ancho = Number(r.ancho) || 0;
         const alto = Number(r.alto) || 0;
         const giro = [0, 90, 180, 270].includes(Number(r.giro)) ? Number(r.giro) : 0;
+        const medioSnap = instantaneaMedio(s.de);
+        const medio: TipoMedio = (medioSnap.pantalla.medio as TipoMedio) ?? (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
         const a: Activa = {
             token: s.token,
             de: s.de,
@@ -270,6 +284,8 @@ export class OrigenPantalla {
             envio: null,
             reens: new Reensamblador(this.d.ahora),
             respuestas: new Map(),
+            calidad: { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: medio, lado: "aparato" },
+            ultimaCalidad: null,
         };
         this.activa = a;
         this.soltarOcupado?.();
@@ -286,6 +302,9 @@ export class OrigenPantalla {
             /* el diagnóstico nunca impide la pantalla */
         }
         void this.bucle(a);
+        // CTL1119B: actualización de calidad cada 500 ms
+        const intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
+        this.intervalos.add(intCalidad);
         this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${args.fuente === "proyeccion" ? "proyeccion" : "auto"}`);
         // CTL1118F: la pantalla ya sale; lo fluido se pide sin esperar y sin cerrar nada.
         if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, args.fuente === "proyeccion")) void this.buscarFluida(a, args.fuente === "proyeccion");
@@ -298,6 +317,25 @@ export class OrigenPantalla {
             giro,
             capacidades: esObjeto(capacidades) ? capacidades : null,
         };
+    }
+
+    /** CTL1119B: calcula métricas de calidad, actualiza medio y emite registro cada 10 s. */
+    private actualizarCalidad(a: Activa): void {
+        if (a.parado) return;
+        const ahora = this.d.ahora();
+        // Actualizar medio actual
+        const medioSnap = instantaneaMedio(a.de);
+        const medio: TipoMedio = (medioSnap.pantalla.medio as TipoMedio) ?? (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+        actualizarMedio(a.calidad, medio);
+        // Calcular métricas
+        const metricas = calcularMetricas(a.calidad, ahora);
+        a.ultimaCalidad = metricas;
+        // Registro cada 10 s
+        if (tocaRegistro(a.calidad, ahora)) {
+            const linea = lineaRegistro(metricas);
+            this.d.anotar(linea);
+            marcarRegistro(a.calidad, ahora);
+        }
     }
 
     /** CTL1118F: `pantalla-iniciar` con `mantener`: no reabre nada (ni conexión ni canal); si la persona pide la fluida, la busca; contesta lo que hay ahora. */
@@ -450,8 +488,13 @@ export class OrigenPantalla {
                 continue;
             }
             a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
-            const ok = await a.pintor.pintar(bytes.subarray(CABECERA_CUADRO), h.ancho, h.alto).catch(() => false);
-            if (ok) a.cuadros += 1;
+            const jpeg = bytes.subarray(CABECERA_CUADRO);
+            const ok = await a.pintor.pintar(jpeg, h.ancho, h.alto).catch(() => false);
+            if (ok) {
+                a.cuadros += 1;
+                // CTL1119B: alimentar cuadro a calidad (aparato)
+                añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
+            }
             // CTL1118F: lo que cuesta un cuadro (traerlo + pintarlo) manda el tamaño y la calidad de los siguientes, solo con la fluida.
             if (ok && a.fuente === "proyeccion") this.medirRitmo(a, this.d.ahora() - tPide);
         }
@@ -601,16 +644,27 @@ export class OrigenPantalla {
             a.cola = a.cola.then(async () => {
                 if (a.parado || typeof t !== "string" || t.length > MAX_MENSAJE_CANAL) return;
                 let sobre: unknown;
+                let nonce = "";
                 try {
-                    sobre = JSON.parse(t);
+                    const parsed = JSON.parse(t);
+                    sobre = parsed;
+                    nonce = typeof parsed.nonce === "string" ? parsed.nonce : "";
                 } catch {
                     return;
                 }
+                const tEnvio = this.d.ahora();
                 const r = await this.d.recibirSobre(sobre);
+                const tAcuse = this.d.ahora();
                 try {
                     if (!a.parado && a.canal === canal) canal.send(JSON.stringify(r));
                 } catch {
                     /* el canal se cerró: la orden ya se cumplió o se rechazó y quedó en el registro */
+                }
+                // CTL1119B: alimentar acuse a calidad (canal de datos)
+                if (nonce) {
+                    const medioSnap = instantaneaMedio(a.de);
+                    const medio: TipoMedio = (medioSnap.entrada.medio as TipoMedio) ?? "sin-determinar";
+                    añadirAcuse(a.calidad, { nonce, tEnvio, tAcuse, medio, ok: esObjeto(r) && r.ok === true });
                 }
             });
         };
@@ -637,6 +691,8 @@ export class OrigenPantalla {
         // Dos miradas: la sesión viva de la puerta y la que acompañó a la orden; las dos tienen que ser de «controlar».
         if (s.nivel !== "controlar" || nivelOrden !== "controlar") throw new Error("nivel");
         if (!esObjeto(sobre)) throw new Error("forma");
+        const nonce = typeof sobre.nonce === "string" ? sobre.nonce : "";
+        const tEnvio = this.d.ahora();
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         let r: unknown;
@@ -644,6 +700,13 @@ export class OrigenPantalla {
             r = await inv("control_entrada", { sesion: s.token, sobre });
         } catch {
             throw new Error("sin-servicio");
+        }
+        const tAcuse = this.d.ahora();
+        // CTL1119B: alimentar acuse a calidad (canal de control)
+        if (nonce && this.activa) {
+            const medioSnap = instantaneaMedio(this.activa.de);
+            const medio: TipoMedio = (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+            añadirAcuse(this.activa.calidad, { nonce, tEnvio, tAcuse, medio, ok: esObjeto(r) && r.ok === true });
         }
         if (esObjeto(r) && r.ok === true) return { ok: true };
         const m = esObjeto(r) && typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "fallo";
@@ -658,6 +721,9 @@ export class OrigenPantalla {
         if (!a) return;
         this.activa = null;
         a.parado = true;
+        // CTL1119B: limpiar intervalos de calidad
+        for (const i of this.intervalos) clearInterval(i);
+        this.intervalos.clear();
         this.soltarOcupado?.();
         this.soltarOcupado = null;
         try {

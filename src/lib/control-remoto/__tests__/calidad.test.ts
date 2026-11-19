@@ -19,6 +19,7 @@ import {
     INTERVALO_REGISTRO_MS,
     VENTANA_FPS_MS,
     VIDA_ORDEN_MS,
+    TipoMedio,
 } from "../calidad";
 
 const AHORA = 1_000_000;
@@ -27,7 +28,7 @@ function cuadro(t: number, bytes: number, ancho: number, alto: number, extra: Pa
     return { t, bytes, ancho, alto, completo: true, ...extra };
 }
 
-function acuse(nonce: string, tEnvio: number, tAcuse: number, medio: tipoMedio = "red-local", ok = true): AcuseOrden {
+function acuse(nonce: string, tEnvio: number, tAcuse: number, medio: TipoMedio = "red-local", ok = true): AcuseOrden {
     return { nonce, tEnvio, tAcuse, medio, ok };
 }
 

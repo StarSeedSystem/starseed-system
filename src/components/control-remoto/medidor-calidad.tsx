@@ -138,7 +138,7 @@ function usarCalidad(lado: Lado, neurona: string, medio: TipoMedio, enVivo: bool
             // Registro cada 10 s
             if (tocaRegistro(estadoRef.current, ahora)) {
                 const linea = lineaRegistro(m);
-                anotarLlamada("banco", neurona, linea).catch(() => undefined);
+                anotarLlamada("banco", neurona, linea);
                 try {
                     console.info(`[control-calidad] ${linea}`);
                 } catch {
