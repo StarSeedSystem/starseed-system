@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import {
   applyPerf,
   allowHeavyFx,
+  inicializarAutoRendimiento,
   PERF_CHANGED_EVENT,
   type PerfApplied,
 } from "@/lib/perf/device-tier";
@@ -23,6 +24,7 @@ import {
 export function PerfController() {
   useEffect(() => {
     applyPerf();
+    void inicializarAutoRendimiento();
     const onChange = () => applyPerf();
     window.addEventListener(PERF_CHANGED_EVENT, onChange);
     window.addEventListener("resize", onChange);

@@ -233,7 +233,9 @@ function vigilarBateria(nav: NavigatorConBateria): void {
   void nav.getBattery().then((b) => {
     const refrescar = () => {
       if (getPerfMode() !== "auto") return;
-      void leerEnergiaWeb().then((e) => { if (e) actualizarEnergia(e); });
+      void leerEnergiaWeb().then((e) => {
+        if (e) actualizarEnergia({ ...e, tareasPesadas: energiaActual?.tareasPesadas ?? [] });
+      });
     };
     try {
       b.addEventListener("levelchange", refrescar);
@@ -247,8 +249,10 @@ function vigilarBateria(nav: NavigatorConBateria): void {
 /** Lee la energía (nativa o web) y aplica la decisión de «auto» una vez. */
 export async function inicializarAutoRendimiento(): Promise<DecisionAuto | null> {
   if (getPerfMode() !== "auto") return null;
-  const estado = (await leerEnergiaNativa()) ?? (await leerEnergiaWeb());
-  if (!estado) return null;
+  const medido = (await leerEnergiaNativa()) ?? (await leerEnergiaWeb());
+  if (!medido) return null;
+  // Lo medido no sabe de tareas pesadas: se conservan las que ya se marcaron.
+  const estado: EstadoEnergia = { ...medido, tareasPesadas: energiaActual?.tareasPesadas ?? [] };
   const decision = actualizarEnergia(estado);
   if (typeof navigator !== "undefined") vigilarBateria(navigator as NavigatorConBateria);
   return decision;

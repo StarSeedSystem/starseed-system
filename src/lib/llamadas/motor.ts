@@ -46,6 +46,7 @@ import { calidadDesde, extraerMetricas, peorCalidad, perdidaEntre, type Metricas
 import { desmarcarCamaraNoAbre, esPlataformaMovil, guardarPreferencia, marcarCamaraNoAbre, plataformaDe } from "@/lib/llamadas/camaras";
 import { getDeviceId } from "@/lib/network/device-registry";
 import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, pararStream, resumenCamaras } from "@/lib/llamadas/medios";
+import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
 import {
@@ -315,6 +316,8 @@ export class MotorLlamada {
     private microOn = false;
     private camaraOn = false;
     private pantallaOn = false;
+    /** Tarea pesada de la pantalla compartida (alimenta el modo «auto» de rendimiento). */
+    private soltarOcupadoPantalla: (() => void) | null = null;
 
     private canales: CanalMotor[] = [];
     /** Canal por el que llegó la última señal de cada par (ruta que ya se sabe que funciona). */
@@ -658,6 +661,8 @@ export class MotorLlamada {
         this.pistaPantalla = r.pista;
         r.pista.onended = () => this.dejarPantalla();
         this.pantallaOn = true;
+        this.soltarOcupadoPantalla?.();
+        this.soltarOcupadoPantalla = marcarOcupado(`pantalla:${this.sesionId}`, "directo");
         if (this.pistaCamara) {
             try {
                 local?.removeTrack(this.pistaCamara);
@@ -679,6 +684,8 @@ export class MotorLlamada {
 
     private dejarPantalla() {
         if (!this.pantallaOn) return;
+        this.soltarOcupadoPantalla?.();
+        this.soltarOcupadoPantalla = null;
         const local = this.local;
         const p = this.pistaPantalla;
         this.pistaPantalla = null;
@@ -2904,6 +2911,8 @@ export class MotorLlamada {
 
     private limpiar() {
         this.cerrado = true;
+        this.soltarOcupadoPantalla?.();
+        this.soltarOcupadoPantalla = null;
         if (this.graciaPresencia) clearTimeout(this.graciaPresencia); // LLA1114G
         this.graciaPresencia = null;
         try {
