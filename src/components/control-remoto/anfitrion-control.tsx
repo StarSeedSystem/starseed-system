@@ -7,13 +7,14 @@
  * viven en `usarPantallaRemota`; la ventana (`VentanaControl`) no sabe nada de transporte.
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import { VentanaControl } from "./ventana-control";
 import { usarColoresControl } from "./usar-colores-control";
 import { MedioControl } from "./ventana-control/medio"; // CTL1117B
 import { AvisoPeticionControl } from "./aviso-peticion-control"; // CTL1117J
 import { usarPantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
+import { fuentePedidaValida, type FuentePedida, FUENTE_DEFECTO } from "@/lib/control-remoto/fuente-pantalla";
 
 interface Abierta {
     neurona: string;
@@ -24,6 +25,35 @@ let abiertas: Abierta[] = [];
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 const RE_ID = /^[A-Za-z0-9-]{1,100}$/;
+const CLAVE_FUENTE = "starseed.control.fuente.v1";
+
+function leerFuenteGuardada(): Record<string, FuentePedida> {
+    try {
+        const raw = localStorage.getItem(CLAVE_FUENTE);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+            const resultado: Record<string, FuentePedida> = {};
+            for (const [k, v] of Object.entries(parsed)) {
+                resultado[k] = fuentePedidaValida(v);
+            }
+            return resultado;
+        }
+    } catch {
+        /* almacenamiento no disponible o corrupto */
+    }
+    return {};
+}
+
+function guardarFuente(neuronaId: string, fuente: FuentePedida): void {
+    try {
+        const actual = leerFuenteGuardada();
+        actual[neuronaId] = fuente;
+        localStorage.setItem(CLAVE_FUENTE, JSON.stringify(actual));
+    } catch {
+        /* almacenamiento no disponible */
+    }
+}
 
 /** Abre la ventana flotante de esa neurona (si ya estaba abierta, no hace nada). */
 export function abrirVentanaControl(neurona: string, nombre: string): boolean {
@@ -71,8 +101,22 @@ function useAbiertas(): readonly Abierta[] {
 
 /** Una ventana de control con su sesión. En modo página llena su contenedor; en flotante va sobre la app. */
 export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: string; nombre: string; modo: "flotante" | "pagina"; alCerrada?: () => void }) {
-    const p = usarPantallaRemota(neurona);
+    const [fuente, setFuente] = useState<FuentePedida>(FUENTE_DEFECTO);
     const colores = usarColoresControl(neurona);
+
+    // Primer render usa 'auto'; lo guardado entra en efecto para no desajustar la hidratación
+    useEffect(() => {
+        const guardada = leerFuenteGuardada()[neurona];
+        if (guardada) setFuente(guardada);
+    }, [neurona]);
+
+    const p = usarPantallaRemota(neurona, { fuente });
+
+    const alCambiarFuente = (nueva: FuentePedida) => {
+        setFuente(nueva);
+        guardarFuente(neurona, nueva);
+    };
+
     return (
         <VentanaControl
             nombre={nombre}
@@ -89,7 +133,10 @@ export function VentanaRemota({ neurona, nombre, modo, alCerrada }: { neurona: s
             aparato={p.aparato}
             latenciaMs={p.latenciaMs}
             fps={p.fps}
+            fuentePedida={fuente}
             fuenteReal={p.fuente ?? null}
+            avisoFuente={p.veredicto.aviso}
+            alCambiarFuente={alCambiarFuente}
             via={p.via}
             enlaceVia={p.enlace ?? null}
             alPedirFluida={() => void p.pedirFluida()}
