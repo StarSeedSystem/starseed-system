@@ -28,7 +28,7 @@ import { guardarPreferenciaFondo, type EstadoFondoVivo } from "@/lib/perf/fondo-
 
 const OPTIONS: Array<{ id: PerfMode; label: string; desc: string; Icon: React.ComponentType<{ className?: string }> }> = [
   { id: "auto", label: "Automático", desc: "Recomendado. Ajusta la riqueza visual al dispositivo.", Icon: Sparkles },
-  { id: "high", label: "Alto", desc: "Todos los fondos vivos (WebGL, cristal líquido). Equipos potentes.", Icon: Zap },
+  { id: "alto", label: "Alto", desc: "Todos los fondos vivos (WebGL, cristal líquido). Equipos potentes.", Icon: Zap },
   { id: "eco", label: "Eco", desc: "Fondos estáticos y menos desenfoque. Más fluidez y batería.", Icon: Leaf },
 ];
 
