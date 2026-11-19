@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "CTL1119Fb",
+   "ola": "CTL1119",
+   "titulo": "Linux (y escritorios): origen web estable para no perder la clave ni los datos, y pantalla por cuadros si el controlador no tiene WebRTC",
+   "archivos": [
+    "native/src-tauri/src/servidor_local.rs",
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/canal.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/analisis-1119-linux-controla.md (análisis de la dirección con los registros de la Maggabox, 19-11). (1) Origen estable: hoy, si el puerto principal del servidor local (47610) está ocupado al arrancar, la app «rescata» otro (47611) y cambia de origen web; localStorage e IndexedDB quedan partidos y la clave del aparato creada en Genesis «se olvida» al volver al principal. En native/src-tauri/src/servidor_local.rs: no cambiar de origen salvo que sea imposible; si el puerto lo tiene una instancia anterior de la propia app, esperarla o cerrarla de forma segura; si hay que usar el de rescate, al volver al principal migrar lo migrable (localStorage, IndexedDB exportable) y avisar en pantalla de lo que no se pudo migrar, con el botón para crear de nuevo la clave del aparato (CTL1119E la hará nativa y dejará de depender del origen). Registrar `origen cambio de= a= causa= migrado=`. (2) Pantalla al controlador sin WebRTC: si la neurona que controla no tiene WebRTC (en Linux hoy: `webrtc-linux faltan=…`), el control negocia la vía de cuadros (`pantalla-cuadro`, la misma que funciona cuando la Mac controla la Maggabox) y lo dice en la ventana («Pantalla por cuadros: sin vídeo WebRTC en este aparato»); nunca se queda en «conectando» sin explicar por qué: a los 10 s sin pantalla muestra la causa y la vía que intenta. Pruebas: elección de vía por capacidades de ambos lados y decisión de puerto/migración con casos de ejemplo. Reglas: la firma, la anti-repetición, el aviso y «Terminar»/«Quitar permiso» no cambian; la aceptación sigue siendo del dueño. Español neutro.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44428031397`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44428031397:refs/remotes/origin/nube/44428031397\"` y `git cherry-pick --no-commit e8387c010649 b31901b2b614`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/src-tauri/Cargo.lock, native/src-tauri/src/servidor_local.rs, src/app/layout.tsx, src/components/nativa/aviso-cambio-origen.tsx, src/lib/control-remoto/__tests__/ctl1118m-destino-malla.test.ts, src/lib/control-remoto/__tests__/ctl1119f-sin-webrtc.test.ts, src/lib/control-remoto/canal.ts, src/lib/control-remoto/pantalla-destino.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44428031397"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-antigravity-flota-1119.json": [
+   "CTL1119Fb"
+  ],
+  "cola-auto-1118-175743.json": [
+   "CTL1119Fb"
+  ]
+ }
+}
