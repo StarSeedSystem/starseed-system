@@ -1281,32 +1281,64 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             "mac_cede": (nube.get("mac") or {}).get("cedibles") or [], "preguntas": preguntas}
 
 
+#: (CAP1119B) Reintentos de `nube-gh.py lanzar` si falla por error transitorio.
+MAX_REINTENTOS_DESPLEGAR = 3
+ESPERA_BASE_REINTENTO_S = 10
+
+
+def _es_error_transitorio(salida: str) -> bool:
+    """PURA: ¿el error parece transitorio (red, GitHub ocupado, rate limit)?"""
+    s = (salida or "").lower()
+    return any(p in s for p in (
+        "temporary", "transient", "timeout", "network", "connection",
+        "rate limit", "too many requests", "503", "502", "504",
+        "github", "unavailable", "busy", "retry",
+    ))
+
+
 def desplegar(runs, trabajadores):
     """Lanza `runs` jobs seguidos con `nube-gh.py lanzar` (cada uno reparte su propia cola) y
-    deja el resultado en el Chat Director."""
+    deja el resultado en el Chat Director. Reintenta en errores transitorios."""
     hechos, lanzados, fallo = [], 0, ""
     for i in range(max(0, int(runs))):
         # `--ceder` (2026-10-10, CAP1010): la tanda viva de la Mac cede lo que no alcanza pronto.
-        r = subprocess.run(
-            [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
-             str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
-             "--ceder"],
-            cwd=RAIZ, capture_output=True, text=True, timeout=600,
-        )
-        salida = ((r.stdout or "") + (r.stderr or "")).strip()
-        print(salida, flush=True)
-        lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
-        if r.returncode != 0 or not lanzado:
+        salida = ""
+        lanzado = []
+        for intento in range(1, MAX_REINTENTOS_DESPLEGAR + 1):
+            r = subprocess.run(
+                [sys.executable, os.path.join(DIRECTORIO, "nube-gh.py"), "lanzar", "--tope",
+                 str(int(trabajadores) * 2), "--trabajadores", str(trabajadores), "--minutos", str(MINUTOS_JOB),
+                 "--ceder"],
+                cwd=RAIZ, capture_output=True, text=True, timeout=600,
+            )
+            salida = ((r.stdout or "") + (r.stderr or "")).strip()
+            print(salida, flush=True)
+            lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
+            if r.returncode == 0 and lanzado:
+                fallo = ""
+                break
             fallo = (salida.splitlines() or ["?"])[-1][:200]
-            hechos.append("job %d no salió: %s" % (i + 1, fallo))
+            if intento < MAX_REINTENTOS_DESPLEGAR and _es_error_transitorio(salida):
+                espera = ESPERA_BASE_REINTENTO_S * (2 ** (intento - 1))
+                hechos.append("job %d: intento %d falló (transitorio), reintentando en %ds: %s"
+                              % (i + 1, intento, espera, fallo))
+                time.sleep(espera)
+                continue
+            # Error definitivo o último intento
+            hechos.append("job %d no salió tras %d intento(s): %s" % (i + 1, intento, fallo))
             break
-        lanzados += 1
-        hechos.append(lanzado[-1])
-    # (2026-10-10, CAP1010) Lo «en camino» pasa a ser lo que SALIÓ de verdad: antes se quedaban
-    # contados como vivos los jobs pedidos aunque el reparto hubiera dicho «0 tareas».
+        if not fallo and lanzado:
+            lanzados += 1
+            hechos.append(lanzado[-1])
+        else:
+            # Si falló definitivamente, no seguimos lanzando más jobs
+            break
+    # (2026-10-10, CAP1010) Lo «en camino» pasa a ser lo que SALIÓ de verdad.
     estado = _leer_json(ESTADO, {})
     ahora = time.time()
-    estado.update(en_camino=lanzados, en_camino_hasta=(ahora + EN_CAMINO_S) if lanzados else 0,
+    # Solo ponemos en_camino si realmente lanzamos algo
+    estado.update(en_camino=lanzados if lanzados else 0,
+                  en_camino_hasta=(ahora + EN_CAMINO_S) if lanzados else 0,
                   ultimo_despliegue={"t": ahora, "pedidos": int(runs), "lanzados": lanzados, "fallo": fallo})
     _guardar(estado)
     _avisar("Capacidad en la nube: %s" % "; ".join(hechos or ["nada que lanzar"]))

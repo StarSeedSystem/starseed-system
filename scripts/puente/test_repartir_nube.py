@@ -887,6 +887,48 @@ class CadenasPartidasYClasificar(unittest.TestCase):
         self.assertEqual(R.esperadas_por_otras(colas, {}, solo_de=set()), set())
 
 
+class A1EscaladoAgentes(unittest.TestCase):
+    """El A1 (Oracle Always Free 2 OCPU, 12 GB) sube agentes mientras tenga CPU y memoria libres, con su propio tope (CAP1119B)."""
+
+    def test_calcula_trabajadores_a1_por_cpu_memoria(self):
+        """Calcula el número óptimo de trabajadores para el A1 basado en CPU libre y memoria libre."""
+        from repartir_nube import calcular_trabajadores_a1
+        # A1: 2 OCPU, 12 GB RAM. Gobernador-like: 1 trabajador por ~1.5 GB, max (OCPU - 1) = 1
+        # Pero con 15% CPU usada → 85% libre = 1.7 OCPU libres → 1 trabajador
+        # Memoria: 5.6 GB libres (del auditoría) → 3 trabajadores por memoria, pero CPU limita a 1
+        t = calcular_trabajadores_a1(cpu_libre_pct=85, mem_libre_gb=5.6, ocpu=2, ram_total_gb=12)
+        self.assertEqual(t, 1)
+
+    def test_a1_con_mas_cpu_libre_sube_trabajadores(self):
+        """Si el A1 tiene más CPU libre, puede subir trabajadores (hasta su tope por hardware)."""
+        from repartir_nube import calcular_trabajadores_a1
+        # CPU 100% libre, memoria abundante → máximo por hardware (OCPU - 1 = 1 para 2 OCPU)
+        # Pero la regla dice "con su propio tope" - para A1 2 OCPU, tope = 1 (núcleos - 1)
+        t = calcular_trabajadores_a1(cpu_libre_pct=100, mem_libre_gb=10, ocpu=2, ram_total_gb=12)
+        self.assertEqual(t, 1)
+
+    def test_a1_tope_por_hardware_nunca_se_excede(self):
+        """El tope por hardware del A1 (OCPU - 1) nunca se excede."""
+        from repartir_nube import calcular_trabajadores_a1
+        # A1 tiene 2 OCPU → tope = 1
+        t = calcular_trabajadores_a1(cpu_libre_pct=100, mem_libre_gb=100, ocpu=2, ram_total_gb=12)
+        self.assertLessEqual(t, 1)
+
+    def test_a1_con_poca_memoria_reduce_trabajadores(self):
+        """Si el A1 tiene poca memoria libre, reduce trabajadores."""
+        from repartir_nube import calcular_trabajadores_a1
+        # Memoria muy baja → 0 trabajadores
+        t = calcular_trabajadores_a1(cpu_libre_pct=100, mem_libre_gb=0.5, ocpu=2, ram_total_gb=12)
+        self.assertEqual(t, 0)
+
+    def test_a1_minimo_un_trabajador_si_hay_recursos(self):
+        """Mínimo 1 trabajador si hay recursos mínimos (como el gobernador de la Mac)."""
+        from repartir_nube import calcular_trabajadores_a1
+        # CPU y memoria justo suficientes
+        t = calcular_trabajadores_a1(cpu_libre_pct=50, mem_libre_gb=2, ocpu=2, ram_total_gb=12)
+        self.assertGreaterEqual(t, 1)
+
+
 class UnSoloRepartidor(unittest.TestCase):
     """(2026-10-13) La nube y el A1 se llevaron IMG1011F/G/I a la vez."""
 
@@ -900,5 +942,5 @@ class UnSoloRepartidor(unittest.TestCase):
                 with self.assertRaises(TimeoutError):
                     with R.CerrojoReparto(espera_s=0, ruta=ruta):
                         pass
-            with R.CerrojoReparto(espera_s=0, ruta=ruta):
-                pass  # libre otra vez
+                with R.CerrojoReparto(espera_s=0, ruta=ruta):
+                    pass  # libre otra vez

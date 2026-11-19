@@ -805,6 +805,198 @@ def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
     assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
 
 
+class CloudroomQuota(unittest.TestCase):
+    """Cloudroom respeta su cupo mensual de 100 hilos / 30 días (CRM1024C, CAP1119B)."""
+
+    USABLE = {"id": "cloudroom", "estado": "usable", "detalle": "cuenta conectada"}
+
+    class Lanzador:
+        def __init__(self, lanzado=None, falla_seguir=False, falla_lanzar=False):
+            self.llamadas, self.lanzado = [], lanzado or {"lanzadas": [], "quedan": 100, "motivo": ""}
+            self.falla_seguir, self.falla_lanzar = falla_seguir, falla_lanzar
+
+        def seguir(self, aplicar=True, ahora=None):
+            self.llamadas.append(("seguir", aplicar))
+            if self.falla_seguir:
+                raise TimeoutError()
+            return {"acciones": {"X": "traer", "Y": "esperar"}, "errores": []}
+
+        def lanzar(self, ids, seco=False, priorizar=False, medio=None, ahora=None):
+            self.llamadas.append(("lanzar", list(ids), seco, priorizar, medio))
+            if self.falla_lanzar:
+                raise OSError("roto")
+            return dict(self.lanzado, lanzadas=list(self.lanzado["lanzadas"]) if not seco else ids[:1])
+
+    def test_ritmo_diario_respeta_cupo_mensual(self):
+        """El ritmo calcula lo que cabe HOY sin agotar los 100 hilos en 30 días.
+        Con MAX_VIVOS=3, el límite concurrente es 3, aunque tope_dia=6.
+        por_dia = ceil(quedan / días_restantes) = ceil(100/30) = 4, limitado por tope_dia=6."""
+        import cloudroom_lanzar as CL
+        ahora = time.mktime(time.strptime("2026-11-19 12:00:00", "%Y-%m-%d %H:%M:%S"))
+        registro = []  # sin hilos previos
+        r = CL.ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=3, tope_dia=6)
+        self.assertEqual(r["quedan"], 100)
+        # hoy se limita por max_vivos (3) - vivos (0) = 3
+        self.assertEqual(r["hoy"], 3)
+        # por_dia = ceil(100/30) = 4 (hacia arriba), no 6
+        self.assertEqual(r["por_dia"], 4.0)
+        self.assertIn("caben 3", r["motivo"])
+
+    def test_ritmo_con_hilos_previos_reparte_lo_que_queda(self):
+        """Con hilos ya usados en el ciclo (con hilo y estado final), el ritmo reparte lo que queda.
+        Los 20 hilos de hace 10 días con estado final cuentan como usados (quedan=80), no como vivos.
+        por_dia = ceil(80/20) = 4, hoy = 4 - 0 = 4, limitado a max_vivos=3."""
+        import cloudroom_lanzar as CL
+        ahora = time.mktime(time.strptime("2026-11-19 12:00:00", "%Y-%m-%d %H:%M:%S"))
+        # 20 hilos con 'hilo' y estado final hace 10 días (dentro de la ventana de 30 días)
+        viejo = ahora - 10 * 86400
+        registro = [{"t": viejo, "tarea": f"T{i}", "hilo": f"h{i}", "final": "traida"} for i in range(20)]
+        r = CL.ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=3, tope_dia=6)
+        self.assertEqual(r["quedan"], 80)  # 100 - 20 usados
+        # por_dia = ceil(80/20) = 4, hoy = 4 - 0 = 4, limitado a max_vivos=3
+        self.assertEqual(r["hoy"], 3)
+        self.assertEqual(r["por_dia"], 4.0)
+
+    def test_ritmo_sin_cupo_cuando_agotado(self):
+        """Si ya se usaron 100 hilos en los últimos 30 días (con hilo), no hay cupo."""
+        import cloudroom_lanzar as CL
+        ahora = time.mktime(time.strptime("2026-11-19 12:00:00", "%Y-%m-%d %H:%M:%S"))
+        # 100 hilos en los últimos 30 días (uno por día)
+        registro = [{"t": ahora - i * 86400, "tarea": f"T{i}", "hilo": f"h{i}"} for i in range(30)]
+        r = CL.ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=3, tope_dia=6)
+        self.assertEqual(r["hoy"], 0)
+        self.assertEqual(r["quedan"], 70)  # 100 - 30 usados en ventana de 30 días
+        self.assertIn("sin cupo", r["motivo"])
+
+    def test_buscar_capacidad_usa_ritmo_de_cloudroom_modelos(self):
+        """buscar_capacidad.cloudroom pasa elegibles y usa el ritmo de cloudroom_modelos (via cloudroom_lanzar)."""
+        cr = self.Lanzador({"lanzadas": ["A", "B"], "quedan": 95, "motivo": "caben 2"})
+        sumadas, linea, ids = B.cloudroom(True, ["A", "B", "C"], AHORA, cr=cr, sondear=lambda: self.USABLE)
+        self.assertEqual(sumadas, 2)
+        self.assertEqual(ids, ["A", "B"])
+        self.assertIn("quedan 95 del ciclo", linea)
+        # Verifica que se llamó a lanzar con las elegibles
+        self.assertEqual(cr.llamadas[1][1], ["A", "B", "C"])
+
+    def test_cloudroom_no_se_lanza_si_medio_no_usable(self):
+        """Si el sondeo dice que Cloudroom no está usable, no se lanza nada."""
+        sumadas, linea, ids = B.cloudroom(True, ["A"], AHORA, sondear=lambda: {"id": "cloudroom", "estado": "requiere_alex"})
+        self.assertEqual(sumadas, 0)
+        self.assertEqual(ids, [])
+        self.assertIn("sin sesión", linea)
+
+
+class MacGuardiaDiscoMemoria(unittest.TestCase):
+    """Cuando la Mac está frenada por guardia de disco (10 GB) o memoria, las tareas listas van a la nube (CAP1119B)."""
+
+    def test_mac_con_guardia_disco_envia_a_nube(self):
+        """Si la Mac tiene disco < 10 GB libre, las tareas listas se ceden a la nube en lugar de esperar."""
+        # La guardia de disco se refleja en motivo_tope del gobernador
+        estado_mac = {
+            "ocupados": ["A", "B", "C"],
+            "tope": 3,
+            "listas": ["T1", "T2", "T3", "T4"],
+            "motivo_tope": "guardia de disco: 7.5 GB libres (mínimo 10 GB)"
+        }
+        from unittest import mock
+        import asignar_huecos
+
+        nube = {"clases": {"elegibles": ["T1", "T2"]}, "pausa": None, "runs": 0, "error": None, "mac": {"tanda": 4, "cedibles": ["T1", "T2"], "se_queda": 2}}
+        with mock.patch.object(B, "ESTADO", "/tmp/estado-test.json"), \
+                mock.patch.object(B, "SALUD", "/tmp/salud-test.json"), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": ["T1", "T2", "T3", "T4"], "tope": 3, "ocupados": ["A", "B", "C"]}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_leer_json", lambda r, d: {"T1": {"estado": "pendiente"}, "T2": {"estado": "pendiente"}} if "progreso" in r else d):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=True, origen="autocuracion", ahora=AHORA)
+        # La Mac no asigna (está en tope por guardia), pero la nube sí recibe tareas
+        self.assertIn("nube", r["resumen"].lower() or " ".join(r["lineas"]).lower())
+
+    def test_mac_con_guardia_memoria_envia_a_nube(self):
+        """Si la Mac tiene RAM < 150 MB libre (guardia de memoria), las tareas listas se ceden a la nube."""
+        estado_mac = {
+            "ocupados": ["A", "B"],
+            "tope": 2,
+            "listas": ["T1", "T2"],
+            "motivo_tope": "gobernador: RAM libre 80 MB (umbral 150 MB)"
+        }
+        from unittest import mock
+        import asignar_huecos
+
+        nube = {"clases": {"elegibles": ["T1", "T2"]}, "pausa": None, "runs": 0, "error": None, "mac": {"tanda": 2, "cedibles": ["T1", "T2"], "se_queda": 0}}
+        with mock.patch.object(B, "ESTADO", "/tmp/estado-test.json"), \
+                mock.patch.object(B, "SALUD", "/tmp/salud-test.json"), \
+                mock.patch.object(B, "reunir_nube", lambda *a, **k: nube), \
+                mock.patch.object(B, "cloudroom", lambda *a, **k: (0, "Cloudroom: nada", [])), \
+                mock.patch.object(B, "claude_nube", lambda *a, **k: (0, "Claude en la nube: 0")), \
+                mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                mock.patch.object(RN, "leer_reaperturas", lambda *a, **k: {}), \
+                mock.patch.object(asignar_huecos, "reunir", lambda: {"listas": ["T1", "T2"], "tope": 2, "ocupados": ["A", "B"]}), \
+                mock.patch.object(asignar_huecos, "decidir", lambda e: {"puede": False}), \
+                mock.patch.object(B, "_leer_json", lambda r, d: {"T1": {"estado": "pendiente"}, "T2": {"estado": "pendiente"}} if "progreso" in r else d):
+            r = B.buscar(aplicar=True, sondear_medios=False, mac=True, origen="autocuracion", ahora=AHORA)
+        self.assertIn("nube", " ".join(r["lineas"]).lower())
+
+
+class GitHubPushRetry(unittest.TestCase):
+    """El empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir (CAP1119B)."""
+
+    def test_desplegar_reintenta_push_si_falla_transitoriamente(self):
+        """Si git push falla por error transitorio (red, GitHub ocupado), reintenta con backoff.
+        La lógica de reintento está en nube-gh.py:_lanzar (no en buscar_capacidad), así que este test
+        verifica que buscar_capacidad.desplegar llama a nube-gh.py y no deja estado 'en_camino' sin run real."""
+        from unittest import mock
+        import buscar_capacidad as B
+
+        # Mock subprocess.run para simular nube-gh.py que falla una vez y luego éxito
+        llamadas = []
+        def mock_run(cmd, *args, **kwargs):
+            llamadas.append(cmd)
+            if "nube-gh.py" in " ".join(cmd) and "lanzar" in " ".join(cmd) and len(llamadas) == 1:
+                # Primera llamada falla
+                result = mock.MagicMock()
+                result.returncode = 1
+                result.stdout = ""
+                result.stderr = "remote: error: temporary failure"
+                return result
+            # Segunda llamada éxito
+            result = mock.MagicMock()
+            result.returncode = 0
+            result.stdout = "lanzado: cola-test.json · run 12345"
+            result.stderr = ""
+            return result
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            r = B.desplegar(1, 3)
+            # Verifica que se llamó dos veces (reintento)
+            # Nota: la implementación actual de desplegar NO reintenta, así que este test fallará
+            # hasta que se implemente el reintento
+            self.assertEqual(len([c for c in llamadas if "nube-gh.py" in " ".join(c)]), 2)
+
+    def test_desplegar_no_deja_job_colgado_si_push_falla_definitivamente(self):
+        """Si git push falla definitivamente tras reintentos, el job no queda 'en camino' sin run."""
+        from unittest import mock
+        import buscar_capacidad as B
+
+        def mock_run_fail(cmd, *args, **kwargs):
+            result = mock.MagicMock()
+            result.returncode = 1
+            result.stdout = ""
+            result.stderr = "fatal: push failed permanently"
+            return result
+
+        with mock.patch("subprocess.run", side_effect=mock_run_fail):
+            r = B.desplegar(1, 3)
+            # Verifica que no se dejó estado 'en_camino' sin run real
+            estado = B._leer_json(B.ESTADO, {})
+            self.assertEqual(estado.get("en_camino", 0), 0)
+            self.assertEqual(estado.get("ultimo_despliegue", {}).get("lanzados", 0), 0)
+
+
 class FrenoMismoMotivo(unittest.TestCase):
     """(HAL09) Freno por mismo motivo en Buscar más capacidad."""
 

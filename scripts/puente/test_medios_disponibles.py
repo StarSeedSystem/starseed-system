@@ -88,6 +88,41 @@ class SecretosDelEnjambre(unittest.TestCase):
         self.assertIn("1 clave", d["detalle"])
 
 
+class GcloudFacturacion(unittest.TestCase):
+    """gcloud se clasifica según si la facturación está activa (CAP1119B).
+    Cloud Run NO arranca sin facturación: si está desactivada, el medio NO es 'usable'."""
+
+    def test_gcloud_sin_facturacion_no_es_usable(self):
+        """Si la facturación está desactivada, Cloud Run no funciona → requiere_alex."""
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
+        self.assertIn("habilita", d["siguiente_paso"].lower())
+
+    def test_gcloud_con_facturacion_es_usable(self):
+        """Si la facturación está activa y hay cuenta/proyecto, es usable."""
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=True)
+        self.assertEqual(d["estado"], "usable")
+        self.assertIn("proy", d["detalle"])
+
+    def test_gcloud_sin_cuenta_sigue_requiere_alex(self):
+        """Sin cuenta activa, da igual la facturación."""
+        d = M.clasificar_gcloud(True, [], "proy", [{}], facturacion_activa=True)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("cuenta", d["detalle"].lower())
+
+    def test_gcloud_sin_instalado_sigue_requiere_alex(self):
+        """Sin gcloud instalado, da igual la facturación."""
+        d = M.clasificar_gcloud(False, ["a@b.c"], "proy", [{}], facturacion_activa=True)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("instalado", d["detalle"].lower())
+
+    def test_gcloud_explica_que_hace_falta_para_facturacion(self):
+        """El siguiente_paso explica qué hacer para habilitar facturación."""
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion_activa=False)
+        self.assertIn("billing", d["siguiente_paso"].lower())
+
+
 class Oracle(unittest.TestCase):
     """Estados del contrato oracle-nube.md §9: ya no es «descartado»."""
 

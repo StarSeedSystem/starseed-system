@@ -52,6 +52,38 @@ MAX_ARCHIVOS_NUBE = 3
 #: pueden reintentar con un cambio.
 MAX_ENVIOS_NUBE = 3
 
+#: A1 (Oracle Always Free): 2 OCPU, 12 GB RAM. Tope por hardware = OCPU - 1 = 1 trabajador.
+#: Cada trabajador necesita ~1.5 GB RAM y ~0.5 OCPU. Similar al gobernador de la Mac.
+A1_OCPU = 2
+A1_RAM_TOTAL_GB = 12
+A1_RAM_POR_TRABAJADOR_GB = 1.5
+A1_OCPU_POR_TRABAJADOR = 0.5
+A1_TOPE_HARDWARE = max(1, A1_OCPU - 1)  # núcleos - 1, mínimo 1
+
+
+def calcular_trabajadores_a1(cpu_libre_pct: float, mem_libre_gb: float,
+                             ocpu: int = A1_OCPU, ram_total_gb: int = A1_RAM_TOTAL_GB) -> int:
+    """PURA (CAP1119B). Calcula cuántos trabajadores puede correr el A1 ahora mismo.
+
+    Reglas (como el gobernador de la Mac):
+    - Tope por hardware: OCPU - 1 (para 2 OCPU → 1 trabajador)
+    - Por CPU: cpu_libre_pct / 100 * ocpu / A1_OCPU_POR_TRABAJADOR
+    - Por RAM: mem_libre_gb / A1_RAM_POR_TRABAJADOR_GB
+    - Mínimo 1 si hay recursos, 0 si no hay memoria suficiente (< 1 GB libre)
+    - Nunca excede el tope por hardware.
+    """
+    if mem_libre_gb < 1.0:
+        return 0
+    # Tope por hardware (núcleos - 1)
+    tope_hardware = max(1, ocpu - 1)
+    # Por CPU libre
+    por_cpu = int((cpu_libre_pct / 100.0) * ocpu / A1_OCPU_POR_TRABAJADOR)
+    # Por RAM libre
+    por_ram = int(mem_libre_gb / A1_RAM_POR_TRABAJADOR_GB)
+    # El mínimo de los tres, pero al menos 1 si hay recursos
+    t = min(tope_hardware, max(1, por_cpu), max(1, por_ram))
+    return max(0, t)
+
 
 def ids_de_la_tanda_viva(args_procesos, olas):
     """Ids de la cola que está leyendo AHORA el orquestador de la Mac (por sus argumentos).
