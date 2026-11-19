@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { FUENTE_DEFECTO, type FuentePedida } from "./fuente-pantalla";
+import { FUENTE_DEFECTO, type FuentePedida, veredictoFuente, type VeredictoFuente } from "./fuente-pantalla";
 import { crearPantallaDestino, type EntradaControl, type InstantaneaPantalla, type PantallaDestino } from "./pantalla-destino";
 
 const VACIA: InstantaneaPantalla = {
@@ -27,25 +27,42 @@ export interface PantallaRemota extends InstantaneaPantalla {
     reintentar: () => void;
     /** CTL1118F: la persona pide la pantalla fluida con la sesión en marcha (no reabre nada). */
     pedirFluida: () => Promise<boolean>;
+    /** RST1116A: la fuente que se pidió (la persona la elige; «auto» si no dijo nada). */
+    fuentePedida: FuentePedida;
+    /** RST1116A: veredicto de si se cumplió lo pedido (comparando lo pedido con lo que contestó el aparato). */
+    veredicto: VeredictoFuente;
 }
 
 /** `fuente` (RST1116A): la pantalla que pide la persona; sin ella, «auto» (como siempre). Cambiarla reabre la pantalla. */
-export function usarPantallaRemota(neurona: string | null, fuente: FuentePedida = FUENTE_DEFECTO): PantallaRemota {
+export function usarPantallaRemota(
+    neurona: string | null,
+    opciones?: { fuente?: FuentePedida }
+): PantallaRemota;
+/** @deprecated firma antigua: usar objeto { fuente } */
+export function usarPantallaRemota(
+    neurona: string | null,
+    fuente: FuentePedida
+): PantallaRemota;
+export function usarPantallaRemota(
+    neurona: string | null,
+    segundo?: FuentePedida | { fuente?: FuentePedida }
+): PantallaRemota {
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
+    const fuentePedida = (segundo && typeof segundo === "object" ? segundo.fuente : segundo) ?? FUENTE_DEFECTO;
 
     useEffect(() => {
         if (!neurona) {
             setObj(null);
             return;
         }
-        const p = crearPantallaDestino(neurona, { fuente });
+        const p = crearPantallaDestino(neurona, { fuente: fuentePedida });
         setObj(p);
         void p.iniciar();
         return () => {
             void p.cerrar("desmontada", true);
         };
-    }, [neurona, intento, fuente]);
+    }, [neurona, intento, fuentePedida]);
 
     const suscribir = useCallback((cb: () => void) => (obj ? obj.suscribir(cb) : () => undefined), [obj]);
     const snap = useSyncExternalStore(
@@ -57,5 +74,9 @@ export function usarPantallaRemota(neurona: string | null, fuente: FuentePedida 
     const cerrar = useCallback(() => void obj?.cerrar("cerrada-por-la-persona", true), [obj]);
     const reintentar = useCallback(() => setIntento((n) => n + 1), []);
     const pedirFluida = useCallback(() => obj?.pedirFluida() ?? Promise.resolve(false), [obj]);
-    return useMemo(() => ({ ...snap, enviar, cerrar, reintentar, pedirFluida }), [snap, enviar, cerrar, reintentar, pedirFluida]);
+    const veredicto = veredictoFuente(fuentePedida, snap.fuente ?? null);
+    return useMemo(
+        () => ({ ...snap, enviar, cerrar, reintentar, pedirFluida, fuentePedida, veredicto }),
+        [snap, enviar, cerrar, reintentar, pedirFluida, fuentePedida, veredicto]
+    );
 }
