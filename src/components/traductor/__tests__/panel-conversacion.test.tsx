@@ -95,4 +95,34 @@ describe("PanelConversacion", () => {
         await userEvent.click(screen.getByRole("button", { name: /hablar en inglés/i }));
         expect(props.onPulsarHablar).toHaveBeenCalledWith("B");
     });
+
+    it("gira el lado B cuando girarB es true", () => {
+        montar({ girarB: true });
+        const ladoB = screen.getByRole("region", { name: /Lado B/ });
+        expect(ladoB).toHaveClass("rotate-180");
+    });
+
+    it("muestra 'Aún no hay turnos en este lado' cuando no hay turnos para ese lado", () => {
+        montar({ turnos: [] });
+        expect(screen.getByText("Aún no hay turnos en este lado.")).toBeInTheDocument();
+    });
+
+    describe("estadoDeLado cubre todas las fases", () => {
+        it("devuelve 'Traduciendo…' en fase traduciendo", () => {
+            const estado = { fase: "traduciendo", quien: "A", inicioMs: 0, cola: [] } as const;
+            expect(estadoDeLado(estado, "A")).toBe("Traduciendo…");
+            expect(estadoDeLado(estado, "B")).toBe("En espera");
+        });
+
+        it("devuelve 'Hablando…' en fase hablando", () => {
+            const estado = { fase: "hablando", quien: "B", inicioMs: 0 } as const;
+            expect(estadoDeLado(estado, "B")).toBe("Hablando…");
+            expect(estadoDeLado(estado, "A")).toBe("En espera");
+        });
+
+        it("devuelve 'Esperando turno (N)' en fase esperandoTurno", () => {
+            const estado = { fase: "esperandoTurno", quien: "A", inicioMs: 0, cola: ["x", "y"] } as const;
+            expect(estadoDeLado(estado, "A")).toBe("Esperando turno (2)");
+        });
+    });
 });
