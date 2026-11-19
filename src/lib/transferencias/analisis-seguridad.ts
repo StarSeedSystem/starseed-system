@@ -8,7 +8,25 @@
  * Solo entrada → salida. Sin red, sin disco, sin efectos secundarios.
  */
 
-import { createHash } from "node:crypto";
+function getCrypto(): Crypto {
+  if (typeof globalThis !== "undefined" && globalThis.crypto) {
+    return globalThis.crypto;
+  }
+  if (typeof window !== "undefined" && window.crypto) {
+    return window.crypto;
+  }
+  if (typeof self !== "undefined" && self.crypto) {
+    return self.crypto;
+  }
+  throw new Error("Web Crypto API no disponible");
+}
+
+async function calcularHuellaWebCrypto(contenido: Uint8Array): Promise<string> {
+  const crypto = getCrypto();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", contenido);
+  const hashArray = new Uint8Array(hashBuffer);
+  return Array.from(hashArray, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export interface ArchivoParaAnalisis {
   nombre: string;
@@ -226,8 +244,8 @@ function contarOcurrencias(bytes: Uint8Array, patron: number[]): number {
   return count;
 }
 
-export function calcularHuella(contenido: Uint8Array): string {
-  return createHash("sha256").update(contenido).digest("hex");
+export async function calcularHuella(contenido: Uint8Array): Promise<string> {
+  return calcularHuellaWebCrypto(contenido);
 }
 
 export function detectarTipoReal(contenido: Uint8Array, extension: string): string {
@@ -482,7 +500,7 @@ export async function analizarSeguridad(archivo: ArchivoParaAnalisis): Promise<R
   const tipoEsperado = magicParaExtension?.mime ?? "application/octet-stream";
   const tipoCoincide = tipoReal === tipoEsperado || tipoReal === "application/octet-stream";
 
-  const huella = calcularHuella(archivo.contenido);
+  const huella = await calcularHuella(archivo.contenido);
   const firmaEjecutable = verificarFirmaEjecutable(archivo.contenido, tipoReal);
   const riesgos = analizarRiesgos(archivo);
   const antivirus = await escanearAntivirus(archivo.rutaTemporal);
