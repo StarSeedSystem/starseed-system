@@ -322,6 +322,12 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
     return vivos
 
 
+def _mac_bloqueada_por_guardia(motivo_tope: str) -> bool:
+    """PURA: ¿la Mac está frenada por guardia de disco/memoria (swap, RAM, memoria, disco)?"""
+    motivo = str(motivo_tope or "").lower()
+    return any(p in motivo for p in ("swap", "ram", "memoria", "disco"))
+
+
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
               tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
               motivo_tope="", notas=None, potenciado=False):
@@ -331,6 +337,8 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
     - Las elegibles van primero. Si no llenan el sitio libre, se reabren agotadas (las que
       `puede_reabrir`), pero nunca tantas que la Mac se quede sin trabajo para su tope:
       la nube suma, no le quita a la Mac lo que la Mac ya puede hacer.
+    - (CAP1119B) Si la Mac está frenada por guardia de disco/memoria, sus tareas listas
+      van a la nube en vez de esperar: no se reserva el tope reducido.
     """
     nada = {"lanzar": 0, "reabrir": [], "trabajadores": 0}
     if pausa:
@@ -345,7 +353,11 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
     elegibles = list(elegibles or [])
     reabrir = []
     if len(elegibles) < sitio:
-        sobra_mac = max(0, int(listas_mac) - int(tope_mac))
+        # (CAP1119B) Si la Mac está bloqueada por guardia, todas sus listas van a nube
+        if _mac_bloqueada_por_guardia(motivo_tope):
+            sobra_mac = int(listas_mac or 0)
+        else:
+            sobra_mac = max(0, int(listas_mac) - int(tope_mac))
         cupo = min(max_reabrir, sitio - len(elegibles), sobra_mac)
         candidatas = [t for t in (agotadas or [])
                       if (puede_reabrir_potenciada((reaperturas or {}).get(t), ahora) if potenciado

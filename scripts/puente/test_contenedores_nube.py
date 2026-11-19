@@ -272,3 +272,60 @@ class CloudroomConElCupoDeHoy(unittest.TestCase):
             cat = C._catalogo_de("cloudroom")
         self.assertEqual(cat["jobs_simultaneos"], 1)
         self.assertIn("caben 1", cat["coste"])
+
+
+class OracleCapacidadDinamica(unittest.TestCase):
+    """(CAP1119B) El A1 escala su capacidad según CPU y memoria libres medidos en oracle-consumo.json.
+    El A1 tiene 2 OCPU y 12 GB. El gobernador deja núcleos − 1 = 1 agente base, pero con margen
+    medido puede subir hasta su tope (2 OCPU / 12 GB permite más si hay recursos)."""
+
+    CONSUMO_BASE = {
+        "leido": "2026-11-19T01:00:00Z",
+        "freno": {"activo": False, "motivo": ""},
+        "margen": {"apto": True, "cpu_libre_pct": 85.0, "mem_libre_gb": 10.2},
+        "reclamacion": {"riesgo": False},
+    }
+
+    def _catalogo_medido(self, consumo):
+        return C._catalogo_oracle_medido(C.CATALOGO["oracle"], consumo)
+
+    def test_con_margen_alto_escala_hasta_dos_jobs(self):
+        """Con 85 % CPU libre y 10 GB RAM libre, el A1 puede correr 2 jobs × 3 agentes."""
+        cat = self._catalogo_medido(self.CONSUMO_BASE)
+        # 2 OCPU × 0.85 = 1.7 OCPU libres → cabe 1 job extra (gobernador: núcleos − 1)
+        # Pero el tope físico son 2 OCPU, así que máx 2 jobs simultáneos
+        self.assertEqual(cat["jobs_simultaneos"], 2)
+        self.assertIn("2 job", cat["coste"])
+
+    def test_con_cpu_justa_un_solo_job(self):
+        """Si CPU libre está cerca del umbral, solo 1 job (el base)."""
+        consumo = dict(self.CONSUMO_BASE, margen=dict(self.CONSUMO_BASE["margen"], cpu_libre_pct=25.0))
+        cat = self._catalogo_medido(consumo)
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+
+    def test_con_memoria_justa_un_solo_job(self):
+        """Si memoria libre está cerca del umbral (2.5 GB mínimo por agente), solo 1 job."""
+        consumo = dict(self.CONSUMO_BASE, margen=dict(self.CONSUMO_BASE["margen"], mem_libre_gb=5.0))
+        cat = self._catalogo_medido(consumo)
+        self.assertEqual(cat["jobs_simultaneos"], 1)
+
+    def test_freno_activo_ningun_job(self):
+        """Si hay gasto > 0, freno activo → 0 jobs, no desplegable."""
+        consumo = dict(self.CONSUMO_BASE, freno={"activo": True, "motivo": "gasto 0.42 MXN"})
+        cat = self._catalogo_medido(consumo)
+        self.assertEqual(cat["jobs_simultaneos"], 0)
+        self.assertIn("freno", cat["coste"])
+
+    def test_sin_consumo_o_datos_invalidos_usa_catalogo_base(self):
+        """Sin oracle-consumo.json o datos inválidos, usa el catálogo base (1 job)."""
+        self.assertEqual(C._catalogo_oracle_medido(C.CATALOGO["oracle"], None)["jobs_simultaneos"], 1)
+        self.assertEqual(C._catalogo_oracle_medido(C.CATALOGO["oracle"], {})["jobs_simultaneos"], 1)
+        self.assertEqual(C._catalogo_oracle_medido(C.CATALOGO["oracle"], "invalido")["jobs_simultaneos"], 1)
+
+    def test_el_catalogo_base_no_se_modifica(self):
+        C._catalogo_oracle_medido(C.CATALOGO["oracle"], self.CONSUMO_BASE)
+        self.assertEqual(C.CATALOGO["oracle"]["jobs_simultaneos"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

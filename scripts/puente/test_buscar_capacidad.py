@@ -77,6 +77,27 @@ class PlanNube(unittest.TestCase):
         self.assertEqual(p["lanzar"], 1)
         self.assertEqual(len(p["reabrir"]), B.TAREAS_POR_RUN - 2)
 
+    def test_mac_con_guardia_disco_memoria_envia_tareas_a_nube(self):
+        """(CAP1119B) Cuando la Mac está frenada por guardia de disco/memoria, sus tareas listas
+        van a la nube en vez de esperar: no se reserva el tope reducido."""
+        # Mac con tope reducido a 2 por swap, 2 ocupados, 10 listas: sin guardia, sobra = 10 - 2 = 8
+        # CON guardia: las 10 listas van a nube (la Mac no puede cogerlas aunque tenga hueco nominal)
+        estado_mac_guardia = {"motivo_tope": "el gobernador lo baja a 2: recursos al límite (swap llena (5542 de 6144 MB))"}
+        # Con 0 elegibles para probar que todas las 10 agotadas se reabren (sitio = 12)
+        p = B.plan_nube([], ["X%d" % i for i in range(10)], 0, None, {}, AHORA,
+                        listas_mac=10, tope_mac=2, motivo_tope="el gobernador lo baja a 2: recursos al límite (swap llena)")
+        # Con guardia: todas las 10 listas son "sobra" para la nube
+        self.assertEqual(len(p["reabrir"]), 10)  # todas las agotadas reabiertas (caben 2 jobs × 6 = 12)
+        self.assertEqual(p["lanzar"], 2)
+        # Sin guardia (mismo tope pero sin motivo de swap): sobra = 10 - 2 = 8
+        p_sin = B.plan_nube([], ["X%d" % i for i in range(10)], 0, None, {}, AHORA,
+                            listas_mac=10, tope_mac=2, motivo_tope="otro motivo")
+        self.assertEqual(len(p_sin["reabrir"]), 8)
+        # También con "memoria" o "RAM" o "disco" en el motivo
+        for motivo in ("memoria llena", "RAM al límite", "disco lleno", "swap llena"):
+            p = B.plan_nube([], ["T1", "T2", "T3"], 0, None, {}, AHORA, listas_mac=3, tope_mac=2, motivo_tope=motivo)
+            self.assertEqual(len(p["reabrir"]), 3, motivo)
+
 
 class Contadores(unittest.TestCase):
     def test_runs_en_marcha(self):

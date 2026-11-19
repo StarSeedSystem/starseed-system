@@ -288,10 +288,26 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
-    if rc_push != 0:
+
+    # (CAP1119B) Reintento de git push con espera: no deja el job sin salir en fallo transitorio.
+    PUSH_REINTENTOS = 3
+    PUSH_ESPERA_BASE_S = 10
+    push_ok = False
+    for intento in range(1, PUSH_REINTENTOS + 1):
+        rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
+        if rc_push == 0:
+            push_ok = True
+            break
+        if intento < PUSH_REINTENTOS:
+            espera = PUSH_ESPERA_BASE_S * intento
+            print("push falló (intento %d/%d): %s — reintentando en %d s" %
+                  (intento, PUSH_REINTENTOS, motivo_push(salida_push), espera))
+            time.sleep(espera)
+    if not push_ok:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
+        sys.exit("no pude empujar la rama de la cola tras %d intentos: %s" %
+                 (PUSH_REINTENTOS, motivo_push(salida_push)))
+
     rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
                                  "-f", "cola=%s" % cola,
                                  "-f", "trabajadores=%s" % trabajadores,

@@ -149,3 +149,33 @@ class Oracle(unittest.TestCase):
         self.assertEqual("requiere_alex", d["estado"])
         self.assertIn("freno", d["detalle"])
         self.assertIn("cloud.oracle.com", d["siguiente_paso"])
+
+
+class GCloudFacturacion(unittest.TestCase):
+    """(CAP1119B) Cloud Run exige facturación habilitada: si no está, el medio no es 'usable'."""
+
+    def test_sin_facturacion_es_requiere_alex_y_dice_que_hace_falta(self):
+        """Con gcloud instalado, cuenta activa y proyecto, pero sin facturación → requiere_alex."""
+        # Simulamos que `gcloud billing projects describe` dice que no hay facturación
+        # La función pura `clasificar_gcloud` no sabe de facturación; el sondeo debe comprobarlo.
+        # Este test verifica el comportamiento esperado de la clasificación.
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion=False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertIn("facturación", d["detalle"].lower())
+        self.assertIn("habilit", d["siguiente_paso"].lower())
+
+    def test_con_facturacion_es_usable(self):
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}], facturacion=True)
+        self.assertEqual(d["estado"], "usable")
+        self.assertNotIn("facturación", d["detalle"].lower())
+        self.assertIn("deploy/nube", d["siguiente_paso"])
+
+    def test_clasificar_gcloud_acepta_parametro_facturacion(self):
+        """La firma de clasificar_gcloud acepta el parámetro facturacion (compatibilidad hacia atrás)."""
+        # Sin el parámetro, asume que hay facturación (comportamiento actual por defecto)
+        d = M.clasificar_gcloud(True, ["a@b.c"], "proy", [{}])
+        self.assertEqual(d["estado"], "usable")
+
+
+if __name__ == "__main__":
+    unittest.main()

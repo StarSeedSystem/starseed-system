@@ -438,12 +438,54 @@ def _catalogo_cloudroom_medido(cat: dict) -> dict:
         return cat
 
 
+def _catalogo_oracle_medido(cat: dict, consumo: dict | None) -> dict:
+    """PURA (CAP1119B): El catálogo de Oracle con la capacidad dinámica según CPU/memoria libres
+    medidos en oracle-consumo.json. El A1 tiene 2 OCPU y 12 GB. Con margen alto escala hasta
+    2 jobs simultáneos (tope físico). Con freno activo o recursos justos, 1 job base o 0."""
+    if not isinstance(consumo, dict):
+        return cat
+    freno = consumo.get("freno") if isinstance(consumo.get("freno"), dict) else {}
+    if freno.get("activo"):
+        medido = dict(cat)
+        medido["jobs_simultaneos"] = 0
+        medido["coste"] = "%s · freno: %s" % (cat.get("coste") or "", freno.get("motivo") or "gasto > 0")
+        return medido
+    margen = consumo.get("margen") if isinstance(consumo.get("margen"), dict) else {}
+    if not margen.get("apto"):
+        return cat
+    try:
+        cpu_libre = float(margen.get("cpu_libre_pct") or 0)
+        mem_libre = float(margen.get("mem_libre_gb") or 0)
+    except (TypeError, ValueError):
+        return cat
+    # A1: 2 OCPU, 12 GB. Gobernador: núcleos − 1 = 1 job base.
+    # Cada job usa ~1 OCPU y ~3 GB por agente (3 agentes/job = ~9 GB).
+    # Tope físico: 2 jobs simultáneos (2 OCPU).
+    # Umbral para job extra: CPU libre > 50 % (1 OCPU libre) Y mem libre > 7.5 GB (para 3 agentes extra).
+    jobs = 1
+    if cpu_libre > 50.0 and mem_libre > 7.5:
+        jobs = 2
+    medido = dict(cat)
+    medido["jobs_simultaneos"] = jobs
+    medido["coste"] = "%s · %d job(s) simultáneos (CPU libre %.0f %% · RAM libre %.1f GB)" % (
+        cat.get("coste") or "", jobs, cpu_libre, mem_libre)
+    return medido
+
+
 def _catalogo_de(mid: str) -> dict:
     if mid == "nube-gh":
         # (CAP1026F) GitHub no tiene un número fijo de jobs: los que aguantan los escritores vivos.
         return _catalogo_gh_medido(CATALOGO["nube-gh"])
     if mid == "cloudroom":
         return _catalogo_cloudroom_medido(CATALOGO["cloudroom"])
+    if mid == "oracle":
+        try:
+            with open(os.path.expanduser(os.environ.get("ORACLE_CONSUMO_JSON") or "~/.starseed/oracle-consumo.json"),
+                      encoding="utf-8") as f:
+                consumo = json.load(f)
+        except (OSError, ValueError):
+            consumo = None
+        return _catalogo_oracle_medido(CATALOGO["oracle"], consumo)
     return CATALOGO.get(mid, {})
 
 
