@@ -23,7 +23,8 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// Sube si cambia lo que esta lectura sabe decir (la web lo guarda con la lista).
-pub const VERSION_PERMISOS_SISTEMA: u32 = 1;
+/// v2 (LNX1118WD): en Linux se mide además lo que el nodo necesita (grupos, /dev/uinput, Bluetooth, polkit, GStreamer).
+pub const VERSION_PERMISOS_SISTEMA: u32 = 2;
 
 /// Estados que se devuelven. «no-concedido»: el sistema no distingue «negado» de «nunca preguntado»
 /// (Accesibilidad de macOS). «no-aplica»: en este sistema no hace falta pedirlo.
@@ -125,6 +126,8 @@ pub struct EstadoPermisosSistema {
     pub estados: BTreeMap<String, String>,
     /// Ids cuyo panel de Ajustes sabe abrir esta app aquí.
     pub paneles: Vec<String>,
+    /// Linux: lo que mide la lista del nodo. En el resto de sistemas no viene.
+    pub linux: Option<EstadoLinux>,
 }
 
 /// Estados de Android a partir de lo que escribió Kotlin (los campos nuevos de PER1111S son opcionales:
@@ -167,6 +170,209 @@ fn paneles_de(plataforma: &str) -> Vec<String> {
     IDS.iter().filter(|id| panel(plataforma, id).is_some()).map(|s| s.to_string()).collect()
 }
 
+/* ══════════ LNX1118WD · el nodo Linux: qué falta y cómo dejarlo listo ══════════ */
+
+/// Grupos que el nodo necesita: red, Bluetooth, audio y vídeo, botón y teclado virtuales y serie.
+pub const GRUPOS_NODO: [&str; 8] = ["netdev", "bluetooth", "audio", "video", "render", "input", "plugdev", "dialout"];
+
+/// Lo que la lista de Linux mide de verdad. Todo lo decide `evaluar_linux` (puro, probado sin sistema).
+#[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct EstadoLinux {
+    /// Grupos de la cuenta que corre la app, sin repetir.
+    pub grupos: Vec<String>,
+    /// Grupos del nodo que faltan.
+    pub faltan_grupos: Vec<String>,
+    /// «listo» | «sin-grupo» | «sin-regla» | «sin-dispositivo» (de `ls -l /dev/uinput`).
+    pub uinput: String,
+    /// «activo» | «apagado» | «sin-servicio» (de `systemctl is-active bluetooth`).
+    pub bluetooth: String,
+    /// Existe la regla de polkit que deja al grupo netdev gestionar NetworkManager.
+    pub polkit: bool,
+    /// Elementos de GStreamer que faltan (vacío = todo).
+    pub faltan_gstreamer: Vec<String>,
+    /// false: no hay `gst-inspect-1.0` y no se acusa a nadie.
+    pub gstreamer_sabido: bool,
+    /// No queda nada que preparar.
+    pub preparado: bool,
+    /// El interruptor «Neurona nodo: no apagar pantalla ni bloquear» está puesto (autostart del guion).
+    pub sin_reposo: bool,
+    /// Qué arregla «Preparar este Linux», en el orden en que lo hace el guion.
+    pub pendiente: Vec<String>,
+}
+
+fn sumar_grupo(v: &mut Vec<String>, nombre: &str) {
+    let n = nombre.trim();
+    if n.is_empty() || !n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return;
+    }
+    if !v.iter().any(|x| x.eq_ignore_ascii_case(n)) {
+        v.push(n.to_string());
+    }
+}
+
+/// Grupos de la salida de `id` (`uid=1000(yo) gid=1000(yo) grupos=1000(yo),27(sudo)`) o de `id -nG` (`yo sudo`). Pura.
+pub fn grupos_de(salida: &str) -> Vec<String> {
+    let mut nombres: Vec<String> = Vec::new();
+    for trozo in salida.split('(').skip(1) {
+        if let Some((nombre, _)) = trozo.split_once(')') {
+            sumar_grupo(&mut nombres, nombre);
+        }
+    }
+    if nombres.is_empty() {
+        for trozo in salida.split(|c: char| c.is_whitespace() || c == ',') {
+            sumar_grupo(&mut nombres, trozo);
+        }
+    }
+    nombres
+}
+
+/// Estado de `/dev/uinput` desde `ls -l /dev/uinput` y los grupos del usuario. Pura.
+pub fn uinput_de(salida: &str, grupos: &[String]) -> String {
+    let linea = salida.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    let minus = linea.to_ascii_lowercase();
+    if linea.is_empty() || minus.contains("no such file") || minus.contains("no existe") || minus.starts_with("ls:") {
+        return "sin-dispositivo".into();
+    }
+    let campos: Vec<&str> = linea.split_whitespace().collect();
+    let permisos: Vec<char> = campos.first().copied().unwrap_or("").chars().collect();
+    let grupo = campos.get(3).copied().unwrap_or("");
+    if !grupos.iter().any(|g| g.eq_ignore_ascii_case("input")) {
+        return "sin-grupo".into();
+    }
+    let lectura = permisos.get(4) == Some(&'r');
+    let escritura = permisos.get(5) == Some(&'w');
+    if !grupo.eq_ignore_ascii_case("input") || !lectura || !escritura {
+        return "sin-regla".into();
+    }
+    "listo".into()
+}
+
+/// Estado del servicio Bluetooth desde `systemctl is-active bluetooth`. Pura.
+pub fn bluetooth_de(salida: &str) -> String {
+    match salida.trim().to_ascii_lowercase().as_str() {
+        "active" | "activo" => "activo".into(),
+        "inactive" | "failed" | "activating" | "deactivating" => "apagado".into(),
+        _ => "sin-servicio".into(),
+    }
+}
+
+/// Qué falta para que este Linux sea nodo, con las salidas reales del sistema. Pura: se prueba con ejemplos.
+/// `faltan_gstreamer`: `None` = no se pudo averiguar (no se acusa a nadie); `Some(&[])` = está todo.
+pub fn evaluar_linux(
+    salida_id: &str,
+    salida_uinput: &str,
+    salida_bluetooth: &str,
+    polkit: bool,
+    faltan_gstreamer: Option<&[String]>,
+) -> EstadoLinux {
+    let grupos = grupos_de(salida_id);
+    let faltan_grupos: Vec<String> = GRUPOS_NODO
+        .iter()
+        .filter(|g| !grupos.iter().any(|x| x.eq_ignore_ascii_case(g)))
+        .map(|g| g.to_string())
+        .collect();
+    let uinput = uinput_de(salida_uinput, &grupos);
+    let bluetooth = bluetooth_de(salida_bluetooth);
+    let gst: Vec<String> = faltan_gstreamer.unwrap_or(&[]).to_vec();
+    let mut pendiente: Vec<String> = Vec::new();
+    if !faltan_grupos.is_empty() {
+        pendiente.push(format!("Añadir tu cuenta a los grupos del nodo: {}.", faltan_grupos.join(", ")));
+    }
+    match uinput.as_str() {
+        "sin-grupo" => pendiente.push("Entrar en el grupo input (botón y teclado virtuales).".into()),
+        "sin-regla" => pendiente.push("Poner /dev/uinput para el grupo input (regla udev y módulo).".into()),
+        "sin-dispositivo" => pendiente.push("Cargar el módulo uinput del núcleo (no hay /dev/uinput).".into()),
+        _ => {}
+    }
+    if !polkit {
+        pendiente.push("Dejar que el grupo netdev gestione NetworkManager (regla de polkit).".into());
+    }
+    match bluetooth.as_str() {
+        "apagado" => pendiente.push("Encender el servicio Bluetooth.".into()),
+        "sin-servicio" => pendiente.push("Instalar o habilitar el servicio Bluetooth.".into()),
+        _ => {}
+    }
+    if faltan_gstreamer.is_some() && !gst.is_empty() {
+        pendiente.push("Instalar gstreamer1.0-nice y gstreamer1.0-plugins-bad para las llamadas WebRTC.".into());
+    }
+    EstadoLinux {
+        grupos,
+        faltan_grupos,
+        uinput,
+        bluetooth,
+        polkit,
+        faltan_gstreamer: gst,
+        gstreamer_sabido: faltan_gstreamer.is_some(),
+        preparado: pendiente.is_empty(),
+        sin_reposo: false,
+        pendiente,
+    }
+}
+
+/// El guion de preparación vive DENTRO de la app (se escribe en temporal al lanzarlo con pkexec).
+pub const GUION_PREPARAR_LINUX: &str = include_str!("../recursos/preparar-linux.sh");
+
+/// Lanza el guion con `pkexec`: el diálogo de autenticación del sistema ES el consentimiento de la persona.
+#[cfg(target_os = "linux")]
+fn lanzar_preparar(argumentos: &[&str]) -> Result<bool, String> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    // Carpetas del propio usuario (0700): nadie más puede plantar el guion que luego corre como root.
+    let base = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("starseed-nodo");
+    std::fs::create_dir_all(&base).map_err(|e| format!("No se pudo preparar la carpeta del guion: {e}"))?;
+    let _ = std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700));
+    let ruta = base.join(format!("preparar-linux-{}.sh", std::process::id()));
+    let _ = std::fs::remove_file(&ruta);
+    let mut fichero = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o700)
+        .open(&ruta)
+        .map_err(|e| format!("No se pudo escribir el guion: {e}"))?;
+    fichero
+        .write_all(GUION_PREPARAR_LINUX.as_bytes())
+        .map_err(|e| format!("No se pudo escribir el guion: {e}"))?;
+    drop(fichero);
+    let estado = std::process::Command::new("pkexec")
+        .arg(&ruta)
+        .args(argumentos)
+        .status()
+        .map_err(|e| format!("No se pudo abrir el diálogo del sistema (pkexec): {e}"))?;
+    let _ = std::fs::remove_file(&ruta);
+    Ok(estado.success())
+}
+
+/// Lo que se mide en Linux al abrir la lista (sin red; gst solo si está instalado).
+#[cfg(target_os = "linux")]
+fn linux_estado() -> EstadoLinux {
+    let salida = |programa: &str, args: &[&str]| {
+        std::process::Command::new(programa)
+            .args(args)
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    };
+    let id = salida("id", &["-nG"]);
+    let uinput = salida("ls", &["-l", "/dev/uinput"]);
+    let bluetooth = salida("systemctl", &["is-active", "bluetooth"]);
+    let polkit = std::path::Path::new("/etc/polkit-1/rules.d/50-starseed-netdev.rules").exists();
+    let webrtc = crate::permisos_medios::webrtc_linux_estado();
+    let faltan: Vec<String> = webrtc
+        .get("faltan")
+        .and_then(|f| f.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    let sabido = webrtc.get("sabido").and_then(|b| b.as_bool()).unwrap_or(false);
+    let mut estado = evaluar_linux(&id, &uinput, &bluetooth, polkit, sabido.then_some(faltan.as_slice()));
+    estado.sin_reposo = std::env::var_os("HOME")
+        .map(|casa| std::path::Path::new(&casa).join(".config/autostart/starseed-sin-reposo.desktop").exists())
+        .unwrap_or(false);
+    estado
+}
+
 #[tauri::command]
 pub fn permisos_sistema_estado() -> EstadoPermisosSistema {
     let plataforma = std::env::consts::OS.to_string();
@@ -174,6 +380,8 @@ pub fn permisos_sistema_estado() -> EstadoPermisosSistema {
     comunes(&mut estados);
     #[allow(unused_mut)]
     let mut sesion = String::new();
+    #[allow(unused_mut)]
+    let mut linux: Option<EstadoLinux> = None;
     #[cfg(target_os = "macos")]
     macos::leer(&mut estados);
     #[cfg(target_os = "android")]
@@ -190,6 +398,8 @@ pub fn permisos_sistema_estado() -> EstadoPermisosSistema {
             estados.insert("pantalla".into(), "no-aplica".into());
             estados.insert("accesibilidad".into(), "no-aplica".into());
         }
+        // (LNX1118WD) Lo que este Linux necesita como nodo: grupos, /dev/uinput, Bluetooth, polkit y GStreamer.
+        linux = Some(linux_estado());
     }
     #[cfg(target_os = "windows")]
     {
@@ -198,12 +408,22 @@ pub fn permisos_sistema_estado() -> EstadoPermisosSistema {
         estados.insert("pantalla".into(), "no-aplica".into());
         estados.insert("accesibilidad".into(), "no-aplica".into());
     }
-    EstadoPermisosSistema { version: VERSION_PERMISOS_SISTEMA, paneles: paneles_de(&plataforma), plataforma, sesion, estados }
+    EstadoPermisosSistema { version: VERSION_PERMISOS_SISTEMA, paneles: paneles_de(&plataforma), plataforma, sesion, estados, linux }
 }
 
 /// Enseña el aviso del PROPIO sistema para `id` (solo los de `AVISOS_MACOS`). Devuelve si ya estaba concedido.
+/// En Linux, `preparar-linux`, `sin-reposo` y `con-reposo` lanzan el guion con pkexec (su diálogo es el permiso).
 #[tauri::command]
 pub fn permisos_sistema_pedir(id: String) -> Result<bool, String> {
+    #[cfg(target_os = "linux")]
+    {
+        match id.as_str() {
+            "preparar-linux" => return lanzar_preparar(&[]),
+            "sin-reposo" => return lanzar_preparar(&["--solo-reposo", "--sin-reposo"]),
+            "con-reposo" => return lanzar_preparar(&["--solo-reposo", "--con-reposo"]),
+            _ => {}
+        }
+    }
     if !AVISOS_MACOS.contains(&id.as_str()) {
         return Err(format!("«{id}» no tiene un aviso del sistema que la app pueda enseñar: se abre su pantalla de Ajustes."));
     }
@@ -515,3 +735,88 @@ mod pruebas {
         assert!(permisos_sistema_pedir("accesibilidad".into()).is_err());
     }
 }
+
+/// LNX1118WD · el nodo Linux: todo lo que se decide se prueba aquí con salidas de ejemplo del sistema.
+#[cfg(test)]
+mod pruebas_linux {
+    use super::*;
+
+    #[test]
+    fn grupos_de_las_dos_formas() {
+        let id = "uid=1000(alex) gid=1000(alex) grupos=1000(alex),24(cdrom),27(sudo),44(video),109(netdev)";
+        let g = grupos_de(id);
+        for n in ["alex", "cdrom", "sudo", "video", "netdev"] {
+            assert!(g.contains(&n.to_string()), "falta {n}: {g:?}");
+        }
+        assert!(!g.contains(&"1000".to_string()), "el número de uid no es un grupo");
+        assert_eq!(grupos_de("alex sudo netdev video"), vec!["alex", "sudo", "netdev", "video"]);
+        assert!(grupos_de("").is_empty());
+        assert_eq!(grupos_de("1000(uno),1000(uno)"), vec!["uno"], "sin repetir");
+    }
+
+    #[test]
+    fn uinput_necesita_grupo_y_regla() {
+        let con_input = grupos_de("alex input video");
+        let sin_input = grupos_de("alex video");
+        let bueno = "crw-rw---- 1 root input 10, 223 nov 18 22:00 /dev/uinput";
+        assert_eq!(uinput_de(bueno, &con_input), "listo");
+        assert_eq!(uinput_de(bueno, &sin_input), "sin-grupo");
+        assert_eq!(uinput_de("crw-rw---- 1 root root 10, 223 nov 18 22:00 /dev/uinput", &con_input), "sin-regla");
+        assert_eq!(uinput_de("crw------- 1 root root 10, 223 nov 18 22:00 /dev/uinput", &con_input), "sin-regla");
+        let falta = "ls: no se puede acceder a '/dev/uinput': No such file or directory";
+        assert_eq!(uinput_de(falta, &con_input), "sin-dispositivo");
+        assert_eq!(uinput_de("", &con_input), "sin-dispositivo");
+    }
+
+    #[test]
+    fn bluetooth_del_servicio() {
+        assert_eq!(bluetooth_de("active\n"), "activo");
+        assert_eq!(bluetooth_de("inactive"), "apagado");
+        assert_eq!(bluetooth_de("failed"), "apagado");
+        assert_eq!(bluetooth_de("unknown"), "sin-servicio");
+        assert_eq!(bluetooth_de(""), "sin-servicio");
+    }
+
+    #[test]
+    fn evaluar_linux_dice_lo_que_falta() {
+        let id = "uid=1000(alex) gid=1000(alex) grupos=1000(alex)";
+        let faltan = vec!["webrtcbin".to_string()];
+        let e = evaluar_linux(id, "ls: no such file", "inactive", false, Some(&faltan));
+        assert_eq!(e.faltan_grupos.len(), GRUPOS_NODO.len());
+        assert_eq!(e.uinput, "sin-dispositivo");
+        assert_eq!(e.bluetooth, "apagado");
+        assert!(!e.preparado);
+        assert!(e.pendiente.iter().any(|p| p.contains("grupos del nodo")));
+        assert!(e.pendiente.iter().any(|p| p.contains("gstreamer1.0-nice")));
+        assert!(e.pendiente.iter().any(|p| p.contains("polkit")));
+    }
+
+    #[test]
+    fn un_linux_ya_preparado_no_tiene_pendientes() {
+        let id = "uid=1000(alex) gid=1000(alex) grupos=1000(alex),109(netdev),110(bluetooth),29(audio),44(video),107(render),111(input),46(plugdev),20(dialout)";
+        let uinput = "crw-rw---- 1 root input 10, 223 nov 18 22:00 /dev/uinput";
+        let e = evaluar_linux(id, uinput, "active", true, Some(&[]));
+        assert!(e.faltan_grupos.is_empty(), "{:?}", e.faltan_grupos);
+        assert!(e.gstreamer_sabido);
+        assert!(e.preparado, "{:?}", e.pendiente);
+        assert!(e.pendiente.is_empty());
+        // Sin `gst-inspect-1.0` no se acusa a nadie: `None` no bloquea.
+        let sin_dato = evaluar_linux(id, uinput, "active", true, None);
+        assert!(sin_dato.preparado);
+        assert!(!sin_dato.gstreamer_sabido);
+    }
+
+    #[test]
+    fn el_guion_va_dentro_de_la_app_y_es_idempotente() {
+        assert!(GUION_PREPARAR_LINUX.contains("usermod -aG"));
+        assert!(GUION_PREPARAR_LINUX.contains("GRUPOS=\"netdev bluetooth audio video render input plugdev dialout\""));
+        assert!(GUION_PREPARAR_LINUX.contains("--sin-reposo"));
+        assert!(GUION_PREPARAR_LINUX.contains("--solo-reposo"));
+        assert!(GUION_PREPARAR_LINUX.contains("PKEXEC_UID"));
+        assert!(GUION_PREPARAR_LINUX.contains("gstreamer1.0-nice"));
+        assert!(GUION_PREPARAR_LINUX.contains("Cierra sesión"));
+        assert!(GUION_PREPARAR_LINUX.contains("50-starseed-netdev.rules"));
+        assert!(GUION_PREPARAR_LINUX.contains("99-starseed-uinput.rules"));
+    }
+}
+
