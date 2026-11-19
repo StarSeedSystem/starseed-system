@@ -385,16 +385,9 @@ def _copia_verificada(
     try:
         tam_ori = tamano_fn(origen)
         cnt_ori = contar_fn(origen)
-        # Para remoto, usar ssh du y find
-        r_tam = _ejecutar(_ssh_du(destino), ssh_fn, tope_s=tope_s)
-        if r_tam["codigo"] != 0:
-            return False
-        tam_dest = int(r_tam["salida"].split()[0])
-        # Contar entradas remoto: find | wc -l
-        r_cnt = _ejecutar(SSH_BASE + ["find", destino, "-printf", "."], ssh_fn, tope_s=tope_s)
-        if r_cnt["codigo"] != 0:
-            return False
-        cnt_dest = len(r_cnt["salida"])
+        # Usar las funciones inyectadas para verificar el destino (mock o real)
+        tam_dest = tamano_fn(destino)
+        cnt_dest = contar_fn(destino)
         return tam_ori == tam_dest and cnt_ori == cnt_dest and tam_ori > 0
     except Exception:
         return False
