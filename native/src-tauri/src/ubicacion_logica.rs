@@ -197,6 +197,46 @@ pub fn es_reciente(fix: &Fix, ahora_ms: u64, max_ms: u64) -> bool {
     edad_ms(fix.t_ms, ahora_ms) <= max_ms
 }
 
+// ─────────────────────────────── Linux: GeoClue2 por D-Bus ───────────────────────────────
+
+/// La hora de GeoClue viene como `(segundos, microsegundos)` desde la época. Pura.
+pub fn t_ms_de_geoclue(segs: u64, micros: u64) -> u64 {
+    segs.saturating_mul(1000).saturating_add(micros / 1000)
+}
+
+/// Lo que da GeoClue → `Fix`. Una posición imposible o una precisión negativa se descarta. Pura.
+/// GeoClue marca «sin dato» con `-1` (rumbo, velocidad) y con el mínimo `f64` (altitud).
+#[allow(clippy::too_many_arguments)]
+pub fn fix_de_geoclue(lat: f64, lon: f64, precision: f64, altitud: f64, rumbo: f64, velocidad: f64, t: (u64, u64)) -> Option<Fix> {
+    if !coordenada_valida(lat, lon) || !precision.is_finite() || precision < 0.0 {
+        return None;
+    }
+    Some(Fix {
+        lat,
+        lon,
+        precision_m: Some(precision),
+        altitud_m: finito(altitud).filter(|v| *v > -1.0e300),
+        precision_altitud_m: None,
+        rumbo: finito(rumbo).filter(|v| *v >= 0.0),
+        velocidad_ms: finito(velocidad).filter(|v| *v >= 0.0),
+        t_ms: t_ms_de_geoclue(t.0, t.1),
+        fuente: "geoclue".into(),
+    })
+}
+
+/// El nombre de error de D-Bus de GeoClue → el código que entiende la web. Pura.
+pub fn codigo_de_error_geoclue(nombre: &str) -> Codigo {
+    if nombre.contains("PermissionDenied") {
+        Codigo::Denegado
+    } else if nombre.contains("Disabled") {
+        Codigo::ServiciosApagados
+    } else if nombre.contains("ServiceUnknown") || nombre.contains("NameHasNoOwner") || nombre.contains("UnknownObject") {
+        Codigo::NoDisponible
+    } else {
+        Codigo::SinFijar
+    }
+}
+
 // ─────────────────────────────── Android: archivos con Kotlin ───────────────────────────────
 
 /// Lo que escribe UbicacionStarSeed.kt en `estado.json`.
@@ -338,6 +378,39 @@ mod pruebas {
         // Sin altitud, rumbo ni velocidad: quedan en None, no en 0 ni -1.
         let f = fix_de_cl(40.0, -3.0, 5.0, 12.0, -1.0, -1.0, -1.0, 1.7e9).unwrap();
         assert_eq!((f.altitud_m, f.precision_altitud_m, f.rumbo, f.velocidad_ms), (None, None, None, None));
+    }
+
+    #[test]
+    fn geoclue_pasa_su_medida_sin_redondear() {
+        // PRM1119A: la misma forma de `Fix` que CoreLocation, con su fuente.
+        let f = fix_de_geoclue(40.416775123, -3.703790654, 12.5, 650.25, 91.0, 1.25, (1_700_000_000, 123_456)).unwrap();
+        assert_eq!((f.lat, f.lon), (40.416775123, -3.703790654));
+        assert_eq!(f.precision_m, Some(12.5));
+        assert_eq!(f.altitud_m, Some(650.25));
+        assert_eq!((f.rumbo, f.velocidad_ms), (Some(91.0), Some(1.25)));
+        assert_eq!((f.t_ms, f.fuente.as_str()), (1_700_000_000_123, "geoclue"));
+        // Sin altitud/rumbo/velocidad: None, nunca los centinelas de GeoClue (-1 y el mínimo `f64`).
+        let s = fix_de_geoclue(40.0, -3.0, 5.0, f64::MIN, -1.0, -1.0, (1_700_000_000, 0)).unwrap();
+        assert_eq!((s.altitud_m, s.rumbo, s.velocidad_ms), (None, None, None));
+        // Posición imposible o precisión negativa: no se enseña.
+        assert!(fix_de_geoclue(91.0, 0.0, 5.0, 0.0, 0.0, 0.0, (1, 0)).is_none());
+        assert!(fix_de_geoclue(40.0, -3.0, -1.0, 0.0, 0.0, 0.0, (1, 0)).is_none());
+    }
+
+    #[test]
+    fn la_hora_de_geoclue_se_compone_de_segundos_y_microsegundos() {
+        assert_eq!(t_ms_de_geoclue(0, 0), 0);
+        assert_eq!(t_ms_de_geoclue(1_700_000_000, 123_456), 1_700_000_000_123);
+        assert_eq!(t_ms_de_geoclue(1_700_000_000, 999_999), 1_700_000_000_999);
+    }
+
+    #[test]
+    fn los_errores_de_geoclue_se_traducen() {
+        assert_eq!(codigo_de_error_geoclue("org.freedesktop.GeoClue2.Error.PermissionDenied"), Codigo::Denegado);
+        assert_eq!(codigo_de_error_geoclue("org.freedesktop.GeoClue2.Error.Disabled"), Codigo::ServiciosApagados);
+        assert_eq!(codigo_de_error_geoclue("org.freedesktop.DBus.Error.ServiceUnknown"), Codigo::NoDisponible);
+        assert_eq!(codigo_de_error_geoclue("org.freedesktop.DBus.Error.NameHasNoOwner"), Codigo::NoDisponible);
+        assert_eq!(codigo_de_error_geoclue("org.freedesktop.GeoClue2.Error.Internal"), Codigo::SinFijar);
     }
 
     #[test]
