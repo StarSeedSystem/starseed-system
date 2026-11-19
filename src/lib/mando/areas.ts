@@ -19,6 +19,12 @@ export interface AccesoArea {
     href: string;
 }
 
+/** Configuración de la guía de usuario en un área. */
+export interface GuiaConfig {
+    timeoutMs?: number;
+    requiereInteraccion?: boolean;
+}
+
 /** Un área de trabajo del proyecto, con sus accesos, memorias y olas. */
 export interface AreaTrabajo {
     id: string;
@@ -31,6 +37,8 @@ export interface AreaTrabajo {
     documentos: string[];
     /** Olas que han tocado el área. */
     olas: string[];
+    /** Configuración de la guía para esta área. */
+    guia?: GuiaConfig;
 }
 
 /**
@@ -46,7 +54,8 @@ export const AREAS_TRABAJO: AreaTrabajo[] = [
         color: "violet",
         rutas: [{ etiqueta: "Bienvenida", href: "/bienvenida" }],
         documentos: ["memory/principles.md", "memory/glossary.md"],
-        olas: ["227"],
+        olas: ["227", "231"],
+        guia: { requiereInteraccion: true },
     },
     {
         id: "voz",
@@ -90,7 +99,8 @@ export const AREAS_TRABAJO: AreaTrabajo[] = [
             "architecture/astraura-158-sistema-primario.md",
             "memory/orquestacion-economica.md",
         ],
-        olas: ["153", "155", "158"],
+        olas: ["153", "155", "158", "231"],
+        guia: { requiereInteraccion: true },
     },
     {
         id: "social",
