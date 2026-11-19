@@ -194,6 +194,26 @@ def cola_creada(salida_reparto: str, nuevas) -> str | None:
 
 
 CERROJO_LANZAR = os.path.expanduser("~/.starseed/nube-lanzar.lock")
+#: Reintentos para operaciones de red transitorias (git push, gh workflow run).
+REINTENTOS_RED = 3
+ESPERA_BASE_S = 5
+
+
+def _reintentar_con_backoff(orden: list[str], reintentos: int = REINTENTOS_RED, espera_base: int = ESPERA_BASE_S, timeout: int = 120) -> tuple[int, str]:
+    """Ejecuta `orden` con reintentos y backoff exponencial. Devuelve (rc, salida).
+    En éxito (rc=0) devuelve inmediatamente. En fallo, reintenta `reintentos` veces
+    esperando `espera_base * 2^intento` segundos entre cada uno."""
+    ultimo_rc, ultima_salida = 1, ""
+    for intento in range(reintentos + 1):
+        rc, salida = _sh_rc(orden, timeout=timeout)
+        if rc == 0:
+            return 0, salida
+        ultimo_rc, ultima_salida = rc, salida
+        if intento < reintentos:
+            espera = espera_base * (2 ** intento)
+            print("reintento %d/%d en %d s: %s" % (intento + 1, reintentos, espera, " ".join(orden[:3])))
+            time.sleep(espera)
+    return ultimo_rc, ultima_salida
 
 
 def lanzar(args: list[str]) -> None:
@@ -288,17 +308,17 @@ def _lanzar(args: list[str]) -> None:
     # aquí antes de publicarse.
     rama = "colas/nube-%s" % time.strftime("%Y%m%d-%H%M%S")
     print("empujando la cola y el código a su propia rama (main NO se toca): %s" % rama)
-    rc_push, salida_push = _sh_rc(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
+    rc_push, salida_push = _reintentar_con_backoff(["git", "push", "-q", "origin", "%s:refs/heads/%s" % (ref, rama)])
     if rc_push != 0:
         _no_lanzada(cola)
-        sys.exit("no pude empujar la rama de la cola: %s" % motivo_push(salida_push))
-    rc_run, salida_run = _sh_rc(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
-                                 "-f", "cola=%s" % cola,
-                                 "-f", "trabajadores=%s" % trabajadores,
-                                 "-f", "minutos=%s" % minutos])
+        sys.exit("no pude empujar la rama de la cola tras %d reintentos: %s" % (REINTENTOS_RED, motivo_push(salida_push)))
+    rc_run, salida_run = _reintentar_con_backoff(["gh", "workflow", "run", WORKFLOW, "--ref", rama,
+                                                  "-f", "cola=%s" % cola,
+                                                  "-f", "trabajadores=%s" % trabajadores,
+                                                  "-f", "minutos=%s" % minutos])
     if rc_run != 0:
         _no_lanzada(cola)
-        sys.exit("gh no pudo disparar el workflow: %s" % (salida_run.strip()[-300:] or "?"))
+        sys.exit("gh no pudo disparar el workflow tras %d reintentos: %s" % (REINTENTOS_RED, salida_run.strip()[-300:] or "?"))
     run_id = _esperar_run(rama)
     if not run_id:
         sys.exit("el workflow se disparó pero GitHub no registró ningún run en 40 s: "

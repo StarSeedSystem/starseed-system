@@ -467,6 +467,34 @@ class TopeNubeDinamico(unittest.TestCase):
                          "Comprobé todos los medios sin lanzar nada · cabrían 6 agente(s) más · frena: la Mac está "
                          "en su tope (2 de 2 por memoria)")
 
+    def test_mac_guardia_disco_memoria_envia_a_nube(self):
+        """Cuando la Mac está frenada por guardia de disco/memoria, las tareas listas van a la nube
+        en vez de esperar. El motivo_tope del gobernador indica 'swap llena' o 'memoria' o 'disco'."""
+        # Mac con 3/3 ocupados por guardia de memoria, 12 tareas listas
+        mac = {"ocupados": ["A", "B", "C"], "tope": 3, "listas": ["T%d" % i for i in range(12)],
+               "motivo_tope": "el gobernador lo baja a 3: recursos al límite (swap llena (5542 de 6144 MB))"}
+        # Nube con 2 jobs vivos, 3 escritores, tope 6 jobs
+        plan = B.plan_nube(
+            ["T%d" % i for i in range(12)], [], 2, None, {}, AHORA,
+            listas_mac=12, tope_mac=3, tope_runs=6,
+            motivo_tope="3 escritor(es) vivo(s) en la nube", potenciado=False,
+            motivo_guardia_mac="el gobernador lo baja a 3: recursos al límite (swap llena (5542 de 6144 MB))")
+        # Cuando hay guardia, la nube debe poder coger todas las listas (no solo sobra_mac=9)
+        # Con 12 tareas y por_run=6, necesita 2 jobs de 3 workers = 6 workers totales
+        self.assertEqual(plan["lanzar"], 2)
+        self.assertEqual(plan["trabajadores"], 3)
+        self.assertEqual(plan["lanzar"] * plan["trabajadores"], 6)
+
+    def test_mac_guardia_disco_tambien_envia_a_nube(self):
+        """Guardia de disco también envía tareas a la nube."""
+        mac = {"ocupados": ["A", "B"], "tope": 2, "listas": ["T%d" % i for i in range(8)],
+               "motivo_tope": "el guardia lo frena: disco por debajo de 5 GB (4.2 GB libres)"}
+        plan = B.plan_nube(
+            ["T%d" % i for i in range(8)], [], 1, None, {}, AHORA,
+            listas_mac=8, tope_mac=2, tope_runs=4,
+            motivo_tope="2 escritor(es)", potenciado=False)
+        self.assertGreaterEqual(plan["lanzar"] * plan["trabajadores"], 6)
+
     def test_las_agotadas_que_la_nube_ya_integro_se_dicen_y_no_se_reabren(self):
         clases = {"elegibles": [], "agotada": ["A", "B", "C"]}
         t = B.texto_nube(clases, {"por_que": "x"}, 0, por_traer=["B", "C", "Z"])
