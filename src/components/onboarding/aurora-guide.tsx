@@ -702,8 +702,10 @@ export function AuroraGuide() {
     if (!inTour || mode !== "voice" || muted) return;
     if (typeof window === "undefined") return;
     const id = window.setInterval(() => {
-      let tx = "";
-      try { tx = auroraTranscript(); } catch { tx = ""; }
+      // `auroraTranscript()` ya no lanza: informa UNA vez por consola y devuelve
+      // "" si el puente falla. Sin catch mudo en el sondeo (la guía sigue con
+      // sus botones y el fallo deja traza en vez de desaparecer).
+      const tx = auroraTranscript();
       if (!tx || tx === lastTranscriptRef.current) return;
       lastTranscriptRef.current = tx;
       const cmd = parseVoiceCommand(tx);
