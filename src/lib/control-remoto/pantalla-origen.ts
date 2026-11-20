@@ -241,6 +241,8 @@ export class OrigenPantalla {
             return { ok: false, motivo, falta };
         }
         const fuente: FuenteReal = r.fuente === "proyeccion" ? "proyeccion" : "accesibilidad";
+        // RST06: lo pedido viaja aparte: la fuente de abajo es SIEMPRE la que contestó el aparato.
+        const pedida: "proyeccion" | null = args.fuente === "proyeccion" ? "proyeccion" : null;
         const ancho = Number(r.ancho) || 0;
         const alto = Number(r.alto) || 0;
         const giro = [0, 90, 180, 270].includes(Number(r.giro)) ? Number(r.giro) : 0;
@@ -293,6 +295,7 @@ export class OrigenPantalla {
         return {
             ok: true,
             fuente,
+            ...(pedida ? { fuente_pedida: pedida } : {}),
             ancho,
             alto,
             giro,
@@ -310,7 +313,15 @@ export class OrigenPantalla {
         const manual = args.fuente === "proyeccion";
         this.d.anotar(`control-fuente paso=mantener fuente=${a.fuente} manual=${manual ? "si" : "no"}`);
         if (manual && debePedirFluida(a.fuente, this.fluidaPedidas.get(a.token) ?? 0, true)) void this.buscarFluida(a, true);
-        return { ok: true, mantenida: true, fuente: a.fuente, ancho: a.ancho, alto: a.alto, giro: a.giro };
+        return {
+            ok: true,
+            mantenida: true,
+            fuente: a.fuente,
+            ...(manual ? { fuente_pedida: "proyeccion" as const } : {}),
+            ancho: a.ancho,
+            alto: a.alto,
+            giro: a.giro,
+        };
     }
 
     private async llamarFluida(a: Activa): Promise<{ ok: boolean; r: Record<string, unknown> | null }> {
