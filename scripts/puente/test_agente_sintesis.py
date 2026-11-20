@@ -355,6 +355,17 @@ class TestEncargarPorFlota(unittest.TestCase):
             cola = json.load(f)
         self.assertEqual([t["id"] for t in cola], ["SIN11121"])
 
+    def test_una_tarea_nueva_no_se_poda_por_su_fecha(self):
+        # Regresión: la poda es de lo que YA estaba en la cola; una tarea recién encargada no se
+        # descarta aunque su `creada` venga vieja (antes quedaba la cola vacía y nada se publicaba).
+        vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
+        A.encargar_por_flota(self.raiz, [vieja], ahora=AHORA_CDMX_00, vivos=[],
+                             apto=(True, 100.0), libre=(True, 100.0))
+        ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
+        with open(ruta, encoding="utf-8") as f:
+            cola = json.load(f)
+        self.assertEqual([t["id"] for t in cola], ["SIN11121"])
+
     def test_tanda_viva_metelas_tareas_en_la_cola_del_orquestador(self):
         viva = os.path.join(self.raiz, "starseed_memory_root", "olas", "cola-codigo.json")
         with open(viva, "w", encoding="utf-8") as f:
@@ -368,10 +379,12 @@ class TestEncargarPorFlota(unittest.TestCase):
         self.assertEqual([t["id"] for t in viva_t], ["COD1", "SIN11121"])
 
     def test_poda_lo_propio_viejo(self):
-        vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
-        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], ahora=AHORA_CDMX_00, vivos=[],
-                             apto=(True, 100.0), libre=(True, 100.0))
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
+        vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump([vieja], f)  # ya estaba en la cola: esto es lo que se poda
+        A.encargar_por_flota(self.raiz, [self._tarea(2)], ahora=AHORA_CDMX_00, vivos=[],
+                             apto=(True, 100.0), libre=(True, 100.0))
         with open(ruta, encoding="utf-8") as f:
             cola = json.load(f)
         self.assertEqual([t["id"] for t in cola], ["SIN11122"])
