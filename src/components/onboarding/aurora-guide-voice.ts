@@ -29,6 +29,10 @@ type AuroraBridgeLite = {
 };
 
 import { callar as callarUnica, hablar as hablarUnica } from "@/lib/aurora/voz-unica";
+import {
+  evaluarLecturaTranscript,
+  type ResultadoLecturaTranscript,
+} from "@/lib/onboarding/transcript-voz";
 
 /** Devuelve el puente global de Aurora, o null si no está disponible. */
 export function auroraBridge(): AuroraBridgeLite | null {
@@ -116,14 +120,24 @@ export function auroraEnsureListening(): void {
   }
 }
 
-/** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
+/**
+ * Lee el transcript actual de la escucha de voz (o "" si no hay puente).
+ * Nunca lanza, pero tampoco calla: si el puente falla al responder, la guía
+ * sigue en texto y el fallo deja su línea en el registro (antes se perdía en
+ * un `catch` mudo y el modo voz se quedaba sin explicación visible).
+ */
 export function auroraTranscript(): string {
+  let resultado: ResultadoLecturaTranscript;
   try {
-    const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
-    return "";
+    resultado = { tipo: "ok", estado: auroraBridge()?.getState?.() };
+  } catch (error) {
+    resultado = { tipo: "excepcion", error };
   }
+  const { texto, aviso } = evaluarLecturaTranscript(resultado);
+  if (aviso) {
+    try { console.warn(aviso); } catch { /* el registro no puede tumbar la guía */ }
+  }
+  return texto;
 }
 
 /** ¿Aurora está actualmente encendida (enabled) según su estado? */
