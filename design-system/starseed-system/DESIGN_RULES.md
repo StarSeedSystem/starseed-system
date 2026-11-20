@@ -264,7 +264,8 @@ sitio desde el primer render: **cero layout shift**.
   sigue leyendo sin movimiento.
 - **Implementación:** clases `.ss-escenario-orbe` y `.ss-orbe-binario` en `src/app/globals.css`; la
   especificación pura (estados, duración, escala del escenario) en
-  `src/lib/video/editorial-paper/transitions.ts` (`transicionOrbe`, `escalaEscenario`).
+  `src/lib/video/editorial-paper/transitions.ts` (`transicionOrbe`, `escalaEscenario`), aplicada en
+  `src/components/protomolecula/orbe-protomolecula.tsx` (respaldo sin WebGL, estado activo y fundido de salida).
 
 ## 12. Cómo extender estas reglas
 

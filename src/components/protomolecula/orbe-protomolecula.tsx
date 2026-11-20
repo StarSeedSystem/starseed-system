@@ -40,6 +40,7 @@ import {
   zonaApagado,
 } from "@/lib/protomolecula/orbe4d/eventos";
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
+import { ESCENARIO_ORBE, escalaEscenario, transicionOrbe, type EstadoOrbe } from "@/lib/video/editorial-paper/transitions";
 import { PanelOrbe } from "./panel-orbe";
 import { EVENTO_PLAN_PENDIENTE } from "@/lib/protomolecula/peticion/contrato";
 import { iniciarEscuchaContexto } from "./ventana/contexto-anunciado";
@@ -81,11 +82,17 @@ export function OrbeProtomolecula() {
   const [sinWebGL, setSinWebGL] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [reducido, setReducido] = useState(false);
+  // La orbe no desaparece de golpe: conserva el estado inactivo durante el fundido de salida.
+  const [saliendo, setSaliendo] = useState(false);
+  const estuvoActiva = useRef(false);
   // Ancho de la pantalla: decide el tamaño de la orbe y se recalcula al rotar o redimensionar.
   const [ancho, setAncho] = useState(1024);
   const medidas = medidasOrbe(ancho);
   const medidasRef = useRef(medidas);
   medidasRef.current = medidas;
+  // Sin WebGL se lee como error; encendida, activa; apagada, inactiva. El estado lo mueve `transicionOrbe`.
+  const estadoOrbe: EstadoOrbe = sinWebGL ? "error" : activada ? "activo" : "inactivo";
+  const transicion = transicionOrbe(estadoOrbe, reducido);
 
   const lienzo = useRef<HTMLCanvasElement>(null);
   const caja = useRef<HTMLDivElement>(null);
@@ -109,6 +116,22 @@ export function OrbeProtomolecula() {
     setMontada(true);
     return () => mq?.removeEventListener?.("change", cambio);
   }, []);
+
+  // Al apagarla se deja que el estado inactivo termine su fundido antes de desmontar; encendida, se cancela.
+  useEffect(() => {
+    if (activada) {
+      estuvoActiva.current = true;
+      setSaliendo(false);
+      return;
+    }
+    if (!estuvoActiva.current) return;
+    setSaliendo(true);
+    const t = setTimeout(() => {
+      setSaliendo(false);
+      estuvoActiva.current = false;
+    }, transicion.duracion * 1000);
+    return () => clearTimeout(t);
+  }, [activada, transicion.duracion]);
 
   // La ventana de la orbe necesita saber qué pantalla había delante AUNQUE se abra después de que ella anunciara su
   // contexto (EVENTO_CONTEXTO_PROTO): la orbe escucha mientras vive y guarda el último.
@@ -382,6 +405,15 @@ export function OrbeProtomolecula() {
     horizontal: (pos.x > v.ancho / 2 ? "izquierda" : "derecha") as "izquierda" | "derecha",
     vertical: (pos.y > v.alto / 2 ? "arriba" : "abajo") as "arriba" | "abajo",
   };
+  // El escenario 16:9 se escala al visor; el respaldo ocupa su proporción sin mover el layout.
+  const escalaVisor = escalaEscenario(v.ancho, v.alto);
+  const escalaOrbe = Math.min(transicion.escala, 1 + escalaVisor * 0.05);
+  const anchoEscenario = Math.max(
+    0,
+    Math.min(Math.round(medidas.dibujo * 2.867), Math.round(ESCENARIO_ORBE.ancho * escalaVisor)),
+  );
+  const altoEscenario = Math.round((anchoEscenario * ESCENARIO_ORBE.alto) / ESCENARIO_ORBE.ancho);
+  const visible = activada || saliendo;
 
   return (
     <>
@@ -410,10 +442,12 @@ export function OrbeProtomolecula() {
         </div>
       )}
 
-      {activada && (
+      {visible && (
         <div
           data-testid="protomolecula-orbe"
           data-tapada={tapada ? "si" : undefined}
+          data-estado={estadoOrbe}
+          data-escenario={ESCENARIO_ORBE.proporcion}
           // Con una cortina Trinity abierta, la orbe pasa detrás de ella y de su velo (z 89–90): antes quedaba
           // encima del título del Centro de Creación. La cortina Horizon la enseña en su propia tarjeta.
           className={cn("fixed", tapada ? "z-[80]" : "z-[1000]")}
@@ -421,16 +455,35 @@ export function OrbeProtomolecula() {
           {sinWebGL ? (
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute rounded-full bg-[conic-gradient(from_0deg,#10B981,#A855F7,#00F0FF,#D4AF37,#10B981)] opacity-80 [mask:radial-gradient(circle,transparent_38%,#000_40%)] motion-safe:animate-[spin_13s_linear_infinite]"
-              style={{ width: medidas.dibujo, height: medidas.dibujo, left: (medidas.diana - medidas.dibujo) / 2, top: (medidas.diana - medidas.dibujo) / 2 }}
-            />
+              className="ss-escenario-orbe pointer-events-none absolute"
+              style={{
+                width: anchoEscenario,
+                height: altoEscenario,
+                left: (medidas.diana - anchoEscenario) / 2,
+                top: (medidas.diana - altoEscenario) / 2,
+              }}
+            >
+              <div className="ss-orbe-binario" data-estado={estadoOrbe} style={{ ["--orbe-tinte" as string]: transicion.tinte }} />
+            </div>
           ) : (
-            <canvas
-              ref={lienzo}
+            <div
               aria-hidden="true"
-              className="pointer-events-none absolute"
-              style={{ width: medidas.lienzo, height: medidas.lienzo, left: (medidas.diana - medidas.lienzo) / 2, top: (medidas.diana - medidas.lienzo) / 2 }}
-            />
+              className="pointer-events-none absolute inset-0"
+              style={{
+                opacity: transicion.opacidad,
+                transform: `scale(${escalaOrbe})`,
+                transformOrigin: "center",
+                transition: `opacity ${transicion.duracion * 1000}ms ${transicion.easing}, transform ${transicion.duracion * 1000}ms ${transicion.easing}`,
+                willChange: "opacity, transform",
+              }}
+            >
+              <canvas
+                ref={lienzo}
+                aria-hidden="true"
+                className="pointer-events-none absolute"
+                style={{ width: medidas.lienzo, height: medidas.lienzo, left: (medidas.diana - medidas.lienzo) / 2, top: (medidas.diana - medidas.lienzo) / 2 }}
+              />
+            </div>
           )}
           <div
             ref={caja}
