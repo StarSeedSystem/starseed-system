@@ -75,26 +75,26 @@ describe("analisis-seguridad.ts — análisis de seguridad de archivos recibidos
   };
 
   describe("calcularHuella", () => {
-    it("calcula SHA-256 correctamente para contenido conocido", async () => {
+    it("calcula SHA-256 correctamente para contenido conocido", () => {
       const contenido = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
-      const huella = await calcularHuella(contenido);
+      const huella = calcularHuella(contenido);
 
       expect(huella).toBeDefined();
       expect(typeof huella).toBe("string");
       expect(huella.length).toBe(64); // SHA-256 hex = 64 chars
     });
 
-    it("produce huellas diferentes para contenidos diferentes", async () => {
-      const huella1 = await calcularHuella(new Uint8Array([0x01, 0x02]));
-      const huella2 = await calcularHuella(new Uint8Array([0x03, 0x04]));
+    it("produce huellas diferentes para contenidos diferentes", () => {
+      const huella1 = calcularHuella(new Uint8Array([0x01, 0x02]));
+      const huella2 = calcularHuella(new Uint8Array([0x03, 0x04]));
 
       expect(huella1).not.toBe(huella2);
     });
 
-    it("es determinista: mismo contenido = misma huella", async () => {
+    it("es determinista: mismo contenido = misma huella", () => {
       const contenido = new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
-      const h1 = await calcularHuella(contenido);
-      const h2 = await calcularHuella(contenido);
+      const h1 = calcularHuella(contenido);
+      const h2 = calcularHuella(contenido);
 
       expect(h1).toBe(h2);
     });
