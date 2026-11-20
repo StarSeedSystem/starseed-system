@@ -144,7 +144,7 @@ libc = "0.2"
 # del sistema) y la pausa por toque físico lee eventos crudos de XInput2 con `x11rb` (Rust puro, SIN libxcb; es la misma
 # crate 0.13 que ya usa enigo: aquí solo se enciende su feature `xinput`, que no añade ninguna dependencia nueva al lock).
 gtk = "0.18"
-x11rb = { version = "0.13", default-features = false, features = ["xinput"] }
+x11rb = { version = "0.13", default-features = false, features = ["xinput", "shm"] }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
