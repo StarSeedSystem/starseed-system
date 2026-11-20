@@ -342,12 +342,13 @@ class TestEncargarPorFlota(unittest.TestCase):
         self._tmp.cleanup()
 
     def _tarea(self, n=1):
-        # Fecha dentro del rango de poda (dentro de últimos 7 días)
-        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": "2026-11-18T06:24:00Z",
+        # La poda compara con el reloj inyectado (`ahora`), no con una fecha fija que caduca a los 7 días.
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": A._iso(AHORA_CDMX_00),
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
-        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], ahora=AHORA_CDMX_00, vivos=[],
+                                 apto=(True, 100.0), libre=(True, 100.0))
         self.assertEqual(d["accion"], "cola_lista")
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         with open(ruta, encoding="utf-8") as f:
@@ -359,7 +360,7 @@ class TestEncargarPorFlota(unittest.TestCase):
         with open(viva, "w", encoding="utf-8") as f:
             json.dump([{"id": "COD1"}], f)
         vivo = {"pid": 123, "cola": "cola-codigo.json", "segundos": 3600, "solo": False}
-        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[vivo],
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], ahora=AHORA_CDMX_00, vivos=[vivo],
                                  apto=(True, 100.0), libre=(True, 100.0))
         self.assertEqual(d["accion"], "tanda_viva")
         with open(viva, encoding="utf-8") as f:
@@ -368,7 +369,8 @@ class TestEncargarPorFlota(unittest.TestCase):
 
     def test_poda_lo_propio_viejo(self):
         vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
-        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
+        A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], ahora=AHORA_CDMX_00, vivos=[],
+                             apto=(True, 100.0), libre=(True, 100.0))
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         with open(ruta, encoding="utf-8") as f:
             cola = json.load(f)
