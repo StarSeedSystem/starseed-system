@@ -1707,6 +1707,16 @@ export interface DatosMedidores {
         pausado?: boolean;
         tono?: "normal" | "aviso" | "peligro";
     } | null;
+    /** (CAP1119E) Estado de la búsqueda de capacidad (`~/.starseed/buscar-capacidad.json`). */
+    buscarCapacidad?: {
+        resumen: string;
+        lineas: string[];
+        sumados: number;
+        hechas: string[];
+        en_curso: boolean;
+        error?: string;
+        visto?: string;
+    } | null;
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
@@ -2734,6 +2744,16 @@ export function detalleDeMedidor(
             ]
                 .filter(([n]) => Number(n) > 0)
                 .map(([n, t]) => `${n} ${t}`);
+const busca = d.buscarCapacidad;
+            const cargando = busca?.en_curso
+                ? { texto: "Buscando capacidad en todos los medios…", progreso: undefined }
+                : undefined;
+            const avisoBusca = busca && !busca.en_curso
+                ? (busca.error
+                    ? `Búsqueda de capacidad: ${busca.error}${busca.lineas?.length ? ` · ${busca.lineas.slice(-3).join(" · ")}` : ""}`
+                    : busca.resumen
+                  )
+                : undefined;
             return {
                 clave,
                 titulo: "Agentes",
@@ -2742,11 +2762,13 @@ export function detalleDeMedidor(
                         ? `ningún agente trabajando${fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s)` : ""}`
                         : `${filas.length} en total · ${partes.join(" · ")}${
                               fantasmas.length ? ` · ${fantasmas.length} latido(s) viejo(s) descartado(s): ${fantasmas.map((f) => f.id).join(", ")}` : ""
-                          }`,
+                            }`,
                 filas,
                 cuenta: filas.length, // MED1113A: la cifra de la pastilla y la que coteja «Comprobar ahora»
                 ...(aviso ? { aviso } : {}),
+                ...(avisoBusca ? { aviso: [aviso, avisoBusca].filter(Boolean).join(" ") } : {}),
                 porcentajeMedio: mediaDeAvance(filas),
+                cargando,
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: fantasmas.length
                     ? `Ningún agente trabajando. ${fantasmas.length} latido(s) decían lo contrario sin ningún proceso detrás: descartados.`
@@ -2885,6 +2907,16 @@ export function detalleDeMedidor(
             const suenosSueltos = rancias.filter((r) => esSueno(r.id));
             const todas = [...ranciasTrabajo, ...filas, ...suenosSueltos];
             const medio = mediaDeAvance([...ranciasTrabajo, ...filas]);
+const busca = d.buscarCapacidad;
+            const cargando = busca?.en_curso
+                ? { texto: "Buscando capacidad en todos los medios…", progreso: undefined }
+                : undefined;
+            const avisoBusca = busca && !busca.en_curso
+                ? (busca.error
+                    ? `Búsqueda de capacidad: ${busca.error}${busca.lineas?.length ? ` · ${busca.lineas.slice(-3).join(" · ")}` : ""}`
+                    : busca.resumen
+                  )
+                : undefined;
             return {
                 clave,
                 titulo: "Tareas en curso",
@@ -2893,12 +2925,14 @@ export function detalleDeMedidor(
                         ? "ninguna tarea en curso"
                         : `${filas.length} en marcha · ${d.latidos.length} agente(s) sobre ellas · ${medio} % de avance medio${
                               ranciasTrabajo.length ? ` · ${ranciasTrabajo.length} rancias` : ""
-                          }${suenosSueltos.length ? ` · ${suenosSueltos.length} sueño(s) sin agente` : ""}`,
+                            }${suenosSueltos.length ? ` · ${suenosSueltos.length} sueño(s) sin agente` : ""}`,
                 filas: todas,
                 // MED1113A: la pastilla cuenta lo que ALGUIEN hace ahora; las rancias y los sueños sin agente van en
                 // la ventana con su porqué, pero no son «en curso» (antes la pastilla los sumaba y el resumen no).
                 cuenta: filas.length,
                 porcentajeMedio: medio,
+                ...(avisoBusca ? { aviso: avisoBusca } : {}),
+                cargando,
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
             };
@@ -2982,12 +3016,24 @@ export function detalleDeMedidor(
                       ? `ninguna se puede coger ya${colaDeAtadas}`
                       : `${libres.length} se pueden coger ya · ${porQueNadieLasCoge}${colaDeAtadas}`;
 
+            const busca = d.buscarCapacidad;
+            const cargando = busca?.en_curso
+                ? { texto: "Buscando capacidad en todos los medios…", progreso: undefined }
+                : undefined;
+            const avisoBusca = busca && !busca.en_curso
+                ? (busca.error
+                    ? `Búsqueda de capacidad: ${busca.error}${busca.lineas?.length ? ` · ${busca.lineas.slice(-3).join(" · ")}` : ""}`
+                    : busca.resumen
+                  )
+                : undefined;
             return {
                 clave,
                 titulo: "Listas para trabajar",
                 resumen: resumen + avisoGit,
                 filas,
                 porcentajeMedio: 0,
+                ...(avisoBusca ? { aviso: avisoBusca } : {}),
+                cargando,
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver procesos", "procesos")],
                 vacio: "No queda trabajo ejecutable: todo lo definido está integrado, bloqueado o esperándote.",
             };
@@ -3162,6 +3208,16 @@ export function detalleDeMedidor(
 
             const libres = r.agentes_libres ?? 0;
             const tope = r.agentes_tope ?? 0;
+            const busca = d.buscarCapacidad;
+            const cargando = busca?.en_curso
+                ? { texto: "Buscando capacidad en todos los medios…", progreso: undefined }
+                : undefined;
+            const avisoBusca = busca && !busca.en_curso
+                ? (busca.error
+                    ? `Búsqueda de capacidad: ${busca.error}${busca.lineas?.length ? ` · ${busca.lineas.slice(-3).join(" · ")}` : ""}`
+                    : busca.resumen
+                  )
+                : undefined;
             return {
                 clave,
                 titulo: "Contenedores en la nube",
@@ -3169,6 +3225,8 @@ export function detalleDeMedidor(
                     ? `${r.agentes_ahora ?? 0} agente(s) trabajando · ${libres} libre(s) de ${tope} · ${r.usables ?? 0} de ${r.contenedores ?? 0} servicio(s) usable(s)${inv.generado ? ` · medido ${inv.generado}` : ""}`
                     : "sin medir todavía: pulsa «Buscar más capacidad en todos los medios»",
                 filas,
+                ...(avisoBusca ? { aviso: avisoBusca } : {}),
+                cargando,
                 acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la flota", "flota")],
                 vacio: `Ningún contenedor medido aún. «Buscar más capacidad en todos los medios» sondea ${CONTENEDORES_OPCIONES.map(o => o.nombre).join(", ")}.`,
             };

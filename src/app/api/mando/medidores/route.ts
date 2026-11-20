@@ -80,6 +80,17 @@ import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/l
 import { leerAjustes, leerPropuestas, leerPropuestasConFiltro } from "@/lib/mando/imaginacion-servidor";
 import { leerAmbito, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
+async function leerBuscarCapacidadEstado(): Promise<DatosMedidores["buscarCapacidad"]> {
+    try {
+        const estado = path.join(os.homedir(), ".starseed", "buscar-capacidad.json");
+        const crudo = await readFile(estado, "utf8");
+        const d = JSON.parse(crudo) as DatosMedidores["buscarCapacidad"];
+        return d && typeof d === "object" ? d : null;
+    } catch {
+        return null;
+    }
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -1006,6 +1017,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         descripciones,
         repoGitHub: "StarSeedSystem/starseed-system",
         asuntosDeMain,
+        buscarCapacidad: await leerBuscarCapacidadEstado().catch(() => null),
     };
 }
 
@@ -1306,7 +1318,7 @@ export async function POST(peticion: Request): Promise<Response> {
     // de la nube salen en segundo plano, así que esto contesta en segundos con el plan.
     // (1103 · U) Alex: «si ocurre eso cuando selecciono buscar más capacidades debe preguntarme si prefiero
     // potencializar las tareas aumentando el consumo de los créditos mensuales». La decisión la guarda
-    // `scripts/puente/potenciar_capacidad.py`; al potenciar se vuelve a buscar en el acto para usar lo que se abrió.
+    // `scripts/puente/potenciar_capacidad.py`; al potenciar se lanza la búsqueda en segundo plano.
     if (accion === "potenciar-capacidad" || accion === "mantener-ritmo") {
         if (!POTENCIABLES.includes(id)) {
             return Response.json({ error: `«${id}» no es un medio que se pueda potenciar.` }, { status: 400 });
@@ -1321,15 +1333,15 @@ export async function POST(peticion: Request): Promise<Response> {
             const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as { resumen?: string };
             let resumen = r.resumen || "Hecho.";
             if (orden === "activar") {
-                const b = await correr(
+                const hijo = spawn(
                     "python3",
                     ["scripts/puente/buscar_capacidad.py", "buscar", "--aplicar", "--json", "--origen", "boton"],
-                    { cwd: RAÍZ, timeout: 150_000, windowsHide: true },
+                    { cwd: RAÍZ, detached: true, stdio: "ignore" },
                 );
-                const rb = JSON.parse((b.stdout || "").trim().split("\n").pop() || "{}") as { resumen?: string };
-                if (rb.resumen) resumen = `${resumen}\n${rb.resumen}`;
+                hijo.unref();
+                resumen = `${resumen}\nBuscando capacidad…`;
             }
-            return Response.json({ ok: true, resumen });
+            return Response.json({ ok: true, resumen, en_curso: orden === "activar" });
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
             return Response.json({ error: `No pude ${orden === "activar" ? "potenciar" : "mantener el ritmo de"} ${id}: ${msj.slice(0, 300)}` }, { status: 500 });
@@ -1338,25 +1350,20 @@ export async function POST(peticion: Request): Promise<Response> {
 
     if (accion === "buscar-capacidad") {
         try {
-            const { stdout } = await correr(
+            const hijo = spawn(
                 "python3",
                 ["scripts/puente/buscar_capacidad.py", "buscar", "--aplicar", "--json", "--origen", "boton"],
-                { cwd: RAÍZ, timeout: 150_000, windowsHide: true },
+                { cwd: RAÍZ, detached: true, stdio: "ignore" },
             );
-            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as {
-                resumen?: string;
-                sumados?: number;
-                hechas?: string[];
-            };
+            hijo.unref();
             return Response.json({
                 ok: true,
-                resumen: r.resumen || "Busqué en todos los medios.",
-                sumados: r.sumados ?? 0,
-                hechas: r.hechas ?? [],
+                resumen: "Buscando capacidad…",
+                en_curso: true,
             });
         } catch (e) {
             const msj = e instanceof Error ? e.message : String(e);
-            return Response.json({ error: `No pude buscar más capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
+            return Response.json({ error: `No pude lanzar la búsqueda de capacidad: ${msj.slice(0, 300)}` }, { status: 500 });
         }
     }
 
