@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-agentes-referencias",
+   "titulo": "Orbe binario en escenario fijo: transiciones de estado con reduced-motion, integradas en tokens y transiciones existentes",
+   "area": "imaginacion",
+   "archivos": [
+    "src/lib/video/editorial-paper/transitions.ts",
+    "src/app/globals.css",
+    "design-system/starseed-system/DESIGN_RULES.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Orbe binario en escenario fijo: transiciones de estado con reduced-motion, integradas en tokens y transiciones existentes. # Orbe binario en escenario fijo: transiciones de estado con reduced-motion\n\n## Qué\nEspecificación de movimiento para el orbe binario de la Protomolécula: transiciones idle → activo → error dentro de un escenario fijo 16:9 escalado al visor, con opacidad y escala, sin layout shift, y fallback `prefers-reduced-motion` a solo fade.\n\n## Patrón de referencia\n**Frontend Slides** (https://github.com/zarazhangrui/frontend-slides): escenario fijo 16:9 escalado al visor, animación contenida. Se aplica al orbe: vive en un lienzo fijo que se escala; las transiciones son de opacidad y escala, no de layout Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMG-agentes-reimaginada-agentes-referencias"
+  ]
+ }
+}
