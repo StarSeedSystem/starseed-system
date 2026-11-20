@@ -16,12 +16,22 @@ export function CapaIdioma(): null {
     useEffect(() => {
         let capa: CapaActiva | null = null;
         let vivo = true;
+        let hidratado = false;
+        let turno = 0;
+        let espera: Promise<void> | null = null;
         const aplicar = async (): Promise<void> => {
-            await cuandoEsSeguroTraducir(entornoDelNavegador(window));
-            if (!vivo) return;
+            const mio = ++turno;
+            if (!hidratado) {
+                // La primera aplicación espera a que el documento esté hidratado; las elecciones
+                // posteriores (`capa.cambiar`) son de la persona y se aplican ya, sin espera.
+                const pendiente = (espera ??= cuandoEsSeguroTraducir(entornoDelNavegador(window)));
+                await pendiente;
+                if (!vivo || mio !== turno) return;
+                hidratado = true;
+            }
             const { codigo } = idiomaEfectivo();
             const cat = codigo === IDIOMA_FUENTE ? null : await cargarCatalogo(codigo);
-            if (!vivo) return;
+            if (!vivo || mio !== turno) return;
             const aplicado = cat ? codigo : IDIOMA_FUENTE; // sin catálogo no se miente en `lang` ni en `dir`
             if (capa) capa.cambiar(cat, aplicado);
             else capa = iniciarCapa(document.body, document, aplicado, cat);
