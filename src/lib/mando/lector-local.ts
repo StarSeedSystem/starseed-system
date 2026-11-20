@@ -31,7 +31,7 @@ import type {
     TareaOla,
 } from "@/lib/mando/tipos";
 import { idEnAsuntos } from "@/lib/mando/medidores";
-import { estadoDeDependencia } from "@/lib/mando/cadenas";
+import { estadoDeDependencia, indexarCadenas } from "@/lib/mando/cadenas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { filasRecientes } from "@/lib/mando/bus-remoto";
 import { parsearVeredictos, type ListaVeredictos } from "@/lib/mando/veredictos";
@@ -368,19 +368,26 @@ export function colaInteligente(
 ): TareaEnFila[] {
     const olaDe = new Map(tareas.map((t) => [t.id, (/(\d{2,4})/.exec(t.ola) ?? [])[1] ?? ""]));
     const tituloDe = new Map(tareas.map((t) => [t.id, t.titulo.trim()]));
+    const estados = new Map<string, string>();
     const estadoDe = (id: string): string => {
+        const guardado = estados.get(id);
+        if (guardado !== undefined) return guardado;
         const local = texto(objeto(progreso[id]).estado);
-        if (["commit", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"].includes(local)) return local;
-        const enGit =
-            commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ||
-            commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`) ||
-            idEnAsuntos(id, asuntosDeMain);
-        return enGit ? "commit" : local;
+        let res = local;
+        if (!["commit", "sin_cambios", "sustituida", "reasignada", "rechazada", "informe"].includes(local)) {
+            const enGit =
+                commitsGit.has(`${olaDe.get(id) ?? ""}|${id}`) ||
+                commitsGit.has(`${id}|${tituloDe.get(id) ?? ""}`) ||
+                idEnAsuntos(id, asuntosDeMain);
+            if (enGit) res = "commit";
+        }
+        estados.set(id, res);
+        return res;
     };
     const terminada = (id: string): boolean =>
         ["commit", "sin_cambios", "sustituida", "reasignada", "informe"].includes(estadoDe(id));
     const enMarcha = new Set(latidos.map((l) => l.tarea));
-    const idsConocidos = [...Object.keys(progreso), ...tareas.map((t) => t.id)];
+    const indiceCadenas = indexarCadenas([...Object.keys(progreso), ...tareas.map((t) => t.id)]);
 
     const fila: TareaEnFila[] = [];
     for (const tarea of tareas) {
@@ -392,9 +399,11 @@ export function colaInteligente(
         // (2026-10-08) Una dependencia frena hasta que ELLA o una sucesora de su cadena está
         // integrada: la regla del orquestador (`cadenas.ts`). Antes bastaba con «terminada»
         // (sustituida, reasignada, sin_cambios) y RM7 salía «lista» con RM6 rehaciéndose en RM6b.
-        const pendientes = tarea.dependencias.filter(
-            (d) => !estadoDeDependencia(d, estadoDe, idsConocidos, () => false).cumplida,
-        );
+        const pendientes = tarea.dependencias.length
+            ? tarea.dependencias.filter(
+                  (d) => !estadoDeDependencia(d, estadoDe, indiceCadenas, () => false).cumplida,
+              )
+            : [];
         const fallidos = Array.isArray(objeto(progreso[tarea.id]).modelos_fallidos)
             ? (objeto(progreso[tarea.id]).modelos_fallidos as unknown[]).length
             : 0;

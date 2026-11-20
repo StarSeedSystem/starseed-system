@@ -29,6 +29,7 @@ import { aparatoLocal, type AparatoLocal } from "@/lib/chats-genesis/firma-apara
 import type { PrefsChatsGenesis, PuenteTelegram, VinculoChat } from "@/lib/chats-genesis/tipos";
 import { conMetaGenesisInicial, guardarPrefsChatsGenesis, leerCopiaLocalChatsGenesis, leerPrefsChatsGenesis } from "@/lib/chats-genesis/vinculos";
 import { estadoAgenteGenesis } from "@/components/messaging/conexiones-genesis";
+import { canalesEspecializadosOrdenados } from "@/lib/mando/canales-especializados";
 import { cn } from "@/lib/utils";
 
 import { momentoTexto } from "./cabecera-espejo";
@@ -194,6 +195,41 @@ export function PestanaGenesis({ cliente, clienteCanon, clienteAparatos }: Pesta
                 avisoCatalogo={avisoCatalogo}
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 rounded-xl border border-white/10 bg-background/50 p-2 shadow-sm sm:p-3">
+                {acceso?.miembro ? (
+                    <div
+                        role="group"
+                        aria-label="Canales especializados de dirección"
+                        data-testid="barra-canales-especializados"
+                        className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px]"
+                    >
+                        <span className="font-medium text-white/60">Canales:</span>
+                        {canalesEspecializadosOrdenados().map((c) => {
+                            if (c.puenteAstraura !== "genesis" && !acceso.dueno) return null;
+                            const idDestino =
+                                c.puenteAstraura === "genesis"
+                                    ? ID_DIRECCION
+                                    : `puente:${c.puenteAstraura}`;
+                            const activo = valor === idDestino;
+                            return (
+                                <button
+                                    key={c.id}
+                                    type="button"
+                                    aria-pressed={activo}
+                                    onClick={() => elegir(idDestino)}
+                                    title={c.descripcion}
+                                    className={cn(
+                                        "cursor-pointer rounded-md border px-2 py-0.5 transition-colors",
+                                        activo
+                                            ? "border-violet-400/60 bg-violet-500/20 text-white"
+                                            : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white",
+                                    )}
+                                >
+                                    {c.nombreCorto} · {c.botTelegram}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : null}
                 {avisoPrefs ? (
                     <p role="status" data-testid="aviso-prefs" className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-snug text-amber-100">{avisoPrefs}</p>
                 ) : null}

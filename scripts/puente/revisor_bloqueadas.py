@@ -844,8 +844,11 @@ def pasada(seco=False, jev=True, ahora=None):
     hoy = time.strftime("%Y-%m-%d", time.localtime(ahora))
     if not seco:
         hist = list(memoria.get("historial") or [])
+        ya_preguntadas = {str(k) for k in (estado.get("necesitan_alex") or {})}
         for r in registros:
             if r.get("resultado") in ("aplicada", "preguntada") and r.get("accion") != "priorizar":
+                if r.get("accion") == "pedir_a_alex" and str(r.get("tid") or "") in ya_preguntadas:
+                    continue
                 hist.append({k: r.get(k) for k in ("t", "tid", "accion", "clase", "motivo")})
         memoria["historial"] = hist[-400:]
         transformadas = [r for r in (estado.get("transformadas_hoy") or [])
@@ -862,14 +865,15 @@ def pasada(seco=False, jev=True, ahora=None):
                 ult_prior = r.get("motivo")
             transformadas.append(r)
         alex = dict(estado.get("necesitan_alex") or {})
+        pedidas_ahora = {str(r.get("tid") or "") for r in registros if r.get("accion") == "pedir_a_alex"}
         for r in registros:
             if r.get("accion") == "pedir_a_alex" and r.get("tid") not in alex:
                 alex[r["tid"]] = {"pregunta": r.get("pregunta"), "opciones": r.get("opciones"),
                                   "motivo": r.get("motivo"), "desde": r.get("t"),
                                   "titulo": str((foto["tareas"].get(r["tid"]) or {}).get("titulo") or r["tid"])[:200]}
-        # Lo que ya no está quieto deja de preguntar.
+        # Lo que ya no está quieto (ni acaba de pedirse en esta pasada) deja de preguntar.
         for tid in list(alex):
-            if logica._estado(foto["progreso"], tid) not in logica.QUIETOS:
+            if str(tid) not in pedidas_ahora and logica._estado(foto["progreso"], tid) not in logica.QUIETOS:
                 alex.pop(tid, None)
         estado.update({
             "version": 1,
@@ -889,8 +893,12 @@ def pasada(seco=False, jev=True, ahora=None):
             "aprendido": (estado.get("aprendido") or [])[-20:] + aprendido,
         })
         _escribir(ESTADO, estado)
-        utiles = [r for r in registros if r.get("resultado") in ("aplicada", "preguntada")
-                  and r.get("accion") not in ("priorizar",)]
+        utiles = [
+            r for r in registros
+            if r.get("resultado") in ("aplicada", "preguntada")
+            and r.get("accion") not in ("priorizar",)
+            and not (r.get("accion") == "pedir_a_alex" and str(r.get("tid") or "") in ya_preguntadas)
+        ]
         if utiles or cerrojo_quitado:
             lineas = ["*Revisor de bloqueadas* (%s): ninguna tarea se queda quieta." % MEDIO]
             if cerrojo_quitado:

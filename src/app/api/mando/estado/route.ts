@@ -120,7 +120,7 @@ export async function GET(request: Request): Promise<Response> {
  * cálculo tardaba 5-25 s y repetirlo por petición hacía más lentas a todas. La puerta (guardián)
  * se sigue pasando en CADA petición, antes de llegar aquí.
  */
-const VIGENCIA_ESTADO_MS = 8_000;
+const VIGENCIA_ESTADO_MS = 20_000;
 /**
  * (2026-10-13, medido) Con la Mac sin memoria un cálculo pasaba de 50 s y MetaGenesis se quedaba
  * en «Midiendo el pulso del trabajo…». Con un estado anterior, nadie espera más de 2 s (antes 6:

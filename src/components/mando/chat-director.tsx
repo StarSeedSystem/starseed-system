@@ -33,6 +33,12 @@ import {
 import { MensajeDelDirector } from "@/components/mando/chat-director-mensaje";
 import { CompositorDirector, migrarAPresidente, type ModeloOpcion } from "@/components/mando/chat-director-compositor";
 import { BarraEstadoPresidente } from "@/components/mando/barra-estado-presidente";
+import { PanelChatEspecializado } from "@/components/mando/panel-chat-especializado";
+import {
+    canalesEspecializadosOrdenados,
+    perfilDePestana,
+    type IdCanalEspecializado,
+} from "@/lib/mando/canales-especializados";
 
 const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
@@ -146,6 +152,8 @@ export interface ChatDirectorProps {
 }
 
 export function ChatDirector({ onAbrirAjustes }: ChatDirectorProps = {}) {
+    const [canalActivo, setCanalActivo] = useState<IdCanalEspecializado>("principal");
+    const [borradorAtajo, setBorradorAtajo] = useState<{ id: number; texto: string } | null>(null);
     const [plegado, setPlegado] = useState<boolean>(plegadoInicial);
     const [filtro, setFiltro] = useState<FiltroFeed>("todo");
     const [chips, setChips] = useState<Partial<Record<FiltroFeed, string>>>(filtrosGuardados);
@@ -420,26 +428,80 @@ export function ChatDirector({ onAbrirAjustes }: ChatDirectorProps = {}) {
             </button>
             {plegado ? null : (
                 <div className="mt-3 flex flex-col gap-2.5">
+                    <div
+                        role="group"
+                        aria-label="Canales de dirección"
+                        className="flex flex-wrap items-center gap-1.5"
+                    >
+                        {canalesEspecializadosOrdenados().map((canal) => (
+                            <button
+                                key={canal.id}
+                                type="button"
+                                aria-pressed={canalActivo === canal.id}
+                                onClick={() => setCanalActivo(canal.id)}
+                                title={canal.descripcion}
+                                className={`cursor-pointer rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                    canalActivo === canal.id
+                                        ? "border-violet-400/60 bg-violet-600/25 text-white"
+                                        : "border-white/10 text-white/60 hover:bg-white/5 hover:text-white"
+                                }`}
+                            >
+                                {canal.nombreCorto}
+                                <span className="ml-1 text-[10px] text-white/45">{canal.botTelegram}</span>
+                            </button>
+                        ))}
+                    </div>
                     <BarraEstadoPresidente
                         alAbrirAjustes={onAbrirAjustes}
                         alRecargarChat={() => void cargar(false)}
                     />
-                    <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtrar el chat">
-                        {FILTROS.map((f) => (
-                            <button
-                                key={f.id}
-                                type="button"
-                                role="tab"
-                                aria-selected={filtro === f.id}
-                                onClick={() => setFiltro(f.id)}
-                                className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] ${filtro === f.id
-                                    ? "border-violet-400/60 bg-violet-600/25 text-violet-100"
-                                    : "border-white/10 text-white/50 hover:text-white/80"}`}
+                    {canalActivo === "principal" ? (
+                        <>
+                            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtrar el chat">
+                                {FILTROS.map((f) => (
+                                    <button
+                                        key={f.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={filtro === f.id}
+                                        onClick={() => setFiltro(f.id)}
+                                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] ${filtro === f.id
+                                            ? "border-violet-400/60 bg-violet-600/25 text-violet-100"
+                                            : "border-white/10 text-white/50 hover:text-white/80"}`}
+                                    >
+                                        {f.etiqueta}
+                                    </button>
+                                ))}
+                            </div>
+                            <div
+                                data-testid="contexto-pestana-chat-director"
+                                className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[10px] text-white/70"
                             >
-                                {f.etiqueta}
-                            </button>
-                        ))}
-                    </div>
+                                <span className="font-medium text-violet-200">
+                                    {perfilDePestana(filtro).titulo}:
+                                </span>
+                                <span>{perfilDePestana(filtro).enfoque}</span>
+                                {perfilDePestana(filtro).herramientas.map((h) => (
+                                    <span
+                                        key={h}
+                                        className="rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-white/75"
+                                    >
+                                        {h}
+                                    </span>
+                                ))}
+                                {perfilDePestana(filtro).atajos.map((atajo) => (
+                                    <button
+                                        key={atajo.etiqueta}
+                                        type="button"
+                                        onClick={() =>
+                                            setBorradorAtajo({ id: Date.now(), texto: atajo.plantilla })
+                                        }
+                                        className="cursor-pointer rounded border border-violet-400/35 bg-violet-500/15 px-2 py-0.5 text-violet-100 hover:bg-violet-500/25"
+                                    >
+                                        {atajo.etiqueta}
+                                    </button>
+                                ))}
+                            </div>
                     {opciones.length > 1 ? (
                         <div className="flex flex-wrap gap-1" role="group" aria-label={`Filtros de ${FILTROS.find((f) => f.id === filtro)?.etiqueta ?? filtro}`}>
                             {opciones.map((o) => (
@@ -523,6 +585,7 @@ export function ChatDirector({ onAbrirAjustes }: ChatDirectorProps = {}) {
                             modelos={modelos}
                             ultimoModelo={ultimoModelo}
                             enviando={enviando}
+                            borradorExterno={borradorAtajo}
                             onEnviar={({ texto, modelo, canales }) => {
                                 bajarAlFinal();
                                 void publicar({ accion: "decir", texto, modelo, canales });
@@ -530,6 +593,10 @@ export function ChatDirector({ onAbrirAjustes }: ChatDirectorProps = {}) {
                         />
                     ) : (
                         <p className="text-[11px] text-white/40">Leyendo el chat…</p>
+                    )}
+                        </>
+                    ) : (
+                        <PanelChatEspecializado canal={canalActivo} modo="integrado" />
                     )}
                 </div>
             )}

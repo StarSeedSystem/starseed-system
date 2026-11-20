@@ -91,20 +91,29 @@ def _respuesta_http(abrir):
 
 
 def token_google(alias: str = "alex") -> str:
-    c = leer_json(os.path.join(CASA, ".starseed", "cuentas", alias + ".json"), {})
-    datos = urllib.parse.urlencode({
-        "client_id": c.get("client_id", ""),
-        "client_secret": c.get("client_secret", ""),
-        "refresh_token": c.get("refresh_token", ""),
-        "grant_type": "refresh_token",
-    }).encode()
-    d = _respuesta_http(lambda: urllib.request.urlopen(
-        c.get("token_uri") or "https://oauth2.googleapis.com/token",
-        datos, timeout=30
-    ))
-    if not d.get("access_token"):
-        raise RuntimeError("no pude renovar el acceso a Drive de la cuenta %s (%s)" % (alias, d.get("error", "?")))
-    return d["access_token"]
+    vistos: list[str] = []
+    ultimo_err = "?"
+    for candidato in (alias, "alex", "alex-docs", "fundacion"):
+        if not candidato or candidato in vistos:
+            continue
+        vistos.append(candidato)
+        c = leer_json(os.path.join(CASA, ".starseed", "cuentas", candidato + ".json"), {})
+        if not c.get("refresh_token"):
+            continue
+        datos = urllib.parse.urlencode({
+            "client_id": c.get("client_id", ""),
+            "client_secret": c.get("client_secret", ""),
+            "refresh_token": c.get("refresh_token", ""),
+            "grant_type": "refresh_token",
+        }).encode()
+        d = _respuesta_http(lambda: urllib.request.urlopen(
+            c.get("token_uri") or "https://oauth2.googleapis.com/token",
+            datos, timeout=30
+        ))
+        if d.get("access_token"):
+            return d["access_token"]
+        ultimo_err = str(d.get("error", "?"))
+    raise RuntimeError("no pude renovar el acceso a Drive de la cuenta %s (%s)" % (alias, ultimo_err))
 
 
 def drive(ruta: str, params: dict[str, str]) -> dict[str, Any]:
@@ -253,6 +262,25 @@ def asegurar_fuente(fid: str, titulo: str) -> str:
         raise RuntimeError("no pude añadir «%s» al cuaderno: %s" % (titulo, (err or out)[-300:]))
     nb(["source", "wait", "-n", CUADERNO, sid, "--timeout", "600"], 660)
     return sid
+
+
+def asegurar_fuente_local(ruta_local: str, titulo: str = "") -> str | None:
+    """Asegura que un archivo local (p. ej. contexto-vivo-AAAA-MM-DD.md) esté en CUADERNO cuando Drive OAuth falla."""
+    if not ruta_local or not os.path.exists(ruta_local):
+        return None
+    nombre_base = os.path.basename(ruta_local)
+    rc, out, _ = nb(["source", "list", "-n", CUADERNO, "--json"], 180)
+    for s in json_de(out).get("sources") or []:
+        stitle = str(s.get("title") or "")
+        if s.get("status") == "ready" and (nombre_base in stitle or (titulo and titulo in stitle)):
+            return s.get("id")
+    rc, out, _ = nb(["source", "add", "-n", CUADERNO, ruta_local, "--json"], 300)
+    d = json_de(out)
+    sid = d.get("source_id") or d.get("id") or (d.get("source") or {}).get("id")
+    if rc == 0 and sid:
+        nb(["source", "wait", "-n", CUADERNO, sid, "--timeout", "300"], 330)
+        return sid
+    return None
 
 
 def lanzar(tipo: str, indicaciones: str, sid: str) -> str:

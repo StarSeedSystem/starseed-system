@@ -221,13 +221,16 @@ def dias_para_caducar(ficha: Any, ahora: datetime) -> int | None:
 
 
 def comprobar_google_oauth(alias: str, ejecutar: Ejecutar = _ejecutar) -> dict[str, Any]:
-    orden = [sys.executable, str(Path(__file__).with_name("cuentas_google.py")), "estado"]
+    orden = [sys.executable, str(Path(__file__).with_name("cuentas_google.py")), "estado", "--verificar"]
     rc, salida = ejecutar(orden, 60)
+    lineas = salida.splitlines()
     vivo = rc == 0 and any(linea.split()[:1] == [alias] and linea.rstrip().endswith("vivo")
-                           for linea in salida.splitlines())
+                           for linea in lineas)
     if vivo:
         return {"ok": True, "detalle": f"{alias} vivo"}
-    return {"ok": False, "motivo": f"{alias}: {salida.strip()[:160]}"}
+    linea_alias = next((l.strip() for l in lineas if l.split()[:1] == [alias]), "")
+    detalle = linea_alias or salida.strip()
+    return {"ok": False, "motivo": f"{alias}: {detalle[:160]}"}
 
 
 def receta_google_oauth(alias: str, renovar: Callable[[str], dict[str, Any]],

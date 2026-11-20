@@ -24,6 +24,7 @@ import { riesgoDeEntrada, type AparatoLocal } from "@/lib/chats-genesis/firma-ap
 import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import { TEXTOS_SIN_RED, desfaseRelojMs } from "@/lib/chats-genesis/puerta-chats";
 import type { FuenteEspejo, PuenteTelegram } from "@/lib/chats-genesis/tipos";
+import { canalPorPuenteAstraura } from "@/lib/mando/canales-especializados";
 import { nombreDeAutor } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
@@ -204,6 +205,7 @@ function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onApar
     const { logRef, compositorRef, pegadoRef, pegado, bajar, alDesplazar } = useTecladoVisible();
     const origen = puente === "peticiones" ? "a1" : "mac";
     const soloLectura = puente === "avisos-directores";
+    const perfilCanal = canalPorPuenteAstraura(puente);
     const ultimo = feed.registros[feed.registros.length - 1];
     const firma = `${ultimo?.id ?? ""}:${ultimo?.texto.length ?? 0}:${envios.length}`;
     useEffect(() => {
@@ -214,6 +216,31 @@ function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onApar
         <section aria-label={nombre} data-testid="hilo-puente" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
             <CabeceraChat nombre={nombre} provisional={provisional} onInfo={() => setInfo(true)} />
             <CabeceraEspejo latido={feed.latido} fallo={feed.fallo} cargado={feed.cargado} origen={origen} queEs="puente" ahora={ahora} onReintentar={feed.releer} />
+            {perfilCanal ? (
+                <div
+                    data-testid="cabecera-especializada-puente"
+                    className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2 text-[11px] text-white/80"
+                >
+                    <span className="font-medium text-emerald-200">{perfilCanal.botTelegram}</span>
+                    <span className="text-white/65">{perfilCanal.rol}</span>
+                    <div className="flex w-full flex-wrap gap-1">
+                        {perfilCanal.herramientas.map((h) => (
+                            <span
+                                key={h.id}
+                                title={h.regla ?? h.nombre}
+                                className="rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/75"
+                            >
+                                {h.nombre}
+                            </span>
+                        ))}
+                    </div>
+                    {perfilCanal.reglasClave.length > 0 ? (
+                        <p className="w-full text-[10px] text-amber-200/85">
+                            {perfilCanal.reglasClave[0]}
+                        </p>
+                    ) : null}
+                </div>
+            ) : null}
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div ref={logRef} role="log" aria-label={`Mensajes de ${nombre}`} onScroll={alDesplazar} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-xl border border-white/5 bg-black/20 p-2">
                     <div className="mt-auto flex flex-col gap-2">

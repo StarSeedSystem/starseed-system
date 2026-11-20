@@ -189,3 +189,14 @@ class SanadorRecetasTest(unittest.TestCase):
         self.assertTrue(r.get("es_red"))
         self.assertEqual(avisos, [])
         self.assertEqual(enviados, [])
+
+    def test_google_oauth_comprueba_con_verificar_y_detecta_caducado(self):
+        ordenes = []
+        def falso_ej(argv, timeout=30):
+            ordenes.append(argv)
+            return (0, "alex alex@x caducado (invalid_grant)\nfundacion fund@x vivo\n")
+        reg = R.registro(deps(ejecutar=falso_ej))
+        r = reg["google-oauth-alex"]["comprobacion"]()
+        self.assertFalse(r["ok"])
+        self.assertIn("invalid_grant", r["motivo"])
+        self.assertIn("--verificar", ordenes[0])

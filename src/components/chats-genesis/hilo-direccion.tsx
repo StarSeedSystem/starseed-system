@@ -27,6 +27,7 @@ import { ArrowDown, Filter, LayoutList, MoreHorizontal, Reply, Route, Send } fro
 import { DESTINO_DE_FUENTE } from "@/lib/chats-genesis/alias-gen1113";
 import { chatDeFuente, chatParaFirmar, nombreDeChat, type CatalogoCanon } from "@/lib/chats-genesis/canon";
 import { riesgoDeEntrada, type AparatoLocal } from "@/lib/chats-genesis/firma-aparato";
+import { perfilDePestana } from "@/lib/mando/canales-especializados";
 import {
     FILTRO_TODOS,
     aplicarFiltro,
@@ -639,6 +640,22 @@ export function HiloDireccion({ cliente, esDueno, aparato, catalogo = null, onAp
                         </div>
                     )
                 ) : null}
+            </div>
+
+            <div
+                data-testid="contexto-pestana-direccion"
+                className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-white/75"
+            >
+                <span className="font-medium text-violet-200">{perfilDePestana(vista).titulo}:</span>
+                <span className="text-white/65">{perfilDePestana(vista).enfoque}</span>
+                {perfilDePestana(vista).herramientas.map((h) => (
+                    <span
+                        key={h}
+                        className="rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/75"
+                    >
+                        {h}
+                    </span>
+                ))}
             </div>
 
             <div className="relative flex min-h-0 flex-1 flex-col">

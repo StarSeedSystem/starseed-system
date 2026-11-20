@@ -12,7 +12,15 @@
 // -----------------------------------------------------------------------------
 
 import { ETAPAS, etapaDeFase } from "@/lib/mando/etapas";
-import { estadoDeDependencia, INTEGRADOS, MUERTOS as MUERTOS_CADENA, sucesorasDe } from "@/lib/mando/cadenas";
+import {
+    esIndiceCadenas,
+    estadoDeDependencia,
+    indexarCadenas,
+    INTEGRADOS,
+    MUERTOS as MUERTOS_CADENA,
+    sucesorasDe,
+    type IndiceCadenas,
+} from "@/lib/mando/cadenas";
 import { resumenDeCambios, type ArchivoCambiado, type Ubicacion } from "@/lib/mando/integradas";
 import { obtenerIdsBloqueados, type FilaContable } from "@/lib/mando/conteo-operativo";
 
@@ -1166,10 +1174,71 @@ export function bytesLegibles(bytes?: number): string | undefined {
     return `${(n / (1024 * 1024)).toFixed(1)} MB escritos`;
 }
 
+interface IndiceAsuntos {
+    asuntos: string;
+    integrados: Set<string>;
+    tokensAlnum: Set<string>;
+    lineas: string[];
+    cacheEnAsuntos: Map<string, boolean>;
+    cacheIntegrados: Map<string, boolean>;
+}
+
+const MAX_CACHE_ASUNTOS = 4;
+const CACHE_ASUNTOS: IndiceAsuntos[] = [];
+const PATRON_TOKEN_ALNUM = /[A-Za-z0-9]+/g;
+const PATRON_INTEGRADO_ASUNTO = /(?:^|·\s*)([A-Za-z0-9_-]+)\s*:/g;
+
+function obtenerIndiceAsuntos(asuntos: string): IndiceAsuntos {
+    const pos = CACHE_ASUNTOS.findIndex((c) => c.asuntos === asuntos);
+    if (pos >= 0) {
+        const hit = CACHE_ASUNTOS[pos];
+        if (pos !== CACHE_ASUNTOS.length - 1) {
+            CACHE_ASUNTOS.splice(pos, 1);
+            CACHE_ASUNTOS.push(hit);
+        }
+        return hit;
+    }
+
+    const lineas = asuntos.split(/\r?\n/);
+    const integrados = new Set<string>();
+    for (const linea of lineas) {
+        if (!linea.includes(":")) continue;
+        PATRON_INTEGRADO_ASUNTO.lastIndex = 0;
+        for (const m of linea.matchAll(PATRON_INTEGRADO_ASUNTO)) {
+            if (m[1]) integrados.add(m[1]);
+        }
+    }
+
+    const tokensAlnum = new Set<string>();
+    PATRON_TOKEN_ALNUM.lastIndex = 0;
+    for (const m of asuntos.matchAll(PATRON_TOKEN_ALNUM)) {
+        tokensAlnum.add(m[0]);
+    }
+
+    const nuevo: IndiceAsuntos = {
+        asuntos,
+        integrados,
+        tokensAlnum,
+        lineas,
+        cacheEnAsuntos: new Map(),
+        cacheIntegrados: new Map(),
+    };
+    if (CACHE_ASUNTOS.length >= MAX_CACHE_ASUNTOS) CACHE_ASUNTOS.shift();
+    CACHE_ASUNTOS.push(nuevo);
+    return nuevo;
+}
+
 export function idEnAsuntos(id: string, asuntos: string): boolean {
-    if (!id) return false;
+    if (!id || !asuntos) return false;
+    if (/^[A-Za-z0-9]+$/.test(id)) return obtenerIndiceAsuntos(asuntos).tokensAlnum.has(id);
+    if (!asuntos.includes(id)) return false;
+    const idx = obtenerIndiceAsuntos(asuntos);
+    const cached = idx.cacheEnAsuntos.get(id);
+    if (cached !== undefined) return cached;
     const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(^|[^A-Za-z0-9])${escapado}([^A-Za-z0-9]|$)`, "m").test(asuntos);
+    const ok = new RegExp(`(^|[^A-Za-z0-9])${escapado}([^A-Za-z0-9]|$)`, "m").test(asuntos);
+    idx.cacheEnAsuntos.set(id, ok);
+    return ok;
 }
 
 /**
@@ -1178,10 +1247,17 @@ export function idEnAsuntos(id: string, asuntos: string): boolean {
  * en un asunto de reparto no demuestra que la tarea esté integrada.
  */
 export function idIntegradoEnAsuntos(id: string, asuntos: string): boolean {
-    if (!id) return false;
+    if (!id || !asuntos) return false;
+    if (/^[A-Za-z0-9_-]+$/.test(id)) return obtenerIndiceAsuntos(asuntos).integrados.has(id);
+    if (!asuntos.includes(id)) return false;
+    const idx = obtenerIndiceAsuntos(asuntos);
+    const cached = idx.cacheIntegrados.get(id);
+    if (cached !== undefined) return cached;
     const escapado = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const patron = new RegExp(`(?:^|·\\s*)${escapado}\\s*:`);
-    return asuntos.split(/\r?\n/).some((asunto) => patron.test(asunto));
+    const ok = idx.lineas.some((asunto) => patron.test(asunto));
+    idx.cacheIntegrados.set(id, ok);
+    return ok;
 }
 
 /** Estados con los que el vigilante NO relanza nada solo: aquí tampoco cuentan como listas. */
@@ -1244,14 +1320,15 @@ export function dependenciasQueFaltan(
     depende: string[] | undefined,
     progreso: Record<string, { estado?: string } | undefined>,
     asuntosDeMain?: string | null,
-    otrosIds: Iterable<string> = [],
+    otrosIds: Iterable<string> | IndiceCadenas = [],
 ): string[] {
-    const ids = [...Object.keys(progreso), ...otrosIds];
+    if (!depende?.length) return [];
+    const indice = esIndiceCadenas(otrosIds) ? otrosIds : indexarCadenas([...Object.keys(progreso), ...otrosIds]);
     const enMain = (id: string) => typeof asuntosDeMain === "string" && idIntegradoEnAsuntos(id, asuntosDeMain);
-    return (depende ?? []).filter((dep) => {
+    return depende.filter((dep) => {
         const id = String(dep || "").trim();
         if (!id) return false;
-        return !estadoDeDependencia(id, (k) => progreso[k]?.estado, ids, enMain).cumplida;
+        return !estadoDeDependencia(id, (k) => progreso[k]?.estado, indice, enMain).cumplida;
     });
 }
 
@@ -1345,7 +1422,10 @@ export function ejecutablesDeColas(
 ): { id: string; titulo: string; ola?: string; esperaA?: string[] }[] {
     const vistos = new Set<string>();
     const salida: { id: string; titulo: string; ola?: string; esperaA?: string[] }[] = [];
-    const idsDeColas = colas.map((t) => t.id).filter(Boolean);
+    const indiceCadenas = indexarCadenas([
+        ...Object.keys(progreso),
+        ...colas.map((t) => t.id).filter(Boolean),
+    ]);
     for (const t of colas) {
         if (!t.id || vistos.has(t.id)) continue;
         if ((t.cola ?? "").startsWith("auto-")) continue;
@@ -1356,7 +1436,7 @@ export function ejecutablesDeColas(
         vistos.add(t.id);
         if (!ABIERTOS.has(progreso[t.id]?.estado ?? "")) continue;
         if (idIntegradoEnAsuntos(t.id, asuntosDeMain)) continue;
-        const faltan = dependenciasQueFaltan(t.dependencias, progreso, asuntosDeMain, idsDeColas);
+        const faltan = dependenciasQueFaltan(t.dependencias, progreso, asuntosDeMain, indiceCadenas);
         salida.push({
             id: t.id,
             titulo: t.titulo ?? "",
@@ -1896,7 +1976,7 @@ export function filasFallidasSinResolver(d: DatosMedidores, ahora?: number): Fil
     const titulo = (id: string) => d.titulos[id] || id;
     const FALLO = /^(fallo.*|sin_cambios|conflicto|interrumpida)$/;
     const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
-    const ids = Object.keys(d.progreso);
+    const indiceCadenas = indexarCadenas(Object.keys(d.progreso));
     const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
     const filas: FilaMedidor[] = [];
     for (const [id, v] of Object.entries(d.progreso)) {
@@ -1904,7 +1984,7 @@ export function filasFallidasSinResolver(d: DatosMedidores, ahora?: number): Fil
         if (!FALLO.test(est) || enMain(id)) continue;
         const t = msDe(v?.t);
         if (Number.isFinite(t) && t < limite) continue;
-        const sucesoras = sucesorasDe(id, ids);
+        const sucesoras = sucesorasDe(id, indiceCadenas);
         if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
         // (2026-10-09) Lo que el director ya resolvió (la retiró por copia de algo integrado,
         // la rechazó) no es una fallida sin dueño aunque el vigilante aún no lo haya aplicado.
@@ -1948,7 +2028,7 @@ const RECHAZO_DECIDIDO = /(desde (el )?Genesis|por la direcci[oó]n|revisada por
 export function filasRechazadasSinResolver(d: DatosMedidores, ahora?: number): FilaMedidor[] {
     const titulo = (id: string) => d.titulos[id] || id;
     const limite = (ahora ?? Date.now()) - 3 * 24 * 3600 * 1000;
-    const ids = Object.keys(d.progreso);
+    const indiceCadenas = indexarCadenas(Object.keys(d.progreso));
     const enMain = (id: string) => typeof d.asuntosDeMain === "string" && idIntegradoEnAsuntos(id, d.asuntosDeMain);
     const filas: FilaMedidor[] = [];
     for (const [id, v] of Object.entries(d.progreso)) {
@@ -1959,7 +2039,7 @@ export function filasRechazadasSinResolver(d: DatosMedidores, ahora?: number): F
         if (RECHAZO_DECIDIDO.test(nota)) continue;
         const decidida = d.correcciones?.[id];
         if (decidida && /^(sustituida|commit|hecho)$/.test(decidida.estado ?? "")) continue;
-        const sucesoras = sucesorasDe(id, ids);
+        const sucesoras = sucesorasDe(id, indiceCadenas);
         if (sucesoras.some((k) => INTEGRADOS.has(d.progreso[k]?.estado ?? "") || enMain(k))) continue;
         const viva = sucesoras.find((k) => !MUERTOS_CADENA.has(d.progreso[k]?.estado ?? ""));
         filas.push({
@@ -1996,19 +2076,27 @@ function repartoDeBloqueadas(d: DatosMedidores, ahora?: number) {
     // aún no tenga entrada en progreso NO es un fantasma: va a arrancar. Se enseña
     // como «en cola» en vez de «NO EXISTE», que era el diagnóstico que mandaba
     // reparar bloqueos que se resuelven solos.
-    const vivaEnCola = (id: string) =>
-        Boolean(d.fila?.some((t) => t.id === id)) || d.ejecutables.some((t) => t.id === id);
+    const filaPorId = new Map((d.fila ?? []).map((t) => [t.id, t] as const));
+    const idsEjecutables = new Set(d.ejecutables.map((t) => t.id));
+    const vivaEnCola = (id: string) => filaPorId.has(id) || idsEjecutables.has(id);
     // (2026-10-08) El estado de una dependencia es el de su CADENA (`cadenas.ts`, la regla
     // del orquestador): «RM6 sustituida» con RM6b rehaciéndola es una espera viva, no una
     // muerta; y una sucesora ya integrada la cumple.
     const estadoPropio = (id: string) =>
         d.progreso[id]?.estado ?? (vivaEnCola(id) ? "en cola" : undefined);
-    const idsConocidos = [
+    const indiceCadenas = indexarCadenas([
         ...Object.keys(d.progreso),
-        ...(d.fila?.map((t) => t.id) ?? []),
-        ...d.ejecutables.map((t) => t.id),
-    ];
-    const enCadena = (id: string) => estadoDeDependencia(id, estadoPropio, idsConocidos);
+        ...filaPorId.keys(),
+        ...idsEjecutables,
+    ]);
+    const cacheCadena = new Map<string, ReturnType<typeof estadoDeDependencia>>();
+    const enCadena = (id: string) => {
+        const previo = cacheCadena.get(id);
+        if (previo) return previo;
+        const calc = estadoDeDependencia(id, estadoPropio, indiceCadenas);
+        cacheCadena.set(id, calc);
+        return calc;
+    };
     const estadoDeBloqueadas = (id: string) => {
         const r = enCadena(id);
         return r.via ? r.estado : estadoPropio(id);
@@ -2051,7 +2139,7 @@ function repartoDeBloqueadas(d: DatosMedidores, ahora?: number) {
                 }),
                     historica: false,
                 });
-            } else if (!d.fila.some((t) => t.id === id)) {
+            } else if (!filaPorId.has(id)) {
                 filasHistoricas.push({
                     id,
                     titulo: titulo(id),
@@ -2069,7 +2157,7 @@ function repartoDeBloqueadas(d: DatosMedidores, ahora?: number) {
 
         for (const id of idsBloqueadosOperativos) {
             if (!idsProgresoProcesados.has(id)) {
-                const tareaFila = d.fila.find((t) => t.id === id);
+                const tareaFila = filaPorId.get(id);
                 const pend = tareaFila?.dependenciasPendientes ?? [];
                 // Misma ficha que las demás: se construye una nota con la forma que
                 // `dependenciaDeNota` entiende, para no tener DOS maneras de decir

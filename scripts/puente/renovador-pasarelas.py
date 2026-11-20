@@ -167,6 +167,7 @@ def pasada(segundos=25):
             "http": http,
             "estado": P.clasificar(http, cuerpo, tokens, _consejero_jev()),
             "segundos": round(time.time() - t0, 1),
+            "mensaje": "" if tokens else P.extraer_mensaje_error(cuerpo),
         })
         if nombre == "openrouter" and fuera[-1]["estado"] in P.UTILIZABLES:
             ids = openrouter_gratuitos(_catalogo_openrouter())

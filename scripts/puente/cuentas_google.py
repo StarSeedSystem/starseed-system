@@ -133,28 +133,47 @@ def alta(alias, pedir, esperar, abrir=webbrowser.open,
     return {"ok": True, "alias": alias, "correo": ficha["correo"]}
 
 
-def token(alias, pedir, dir_cuentas=DIR_CUENTAS, rutas=RUTAS_ENV):
+def _error_http_google(exc):
+    """Extrae `{error}` de un `urllib.error.HTTPError` de Google OAuth sin perder detalle."""
+    try:
+        cuerpo = exc.read().decode("utf-8", errors="replace")
+        dato = json.loads(cuerpo or "{}")
+        if isinstance(dato, dict) and dato.get("error"):
+            return dato
+    except Exception:
+        pass
+    return {"error": "HTTP %s" % getattr(exc, "code", "?")}
+
+
+def token(alias, pedir, dir_cuentas=DIR_CUENTAS, rutas=RUTAS_ENV, forzar=False):
     """Token de acceso renovado: devuelve el vivo, o lo renueva con el de refresco (sin enseñarlo).
     Las fichas authorized_user renuevan con SUS client_id/client_secret y su token_uri."""
+    import urllib.error
+
     destino = os.path.join(dir_cuentas, alias + ".json")
     if not os.path.exists(destino):
         return None
     ficha = json.load(open(destino, encoding="utf-8"))
     if not ficha.get("refresh_token"):
         return None
-    if ficha.get("caduca", 0) > time.time() + 60:
+    if not forzar and ficha.get("caduca", 0) > time.time() + 60:
         return ficha.get("access_token")
     cid, secreto = ficha.get("client_id"), ficha.get("client_secret")
     if not cid or not secreto:
         cid, secreto = cliente_id_secret(rutas)
     if not cid or not secreto:
         return None
-    respuesta = pedir(ficha.get("token_uri") or TOKEN_URL,
-                      {"client_id": cid, "client_secret": secreto,
-                       "grant_type": "refresh_token", "refresh_token": ficha["refresh_token"]})
-    if not respuesta.get("access_token"):
-        ficha["error_renovacion"] = str(respuesta.get("error") or "sin token de acceso")
-        escribir_json(destino, ficha)
+    try:
+        respuesta = pedir(ficha.get("token_uri") or TOKEN_URL,
+                          {"client_id": cid, "client_secret": secreto,
+                           "grant_type": "refresh_token", "refresh_token": ficha["refresh_token"]})
+    except urllib.error.HTTPError as exc:
+        respuesta = _error_http_google(exc)
+    if not isinstance(respuesta, dict) or not respuesta.get("access_token"):
+        err = str((respuesta.get("error") if isinstance(respuesta, dict) else None) or "sin token de acceso")
+        if ficha.get("error_renovacion") != err:
+            ficha["error_renovacion"] = err
+            escribir_json(destino, ficha)
         return None
     ficha.pop("error_renovacion", None)
     ficha.update(access_token=respuesta["access_token"], caduca=time.time() + respuesta.get("expires_in", 3600))
@@ -177,9 +196,10 @@ def estado(dir_cuentas=DIR_CUENTAS, rutas=RUTAS_ENV):
         destino = os.path.join(dir_cuentas, alias + ".json")
         ficha = json.load(open(destino, encoding="utf-8")) if os.path.exists(destino) else None
         cid, _ = cliente_id_secret(rutas)
-        vivo = bool(ficha and ficha.get("refresh_token") and (ficha.get("client_id") or cid))
+        err_ren = str((ficha or {}).get("error_renovacion") or "").strip()
+        vivo = bool(ficha and ficha.get("refresh_token") and (ficha.get("client_id") or cid) and not err_ren)
         filas.append({"alias": alias, "correo": (ficha or {}).get("correo"), "vivo": vivo,
-                      "motivo": None if vivo else ((ficha or {}).get("error_renovacion") or "sin token")})
+                      "motivo": None if vivo else (err_ren or "sin token")})
     return filas
 
 
@@ -192,10 +212,22 @@ def main(argv):
         print("alta: %s" % json.dumps(alta(argv[2], pedir_http, esperar=esperar_codigo,
                                            env_local=RUTA_ENV_LOCAL), ensure_ascii=False))
     elif orden == "estado":
+        if "--verificar" in argv:
+            from cuentas_google_env import pedir_http
+            for fila in estado():
+                destino = os.path.join(DIR_CUENTAS, fila["alias"] + ".json")
+                if os.path.exists(destino):
+                    try:
+                        token(fila["alias"], pedir_http, forzar=True)
+                    except Exception:
+                        pass
         for fila in estado():
-            print("%-10s %-34s %s" % (fila["alias"], fila["correo"] or "-", "vivo" if fila["vivo"] else "sin token"))
+            estado_txt = "vivo" if fila["vivo"] else (
+                "caducado (%s)" % fila["motivo"] if fila.get("motivo") else "sin token"
+            )
+            print("%-10s %-34s %s" % (fila["alias"], fila["correo"] or "-", estado_txt))
     else:
-        print("Uso: cuentas_google.py importar [ruta] | alta alex|fundacion | estado")
+        print("Uso: cuentas_google.py importar [ruta] | alta alex|fundacion | estado [--verificar]")
         return 2
     return 0
 

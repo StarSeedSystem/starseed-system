@@ -83,6 +83,10 @@ const ChatDirector = dynamic(
     () => import("@/components/mando/chat-director").then((m) => m.ChatDirector),
     { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando el chat del director…</p> },
 );
+const PanelChatEspecializado = dynamic(
+    () => import("@/components/mando/panel-chat-especializado").then((m) => m.PanelChatEspecializado),
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando producción audiovisual y diseño…</p> },
+);
 const OficinaMando = dynamic(
     () => import("@/components/mando/oficina-mando").then((m) => m.OficinaMando),
     {
@@ -329,6 +333,7 @@ const PESTANAS = [
     { id: "novedades-modelos", etiqueta: "Novedades de modelos", grupo: "Medios" },
     { id: "neurona", etiqueta: "Neurona", grupo: "Medios" },
     { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Medios" },
+    { id: "produccion-audiovisual", etiqueta: "Producción audiovisual y diseño", grupo: "Medios" },
     { id: "voces", etiqueta: "Voces", grupo: "Medios" },
     { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Medios" },
     // Cómo piensan y qué saben los agentes.
@@ -2507,6 +2512,17 @@ export function CentroMando() {
                 <TabsContent value="servidor">
                     <VentanaPestana pestana="servidor" panel="servidor" titulo="Servidor 1.58">
                         {pestana === "servidor" ? <PanelServidor /> : null}
+                    </VentanaPestana>
+                </TabsContent>
+                <TabsContent value="produccion-audiovisual">
+                    <VentanaPestana
+                        pestana="produccion-audiovisual"
+                        panel="produccion-audiovisual"
+                        titulo="Producción audiovisual, diseño y promoción"
+                    >
+                        {pestana === "produccion-audiovisual" ? (
+                            <PanelChatEspecializado canal="audiovisual" modo="completo" />
+                        ) : null}
                     </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="voces">

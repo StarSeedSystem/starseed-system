@@ -31,6 +31,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import director_chat
 import director_presidente  # DIR1111G
 import motores_director
+import presidente_config
+import sincronizador_direccion
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram",
@@ -404,10 +406,17 @@ def _entregar_telegram(mensaje, raiz=None):
         segundos=motores_director.SEGUNDOS_AVISO_TELEGRAM,
     )
     if rc != 0:
+        ok, detalle_tg = sincronizador_direccion.enviar_telegram_canal(
+            "principal", texto, prefijo="MetaGenesis · Dirección"
+        )
+        if ok:
+            director_chat.entrega(mensaje["id"], "telegram", "entregado", raiz=raiz)
+            return
+        detalle_final = "%s | %s" % (salida or ("rc=%s" % rc), detalle_tg) if detalle_tg else (salida or "sin salida")
         _fallo(
             mensaje,
             "telegram",
-            director_chat.tachar((salida or "sin salida")[:300]),
+            director_chat.tachar(detalle_final[:300]),
             raiz=raiz,
         )
         return
@@ -672,10 +681,22 @@ def _consumir_bandera_reintento():
 def pasada(estado, raiz=None, despachador=None):
     """Una pasada. Sin `despachador` todo corre aquí (en orden: rápidas antes que lentas); con él, las
     lentas salen a sus carriles y la pasada no espera a ningún proveedor."""
+    sincronizado_local = raiz is None and not director_chat.en_pruebas()
+    if sincronizado_local:
+        cfg_pres, _ = presidente_config.cargar()
+        sesion_hermes = motores_director.direccion_motor().get("sesion")
+    else:
+        cfg_pres, sesion_hermes = None, None
     with CERROJO:
         if _consumir_bandera_reintento():
             director_presidente.despertar_cola(estado)
+        if sincronizado_local:
+            sincronizador_direccion.sincronizar_todos_los_canales(
+                estado, cfg_pres, raiz=raiz
+            )
         registros = director_chat.leer(limite=200, raiz=raiz)
+        if sincronizado_local:
+            sincronizador_direccion.espejar_a_telegram_direccion(registros, estado, cfg_pres)
         por_id = {r["id"]: r for r in registros if r.get("id")}
         trabajos = []
         for id_mensaje, canal in que_hacer(registros, estado):

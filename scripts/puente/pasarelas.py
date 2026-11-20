@@ -124,6 +124,11 @@ _PISTAS = (
     ("purchase more credits", SIN_CUPO),
     ("credit balance", SIN_CUPO),
     ("out of credits", SIN_CUPO),
+    ("billing_error", SIN_CUPO),
+    ("top-up", SIN_CUPO),
+    ("top up", SIN_CUPO),
+    ("buy a subscription", SIN_CUPO),
+    ("only with a subscription", SIN_CUPO),
     ("quota", SIN_CUPO),
     ("insufficient", SIN_CUPO),
     ("recharge", SIN_CUPO),
@@ -149,6 +154,38 @@ OPCIONES_CONSEJERO = {
     SATURADA: "el servidor contesta pero está sobrecargado: se repone sola, reintenta en un rato",
     CAIDA: "error interno, mantenimiento o la pasarela no funciona",
 }
+
+
+def extraer_mensaje_error(cuerpo, limite=220):
+    """PURA: resume el mensaje legible de error devuelto por una pasarela, redactando secretos."""
+    import json as _json
+    import re as _re
+
+    bruto = str(cuerpo or "").strip()
+    if not bruto:
+        return ""
+    texto = bruto
+    try:
+        datos = _json.loads(bruto)
+        if isinstance(datos, dict):
+            err = datos.get("error")
+            if isinstance(err, dict) and isinstance(err.get("message"), str):
+                texto = err["message"]
+            elif isinstance(err, str):
+                texto = err
+            elif isinstance(datos.get("message"), str):
+                texto = datos["message"]
+    except Exception:
+        pass
+    limpio = " ".join(texto.split())
+    limpio = _re.sub(
+        r"(Bearer\s+[A-Za-z0-9._-]+|\b(?:sk|nvapi|gsk|xai)[-_][A-Za-z0-9_-]{8,}|\bAIza[A-Za-z0-9_-]{12,})",
+        "[oculto]",
+        limpio,
+    )
+    if len(limpio) > limite:
+        return limpio[: max(1, limite - 1)].rstrip() + "…"
+    return limpio
 
 
 def clasificar(http, cuerpo="", hubo_tokens=False, consejero=None):

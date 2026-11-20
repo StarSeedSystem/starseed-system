@@ -193,6 +193,42 @@ def proveedores_con_clave_rechazada(lineas, *, ahora=None, ventana_horas=24, max
     return rechazados
 
 
+def proveedores_con_cupo_diario_agotado(lineas, *, ahora=None, ventana_horas=6, max_lineas=400):
+    """Detecta proveedores cuyo límite DIARIO gratuito (p. ej. 20 req/día de Gemini Free Tier) se agotó."""
+    if ahora is None:
+        ahora = datetime.now()
+    corte = ahora - timedelta(hours=ventana_horas)
+    lineas = list(lineas)[-max_lineas:]
+    agotados = set()
+    patron_diario = re.compile(
+        r"requests per day|per day on free tier|generaterequestsperday|daily limit exceeded",
+        re.IGNORECASE,
+    )
+    patron_provider = re.compile(r"provider=([a-z0-9_-]+)", re.IGNORECASE)
+    patron_fecha = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+    for linea in lineas:
+        if not patron_diario.search(linea):
+            continue
+        m_fecha = patron_fecha.match(linea)
+        if m_fecha:
+            try:
+                ts = datetime.strptime(m_fecha.group(1), "%Y-%m-%d %H:%M:%S")
+                if ts < corte:
+                    continue
+            except ValueError:
+                pass
+        m_prov = patron_provider.search(linea)
+        if m_prov:
+            agotados.add(m_prov.group(1).lower())
+            continue
+        low = linea.lower()
+        for nombre, pid in NOMBRE_A_PROVEEDOR.items():
+            if nombre in low:
+                agotados.add(pid)
+                break
+    return agotados
+
+
 def proveedores_de_hermes(texto):
     """{proveedor: [modelos declarados]} leído del YAML sin parsearlo entero."""
     fuera, actual = {}, None
@@ -420,6 +456,9 @@ def main():
     try:
         lineas = open(GATEWAY_LOG, encoding="utf-8").read().splitlines()
         rechazados = proveedores_con_clave_rechazada(lineas, max_lineas=2000)
+        for prov_agotado in proveedores_con_cupo_diario_agotado(lineas, max_lineas=600):
+            if estados.get(prov_agotado) in ("escribe", "lenta", "saturada"):
+                estados[prov_agotado] = "sin_cupo"
     except Exception:
         pass
     cad = cadena(provs, estados, rechazados=rechazados)

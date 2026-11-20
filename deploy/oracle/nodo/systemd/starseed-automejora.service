@@ -11,6 +11,7 @@ User=root
 Group=root
 # Docker borra y crea archivos fuera de su caja (imágenes, capas): por eso root.
 WorkingDirectory=/var/lib/starseed/automejora
+StateDirectory=starseed/automejora
 Environment=PYTHONUNBUFFERED=1
 # La pasarela toma su clave de destino del entorno (jamás entra en la caja). Si el
 # archivo aún no existe, arranca igual (el guion lo apunta con `-`).

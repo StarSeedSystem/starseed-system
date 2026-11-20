@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import {
   MODELO_DIRECTOR_DEFECTO,
@@ -23,6 +23,7 @@ export interface CompositorDirectorProps {
   modelos: ModeloOpcion[];
   ultimoModelo: string;
   enviando?: boolean;
+  borradorExterno?: { id: number; texto: string } | null;
   onEnviar: (p: { texto: string; modelo: string; canales: CanalId[] }) => void;
 }
 
@@ -69,7 +70,7 @@ function guardarModelo(id: string): void {
   } catch { /* almacenamiento no disponible: no pasa nada */ }
 }
 
-export function CompositorDirector({ modelos, ultimoModelo, enviando = false, onEnviar }: CompositorDirectorProps) {
+export function CompositorDirector({ modelos, ultimoModelo, enviando = false, borradorExterno = null, onEnviar }: CompositorDirectorProps) {
   const grupos = useMemo(() => {
     const mapa = new Map<string, ModeloOpcion[]>();
     mapa.set("Dirección", MOTORES_DIRECTOR.map((m) => ({ id: m.id, nombre: m.nombre, grupo: "Dirección" })));
@@ -102,6 +103,12 @@ export function CompositorDirector({ modelos, ultimoModelo, enviando = false, on
     return c === "api" ? [] : [c];
   });
   const [texto, setTexto] = useState("");
+
+  useEffect(() => {
+    if (borradorExterno?.texto) {
+      setTexto(borradorExterno.texto);
+    }
+  }, [borradorExterno]);
 
   const cambiarModelo = (id: string) => {
     setModelo(id);

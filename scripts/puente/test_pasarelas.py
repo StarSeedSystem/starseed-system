@@ -382,3 +382,29 @@ class TestSaturadaNoEsCaida(unittest.TestCase):
         self.assertIn("NVIDIA", lineas[1])
         self.assertIn("Google", lineas[2])
         self.assertIn("xkiro", lineas[3])
+
+
+class TestBillingYMensajeApinex(unittest.TestCase):
+    """(CAP1119B) Apinex pasó a exigir recarga única de $5 (HTTP 402 billing_error)."""
+
+    CUERPO_TOPUP = ('{"error":{"message":"Make a single top-up of $5 or more to unlock '
+                    '25M free tokens daily for life. Top up at https://apinex.bond/billing",'
+                    '"type":"billing_error","param":null,"code":null}}')
+    CUERPO_SUBS = ('{"error":{"message":"This model is currently available only with a '
+                   'subscription. Buy a subscription at https://apinex.bond/subscriptions to use it.",'
+                   '"type":"billing_error"}}')
+
+    def test_402_billing_error_es_sin_cupo_y_no_fichaje(self):
+        self.assertEqual(P.clasificar(402, self.CUERPO_TOPUP), P.SIN_CUPO)
+        self.assertEqual(P.clasificar(402, self.CUERPO_SUBS), P.SIN_CUPO)
+
+    def test_daily_checkin_sigue_siendo_fichaje(self):
+        self.assertEqual(P.clasificar(402, "Daily check-in required to continue"), P.FICHAJE)
+        self.assertEqual(P.clasificar(402, ""), P.FICHAJE)
+
+    def test_extraer_mensaje_error_parsea_y_redacta_claves(self):
+        self.assertIn("Make a single top-up of $5", P.extraer_mensaje_error(self.CUERPO_TOPUP))
+        limpio = P.extraer_mensaje_error("Bearer sk-secreto1234567890 invalido y nvapi-abcdef123456")
+        self.assertNotIn("sk-secreto1234567890", limpio)
+        self.assertNotIn("nvapi-abcdef123456", limpio)
+        self.assertIn("[oculto]", limpio)

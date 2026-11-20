@@ -72,6 +72,31 @@ _p = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_p)
 
 _SIN_HORA_AVISADOS = set()  # ids de tareas cuya falta de hora ya anunciamos
+_CACHE_ASUNTOS_MAIN = {"sha": None, "asuntos": []}
+
+
+def _asuntos_main(raiz=RAIZ):
+    """Lista cacheada de `git log main --format=%s` indexada por el SHA actual de main."""
+    sha = subprocess.run(
+        ["git", "rev-parse", "main"],
+        cwd=raiz,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    ).stdout.strip()
+    if sha and sha == _CACHE_ASUNTOS_MAIN.get("sha"):
+        return list(_CACHE_ASUNTOS_MAIN["asuntos"])
+    asuntos = subprocess.run(
+        ["git", "log", "main", "--format=%s"],
+        cwd=raiz,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    ).stdout.splitlines()
+    if sha:
+        _CACHE_ASUNTOS_MAIN["sha"] = sha
+        _CACHE_ASUNTOS_MAIN["asuntos"] = list(asuntos)
+    return asuntos
 
 
 def progreso():
@@ -320,13 +345,7 @@ def reconciliar_estados():
         from reconciliar_progreso import ids_de_colas_fuente, reconciliar
 
         ruta = os.path.join(OLAS, "progreso.json")
-        asuntos = subprocess.run(
-            ["git", "log", "main", "--format=%s"],
-            cwd=RAIZ,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        ).stdout.splitlines()
+        asuntos = _asuntos_main()
         antes = progreso()
         nuevo, cambios = reconciliar(
             dict(antes),
@@ -428,13 +447,7 @@ def continuar_estancadas(tope=20):
     try:
         # Leer estado
         p = progreso()
-        asuntos = subprocess.run(
-            ["git", "log", "main", "--format=%s"],
-            cwd=RAIZ,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        ).stdout.splitlines()
+        asuntos = _asuntos_main()
         cfg, avisos = cargar_config()
         hoy = time.strftime("%Y-%m-%d")
         ahora = time.strftime("%Y-%m-%d %H:%M:%S")

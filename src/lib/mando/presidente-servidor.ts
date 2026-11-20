@@ -99,18 +99,40 @@ export function guardarConfigPresidenteServidor(cfg: ConfigPresidente): ConfigPr
 }
 
 function contarEnColaChat(): number {
-    const ruta = path.join(hogar(), ".starseed", "mando", "director-chat.jsonl");
-    if (!existsSync(ruta)) return 0;
-    try {
-        const lineas = readFileSync(ruta, "utf-8").split("\n").filter(Boolean);
-        let enCola = 0;
-        for (const l of lineas.slice(-80)) {
-            if (l.includes('"estado":"pendiente"') || l.includes('"estado": "pendiente"')) enCola += 1;
+    const rutasChat = [
+        path.join(raizProyecto(), "starseed_memory_root", "mando", "director", "chat.jsonl"),
+        path.join(hogar(), ".starseed", "mando", "director-chat.jsonl"),
+    ];
+    let pendientesChat = 0;
+    for (const ruta of rutasChat) {
+        if (!existsSync(ruta)) continue;
+        try {
+            const lineas = readFileSync(ruta, "utf-8").split("\n").filter(Boolean).slice(-160);
+            const ultimas = new Map<string, string>();
+            for (const l of lineas) {
+                try {
+                    const obj = JSON.parse(l) as { tipo?: unknown; de_id?: unknown; canal?: unknown; estado?: unknown };
+                    if (obj.tipo === "entrega" && typeof obj.de_id === "string" && typeof obj.canal === "string") {
+                        ultimas.set(`${obj.de_id}|${obj.canal}`, String(obj.estado ?? ""));
+                    }
+                } catch {
+                    continue;
+                }
+            }
+            for (const est of ultimas.values()) {
+                if (est === "pendiente") pendientesChat += 1;
+            }
+            break;
+        } catch {
+            continue;
         }
-        return enCola;
-    } catch {
-        return 0;
     }
+    const carteroEstado = leerJsonSeguro<{ presidente?: { cola?: Record<string, unknown> } }>(
+        path.join(raizProyecto(), "starseed_memory_root", "mando", "director", "cartero-estado.json"),
+        {},
+    );
+    const colaPres = Object.keys(carteroEstado.presidente?.cola ?? {}).length;
+    return Math.max(pendientesChat, colaPres);
 }
 
 export async function obtenerEstadoPresidenteServidor(
@@ -210,26 +232,56 @@ export async function obtenerEstadoPresidenteServidor(
             },
     );
 
+    const dirMotor = leerJsonSeguro<{ motor?: string; sesion?: string; titulo?: string }>(
+        path.join(home, ".starseed", "direccion-motor.json"),
+        {},
+    );
+    const canalesDir = leerJsonSeguro<{
+        principal?: { hermes_sesion?: string; telegram_bot?: string };
+        general?: { hermes_sesion?: string; telegram_bot?: string };
+        audiovisual?: { hermes_sesion?: string; telegram_bot?: string };
+    }>(path.join(home, ".starseed", "canales-direccion.json"), {});
+    const genesisChatsEst = leerJsonSeguro<{
+        espejo?: { ultimo_envio?: number; subidos?: number };
+    }>(path.join(home, ".starseed", "genesis-chats", "estado.json"), {});
+    const chatsRegistro = leerJsonSeguro<{
+        entornos?: { antigravity?: { id?: string | null }; hermes?: { id?: string | null } };
+    }>(path.join(raizProyecto(), "starseed_memory_root", "mando", "chats.json"), {});
+    const hermesSesionId =
+        canalesDir.principal?.hermes_sesion || dirMotor.sesion || chatsRegistro.entornos?.hermes?.id || "";
+    const hermesGeneralId = canalesDir.general?.hermes_sesion || "20260909_210504_867626";
+    const hermesAudiovisualId = canalesDir.audiovisual?.hermes_sesion || "";
+    const agyChatId = chatsRegistro.entornos?.antigravity?.id ?? null;
+    const astrauraActivo =
+        Boolean(genesisChatsEst.espejo?.subidos) || existsSync(path.join(home, ".starseed", "genesis-chats", "estado.json"));
+
     const canales: EstadoCanalUnificado[] = [
         {
             id: "metagenesis",
             nombre: "MetaGenesis (este panel)",
             sincronizado: true,
             estado: "activo",
-            detalle: "Hilo principal y cola del presidente",
+            detalle: "3 canales especializados: Principal, General y Audiovisual/Diseño",
         },
         {
             id: "astraura",
             nombre: "Astraura › Chats › Genesis",
             sincronizado: config.sincronizar_canales.astraura,
             estado: config.sincronizar_canales.astraura ? "activo" : "pausado",
-            detalle: existsSync(path.join(home, ".starseed", "genesis-chats.pid"))
-                ? "Espejo en vivo activo"
-                : "Espejo bidireccional configurado",
+            detalle: astrauraActivo
+                ? `Espejo bidireccional activo (${genesisChatsEst.espejo?.subidos ?? 0} registros · genesis, @starseed_puente_bot y @StarSeed_Design_bot)`
+                : "Espejo bidireccional configurado (Principal, General y Audiovisual)",
         },
         {
             id: "telegram",
-            nombre: "Telegram (@StarSeed_Design_bot)",
+            nombre: `Dirección principal (${canalesDir.principal?.telegram_bot || "@starseed_neurocortex_bot"})`,
+            sincronizado: config.sincronizar_canales.telegram,
+            estado: config.sincronizar_canales.telegram ? "activo" : "pausado",
+            detalle: "Telegram Maggacortex sincronizado bidireccionalmente sin duplicar eco",
+        },
+        {
+            id: "telegram-general",
+            nombre: `Dirección general (${canalesDir.general?.telegram_bot || "@starseed_puente_bot"})`,
             sincronizado: config.sincronizar_canales.telegram,
             estado:
                 gwState.platforms?.telegram?.state === "connected"
@@ -237,17 +289,39 @@ export async function obtenerEstadoPresidenteServidor(
                     : config.sincronizar_canales.telegram
                       ? "revision"
                       : "pausado",
-            detalle:
-                gwState.platforms?.telegram?.state === "connected"
-                    ? "Bot conectado al mismo feed"
-                    : "Reconexión automática + cola en A1",
+            detalle: `Enlace operativo del enjambre (Hermes ${hermesGeneralId})`,
+        },
+        {
+            id: "telegram-audiovisual",
+            nombre: `Audiovisual y diseño (${canalesDir.audiovisual?.telegram_bot || "@StarSeed_Design_bot"})`,
+            sincronizado: Boolean(hermesAudiovisualId) && config.sincronizar_canales.telegram,
+            estado: hermesAudiovisualId ? "activo" : "revision",
+            detalle: hermesAudiovisualId
+                ? `Síntesis, Stitch/DESIGN.md, vídeo y promoción/contactos ALC1113 (Hermes ${hermesAudiovisualId.slice(0, 12)}…)`
+                : "Bot activo en A1; enlazando sesión dedicada de Hermes",
         },
         {
             id: "hermes",
             nombre: "Hermes",
             sincronizado: config.sincronizar_canales.hermes,
             estado: hermesVivo ? "activo" : "revision",
-            detalle: hermesVivo ? "Gateway + CLI enrutados" : "CLI sin GUI disponible",
+            detalle: [
+                dirMotor.titulo ? `Principal: «${dirMotor.titulo}» (${hermesSesionId.slice(0, 14)}…)` : "Sesión principal",
+                `General: ${hermesGeneralId}`,
+                hermesAudiovisualId ? `Audiovisual: ${hermesAudiovisualId.slice(0, 12)}…` : "Audiovisual pendiente",
+                hermesVivo ? "Gateway en vivo" : "CLI directa",
+            ]
+                .filter(Boolean)
+                .join(" · "),
+        },
+        {
+            id: "antigravity",
+            nombre: "Antigravity (chat principal)",
+            sincronizado: true,
+            estado: "activo",
+            detalle: agyChatId
+                ? `Chat principal vinculado (${agyChatId.slice(0, 8)}…) y CLI headless`
+                : "Vinculado al hilo unificado y CLI headless",
         },
         {
             id: "nube",

@@ -85,8 +85,8 @@ export const ID_AGENTE_GENESIS = "genesis:agente";
  * transporte) y, sin catálogo, el de GEN1113 marcado como provisional (`ALIAS_GEN1113`, de la biblioteca).
  */
 export const PUENTES = [
-    { puente: "hermes-avisos", ayuda: "Órdenes y conversación con Hermes en la Mac", icono: Send, soloDueno: true },
-    { puente: "peticiones", ayuda: "Encargos largos y peticiones que atiende el A1", icono: ListTodo, soloDueno: true },
+    { puente: "hermes-avisos", ayuda: "Dirección general · enjambre, puertas y @starseed_puente_bot en Hermes", icono: Send, soloDueno: true },
+    { puente: "peticiones", ayuda: "Producción audiovisual, diseño profesional, NotebookLM y promoción/contactos (@StarSeed_Design_bot)", icono: ListTodo, soloDueno: true },
     { puente: "avisos-directores", ayuda: "Solo lectura: los avisos de los directores", icono: BellRing, soloDueno: false },
 ] as const;
 

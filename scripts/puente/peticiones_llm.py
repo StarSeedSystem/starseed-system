@@ -193,7 +193,7 @@ def _llamar_freellmapi(
     leer_clave: LeerClaveFn,
     log_fn: LogFn | None = None,
 ) -> tuple[str, str]:
-    clave = leer_clave("FREELLMAPI_KEY") or ""
+    clave = leer_clave("FREELLMAPI_KEY") or leer_clave("STARSEED_PASARELA_FREELLMAPI_KEY") or ""
     cuerpo = json.dumps({
         "model": modelo,
         "messages": mensajes,
@@ -225,7 +225,7 @@ def _llamar_nim(
     leer_clave: LeerClaveFn,
     log_fn: LogFn | None = None,
 ) -> tuple[str, str]:
-    clave = leer_clave("NIM_KEY") or ""
+    clave = leer_clave("NIM_KEY") or leer_clave("NVIDIA_API_KEY") or ""
     # max_tokens alto para razonamiento
     cuerpo = json.dumps({
         "model": modelo,
@@ -255,7 +255,7 @@ def _llamar_openrouter_free(
     leer_clave: LeerClaveFn,
     log_fn: LogFn | None = None,
 ) -> tuple[str, str]:
-    clave = leer_clave("OPENROUTER_KEY") or ""
+    clave = leer_clave("OPENROUTER_KEY") or leer_clave("OPENROUTER_API_KEY") or ""
     # Solo modelos :free
     modelos_free = [
         "meta-llama/llama-3.1-8b-instruct:free",

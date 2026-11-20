@@ -666,3 +666,70 @@ class HiggsfieldEnAccionesDeAlex(unittest.TestCase):
                 self.assertEqual([], despues)
             finally:
                 A._hfa.DIR = antes_dir
+
+
+class RecomprobarApinexConBillingError(unittest.TestCase):
+    """Tras el check-in, si Apinex responde 402 billing_error se limpia el fichaje y se informa el motivo."""
+
+    ENTORNO = {"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}
+
+    def setUp(self):
+        import json, tempfile
+        self.dir = tempfile.mkdtemp()
+        self.antes_inf = A.INFORME
+        self.antes_sal = A.SALIDA
+        A.INFORME = os.path.join(self.dir, "pasarelas-informe.json")
+        A.SALIDA = os.path.join(self.dir, "acciones-de-alex.json")
+        json.dump(
+            {"pasarelas": [{"clave": "apinex", "estado": "fichaje", "http": 402, "modelo": "free/glm-5.3-flash"}]},
+            open(A.INFORME, "w"),
+        )
+
+    def tearDown(self):
+        A.INFORME = self.antes_inf
+        A.SALIDA = self.antes_sal
+
+    def test_billing_error_cierra_fichaje_y_muestra_mensaje_real(self):
+        cuerpo = ('{"error":{"message":"Make a single top-up of $5 or more to unlock '
+                  '25M free tokens daily for life.","type":"billing_error"}}')
+        medida = {
+            "http": 402,
+            "modelo": "free/glm-5.3-flash",
+            "estado": A._pas.clasificar(402, cuerpo),
+            "mensaje": A._pas.extraer_mensaje_error(cuerpo),
+        }
+        self.assertEqual(medida["estado"], "sin_cupo")
+        r = A.verificar(
+            "pasarela-apinex-fichaje",
+            secretos_repo=set(A.CLAVES_DEL_ENJAMBRE),
+            entorno=self.ENTORNO,
+            a1_tiene_token=True,
+            medir=lambda _clave: medida,
+        )
+        self.assertTrue(r["hecha"])
+        self.assertIn("Make a single top-up of $5", r["detalle"])
+
+
+class SecretosFalloYGoogleOAuthCaducado(unittest.TestCase):
+    """Un fallo transitorio de gh no inventa alertas y Google OAuth caducado aparece en Te toca a ti."""
+
+    ENTORNO = {"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}
+
+    def test_secretos_repo_none_no_crea_falsa_tarjeta_github_secretos(self):
+        acciones = A.construir_acciones([], None, CATALOGO, entorno=self.ENTORNO, a1_tiene_token=True)
+        self.assertNotIn("github-secretos", [a["id"] for a in acciones])
+
+    def test_cuentas_google_con_error_renovacion_genera_tarjeta(self):
+        acciones = A.construir_acciones(
+            [], set(A.CLAVES_DEL_ENJAMBRE), CATALOGO,
+            entorno=self.ENTORNO, a1_tiene_token=True,
+            cuentas_google={
+                "alex": {"correo": "alex@ejemplo", "error_renovacion": "invalid_grant"},
+                "fundacion": {"correo": "fund@ejemplo", "error_renovacion": None},
+            },
+        )
+        ids = {a["id"]: a for a in acciones}
+        self.assertIn("google-oauth-alex", ids)
+        self.assertNotIn("google-oauth-fundacion", ids)
+        self.assertEqual(ids["google-oauth-alex"]["urgencia"], "alta")
+        self.assertIn("alta-cuentas-google.py alex", ids["google-oauth-alex"]["comando"])

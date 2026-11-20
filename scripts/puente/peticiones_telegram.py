@@ -415,9 +415,30 @@ INSTRUCCION = (
 )
 
 
-def interpretar(texto: str) -> dict[str, Any]:
+def _historial_conversacion(excluir_id: int | None = None, limite: int = 6) -> list[dict[str, str]]:
+    """Construye los últimos turnos (usuario/asistente) de la cola para mantener memoria conversacional."""
+    cola = leer_json(COLA, [])
+    recientes = [
+        x for x in cola
+        if isinstance(x, dict) and x.get("id") != excluir_id and x.get("texto")
+    ][-limite:]
+    turnos: list[dict[str, str]] = []
+    for x in recientes:
+        txt_u = str(x.get("texto") or "").strip()
+        if not txt_u:
+            continue
+        turnos.append({"role": "user", "content": txt_u[:600]})
+        resp = str(x.get("respuesta") or (x.get("plan") or {}).get("resumen") or "").strip()
+        if resp:
+            turnos.append({"role": "assistant", "content": resp[:900]})
+    return turnos
+
+
+def interpretar(texto: str, excluir_id: int | None = None) -> dict[str, Any]:
     reglas = por_reglas(texto)
-    crudo, modelo = llm([{"role": "system", "content": INSTRUCCION}, {"role": "user", "content": texto}], 600)
+    historial = _historial_conversacion(excluir_id=excluir_id, limite=4)
+    mensajes_llm = [{"role": "system", "content": INSTRUCCION}, *historial, {"role": "user", "content": texto}]
+    crudo, modelo = llm(mensajes_llm, 600)
     plan = None
     m = re.search(r"\{.*\}", crudo or "", re.S)
     if m:
@@ -460,7 +481,7 @@ def actualizar(pid: int, **cambios: Any) -> None:
 def atender(p: dict[str, Any]) -> None:
     actualizar(p["id"], estado="en_curso", intentos=p.get("intentos", 0) + 1)
     try:
-        plan = p.get("plan") or interpretar(p["texto"])
+        plan = p.get("plan") or interpretar(p["texto"], excluir_id=p.get("id"))
         actualizar(p["id"], plan=plan)
         tipo = plan["tipo"]
         if tipo == "encargo":
@@ -607,21 +628,54 @@ def atender_descartar(p: dict[str, Any], plan: dict[str, Any]) -> None:
         raise
 
 
+def _fuente_local_respaldo() -> tuple[str | None, str]:
+    """Busca el contexto vivo o síntesis local más reciente en A1 cuando Drive OAuth está pendiente de renovar."""
+    import glob
+    patrones = [
+        os.path.join(DIR, "contexto-vivo-*.md"),
+        os.path.join(RAIZ_REPO, "starseed_memory_root", "sintesis", "sintesis-*.md"),
+    ]
+    candidatos: list[str] = []
+    for pat in patrones:
+        candidatos.extend(glob.glob(pat))
+    candidatos = sorted(candidatos, key=lambda r: os.path.getmtime(r), reverse=True)
+    if candidatos:
+        ruta = candidatos[0]
+        nombre = os.path.basename(ruta).replace(".md", "")
+        return ruta, f"Síntesis local ({nombre})"
+    return None, "Cuaderno StarSeed: Producción audiovisual"
+
+
 def hacer_notebooklm(p: dict[str, Any], plan: dict[str, Any]) -> None:
+    from peticiones_notebooklm import asegurar_fuente_local
     titulo, sid = None, p.get("fuente_id")
-    if plan["fuente"] == "ultima_sintesis":
-        fid, titulo = ultima_sintesis()
-    elif plan["fuente"] == "drive" and plan["drive_id"]:
-        fid = plan["drive_id"]
-        titulo = nombre_drive(fid)
-    else:
+    aviso_local = ""
+    try:
+        if plan["fuente"] == "ultima_sintesis":
+            fid, titulo = ultima_sintesis()
+        elif plan["fuente"] == "drive" and plan["drive_id"]:
+            fid = plan["drive_id"]
+            titulo = nombre_drive(fid)
+        else:
+            fid = None
+    except RuntimeError as err_drive:
+        log("Drive OAuth no disponible en hacer_notebooklm, usando respaldo local/cuaderno:", err_drive)
         fid = None
+        ruta_local, titulo = _fuente_local_respaldo()
+        if ruta_local and not sid:
+            sid = asegurar_fuente_local(ruta_local, titulo)
+            if sid:
+                actualizar(p["id"], fuente_id=sid)
+        aviso_local = (
+            "\n(Nota: Drive OAuth está pendiente de renovación en MetaGenesis › «Te toca a ti»; "
+            "uso directamente el contexto vivo y las fuentes cargadas en el cuaderno de NotebookLM)."
+        )
     hechos = set(p.get("hechos") or [])
     pendientes = [a for a in plan["artefactos"] if a["tipo"] not in hechos]
     nombres = ", ".join(TIPOS[a["tipo"]][0] for a in pendientes)
-    decir("En marcha en NotebookLM (cuaderno «StarSeed: Producción audiovisual»): %s%s.\n"
-          "La infografía tarda unos minutos; el audio, 10–25 min. Te los envío aquí en cuanto estén."
-          % (nombres, " a partir de «%s»" % titulo if titulo else ""))
+    decir("En marcha en NotebookLM (cuaderno «StarSeed: Producción audiovisual»): %s%s.%s\n"
+          "La infografía tarda unos minutos; el audio o vídeo, 10–25 min. Te los envío aquí en cuanto estén."
+          % (nombres, " a partir de «%s»" % titulo if titulo else "", aviso_local))
     if fid and not sid:
         sid = asegurar_fuente(fid, titulo)
         actualizar(p["id"], fuente_id=sid)
@@ -634,17 +688,35 @@ def hacer_notebooklm(p: dict[str, Any], plan: dict[str, Any]) -> None:
         enviar_resultado(tipo, ruta, titulo)
         hechos.add(tipo)
         actualizar(p["id"], hechos=sorted(hechos))
-    decir("Listo ✓ También quedó en el cuaderno: %s" % ENLACE_CUADERNO)
+    msg_fin = "Listo ✓ También quedó en el cuaderno: %s" % ENLACE_CUADERNO
+    actualizar(p["id"], respuesta=msg_fin)
+    decir(msg_fin)
 
 
 def responder(p: dict[str, Any]) -> None:
-    sistema = ("Eres MetaGenesis, el sistema de agentes de StarSeed, respondiendo a Alex por Telegram. Responde en "
-               "español, claro y útil, en menos de 1.500 caracteres. Si la petición exige algo que no puedes hacer "
-               "desde aquí (publicar, escribir código del OS, tocar cuentas o enviar mensajes a terceros), dilo y "
-               "propón cómo encargarlo a MetaGenesis.")
-    texto, modelo = llm([{"role": "system", "content": sistema}, {"role": "user", "content": p["texto"]}])
+    sistema = (
+        "Eres el Canal 3 especializado de MetaGenesis («Producción Audiovisual, Diseño Profesional, Promoción y Contactos»), "
+        "atendiendo a Alex en @StarSeed_Design_bot, sincronizado con Hermes (sesión local-a1bb42b2...), "
+        "Astraura › Genesis (puente:peticiones) y la pestaña «Producción audiovisual y diseño» de MetaGenesis.\n"
+        "Tus capacidades y contexto activos:\n"
+        "1. Producción audiovisual y síntesis NotebookLM: generas 9 formatos (infografía, audio podcast, vídeo, "
+        "presentación, mapa mental, informe, cuestionario, tarjetas, tabla) desde la síntesis diaria o el contexto vivo "
+        "del cuaderno StarSeed. Si Drive OAuth caduca (invalid_grant), ya está publicado en MetaGenesis › «Te toca a ti» "
+        "el comando automático de 1 línea para la terminal de la Mac (`cd /Users/alex/Documents/starseed-os-main && "
+        "~/.starseed/herramientas/alta-cuentas-google.py alex && python3 scripts/puente/cuentas_google.py estado --verificar "
+        "&& python3 scripts/puente/oracle_nodo.py claves && python3 scripts/puente/acciones-de-alex.py --verificar google-oauth-alex`).\n"
+        "2. Vídeo IA y motion: propuestas de Higgsfield (`seedance-2.0`, `veo-3`) con `/higgsfield` (siempre requieren "
+        "aprobación explícita y presupuesto), motion con HyperFrames/Remotion y 3D con Blender.\n"
+        "3. Diseño profesional: Stitch MCP, DESIGN.md, awesome-design-md (84 productos), react:components y shadcn-ui.\n"
+        "4. Promoción y contactos (ALC1113): investigación de canales YouTube y borradores de contacto con `/alcance`, "
+        "`/ver <id>`, `/approve <id>`, `/reject <id>` (nada sale al exterior sin aprobación explícita de Alex y huella SHA-256).\n"
+        "Responde en español, con memoria de los mensajes anteriores de la conversación, claro, directo y en menos de 1.500 caracteres."
+    )
+    historial = _historial_conversacion(excluir_id=p.get("id"), limite=6)
+    texto, modelo = llm([{"role": "system", "content": sistema}, *historial, {"role": "user", "content": p["texto"]}])
     if not texto:
         raise RuntimeError("los modelos gratuitos no respondieron")
+    actualizar(p["id"], respuesta=texto, modelo=modelo)
     decir("%s\n\n— MetaGenesis · %s" % (texto, modelo))
 
 
@@ -1108,9 +1180,9 @@ def recibir(upd: dict[str, Any]) -> None:
     if texto.startswith("/estado"):
         decir(texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {})))
         return
-    if texto.startswith("/renovar "):
-        _, sesion = texto.split(" ", 1)
-        _comando_renovar(sesion.strip())
+    if texto == "/renovar" or texto.startswith("/renovar "):
+        partes_ren = texto.split(" ", 1)
+        _comando_renovar(partes_ren[1].strip() if len(partes_ren) > 1 else "")
         return
     if texto.startswith(("/start", "/ayuda", "/help")):
         decir(texto_ayuda())   # GEN1114D
@@ -1619,10 +1691,7 @@ def _comando_sent(pid: str) -> None:
 
 
 def _comando_renovar(sesion: str) -> None:
-    """Lanza reparar() del sanador y, si hace falta mano, navegar_alta.py alta google-alex."""
-    if not sesion:
-        decir("Uso: /renovar <sesion>")
-        return
+    """Lanza reparar() del sanador y, si hace falta mano, muestra el comando preparado en MetaGenesis › Te toca a ti."""
     try:
         import sys
         sys.path.insert(0, os.path.dirname(__file__))
@@ -1632,6 +1701,26 @@ def _comando_renovar(sesion: str) -> None:
         return
 
     sanador = SS._crear_sanador_defecto()
+    if not sesion or sesion in ("todo", "todas", "all"):
+        objetivos = ("notebooklm", "google-oauth-alex", "google-oauth-alex-docs")
+        lineas = ["🔧 Revisando y reparando sesiones de producción (NotebookLM y Google OAuth):"]
+        for obj in objetivos:
+            res = sanador.reparar(obj)
+            icono = "✅" if res.get("ok") else "⚠️"
+            lineas.append(f"  {icono} {obj}: {res.get('detalle') or res.get('motivo') or 'requiere autorización OAuth en la Mac'}")
+        lineas.append("")
+        lineas.append("💻 Comando inteligente preparado en MetaGenesis › «Te toca a ti» (pégalo en la terminal de la Mac):")
+        lineas.append(
+            "cd /Users/alex/Documents/starseed-os-main && "
+            "~/.starseed/herramientas/alta-cuentas-google.py alex && "
+            "~/.starseed/herramientas/alta-cuentas-google.py alex-docs && "
+            "python3 scripts/puente/cuentas_google.py estado --verificar && "
+            "python3 scripts/puente/oracle_nodo.py claves && "
+            "python3 scripts/puente/acciones-de-alex.py --verificar google-oauth-alex"
+        )
+        decir("\n".join(lineas))
+        return
+
     decir(f"🔧 Reparando sesión «{sesion}»...")
     resultado = sanador.reparar(sesion)
 

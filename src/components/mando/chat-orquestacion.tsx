@@ -19,6 +19,7 @@ import { CircleDashed, MessagesSquare, RefreshCw } from "lucide-react";
 import { cargarEventos, clasificar } from "@/lib/mando/eventos";
 import type { EventoRelevo } from "@/lib/mando/tipos";
 import { ChatAgentePuente } from "@/components/mando/chat-agente-puente";
+import { PanelChatEspecializado } from "@/components/mando/panel-chat-especializado";
 
 /** Intervalo de sondeo del bus (ms). */
 // (2026-09-25) 45 s y nunca con la pestaña oculta: cada sondeo son 100 filas del bus de Supabase.
@@ -67,9 +68,8 @@ function Mensaje({ evento }: { evento: EventoRelevo }) {
 }
 
 export function ChatOrquestacion() {
-    // Dos secciones: el bus de orquestación (solo lectura) y el asistente técnico (chats
-    // propios, vinculados a la orbe flotante de Genesis).
-    const [seccion, setSeccion] = useState<"asistente" | "orquestacion">("asistente");
+    // Tres secciones: asistente técnico, estudio de producción audiovisual/diseño/promoción y bus de orquestación.
+    const [seccion, setSeccion] = useState<"asistente" | "audiovisual" | "orquestacion">("asistente");
     const [eventos, setEventos] = useState<EventoRelevo[]>([]);
     const [cargando, setCargando] = useState(true);
     const sondeo = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -100,6 +100,15 @@ export function ChatOrquestacion() {
                 <div className="rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur">
                     <ChatAgentePuente modo="panel" />
                 </div>
+            </div>
+        );
+    }
+
+    if (seccion === "audiovisual") {
+        return (
+            <div className="space-y-3">
+                <SelectorSeccion seccion={seccion} onCambio={setSeccion} />
+                <PanelChatEspecializado canal="audiovisual" modo="integrado" />
             </div>
         );
     }
@@ -148,18 +157,29 @@ export function ChatOrquestacion() {
 }
 
 
-/** Pestañas internas de la pestaña Chat: Asistente técnico · Orquestación (bus). */
-function SelectorSeccion({ seccion, onCambio }: { seccion: "asistente" | "orquestacion"; onCambio: (s: "asistente" | "orquestacion") => void }) {
+/** Pestañas internas de la pestaña Chat: Asistente técnico · Audiovisual y diseño · Orquestación (bus). */
+function SelectorSeccion({
+    seccion,
+    onCambio,
+}: {
+    seccion: "asistente" | "audiovisual" | "orquestacion";
+    onCambio: (s: "asistente" | "audiovisual" | "orquestacion") => void;
+}) {
+    const etiquetas: Record<"asistente" | "audiovisual" | "orquestacion", string> = {
+        asistente: "Asistente técnico",
+        audiovisual: "Audiovisual y diseño",
+        orquestacion: "Orquestación (bus)",
+    };
     return (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
-            {(["asistente", "orquestacion"] as const).map((s) => (
+            {(["asistente", "audiovisual", "orquestacion"] as const).map((s) => (
                 <button
                     key={s}
                     type="button"
                     onClick={() => onCambio(s)}
                     className={`cursor-pointer rounded-md border px-2 py-1 ${seccion === s ? "border-violet-400/60 bg-violet-500/15 text-white" : "border-white/10 text-white/60 hover:bg-white/5"}`}
                 >
-                    {s === "asistente" ? "Asistente técnico" : "Orquestación (bus)"}
+                    {etiquetas[s]}
                 </button>
             ))}
         </div>

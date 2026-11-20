@@ -323,13 +323,50 @@ def accion_codex_cuenta(ahora=None):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None, ahora=None):
+def _cuentas_google(dir_cuentas=None, sondear=False):
+    """Lee las fichas `~/.starseed/cuentas/*.json` sin imprimir tokens ni secretos."""
+    base = dir_cuentas or os.path.expanduser("~/.starseed/cuentas")
+    salida = {}
+    try:
+        nombres = sorted(os.listdir(base))
+    except OSError:
+        return salida
+    if sondear:
+        try:
+            import cuentas_google as _cg
+            from cuentas_google_env import pedir_http as _pedir_http
+            for nombre in nombres:
+                if not nombre.endswith(".json") or nombre.startswith(".") or nombre == "cliente-oauth.json":
+                    continue
+                _cg.token(nombre[:-5], _pedir_http, dir_cuentas=base, forzar=True)
+        except Exception:
+            pass
+    for nombre in nombres:
+        if not nombre.endswith(".json") or nombre.startswith(".") or nombre == "cliente-oauth.json":
+            continue
+        alias = nombre[:-5]
+        try:
+            with open(os.path.join(base, nombre), encoding="utf-8") as f:
+                ficha = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(ficha, dict):
+            salida[alias] = {
+                "correo": ficha.get("correo"),
+                "error_renovacion": ficha.get("error_renovacion"),
+            }
+    return salida
+
+
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None, ahora=None,
+                       cuentas_google=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
     la acción del token no aparece, porque no hay prueba de que falte.
 
     `ahora` es opcional y solo se usa en pruebas para simular el tiempo actual.
+    `cuentas_google` es opcional (`{alias: {correo, error_renovacion}}`); con None no toca disco.
     """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
@@ -350,7 +387,43 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     if codex_cuenta:
         acciones.append(codex_cuenta)
 
-    faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
+    if isinstance(cuentas_google, dict):
+        for alias in sorted(cuentas_google):
+            ficha = cuentas_google.get(alias)
+            if not isinstance(ficha, dict):
+                continue
+            err = str(ficha.get("error_renovacion") or "").strip()
+            if not err:
+                continue
+            correo = str(ficha.get("correo") or alias)
+            acciones.append({
+                "id": "google-oauth-%s" % alias,
+                "titulo": "Google OAuth (%s): renovar acceso a Drive y actividad" % alias,
+                "por_que": (
+                    "la ficha %s (%s) devolvió «%s»; sin renovarla fallan la síntesis diaria en Drive "
+                    "y NotebookLM en Telegram (@StarSeed_Design_bot)"
+                    % (alias, correo, err)
+                ),
+                "urgencia": "alta" if alias in ("alex", "alex-docs") else "media",
+                "comando": (
+                    "%s~/.starseed/herramientas/alta-cuentas-google.py %s && "
+                    "python3 scripts/puente/cuentas_google.py estado --verificar && "
+                    "python3 scripts/puente/oracle_nodo.py claves && "
+                    "python3 scripts/puente/acciones-de-alex.py --verificar google-oauth-%s"
+                    % (PREFIJO, alias, alias)
+                ),
+                "enlace": "https://console.cloud.google.com/apis/credentials/consent",
+                "por_que_no_lo_hago_yo": "requiere autorizar el consentimiento OAuth de tu cuenta Google en navegador",
+                "detalle": (
+                    "Cuenta: %s · error: %s · Para que no caduque cada 7 días, publica la app OAuth "
+                    "«StarSeed actividad» en Google Cloud (de Prueba a Producción) y repite el alta."
+                    % (correo, err)
+                ),
+                "variable": None,
+            })
+
+    # Si `secretos_repo` es None, `gh secret list` falló temporalmente (red/timeout): no fingimos que faltan todas.
+    faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo)) if secretos_repo is not None else []
     # (2026-10-28, DEC1028A) Alex: «¿lo de github-secretos se debe hacer?». Si solo faltan claves de repuesto
     # y esta Mac no tiene valor para ninguna, `nube-gh.py secretos` no sube nada: pedirlo es pedir algo que no
     # se puede hacer. Sin entorno (pruebas puras) la regla es la de siempre.
@@ -424,6 +497,7 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             })
             continue
         urgencia, porque = ESTADOS_HUMANOS[estado]
+        mensaje_srv = str(p.get("mensaje") or "").strip()
         acciones.append({
             "id": "pasarela-%s-%s" % (clave, estado),
             "titulo": "%s: %s" % (info.get("nombre", clave), "fichaje diario" if estado == _pas.FICHAJE else "renovar la clave"),
@@ -435,7 +509,8 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             "por_que_no_lo_hago_yo": ("hay que pulsar un botón en su web con tu sesión"
                                       if estado == _pas.FICHAJE
                                       else "Claude no teclea claves de terceros; el guion las pide sin que se vean"),
-            "detalle": "http %s · modelo %s" % (p.get("http"), p.get("modelo")),
+            "detalle": "http %s · modelo %s%s" % (
+                p.get("http"), p.get("modelo"), (" · %s" % mensaje_srv) if mensaje_srv else ""),
         })
 
     # Higgsfield (HGF1113B): propuestas pendientes de aprobación (con contexto completo, cómo hacerlo y rechazo)
@@ -520,9 +595,11 @@ def _secretos():
     try:
         r = subprocess.run(["gh", "secret", "list", "--json", "name", "--jq", ".[].name"],
                            cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            return None
         return [l.strip() for l in (r.stdout or "").splitlines() if l.strip()]
     except Exception:
-        return []
+        return None
 
 
 def clave_de_accion(id_accion):
@@ -654,6 +731,7 @@ def resondear(clave, segundos=20):
         "estado": _pas.clasificar(http, cuerpo, tokens),
         "segundos": round(_t.time() - t0, 1),
         "comprobado": _t.strftime("%Y-%m-%d %H:%M:%S"),
+        "mensaje": "" if tokens else _pas.extraer_mensaje_error(cuerpo),
     }
     try:
         informe = json.load(open(INFORME, encoding="utf-8")) or {}
@@ -671,7 +749,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None, ahora=None):
+              a1_tiene_token=None, ahora=None, cuentas_google=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -706,6 +784,16 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     # «Ya lo hice», la tarjeta desaparece solo cuando el token está de verdad allí.
     if a1_tiene_token is None and real:
         a1_tiene_token = a1_tiene_clave()
+    es_oauth_google = bool(id_accion and str(id_accion).startswith("google-oauth-"))
+    cuentas = cuentas_google if cuentas_google is not None else (_cuentas_google(sondear=es_oauth_google) if real else None)
+    if real and es_oauth_google:
+        alias_oauth = str(id_accion)[len("google-oauth-"):]
+        if isinstance(cuentas, dict) and not (cuentas.get(alias_oauth) or {}).get("error_renovacion"):
+            try:
+                import oracle_nodo as _on
+                _on.claves()
+            except Exception:
+                pass
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
     # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
     # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
@@ -715,6 +803,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
         ahora=ahora,
+        cuentas_google=cuentas,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -729,11 +818,25 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
                 for a in vivas
             ],
         }
+    if id_accion == "github-secretos" and secretos_repo is None:
+        return {
+            "id": id_accion,
+            "hecha": False,
+            "titulo": "Subir las claves de proveedor a los secretos del repo",
+            "detalle": "no se pudo consultar GitHub (`gh secret list` falló o caducó): vuelve a intentarlo",
+            "comprobado": momento,
+            "quedan": len(vivas),
+        }
     viva = por_id.get(id_accion)
     medido = ""
     if medida:
-        medido = "medido ahora: http %s con %s → %s" % (
-            medida.get("http"), medida.get("modelo"), str(medida.get("estado")).replace("_", " "))
+        mensaje = str(medida.get("mensaje") or "").strip()
+        medido = "medido ahora: http %s con %s → %s%s" % (
+            medida.get("http"),
+            medida.get("modelo"),
+            str(medida.get("estado")).replace("_", " "),
+            (" · %s" % mensaje) if mensaje else "",
+        )
     if viva is None:
         return {
             "id": id_accion,
@@ -787,7 +890,7 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
     if regenerar:
         vivas = registrar_pedido_diario(
             construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                               a1_tiene_token=a1_tiene_clave()))
+                               a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google()))
         guardar_lista(vivas)
         quedan = len(vivas)
     return {
@@ -838,7 +941,7 @@ def main():
         return 0
     acciones = registrar_pedido_diario(
         construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                           a1_tiene_token=a1_tiene_clave()))
+                           a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google()))
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

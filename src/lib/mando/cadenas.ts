@@ -31,10 +31,41 @@ export function ordenEnCadena(id: string): number {
     return id === baseDeCadena(id) ? 0 : id.charCodeAt(id.length - 1) - 97;
 }
 
+/** Índice por base de cadena para consultar sucesoras en O(1) amortizado sin re-deduplicar `ids`. */
+export type IndiceCadenas = ReadonlyMap<string, readonly string[]>;
+
+/** Guard de tipo seguro para distinguir un `IndiceCadenas` de una lista plana de IDs. */
+export function esIndiceCadenas(v: Iterable<string> | IndiceCadenas): v is IndiceCadenas {
+    return v instanceof Map;
+}
+
+/** Agrupa `ids` por su `baseDeCadena` y ordena cada cadena una sola vez (de más vieja a más nueva). */
+export function indexarCadenas(ids: Iterable<string>): IndiceCadenas {
+    const vistos = new Set<string>();
+    const porBase = new Map<string, string[]>();
+    for (const id of ids) {
+        if (!id || vistos.has(id)) continue;
+        vistos.add(id);
+        const base = baseDeCadena(id);
+        const lista = porBase.get(base);
+        if (lista) lista.push(id);
+        else porBase.set(base, [id]);
+    }
+    for (const lista of porBase.values()) {
+        if (lista.length > 1) lista.sort((a, b) => ordenEnCadena(a) - ordenEnCadena(b));
+    }
+    return porBase;
+}
+
 /** Las sucesoras de `id` (misma cadena, letra posterior), de la más vieja a la más nueva. */
-export function sucesorasDe(id: string, ids: Iterable<string>): string[] {
+export function sucesorasDe(id: string, ids: Iterable<string> | IndiceCadenas): string[] {
     const base = baseDeCadena(id);
     const propio = ordenEnCadena(id);
+    if (esIndiceCadenas(ids)) {
+        const grupo = ids.get(base);
+        if (!grupo?.length) return [];
+        return grupo.filter((k) => k !== id && ordenEnCadena(k) > propio);
+    }
     return [...new Set(ids)]
         .filter((k) => k !== id && baseDeCadena(k) === base && ordenEnCadena(k) > propio)
         .sort((a, b) => ordenEnCadena(a) - ordenEnCadena(b));
@@ -60,7 +91,7 @@ export interface EstadoDeDependencia {
 export function estadoDeDependencia(
     id: string,
     estadoDe: (id: string) => string | undefined,
-    ids: Iterable<string>,
+    ids: Iterable<string> | IndiceCadenas,
     integradaEnMain: (id: string) => boolean = () => false,
 ): EstadoDeDependencia {
     const propio = estadoDe(id) ?? "";

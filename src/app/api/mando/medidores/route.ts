@@ -84,7 +84,7 @@ const correr = promisify(execFile);
 const RAÍZ = raizDelProyecto();
 const PROGRESO = path.join(RAÍZ, "starseed_memory_root", "olas", "progreso.json");
 
-type Entrada = { estado?: string; nota?: string; t?: string; modelo?: string; [k: string]: unknown };
+type Entrada = { estado?: string; nota?: string; t?: string; modelo?: string;[k: string]: unknown };
 
 async function git(args: string[]): Promise<string> {
     try {
@@ -93,6 +93,15 @@ async function git(args: string[]): Promise<string> {
     } catch {
         return "";
     }
+}
+
+let cacheAsuntosMain: { ref: string; asuntos: string } | null = null;
+async function leerAsuntosDeMainCacheados(): Promise<string> {
+    const ref = (await git(["rev-parse", "main"])).trim();
+    if (ref && cacheAsuntosMain && cacheAsuntosMain.ref === ref) return cacheAsuntosMain.asuntos;
+    const asuntos = await git(["log", "main", "--format=%s"]);
+    if (ref && asuntos) cacheAsuntosMain = { ref, asuntos };
+    return asuntos;
 }
 
 /** (2026-10-08) El interruptor y el estado de la autopublicación, para que «Sin publicar» diga
@@ -308,8 +317,8 @@ async function leerProveedores(): Promise<{ id: string; estado: string; motivo?:
                 motivo: sinCupo
                     ? `sin cupo hasta ${sinCupo}`
                     : typeof entrada.motivo === "string"
-                      ? entrada.motivo
-                      : undefined,
+                        ? entrada.motivo
+                        : undefined,
             });
         }
     } catch {
@@ -369,36 +378,36 @@ async function leerTokens(): Promise<DatosMedidores["tokens"]> {
     }
 }
 
-    /**
-     * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
-     * (`~/.starseed/credito-claude-nube.json`, lo escribe `scripts/puente/credito_claude_nube.py declarar`):
-     * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
-     */
-    async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
-        try {
-            const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
-            const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
-            return d && typeof d === "object" && "restante_usd" in d ? d : null;
-        } catch {
-            return null;
-        }
+/**
+ * (2026-09-27) Lo que Alex declara de su crédito de Claude en la nube. Vive fuera del repo
+ * (`~/.starseed/credito-claude-nube.json`, lo escribe `scripts/puente/credito_claude_nube.py declarar`):
+ * es un dato de su cuenta, no del proyecto. Sin archivo, el medidor lo dice.
+ */
+async function leerCreditoClaude(): Promise<DatosMedidores["creditoClaude"]> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "credito-claude-nube.json"), "utf8");
+        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["creditoClaude"]>;
+        return d && typeof d === "object" && "restante_usd" in d ? d : null;
+    } catch {
+        return null;
     }
+}
 
-    /**
-     * (2026-10-04) Los LÍMITES DEL PLAN de Claude (sesión ~5 h, semanal y opcionalmente
-     * modelo concreto) leídos desde `~/.starseed/limites-claude.json`. No hay API: la
-     * dirección los toma manualmente desde claude.ai → Ajustes → Uso y los guarda con
-     * `scripts/puente/limites_claude.py declarar …`.
-     */
-    async function leerLimitesClaude(): Promise<unknown> {
-        try {
-            const crudo = await readFile(path.join(os.homedir(), ".starseed", "limites-claude.json"), "utf8");
-            const d = JSON.parse(crudo) as unknown;
-            return d && typeof d === "object" ? d : null;
-        } catch {
-            return null;
-        }
+/**
+ * (2026-10-04) Los LÍMITES DEL PLAN de Claude (sesión ~5 h, semanal y opcionalmente
+ * modelo concreto) leídos desde `~/.starseed/limites-claude.json`. No hay API: la
+ * dirección los toma manualmente desde claude.ai → Ajustes → Uso y los guarda con
+ * `scripts/puente/limites_claude.py declarar …`.
+ */
+async function leerLimitesClaude(): Promise<unknown> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "limites-claude.json"), "utf8");
+        const d = JSON.parse(crudo) as unknown;
+        return d && typeof d === "object" ? d : null;
+    } catch {
+        return null;
     }
+}
 
 /** (1103 · U) Preguntas y potenciados de «Buscar más capacidad» (`scripts/puente/potenciar_capacidad.py`). */
 async function leerPotenciar(): Promise<DatosMedidores["potenciar"]> {
@@ -757,7 +766,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     // de `chore(memoria)`—, asi que recortarla equivale a olvidar meses de trabajo. Sin
     // tope: son 2.311 lineas, unos 150 KB, que git entrega en milisegundos. Una ventana
     // que solo ve lo reciente convierte trabajo terminado en trabajo pendiente.
-    const asuntosDeMain = await midiendo("asuntosMain", git(["log", "main", "--format=%s"]));
+    const asuntosDeMain = await midiendo("asuntosMain", leerAsuntosDeMainCacheados());
     const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
     // Latidos: los de ESTA Mac mandan sobre los del bus para la misma tarea, y los de la
@@ -1075,11 +1084,11 @@ export async function GET(peticion: Request): Promise<Response> {
     const puerta = await leerPuerta().catch(() => null);
     const usarPuerta = puerta?.foto
         ? elegirFuente({
-              faltaLocal: faltaLocal(datos),
-              localMs: turno.t > 0 ? turno.t : 0,
-              fotoMs: puerta.tFoto,
-              ahora: Date.now(),
-          }) === "puerta"
+            faltaLocal: faltaLocal(datos),
+            localMs: turno.t > 0 ? turno.t : 0,
+            fotoMs: puerta.tFoto,
+            ahora: Date.now(),
+        }) === "puerta"
         : false;
     if (usarPuerta && puerta?.foto) {
         // Lo que la foto puede decir en forma propia de `DatosMedidores` sin inventar nada más.

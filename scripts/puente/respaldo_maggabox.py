@@ -58,7 +58,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 # Rutas base
 MAC_ROOT = "/Users/alex/Documents/starseed-os-main"
 STARSEED_MEMORY_ROOT = os.path.join(MAC_ROOT, "starseed_memory_root")
-WT_ROOT = os.path.expanduser("~/Documents/starseed-wd")
+WT_ROOT = os.path.expanduser("~/Documents/starseed-wt")
 DEST_HOST = "maggasukha@starseed-nodo-1.local"
 DEST_BASE = "~/StarSeed-almacen"
 
@@ -241,7 +241,8 @@ def _contar_entradas(ruta: str, find_fn: Optional[Callable[[str], List[str]]] = 
     if find_fn:
         return len(find_fn(ruta))
     try:
-        return len(subprocess.run(["find", ruta, "-printf", "."], capture_output=True, text=True, timeout=60).stdout)
+        r = subprocess.run(["find", ruta], capture_output=True, text=True, timeout=60)
+        return len(r.stdout.splitlines()) if r.returncode == 0 else 0
     except Exception:
         return 0
 

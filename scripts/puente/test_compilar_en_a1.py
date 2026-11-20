@@ -646,6 +646,23 @@ class Turno(unittest.TestCase):
                 self.assertEqual(self._turno(d, **kw), esperado, kw)
         self.assertIn("bin/ts[c]", C.TSC_VIVO)
 
+    def test_guion_limpia_archivo_regular_huerfano_en_cerrojo(self):
+        with tempfile.TemporaryDirectory() as d:
+            cerrojo = os.path.join(d, "cerrojos", "pesado.lock")
+            os.makedirs(os.path.dirname(cerrojo))
+            with open(cerrojo, "w", encoding="utf-8"):
+                pass  # archivo regular de 0 bytes
+            estado = os.path.join(d, "estado.json")
+            with open(estado, "w", encoding="utf-8") as f:
+                f.write('{"fase": "espera"}\n')
+            hecho = os.path.join(d, "compilado")
+            guion = C.guion_turno("test -d %s && touch %s" % (cerrojo, hecho), espera_s=0,
+                                  fase=estado, cerrojo=cerrojo, tsc_vivo="false", pausa_s=0)
+            r = subprocess.run(["sh", "-s"], input=guion, capture_output=True, text=True, timeout=30)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.exists(hecho))
+            self.assertFalse(os.path.exists(cerrojo))
+
     def test_el_reconstructor_le_pasa_la_urgencia(self):
         R, vistos = C.RM, []
         with mock.patch.object(R, "mtime_del_build", return_value=None), mock.patch.object(R, "_guardar"), \

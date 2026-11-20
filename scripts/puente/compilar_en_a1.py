@@ -444,6 +444,7 @@ def guion_turno(compilar, espera_s=ESPERA_TURNO_S, fase=FASE_A1, cerrojo=PESADO_
         "trap soltar EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM",
         'mkdir -p "$(dirname "$L")"',
         "while :; do",
+        '  [ -f "$L" ] && [ ! -d "$L" ] && rm -f "$L"',
         '  p=$(cut -d" " -f1 "$L/dueno" 2>/dev/null); [ -n "$p" ] && ! kill -0 "$p" 2>/dev/null && rm -rf "$L"',
         "  if ! grep -qs '\"fase\": *\"guardian\"' \"$F\" && ! %s && mkdir \"$L\" 2>/dev/null; then" % tsc_vivo,
         '    echo "$$ $(date +%s)" > "$L/dueno"; break',

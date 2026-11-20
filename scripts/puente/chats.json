@@ -19,29 +19,47 @@
     "hermes": {
       "producto": "Hermes Agent",
       "proyecto": "starseed-os",
-      "como_volver": "hermes --resume 20260909_210504_867626   (interactivo, sin -z)",
-      "id": "20260909_210504_867626",
+      "como_volver": "hermes --resume local-1daf85ca90a6bff962d9cfe07c336764be0095863ff322f41790b3760b6caf8b",
+      "id": "local-1daf85ca90a6bff962d9cfe07c336764be0095863ff322f41790b3760b6caf8b",
       "fijado": true,
-      "nota": "Fijado con `hermes sessions pin`: sale siempre arriba en la barra lateral y el archivado automatico no lo toca. OJO: el modo de una sola orden (`hermes -z`) SIEMPRE abre una sesion nueva, aunque le pases --resume o --continue; para volver de verdad al principal hay que abrirlo interactivamente (`hermes --resume 20260909_210504_867626` sin -z, o pinchandolo en la barra lateral)."
+      "nota": "Sesión «Dirección MetaGenesis» fijada con `hermes sessions pin` y vinculada en tiempo real al hilo unificado de dirección."
     },
     "antigravity": {
       "producto": "Antigravity IDE",
       "proyecto": "starseed-os-main",
       "como_volver": "open -a 'Antigravity IDE' /Users/alex/Documents/starseed-os-main",
-      "id": null,
-      "nota": "El chat vive en el espacio de trabajo del repositorio; lee gemini.md y AGENTS.md al abrirse."
+      "id": "28bb41f9-d02c-4cf3-bca4-d1db26ce1521",
+      "nota": "Chat principal de dirección en Antigravity IDE; vinculado bidireccionalmente con MetaGenesis, Hermes, Telegram y Astraura."
     },
     "telegram": {
       "producto": "Telegram (puente movil)",
       "proyecto": "starseed-os",
-      "como_volver": "El bot escribe y escucha en el chat de TELEGRAM_CHAT_ID; /ayuda lista las ordenes.",
+      "como_volver": "El bot @starseed_puente_bot (TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en ~/.hermes/.env) lleva la dirección principal, conectado con @StarSeed_Design_bot (síntesis) y Magacortex sin mezclarlos.",
       "id": null,
       "temas": {
         "GENESIS": "el hilo principal: ordenes y estado",
         "olas": "avance de cada tarea, un mensaje por hito",
         "avisos": "proveedor sin cuota, tarea colgada, puerta de aprobacion, puertas en rojo"
       },
-      "nota": "Necesita TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el entorno. Los temas solo se usan si el chat es un grupo con temas activados."
+      "nota": "El canal principal usa Maggacortex (@starseed_neurocortex_bot, TELEGRAM_MAGGACORTEX_BOT_TOKEN); Dirección general usa @starseed_puente_bot (TELEGRAM_BOT_TOKEN); Producción audiovisual/diseño/promoción usa @StarSeed_Design_bot (TELEGRAM_SINTESIS_BOT_TOKEN), sin mezclarlos ni hacer polling duplicado.",
+      "canales_especializados": {
+        "principal": {
+          "hermes": "local-1daf85ca90a6bff962d9cfe07c336764be0095863ff322f41790b3760b6caf8b",
+          "telegram": "@starseed_neurocortex_bot",
+          "astraura": "genesis",
+          "antigravity": "28bb41f9-d02c-4cf3-bca4-d1db26ce1521"
+        },
+        "general": {
+          "hermes": "20260909_210504_867626",
+          "telegram": "@starseed_puente_bot",
+          "astraura": "puente:hermes-avisos"
+        },
+        "audiovisual": {
+          "hermes": "local-a1bb42b2c8d15f2ac2c1a2ec01632c6e1bdf380e83f0f6fad5b0a524d57a6635",
+          "telegram": "@StarSeed_Design_bot",
+          "astraura": "puente:peticiones"
+        }
+      }
     }
   }
 }

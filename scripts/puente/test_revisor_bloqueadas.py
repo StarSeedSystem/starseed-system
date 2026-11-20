@@ -641,6 +641,32 @@ class Servicio(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"decidir": falso}):
             self.assertFalse(self.R._veto_jev({"tid": "A", "accion": "ya_hecha"}, {"tareas": {}})[0])
 
+    def test_pasada_no_repite_pedir_a_alex_ya_anunciada_en_chat(self):
+        self._escribir("cola-a.json", [T("MEC2", archivos=["src/x.ts"])])
+        self._escribir("progreso.json", {
+            "MEC2": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(10)},
+        })
+        self._escribir("revisor-bloqueadas.json", {
+            "memoria": {
+                "historial": [
+                    {"t": _t(200), "tid": "MEC2", "accion": "reescribir", "clase": "tarea:alcance",
+                     "motivo": "rechazo mecánico..."},
+                    {"t": _t(100), "tid": "MEC2", "accion": "reescribir", "clase": "tarea:alcance",
+                     "motivo": "rechazo mecánico..."},
+                ]
+            },
+            "necesitan_alex": {},
+        })
+        mensajes = []
+        with mock.patch.object(self.R, "_publicar_chat", lambda texto: mensajes.append(texto) or True), \
+                mock.patch.object(self.R, "_cola_viva", lambda: None), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            self.R.pasada(jev=False, ahora=AHORA)
+            self.R.pasada(jev=False, ahora=AHORA + 300)
+        self.assertEqual(len(mensajes), 1)
+        estado = self._leer("revisor-bloqueadas.json")
+        self.assertIn("MEC2", estado["necesitan_alex"])
+
 
 
 class OrdenIdealAdelantar(unittest.TestCase):

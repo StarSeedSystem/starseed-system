@@ -118,3 +118,18 @@ def test_estado_da_alias_correo_y_vida_sin_tokens(tmp_path):
     assert [fila["alias"] for fila in filas] == ["alex", "fundacion"]
     assert filas[0]["vivo"] is True and filas[0]["correo"] == "x@y.z" and filas[1]["vivo"] is False
     volcado = json.dumps(filas); assert "ref-1" not in volcado and "viejo" not in volcado
+
+
+def test_token_httperror_y_estado_marcan_error_renovacion(tmp_path):
+    import io, urllib.error
+    rutas, dir_cuentas, _ = entorno_tmp(tmp_path)
+    sembrar_cuentas(dir_cuentas, rutas)
+    def pedir_400(_url, _datos):
+        raise urllib.error.HTTPError(
+            "https://oauth2.googleapis.com/token", 400, "Bad Request", {},
+            io.BytesIO(b'{"error":"invalid_grant","error_description":"Token has been expired or revoked."}'),
+        )
+    assert C.token("alex", pedir_400, dir_cuentas=dir_cuentas, rutas=rutas, forzar=True) is None
+    filas = C.estado(dir_cuentas=dir_cuentas, rutas=rutas)
+    assert filas[0]["vivo"] is False
+    assert filas[0]["motivo"] == "invalid_grant"
