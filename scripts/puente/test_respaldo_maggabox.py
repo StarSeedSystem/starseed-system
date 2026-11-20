@@ -414,8 +414,8 @@ class TestAliviar(unittest.TestCase):
                 )
 
             # Verificar que cada item movido tiene verificación de tamaño y entradas
-            for movido in resultado.get("movidos", []):
-                print(f"DEBUG movido: {movido}")
+            self.assertTrue(resultado.get("movidos"), "no se movió ningún candidato")
+            for movido in resultado["movidos"]:
                 self.assertIn("verificado", movido)
                 self.assertTrue(movido["verificado"])
 
