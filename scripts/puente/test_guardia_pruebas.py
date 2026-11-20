@@ -6,12 +6,17 @@ Verifica que la guardia bloquea llamadas a Drive, Telegram, NotebookLM durante p
 import http.client
 import os
 import socket
+import sys
 import tempfile
 import time
 import unittest
 import urllib.request
 import urllib.parse
 from unittest.mock import Mock, patch
+
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+if DIRECTORIO not in sys.path:
+    sys.path.insert(0, DIRECTORIO)
 
 AHORA = "2026-11-11"
 
@@ -123,33 +128,29 @@ class TestParchesRed(unittest.TestCase):
             self.G.desactivar()
 
     def test_subir_doc_drive_real_falla_con_guard_error(self):
-        """REVISIÓN1114: Con STARSEED_PRUEBAS=1, intento REAL de subida a Drive (urllib a host externo) falla con error de guardia: la fuga sigue cortada."""
+        """REVISIÓN1114: Con STARSEED_PRUEBAS=1, un intento REAL de subida a Drive (urllib a
+        googleapis) queda cortado por la guardia y `_subir_doc` no devuelve id de Doc.
 
+        El fallo de Drive no bloquea la entrega (PET1112F: «su fallo no bloquea la entrega»),
+        así que lo que se comprueba es que la red no sale, no que `_entregar` devuelva error.
+        """
+
+        import agente_sintesis as A
+        import cuentas_google as CG
+
+        url_drive = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
         self.G.activar()
         try:
-            import agente_sintesis as A
-            import tempfile
-            from datetime import datetime, timezone
+            self.assertFalse(self.G._url_permitida(url_drive),
+                             "El host de subida de Drive no puede estar permitido en pruebas")
+            with self.assertRaises(self.G.ErrorRedEnPruebas) as cortado:
+                urllib.request.urlopen(url_drive, timeout=10)
+            self.assertIn("googleapis.com", str(cortado.exception),
+                          f"La guardia debe cortar Drive, no otra cosa; fallo: {cortado.exception}")
 
-            raiz = tempfile.mkdtemp()
-            try:
-                os.makedirs(os.path.join(raiz, A.REL_SINTESIS), exist_ok=True)
-
-                def subir_falso_falla(f, t):
-                    raise self.G.ErrorRedEnPruebas("Simulating drive upload failure with guard error")
-
-                r = A._entregar(raiz, {}, datetime(2026, 11, 11, 13, 54, tzinfo=timezone.utc),
-                                enviar=Mock(return_value={"ok": True}),
-                                subir_drive=subir_falso_falla,
-                                asegurar_fuente=Mock(),
-                                drive_doc_id=None,
-                                jev=False,
-                                seco=False)
-                self.assertFalse(r.get("ok"), "Subir drive real debe fallar con guardia cuando STARSEED_PRUEBAS=1")
-                self.assertFalse(r.get("drive"), "El intento real de subir a Drive debe fallar con guardia")
-            finally:
-                import shutil
-                shutil.rmtree(raiz, ignore_errors=True)
+            with patch.object(CG, "token", return_value="token-de-prueba"):
+                self.assertIsNone(A._subir_doc("2026-11-11", "texto de prueba"),
+                                  "La subida real a Drive no debe obtener id de Doc con la guardia activa")
         finally:
             self.G.desactivar()
 
