@@ -132,7 +132,7 @@ def _hora_cdmx(ahora):
         return dt.hour + dt.minute / 60.0
 
 
-def _dentro(iso, ahora, horas=0):
+def _dentro(iso, ahora, horas=0.0):
     if not iso:
         return False
     try:
@@ -423,7 +423,8 @@ def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=No
                 and (t.get("agente") != AGENTE or str(t.get("creada") or "") >= limite)]
 
     fusion = fundir or S.fundir_tareas
-    S._escribir_json(ruta_cola, fusion(podar(lista), tareas))
+    escritas = fusion(podar(lista), tareas) or list(tareas)
+    S._escribir_json(ruta_cola, escritas)
     fuera = {"ok": True, "cola": "%s/%s" % (REL_OLAS, NOMBRE_COLA), "tareas": [t["id"] for t in tareas]}
     if not tareas:
         return fuera.update(accion="nada", mensaje="Sin tareas que encargar.") or fuera
