@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "MGP1120-811368",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: pruebas del puente en rojo",
+   "archivos": [
+    "scripts/puente/test_guardia_pruebas.py"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "sha_rojo": "595c9ad06af4",
+   "prompt": "NOTA DE METAGENESIS (2026-11-20 17:24): la autopublicación lleva más de 60 min frenada en 595c9ad0 por «pruebas del puente en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n..................................................................................................................................Error al intentar generar catálogo: Error al ejecutar\n..Error al procesar opción opcion1: Error de conexión\n..................................................................................................................................................\n======================================================================\nFAIL: test_subir_doc_drive_real_falla_con_guard_error (test_guardia_pruebas.TestParchesRed.test_subir_doc_drive_real_falla_con_guard_error)\nREVISIÓN1114: Con STARSEED_PRUEBAS=1, intento REAL de subida a Drive (urllib a host externo) falla con error de guardia: la fuga sigue cortada.\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_guardia_pruebas.py\", line 148, in test_subir_doc_drive_real_falla_con_guard_error\n    self.assertFalse(r.get(\"ok\"), \"Subir drive real debe fallar con guardia cuando STARSEED_PRUEBAS=1\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: True is not false : Subir drive real debe fallar con guardia cuando STARSEED_PRUEBAS=1\n\n----------------------------------------------------------------------\nRan 6770 tests in 1498.463s\n\nFAILED (failures=1, skipped=5, expected failures=4)\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 61297)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 61307)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 61311)>\n\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `python3 -m unittest scripts/puente/test_guardia_pruebas.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "MGP1120-811368"
+  ]
+ }
+}
