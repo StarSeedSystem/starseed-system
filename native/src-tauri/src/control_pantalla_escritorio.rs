@@ -11,10 +11,11 @@
 //!   `CGPreflightScreenCaptureAccess`, que solo mira.
 //! · Un cuadro no se guarda ni se anota; el registro lleva fuente, tamaño y fps al empezar y al acabar.
 
-use crate::control_captura::capturar_jpeg;
+use crate::control_calidad_logica as q;
+use crate::control_captura::{capturar_cuadro, reiniciar_via, via_actual, via_fluida};
 use crate::control_entrada_logica as l;
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tauri::AppHandle;
 
@@ -50,8 +51,10 @@ fn nota_sin_pantalla(motivo: &str, falta: &str) {
     crate::ble::nota(None, "control-pantalla", &format!("sin-pantalla motivo={motivo} falta={falta} fuente={FUENTE_REGISTRO}"));
 }
 
-/// Pausa entre capturas (~6 cuadros por segundo como mucho).
-const PERIODO_MS: u64 = 160;
+static ULTIMO_NUMERO: AtomicU32 = AtomicU32::new(0);
+static ULTIMA_ENTREGA_MS: AtomicU64 = AtomicU64::new(0);
+static RETARDO_RECEPTOR_MS: AtomicU64 = AtomicU64::new(0);
+static PERIODO_CAPTURA_MS: AtomicU64 = AtomicU64::new(q::PERIODO_OBJETIVO_MS);
 
 struct Activa {
     ancho: u32,
@@ -69,6 +72,15 @@ fn activa() -> MutexGuard<'static, Option<Activa>> {
 fn buffer() -> MutexGuard<'static, Vec<u8>> {
     static B: OnceLock<Mutex<Vec<u8>>> = OnceLock::new();
     B.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn anotar_entrega(desde: u32, periodo_ms: u64) {
+    let ahora = crate::control_neuronas::mono_k();
+    let antes = ULTIMA_ENTREGA_MS.swap(ahora, Ordering::Relaxed);
+    let por_reloj = if antes == 0 { 0 } else { ahora.saturating_sub(antes).saturating_sub(periodo_ms) };
+    let atraso = ULTIMO_NUMERO.load(Ordering::Relaxed).saturating_sub(desde).saturating_sub(1);
+    let por_cola = u64::from(atraso).saturating_mul(periodo_ms);
+    RETARDO_RECEPTOR_MS.store(por_reloj.max(por_cola).min(1000), Ordering::Relaxed);
 }
 
 /// La captura de prueba falló aunque nada faltaba: en el Mac es casi siempre el permiso; en Linux, el servidor X.
@@ -103,13 +115,20 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
     let lado = lado.clamp(l::LADO_MIN, l::LADO_MAX);
     let calidad = l::calidad_jpeg(calidad);
     parar_interno(app); // una captura a la vez
+    reiniciar_via();
     // El primer cuadro se hace aquí para decir el tamaño real y para fallar con verdad si el sistema no deja capturar.
-    let Some((primero, ancho, alto)) = capturar_jpeg(lado, calidad, 1) else {
+    let Some(primero) = capturar_cuadro(lado, calidad, 1, None) else {
         let (motivo, falta) = plataforma_captura_fallida();
         nota_sin_pantalla(motivo, falta);
         return json!({ "ok": false, "motivo": motivo, "falta": [falta] });
     };
-    *buffer() = primero;
+    let (ancho, alto) = (primero.ancho, primero.alto);
+    let huella_inicial = primero.huella;
+    *buffer() = primero.jpeg;
+    ULTIMO_NUMERO.store(1, Ordering::SeqCst);
+    ULTIMA_ENTREGA_MS.store(0, Ordering::Relaxed);
+    RETARDO_RECEPTOR_MS.store(0, Ordering::Relaxed);
+    PERIODO_CAPTURA_MS.store(q::PERIODO_OBJETIVO_MS, Ordering::Relaxed);
     let parar = Arc::new(AtomicBool::new(false));
     let cuadros = Arc::new(AtomicU32::new(1));
     {
@@ -117,28 +136,58 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
         std::thread::Builder::new()
             .name("control-pantalla-mac".into())
             .spawn(move || {
+                let mut ritmo = q::Ritmo::nuevo(lado, calidad);
+                let mut huella_previa = huella_inicial;
                 while !parar.load(Ordering::SeqCst) {
                     let t0 = std::time::Instant::now();
                     let en_pausa = crate::control_neuronas::sesion_pausada(&sesion2);
-                    if !en_pausa && !plataforma_bloqueada() {
-                        let n = cuadros.load(Ordering::SeqCst) + 1;
-                        if let Some((c, _, _)) = capturar_jpeg(lado, calidad, n) {
-                            *buffer() = c;
-                            cuadros.store(n, Ordering::SeqCst);
+                    if en_pausa || plataforma_bloqueada() {
+                        if en_pausa {
+                            buffer().clear(); // en pausa local no sale ningún cuadro (lo que la persona teclea no se ve)
                         }
-                    } else if en_pausa {
-                        buffer().clear(); // en pausa local no sale ningún cuadro (lo que la persona teclea no se ve)
+                        let _ = &app2;
+                        std::thread::sleep(std::time::Duration::from_millis(q::PERIODO_OBJETIVO_MS));
+                        continue;
                     }
+                    let nivel = ritmo.nivel();
+                    let n = cuadros.load(Ordering::SeqCst) + 1;
+                    match capturar_cuadro(nivel.lado, nivel.calidad, n, huella_previa) {
+                        Some(c) => {
+                            if !c.igual {
+                                *buffer() = c.jpeg;
+                                cuadros.store(n, Ordering::SeqCst);
+                                ULTIMO_NUMERO.store(n, Ordering::SeqCst);
+                                huella_previa = c.huella;
+                            }
+                        }
+                        None => {
+                            let _ = &app2;
+                            std::thread::sleep(std::time::Duration::from_millis(q::PERIODO_MAX_MS));
+                            continue;
+                        }
+                    }
+                    let trabajo = t0.elapsed().as_millis() as u64;
+                    let retardo = RETARDO_RECEPTOR_MS.load(Ordering::Relaxed);
+                    let cambio = ritmo.muestra(trabajo, retardo);
+                    let linea = q::linea_cambio(cambio, trabajo, retardo);
+                    if !linea.is_empty() {
+                        crate::ble::nota(None, "control-pantalla", &format!("ritmo {linea}"));
+                    }
+                    let periodo = ritmo.periodo_ms(trabajo);
+                    PERIODO_CAPTURA_MS.store(periodo, Ordering::Relaxed);
                     let _ = &app2;
-                    let gastado = t0.elapsed().as_millis() as u64;
-                    std::thread::sleep(std::time::Duration::from_millis(PERIODO_MS.saturating_sub(gastado).max(20)));
+                    std::thread::sleep(std::time::Duration::from_millis(periodo.saturating_sub(trabajo).max(20)));
                 }
             })
             .ok();
     }
     *activa() = Some(Activa { ancho, alto, desde: std::time::Instant::now(), parar, cuadros });
-    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente={FUENTE_REGISTRO} ancho={ancho} alto={alto} fps=-"));
-    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente={FUENTE_REGISTRO} ancho={ancho} alto={alto}"));
+    let via = via_actual();
+    crate::ble::nota(None, "control-pantalla", &format!("inicio fuente={FUENTE_REGISTRO} via={via} ancho={ancho} alto={alto} fps=-"));
+    if let Some(fluida) = via_fluida() {
+        crate::ble::nota(None, "control-pantalla", &format!("fluida-lista via={fluida}"));
+    }
+    crate::control_neuronas::anotar_k(app, "pantalla-iniciada", &format!("fuente={FUENTE_REGISTRO} via={via} ancho={ancho} alto={alto}"));
     // La web solo conoce dos valores de `fuente`; la captura de pantalla completa es la de «proyeccion».
     json!({ "ok": true, "fuente": "proyeccion", "ancho": ancho, "alto": alto, "giro": 0 })
 }
@@ -146,7 +195,6 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
 /// `control_pantalla_cuadro` en macOS: el cuadro más nuevo que `desde`, o cero bytes.
 pub fn cuadro(app: &AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
     use crate::control_neuronas::{puerta_sesion, ModoPuerta};
-    use std::sync::atomic::AtomicU64;
     static ULTIMA_ACTIVIDAD: AtomicU64 = AtomicU64::new(0);
     if activa().is_none() {
         return Vec::new();
@@ -168,7 +216,11 @@ pub fn cuadro(app: &AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
         Some(de) if crate::control_aceptados_escritorio::sigue_aceptado(app, &de) => {}
         _ => return Vec::new(),
     }
-    l::cuadro_si_nuevo(&buffer(), desde).map(<[u8]>::to_vec).unwrap_or_default()
+    let salida = l::cuadro_si_nuevo(&buffer(), desde).map(<[u8]>::to_vec).unwrap_or_default();
+    if !salida.is_empty() {
+        anotar_entrega(desde, PERIODO_CAPTURA_MS.load(Ordering::Relaxed));
+    }
+    salida
 }
 
 /// Para la captura y deja la línea de fin (con los fps medidos). Sin pantalla activa, no hace nada.
@@ -177,7 +229,14 @@ pub fn parar_interno(app: &AppHandle) {
     a.parar.store(true, Ordering::SeqCst);
     buffer().clear();
     let seg = a.desde.elapsed().as_secs_f64().max(0.001);
-    let linea = format!("fin fuente={FUENTE_REGISTRO} ancho={} alto={} fps={:.1}", a.ancho, a.alto, f64::from(a.cuadros.load(Ordering::SeqCst)) / seg);
+    let linea = format!(
+        "fin fuente={FUENTE_REGISTRO} ancho={} alto={} fps={:.1} via={} retardo_ms={}",
+        a.ancho,
+        a.alto,
+        f64::from(a.cuadros.load(Ordering::SeqCst)) / seg,
+        via_actual(),
+        RETARDO_RECEPTOR_MS.load(Ordering::Relaxed)
+    );
     crate::ble::nota(None, "control-pantalla", &linea);
     crate::control_neuronas::anotar_k(app, "pantalla-parada", &linea);
 }
