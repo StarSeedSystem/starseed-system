@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "A0FDE8168",
+   "ola": "Ola A-desbloqueo · publicacion-866c61069",
+   "titulo": "URGENTE · Desbloquear la publicación (866c61069)",
+   "archivos": [],
+   "depende": [],
+   "urgente": true,
+   "clave_desbloqueo": "publicacion-866c61069",
+   "prompt": "La autopublicación lleva varias pasadas bloqueada por el mismo motivo y no sale nada a producción hasta que la causa se corrija en el código.\n\nLa publicación lleva 2 pasadas seguidas bloqueada: pruebas del puente en rojo · espero a que llegue un commit nuevo\n\nLa evidencia no señala un archivo del repo: búscalo por el nombre de la prueba o del símbolo que cita y dilo en tu respuesta.\n\nEvidencia (tal cual la dio el compilador o la puerta):\n> --------------\n> ............................................................................................................................................................................................................................................Error al intentar generar catálogo: Error al ejecutar\n> ..Error al procesar opción opcion1: Error de conexión\n> .........................................\n> […]\n> n test_sin_orquestador_deja_la_cola_lista\n>     self.assertEqual([t[\"id\"] for t in cola], [\"SIN11121\"])\n>     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> AssertionError: Lists differ: [] != ['SIN11121']\n> \n> Second list contains 1 additional elements.\n> First extra element 0:\n> 'SIN11121'\n> \n> - []\n> + ['SIN11121']\n> \n> ----------------------------------------------------------------------\n> Ran 6740 tests in 248.430s\n> \n> FAILED (failures=2, skipped=5, expected failures=4)\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 55851)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 55861)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 55864)>\n\nPide la corrección más pequeña que haga desaparecer ESE error. Reglas: la arreglo MÍNIMA, la causa y nada más (una línea si basta); no toques los frenos de la publicación (scripts/puente/autopublicar.py, scripts/puente/produccion_puertas.py), ni las pruebas guardia (si una prueba guardia falla, el código es el que se corrige, nunca la prueba), ni permisos (capabilities, AndroidManifest, entitlements, RLS); sin claves ni cadenas con forma de clave; ≤ 3 archivos; no hagas push, ni pidas ni lances compilaciones ni publicaciones: eso lo hace el director. Comprueba con la prueba o el compilador del archivo que cambies y di en tu respuesta qué cambiaste y por qué."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "A0FDE8168"
+  ]
+ }
+}
