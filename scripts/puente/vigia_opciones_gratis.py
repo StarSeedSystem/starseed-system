@@ -4,6 +4,7 @@ Vigía de opciones gratis: refrescar el catálogo por canales oficiales
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -11,15 +12,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, TypedDict
 
+# Repo root calculado en importación (antes de que los tests mockeen Path)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
 # Añadir el directorio raíz al path para importar módulos de TypeScript compilados
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(REPO_ROOT))
 
 def obtener_catalogo() -> List[Dict[str, Any]]:
     """
     Obtiene el catálogo de opciones intentando leer el JSON existente
-    o generándolo usando node/tsx si no existe.
+    o generándolo usando tsx si no existe.
     """
-    # Intentar leer el JSON existente primero
+    # Intentar leer el JSON existente primero (usa Path para que el test pueda mockearlo)
     json_path = Path("starseed_memory_root/genesis/catalogo-opciones.json")
     if json_path.exists():
         try:
@@ -27,33 +31,33 @@ def obtener_catalogo() -> List[Dict[str, Any]]:
                 return json.load(f)
         except Exception as e:
             print(f"Error al leer {json_path}: {e}", file=sys.stderr)
-    
-    # Si no existe o hay error, generar usando node/tsx
+
+    # Si no existe o hay error, generar usando tsx (usa REPO_ROOT calculado en importación)
     try:
-        # Crear un script temporal que importe y ejecute la función de fusión
+        # Crear un script temporal en la raíz del repo para que los imports relativos funcionen
         script_content = """
-        const { fusionarCatalogos } = require('./src/lib/genesis/conectores/catalogo-opciones');
-        const { PROVEEDORES_CATALOGO } = require('./src/lib/mando/proveedores-catalogo');
-        const { FREE_CATALOG } = require('./src/ai/astraura/free-catalog');
-        
+        import { fusionarCatalogos } from './src/lib/genesis/conectores/catalogo-opciones.ts';
+        import { PROVEEDORES_CATALOGO } from './src/lib/mando/proveedores-catalogo.ts';
+        import { FREE_CATALOG } from './src/ai/astraura/free-catalog.ts';
+
         const catalogo = fusionarCatalogos(PROVEEDORES_CATALOGO, FREE_CATALOG);
         console.log(JSON.stringify(catalogo));
         """
-        
-        # Escribir el script temporal
+
+        # Escribir el script temporal en la raíz del repo
         import tempfile
-        import os
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        temp_script = REPO_ROOT / f".tmp_gen_catalogo_{os.getpid()}.ts"
+        with open(temp_script, 'w', encoding='utf-8') as f:
             f.write(script_content)
-            temp_script = f.name
-        
+
         try:
-            # Ejecutar el script temporal con node
+            # Ejecutar el script temporal con tsx (soporta TypeScript) desde la raíz del repo
             result = subprocess.run(
-                ["node", temp_script],
+                ["npx", "tsx", str(temp_script)],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=60,
+                cwd=REPO_ROOT
             )
             if result.returncode == 0:
                 return json.loads(result.stdout)
@@ -61,10 +65,13 @@ def obtener_catalogo() -> List[Dict[str, Any]]:
                 print(f"Error al ejecutar script de generación: {result.stderr}", file=sys.stderr)
         finally:
             # Limpiar el archivo temporal
-            os.unlink(temp_script)
+            try:
+                os.unlink(temp_script)
+            except OSError:
+                pass
     except Exception as e:
         print(f"Error al intentar generar catálogo: {e}", file=sys.stderr)
-    
+
     # Como último recurso, retornamos una lista vacía
     return []
 
