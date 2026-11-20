@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "HAL05b",
+   "ola": "HAL1116A",
+   "titulo": "CapaIdioma espera a que el documento esté hidratado antes de reescribir el texto",
+   "archivos": [
+    "src/components/idiomas/capa-idioma.tsx",
+    "src/components/idiomas/__tests__/capa-idioma-hidratacion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Lee `capa-idioma.tsx` entero (38 líneas) y `src/lib/idiomas/hidratacion.ts` (HAL04). Cambio ACOTADO (≤25 líneas): en el efecto, antes de la PRIMERA llamada a `iniciarCapa` (no antes de `capa.cambiar`, que es una elección de la persona ya con la página viva), espera `cuandoEsSeguroTraducir(entornoDelNavegador(window))` y sigue solo si `vivo` sigue siendo true tras la espera. Una elección nueva (`EVENTO_IDIOMA`) durante la espera no se pierde: al terminar se lee `idiomaEfectivo()` de nuevo. Se conserva todo lo demás (`storage`, `parar`, `fijarDocumento`). PRUEBAS (`render` con `vi.useFakeTimers` y un `cuandoEsSeguroTraducir` simulado con `vi.mock`): con idioma guardado `en` el texto del cuerpo sigue en español hasta que la promesa resuelve y entonces cambia; si el componente se desmonta durante la espera no se aplica nada; un cambio de idioma durante la espera aplica el último.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44456538890`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44456538890:refs/remotes/origin/nube/44456538890\"` y `git cherry-pick --no-commit 75c72f3bbbd7 021895ced717`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/src-tauri/android/ControlEntradaStarSeed.kt, native/src-tauri/src/control_entrada_parche.rs, src/components/idiomas/__tests__/capa-idioma-hidratacion.test.tsx, src/components/idiomas/capa-idioma.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "dependencias_ya_en_main": [
+    "HAL04"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44456538890"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "HAL05b"
+  ]
+ }
+}
