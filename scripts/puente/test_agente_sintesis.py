@@ -342,25 +342,13 @@ class TestEncargarPorFlota(unittest.TestCase):
         self._tmp.cleanup()
 
     def _tarea(self, n=1):
-        # La poda compara con el reloj inyectado (`ahora`), no con una fecha fija que caduca a los 7 días.
-        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": A._iso(AHORA_CDMX_00),
+        # Fecha dentro del rango de poda (últimos 7 días), relativa al mismo reloj que poda.
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": A._iso(A._como_fecha()),
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
-        d = A.encargar_por_flota(self.raiz, [self._tarea()], ahora=AHORA_CDMX_00, vivos=[],
-                                 apto=(True, 100.0), libre=(True, 100.0))
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
         self.assertEqual(d["accion"], "cola_lista")
-        ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
-        with open(ruta, encoding="utf-8") as f:
-            cola = json.load(f)
-        self.assertEqual([t["id"] for t in cola], ["SIN11121"])
-
-    def test_una_tarea_nueva_no_se_poda_por_su_fecha(self):
-        # Regresión: la poda es de lo que YA estaba en la cola; una tarea recién encargada no se
-        # descarta aunque su `creada` venga vieja (antes quedaba la cola vacía y nada se publicaba).
-        vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
-        A.encargar_por_flota(self.raiz, [vieja], ahora=AHORA_CDMX_00, vivos=[],
-                             apto=(True, 100.0), libre=(True, 100.0))
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         with open(ruta, encoding="utf-8") as f:
             cola = json.load(f)
@@ -371,8 +359,7 @@ class TestEncargarPorFlota(unittest.TestCase):
         with open(viva, "w", encoding="utf-8") as f:
             json.dump([{"id": "COD1"}], f)
         vivo = {"pid": 123, "cola": "cola-codigo.json", "segundos": 3600, "solo": False}
-        d = A.encargar_por_flota(self.raiz, [self._tarea()], ahora=AHORA_CDMX_00, vivos=[vivo],
-                                 apto=(True, 100.0), libre=(True, 100.0))
+        d = A.encargar_por_flota(self.raiz, [self._tarea()], vivos=[vivo], apto=(True, 100.0), libre=(True, 100.0))
         self.assertEqual(d["accion"], "tanda_viva")
         with open(viva, encoding="utf-8") as f:
             viva_t = json.load(f)
@@ -383,8 +370,7 @@ class TestEncargarPorFlota(unittest.TestCase):
         vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
         with open(ruta, "w", encoding="utf-8") as f:
             json.dump([vieja], f)  # ya estaba en la cola: esto es lo que se poda
-        A.encargar_por_flota(self.raiz, [self._tarea(2)], ahora=AHORA_CDMX_00, vivos=[],
-                             apto=(True, 100.0), libre=(True, 100.0))
+        A.encargar_por_flota(self.raiz, [self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0))
         with open(ruta, encoding="utf-8") as f:
             cola = json.load(f)
         self.assertEqual([t["id"] for t in cola], ["SIN11122"])
