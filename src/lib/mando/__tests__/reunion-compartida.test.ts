@@ -157,4 +157,30 @@ describe("reunión colgada (2026-10-13)", () => {
         reloj = 8_500;
         expect((await r.obtener()).datos).toBe("nuevo");
     });
+
+    it("sembrar evita el bloqueo en frío y deja que la reunión se refresque sin pisar datos frescos", async () => {
+        let resolver!: (v: string) => void;
+        const fn = vi.fn(
+            () =>
+                new Promise<string>((res) => {
+                    resolver = res;
+                }),
+        );
+        let reloj = 10_000;
+        const r = crearReunionCompartida(fn, { frescoMs: 15_000, esperaMs: 1_500, obsoletoTrasMs: 90_000, ahora: () => reloj });
+        // Semilla de hace 30 s (> frescoMs, < obsoletoTrasMs): dispara refresco en fondo, pero devuelve al vencer 1,5 s.
+        r.sembrar("semilla-disco", 10_000 - 30_000);
+        const espera = r.obtener();
+        await vi.advanceTimersByTimeAsync(1_600);
+        const res = await espera;
+        expect(res).toMatchObject({ datos: "semilla-disco", obsoleto: false });
+        expect(fn).toHaveBeenCalledTimes(1);
+
+        // Si alguien siembra tarde, NO pisa un valor vivo posterior.
+        reloj = 11_600;
+        resolver("en-vivo");
+        await vi.advanceTimersByTimeAsync(0);
+        r.sembrar("vieja-disco", 1);
+        expect((await r.obtener()).datos).toBe("en-vivo");
+    });
 });

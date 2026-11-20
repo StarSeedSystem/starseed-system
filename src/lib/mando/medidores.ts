@@ -3422,7 +3422,9 @@ export function detalleDeMedidor(
                 clave,
                 titulo: "Tareas integradas",
                 resumen: ig
-                    ? `${ig.total} tareas integradas en main · aquí las ${filas.length} más recientes, con sus cambios y dónde vive hoy lo que implementaron`
+                    ? filas.length === 0 && ig.total > 0
+                        ? `${ig.total} tareas integradas en main · pulsa para ver las ${Math.min(ig.total, 30)} más recientes`
+                        : `${ig.total} tareas integradas en main · aquí las ${filas.length} más recientes, con sus cambios y dónde vive hoy lo que implementaron`
                     : "no se pudo leer main",
                 filas,
                 acciones: [IR_A("Ver olas e informes", "olas")],

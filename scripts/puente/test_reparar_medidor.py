@@ -262,6 +262,52 @@ class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class AccionGenesisProtegida(unittest.TestCase):
+    """(2026-11-20) `accion_genesis` respeta lo estático, el ahogo de memoria y barre huérfanos."""
+
+    def setUp(self):
+        import autocuracion_mando as A
+        self.A = A
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self._viejos = (A.ESTADO, A.PUBLICACION)
+        A.ESTADO = os.path.join(self.tmp, "auto.json")
+        A.PUBLICACION = os.path.join(self.tmp, "pub.json")
+        self.addCleanup(self._restaurar)
+
+    def _restaurar(self):
+        self.A.ESTADO, self.A.PUBLICACION = self._viejos
+
+    def test_no_reinicia_si_lo_estatico_responde(self):
+        def sondear_mock(url=None, _tope=None):
+            return bool(url and url.endswith("/version.json"))
+
+        with ExitStack() as s:
+            s.enter_context(unittest.mock.patch.object(self.A, "sondear", side_effect=sondear_mock))
+            s.enter_context(unittest.mock.patch.object(self.A, "ESPERA_ENTRE_SONDAS_S", 0))
+            s.enter_context(unittest.mock.patch.object(R, "instalando_build", return_value=False))
+            s.enter_context(unittest.mock.patch.object(R, "_estado_ahogo", return_value=""))
+            reiniciar = s.enter_context(unittest.mock.patch.object(self.A, "_reiniciar"))
+            ok, porque = R.accion_genesis()
+        self.assertFalse(ok)
+        self.assertIn("lento", porque)
+        self.assertEqual(reiniciar.call_count, 0)
+
+    def test_con_ahogo_barre_huerfanos_y_no_reinicia_genesis(self):
+        with ExitStack() as s:
+            s.enter_context(unittest.mock.patch.object(self.A, "sondear", return_value=False))
+            s.enter_context(unittest.mock.patch.object(self.A, "ESPERA_ENTRE_SONDAS_S", 0))
+            s.enter_context(unittest.mock.patch.object(R, "instalando_build", return_value=False))
+            s.enter_context(unittest.mock.patch.object(R, "_estado_ahogo", return_value="swap 12000 de 13000 MB"))
+            barrer = s.enter_context(unittest.mock.patch.object(R, "barrer_trabajadores_huerfanos", return_value=[123]))
+            reiniciar = s.enter_context(unittest.mock.patch.object(self.A, "_reiniciar"))
+            ok, porque = R.accion_genesis()
+        self.assertFalse(ok)
+        self.assertIn("ahogada", porque)
+        self.assertEqual(barrer.call_count, 1)
+        self.assertEqual(reiniciar.call_count, 0)
+
+
 def _ctx_manager(*ctxs):
     stack = ExitStack()
     mocks = []

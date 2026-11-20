@@ -256,7 +256,7 @@ export function DirectorAgentes() {
 
         // 2. Verificar API estado
         try {
-            const resEstado = await fetch("/api/mando/estado", { cache: "no-store" });
+            const resEstado = await fetch("/api/mando/estado?resumen=1", { cache: "no-store" });
             if (!resEstado.ok) {
                 resultados.push(`❌ API estado: HTTP ${resEstado.status}`);
                 todoOk = false;

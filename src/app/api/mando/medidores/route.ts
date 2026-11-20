@@ -13,7 +13,7 @@
  *      archivo a la vez y un volcado a medias lo dejaría ilegible.
  */
 import { execFile, spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -58,15 +58,18 @@ import {
     type AgenteDeLaNube,
     type ClaveMedidor,
     type DatosMedidores,
+    type DetalleMedidor,
     type RunDeLaNube,
 } from "@/lib/mando/medidores";
 import { elegirFuente, faltaLocal, leerPuerta, resumenDePuerta } from "@/lib/mando/medidores-remotos";
 import {
+    contarIntegradasEnAsuntos,
     parsearCommits,
     tareasIntegradasEnMain,
     ubicarDefiniciones,
     type Definicion,
 } from "@/lib/mando/integradas";
+import { parsearClavesLote } from "@/lib/mando/medidores-lote";
 import { fundirTitulosArchivados, parsearIndice } from "@/lib/mando/indice-colas";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { medirDisco } from "@/lib/mando/almacenamiento";
@@ -92,6 +95,21 @@ async function git(args: string[]): Promise<string> {
         return stdout;
     } catch {
         return "";
+    }
+}
+
+/** Envuelve una fuente externa o lenta con tope estricto en ms y valor de respaldo seguro. */
+async function conTope<T>(promesa: Promise<T>, ms: number, respaldo: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+        return await Promise.race([
+            promesa.catch(() => respaldo),
+            new Promise<T>((res) => {
+                timer = setTimeout(() => res(respaldo), ms);
+            }),
+        ]);
+    } finally {
+        if (timer !== null) clearTimeout(timer);
     }
 }
 
@@ -124,19 +142,20 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
 }
 
 // MED1111E · El carril de Claude y la puerta de integración ───────────────────────────────────────
-async function leerEnMarcha(): Promise<EnMarcha | null> {
-    const [carril, puerta, publicacion, pruebas, rondaLeida, direccion] = await Promise.all([
+async function leerEnMarcha(autopublicacion?: DatosMedidores["autopublicacion"] | null): Promise<EnMarcha | null> {
+    const [carril, puerta, autoLeida, pruebas, rondaLeida, direccion] = await Promise.all([
         leerCarrilDeDisco(RAÍZ),
         leerPuertaDeDisco(
             path.join(os.homedir(), ".starseed", "produccion", "puerta-estado.json"),
             path.join(os.homedir(), ".starseed", "opus1031"),
         ),
-        leerAutopublicacion().then(publicacionParaEnviar).catch(() => null),
+        autopublicacion === undefined ? leerAutopublicacion().catch(() => null) : Promise.resolve(autopublicacion),
         // PRB1111V · la versión de prueba en marcha (o fallida sin sustituir), solo con rastro en GitHub.
         pruebaParaEnMarcha().catch(() => null),
         Promise.resolve().then(() => leerRondaArchivo()).catch(() => null), // RON1112C · la ronda de aparatos
-        leerProcesosDireccion(RAÍZ), // MED1113A · null si el script no contesta: la vista lo dice
+        conTope(leerProcesosDireccion(RAÍZ), 4_500, null), // MED1113A · acotado para no colgar la reunión
     ]);
+    const publicacion = autoLeida ? publicacionParaEnviar(autoLeida) : null;
     const ronda = rondaParaEnviar(rondaLeida, Date.now()); // RON1112C: sólo si está en vigor a esta hora
     // MED1113A: `direccion` viaja SIEMPRE (también null): «no se pudo medir» y «no hay nada» no son lo mismo.
     return { generadoMs: Date.now(), carril, puerta, publicacion, ...(pruebas ? { pruebas } : {}), ...(ronda ? { ronda } : {}), direccion };
@@ -233,10 +252,10 @@ async function leerObras(ids: string[]): Promise<Record<string, { rama?: string;
             const dir = path.join(raizWt, id);
             try {
                 const [estado, rama] = await Promise.all([
-                    correr("git", ["-C", dir, "status", "--short"], { timeout: 8_000, maxBuffer: 400_000 })
+                    correr("git", ["-C", dir, "status", "--short"], { timeout: 3_000, maxBuffer: 400_000 })
                         .then((r) => r.stdout)
                         .catch(() => ""),
-                    correr("git", ["-C", dir, "branch", "--show-current"], { timeout: 8_000 })
+                    correr("git", ["-C", dir, "branch", "--show-current"], { timeout: 3_000 })
                         .then((r) => r.stdout.trim())
                         .catch(() => ""),
                 ]);
@@ -705,7 +724,36 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             tiempos[fuente] = Date.now() - inicio;
             throw e;
         });
-    const [progreso, colas, bus, latidosMacTodos, vivo, commitsGit, escritores] = await Promise.all([
+    // Oleada 1: todas las fuentes independientes en paralelo y con topes estrictos en las más caras.
+    const [
+        progreso,
+        colas,
+        bus,
+        latidosMacTodos,
+        vivo,
+        commitsGit,
+        escritores,
+        pausado,
+        indice,
+        salida,
+        commitsSinPublicarAstraura,
+        asuntosDeMain,
+        envios,
+        contenedores,
+        proveedores,
+        tokens,
+        olasNube,
+        disco,
+        memoria,
+        autopublicacion,
+        enMarchaBase,
+        correcciones,
+        revisorBloqueadas,
+        potenciar,
+        creditoClaude,
+        limitesClaude,
+        publicacion,
+    ] = await Promise.all([
         midiendo("progreso", leerEntradas()),
         midiendo("colas", leerColas().catch(() => [])),
         midiendo("bus", leerLatidosDelBus().catch(() => ({ latidos: [], enjambres: [] }))),
@@ -713,36 +761,54 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("enjambre", enjambreEnMarcha().catch(() => false)),
         midiendo("commitsOlas", leerCommitsDeOlas().catch(() => new Map())),
         midiendo("escritores", leerEscritores().catch(() => null)),
+        readFile(path.join(RAÍZ, "starseed_memory_root", "mando", "director-config.json"), "utf8")
+            .then((crudo) => Boolean((JSON.parse(crudo) as { pausado?: boolean }).pausado))
+            .catch(() => false),
+        readFile(path.join(RAÍZ, "starseed_memory_root", "colas-fuente", "indice.json"), "utf8")
+            .then((crudo) => parsearIndice(JSON.parse(crudo)))
+            .catch(() => null),
+        midiendo("git", git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"])),
+        midiendo(
+            "pendientesAstraura",
+            conTope(
+                leerPendientes("astraura").then((r) =>
+                    r.commits.map((c) => ({ sha: c.sha, asunto: c.asunto, fecha: c.fecha })),
+                ),
+                3_000,
+                [] as { sha: string; asunto: string; fecha?: string }[],
+            ),
+        ),
+        midiendo(
+            "asuntosMain",
+            conTope(leerAsuntosDeMainCacheados(), 4_000, cacheAsuntosMain?.asuntos ?? ""),
+        ),
+        midiendo("enviosNube", enviosALaNube().catch(() => ({}) as Record<string, number>)),
+        midiendo("contenedores", leerContenedores().catch(() => null)),
+        midiendo("proveedores", leerProveedores().catch(() => [])),
+        midiendo("tokens", leerTokens().catch(() => null)),
+        midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
+        midiendo("disco", conTope(medirDisco().then(discoParaMedidor), 3_000, undefined)),
+        midiendo("memoria", conTope(medirMemoriaMedidor(), 3_000, undefined)),
+        leerAutopublicacion().catch(() => null),
+        midiendo("enMarcha", leerEnMarcha(null)),
+        leerCorrecciones().catch(() => ({})),
+        leerRevisorBloqueadas().catch(() => null),
+        leerPotenciar().catch(() => null),
+        leerCreditoClaude().catch(() => null),
+        leerLimitesClaude().catch(() => null),
+        leerDiario().catch(() => null),
     ]);
-    // La pausa de Genesis vive fuera de git, en la config del director.
-    let pausado = false;
-    try {
-        const cfg = JSON.parse(
-            await readFile(path.join(RAÍZ, "starseed_memory_root", "mando", "director-config.json"), "utf8"),
-        ) as { pausado?: boolean };
-        pausado = Boolean(cfg.pausado);
-    } catch {
-        pausado = false;
-    }
+
+    const enMarcha: EnMarcha | null = enMarchaBase
+        ? { ...enMarchaBase, publicacion: autopublicacion ? publicacionParaEnviar(autopublicacion) : null }
+        : null;
 
     let titulos: Record<string, string> = {};
     for (const t of colas) titulos[t.id] = t.titulo;
-    // (2026-09-25) Agentes externos (Claude en Cowork, subagentes, Hermes): su título viene
-    // en el propio latido porque no salen de ninguna cola.
     for (const l of latidosMacTodos) if (l.titulo && !titulos[l.tarea]) titulos[l.tarea] = l.titulo;
-    // (2026-10-03) Colas archivadas por la higiene: su índice (pequeño, sin prompts) rellena
-    // títulos e ids conocidos, para que «Integradas» no baje al mover colas de `olas/`.
-    try {
-        const indice = parsearIndice(
-            JSON.parse(await readFile(path.join(RAÍZ, "starseed_memory_root", "colas-fuente", "indice.json"), "utf8")),
-        );
-        titulos = fundirTitulosArchivados(titulos, indice);
-    } catch {
-        /* sin índice: como antes */
-    }
+    if (indice) titulos = fundirTitulosArchivados(titulos, indice);
 
     // Commits que esta rama tiene y el remoto no.
-    const salida = await midiendo("git", git(["log", "@{upstream}..HEAD", "--format=%H%x1f%s%x1f%cI"]));
     const commitsSinPublicar = salida
         .split("\n")
         .filter(Boolean)
@@ -751,22 +817,6 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             return { sha: sha ?? "", asunto: asunto ?? "", fecha: fecha ?? "" };
         });
 
-    // (2026-10-08) Alex: «aparecen 11 sin publicar en el medidor pero ninguna dentro». La pastilla
-    // suma el OS y Astraura 1.58 (`/api/mando/publicaciones`); la lista solo leía el OS. Ahora
-    // también trae los de Astraura, con su repo, para que número y lista casen.
-    const commitsSinPublicarAstraura = await leerPendientes("astraura")
-        .then((r) => r.commits.map((c) => ({ sha: c.sha, asunto: c.asunto, fecha: c.fecha })))
-        .catch(() => [] as { sha: string; asunto: string; fecha?: string }[]);
-
-    // Ejecutables ahora: la regla vive en `medidores.ts` y es la MISMA que usa el
-    // vigilante. Aquí solo se le da lo que hay en disco y los asuntos de `main`.
-    // (2026-09-21) Aqui habia un `-n 1200` y por eso el medidor seguia ofreciendo tareas
-    // YA HECHAS aun leyendo Git: el repo tiene 2.311 commits y el de X6 esta en la posicion
-    // 1.311, justo fuera de la ventana. Y la ventana se llena rapido de ruido —356 commits
-    // de `chore(memoria)`—, asi que recortarla equivale a olvidar meses de trabajo. Sin
-    // tope: son 2.311 lineas, unos 150 KB, que git entrega en milisegundos. Una ventana
-    // que solo ve lo reciente convierte trabajo terminado en trabajo pendiente.
-    const asuntosDeMain = await midiendo("asuntosMain", leerAsuntosDeMainCacheados());
     const ejecutables = ejecutablesDeColas(colas, progreso, asuntosDeMain);
 
     // Latidos: los de ESTA Mac mandan sobre los del bus para la misma tarea, y los de la
@@ -859,29 +909,19 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     for (const t of colas) {
         if (t.id && t.archivos?.length && !declarados[t.id]) declarados[t.id] = t.archivos;
     }
-    const envios = await midiendo("enviosNube", enviosALaNube()).catch(() => ({}) as Record<string, number>);
-    const [obras, historiales, contenedores, proveedores, tokens, olasNube] = await Promise.all([
-        midiendo("obras", leerObras(idsVivas).catch(() => ({}))),
+    // Oleada 2: solo las fuentes que dependen de la oleada 1, en paralelo.
+    const mapaNube = new Map(olasNube.filter((o) => o.run).map((o) => [String(o.run), o.tareas.map((t) => t.id)] as const));
+    const [obras, historiales, agentesNube, agentesA1, sesionesClaudeNube, hilosCloudroom] = await Promise.all([
+        midiendo("obras", conTope(leerObras(idsVivas), 4_000, {})),
         midiendo("historiales", leerHistoriales(idsVivas).catch(() => ({}))),
-        midiendo("contenedores", leerContenedores().catch(() => null)),
-        midiendo("proveedores", leerProveedores().catch(() => [])),
-        midiendo("tokens", leerTokens().catch(() => null)),
-        midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
+        midiendo("agentesNube", leerAgentesDeLaNube(mapaNube).catch(() => [] as AgenteDeLaNube[])),
+        latidosDeAqui.some((l) => l.donde === DONDE_ORACLE || /oracle/i.test(String(l.donde ?? "")))
+            ? Promise.resolve([])
+            : midiendo("agentesA1", leerAgentesDelA1().catch(() => [])),
+        leerSesionesClaudeNube(progreso).catch(() => []),
+        leerHilosCloudroom(progreso).catch(() => []),
     ]);
-    // (2026-10-23) «Disco» y «Memoria» salían «sin dato» desde siempre: nadie los medía aquí.
-    const [disco, memoria] = await Promise.all([
-        midiendo("disco", medirDisco().then(discoParaMedidor).catch(() => undefined)),
-        midiendo("memoria", medirMemoriaMedidor().catch(() => undefined)),
-    ]);
-    const agentesNube = await midiendo(
-        "agentesNube",
-        leerAgentesDeLaNube(new Map(olasNube.filter((o) => o.run).map((o) => [String(o.run), o.tareas.map((t) => t.id)] as const))).catch(
-            () => [] as AgenteDeLaNube[],
-        ),
-    );
 
-    // (2026-09-23) Las olas en marcha, de la Mac y de la nube, con sus tareas. Y el encargo
-    // de cada tarea, que hasta hoy no salía de la cola: Genesis sabía el título y nada más.
     const olasActivas = [...olasDeLaMac(colas, latidosDeAqui), ...olasNube];
     const descripciones: Record<string, string> = {};
     for (const t of colas) if (t.descripcion) descripciones[t.id] = t.descripcion;
@@ -891,11 +931,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
             if (!descripciones[t.id] && t.descripcion) descripciones[t.id] = t.descripcion;
             if (!declarados[t.id] && t.archivos?.length) declarados[t.id] = t.archivos;
         }
-        // La fila de la nube en «En curso» y «Agentes» se llama `nube/<run>`: que diga QUÉ
-        // ola es y qué tareas lleva, en vez del número del run a secas.
         if (ola.run) {
-            // (2026-09-24) De qué OLA sale cada tarea (no la fecha del reparto) y cuáles se
-            // están reenviando una y otra vez sin integrarse.
             const olaDe = new Map(
                 colas.filter((t) => !/^(auto-|nube-)/.test(t.cola ?? "")).map((t) => [t.id, t.ola] as const),
             );
@@ -907,32 +943,19 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         }
     }
 
-    // (CAP1026O) Los trabajadores del A1 y el estado «en marcha» se leen en paralelo para no encadenar esperas.
-    const [agentesA1, enMarcha] = await Promise.all([
-        latidosDeAqui.some((l) => l.donde === DONDE_ORACLE || /oracle/i.test(String(l.donde ?? "")))
-            ? Promise.resolve([])
-            : midiendo("agentesA1", leerAgentesDelA1()),
-        midiendo("enMarcha", leerEnMarcha()),
-    ]);
     if (agentesA1[0] && !titulos[agentesA1[0].tarea]) {
         const n = agentesA1[0].tareasDeTanda.length;
         titulos[agentesA1[0].tarea] = `Cola ${agentesA1[0].cola} en el A1 de Oracle${n ? ` (${n} tarea${n === 1 ? "" : "s"})` : ""}`;
     }
 
-    // MED1111E · Los agentes del carril de Claude: cuentan SOLO con el latido del carril reciente.
     const agentesCarril = agentesDeCarrilClaude(enMarcha?.carril);
     for (const a of agentesCarril) if (!titulos[a.tarea]) titulos[a.tarea] = a.titulo;
-    // MED1113A · Los agentes de la dirección con señal medida reciente (los «en silencio» no cuentan; se nombran aparte).
     const agentesDireccion = agentesDeDireccion(enMarcha?.direccion);
     for (const a of agentesDireccion) titulos[a.tarea] = a.titulo;
-    // Un proceso de la dirección también anotado en el carril (relevable) o con latido externo es UN agente:
-    // manda la medida de la dirección y el otro rastro no se cuenta dos veces.
     const idsDireccion = new Set(agentesDireccion.map((a) => a.tarea));
     const sinDobleDireccion = <T extends { tarea: string; cola?: string; donde?: string }>(l: T) =>
         !idsDireccion.has(l.tarea) || !(String(l.cola ?? "").startsWith("externo-") || l.donde === "carril-claude");
 
-    // Si tardó más de 5 s, se dice QUÉ fuente lo hizo (las tres más lentas): así el log
-    // de Genesis explica las esperas en vez de solo registrar «heap out of memory».
     const total = Date.now() - inicio;
     if (total > 5_000) {
         const lentas = Object.fromEntries(
@@ -946,38 +969,32 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
     return {
         progreso,
         titulos,
-        // Los de la nube se SUMAN a los de la Mac: el medidor de agentes tiene que contar
-        // toda la capacidad viva, no solo la de esta máquina.
         latidos: [
             ...latidosDeAqui.filter(sinDobleDireccion),
             ...agentesNube,
-            ...(await leerSesionesClaudeNube(progreso)),
-            ...agentesCarril.filter(sinDobleDireccion), // MED1111E
-            ...agentesDireccion, // MED1113A
-            ...(await leerHilosCloudroom(progreso)),
+            ...sesionesClaudeNube,
+            ...agentesCarril.filter(sinDobleDireccion),
+            ...agentesDireccion,
+            ...hilosCloudroom,
             ...agentesA1,
         ],
         escritores,
         fantasmas,
-        // (2026-10-09) Lo que el director ya decidió y el vigilante aún no aplicó (espera a que
-        // acabe la tanda): sin esto «Fallidas» seguía enseñando como sin dueño lo ya resuelto.
-        correcciones: await leerCorrecciones(),
-        revisorBloqueadas: await leerRevisorBloqueadas(),
+        correcciones,
+        revisorBloqueadas,
         contenedores,
-        potenciar: await leerPotenciar().catch(() => null),
+        potenciar,
         disco,
         memoria,
-        creditoClaude: await leerCreditoClaude().catch(() => null),
-        limitesClaude: await leerLimitesClaude().catch(() => null),
+        creditoClaude,
+        limitesClaude,
         proveedores,
         tokens,
         commitsSinPublicar,
         commitsSinPublicarAstraura,
-        // (2026-09-23) Leer un JSON pequeño: el indicador de carga de «Sin publicar».
-        publicacion: await leerDiario().catch(() => null),
-        // (2026-10-08) Y el de la autopublicación: quién publica el OS y cuándo lo hizo por última vez.
-        autopublicacion: await leerAutopublicacion().catch(() => null),
-        enMarcha, // MED1111E
+        publicacion,
+        autopublicacion,
+        enMarcha,
         ejecutables,
         enjambreVivo: vivo,
         enjambrePausado: pausado,
@@ -987,13 +1004,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         declarados,
         olasActivas,
         descripciones,
-        // El repo publico, para poder enlazar ramas y commits desde la ficha.
         repoGitHub: "StarSeedSystem/starseed-system",
-        // (2026-09-21) Esto FALTABA y por eso el medidor «listas» ofrecia 24 tareas ya
-        // hechas mientras avisaba «no se pudieron leer los asuntos de Git». Los asuntos se
-        // leen arriba (linea 101) y se usan aqui mismo, pero no viajaban en el objeto, asi
-        // que `construirDetalle` recibia `undefined` y no podia filtrar nada. El filtro
-        // estaba bien escrito; lo que faltaba era darle el dato.
         asuntosDeMain,
     };
 }
@@ -1010,16 +1021,136 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 // reunión nueva) y la página, con 15 medidores y 4 lecturas a la vez, tardaba 30-40 s en leer la
 // ramificación; por el túnel, igual. Con una cifra anterior nadie espera más de 1,5 s; la cifra
 // lleva su edad (`datosDe`) y solo se marca «obsoleta» pasados 90 s.
-const reunion = crearReunionCompartida(reunir, { esperaMs: 1_500, obsoletoTrasMs: 90_000 });
+const CACHE_MEDIDORES = path.join(os.homedir(), ".starseed", "cache-medidores-genesis.json");
+const CACHE_MEDIDORES_DISCO_CADA_MS = 30_000;
+let ultimoGuardadoMedidoresMs = 0;
+
+async function reunirYGuardar(): Promise<Partial<DatosMedidores>> {
+    const datos = await reunir();
+    const ahora = Date.now();
+    if (ahora - ultimoGuardadoMedidoresMs >= CACHE_MEDIDORES_DISCO_CADA_MS) {
+        ultimoGuardadoMedidoresMs = ahora;
+        const tmp = `${CACHE_MEDIDORES}.tmp-${process.pid}`;
+        void writeFile(tmp, JSON.stringify({ t: ahora, datos }))
+            .then(() => rename(tmp, CACHE_MEDIDORES))
+            .catch(() => {});
+    }
+    return datos;
+}
+
+const reunion = crearReunionCompartida(reunirYGuardar, { esperaMs: 1_500, obsoletoTrasMs: 90_000 });
+const semillaMedidores = readFile(CACHE_MEDIDORES, "utf8")
+    .then((crudo) => {
+        const parsed = JSON.parse(crudo) as { t?: unknown; datos?: Partial<DatosMedidores> };
+        const t = Number(parsed?.t ?? 0);
+        if (parsed?.datos && typeof parsed.datos === "object" && Number.isFinite(t) && t > 0) {
+            reunion.sembrar(parsed.datos, t);
+        }
+    })
+    .catch(() => {});
+
+const CLAVES_RAPIDAS = new Set<ClaveMedidor>(["imaginacion", "credito-claude", "creditos", "versiones", "pruebas"]);
+
+async function aplicarPuertaADatos(
+    datosBase: Partial<DatosMedidores>,
+    tLocal: number,
+): Promise<{
+    datos: Partial<DatosMedidores>;
+    puerta: Awaited<ReturnType<typeof leerPuerta>>;
+    usarPuerta: boolean;
+}> {
+    const datos: Partial<DatosMedidores> = { ...datosBase };
+    const puerta = await leerPuerta().catch(() => null);
+    const usarPuerta = puerta?.foto
+        ? elegirFuente({
+              faltaLocal: faltaLocal(datos),
+              localMs: tLocal > 0 ? tLocal : 0,
+              fotoMs: puerta.tFoto,
+              ahora: Date.now(),
+          }) === "puerta"
+        : false;
+    if (usarPuerta && puerta?.foto) {
+        datos.enjambreVivo = puerta.foto.enjambreVivo;
+        datos.enjambrePausado = puerta.foto.enjambrePausado;
+        if (puerta.foto.enMarcha) datos.enMarcha = puerta.foto.enMarcha;
+    }
+    return { datos, puerta, usarPuerta };
+}
 
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const url = new URL(peticion.url);
+
+    // Lectura por lote (`?claves=listas,bloqueadas,...`): 1 reunión compartida y 1 respuesta JSON.
+    const clavesParam = url.searchParams.get("claves");
+    if (clavesParam !== null) {
+        const claves = parsearClavesLote(clavesParam);
+        if (claves.length === 0) {
+            return Response.json(
+                { error: "Sin claves válidas de medidor." },
+                { status: 400, headers: { "Cache-Control": "no-store" } },
+            );
+        }
+        let ambito: AmbitoPropuesta | "todos" = "metagenesis";
+        if (claves.includes("imaginacion")) {
+            const crudo = url.searchParams.get("ambito");
+            const resuelto = crudo ? leerAmbito(crudo) : "metagenesis";
+            if (resuelto === null) {
+                return Response.json(
+                    { error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." },
+                    { status: 400, headers: { "Cache-Control": "no-store" } },
+                );
+            }
+            ambito = resuelto;
+        }
+        const necesitaReunion = claves.some((c) => !CLAVES_RAPIDAS.has(c));
+        if (necesitaReunion) {
+            await Promise.race([semillaMedidores, new Promise((r) => setTimeout(r, 800))]);
+        }
+        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno] = await Promise.all([
+            claves.includes("imaginacion") ? leerImaginacion(ambito) : Promise.resolve(null),
+            claves.includes("credito-claude") ? leerLimitesClaude().catch(() => null) : Promise.resolve(null),
+            claves.includes("creditos") ? leerCreditosPago().catch(() => null) : Promise.resolve(null),
+            claves.includes("versiones") ? leerLanzamientosEstado().catch(() => null) : Promise.resolve(null),
+            necesitaReunion ? reunion.obtener() : Promise.resolve(null),
+        ]);
+        const base = turno?.datos ?? {};
+        const datosDe = turno && turno.t > 0 ? new Date(turno.t).toISOString() : null;
+        const { datos, puerta, usarPuerta } = necesitaReunion
+            ? await aplicarPuertaADatos(base, turno?.t ?? 0)
+            : { datos: {} as Partial<DatosMedidores>, puerta: null, usarPuerta: false };
+        if (claves.includes("integradas") && necesitaReunion) {
+            const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
+            datos.integradas =
+                cacheIntegradas?.datos ?? {
+                    total: contarIntegradasEnAsuntos(datos.asuntosDeMain ?? "", conocidas),
+                    lista: [],
+                };
+        }
+        const detalles: Partial<Record<ClaveMedidor, DetalleMedidor>> = {};
+        for (const c of claves) {
+            if (c === "imaginacion") detalles[c] = detalleDeMedidor(c, { imaginacion });
+            else if (c === "credito-claude") detalles[c] = detalleDeMedidor(c, { limitesClaude });
+            else if (c === "creditos") detalles[c] = detalleDeMedidor(c, { creditosPago });
+            else if (c === "versiones") detalles[c] = detalleDeMedidor(c, { lanzamientosEstado });
+            else if (c === "pruebas") detalles[c] = detalleDeMedidor(c, {});
+            else detalles[c] = detalleDeMedidor(c, datos);
+        }
+        return Response.json(
+            {
+                detalles,
+                enMarcha: datos.enMarcha ?? null,
+                generadoEn: new Date().toISOString(),
+                datosDe,
+                obsoleto: turno ? turno.obsoleto : false,
+                puerta: resumenDePuerta(puerta, usarPuerta, Date.now()),
+            },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+
     const clave = (url.searchParams.get("clave") ?? "ola-activa") as ClaveMedidor;
-    // (IMG1024B) «Imaginación» reúne solo sus dos archivos (propuestas y ajustes), como los créditos:
-    // no espera a la reunión compartida (15 s de caché), así la pastilla se pone al día en cuanto
-    // integras o reimaginas. `?ambito=` como en /api/mando/imaginacion; sin él, MetaGenesis.
     if (clave === "imaginacion") {
         const crudo = url.searchParams.get("ambito");
         const ambito = crudo ? leerAmbito(crudo) : "metagenesis";
@@ -1035,7 +1166,6 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // (2026-10-04) Los límites del plan de Claude solo necesitan su propio archivo: no se reúne todo.
     if (clave === "credito-claude") {
         const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
@@ -1050,8 +1180,6 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // (2026-11-05, VER1105D) Centro de Versiones: lee el estado del director de lanzamientos
-    // (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor.
     if (clave === "versiones") {
         const estado = await leerLanzamientosEstado().catch(() => null);
         return Response.json(
@@ -1059,53 +1187,28 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // PRB1111V: «Pruebas» no usa la reunión (su panel pide /api/mando/lanzamientos/pruebas/vivo).
     if (clave === "pruebas") {
         return Response.json(
             { detalle: detalleDeMedidor(clave, {}), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
+
+    await Promise.race([semillaMedidores, new Promise((r) => setTimeout(r, 800))]);
     const turno = await reunion.obtener();
-    // Copia: `integradas` se añade abajo y no puede quedarse pegada al resultado compartido.
-    const datos: Partial<DatosMedidores> = { ...(turno.datos ?? {}) };
-    // De CUÁNDO es la cifra y si está obsoleta: el panel la enseña con su edad en vez de 0.
     const datosDe = turno.t > 0 ? new Date(turno.t).toISOString() : null;
+    const { datos, puerta, usarPuerta } = await aplicarPuertaADatos(turno.datos ?? {}, turno.t);
     if (clave === "integradas") {
-        // Los ids que existen de verdad: sin este filtro, «mando: …» contaría como tarea.
         const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
         datos.integradas = await leerIntegradas(conocidas).catch(() => null);
-    }
-    // (2026-10-29, IND1029F · architecture/metagenesis-autonoma.md) Cuando ESTA instancia no tiene
-    // los archivos del líder (la Genesis publicada, otra neurona) o su reunión es vieja, la puerta
-    // de datos del A1 trae la última foto que él dejó (IND1029E, cada minuto), marcada «desde
-    // <neurona>, hace N min». guardianMando pidió sesión arriba: a la puerta no entra nadie anónimo.
-    const puerta = await leerPuerta().catch(() => null);
-    const usarPuerta = puerta?.foto
-        ? elegirFuente({
-            faltaLocal: faltaLocal(datos),
-            localMs: turno.t > 0 ? turno.t : 0,
-            fotoMs: puerta.tFoto,
-            ahora: Date.now(),
-        }) === "puerta"
-        : false;
-    if (usarPuerta && puerta?.foto) {
-        // Lo que la foto puede decir en forma propia de `DatosMedidores` sin inventar nada más.
-        datos.enjambreVivo = puerta.foto.enjambreVivo;
-        datos.enjambrePausado = puerta.foto.enjambrePausado;
-        // MED1111E: el carril y la puerta de la neurona que tiene los archivos (solo ids, títulos, estados, cuentas y tiempos).
-        if (puerta.foto.enMarcha) datos.enMarcha = puerta.foto.enMarcha;
     }
     return Response.json(
         {
             detalle: detalleDeMedidor(clave, datos),
-            // MED1111E · Qué corre ahora y qué acaba de terminar (carril de Claude, puerta, publicación). Sin prompts ni rutas.
             enMarcha: datos.enMarcha ?? null,
             generadoEn: new Date().toISOString(),
             datosDe,
             obsoleto: turno.obsoleto,
-            // La foto del líder, con su marca «desde <neurona>, hace N min»; `hayFoto: false` si no la hay.
             puerta: resumenDePuerta(puerta, usarPuerta, Date.now()),
         },
         { headers: { "Cache-Control": "no-store" } },

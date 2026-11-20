@@ -22,7 +22,7 @@ import type { CuentasTareas, EstadoMando, EventoRelevo, RepoInfo } from "@/lib/m
 import { guardianMando } from "@/lib/mando/guardian";
 import { ramificacionCompartida } from "@/lib/mando/ramificacion-compartida";
 import { compartirCalculo } from "@/lib/mando/calculo-compartido";
-import { quiereEstadoCompleto, textoEstado } from "@/lib/mando/estado-ligero";
+import { quiereEstadoCompleto, quiereEstadoResumen, textoEstado } from "@/lib/mando/estado-ligero";
 import {
     leerColas,
     colaInteligente,
@@ -107,9 +107,9 @@ export async function GET(request: Request): Promise<Response> {
 
     await Promise.race([semilla, new Promise((r) => setTimeout(r, 1_500))]);
     const estado = await estadoCompartido();
-    // (2026-10-13) Ligero por defecto: 3,1 MB por sondeo eran sobre todo informes y descripciones
-    // que solo enseña el panel de olas, que pide `?completo=1` (`estado-ligero.ts`).
-    return new Response(textoEstado(estado, quiereEstadoCompleto(request.url)), {
+    const modo = quiereEstadoCompleto(request.url) ? "completo" : quiereEstadoResumen(request.url) ? "resumen" : "ligero";
+    // Ligero/resumen por defecto: ?resumen=1 omite también las ~4.800 tareas (~1,2 MB) que solo usa panel-olas (?completo=1).
+    return new Response(textoEstado(estado, modo), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
     });
 }
@@ -143,11 +143,19 @@ const semilla = readFile(CACHE_ESTADO, "utf8")
     })
     .catch(() => {});
 
+const CACHE_ESTADO_DISCO_CADA_MS = 60_000;
+let ultimoGuardadoEstadoMs = 0;
+
 async function calcularYGuardar(): Promise<EstadoMando> {
     const estado = await calcularEstado();
-    void writeFile(CACHE_ESTADO + ".tmp", JSON.stringify(estado))
-        .then(() => rename(CACHE_ESTADO + ".tmp", CACHE_ESTADO))
-        .catch(() => {});
+    const ahora = Date.now();
+    if (ahora - ultimoGuardadoEstadoMs >= CACHE_ESTADO_DISCO_CADA_MS) {
+        ultimoGuardadoEstadoMs = ahora;
+        const tmp = `${CACHE_ESTADO}.tmp-${process.pid}`;
+        void writeFile(tmp, JSON.stringify(estado))
+            .then(() => rename(tmp, CACHE_ESTADO))
+            .catch(() => {});
+    }
     return estado;
 }
 

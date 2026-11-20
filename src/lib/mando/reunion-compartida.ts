@@ -38,6 +38,7 @@ const MAX_EN_MARCHA_DEFECTO_MS = 900_000;
 
 export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: OpcionesReunion = {}): {
     obtener(): Promise<ResultadoReunion<T>>;
+    sembrar(datos: T, t: number): void;
 } {
     const frescoMs = opciones.frescoMs ?? FRESCO_DEFECTO_MS;
     const esperaMs = opciones.esperaMs ?? ESPERA_DEFECTO_MS;
@@ -48,6 +49,11 @@ export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: Opcion
 
     let ultimo: { datos: T; t: number; desde: number } | null = null;
     let enMarcha: { p: Promise<T | null>; desde: number } | null = null;
+
+    /** Siembra un último valor conocido (por ejemplo, leído del disco al arrancar). */
+    function sembrar(datos: T, t: number): void {
+        if (!ultimo && Number.isFinite(t)) ultimo = { datos, t, desde: t };
+    }
 
     // Una única llamada viva siempre. Un fallo NO borra el último bueno: solo libera
     // el turno para el siguiente intento. Una colgada (> maxEnMarchaMs) se suelta: si acaba
@@ -103,5 +109,5 @@ export function crearReunionCompartida<T>(fn: () => Promise<T>, opciones: Opcion
         return { datos: viejo.datos, t: viejo.t, obsoleto: ahora() - viejo.t >= obsoletoTrasMs };
     }
 
-    return { obtener };
+    return { obtener, sembrar };
 }

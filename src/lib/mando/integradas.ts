@@ -180,6 +180,24 @@ export function tareasIntegradasEnMain(
 }
 
 /**
+ * Cuenta cuántas tareas únicas tienen al menos un commit en los asuntos de `main`, sin ejecutar `git show`.
+ * Equivale a `tareasIntegradasEnMain(...).length` para la pastilla de resumen. PURA.
+ */
+export function contarIntegradasEnAsuntos(asuntosDeMain: string, conocidas: Set<string>, maxLineas = 5000): number {
+    const ids = new Set<string>();
+    let vistas = 0;
+    for (const linea of asuntosDeMain.split("\n")) {
+        const asunto = linea.trim();
+        if (!asunto) continue;
+        vistas += 1;
+        if (vistas > maxLineas) break;
+        const t = tareaDeAsunto(asunto, conocidas);
+        if (t) ids.add(t.id);
+    }
+    return ids.size;
+}
+
+/**
  * Dónde está HOY cada definición: se busca en el archivo tal y como está en `main`. Si no
  * aparece, `linea` es null y la ficha lo dice: la enlazaría a un sitio que ya no existe. PURA.
  */

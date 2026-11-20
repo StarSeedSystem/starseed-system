@@ -27,6 +27,17 @@ export function quiereEstadoCompleto(url: string): boolean {
     }
 }
 
+/** ¿La petición pide solo el resumen sin `tareas` (`?resumen=1`), p. ej. cabecera, procesos o flota? */
+export function quiereEstadoResumen(url: string): boolean {
+    if (quiereEstadoCompleto(url)) return false;
+    try {
+        const v = new URL(url, "http://localhost").searchParams.get("resumen");
+        return v === "1" || v === "si" || v === "true";
+    } catch {
+        return false;
+    }
+}
+
 /** PURA. El estado sin los textos largos que solo usa el panel de olas. No muta la entrada. */
 export function estadoLigero(estado: EstadoMando): EstadoMando {
     return {
@@ -43,9 +54,18 @@ export function estadoLigero(estado: EstadoMando): EstadoMando {
     };
 }
 
-const proyecciones = new WeakMap<EstadoMando, EstadoMando>();
+/** PURA. Como `estadoLigero`, pero sin el arreglo gigante `tareas` (solo lo pide `panel-olas`). No muta la entrada. */
+export function estadoResumen(estado: EstadoMando): EstadoMando {
+    return {
+        ...estadoLigero(estado),
+        tareas: [],
+    };
+}
 
-/** La proyección ligera, calculada una vez por estado (el estado se comparte 8 s entre todos). */
+const proyecciones = new WeakMap<EstadoMando, EstadoMando>();
+const resumenes = new WeakMap<EstadoMando, EstadoMando>();
+
+/** La proyección ligera, calculada una vez por estado (el estado se comparte 20 s entre todos). */
 export function estadoLigeroCacheado(estado: EstadoMando): EstadoMando {
     let ligero = proyecciones.get(estado);
     if (!ligero) {
@@ -55,15 +75,33 @@ export function estadoLigeroCacheado(estado: EstadoMando): EstadoMando {
     return ligero;
 }
 
-const textos = new WeakMap<EstadoMando, { ligero?: string; completo?: string }>();
+/** La proyección resumen (sin `tareas`), calculada una vez por estado. */
+export function estadoResumenCacheado(estado: EstadoMando): EstadoMando {
+    let resumen = resumenes.get(estado);
+    if (!resumen) {
+        resumen = estadoResumen(estado);
+        resumenes.set(estado, resumen);
+    }
+    return resumen;
+}
+
+export type ModoTextoEstado = boolean | "completo" | "ligero" | "resumen";
+
+const textos = new WeakMap<EstadoMando, { completo?: string; ligero?: string; resumen?: string }>();
 
 /** El JSON que se envía, serializado una vez por estado y variante (antes: una vez por petición). */
-export function textoEstado(estado: EstadoMando, completo: boolean): string {
+export function textoEstado(estado: EstadoMando, modo: ModoTextoEstado): string {
+    const clave = modo === true || modo === "completo" ? "completo" : modo === "resumen" ? "resumen" : "ligero";
     const hechos = textos.get(estado) ?? {};
-    const clave = completo ? "completo" : "ligero";
     let texto = hechos[clave];
     if (texto === undefined) {
-        texto = JSON.stringify(completo ? estado : estadoLigeroCacheado(estado));
+        const valor =
+            clave === "completo"
+                ? estado
+                : clave === "resumen"
+                  ? estadoResumenCacheado(estado)
+                  : estadoLigeroCacheado(estado);
+        texto = JSON.stringify(valor);
         hechos[clave] = texto;
         textos.set(estado, hechos);
     }

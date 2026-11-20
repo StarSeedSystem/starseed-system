@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { INFORMES_LIGERO, estadoLigero, estadoLigeroCacheado, quiereEstadoCompleto, textoEstado } from "../estado-ligero";
+import {
+    INFORMES_LIGERO,
+    estadoLigero,
+    estadoLigeroCacheado,
+    estadoResumen,
+    estadoResumenCacheado,
+    quiereEstadoCompleto,
+    quiereEstadoResumen,
+    textoEstado,
+} from "../estado-ligero";
 import type { EstadoMando } from "../tipos";
 
 function estado(): EstadoMando {
@@ -42,10 +51,22 @@ describe("estado ligero (2026-10-13: 3,1 MB por sondeo)", () => {
     it("serializa una vez por estado y variante", () => {
         const e = estado();
         expect(estadoLigeroCacheado(e)).toBe(estadoLigeroCacheado(e));
+        expect(estadoResumenCacheado(e)).toBe(estadoResumenCacheado(e));
         const ligero = textoEstado(e, false);
         const completo = textoEstado(e, true);
+        const resumen = textoEstado(e, "resumen");
         expect(textoEstado(e, false)).toBe(ligero);
+        expect(textoEstado(e, "resumen")).toBe(resumen);
         expect(ligero.length).toBeLessThan(completo.length / 5);
         expect(JSON.parse(completo).informes[0].markdown).toContain("# largo");
+        expect(JSON.parse(resumen).tareas).toEqual([]);
+        expect(estadoResumen(e).tareas).toEqual([]);
+        expect(e.tareas).toHaveLength(1);
+    });
+
+    it("detecta ?resumen=1 solo cuando no se pide ?completo=1", () => {
+        expect(quiereEstadoResumen("/api/mando/estado?resumen=1")).toBe(true);
+        expect(quiereEstadoResumen("/api/mando/estado?resumen=1&completo=1")).toBe(false);
+        expect(quiereEstadoResumen("/api/mando/estado")).toBe(false);
     });
 });

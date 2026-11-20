@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    contarIntegradasEnAsuntos,
     definicionDeLinea,
     parsearCommits,
     resumenDeCambios,
@@ -162,5 +163,18 @@ describe("medidor «integradas»", () => {
         expect(impl[0].enlace).toBe("https://github.com/o/r/blob/main/src/a.ts#L12");
         expect(impl[1].aviso).toBe(true);
         expect(impl[1].valor).toContain("ya no está");
+    });
+
+    it("contarIntegradasEnAsuntos coincide con tareasIntegradasEnMain sin git show y formatea el resumen compacto", () => {
+        const asuntos = [
+            "Ola 237 · x · DEDUPE: No subir dos veces",
+            "salvavidas · DEDUPE: trabajo del agente",
+            "mando: algo que no es tarea",
+            "363 · RM2: Estado PAIR",
+        ].join("\n");
+        expect(contarIntegradasEnAsuntos(asuntos, conocidas)).toBe(2);
+        const d = detalleDeMedidor("integradas", { integradas: { total: 412, lista: [] } });
+        expect(d.resumen).toMatch(/^412 tareas integradas en main/);
+        expect(d.filas).toEqual([]);
     });
 });

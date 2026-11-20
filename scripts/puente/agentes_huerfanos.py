@@ -144,6 +144,53 @@ def _es_shell_con_c(args):
     return False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-11-20) EL ÁRBOL DE VITEST DE UN AGENTE QUE YA MURIÓ
+#
+# Medido el 20-11 (swap 12,1 GB / 13,3 GB): `ASW13-d1b` había muerto hacía casi 1 h,
+# dejando `/bin/zsh -c cd … && npx vitest run …` adoptado por launchd (`ppid 1`), y
+# debajo seguían vivos `npm exec vitest run` → `node (vitest)` → `esbuild` + 7
+# `node (vitest N)` + `tinypool`. El barrido antiguo solo miraba `node (vitest N)`
+# con `ppid == 1` directo; su `node (vitest)` padre seguía vivo reponiendo hijos.
+# ─────────────────────────────────────────────────────────────────────────────
+_VITEST_NPM = _re.compile(r"^(?:\S*/)?(?:npm\s+exec|npx)\s+vitest(?:\s|$)")
+_VITEST_NODE = _re.compile(r"^(?:\S*/)?node(?:\s+-(?!e\b|p\b|-eval\b|-print\b)\S+)*\s+\S*(?:[/.]bin/vitest|/vitest/(?:vitest\.mjs|dist/cli\.js))(?:\s|$)")
+
+
+def es_vitest(args):
+    """¿Es un lanzador de vitest (`npm exec vitest`, `npx vitest`, `node …/.bin/vitest`) o `node (vitest)`?"""
+    linea = (args or "").strip()
+    return bool(_VITEST_NPM.match(linea) or _VITEST_NODE.match(linea) or es_trabajador_de_puerta(linea))
+
+
+def _es_raiz_vitest_sin_agente(tabla, pid):
+    """True si `pid` es la cabeza de un árbol vitest adoptado por init vía `shell -c` o `npm exec/npx`."""
+    ppid, args = tabla[pid]
+    if es_vitest(tabla.get(ppid, (0, ""))[1]):
+        return False                        # pertenece a un vitest padre ya contado como cabeza
+    if ppid == 1:
+        return bool(_VITEST_NPM.match(args) or es_trabajador_de_puerta(args))
+    return ppid in tabla and tabla[ppid][0] == 1 and _es_shell_con_c(tabla[ppid][1])
+
+
+def vitest_huerfanos(filas):
+    """Pids de árboles vitest huérfanos (su agente murió) y todo lo que cuelga de ellos
+    (`node (vitest)`, `esbuild`, `node (vitest N)`, `tinypool`), sin tocar procesos vivos ni
+    shells interactivos. `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
+    tabla = _tabla(filas)
+    hijos = {}
+    for pid, (ppid, _) in tabla.items():
+        hijos.setdefault(ppid, []).append(pid)
+    pendientes = [p for p, (_, args) in tabla.items() if es_vitest(args) and _es_raiz_vitest_sin_agente(tabla, p)]
+    fuera = set(pendientes)
+    while pendientes:
+        for hijo in hijos.get(pendientes.pop(), ()):
+            if hijo > 1 and hijo not in fuera:
+                fuera.add(hijo)
+                pendientes.append(hijo)
+    return [p for p in tabla if p in fuera]
+
+
 def _tabla(filas):
     """{pid: (ppid, args)} de las filas válidas, en el orden en que llegaron; la basura se ignora."""
     tabla = {}
@@ -250,8 +297,9 @@ def codegraph_huerfanos(filas):
 
 def trabajadores_huerfanos(filas):
     """Pids de lo que ya no sirve a nadie y retiene RAM: los trabajadores de vitest adoptados por
-    init (su vitest ya murió), el árbol de un tsc sin agente (`tsc_huerfanos`, SUP0111K) y el de un
-    cliente `codegraph serve --mcp` sin agente (`codegraph_huerfanos`, SUP0211F).
+    init (su vitest ya murió), árboles de vitest de agentes muertos (`vitest_huerfanos`), el árbol
+    de un tsc sin agente (`tsc_huerfanos`, SUP0111K) y el de un cliente `codegraph serve --mcp` sin
+    agente (`codegraph_huerfanos`, SUP0211F).
 
     `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
     filas = list(filas or ())               # se recorre más de una vez
@@ -264,7 +312,7 @@ def trabajadores_huerfanos(filas):
             continue
         if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
             fuera.append(pid)
-    for pid in tsc_huerfanos(filas) + codegraph_huerfanos(filas):
+    for pid in vitest_huerfanos(filas) + tsc_huerfanos(filas) + codegraph_huerfanos(filas):
         if pid not in fuera:
             fuera.append(pid)
     return fuera

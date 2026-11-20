@@ -237,5 +237,50 @@ class CodegraphHuerfanos(unittest.TestCase):
         self.assertEqual(A.codegraph_huerfanos(absurda), [900])   # init nunca cuelga de nadie: no arrastra a sus hijos
 
 
+class VitestHuerfanos(unittest.TestCase):
+    """(2026-11-20) El árbol entero de vitest de un agente muerto (`ASW13-d1b`), adoptado por init."""
+
+    ORQ = "/opt/homebrew/bin/python3 -u /Users/alex/.local/bin/starseed-enjambre.py cola.json --workers 3"
+
+    def arbol_asw13(self, padre_zsh):
+        return [
+            (29367, padre_zsh, "/bin/zsh -c cd /Users/alex/Documents/starseed-wt/ASW13-d1b && npx vitest run 2>&1 | tail -50"),
+            (29369, 29367, "npm exec vitest run"),
+            (29370, 29367, "tail -50"),
+            (29400, 29369, "node (vitest)"),
+            (29412, 29400, "/repo/node_modules/@esbuild/darwin-arm64/bin/esbuild --service=0.21.5 --ping"),
+            (76721, 29400, "node (vitest 5)"),
+            (77367, 29400, "/opt/homebrew/bin/node /repo/node_modules/tinypool/dist/entry/process.js"),
+        ]
+
+    def test_caso_real_asw13_corta_raiz_y_descendientes_sin_tocar_zsh_ni_tail(self):
+        esperado = [29369, 29400, 29412, 76721, 77367]
+        self.assertEqual(A.vitest_huerfanos(self.arbol_asw13(1)), esperado)
+        for pid in esperado:
+            self.assertIn(pid, A.trabajadores_huerfanos(self.arbol_asw13(1)))
+
+    def test_no_toca_vitest_con_agente_o_orquestador_o_terminal_vivos(self):
+        bajo_opencode = self.arbol_asw13(900) + [(900, 800, OPENCODE), (800, 1, self.ORQ)]
+        self.assertEqual(A.vitest_huerfanos(bajo_opencode), [])
+        bajo_orq = self.arbol_asw13(800) + [(800, 1, self.ORQ)]
+        self.assertEqual(A.vitest_huerfanos(bajo_orq), [])
+        terminal = [
+            (300, 1, "login -pf alex"),
+            (301, 300, "-zsh"),
+            (302, 301, "npm exec vitest run"),
+            (303, 302, "node (vitest)"),
+            (304, 303, "node (vitest 1)"),
+        ]
+        self.assertEqual(A.vitest_huerfanos(terminal), [])
+
+    def test_reconoce_vitest_y_ignora_node_eval_y_filas_rotas(self):
+        self.assertTrue(A.es_vitest("npx vitest run src/foo.test.ts"))
+        self.assertTrue(A.es_vitest("node /repo/node_modules/.bin/vitest run"))
+        self.assertFalse(A.es_vitest("node -e console.log('/repo/.bin/vitest')"))
+        self.assertFalse(A.es_vitest("grep vitest"))
+        filas = [None, ("x", 1, "npx vitest"), (10, 11, "npx vitest"), (11, 10, "npx vitest")]
+        self.assertEqual(A.vitest_huerfanos(filas), [])
+
+
 if __name__ == "__main__":
     unittest.main()

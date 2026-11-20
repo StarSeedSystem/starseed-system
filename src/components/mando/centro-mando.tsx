@@ -35,8 +35,14 @@ import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/ma
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import { MedidorConsumo } from "@/components/mando/medidor-consumo";
-import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor, ResumenImaginacionMedidor } from "@/lib/mando/medidores";
-import { ESPERA_A_OTRA, cargaDePublicacion, cifraDePastilla, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import { cargaDePublicacion, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import {
+    CLAVES_RESUMEN_PULSO,
+    RESUMEN_MEDIDORES_VACIO,
+    extraerResumenMedidores,
+    type ResumenMedidoresPulso,
+} from "@/lib/mando/medidores-lote";
 import { ambitoDeLaUrl, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 import { PanelProcesos } from "@/components/mando/panel-procesos";
 import { PanelSuenos } from "@/components/mando/panel-suenos";
@@ -795,316 +801,29 @@ export function CentroMando() {
     // — lo que Alex vio como «son los mismos datos» — y encima se quedaba en 3 (la Mac)
     // mientras la nube tenía 4 agentes escribiendo. Ahora cuenta agentes, no tareas, y
     // cuenta los de todos los medios porque el detalle sale de la misma llamada.
-    const [medidoresResumen, setMedidoresResumen] = useState<{
-        listas: number | null;
-        bloqueadas: number | null;
-        /** (2026-10-10, OPB1011) «N en cadena · …»: las esperas no cuentan en el número. */
-        bloqueadasResumen?: string | null;
-        /** (2026-10-20) Las esperas de una cadena: salen del MISMO detalle que «Bloqueadas». */
-        enCadena?: number | null;
-        enCadenaResumen?: string | null;
-        agentes: number | null;
-        agentesResumen: string | null;
-        /** Tareas que alguien está haciendo AHORA, aquí y en la nube. Ver `cargarMedidoresResumen`. */
-        enCurso: number | null;
-        enCursoResumen: string | null;
-        /** Agentes que CABEN ahora en los contenedores de nube (sitio libre medido). */
-        contenedores: number | null;
-        contenedoresResumen: string | null;
-        /** Tokens por segundo de todo Genesis, de las fuentes que llevan contador. */
-        tokens: number | null;
-        tokensResumen: string | null;
-        /** Agentes que trabajan donde no hay contador de tokens (la nube). */
-        tokensCiegos: number | null;
-        /** (2026-09-23) Olas en marcha según el MISMO medidor que se abre al pulsar. */
-        olas: number | null;
-        olaTitulo: string | null;
-        olasResumen: string | null;
-        /** (2026-09-23) Tareas integradas en `main`, del mismo medidor que abre la pastilla. */
-        integradas: number | null;
-        integradasResumen: string | null;
-        /** Pasarelas sin cupo o caídas, según el archivo que el enjambre OBEDECE. */
-        agotados: number | null;
-        /** (2026-10-09) Modelos con cupo: la pastilla dice lo que HAY, no lo que falta. */
-        vivos: number | null;
-        proveedoresResumen: string | null;
-        /** (2026-10-09) Fallidas sin resolver de los últimos 3 días (medidor «fallidas»). */
-        fallidas: number | null;
-        fallidasResumen: string | null;
-        /** (2026-10-24, IMG1024B) La pastilla «Imaginación» del ámbito del pulso; null = sin datos. */
-        imaginacion?: ResumenImaginacionMedidor | null;
-        /** (2026-09-27) Crédito de Claude en la nube: «$250 de $250 · vence en…». */
-        credito: string | null;
-        creditoResumen: string | null;
-        creditoTono: TonoMedidor;
-        /** Una tarjeta dinámica por medidor de pago leído desde terminal o API. */
-        creditos: FilaMedidor[];
-    } | null>(null);
+    const [medidoresResumen, setMedidoresResumen] = useState<ResumenMedidoresPulso | null>(null);
+    const enCursoMedidoresRef = useRef(false);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
+        if (enCursoMedidoresRef.current) return;
         if (!forzar && document.visibilityState === "hidden") return;
+        enCursoMedidoresRef.current = true;
         try {
-            const [resListas, resBloqueadas, resAgentes, resEnCurso, resContenedores, resProveedores, resTokens, resOlas, resIntegradas, resCredito, resCreditos, resFallidas, resImaginacion] =
-                await Promise.allSettled([
-                    fetch("/api/mando/medidores?clave=listas", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=bloqueadas", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=agentes", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=en-curso", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=contenedores", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=proveedores", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=tokens", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=ola-activa", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=integradas", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=credito-claude", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=creditos", { cache: "no-store" }),
-                    fetch("/api/mando/medidores?clave=fallidas", { cache: "no-store" }),
-                    fetch(`/api/mando/medidores?clave=imaginacion&ambito=${encodeURIComponent(ambitoPulsoRef.current)}`, {
-                        cache: "no-store",
-                    }),
-                ]);
-
-            let listas: number | null = null;
-            let bloqueadas: number | null = null;
-            let bloqueadasResumen: string | null = null;
-            let enCadena: number | null = null;
-            let enCadenaResumen: string | null = null;
-            let agentes: number | null = null;
-            let agentesResumen: string | null = null;
-            let enCurso: number | null = null;
-            let enCursoResumen: string | null = null;
-            let tokens: number | null = null;
-            let tokensResumen: string | null = null;
-            let tokensCiegos: number | null = null;
-            let olas: number | null = null;
-            let olaTitulo: string | null = null;
-            let olasResumen: string | null = null;
-            let integradas: number | null = null;
-            let integradasResumen: string | null = null;
-            let contenedores: number | null = null;
-            let contenedoresResumen: string | null = null;
-            let agotados: number | null = null;
-            let vivos: number | null = null;
-            let proveedoresResumen: string | null = null;
-            let fallidas: number | null = null;
-            let fallidasResumen: string | null = null;
-            let imaginacion: ResumenImaginacionMedidor | null = null;
-            let credito: string | null = null;
-            let creditoResumen: string | null = null;
-            let creditoTono: TonoMedidor = "normal";
-            let creditos: FilaMedidor[] = [];
-
-            if (resListas.status === "fulfilled" && resListas.value.ok) {
-                const dataListas = (await resListas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataListas.detalle?.filas) {
-                    // (2026-09-22) Contaba TODAS las filas. La baldosa decía «LISTAS PARA
-                    // TRABAJAR 5» mientras el propio medidor, un clic más abajo, decía
-                    // «ninguna se puede coger: 5 esperan a otra tarea». Un número que no
-                    // significa lo que su etiqueta promete es la misma mentira de siempre.
-                    // La baldosa cuenta lo que un agente puede coger AHORA.
-                    listas = dataListas.detalle.filas.filter((f) => f.estado !== ESPERA_A_OTRA).length;
-                }
+            const claves = CLAVES_RESUMEN_PULSO.join(",");
+            const res = await fetch(
+                `/api/mando/medidores?claves=${claves}&ambito=${encodeURIComponent(ambitoPulsoRef.current)}`,
+                { cache: "no-store" },
+            );
+            if (!res.ok) {
+                setMedidoresResumen((prev) => prev ?? RESUMEN_MEDIDORES_VACIO);
+                return;
             }
-
-            if (resBloqueadas.status === "fulfilled" && resBloqueadas.value.ok) {
-                const dataBloqueadas = (await resBloqueadas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataBloqueadas.detalle?.bloqueadas) {
-                    // (2026-10-10, OPB1011) La pastilla cuenta lo que de verdad está parado (atascadas +
-                    // decisiones de Alex); las esperas de una cadena van en su texto, no en el número.
-                    bloqueadas = dataBloqueadas.detalle.bloqueadas.valor;
-                    bloqueadasResumen = dataBloqueadas.detalle.bloqueadas.pastilla;
-                    // (2026-10-20) «En cadena» sale del mismo cálculo: no hace falta otra lectura.
-                    const r = dataBloqueadas.detalle.bloqueadas;
-                    enCadena = r.enCadena;
-                    enCadenaResumen = r.enCadena
-                        ? `esperan a ${r.cadenas.length} que avanza${r.cadenas.length === 1 ? "" : "n"} · se desbloquean solas`
-                        : "ninguna espera a otra";
-                } else if (dataBloqueadas.detalle?.filas) {
-                    // Contamos solo las tareas operativas (no históricas) para coincidir con el total del detalle
-                    bloqueadas = dataBloqueadas.detalle.filas.filter((f) => !f.historica).length;
-                }
-            }
-
-            if (resAgentes.status === "fulfilled" && resAgentes.value.ok) {
-                const dataAgentes = (await resAgentes.value.json()) as { detalle?: DetalleMedidor };
-                if (dataAgentes.detalle?.filas) {
-                    // MED1113A: la cifra viene calculada en el medidor (`cuenta`): pastilla, ventana y comprobación, un número.
-                    agentes = cifraDePastilla(dataAgentes.detalle);
-                    agentesResumen = dataAgentes.detalle.resumen ?? null;
-                }
-            }
-
-            if (resEnCurso.status === "fulfilled" && resEnCurso.value.ok) {
-                const dataEnCurso = (await resEnCurso.value.json()) as { detalle?: DetalleMedidor };
-                if (dataEnCurso.detalle?.filas) {
-                    // (2026-09-22) Alex: «dice que 0 tareas en curso pero 12 agentes, no se
-                    // está actualizando». No era que no se actualizara: la pastilla salía de
-                    // `/api/mando/estado`, que cuenta latidos de la MAC, y los agentes de la
-                    // nube no laten ahí. Medido en ese momento: 15 agentes escribiendo en dos
-                    // medios y la pastilla en 0. Este medidor ya lo sabía —«15 en marcha»—,
-                    // así que la pastilla se lee de él, como ya se hacía con «Agentes».
-                    // MED1113A: sin las rancias ni los sueños sin agente, que la ventana nombra aparte.
-                    enCurso = cifraDePastilla(dataEnCurso.detalle);
-                    enCursoResumen = dataEnCurso.detalle.resumen ?? null;
-                }
-            }
-
-            if (resContenedores.status === "fulfilled" && resContenedores.value.ok) {
-                const dataCont = (await resContenedores.value.json()) as { detalle?: DetalleMedidor };
-                if (dataCont.detalle) {
-                    // La pastilla enseña el SITIO LIBRE, que es lo que se saca del resumen
-                    // del propio medidor: un solo origen para la cifra y para la ventana.
-                    const m = /(\d+)\s+libre/.exec(dataCont.detalle.resumen ?? "");
-                    contenedores = m ? Number(m[1]) : 0;
-                    contenedoresResumen = dataCont.detalle.resumen ?? null;
-                }
-            }
-
-            if (resProveedores.status === "fulfilled" && resProveedores.value.ok) {
-                const dataProv = (await resProveedores.value.json()) as { detalle?: DetalleMedidor };
-                if (dataProv.detalle?.filas) {
-                    // (2026-09-22) La pastilla decía «0 agotados · 6 disponibles» con CUATRO
-                    // pasarelas sin cupo y una caída: leía /api/mando/modelos, que tiene su
-                    // propia idea del estado. El archivo que el enjambre obedece cuando se
-                    // come un 429 es `salud-proveedores.json`, y es el que alimenta este
-                    // medidor. Ahora la pastilla y su ventana salen del mismo sitio.
-                    agotados = dataProv.detalle.filas.filter((f) => f.estado !== "vivo").length;
-                    vivos = dataProv.detalle.filas.length - agotados;
-                    proveedoresResumen = dataProv.detalle.resumen ?? null;
-                }
-            }
-
-            if (resTokens.status === "fulfilled" && resTokens.value.ok) {
-                const dataTok = (await resTokens.value.json()) as { detalle?: DetalleMedidor };
-                if (dataTok.detalle) {
-                    // La cifra sale del resumen del propio medidor: pastilla y ventana, un
-                    // solo origen. Si aún no hay dos muestras no hay tasa, y se dice.
-                    // La primera cifra del resumen es la media del minuto: es la que va
-                    // en la pastilla. Ver el comentario en `case "tokens"` de medidores.ts.
-                    const m = /^([\d.]+)\s*tok\/s/.exec(dataTok.detalle.resumen ?? "");
-                    tokens = m ? Number(m[1]) : null;
-                    tokensResumen = dataTok.detalle.resumen ?? null;
-                    // (2026-09-23) «4 agentes y 0 tokens»: los agentes que trabajan donde no
-                    // hay contador vienen contados en las filas; la pastilla los usa para no
-                    // enseñar un 0 tranquilo con gente escribiendo.
-                    tokensCiegos = dataTok.detalle.filas
-                        .filter((f) => f.estado === "trabajando sin contador")
-                        .reduce((n, f) => n + (Number(/^(\d+)/.exec(f.etapa ?? "")?.[1]) || 0), 0);
-                }
-            }
-
-            if (resOlas.status === "fulfilled" && resOlas.value.ok) {
-                const dataOlas = (await resOlas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataOlas.detalle) {
-                    const cabeceras = dataOlas.detalle.filas.filter((f) => f.id.startsWith("ola:"));
-                    olas = cabeceras.length;
-                    olaTitulo = cabeceras[0]?.titulo ?? null;
-                    olasResumen = dataOlas.detalle.resumen ?? null;
-                }
-            }
-
-            if (resIntegradas.status === "fulfilled" && resIntegradas.value.ok) {
-                const dataInt = (await resIntegradas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataInt.detalle) {
-                    const m = /^(\d+)\s+tareas integradas/.exec(dataInt.detalle.resumen ?? "");
-                    integradas = m ? Number(m[1]) : null;
-                    integradasResumen = dataInt.detalle.resumen ?? null;
-                }
-            }
-
-            if (resCredito.status === "fulfilled" && resCredito.value.ok) {
-                const dataCred = (await resCredito.value.json()) as { detalle?: DetalleMedidor };
-                if (dataCred.detalle) {
-                    // Como ahora el medidor de credito-claude enseña límites del plan (sesión ~5 h, semanal y opcionalmente modelo),
-                    // el valor de la pastilla extrae el par sesión y semana del resumen.
-                    const resumen = dataCred.detalle.resumen ?? "";
-                    const m = /^sesión (\d+) % · semana (\d+) %/.exec(resumen);
-                    credito = m ? `${m[1]} % · ${m[2]} %` : (resumen === "sin lectura" ? "sin lectura" : resumen || "—");
-                    creditoResumen = resumen;
-                    const estados = dataCred.detalle.filas.map((f) => f.estado);
-                    creditoTono = estados.includes("peligro") ? "peligro" : estados.includes("aviso") || dataCred.detalle.aviso ? "aviso" : "ok";
-                }
-            }
-
-            if (resFallidas.status === "fulfilled" && resFallidas.value.ok) {
-                const dataFallidas = (await resFallidas.value.json()) as { detalle?: DetalleMedidor };
-                if (dataFallidas.detalle) {
-                    fallidas = dataFallidas.detalle.filas.length;
-                    fallidasResumen = dataFallidas.detalle.resumen ?? null;
-                }
-            }
-
-            // (IMG1024B) Si el medidor no contesta, `imaginacion` se queda en null y la pastilla dice
-            // «sin datos»: nunca una cifra de otra fuente.
-            if (resImaginacion.status === "fulfilled" && resImaginacion.value.ok) {
-                const dataImaginacion = (await resImaginacion.value.json()) as { detalle?: DetalleMedidor };
-                imaginacion = dataImaginacion.detalle?.imaginacion ?? null;
-            }
-
-            if (resCreditos.status === "fulfilled" && resCreditos.value.ok) {
-                const dataCreditos = (await resCreditos.value.json()) as { detalle?: DetalleMedidor };
-                creditos = dataCreditos.detalle?.filas ?? [];
-            }
-
-            setMedidoresResumen({
-                listas,
-                bloqueadas,
-                bloqueadasResumen,
-                enCadena,
-                enCadenaResumen,
-                agentes,
-                agentesResumen,
-                enCurso,
-                enCursoResumen,
-                contenedores,
-                contenedoresResumen,
-                tokens,
-                tokensResumen,
-                tokensCiegos,
-                olas,
-                olaTitulo,
-                olasResumen,
-                integradas,
-                integradasResumen,
-                agotados,
-                vivos,
-                proveedoresResumen,
-                fallidas,
-                fallidasResumen,
-                imaginacion,
-                credito,
-                creditoResumen,
-                creditoTono,
-                creditos,
-            });
+            const data = (await res.json()) as { detalles?: Partial<Record<ClaveMedidor, DetalleMedidor>> };
+            setMedidoresResumen(extraerResumenMedidores(data.detalles ?? {}));
         } catch {
-            setMedidoresResumen({
-                listas: null,
-                bloqueadas: null,
-                agentes: null,
-                agentesResumen: null,
-                enCurso: null,
-                enCursoResumen: null,
-                contenedores: null,
-                contenedoresResumen: null,
-                tokens: null,
-                tokensResumen: null,
-                tokensCiegos: null,
-                olas: null,
-                olaTitulo: null,
-                olasResumen: null,
-                integradas: null,
-                integradasResumen: null,
-                agotados: null,
-                vivos: null,
-                proveedoresResumen: null,
-                fallidas: null,
-                fallidasResumen: null,
-                imaginacion: null,
-                credito: null,
-                creditoResumen: null,
-                creditoTono: "normal",
-                creditos: [],
-            });
+            setMedidoresResumen((prev) => prev ?? RESUMEN_MEDIDORES_VACIO);
+        } finally {
+            enCursoMedidoresRef.current = false;
         }
     }, []);
 
@@ -1189,7 +908,7 @@ export function CentroMando() {
                 if (vivo) setPruebasPulso(null);
             }
         };
-        void cargar();
+        const inicial = window.setTimeout(() => void cargar(), 1_000);
         const cada = window.setInterval(() => void cargar(), 30_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar();
@@ -1197,6 +916,7 @@ export function CentroMando() {
         document.addEventListener("visibilitychange", alVolver);
         return () => {
             vivo = false;
+            window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
         };
@@ -1335,7 +1055,7 @@ export function CentroMando() {
                 // por separado (allSettled): si la sonda falla (por ejemplo, se
                 // agotó la memoria midiendo) la cabecera del trabajo no se cae.
                 const [resEstado, resNeurona] = await Promise.allSettled([
-                    fetch("/api/mando/estado", { cache: "no-store" }),
+                    fetch("/api/mando/estado?resumen=1", { cache: "no-store" }),
                     fetch("/api/mando/neurona", { cache: "no-store" }),
                 ]);
                 if (!vivo) return;
@@ -1393,7 +1113,7 @@ export function CentroMando() {
                 enCurso = false;
             }
         };
-        void cargar(true);
+        const inicial = window.setTimeout(() => void cargar(true), 600);
         const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
@@ -1401,6 +1121,7 @@ export function CentroMando() {
         document.addEventListener("visibilitychange", alVolver);
         return () => {
             vivo = false;
+            window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
         };
@@ -1424,7 +1145,7 @@ export function CentroMando() {
                 enCurso = false;
             }
         };
-        void cargar(true);
+        const inicial = window.setTimeout(() => void cargar(true), 800);
         const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
@@ -1432,6 +1153,7 @@ export function CentroMando() {
         document.addEventListener("visibilitychange", alVolver);
         return () => {
             vivo = false;
+            window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
         };
@@ -1477,7 +1199,7 @@ export function CentroMando() {
             temporizador = window.setTimeout(() => void leer(), ahora ? 4_000 : 30_000);
         };
         releerPublicandoRef.current = () => void leer();
-        void leer();
+        temporizador = window.setTimeout(() => void leer(), 350);
         return () => {
             vivo = false;
             if (temporizador !== null) window.clearTimeout(temporizador);
@@ -1510,7 +1232,7 @@ export function CentroMando() {
                 enCurso = false;
             }
         };
-        void cargar(true);
+        const inicial = window.setTimeout(() => void cargar(true), 500);
         const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
@@ -1520,6 +1242,7 @@ export function CentroMando() {
         window.addEventListener("mando:publicacion-terminada", alPublicar);
         return () => {
             vivo = false;
+            window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
             window.removeEventListener("mando:publicacion-terminada", alPublicar);
@@ -1558,7 +1281,7 @@ export function CentroMando() {
                 enCurso = false;
             }
         };
-        void cargar(true);
+        const inicial = window.setTimeout(() => void cargar(true), 900);
         const cada = window.setInterval(() => void cargar(), 60_000);
         const alVolver = () => {
             if (document.visibilityState === "visible") void cargar(true);
@@ -1566,6 +1289,7 @@ export function CentroMando() {
         document.addEventListener("visibilitychange", alVolver);
         return () => {
             vivo = false;
+            window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
         };

@@ -126,7 +126,7 @@ export function DisenadorOla({ onCerrar, colaInicial }: { onCerrar: () => void; 
                 // El estado trae cuántas tareas hay en curso; ni memoria libre ni
                 // proveedores vivos viajan en /api/mando/estado, así que para esos
                 // dos se estima y se dice que es una estimación.
-                const r = await fetch("/api/mando/estado", { cache: "no-store" });
+                const r = await fetch("/api/mando/estado?resumen=1", { cache: "no-store" });
                 let enCurso = 0;
                 if (r.ok) {
                     const d = (await r.json()) as { cuentas?: { enCurso?: number } };

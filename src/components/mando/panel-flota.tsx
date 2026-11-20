@@ -959,7 +959,7 @@ export function PanelFlota() {
         setError(null);
         try {
             const [respuesta, respModelos] = await Promise.all([
-                fetch("/api/mando/estado", { cache: "no-store" }),
+                fetch("/api/mando/estado?resumen=1", { cache: "no-store" }),
                 // Catálogo vivo: salud de revisores y marcas escritor/solo Markdown.
                 fetch("/api/mando/modelos", { cache: "no-store" }).catch(() => null),
             ]);

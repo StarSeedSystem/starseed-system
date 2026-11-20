@@ -373,7 +373,7 @@ export function PanelProcesos() {
         setCargando(true);
         setError(null);
         try {
-            const respuesta = await fetch("/api/mando/estado", { cache: "no-store" });
+            const respuesta = await fetch("/api/mando/estado?resumen=1", { cache: "no-store" });
             if (!respuesta.ok) {
                 setError(
                     respuesta.status === 404

@@ -431,27 +431,60 @@ def instalando_build(raiz: str = RAIZ) -> bool:
     return os.path.isdir(os.path.join(raiz, ".next-build"))
 
 
+def _estado_ahogo() -> str:
+    """Diagnostica si la Mac está ahogada de memoria/swap (igual que `autocuracion_mando`)."""
+    try:
+        import lider_ahogo as _LA
+
+        usado, total = _LA.swap_mb()
+        return _LA.causa_ahogo(_LA.presion_nucleo(), usado, total, None)
+    except Exception:  # noqa: BLE001 — sin medida, no frena
+        return ""
+
+
 def accion_genesis() -> Tuple[bool, str]:
-    """Con las MISMAS reglas que la autocuración (2026-10-23: la primera pasada reinició Genesis
-    mientras `instalar_build.py` lo estaba reiniciando): nunca durante una publicación o una
-    instalación, y no otra vez si ya se reinició hace poco."""
+    """Con las MISMAS reglas que la autocuración (2026-10-23 + 1103): nunca durante una
+    publicación o una instalación, nunca si lo estático responde o la Mac está ahogada dentro
+    de `LENTO_MAX_S`, y no otra vez si ya se reinició hace poco."""
     import autocuracion_mando as A
     sondas = []
     for _ in range(A.SONDAS):
         sondas.append(bool(A.sondear()))
         if sondas[-1]:
+            estado = A._leer_json(A.ESTADO, {})
+            if "latido_falla_desde" in estado:
+                estado.pop("latido_falla_desde", None)
+                A._guardar(estado)
             return True, "Genesis contesta: no hacía falta reiniciarlo"
         time.sleep(A.ESPERA_ENTRE_SONDAS_S)
     if instalando_build():
         return False, "no contesta, pero se está instalando una build nueva (ella lo reinicia): espero"
     estado = A._leer_json(A.ESTADO, {})
     ahora = time.time()
-    reiniciar, porque = A.decidir_reinicio(sondas, ahora, estado.get("ultimo_reinicio"),
-                                           A.publicacion_en_marcha(A._leer_json(A.PUBLICACION, {})))
+    estado.setdefault("latido_falla_desde", ahora)
+    try:
+        vivo_estatico = bool(A.sondear(A.MANDO + "/version.json", A.TOPE_SONDA_ESTATICA_S))
+    except Exception:  # noqa: BLE001
+        vivo_estatico = None
+    ahogo = _estado_ahogo()
+    if ahogo:
+        try:
+            barrer_trabajadores_huerfanos()
+        except Exception:  # noqa: BLE001
+            pass
+    reiniciar, porque = A.decidir_reinicio(
+        sondas, ahora, estado.get("ultimo_reinicio"),
+        A.publicacion_en_marcha(A._leer_json(A.PUBLICACION, {})),
+        vivo_estatico=vivo_estatico,
+        lento_s=ahora - float(estado.get("latido_falla_desde") or ahora),
+        memoria_ahogada=ahogo,
+    )
     if not reiniciar:
+        A._guardar(estado)
         return False, porque
     A._reiniciar()
     estado["ultimo_reinicio"] = ahora
+    estado.pop("latido_falla_desde", None)
     A._guardar(estado)
     return bool(A.sondear()), "Genesis %s: lo reinicié" % porque
 
