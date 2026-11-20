@@ -3920,6 +3920,48 @@ html.ss-gesto [data-ventana-escritorio] {
    lo recuperan con esta clase. */
 .ss-redondo { border-radius: 9999px !important; }
 
+/* ── Orbe binario · escenario fijo 16:9 (IMG-agentes-reimaginada) ───────────
+   El lienzo no cambia de tamaño con el estado: reserva su 16:9 y el orbe se
+   escala con unidades de contenedor. Los estados solo animan opacidad y
+   escala sobre el centro (sin layout shift), con las tintas Trinity del tema.
+   Con prefers-reduced-motion queda el fundido: escala 1 y duración corta. */
+.orbe-binario-escenario {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  container-type: size;
+  isolation: isolate;
+}
+.orbe-binario {
+  --orbe-opacidad: 0.7;
+  --orbe-escala: 0.96;
+  --orbe-tinta: var(--trinity-emerald);
+  --orbe-dur: 400ms;
+  --orbe-easing: var(--ss-curva-resorte);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 62%; /* respaldo sin unidades de contenedor */
+  width: min(62cqh, 90cqw);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: var(--orbe-opacidad);
+  scale: var(--orbe-escala);
+  color: var(--orbe-tinta);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, currentColor 68%, white), currentColor 62%, transparent 74%);
+  transition:
+    opacity var(--orbe-dur) var(--orbe-easing),
+    scale var(--orbe-dur) var(--orbe-easing);
+  will-change: opacity, scale;
+}
+.orbe-binario[data-estado="activo"] { --orbe-opacidad: 1; --orbe-escala: 1.04; --orbe-tinta: var(--trinity-azure); }
+.orbe-binario[data-estado="error"] { --orbe-opacidad: 0.85; --orbe-escala: 1; --orbe-tinta: var(--trinity-crimson); }
+@media (prefers-reduced-motion: reduce) {
+  .orbe-binario { transition: opacity 200ms linear; scale: 1; }
+}
+
 /* VEN1111D — ventanas que NUNCA se cortan en pantallas pequeñas.
    Alto máximo = viewport visible (dvh con respaldo vh) − márgenes de zonas
    seguras; el contenido largo desplaza DENTRO de la ventana. */

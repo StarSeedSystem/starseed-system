@@ -7,7 +7,7 @@
  * se compone vídeo ni se toca el compositor (src/components/creation).
  */
 
-import { horizonte, neutro, zenith } from "./tokens";
+import { anchor, horizonte, neutro, zenith } from "./tokens";
 
 export interface Desplazamiento {
     /** Desplazamiento horizontal en px; 0 = registrado en el centro. */
@@ -68,5 +68,53 @@ export function transicionAnuncio(useRisographTransition: boolean): TransicionAn
             { hex: zenith.valor, intensidad: 0.18 },
             { hex: horizonte.valor, intensidad: 0.14 },
         ],
+    };
+}
+
+// ── Orbe binario: escenario fijo 16:9, estados idle → activo → error ────────
+
+export type EstadoOrbe = "idle" | "activo" | "error";
+
+/** Lienzo fijo 720p: el orbe vive aquí y el visor solo lo escala. */
+export const ESCENARIO_ORBE = { aspecto: "16:9", ancho: 1280, alto: 720 } as const;
+
+/** Escala uniforme («contener»): encaja el 16:9 sin deformar ni mover el layout. */
+export function escalarEscenario(anchoVisor: number, altoVisor: number): { escala: number; ancho: number; alto: number } {
+    if (anchoVisor <= 0 || altoVisor <= 0) return { escala: 0, ancho: 0, alto: 0 };
+    const escala = Math.min(anchoVisor / ESCENARIO_ORBE.ancho, altoVisor / ESCENARIO_ORBE.alto);
+    return { escala, ancho: ESCENARIO_ORBE.ancho * escala, alto: ESCENARIO_ORBE.alto * escala };
+}
+
+/** Tinta del estado: hex del token y variable CSS de Trinity que lo pinta. */
+export interface TintaOrbe { nombre: string; hex: string; variable: `--trinity-${string}`; }
+
+/** `opacidad` y `escala` nunca tocan el layout; con movimiento reducido solo sobrevive el fundido. */
+export interface TransicionOrbe {
+    estado: EstadoOrbe; tinta: TintaOrbe; opacidad: number; escala: number;
+    duracionMs: number; easing: string; soloFundido: boolean;
+}
+const TINTAS: Record<EstadoOrbe, TintaOrbe> = {
+    idle: { nombre: horizonte.nombre, hex: horizonte.valor, variable: "--trinity-emerald" },
+    activo: { nombre: zenith.nombre, hex: zenith.valor, variable: "--trinity-azure" },
+    error: { nombre: anchor.nombre, hex: anchor.valor, variable: "--trinity-crimson" },
+};
+const VISUAL: Record<EstadoOrbe, { opacidad: number; escala: number }> = {
+    idle: { opacidad: 0.7, escala: 0.96 },
+    activo: { opacidad: 1, escala: 1.04 },
+    error: { opacidad: 0.85, escala: 1 },
+};
+
+/**
+ * Transición de estado en el escenario fijo: opacidad y escala con la duración
+ * y la curva del fundido existente; con movimiento reducido, solo fundido.
+ */
+export function transicionOrbe(estado: EstadoOrbe, reducirMovimiento: boolean): TransicionOrbe {
+    const v = VISUAL[estado];
+    return {
+        estado, tinta: TINTAS[estado], opacidad: v.opacidad,
+        escala: reducirMovimiento ? 1 : v.escala,
+        duracionMs: reducirMovimiento ? 200 : FUNDIDO_PLANO.duracion * 1000,
+        easing: reducirMovimiento ? "linear" : FUNDIDO_PLANO.easing,
+        soloFundido: reducirMovimiento,
     };
 }

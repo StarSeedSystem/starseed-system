@@ -110,6 +110,26 @@ text-shadow: 0 0 calc(var(--text-diff-glow) * 6px) currentColor;
 
 ---
 
+## 4.1 Escenario fijo y transiciones de estado (orbe binario)
+
+Un orbe u otra pieza viva dentro de un lienzo panorámico usa un **escenario fijo 16:9** que se
+escala uniforme al visor («contener»), nunca un layout que crece o encoge con el estado:
+
+- El contenedor reserva `aspect-ratio: 16 / 9`; la pieza se dimensiona con unidades de
+  contenedor (`cqw`/`cqh`) y se centra con `translate`. Nada de `width`/`height`/`margin`
+  animados: el escenario no cambia de tamaño entre estados.
+- Las transiciones de estado (`idle → activo → error`) animan **solo `opacity` y `scale`** con
+  la curva y la duración de las transiciones existentes (`--ss-curva-resorte`, 400 ms).
+- Las tintas salen de los tokens Trinity (`--trinity-emerald`, `--trinity-azure`,
+  `--trinity-crimson`); el estado se acompaña además de icono o texto, nunca solo de color.
+- Con `prefers-reduced-motion: reduce` la transición se reduce a **fundido**: `scale: 1`,
+  `linear` y 200 ms. No se conservan pulsos, rebotes ni desplazamientos.
+- Se comprueba en móvil (375 px), plegable (280 px), tablet, escritorio y TV, y con
+  `data-rendimiento="eficiente"` (las transiciones quedan desactivadas).
+
+La especificación pura vive en `src/lib/video/editorial-paper/transitions.ts`
+(`ESCENARIO_ORBE`, `escalarEscenario`, `transicionOrbe`).
+
 ## 5. Componentes adaptativos a estilo seleccionado
 
 Para que un widget se adapte automáticamente al estilo activo:
