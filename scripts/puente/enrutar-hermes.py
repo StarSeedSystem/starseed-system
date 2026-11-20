@@ -189,7 +189,7 @@ def proveedores_con_clave_rechazada(lineas, *, ahora=None, ventana_horas=24, max
                 if m_prov_next:
                     prov = m_prov_next.group(1).lower()
         if prov:
-            rechazados.add(prov)
+            rechazados.add(ALIAS.get(prov, prov))
     return rechazados
 
 
