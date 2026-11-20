@@ -694,16 +694,24 @@ export function AuroraGuide() {
 
   // ── comandos de voz simples: polling defensivo del transcript ──────────────
   // Solo en modo voz y sin mute. Lee getState().transcript por el puente y, si
-  // detecta "siguiente"/"anterior"/"cerrar", actúa. Defensivo: si no hay puente,
-  // no hace nada (degrada al botón).
+  // detecta "siguiente"/"anterior"/"cerrar", actúa. Defensivo: sin transcript no
+  // hace nada (degradan los botones) y si el puente FALLA al leer, avisa y pasa a
+  // texto en vez de quedarse callado esperando una voz que ya no llega.
   const lastCmdTsRef = useRef<number>(0);
   const lastTranscriptRef = useRef<string>("");
   useEffect(() => {
     if (!inTour || mode !== "voice" || muted) return;
     if (typeof window === "undefined") return;
     const id = window.setInterval(() => {
-      let tx = "";
-      try { tx = auroraTranscript(); } catch { tx = ""; }
+      const tx = auroraTranscript();
+      // `null` = el puente falló al leerlo (no es «sin transcript», que es "").
+      // No dejamos la guía en un modo voz que ya no responde: se avisa y se
+      // sigue en texto. Al cambiar `mode`, este efecto limpia su intervalo.
+      if (tx === null) {
+        setAvisoPuente("La voz de Aurora dejó de responder: la guía continúa en texto.");
+        setMode("silent");
+        return;
+      }
       if (!tx || tx === lastTranscriptRef.current) return;
       lastTranscriptRef.current = tx;
       const cmd = parseVoiceCommand(tx);

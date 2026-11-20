@@ -116,13 +116,32 @@ export function auroraEnsureListening(): void {
   }
 }
 
-/** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
-export function auroraTranscript(): string {
+/**
+ * Junta lo ya dicho (`transcript`) y lo que se está diciendo (`interim`) en un
+ * solo texto para los comandos de voz, sin espacios de sobra.
+ */
+export function componerTranscript(
+  transcript?: string | null,
+  interim?: string | null,
+): string {
+  return [transcript, interim]
+    .map((parte) => (parte ?? "").trim())
+    .filter((parte) => parte.length > 0)
+    .join(" ");
+}
+
+/**
+ * Lee el transcript actual de la escucha de voz.
+ * Devuelve `null` si el puente FALLÓ al leerlo — distinto de no tener transcript,
+ * que es `""`. Así el llamador puede avisar y seguir en texto en vez de quedarse
+ * callado en un modo voz que ya no responde (nunca en bucle).
+ */
+export function auroraTranscript(): string | null {
   try {
     const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
+    return componerTranscript(s?.transcript, s?.interim);
   } catch {
-    return "";
+    return null;
   }
 }
 
