@@ -29,6 +29,10 @@ type AuroraBridgeLite = {
 };
 
 import { callar as callarUnica, hablar as hablarUnica } from "@/lib/aurora/voz-unica";
+import {
+  combinarTranscript,
+  describirFalloTranscript,
+} from "@/lib/onboarding/transcript-voz";
 
 /** Devuelve el puente global de Aurora, o null si no está disponible. */
 export function auroraBridge(): AuroraBridgeLite | null {
@@ -116,14 +120,31 @@ export function auroraEnsureListening(): void {
   }
 }
 
+// El sondeo de comandos llama cada ~550 ms: si el puente falla de forma
+// persistente, se deja UNA traza por sesión en vez de inundar la consola.
+let falloTranscriptAvisado = false;
+
 /** Lee el transcript actual de la escucha de voz (o "" si no hay puente). */
 export function auroraTranscript(): string {
+  const api = auroraBridge();
+  if (!api?.getState) return "";
+  let estado: ReturnType<NonNullable<AuroraBridgeLite["getState"]>>;
   try {
-    const s = auroraBridge()?.getState?.();
-    return (s?.transcript ?? "") + " " + (s?.interim ?? "");
-  } catch {
+    estado = api.getState();
+  } catch (e) {
+    // Nunca en silencio: un puente roto explicaba que los comandos de voz
+    // dejaran de responder sin ninguna pista. Se avisa una vez y se sigue.
+    if (!falloTranscriptAvisado) {
+      falloTranscriptAvisado = true;
+      try {
+        console.warn(describirFalloTranscript(e).diagnostico);
+      } catch {
+        /* consola no disponible */
+      }
+    }
     return "";
   }
+  return combinarTranscript(estado);
 }
 
 /** ¿Aurora está actualmente encendida (enabled) según su estado? */
