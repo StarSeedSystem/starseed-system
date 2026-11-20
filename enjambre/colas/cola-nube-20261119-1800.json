@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261119",
+ "tareas": [
+  {
+   "id": "MGP1119-4A64DC",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: pruebas del puente en rojo",
+   "archivos": [
+    "scripts/puente/test_enrutar_hermes_her1118g.py"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "sha_rojo": "52f66f6db5ac",
+   "prompt": "NOTA DE METAGENESIS (2026-11-19 17:35): la autopublicación lleva más de 60 min frenada en 52f66f6d por «pruebas del puente en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n  self.assertIn(\"tokenrouter\", rechazados)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'tokenrouter' not found in set()\n\n======================================================================\nFAIL: test_detecta_por_provider_en_linea_siguiente (test_enrutar_hermes_her1118g.Rechazados.test_detecta_por_provider_en_linea_siguiente)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_enrutar_hermes_her1118g.py\", line 24, in test_detecta_por_provider_en_linea_siguiente\n    self.assertIn(\"openrouter\", rechazados)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'openrouter' not found in set()\n\n======================================================================\nFAIL: test_normaliza_nombres_proveedor (test_enrutar_hermes_her1118g.Rechazados.test_normaliza_nombres_proveedor)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_enrutar_hermes_her1118g.py\", line 51, in test_normaliza_nombres_proveedor\n    self.assertIn(\"gemini\", rechazados)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'gemini' not found in set()\n\n----------------------------------------------------------------------\nRan 6740 tests in 378.633s\n\nFAILED (failures=7, skipped=5, expected failures=4)\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 60990)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 60999)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 61002)>\n\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `python3 -m unittest scripts/puente/test_enrutar_hermes_her1118g.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "MGP1119-4A64DC"
+  ]
+ }
+}
