@@ -404,7 +404,8 @@ def _seccion_higgsfield(propuestas: list) -> str:
 
 def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=None, fundir=None):
     """PET1112D: la vía que la flota SÍ toma (agente_referencias_diseno.encargar_por_flota):
-    1. poda lo propio de más de DIAS_COLA y funde en olas/cola-suenos-sintesis.json (atómico);
+    1. poda lo propio de más de DIAS_COLA que YA estaba en la cola y funde en
+       olas/cola-suenos-sintesis.json (atómico); las tareas recién encargadas no se podan;
     2. con un orquestador VIVO apto y con análisis libre que arrancó después, las tareas van
        a su cola viva (la releerá al quedar un hueco);
     3. sin uno vivo, la cola queda lista (se lanza desde Genesis); nunca arranca un orquestador.
@@ -422,7 +423,7 @@ def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=No
                 and (t.get("agente") != AGENTE or str(t.get("creada") or "") >= limite)]
 
     fusion = fundir or S.fundir_tareas
-    S._escribir_json(ruta_cola, fusion(podar(lista), podar(tareas)))
+    S._escribir_json(ruta_cola, fusion(podar(lista), tareas))
     fuera = {"ok": True, "cola": "%s/%s" % (REL_OLAS, NOMBRE_COLA), "tareas": [t["id"] for t in tareas]}
     if not tareas:
         return fuera.update(accion="nada", mensaje="Sin tareas que encargar.") or fuera
