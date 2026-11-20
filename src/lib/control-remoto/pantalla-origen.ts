@@ -21,7 +21,7 @@ import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
-import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
+import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, FUENTE_DEFECTO, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
@@ -174,7 +174,6 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 }
 
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
-const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
@@ -237,15 +236,22 @@ export class OrigenPantalla {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
-        // CTL1118F: SIEMPRE se arranca con lo que el aparato tenga («auto»: la fluida si la persona ya la dio en esta sesión, si no accesibilidad)
-        // para que haya imagen YA; si va por accesibilidad, más abajo el aparato pide él solo la fluida (diálogo nativo, solo con su «Sí»).
-        // Lo que pida quien manda (`fuente: "proyeccion"`) no cambia el arranque: se atiende como una petición de la persona, después.
-        const r = await inv("control_pantalla_iniciar", {
-            sesion: s.token,
-            lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
-            calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            fuente: FUENTE_DEFECTO,
-        }).catch(() => null);
+        // RST1116A: «proyeccion» viaja como petición explícita; sin fuente o con «auto» no se manda nada y
+        // lo elige el aparato. La fuente que se devuelve y se guarda es SIEMPRE la que contesta lo nativo.
+        const pedida: FuentePedida = args.fuente === "proyeccion" ? "proyeccion" : FUENTE_DEFECTO;
+        const r = await (pedida === "proyeccion"
+            ? inv("control_pantalla_iniciar", {
+                  sesion: s.token,
+                  lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
+                  calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
+                  fuente: pedida,
+              })
+            : inv("control_pantalla_iniciar", {
+                  sesion: s.token,
+                  lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
+                  calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
+              })
+        ).catch(() => null);
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
             const motivo = esObjeto(r) && typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "sin-soporte";
@@ -305,13 +311,14 @@ export class OrigenPantalla {
         // CTL1119B: actualización de calidad cada 500 ms
         const intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
         this.intervalos.add(intCalidad);
-        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${args.fuente === "proyeccion" ? "proyeccion" : "auto"}`);
+        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${pedida}`);
         // CTL1118F: la pantalla ya sale; lo fluido se pide sin esperar y sin cerrar nada.
-        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, args.fuente === "proyeccion")) void this.buscarFluida(a, args.fuente === "proyeccion");
+        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, pedida === "proyeccion")) void this.buscarFluida(a, pedida === "proyeccion");
         const capacidades = await inv("control_capacidades").catch(() => null);
         return {
             ok: true,
             fuente,
+            ...(pedida === "proyeccion" ? { fuente_pedida: pedida } : {}),
             ancho,
             alto,
             giro,
