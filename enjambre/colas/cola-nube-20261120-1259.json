@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "CTL1119C",
+   "ola": "CTL1119",
+   "titulo": "Fluidez de la pantalla del control: bucle adaptativo de calidad y captura rápida en Linux, macOS y Android",
+   "archivos": [
+    "native/src-tauri/src/control_pantalla_escritorio.rs",
+    "native/src-tauri/src/control_captura.rs",
+    "native/src-tauri/src/control_calidad_logica.rs"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la latencia de Linux es muy alta; analizar si es por las capacidades limitadas o si se puede refinar, y lo mismo en los demás sistemas. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Hoy cada cuadro de escritorio es una captura completa con xcap + JPEG (control_captura::capturar_jpeg) a periodo fijo. Tarea: (1) bucle adaptativo puro en control_calidad_logica.rs: objetivo 15 fps en red local; según el tiempo medido de captura+codificación y el retardo que devuelve el receptor (CTL1119B), sube o baja lado_max (1280/960/720/540/400) y calidad JPEG con histéresis; (2) no mandar cuadros iguales al anterior (huella rápida por bloques); (3) en Linux X11, captura con memoria compartida (XShm vía xcb) cuando exista y reducción antes de codificar; si la AppImage trae GStreamer (LNX1118WB), deja preparada una segunda vía ximagesrc → vp8 por WebRTC detrás de una comprobación; (4) mismo bucle para macOS y Android. Mide antes y después en la Maggabox con las líneas `inicio/fin fuente= fps=` y deja el resultado en el informe. Pruebas del bucle con tiempos de ejemplo de un equipo lento (Mac mini 2011) y de uno rápido. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro.",
+   "dependencias_ya_en_main": [
+    "CTL1119B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CTL1119C"
+  ]
+ }
+}
