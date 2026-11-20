@@ -117,6 +117,18 @@ import { extensionDe, listarZip } from "@/lib/network/inspeccion-archivos";
 import { anotarArchivo, type HitoArchivo } from "@/lib/network/archivos-diagnostico"; // ARC1110A
 import { emisorMalla } from "@/lib/network/malla-registro"; // AUD1117·F7
 import { prepararArchivo } from "@/lib/malla/preparacion-archivo"; // ARC1110A
+import {
+  decidirAceptacion,
+  evaluarAceptacionAutomatica,
+  type TransferenciaEntrante,
+  type NeuronaReconocida,
+  type DecisionAceptacion,
+} from "@/lib/transferencias/aceptacion";
+import {
+  analizarSeguridad,
+  type ArchivoParaAnalisis,
+  type ResultadoAnalisisSeguridad,
+} from "@/lib/transferencias/analisis-seguridad";
 
 /* ══════════════════════════ 1) Contrato de canal ══════════════════════════ */
 
@@ -1530,8 +1542,14 @@ export interface ConfigMotorArchivos {
   /** Se dispara cuando una oferta entrante necesita confirmación humana (fase "preguntar"). */
   onOfertaEntrante?: (oferta: OfertaEntranteInfo) => void;
   onProgreso?: (estado: EstadoTransferencia) => void;
-  /** Se dispara UNA vez, al terminar de recibir y verificar un archivo con éxito. */
-  onCompletado?: (estado: EstadoTransferencia, blob: Blob) => void;
+  /** Se dispara UNA vez, al terminar de recibir, verificar y analizar un archivo con éxito. */
+  onCompletado?: (estado: EstadoTransferencia, blob: Blob, analisis?: ResultadoAnalisisSeguridad) => void;
+  /** Devuelve la lista de neuronas reconocidas para aceptación automática (apagado por defecto, se enciende neurona a neurona). */
+  obtenerNeuronasReconocidas?: () => NeuronaReconocida[] | Promise<NeuronaReconocida[]>;
+  /** Si true, ofrece análisis de seguridad al recibir (la persona decide si ejecutarlo). */
+  ofrecerAnalisisSeguridad?: boolean;
+  /** Si true, ejecuta análisis de seguridad automáticamente si la persona lo activó. */
+  analisisSeguridadAutomatico?: boolean;
   /**
    * Bytes crudos por trozo, antes de codificar a base64. Si se da, manda sobre todo (pruebas). Si no,
    * (ARC1108B) lo que sugiera el canal (`CanalArchivos.tamanoTrozo`) o 16 KiB.
@@ -1668,6 +1686,9 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const AVISO_BYTES = config.limiteAvisoBytes ?? 500 * 1024 * 1024;
   const MAX_BYTES = config.limiteMaxBytes ?? 4 * 1024 * 1024 * 1024;
   const reintentoConfig = { ...POLITICA_REINTENTO_POR_DEFECTO, ...config.reintento };
+  const obtenerNeuronasReconocidas = config.obtenerNeuronasReconocidas ?? (() => [] as NeuronaReconocida[]);
+  const ofrecerAnalisisSeguridad = config.ofrecerAnalisisSeguridad ?? false;
+  const analisisSeguridadAutomatico = config.analisisSeguridadAutomatico ?? false;
 
   const canalPorId = new Map<string, CanalArchivos>();
   const intentosReintento = new Map<string, number>();
@@ -2852,6 +2873,68 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       return;
     }
 
+    // Nueva lógica de aceptación (FMT1119B): solo si se configura explícitamente obtenerNeuronasReconocidas.
+    // Si no, se usa la política anterior (politicaPorDefecto o config.politica personalizada).
+    const usarNuevaAceptacion = typeof config.obtenerNeuronasReconocidas === "function";
+    if (usarNuevaAceptacion) {
+      const medio: TransferenciaEntrante["medio"] = ctx.via?.includes("wifi")
+        ? "wifi"
+        : ctx.via?.includes("syncthing")
+        ? "syncthing"
+        : ctx.via?.includes("bluetooth")
+        ? "bluetooth"
+        : ctx.via?.includes("usb")
+        ? "usb"
+        : ctx.via?.includes("servidor")
+        ? "servidor"
+        : "mesh";
+      const transferencia: TransferenciaEntrante = {
+        id: msg.id,
+        tipo: msg.destino.tipo === "cerebro" ? "sincronizacion-cerebro" : msg.ruta ? "carpeta" : "archivo",
+        nombre: msg.nombre,
+        tamaño: msg.tamano,
+        tipoReal: msg.tipo,
+        extension: msg.nombre.split(".").pop() ? `.${msg.nombre.split(".").pop()}` : "",
+        neuronaOrigen: ctx.nodoId ?? msg.origen ?? "desconocida",
+        medio,
+        fingerprintOrigen: ctx.verificacion?.huella ?? ctx.nodoId ?? "desconocido",
+        timestamp: Date.now(),
+      };
+
+      const neuronasReconocidas = await Promise.resolve(obtenerNeuronasReconocidas());
+      const decisionAceptacion: DecisionAceptacion = decidirAceptacion(transferencia, neuronasReconocidas, null);
+
+      if (!decisionAceptacion.aceptada) {
+        if (decisionAceptacion.motivo === "neurona-desconocida") {
+          emitir({ ...estadoBase, fase: "rechazada", motivo: "Transferencia de neurona desconocida: no se acepta automáticamente." });
+          canal.enviar(JSON.stringify({ t: "archivo.rechazar", id: msg.id, motivo: "neurona desconocida" } satisfies MsgRechazar));
+          ofertasEntrantes.delete(msg.id);
+          return;
+        }
+        // requiere-confirmacion o neurona conocida sin auto-aceptación: queda pendiente
+        recibidosPorId.set(msg.id, tenidos);
+        emitir({ ...estadoBase, ...decisionAceptacion.solicitud, fase: "pendiente-aceptar", motivo: decisionAceptacion.motivo === "requiere-confirmacion" ? "Requiere confirmación manual." : "Neurona reconocida sin auto-aceptación." });
+        if (!notificadas.delete(msg.id)) config.onOfertaEntrante?.({
+          id: msg.id,
+          nombre: estadoBase.nombre,
+          tipo: msg.tipo,
+          tamano: msg.tamano,
+          destino: msg.destino,
+          origen: estadoBase.origen,
+          ...(estadoBase.lote ? { lote: estadoBase.lote } : {}),
+          ...(estadoBase.ruta ? { ruta: estadoBase.ruta } : {}),
+        });
+        return;
+      }
+
+      // Auto-aceptada (neurona reconocida con auto-aceptación activada)
+      if (decisionAceptacion.motivo === "neurona-reconocida-auto") {
+        pedirTrozos(canal, msg, tenidos, estadoBase);
+        return;
+      }
+    }
+
+    // Política anterior (compatibilidad): auto-aceptar misma cuenta, preguntar otra cuenta, denegar sin permiso.
     const decision = await Promise.resolve((config.politica ?? politicaPorDefecto)(ctx));
 
     if (decision === "denegar") {
@@ -3181,7 +3264,54 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
       emisorMalla().archivo("hash-ok", id, estado.rutaEnlace ?? estado.via ?? null, blob.size);
       olvidarLatido(id);
       canal.enviar(JSON.stringify({ t: "archivo.ok", id } satisfies MsgOk));
-      config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob);
+
+      // Análisis de seguridad (cuarentena hasta aceptar y analizar si así se eligió).
+      let analisis: ResultadoAnalisisSeguridad | undefined;
+      if (ofrecerAnalisisSeguridad && (analisisSeguridadAutomatico || /* la persona lo pidió via UI */ false)) {
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          const contenido = new Uint8Array(arrayBuffer);
+          const extension = estado.nombre.split(".").pop() ? `.${estado.nombre.split(".").pop()}` : "";
+          // Escribir a archivo temporal en OPFS para antivirus.
+          let rutaTemporal = "";
+          try {
+            const nav = navigator as unknown as { storage?: { getDirectory(): Promise<FileSystemDirectoryHandle> } };
+            if (nav.storage?.getDirectory) {
+              const raiz = await nav.storage.getDirectory();
+              const dir = await raiz.getDirectoryHandle("cuarentena", { create: true });
+              const archivo = await dir.getFileHandle(`${id}${extension}`, { create: true });
+              const writable = await archivo.createWritable();
+              await writable.write(contenido);
+              await writable.close();
+              rutaTemporal = `opfs:/cuarentena/${id}${extension}`;
+            } else {
+              rutaTemporal = `memoria:${id}${extension}`;
+            }
+          } catch {
+            rutaTemporal = `memoria:${id}${extension}`;
+          }
+          const archivoParaAnalisis: ArchivoParaAnalisis = {
+            nombre: estado.nombre,
+            tamaño: estado.tamano,
+            extension,
+            contenido,
+            rutaTemporal,
+          };
+          analisis = await analizarSeguridad(archivoParaAnalisis);
+          if (!analisis.seguro && analisisSeguridadAutomatico) {
+            // Si el análisis automático detecta riesgo, no entregar y avisar.
+            const motivo = `Análisis de seguridad: ${analisis.riesgos.map((r) => r.descripcion).join("; ")}`;
+            emitir({ ...(estados.get(id) as EstadoTransferencia), fase: "rechazada", motivo, codigo: "seguridad", lado: "receptor" });
+            await almacen.limpiar(id).catch(() => undefined);
+            blobsRecibidos.delete(id);
+            return;
+          }
+        } catch {
+          // Si falla el análisis, continuar sin él (no bloquear).
+        }
+      }
+
+      config.onCompletado?.(estados.get(id) as EstadoTransferencia, blob, analisis);
       await almacen.limpiar(id).catch(() => undefined);
       recibidosPorId.delete(id);
       hashesEsperados.delete(id);
