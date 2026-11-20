@@ -7,7 +7,7 @@
  * se compone vídeo ni se toca el compositor (src/components/creation).
  */
 
-import { horizonte, neutro, zenith } from "./tokens";
+import { anchor, horizonte, neutro, zenith } from "./tokens";
 
 export interface Desplazamiento {
     /** Desplazamiento horizontal en px; 0 = registrado en el centro. */
@@ -69,4 +69,51 @@ export function transicionAnuncio(useRisographTransition: boolean): TransicionAn
             { hex: horizonte.valor, intensidad: 0.14 },
         ],
     };
+}
+
+/* ─────────── Orbe binario · escenario fijo 16:9 ───────────
+   Marco que reserva su proporción (sin layout shift) y transiciones que solo
+   tocan opacidad y escala; con reduced-motion queda solo el fundido. */
+
+export type EstadoOrbe = "inactivo" | "activo" | "error";
+
+export interface EscenarioFijo {
+    proporcion: "16:9";
+    ancho: number;
+    alto: number;
+}
+
+/** Lienzo fijo 16:9 que se escala al visor sin deformarse. */
+export const ESCENARIO_ORBE: EscenarioFijo = { proporcion: "16:9", ancho: 16, alto: 9 };
+
+export interface TransicionEstadoOrbe {
+    id: string;
+    /** Duración en segundos. */
+    duracion: number;
+    easing: string;
+    opacidad: number;
+    escala: number;
+    tinte: string;
+    soloFundido: boolean;
+}
+
+const ESTADOS_ORBE: Record<EstadoOrbe, { opacidad: number; escala: number; tinte: string }> = {
+    inactivo: { opacidad: 0.72, escala: 0.92, tinte: neutro.valor },
+    activo: { opacidad: 1, escala: 1, tinte: zenith.valor },
+    error: { opacidad: 0.9, escala: 0.96, tinte: anchor.valor },
+};
+
+/** Transición del orbe entre estados; con reduced-motion, solo fundido. */
+export function transicionOrbe(estado: EstadoOrbe, reducirMovimiento: boolean): TransicionEstadoOrbe {
+    const base = ESTADOS_ORBE[estado];
+    if (reducirMovimiento) {
+        return { id: `orbe-${estado}-fundido`, duracion: 0.2, easing: "linear", ...base, escala: 1, soloFundido: true };
+    }
+    return { id: `orbe-${estado}`, duracion: 0.4, easing: EASING_RISOGRAPH, ...base, soloFundido: false };
+}
+
+/** Escala del escenario 16:9 para caber entero en el visor (nunca deforma). */
+export function escalaEscenario(anchoVisor: number, altoVisor: number): number {
+    if (anchoVisor <= 0 || altoVisor <= 0) return 0;
+    return Math.min(anchoVisor / ESCENARIO_ORBE.ancho, altoVisor / ESCENARIO_ORBE.alto);
 }

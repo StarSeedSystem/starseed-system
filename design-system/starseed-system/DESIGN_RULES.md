@@ -246,7 +246,27 @@ Cualquier usuario puede crear el suyo en `/settings → Apariencia → Estilos` 
 
 ---
 
-## 11. Cómo extender estas reglas
+## 11. Orbe binario en escenario fijo
+
+El orbe binario (Protomolécula, estados inactivo/activo/error) vive dentro de un **escenario fijo 16:9**
+que reserva su proporción con `aspect-ratio` y se escala al visor sin deformarse. El marco ocupa su
+sitio desde el primer render: **cero layout shift**.
+
+- **Movimiento:** los estados solo animan `opacity` y `transform: scale(...)`. Nunca ancho, alto,
+  márgenes ni `top/left`.
+- **Tokens:** el tinte sale de la paleta Trinity (`--trinity-azure` en activo, `--trinity-crimson` en
+  error, neutro del sistema en inactivo); la duración y la curva usan `--dur-slow` y `--ease-organic`.
+  No se declaran hex nuevos.
+- **Estados:** inactivo atenúa (opacidad ~0,72 y escala ~0,92), activo es pleno (1 / 1), error
+  mantiene presencia (~0,9 / 0,96) y cambia de tinte, sin depender solo del color.
+- **Reduced motion:** con `prefers-reduced-motion: reduce` o `html.a11y-pause-animations` se conserva
+  el estado (tinte y opacidad) pero la escala queda neutra y solo se funde la opacidad. El estado se
+  sigue leyendo sin movimiento.
+- **Implementación:** clases `.ss-escenario-orbe` y `.ss-orbe-binario` en `src/app/globals.css`; la
+  especificación pura (estados, duración, escala del escenario) en
+  `src/lib/video/editorial-paper/transitions.ts` (`transicionOrbe`, `escalaEscenario`).
+
+## 12. Cómo extender estas reglas
 
 Si encuentras un caso no cubierto:
 

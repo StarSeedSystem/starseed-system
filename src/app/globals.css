@@ -4179,3 +4179,58 @@ html[data-rendimiento="alto"] {
     transition: initial;
   }
 }
+
+/* ── Orbe binario en escenario fijo 16:9 ──────────────────────────────────────
+   El escenario reserva su proporción para que el orbe nunca empuje el layout.
+   Los estados solo animan opacidad y escala (transform); el tinte sale de los
+   tokens Trinity. Con prefers-reduced-motion o pausa de animaciones, el estado
+   se conserva y el movimiento queda en un fundido de opacidad. */
+.ss-escenario-orbe {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.ss-orbe-binario {
+  --orbe-tinte: var(--trinity-azure);
+  --orbe-opacidad: 0.72;
+  --orbe-escala: 0.92;
+  width: 42%;
+  aspect-ratio: 1 / 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 38% 32%, var(--orbe-tinte), transparent 70%);
+  opacity: var(--orbe-opacidad);
+  transform: scale(var(--orbe-escala));
+  transition:
+    opacity var(--dur-slow, 300ms) var(--ease-organic, ease),
+    transform var(--dur-slow, 300ms) var(--ease-organic, ease);
+}
+
+.ss-orbe-binario[data-estado="activo"] {
+  --orbe-tinte: var(--trinity-azure);
+  --orbe-opacidad: 1;
+  --orbe-escala: 1;
+}
+
+.ss-orbe-binario[data-estado="error"] {
+  --orbe-tinte: var(--trinity-crimson);
+  --orbe-opacidad: 0.9;
+  --orbe-escala: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-orbe-binario {
+    transition: opacity var(--dur-base, 220ms) linear;
+  }
+  .ss-orbe-binario,
+  .ss-orbe-binario[data-estado="activo"],
+  .ss-orbe-binario[data-estado="error"] {
+    --orbe-escala: 1;
+  }
+}
+
+html.a11y-pause-animations .ss-orbe-binario {
+  transition: opacity var(--dur-base, 220ms) linear;
+  --orbe-escala: 1;
+}
