@@ -657,10 +657,24 @@ def _carril(canal):
     return CARRIL_COLA if canal == director_presidente.CANAL else CARRIL_DIRECTO
 
 
+def _consumir_bandera_reintento():
+    """Si existe `~/.starseed/mando/reintentar-cola.flag`, la borra y devuelve True."""
+    bandera = Path(os.path.expanduser("~/.starseed/mando/reintentar-cola.flag"))
+    if not bandera.exists():
+        return False
+    try:
+        bandera.unlink()
+    except OSError:
+        pass
+    return True
+
+
 def pasada(estado, raiz=None, despachador=None):
     """Una pasada. Sin `despachador` todo corre aquí (en orden: rápidas antes que lentas); con él, las
     lentas salen a sus carriles y la pasada no espera a ningún proveedor."""
     with CERROJO:
+        if _consumir_bandera_reintento():
+            director_presidente.despertar_cola(estado)
         registros = director_chat.leer(limite=200, raiz=raiz)
         por_id = {r["id"]: r for r in registros if r.get("id")}
         trabajos = []

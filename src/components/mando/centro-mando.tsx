@@ -18,10 +18,9 @@
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
+import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, RefreshCw, ShieldAlert } from "lucide-react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
 import type { RespuestaPruebas } from "@/lib/mando/lanzamientos-pruebas-tipos"; // PRB1111V
@@ -53,7 +52,6 @@ import { escuchar as escucharAsistente } from "@/lib/mando/asistente-cliente";
 import { PanelAreas } from "@/components/mando/panel-areas";
 import { PanelContextos } from "@/components/mando/panel-contextos";
 import { PanelEntornos } from "@/components/mando/panel-entornos";
-import { PanelAjustes } from "@/components/mando/panel-ajustes";
 import { MetaGenesisAccesos } from "@/components/mando/metagenesis-accesos";
 import { TunelMetaGenesisEstado } from "@/components/mando/tunel-metagenesis-estado";
 import { PanelNeurona } from "@/components/mando/panel-neurona";
@@ -70,6 +68,10 @@ import { PanelRecursosRed } from "@/components/mando/panel-recursos-red";
 import type { Reporte } from "@/lib/mando/reportes";
 import { ControlDirectores } from "@/components/mando/control-directores";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
+import { BannerBloqueosSistema } from "@/components/mando/banner-bloqueos-sistema";
+import { PanelTeToca } from "@/components/mando/panel-te-toca";
+import { NavegacionPestanasMetaGenesis } from "@/components/mando/navegacion-pestanas-metagenesis";
+import { PanelConfiguracionMetaGenesis } from "@/components/mando/panel-configuracion-metagenesis";
 // Ola 272 · O3B (2026-09-07): la pestaña «Oficina 3D». El componente carga
 // Three.js, así que entra con `next/dynamic` sin SSR y SOLO se monta al abrir
 // la pestaña (dos barreras: el chunk no baja y el render no se ejecuta hasta que
@@ -452,217 +454,22 @@ interface AccionAlex {
     enlace?: string;
     por_que_no_lo_hago_yo: string;
     detalle?: string;
-}
-
-/** Lo que contestó «Ya lo hice» para una acción concreta. */
-interface Recomprobacion {
-    hecha: boolean;
-    detalle: string;
-    comprobado: string;
-}
-
-function PanelAccionesAlex({
-    acciones,
-    alCerrar,
-    alCambiar,
-}: {
-    acciones: AccionAlex[];
-    alCerrar: () => void;
-    alCambiar?: () => void;
-}) {
-    /**
-     * (2026-09-22) Alex: «en te toca a ti agrega un botón de recomprobar si ya se completó».
-     *
-     * El guion ya sabía hacerlo —`acciones-de-alex.py --verificar <id>` vuelve a MEDIR y
-     * dice si la acción sigue haciendo falta— y la ruta ya lo exponía. Faltaba el botón:
-     * otra pieza terminada que nadie había conectado a nada.
-     */
-    const [comprobando, setComprobando] = useState<string | null>(null);
-    const [resultados, setResultados] = useState<Record<string, Recomprobacion>>({});
-
-    const recomprobar = useCallback(
-        async (id: string) => {
-            setComprobando(id);
-            try {
-                const r = await fetch("/api/mando/acciones", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ accion: "verificar", id }),
-                });
-                const d = (await r.json().catch(() => ({}))) as Partial<Recomprobacion> & { error?: string };
-                if (!r.ok || d.error) {
-                    setResultados((p) => ({
-                        ...p,
-                        [id]: {
-                            hecha: false,
-                            detalle: d.error ?? `no se pudo comprobar (HTTP ${r.status})`,
-                            comprobado: "",
-                        },
-                    }));
-                    return;
-                }
-                setResultados((p) => ({
-                    ...p,
-                    [id]: {
-                        hecha: Boolean(d.hecha),
-                        detalle: d.detalle ?? (d.hecha ? "ya no hace falta" : "sigue pendiente"),
-                        comprobado: d.comprobado ?? "",
-                    },
-                }));
-                // Si ya está hecha, la lista de arriba tiene que enterarse.
-                if (d.hecha) alCambiar?.();
-            } catch {
-                setResultados((p) => ({
-                    ...p,
-                    [id]: { hecha: false, detalle: "no se pudo comprobar", comprobado: "" },
-                }));
-            } finally {
-                setComprobando(null);
-            }
-        },
-        [alCambiar],
-    );
-    const urgenciaOrden: Record<string, number> = { alta: 0, media: 1, baja: 2 };
-    const ordenadas = [...acciones].sort((a, b) => {
-        const ua = urgenciaOrden[a.urgencia] ?? 9;
-        const ub = urgenciaOrden[b.urgencia] ?? 9;
-        if (ua !== ub) return ua - ub;
-        return a.id.localeCompare(b.id);
-    });
-
-    const copiar = async (texto: string) => {
-        try {
-            await navigator.clipboard.writeText(texto);
-        } catch {
-            const area = document.createElement("textarea");
-            area.value = texto;
-            area.style.position = "fixed";
-            area.style.opacity = "0";
-            document.body.appendChild(area);
-            area.select();
-            document.execCommand("copy");
-            document.body.removeChild(area);
-        }
-    };
-
-    const tonoUrgencia: Record<string, string> = {
-        alta: "text-rose-200",
-        media: "text-amber-200",
-        baja: "text-white/60",
-    };
-
-    return (
-        <section
-            role="region"
-            aria-label="Acciones que esperan a Alex"
-            className="mc-cristal mc-desplegar mt-2 w-full p-3"
-        >
-            <header className="mc-centrado flex flex-wrap items-baseline justify-center gap-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
-                    Te toca a ti
-                </h3>
-                <span className="text-[11px] text-white/45">
-                    {ordenadas.length} acción{ordenadas.length === 1 ? "" : "es"} pendiente{ordenadas.length === 1 ? "" : "s"}
-                </span>
-                <button
-                    type="button"
-                    onClick={alCerrar}
-                    className="ml-2 cursor-pointer rounded-md border border-white/10 px-2 py-0.5 text-[10px] text-white/50"
-                >
-                    Cerrar
-                </button>
-            </header>
-
-            {ordenadas.length === 0 ? (
-                <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">
-                    Nada que necesite a Alex ahora mismo. El sistema se arregla solo.
-                </p>
-            ) : (
-                <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                    {ordenadas.map((a) => (
-                        <li
-                            key={a.id}
-                            className="rounded-lg border border-white/10 bg-black/25 p-2 text-left"
-                        >
-                            <p className="flex flex-wrap items-baseline gap-1.5">
-                                <span className="font-mono text-[11px] text-cyan-200/90">{a.id}</span>
-                                <span
-                                    className={`rounded-full border border-white/10 px-1.5 text-[10px] ${tonoUrgencia[a.urgencia]}`}
-                                >
-                                    {a.urgencia}
-                                </span>
-                            </p>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-white/80">
-                                {a.titulo}
-                            </p>
-                            <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/70">
-                                {a.por_que}
-                            </p>
-                            {a.enlace ? (
-                                <p className="mt-1 flex items-center gap-1.5">
-                                    <ExternalLink className="h-3 w-3 shrink-0 text-cyan-300" aria-hidden />
-                                    <a
-                                        href={a.enlace}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mc-alzar cursor-pointer text-[11px] text-cyan-200 hover:text-cyan-100 underline underline-offset-1 truncate"
-                                    >
-                                        {a.enlace}
-                                    </a>
-                                </p>
-                            ) : null}
-                            {a.comando ? (
-                                <div className="mt-1.5">
-                                    <p className="text-[10px] text-white/45">Comando:</p>
-                                    <div className="mt-0.5 flex items-center gap-1.5">
-                                        <code className="flex-1 min-w-0 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/90 truncate font-mono">
-                                            {a.comando}
-                                        </code>
-                                        <button
-                                            type="button"
-                                            onClick={() => void copiar(a.comando!)}
-                                            className="mc-alzar cursor-pointer shrink-0 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/70 hover:text-white"
-                                            aria-label="Copiar comando"
-                                        >
-                                            <Copy className="h-3 w-3" aria-hidden />
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : null}
-                            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                                <button
-                                    type="button"
-                                    disabled={comprobando === a.id}
-                                    onClick={() => void recomprobar(a.id)}
-                                    data-testid={`recomprobar-${a.id}`}
-                                    className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    {comprobando === a.id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                                    ) : null}
-                                    Ya lo hice · recomprobar
-                                </button>
-                                {resultados[a.id] ? (
-                                    <span
-                                        className={`text-[10px] ${
-                                            resultados[a.id].hecha ? "text-emerald-200" : "text-amber-200/80"
-                                        }`}
-                                    >
-                                        {resultados[a.id].hecha ? "✓ " : "· "}
-                                        {resultados[a.id].detalle}
-                                        {resultados[a.id].comprobado ? ` (${resultados[a.id].comprobado})` : ""}
-                                    </span>
-                                ) : null}
-                            </div>
-                            <p className="mt-1.5 text-[10px] text-white/35">
-                                (Yo no: {a.por_que_no_lo_hago_yo})
-                            </p>
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </section>
-    );
+    categoria?: string;
+    como_hacerlo?: string;
+    propuesta_id?: string;
+    proyecto?: string;
+    pieza?: string;
+    modelo?: string;
+    tomas?: number;
+    fecha?: string;
+    creditos_estimados?: number;
+    motivo?: string;
+    prompt?: string;
+    aprobable?: boolean;
+    rechazable?: boolean;
+    comando_rechazar?: string;
+    comando_higgsfield?: string;
+    comando_telegram?: string;
 }
 
 function dinero(valor: number): string {
@@ -1924,7 +1731,7 @@ export function CentroMando() {
 
     return (
         <VozMandoProvider control={controlVoz}>
-        <div className="space-y-5">
+        <div className="mc-raiz space-y-5">
             <AvisoAutocuracion />
             <GuardianPantalla />
             {/* (2026-10-06) Alex: «un botón hasta arriba para lanzar un reactivador de todos
@@ -1975,7 +1782,19 @@ export function CentroMando() {
                     {/* Ola 1004 (petición de Alex, 2026-10-04): el chat de la dirección va encima del
                         pulso. (2026-10-09) Sus mensajes ya no repiten su barra de botones entera:
                         aparece al pasar por cada uno, y así el chat deja ver el pulso debajo. */}
-                    <ChatDirector />
+                    <ChatDirector onAbrirAjustes={() => alIrADesdeMedidor("ajustes")} />
+                    <BannerBloqueosSistema
+                        discoLibreMb={almacenamiento?.disco?.libreMb}
+                        accionesPendientes={(accionesAlex?.acciones.length ?? 0) + ((sinPublicar?.astraura ?? 0) > 0 ? 1 : 0)}
+                        claudeAgotado={medidoresResumen?.creditoTono === "peligro" || /100\s*%/.test(medidoresResumen?.credito ?? "")}
+                        onAbrirTeToca={() => {
+                            setMedidorAbierto(null);
+                            setIdesAbierto(false);
+                            setJevAbierto(false);
+                            setAccionesAlexAbierto(true);
+                        }}
+                        onAbrirAjustes={() => alIrADesdeMedidor("ajustes")}
+                    />
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-sm font-semibold text-white/80">Pulso del trabajo</h2>
                         <VerificarProcesos />
@@ -2475,7 +2294,7 @@ export function CentroMando() {
                             alAbrirMedidor={(c) => setMedidorAbierto(c)}
                         />
                     ) : accionesAlexAbierto ? (
-                        <PanelAccionesAlex
+                        <PanelTeToca
                             acciones={accionesAlex?.acciones ?? []}
                             alCerrar={() => setAccionesAlexAbierto(false)}
                             alCambiar={() => {
@@ -2518,15 +2337,7 @@ export function CentroMando() {
                                                     </button>
                                                 ) : null}
                                             </div>
-                                            <ul
-                                                className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${
-                                                    deEste.length === 7
-                                                        ? "lg:grid-cols-7"
-                                                        : deEste.length === 8
-                                                          ? "lg:grid-cols-4 xl:grid-cols-8"
-                                                          : "lg:grid-cols-6"
-                                                }`}
-                                            >
+                                            <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                                 {deEste.map((m) => (
                                                     <li key={m.titulo}>
                                                         <PastillaMedidor
@@ -2590,59 +2401,16 @@ export function CentroMando() {
             ) : null}
 
             <Tabs id="mando-pestanas" className="scroll-mt-4" value={pestana} onValueChange={alCambiarPestana}>
-                <div className="flex sm:hidden">
-                    <MenuListaMovil
-                        opciones={PESTANAS_OPCIONES}
-                        valor={pestana}
-                        onCambiar={alCambiarPestana}
-                        titulo="Pestañas de Genesis"
-                        className="w-full"
-                    />
-                </div>
-                {/* (2026-10-29 · UIG1029D) Alex: «todas las demás ventanas deben poder desplegar o
-                    cerrar su información». Una orden para la pestaña visible, centrada y con el
-                    mismo trazo de la pila de Genesis; el estado de cada ventana lo sigue
-                    recordando SeccionPlegable tras la primera visita. */}
-                <div className="flex items-center justify-center py-2">
-                    <button
-                        type="button"
-                        onClick={alternarPliegue}
-                        aria-pressed={todoPlegado}
-                        data-testid="boton-plegar-todo"
-                        className="mc-alzar cursor-pointer rounded-md border border-cyan-300/40 bg-cyan-400/10 px-3 py-1.5 text-[11px] text-cyan-100"
-                    >
-                        {etiquetaPliegue}
-                    </button>
-                </div>
-                {/* (2026-10-09) Alex: «las posiciones y órdenes de los botones… y los nombres de cada
-                    sección están feos». Las familias se nombraban DENTRO de la fila, entre pestañas
-                    («salida», «fuera»…), la barra se partía en tres filas desiguales y «Ajustes» eran
-                    dos botones de media pantalla. Ahora cada familia es un bloque con su nombre
-                    encima y sus pestañas debajo, todas del mismo tamaño. */}
-                <TabsList
-                    aria-label="Pestañas de Genesis"
-                    className="mc-cristal hidden h-auto w-full flex-wrap items-start justify-start gap-x-5 gap-y-3 px-3 py-2.5 sm:flex"
-                >
-                    {GRUPOS_PESTANAS.map((g) => (
-                        <div key={g} role="group" aria-label={g} className="flex flex-col gap-1">
-                            <span aria-hidden className="px-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                                {g}
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                                {PESTANAS.filter((p) => p.grupo === g).map((p) => (
-                                    <TabsTrigger
-                                        key={p.id}
-                                        value={p.id}
-                                        className="mc-alzar flex-none cursor-pointer px-3 py-1.5 text-xs"
-                                    >
-                                        {p.etiqueta}
-                                        {p.id === "reportes" ? <InsigniaReportes activa={pestana === "reportes"} /> : null}
-                                    </TabsTrigger>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </TabsList>
+                <NavegacionPestanasMetaGenesis
+                    pestanas={PESTANAS}
+                    grupos={GRUPOS_PESTANAS}
+                    pestanaActiva={pestana}
+                    alCambiarPestana={alCambiarPestana}
+                    etiquetaPliegue={etiquetaPliegue}
+                    todoPlegado={todoPlegado}
+                    alAlternarPliegue={alternarPliegue}
+                    renderInsignia={(id) => (id === "reportes" ? <InsigniaReportes activa={pestana === "reportes"} /> : null)}
+                />
 
                 <TabsContent value="procesos">
                     <VentanaPestana pestana="procesos" panel="procesos" titulo="Procesos">
@@ -2793,8 +2561,8 @@ export function CentroMando() {
                     </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="ajustes">
-                    <VentanaPestana pestana="ajustes" panel="ajustes" titulo="Ajustes">
-                        <PanelAjustes />
+                    <VentanaPestana pestana="ajustes" panel="ajustes" titulo="Configuración unificada de MetaGenesis">
+                        <PanelConfiguracionMetaGenesis />
                     </VentanaPestana>
                 </TabsContent>
                  <TabsContent value="accesos">

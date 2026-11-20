@@ -7,6 +7,22 @@ export interface AccionAlex {
     enlace?: string;
     por_que_no_lo_hago_yo: string;
     detalle?: string;
+    categoria?: string;
+    como_hacerlo?: string;
+    propuesta_id?: string;
+    proyecto?: string;
+    pieza?: string;
+    modelo?: string;
+    tomas?: number;
+    fecha?: string;
+    creditos_estimados?: number;
+    motivo?: string;
+    prompt?: string;
+    aprobable?: boolean;
+    rechazable?: boolean;
+    comando_rechazar?: string;
+    comando_higgsfield?: string;
+    comando_telegram?: string;
 }
 
 export interface AccionesAlexData {

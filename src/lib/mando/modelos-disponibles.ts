@@ -593,6 +593,23 @@ function estadosSalud(json: unknown): Record<string, string> {
     return salida;
 }
 
+/** Prioridad de ordenación para mostrar primero modelos gratuitos vivos. */
+const PRIORIDAD_SALUD: Record<string, number> = {
+    vivo: 0,
+    desconocido: 1,
+    enfriando: 2,
+    "sin-cupo": 3,
+    sinCupo: 3,
+    fichaje: 4,
+    caido: 5,
+    "sin-clave": 6,
+};
+
+/** Lee nombres de pasarelas conocidas sin cupo reciente desde el chat del director o marca explícita. */
+function esPasarelaDePagoOAgotada(proveedor: string): boolean {
+    return proveedor === "explabs" || proveedor === "xai" || proveedor === "deepseek";
+}
+
 /** Todos los modelos usables ahora, con salud y si hay clave. */
 export async function listarModelos(): Promise<ModeloDisponible[]> {
     const [xk, ol, pa, saludJson, sonda] = await Promise.all([
@@ -607,12 +624,31 @@ export async function listarModelos(): Promise<ModeloDisponible[]> {
     for (const p of Object.keys(CLAVES)) conClave[p] = SIN_CLAVE_OK.has(p) || Boolean(await claveDe(...CLAVES[p]));
     for (const m of pa) conClave[m.proveedor] = true;
     const todos = [...FIJOS.map((m) => ({ ...m, salud: "desconocido" })), ...xk, ...ol, ...pa];
-    return todos.map((m) => ({
-        ...m,
-        salud: m.proveedor === "ollama" ? m.salud : !conClave[m.proveedor] ? "sin-clave" : salud[m.proveedor] ?? "desconocido",
-        saludDetalle: detalles.porProveedor[m.proveedor] ?? null,
-        ultimoRevisorOk: detalles.ultimoRevisorOk,
-    }));
+    const enriquecidos = todos.map((m) => {
+        const pago = esPasarelaDePagoOAgotada(m.proveedor);
+        const saludFinal =
+            m.proveedor === "ollama"
+                ? m.salud
+                : !conClave[m.proveedor]
+                  ? "sin-clave"
+                  : (salud[m.proveedor] ?? (pago ? "sinCupo" : "desconocido"));
+        return {
+            ...m,
+            gratis: pago ? false : m.gratis,
+            salud: saludFinal,
+            saludDetalle: detalles.porProveedor[m.proveedor] ?? null,
+            ultimoRevisorOk: detalles.ultimoRevisorOk,
+        };
+    });
+    return enriquecidos.sort((a, b) => {
+        const ga = a.gratis ? 0 : 1;
+        const gb = b.gratis ? 0 : 1;
+        if (ga !== gb) return ga - gb;
+        const sa = PRIORIDAD_SALUD[a.salud] ?? 3;
+        const sb = PRIORIDAD_SALUD[b.salud] ?? 3;
+        if (sa !== sb) return sa - sb;
+        return a.id.localeCompare(b.id);
+    });
 }
 
 /** Separa `proveedor/modelo` (el modelo puede llevar barras). */

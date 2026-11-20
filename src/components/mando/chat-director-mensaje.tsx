@@ -127,7 +127,7 @@ export function MensajeDelDirector({ mensaje, entregas, detalles, modelos, model
         "group rounded-xl border p-3 text-xs transition-colors duration-200",
         esAlex ? "self-end ml-auto max-w-[85%] border-cyan-400/30 bg-cyan-500/10" : 
         (esDirectorPresidente ? "self-start mr-auto max-w-[92%] sm:max-w-[85%] border-amber-400/35 bg-amber-500/10" :
-        (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-zinc-900/70 border-violet-500/20")),
+        (esSistema ? "rounded-md border-amber-500/30 bg-amber-900/30 p-2 text-[11px]" : "bg-[#0A0F1D]/85 border-sky-400/20")),
       ].filter(Boolean).join(" ")}
     >
       <header className={[

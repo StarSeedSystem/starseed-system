@@ -438,7 +438,7 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             "detalle": "http %s · modelo %s" % (p.get("http"), p.get("modelo")),
         })
 
-    # Higgsfield (HGF1113B): propuestas pendientes de aprobación
+    # Higgsfield (HGF1113B): propuestas pendientes de aprobación (con contexto completo, cómo hacerlo y rechazo)
     if _hfa is not None:
         try:
             propuestas = _hfa._leer(_hfa.DIR, "propuestas.json", [])
@@ -448,19 +448,57 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             for p in propuestas:
                 pid = str(p.get("id") or "")
                 if pid and pid not in aprobaciones:
-                    proyecto = str(p.get("proyecto") or "")
-                    pieza = str(p.get("pieza") or "")
-                    modelo = str(p.get("modelo") or "")
+                    proyecto = str(p.get("proyecto") or "starseed")
+                    pieza = str(p.get("pieza") or "pieza visual")
+                    modelo = str(p.get("modelo") or "seedance-2.0")
+                    motivo_hf = str(p.get("motivo") or "Propuesta audiovisual de StarSeed OS")
+                    tomas = int(p.get("tomas") or 1)
+                    fecha_hf = str(p.get("fecha") or "")
                     est = float(p.get("creditos_estimados") or 0)
+                    cmd_raw = p.get("comando") or []
+                    prompt_hf = ""
+                    if isinstance(cmd_raw, list):
+                        for i, tok in enumerate(cmd_raw):
+                            if tok == "--prompt" and i + 1 < len(cmd_raw):
+                                prompt_hf = str(cmd_raw[i + 1])
+                                break
+                        cmd_preview = " ".join(str(x) for x in cmd_raw)
+                    else:
+                        cmd_preview = str(cmd_raw)
                     acciones.append({
                         "id": "higgsfield-%s" % pid,
-                        "titulo": "Aprobar Higgsfield: %s / %s (%s)" % (proyecto, pieza, modelo),
-                        "por_que": "Propuesta de Higgsfield pendiente de aprobación (est. %.1f créditos)" % est,
+                        "categoria": "higgsfield",
+                        "propuesta_id": pid,
+                        "proyecto": proyecto,
+                        "pieza": pieza,
+                        "modelo": modelo,
+                        "tomas": tomas,
+                        "fecha": fecha_hf,
+                        "creditos_estimados": est,
+                        "motivo": motivo_hf,
+                        "prompt": prompt_hf,
+                        "aprobable": True,
+                        "rechazable": True,
+                        "titulo": "Higgsfield · %s: %s (%s)" % (proyecto, pieza, modelo),
+                        "por_que": "%s · Modelo %s · %d toma(s) · est. %.1f créditos" % (motivo_hf, modelo, tomas, est),
                         "urgencia": "media",
-                        "comando": PREFIJO + "python3 -c \"import sys; sys.path.insert(0, '%s/scripts/puente'); import peticiones_telegram as m; m._comando_higgsfield_aprobar('%s')\" 2>/dev/null || echo 'ejecutar desde el bot'" % (RAIZ, pid),
-                        "enlace": "",
-                        "por_que_no_lo_hago_yo": "solo Alex puede aprobar gastos de Higgsfield",
-                        "detalle": "id: %s | proyecto: %s | pieza: %s | modelo: %s | est. %.1f créditos | /higgsfield aprobar %s" % (pid, proyecto, pieza, modelo, est, pid),
+                        "como_hacerlo": (
+                            "1. Revisa el proyecto, modelo, coste (%.1f créditos) y el prompt que se enviará. "
+                            "2. Pulsa «Aprobar» si autorizas ejecutar esta generación (también vale `/higgsfield aprobar %s` en Telegram). "
+                            "3. Pulsa «Rechazar» si no quieres gastar créditos ni ver esta propuesta."
+                        ) % (est, pid),
+                        "comando": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --aprobar higgsfield-%s" % pid,
+                        "comando_rechazar": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --rechazar higgsfield-%s" % pid,
+                        "comando_higgsfield": cmd_preview,
+                        "comando_telegram": "/higgsfield aprobar %s" % pid,
+                        "enlace": "https://higgsfield.ai",
+                        "por_que_no_lo_hago_yo": "solo Alex puede aprobar o rechazar gastos de Higgsfield",
+                        "detalle": "ID %s%s · Comando real: %s%s" % (
+                            pid,
+                            " (%s)" % fecha_hf if fecha_hf else "",
+                            cmd_preview,
+                            (" · Prompt: %s" % prompt_hf) if prompt_hf else "",
+                        ),
                     })
         except Exception:
             pass
@@ -728,7 +766,71 @@ def guardar_lista(acciones):
         pass
 
 
+def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="", base_hf=None, regenerar=True):
+    """Aprueba o rechaza una propuesta Higgsfield desde MetaGenesis / CLI y actualiza acciones-de-alex.json."""
+    if _hfa is None:
+        return {"ok": False, "error": "Módulo higgsfield_aprobado no disponible"}
+    texto_id = str(id_accion or "").strip()
+    pid = texto_id[len("higgsfield-"):] if texto_id.startswith("higgsfield-") else texto_id
+    if not pid:
+        return {"ok": False, "error": "Falta el identificador de la propuesta"}
+    base = base_hf or _hfa.DIR
+    propuestas = _hfa._leer(base, "propuestas.json", [])
+    if isinstance(propuestas, dict):
+        propuestas = propuestas.get("propuestas") or []
+    propuesta = next((p for p in propuestas if str(p.get("id") or "") == pid), None)
+    if propuesta is None:
+        return {"ok": False, "error": "No existe la propuesta %s" % pid}
+    registro = _hfa.aprobar(propuesta, por=por, aprobada=aprobada, motivo=motivo)
+    _hfa.guardar_aprobacion(registro, base=base)
+    quedan = None
+    if regenerar:
+        vivas = registrar_pedido_diario(
+            construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
+                               a1_tiene_token=a1_tiene_clave()))
+        guardar_lista(vivas)
+        quedan = len(vivas)
+    return {
+        "ok": True,
+        "id": "higgsfield-%s" % pid,
+        "propuesta_id": pid,
+        "estado": registro["estado"],
+        "por": registro["por"],
+        "cuando": registro["cuando"],
+        "quedan": quedan,
+    }
+
+
+def aprobar_accion(id_accion, por="Alex (MetaGenesis)", base_hf=None, regenerar=True):
+    if str(id_accion or "").startswith("higgsfield-"):
+        return _resolver_higgsfield(id_accion, True, por=por, base_hf=base_hf, regenerar=regenerar)
+    return {"ok": False, "error": "Esta acción se comprueba con --verificar, no se aprueba aquí"}
+
+
+def rechazar_accion(id_accion, por="Alex (MetaGenesis)", motivo="Rechazada por Alex desde MetaGenesis", base_hf=None, regenerar=True):
+    if str(id_accion or "").startswith("higgsfield-"):
+        return _resolver_higgsfield(id_accion, False, por=por, motivo=motivo, base_hf=base_hf, regenerar=regenerar)
+    return {"ok": False, "error": "Esta acción solo se resuelve al corregir su causa y recomprobar"}
+
+
 def main():
+    if "--aprobar" in sys.argv:
+        i = sys.argv.index("--aprobar")
+        cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
+        res = aprobar_accion(cual)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0 if res.get("ok") else 1
+    if "--rechazar" in sys.argv:
+        i = sys.argv.index("--rechazar")
+        cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
+        motivo = "Rechazada por Alex desde MetaGenesis"
+        if "--motivo" in sys.argv:
+            j = sys.argv.index("--motivo")
+            if len(sys.argv) > j + 1:
+                motivo = sys.argv[j + 1]
+        res = rechazar_accion(cual, motivo=motivo)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0 if res.get("ok") else 1
     if "--verificar" in sys.argv:
         i = sys.argv.index("--verificar")
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None

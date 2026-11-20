@@ -42,6 +42,27 @@ class TestExtraerComandoDesdePlist:
         finally:
             os.unlink(ruta)
 
+    def test_plist_jxa_con_redirecciones(self):
+        """Debe extraer el comando real cuando osascript usa JXA $.system("exec ... >> ... 2>> ...")."""
+        plist_data = {
+            "Label": "ai.hermes.gateway",
+            "ProgramArguments": [
+                "/usr/bin/osascript",
+                "-l",
+                "JavaScript",
+                "-e",
+                'ObjC.import("stdlib"); const status=$.system("exec /Users/alex/.hermes/bin/hermes gateway run --external-supervisor >> /Users/alex/.hermes/logs/gateway.log 2>> /Users/alex/.hermes/logs/gateway.error.log"); $.exit(0);',
+            ],
+        }
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".plist", delete=False) as f:
+            plistlib.dump(plist_data, f)
+            ruta = f.name
+        try:
+            cmd = extraer_comando_desde_plist(ruta)
+            assert cmd == ["/Users/alex/.hermes/bin/hermes", "gateway", "run", "--external-supervisor"]
+        finally:
+            os.unlink(ruta)
+
     def test_plist_con_osascript_y_exec_con_comillas(self):
         """Debe manejar comillas en el comando."""
         plist_data = {
@@ -58,6 +79,27 @@ class TestExtraerComandoDesdePlist:
         try:
             cmd = extraer_comando_desde_plist(ruta)
             assert cmd == ["/home/starseed/.hermes/bin/hermes", "gateway", "run", "--replace"]
+        finally:
+            os.unlink(ruta)
+
+    def test_plist_jxa_con_redirecciones(self):
+        """Debe extraer el comando real cuando osascript usa JXA $.system("exec ... >> ... 2>> ...")."""
+        plist_data = {
+            "Label": "ai.hermes.gateway",
+            "ProgramArguments": [
+                "/usr/bin/osascript",
+                "-l",
+                "JavaScript",
+                "-e",
+                'ObjC.import("stdlib"); const status=$.system("exec /Users/alex/.hermes/bin/hermes gateway run --external-supervisor >> /Users/alex/.hermes/logs/gateway.log 2>> /Users/alex/.hermes/logs/gateway.error.log"); $.exit(0);',
+            ],
+        }
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".plist", delete=False) as f:
+            plistlib.dump(plist_data, f)
+            ruta = f.name
+        try:
+            cmd = extraer_comando_desde_plist(ruta)
+            assert cmd == ["/Users/alex/.hermes/bin/hermes", "gateway", "run", "--external-supervisor"]
         finally:
             os.unlink(ruta)
 

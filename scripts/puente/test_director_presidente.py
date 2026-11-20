@@ -654,5 +654,42 @@ class TestPET1112IAtender2D3D(Base):
         self.assertEqual("claude", resp["eleccion"]["proveedor"])
 
 
+class TestRespaldoFlotaYConfig(Base):
+    def test_respeta_orden_y_proveedores_desactivados(self):
+        falso = Falso(codex=(0, "Contesta Codex primero"))
+        cfg = {
+            "orden_proveedores": ["chatgpt", "claude", "hermes", "agy"],
+            "proveedores_activos": {"claude": False, "hermes": False, "agy": False, "chatgpt": True},
+            "timeouts_reintento_s": [120, 300, 600],
+            "respaldo_flota_gratis": False,
+            "max_opus_dia": 40,
+            "sincronizar_canales": {"hermes": True, "telegram": False, "astraura": True, "nube": True},
+        }
+        r = P.atender(self.alex, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: True,
+                      limites=limites(), ahora=AHORA, config=cfg)
+        self.assertEqual("respondido", r)
+        self.assertEqual(["codex"], falso.llamadas)
+
+    def test_cae_a_flota_gratis_cuando_clis_fallan(self):
+        falso = Falso(hermes=(1, ""), agy=(1, ""), codex=(1, ""))
+        cfg = {
+            "orden_proveedores": ["claude", "hermes", "agy", "chatgpt"],
+            "proveedores_activos": {"claude": False, "hermes": True, "agy": True, "chatgpt": True},
+            "timeouts_reintento_s": [120, 300, 600],
+            "respaldo_flota_gratis": True,
+            "max_opus_dia": 40,
+            "sincronizar_canales": {"hermes": True, "telegram": False, "astraura": True, "nube": True},
+        }
+        r = P.atender(
+            self.alex, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: True,
+            limites={}, ahora=AHORA, config=cfg,
+            llamar_flota=lambda _p: ("Contesta flota HTTP gratuita.", "", {"provider": "google", "model": "gemini-3.5-flash-lite"}),
+        )
+        self.assertEqual("respondido", r)
+        resp = self.respuestas()[-1]
+        self.assertEqual("flota-gratis", resp["eleccion"]["proveedor"])
+        self.assertEqual("google/gemini-3.5-flash-lite", resp["modelo"])
+
+
 if __name__ == "__main__":
     unittest.main()

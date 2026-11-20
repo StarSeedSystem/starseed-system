@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-15 06:39:11 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-19 20:38:24 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,30 +9,50 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-| | |
-|---|---|
-| Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Sueños profundos 2026-10-31 |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 24 |
-| Últimas 4 olas | en curso 0 · pendientes 85 · integradas 0 |
-| HEAD | `1f368cea4 chore(memoria): aprendizaje de la ola auto-1115-061742` |
-| Sin publicar | 3 commits |
-| Árbol | limpio |
+Genesis está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
+y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
+| HEAD | `e02479ebc fix(puente): inicializar estado_mac en buscar_capacidad y actualizar fechas de t` |
+| Sin publicar | 77 commits |
+| Árbol | 43 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1115-061742.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1118-175743.json`, hace 146s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `SIN1114Ac-d3s-d2` | hecho | freellmapi/auto | 2 min | 108 s | 324266 |
-| `REP1114Css` | hecho | openrouter/cohere/north-mini-code: | 5 min | 272 s | 653669 |
-| `SIN11157` | hecho |  | 14 min | 851 s | 597 |
-| `SIN11156` | hecho |  | 14 min | 854 s | 477 |
-| `SIN11155` | hecho |  | 14 min | 857 s | 576 |
-| `SIN11154` | hecho |  | 14 min | 860 s | 1125 |
-| `SIN11153` | hecho |  | 14 min | 863 s | 609 |
-| `SIN11152` | hecho |  | 14 min | 866 s | 483 |
-| `SIN11151` | hecho |  | 14 min | 869 s | 616 |
+| `A392821BE` | hecho |  | 2 min | 147 s | 0 |
+| `AC2E049E1` | escribiendo | opencode/big-pickle | 25 min | 374 s | 2797 |
+| `A0FDE8168` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 19 min | 1137 s | 55080 |
+| `A39897682` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 31 min | 1831 s | 79027 |
+| `A80CF23A6` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 79 min | 4744 s | 47636 |
+| `A1705AD28` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 122 min | 7315 s | 37263 |
+| `ENT-agentes-referencias-diseno-agentes-re-bfe106-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 143 min | 8597 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-a4bab4-v1` | hecho | explabs/deepseek-v4.1-flash | 144 min | 8631 s | 484 |
+| `ENT-agentes-referencias-diseno-agentes-re-838604-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 144 min | 8646 s | 703 |
+| `RIM-agentes-referencias-diseno-agentes-re-fc659a-v2` | hecho | explabs/deepseek-v4.1-flash | 164 min | 9849 s | 490 |
+| `ENT-agentes-referencias-diseno-agentes-re-a7186e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 165 min | 9878 s | 807 |
+| `ENT-agentes-referencias-diseno-agentes-re-353c83-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 167 min | 10005 s | 785 |
+| `ENT-agentes-referencias-diseno-agentes-re-e6b1d0-v1` | hecho | explabs/deepseek-v4.1-flash | 168 min | 10081 s | 683 |
+| `IRD11193` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 169 min | 10137 s | 559 |
+| `IRD11192` | hecho | explabs/deepseek-v4.1-flash | 170 min | 10208 s | 442 |
+| `IRD11191` | hecho | groq/openai/gpt-oss-120b | 171 min | 10237 s | 541 |
+| `PEND1b-d2` | hecho | openrouter/cohere/north-mini-code: | 1104 min | 66253 s | 99175 |
+| `A4F047CA3` | hecho | freellmapi/auto | 1115 min | 66886 s | 2054 |
+| `A0BF43013` | hecho | openrouter/thinkingmachines/inklin | 1140 min | 68412 s | 198062 |
+| `CAP1119B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1157 min | 69439 s | 356778 |
+| `ASW13-d1b` | hecho | codex/gpt-5.6-sol | 1200 min | 72025 s | 315517 |
+| `PEND1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1280 min | 76788 s | 42295 |
+| `A13BE11E4` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1305 min | 78301 s | 13129 |
+| `CTL1119Fb` | hecho | openrouter/cohere/north-mini-code: | 1311 min | 78687 s | 46497 |
+| `ALM1118A-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 1338 min | 80296 s | 20015 |
+| `CAP1119C` | hecho | freellmapi/auto | 1338 min | 80300 s | 68236 |
+| `AF0E9F413` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1371 min | 82269 s | 20427 |
+| `PRU1118A-d1` | hecho | freellmapi/auto | 1478 min | 88681 s | 176190 |
+| `IMG-agentes-reimaginada-profunda-corregir-ti-d2` | hecho | openrouter/cohere/north-mini-code: | 1531 min | 91835 s | 70215 |
+| `ENT-agentes-referencias-diseno-agentes-re-6823f5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1535 min | 92119 s | 490 |
+| `EFI1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1541 min | 92445 s | 156485 |
+| `LNX1118WA` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1578 min | 94702 s | 51713 |
+| `ASW13-d1` | hecho | openrouter/thinkingmachines/inklin | 1585 min | 95074 s | 361833 |
+| `MRA8b-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1586 min | 95133 s | 5219 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.

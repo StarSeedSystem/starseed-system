@@ -297,11 +297,103 @@ def con_prefijo(prov, mod):
     return mod[len(prov) + 1:] if mod.startswith(prov + "/") else mod
 
 
+def _metadatos_proveedor(texto, prov):
+    """Extrae `{base_url, key_env}` declarados para `prov` dentro de `providers:` en config.yaml."""
+    actual = None
+    en_providers = False
+    meta = {}
+    for linea in texto.splitlines():
+        if re.match(r"^providers:\s*$", linea):
+            en_providers = True
+            continue
+        if en_providers and re.match(r"^\S", linea):
+            break
+        if not en_providers:
+            continue
+        m = re.match(r"^  ([a-z0-9_-]+):\s*$", linea)
+        if m:
+            if actual == prov:
+                break
+            actual = m.group(1)
+            continue
+        if actual != prov:
+            continue
+        m_kv = re.match(r"^    (base_url|key_env):\s*(.+?)\s*$", linea)
+        if m_kv:
+            clave, val = m_kv.group(1), m_kv.group(2).strip()
+            meta[clave] = val
+    return meta
+
+
+def _actualizar_bloque_model(texto, prov, mod):
+    """Actualiza solo `model:` fijando default/provider y sincronizando/limpiando base_url y key_env."""
+    meta = _metadatos_proveedor(texto, prov)
+    patron_model = re.compile(r"(?m)^model:[ \t]*\n(?:[ \t]+.*\n|[ \t]*\n)*")
+    m = patron_model.search(texto)
+    mod_real = con_prefijo(prov, mod)
+    if not m:
+        lineas = ["model:", "  default: %s" % mod_real, "  provider: %s" % prov]
+        if meta.get("base_url"):
+            lineas.append("  base_url: %s" % meta["base_url"])
+        if meta.get("key_env"):
+            lineas.append("  key_env: %s" % meta["key_env"])
+        return "\n".join(lineas) + "\n" + texto
+
+    lineas_in = m.group(0).splitlines()
+    nuevas = []
+    vistos = set()
+    for linea in lineas_in:
+        if re.match(r"^  default:\s*", linea):
+            nuevas.append("  default: %s" % mod_real)
+            vistos.add("default")
+        elif re.match(r"^  provider:\s*", linea):
+            nuevas.append("  provider: %s" % prov)
+            vistos.add("provider")
+        elif re.match(r"^  base_url:\s*", linea):
+            if meta.get("base_url"):
+                nuevas.append("  base_url: %s" % meta["base_url"])
+                vistos.add("base_url")
+            # Si el proveedor es nativo (sin base_url custom), elimina el base_url viejo.
+        elif re.match(r"^  key_env:\s*", linea):
+            if meta.get("key_env"):
+                nuevas.append("  key_env: %s" % meta["key_env"])
+                vistos.add("key_env")
+        else:
+            nuevas.append(linea)
+
+    # Insertar campos faltantes justo después de provider si son requeridos por proveedor custom.
+    extras = []
+    if "default" not in vistos:
+        extras.append("  default: %s" % mod_real)
+    if "provider" not in vistos:
+        extras.append("  provider: %s" % prov)
+    if meta.get("base_url") and "base_url" not in vistos:
+        extras.append("  base_url: %s" % meta["base_url"])
+    if meta.get("key_env") and "key_env" not in vistos:
+        extras.append("  key_env: %s" % meta["key_env"])
+    if extras:
+        pos = next((i + 1 for i, l in enumerate(nuevas) if l.startswith("  provider:")), len(nuevas))
+        nuevas = nuevas[:pos] + extras + nuevas[pos:]
+
+    bloque_nuevo = "\n".join(nuevas).rstrip("\n") + "\n"
+    return texto[:m.start()] + bloque_nuevo + texto[m.end():]
+
+
+def _podar_respaldos(ruta_config=CONFIG, mantener=10):
+    """Elimina copias `config.yaml.bak-*` antiguas conservando las `mantener` más recientes."""
+    import glob
+    baks = sorted(glob.glob(ruta_config + ".bak-*"), key=lambda p: os.path.getmtime(p), reverse=True)
+    for viejo in baks[max(0, int(mantener)):]:
+        try:
+            os.unlink(viejo)
+        except OSError:
+            pass
+
+
 def reescribir(texto, primero, cad):
-    """Solo toca `model.default`, `model.provider` y `fallback_providers`."""
+    """Actualiza `model.*` (eliminando base_url/key_env obsoletos o sincronizándolos) y `fallback_providers`."""
     prov, mod = primero
-    texto = re.sub(r"(?m)^(  default:\s*).*$", r"\g<1>%s" % con_prefijo(prov, mod), texto, count=1)
-    texto = re.sub(r"(?m)^(  provider:\s*).*$", r"\g<1>%s" % prov, texto, count=1)
+    texto = _actualizar_bloque_model(texto, prov, mod)
     bloque = ["fallback_providers:"]
     for p, m, _ in cad:
         bloque.append("  - provider: %s" % p)
@@ -327,7 +419,7 @@ def main():
     rechazados = set()
     try:
         lineas = open(GATEWAY_LOG, encoding="utf-8").read().splitlines()
-        rechazados = proveedores_con_clave_rechazada(lineas)
+        rechazados = proveedores_con_clave_rechazada(lineas, max_lineas=2000)
     except Exception:
         pass
     cad = cadena(provs, estados, rechazados=rechazados)
@@ -340,6 +432,7 @@ def main():
     if args.seco:
         print("(seco)"); return 0
     shutil.copy2(CONFIG, CONFIG + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
+    _podar_respaldos(CONFIG, mantener=10)
     open(CONFIG, "w", encoding="utf-8").write(reescribir(texto, primero, cad))
     print("config.yaml reescrito (respaldo al lado)")
     return 0

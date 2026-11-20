@@ -23,8 +23,13 @@
     --mc-neon-cian: 34 211 238;
     --mc-neon-violeta: 167 139 250;
     --mc-neon-ambar: 251 191 36;
+    --mc-zenith: 0 127 255;
+    --mc-horizon: 16 185 129;
+    --mc-logic: 255 191 0;
+    --mc-anchor: 220 20 60;
+    --mc-vacio: #0A0F1D;
 
-    --mc-cristal-fondo: rgba(255, 255, 255, 0.045);
+    --mc-cristal-fondo: rgba(10, 15, 29, 0.72);
     --mc-cristal-borde: rgba(255, 255, 255, 0.11);
     --mc-cristal-canto: rgba(255, 255, 255, 0.16);
     --mc-radio: 0.85rem;
@@ -32,6 +37,41 @@
     --mc-rapido: 140ms;
     --mc-normal: 240ms;
     --mc-curva: cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+/* Selección visible y configurable en todo MetaGenesis (Trinidad Zenith por defecto). */
+.mc-raiz ::selection,
+.mc-raiz::selection {
+    background: var(--selection-background, rgba(0, 127, 255, 0.44));
+    color: var(--selection-foreground, #ffffff);
+}
+.mc-raiz ::-moz-selection,
+.mc-raiz::-moz-selection {
+    background: var(--selection-background, rgba(0, 127, 255, 0.44));
+    color: var(--selection-foreground, #ffffff);
+}
+
+/* Capa superior nativa para el selector de canales: nunca queda detrás de los medidores. */
+.mc-popover-canales {
+    inset: auto;
+    margin: 0;
+    background-color: rgba(10, 15, 29, 0.98);
+    border: 1px solid rgba(0, 127, 255, 0.35);
+    border-radius: 0.75rem;
+    box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85), 0 0 24px -8px rgba(0, 127, 255, 0.35);
+    color: #f8fafc;
+}
+.mc-popover-canales::backdrop {
+    background: transparent;
+}
+@supports (anchor-name: --test) {
+    .mc-popover-anclado {
+        position: fixed;
+        top: anchor(bottom);
+        left: anchor(left);
+        margin-top: 0.35rem;
+        position-try-fallbacks: flip-block, flip-inline;
+    }
 }
 
 /* La superficie de cristal: gradiente muy leve, borde claro y un canto interior

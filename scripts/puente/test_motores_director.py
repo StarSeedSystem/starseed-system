@@ -203,6 +203,10 @@ class TestPausaHermes(unittest.TestCase):
         self.assertEqual("hermes sessions discard s1 --yes", M.orden_reabrir_hermes("s1"))
         self.assertFalse(hasattr(M, "descartar_sesion"))
 
+    def test_errores_de_gateway_cuentan_como_fallo_hermes(self):
+        self.assertTrue(M.es_fallo_hermes("Error: Gateway starting: deadline"))
+        self.assertTrue(M.es_fallo_hermes("Error: Gateway connection failed; no local fallback"))
+
 
 class TestHermesConPausa(unittest.TestCase):
     def ejecutor(self, respuestas):

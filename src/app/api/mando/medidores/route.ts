@@ -898,17 +898,19 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         }
     }
 
-    // (CAP1026O) Los trabajadores del A1. Si el bus ya trae latidos suyos, mandan ellos (son por tarea).
-    const agentesA1 = latidosDeAqui.some((l) => l.donde === DONDE_ORACLE || /oracle/i.test(String(l.donde ?? "")))
-        ? []
-        : await midiendo("agentesA1", leerAgentesDelA1());
+    // (CAP1026O) Los trabajadores del A1 y el estado «en marcha» se leen en paralelo para no encadenar esperas.
+    const [agentesA1, enMarcha] = await Promise.all([
+        latidosDeAqui.some((l) => l.donde === DONDE_ORACLE || /oracle/i.test(String(l.donde ?? "")))
+            ? Promise.resolve([])
+            : midiendo("agentesA1", leerAgentesDelA1()),
+        midiendo("enMarcha", leerEnMarcha()),
+    ]);
     if (agentesA1[0] && !titulos[agentesA1[0].tarea]) {
         const n = agentesA1[0].tareasDeTanda.length;
         titulos[agentesA1[0].tarea] = `Cola ${agentesA1[0].cola} en el A1 de Oracle${n ? ` (${n} tarea${n === 1 ? "" : "s"})` : ""}`;
     }
 
     // MED1111E · Los agentes del carril de Claude: cuentan SOLO con el latido del carril reciente.
-    const enMarcha = await midiendo("enMarcha", leerEnMarcha());
     const agentesCarril = agentesDeCarrilClaude(enMarcha?.carril);
     for (const a of agentesCarril) if (!titulos[a.tarea]) titulos[a.tarea] = a.titulo;
     // MED1113A · Los agentes de la dirección con señal medida reciente (los «en silencio» no cuentan; se nombran aparte).

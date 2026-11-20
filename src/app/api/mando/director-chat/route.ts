@@ -121,7 +121,11 @@ export async function POST(req: Request): Promise<Response> {
         });
         return Response.json({ ok: true, mensaje, respuesta });
     } catch (e) {
-        const motivo = e instanceof Error ? e.message : "Error desconocido del modelo.";
+        const crudo = e instanceof Error ? e.message : "Error desconocido del modelo.";
+        const esSinSaldo = /402|429|insufficient_credits|insufficient balance|out of credits|quota|free resources/i.test(crudo);
+        const motivo = esSinSaldo
+            ? `${modelo} no tiene cupo o crédito disponible ahora mismo (${crudo.slice(0, 140)}). Usa «Director presidente» o un modelo gratuito vivo.`
+            : crudo;
         await publicarMensaje({
             de: "sistema", rol: "sistema", tipo: "aviso", canal: "mando", modelo,
             texto: `El modelo no pudo responder: ${motivo}`,

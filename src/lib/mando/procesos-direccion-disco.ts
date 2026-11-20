@@ -17,7 +17,7 @@ export async function leerProcesosDireccion(raiz: string, python = "python3"): P
     try {
         const { stdout } = await correr(python, [path.join(raiz, "scripts", "puente", "procesos_direccion.py"), "estado", "--json"], {
             cwd: raiz,
-            timeout: 25_000,
+            timeout: 8_000,
             maxBuffer: 2_000_000,
         });
         const linea = stdout.trim().split("\n").pop() ?? "";

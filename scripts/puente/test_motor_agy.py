@@ -110,6 +110,26 @@ class TestLeerAgy(unittest.TestCase):
         self.assertEqual(largo.strip(), r["texto"])
         self.assertIsNone(r["error"])
 
+    def test_stderr_mas_json_vacio_jetski_no_se_publica(self):
+        salida = (
+            'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for.\n'
+            '{"conversation_id":"abc","status":"SUCCESS","response":"","model":"gemini-3.8-flash-medium"}'
+        )
+        r = M.leer_agy(salida, 0)
+        self.assertEqual("", r["texto"])
+        self.assertIsNotNone(r["error"])
+        self.assertNotIn("conversation_id", r["texto"])
+
+    def test_stderr_mas_json_con_respuesta_valida_funciona(self):
+        salida = (
+            "warning: headless info\n"
+            + json.dumps({"response": "Todo listo.", "model": "gemini-3.8-flash-medium",
+                          "usage": {"input_tokens": 5, "output_tokens": 3}})
+        )
+        r = M.leer_agy(salida, 0)
+        self.assertEqual("Todo listo.", r["texto"])
+        self.assertIsNone(r["error"])
+
 
 class TestOrdenAgy(unittest.TestCase):
     """La orden: modelo, plan, tope y ninguna bandera peligrosa."""

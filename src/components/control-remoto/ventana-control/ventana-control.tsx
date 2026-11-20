@@ -17,6 +17,8 @@ import { trocear } from "./texto";
 import { SelectorFuente } from "./selector-fuente";
 import { rotuloVia } from "@/lib/control-remoto/cuadro-malla";
 import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pantalla";
+import { estiloSeleccionUsuario } from "@/lib/seleccion/colores-seleccion";
+import { CapaSeleccionCompartida } from "@/components/seleccion/capa-seleccion-compartida";
 
 export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
 
@@ -672,12 +674,25 @@ export function VentanaControl(props: PropsVentanaControl) {
         </span>
     );
 
+    const estilosSeleccion = estiloSeleccionUsuario(props.miColor ?? props.color ?? "#007FFF");
+    const bloqueSeleccionCompartida =
+        (props.participantesSeleccion?.length ?? 0) > 0 || (props.seleccionesActivas?.length ?? 0) > 0 ? (
+            <div className="shrink-0 border-b border-white/10 bg-white/[0.02] px-3 py-1.5">
+                <CapaSeleccionCompartida
+                    participantes={props.participantesSeleccion ?? []}
+                    selecciones={props.seleccionesActivas ?? []}
+                    etiquetaContexto={`Sesión remota · ${nombre}`}
+                    compacta
+                />
+            </div>
+        ) : null;
+
     const base = "flex flex-col overflow-hidden border border-white/10 bg-[#0b0f1a]/95 text-white shadow-2xl backdrop-blur-xl";
 
     if (modo === "pagina") {
         const mostrarSelector = props.alCambiarFuente && (mandosAbiertos || nivel === "ver");
         return (
-            <section role="region" aria-label={`Control de ${nombre}`} tabIndex={-1} onKeyDown={alTeclear} className={`${base} h-full w-full min-h-0 outline-none`} data-testid="ventana-control" data-ventana-control data-modo="pagina">
+            <section role="region" aria-label={`Control de ${nombre}`} tabIndex={-1} onKeyDown={alTeclear} style={estilosSeleccion.cssVars} className={`${base} h-full w-full min-h-0 outline-none`} data-testid="ventana-control" data-ventana-control data-modo="pagina">
                 <header className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 px-3">
                     {props.color && <PuntoColor color={props.color} />}
                     <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{nombre}</h2>
@@ -688,6 +703,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {botonCerrar}
                 </header>
                 {props.ranuraMedio}
+                {bloqueSeleccionCompartida}
                 <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                         <Pantalla p={props} activo={activo} gestor={g} />
@@ -737,7 +753,7 @@ export function VentanaControl(props: PropsVentanaControl) {
             data-ventana-control
             data-modo="flotante"
             className={`${base} fixed z-[2147482000] rounded-xl outline-none`}
-            style={{ left: lugar.x, top: lugar.y, width: wVentana, maxHeight: vista.h - lugar.y }}
+            style={{ ...estilosSeleccion.cssVars, left: lugar.x, top: lugar.y, width: wVentana, maxHeight: vista.h - lugar.y }}
         >
             <header
                 onPointerDown={(e) => empezar(e, "mover")}
@@ -765,6 +781,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 {botonCerrar}
             </header>
             {props.ranuraMedio}
+            {bloqueSeleccionCompartida}
             <div className="relative flex shrink-0 flex-col" style={{ height: Math.min(wVentana * aspecto, altoPantallaMax) }} data-testid="ventana-control-marco">
                 <Pantalla p={props} activo={activo} gestor={g} />
             </div>

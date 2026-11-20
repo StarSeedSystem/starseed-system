@@ -32,6 +32,7 @@ import {
 } from "@/lib/mando/chat-director-tipos";
 import { MensajeDelDirector } from "@/components/mando/chat-director-mensaje";
 import { CompositorDirector, migrarAPresidente, type ModeloOpcion } from "@/components/mando/chat-director-compositor";
+import { BarraEstadoPresidente } from "@/components/mando/barra-estado-presidente";
 
 const CLAVE_PLEGADO = "starseed.mando.director.plegado";
 const CLAVE_MODELO = "starseed.mando.director.modelo";
@@ -140,7 +141,11 @@ function modeloGuardado(): string {
     }
 }
 
-export function ChatDirector() {
+export interface ChatDirectorProps {
+    onAbrirAjustes?: () => void;
+}
+
+export function ChatDirector({ onAbrirAjustes }: ChatDirectorProps = {}) {
     const [plegado, setPlegado] = useState<boolean>(plegadoInicial);
     const [filtro, setFiltro] = useState<FiltroFeed>("todo");
     const [chips, setChips] = useState<Partial<Record<FiltroFeed, string>>>(filtrosGuardados);
@@ -220,13 +225,13 @@ export function ChatDirector() {
     useEffect(() => {
         let vivo = true;
         fetch("/api/mando/modelos", { cache: "no-store" })
-            .then((r) => (r.ok ? (r.json() as Promise<{ modelos?: { id: string; nombre?: string; proveedor: string }[] }>) : null))
+            .then((r) => (r.ok ? (r.json() as Promise<{ modelos?: { id: string; nombre?: string; proveedor: string; salud?: string; gratis?: boolean }[] }>) : null))
             .then((d) => {
                 if (!vivo || !d?.modelos) return;
                 const fijos = new Set<string>(MOTORES_DIRECTOR.map((m) => m.id));
                 setModelos(d.modelos
                     .filter((m) => typeof m.id === "string" && !fijos.has(m.id))
-                    .map((m) => ({ id: m.id, nombre: m.nombre ?? m.id, grupo: m.proveedor })));
+                    .map((m) => ({ id: m.id, nombre: m.nombre ?? m.id, grupo: m.proveedor, salud: m.salud, gratis: m.gratis })));
             })
             .catch(() => { /* el catálogo es opcional: se quedan los motores de dirección */ });
         return () => { vivo = false; };
@@ -414,7 +419,11 @@ export function ChatDirector() {
                 <h2 className="text-sm font-semibold text-white/80">Dirección · chat del director</h2>
             </button>
             {plegado ? null : (
-                <div className="mt-3 flex flex-col gap-2">
+                <div className="mt-3 flex flex-col gap-2.5">
+                    <BarraEstadoPresidente
+                        alAbrirAjustes={onAbrirAjustes}
+                        alRecargarChat={() => void cargar(false)}
+                    />
                     <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtrar el chat">
                         {FILTROS.map((f) => (
                             <button

@@ -129,8 +129,17 @@ _PAUSA_DEBILES = (
 _PAUSA_MAX_CHARS = 1500
 _ID_SESION = re.compile(r"hermes\s+sessions\s+discard\s+([A-Za-z0-9][A-Za-z0-9_\-]*)", re.IGNORECASE)
 _ID_SESION_SUELTO = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]+)\b")
-_FALLOS_HERMES = ("kept failing over", "every provider in the fallback chain", "invalid api key",
-                  "gateway connection failed", "no local fallback")
+_FALLOS_HERMES = (
+    "kept failing over",
+    "every provider in the fallback chain",
+    "invalid api key",
+    "gateway connection failed",
+    "gateway starting:",
+    "gateway unavailable",
+    "gateway exited",
+    "error: gateway",
+    "no local fallback",
+)
 
 
 def es_pausa_hermes(rc, salida) -> bool:
@@ -272,15 +281,22 @@ _AGY_FALLOS = (
     "unauthenticated", "authentication", "session expired", "no session", "invalid api key",
     "api key", "permission denied", "insufficient", "credit", "billing",
     "tiempo agotado", "timed out", "timeout",
+    "jetski: no output produced", "permission that headless mode cannot prompt",
+    "auto-denied", "\"command\" permission",
+)
+_AGY_PERMISOS = (
+    "jetski: no output produced",
+    "permission that headless mode cannot prompt",
+    "\"command\" permission",
+    "auto-denied",
 )
 _AGY_TOPE_FALLO = 600
 
 
 def orden_agy(prompt: str, modelo=None, segundos=None) -> list:
-    """La orden de `agy` con la sesión de Google de Alex.
+    """La orden de `agy` con la sesión de Google de Alex (100 % headless sin GUI).
 
     `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
-    El tope del proceso y el `--print-timeout` son el mismo: SEGUNDOS_AGY.
     """
     segundos = int(segundos or SEGUNDOS_AGY)
     return [
@@ -291,11 +307,41 @@ def orden_agy(prompt: str, modelo=None, segundos=None) -> list:
         modelo or MODELO_AGY,
         "--mode",
         "plan",
+        "--disable-slash-commands",
         "--print-timeout",
         "%ds" % segundos,
         "--output-format",
         "json",
     ]
+
+
+def _extraer_json_agy(crudo: str):
+    """Intenta parsear `crudo` como dict JSON incluso si hay líneas de stderr delante del objeto raíz."""
+    if not crudo:
+        return None
+    try:
+        leido = json.loads(crudo)
+        return leido if isinstance(leido, dict) else None
+    except (TypeError, ValueError):
+        pass
+    decodificador = json.JSONDecoder()
+    # Priorizar `{` al inicio de línea (del último al primero) para no capturar subobjetos como `usage`.
+    inicio_linea = [i for i, ch in enumerate(crudo) if ch == "{" and (i == 0 or crudo[i - 1] in "\r\n")]
+    otros = [i for i, ch in enumerate(crudo) if ch == "{" and i not in inicio_linea][::-1][:8]
+    claves_raiz = ("response", "result", "text", "output", "content", "error", "errorMessage", "error_message", "status", "conversation_id")
+    respaldo = None
+    for idx in list(reversed(inicio_linea))[:8] + otros:
+        try:
+            obj, _ = decodificador.raw_decode(crudo[idx:])
+            if not isinstance(obj, dict):
+                continue
+            if any(k in obj for k in claves_raiz):
+                return obj
+            if respaldo is None:
+                respaldo = obj
+        except ValueError:
+            continue
+    return respaldo
 
 
 def _texto_agy(datos) -> str:
@@ -339,19 +385,14 @@ def _uso_agy(datos):
 
 
 def leer_agy(salida, rc=0) -> dict:
-    """PURA. Traduce la salida de `agy` (JSON o texto) al dict común del Director.
+    """PURA. Traduce la salida de `agy` (JSON, stderr+JSON o texto) al dict común del Director.
 
-    Respuesta vacía, código distinto de 0, «[tiempo agotado]», cuota o sesión caída
-    cuentan como fallo: `texto` sale vacío y `error` dice el motivo, para que el
-    Director pase al motor siguiente y nunca publique un error como respuesta.
+    Respuesta vacía, permiso headless denegado, código distinto de 0, «[tiempo agotado]», cuota
+    o sesión caída cuentan como fallo: `texto` sale vacío y `error` dice el motivo, para que el
+    Director pase al motor siguiente y nunca publique un error o JSON crudo como respuesta.
     """
     crudo = (salida or "").strip()
-    datos = None
-    try:
-        leido = json.loads(crudo)
-        datos = leido if isinstance(leido, dict) else None
-    except (TypeError, ValueError):
-        datos = None
+    datos = _extraer_json_agy(crudo)
 
     error = _error_agy(datos)
     texto = _texto_agy(datos) if datos is not None else crudo
@@ -363,8 +404,12 @@ def leer_agy(salida, rc=0) -> dict:
         error = error or "tiempo agotado"
     elif rc != 0 and not error:
         error = "agy salió con código %s" % rc
+    if not error and not texto and any(p in bajo for p in _AGY_PERMISOS):
+        error = "agy headless pidió permiso de comando no interactivo y no produjo respuesta"
     if not error and not texto:
         error = "respuesta vacía de agy"
+    if not error and any(p in bajo for p in _AGY_PERMISOS) and len(crudo) < 2000 and not texto:
+        error = "agy headless sin salida por permiso denegado"
     if not error and len(texto) < _AGY_TOPE_FALLO and any(m in texto.lower() for m in _AGY_FALLOS):
         error = texto
     return {

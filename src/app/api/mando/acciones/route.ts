@@ -33,24 +33,39 @@ export async function POST(req: Request): Promise<Response> {
     if (veto) return veto;
 
     const cuerpo: unknown = await req.json().catch(() => null);
-    const entrada = cuerpo as { accion?: unknown; id?: unknown } | null;
+    const entrada = cuerpo as { accion?: unknown; id?: unknown; motivo?: unknown } | null;
+    const accion = typeof entrada?.accion === "string" ? entrada.accion : "";
+    const id = typeof entrada?.id === "string" ? entrada.id.trim() : "";
 
-    if (entrada?.accion !== "verificar" || typeof entrada.id !== "string" || !entrada.id.trim()) {
+    if (!id || !["verificar", "aprobar", "rechazar"].includes(accion)) {
         return Response.json({ error: "Acción o identificador no válidos" }, { status: 400 });
     }
 
     const raiz = process.env.STARSEED_ROOT ?? "/Users/alex/Documents/starseed-os-main";
     const guion = join(raiz, "scripts", "puente", "acciones-de-alex.py");
+    const args =
+        accion === "aprobar"
+            ? [guion, "--aprobar", id]
+            : accion === "rechazar"
+              ? [
+                    guion,
+                    "--rechazar",
+                    id,
+                    ...(typeof entrada?.motivo === "string" && entrada.motivo.trim()
+                        ? ["--motivo", entrada.motivo.trim().slice(0, 240)]
+                        : []),
+                ]
+              : [guion, "--verificar", id];
 
     try {
-        // El guion vuelve a medir la realidad; duplicar aquí esa lógica recrearía el desfase.
-        const { stdout } = await ejecutarArchivo(
-            "python3",
-            [guion, "--verificar", entrada.id],
-            { cwd: raiz, encoding: "utf8", timeout: 30_000 },
-        );
+        // El guion vuelve a medir o resolver la realidad; duplicar aquí esa lógica recrearía el desfase.
+        const { stdout } = await ejecutarArchivo("python3", args, {
+            cwd: raiz,
+            encoding: "utf8",
+            timeout: 30_000,
+        });
         return new Response(stdout, { headers: { "content-type": "application/json; charset=utf-8" } });
     } catch {
-        return Response.json({ error: "No se pudo verificar la acción" }, { status: 500 });
+        return Response.json({ error: "No se pudo procesar la acción" }, { status: 500 });
     }
 }

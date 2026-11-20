@@ -45,6 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_chat
 import motores_director
+import presidente_config
 
 # CTX1118A: tope de contexto para el presidente (importado de cartero_director)
 try:
@@ -239,10 +240,11 @@ def _en_min(segundos):
     return "%d min" % m
 
 
-def _timeout_reintento(intentos):
+def _timeout_reintento(intentos, timeouts=None):
     """PURA. Timeout en segundos para la llamada a proveedor en el intento `intentos` (≥ 1)."""
+    serie = tuple(timeouts) if timeouts else TIMEOUTS_REINTENTO_PROVEEDOR
     i = max(1, int(intentos or 1)) - 1
-    return TIMEOUTS_REINTENTO_PROVEEDOR[min(i, len(TIMEOUTS_REINTENTO_PROVEEDOR) - 1)]
+    return serie[min(i, len(serie) - 1)]
 
 
 def detalle_cola(descartes, intentos=1, proximo=None, ahora=None):
@@ -277,12 +279,13 @@ def despertar_cola(estado, ahora=None):
 
 # ── Llamadas (con `correr` inyectado) ────────────────────────────────────────────
 
-def _llamar_claude(prompt, correr):
+def _llamar_claude(prompt, correr, segundos=None):
+    segundos = int(segundos or motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
     rc, salida = correr(
         motores_director.orden_claude(prompt, motores_director.MODELO_DIRECTOR, None),
         env=motores_director.entorno_sin_claves_api(os.environ),
         cwd=str(RAIZ),
-        segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE,
+        segundos=segundos,
     )
     if "Credit balance is too low" in (salida or ""):
         return None, "la cuenta de Claude Code no tiene saldo", {}
@@ -296,7 +299,7 @@ def _llamar_claude(prompt, correr):
 
 def _ejecutar_hermes(correr, segundos=None):
     """`ejecutar(prompt, sesion) -> (rc, salida, uso)` con el archivo de uso temporal de Hermes."""
-    segundos = segundos or motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE
+    segundos = int(segundos or motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
     import json  # noqa: PLC0415
 
     def ejecutar(prompt, sesion):
@@ -318,15 +321,21 @@ def _ejecutar_hermes(correr, segundos=None):
     return ejecutar
 
 
-def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
-    """(HER1111K) Con `sesion` en pausa, reintenta en una sesión nueva con `prompt_fresco()`.
+def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None, segundos=None):
+    """(HER1111K) Con `sesion` en pausa o colgada por historial gigante, reintenta en sesión nueva con `prompt_fresco()`.
     `info` (dict) recibe {"pausa": …, "fresca": bool} para que `atender` avise y atribuya."""
-    res = motores_director.hermes_con_pausa(
-        _ejecutar_hermes(correr), prompt, prompt_fresco or (lambda: prompt), sesion)
-    if info is not None:
-        info["pausa"], info["fresca"] = res["pausa"], res["fresca"]
+    ejec = _ejecutar_hermes(correr, segundos=segundos)
+    res = motores_director.hermes_con_pausa(ejec, prompt, prompt_fresco or (lambda: prompt), sesion)
     rc, datos = res["rc"], res["uso"] or {}
     texto = (res["salida"] or "").strip()
+    if sesion and not res["pausa"] and ((rc != 0 and not texto) or motores_director.es_fallo_hermes(texto)):
+        rc2, texto2, datos2 = ejec(prompt_fresco() if prompt_fresco else prompt, None)
+        texto2_l = (texto2 or "").strip()
+        if rc2 == 0 and texto2_l and not motores_director.es_fallo_hermes(texto2_l) and not motores_director.es_pausa_hermes(rc2, texto2_l):
+            res = {"rc": rc2, "salida": texto2_l, "uso": datos2, "pausa": None, "fresca": True}
+            rc, datos, texto = rc2, datos2 or {}, texto2_l
+    if info is not None:
+        info["pausa"], info["fresca"] = res["pausa"], res["fresca"]
     if res["pausa"] and not res["fresca"]:
         return None, "la sesión de dirección de Hermes está en pausa y la sesión nueva tampoco contestó", {}
     if (rc != 0 and not texto) or not texto or motores_director.es_fallo_hermes(texto):
@@ -336,7 +345,7 @@ def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None):
     return texto, "", uso
 
 
-def _llamar_agy(prompt, correr, plan=False):
+def _llamar_agy(prompt, correr, plan=False, segundos=None):
     """GEM1118A. Antigravity (`agy`) con la sesión de Google de Alex.
 
     Sin `SIN_ENTRADA` (stdin DEVNULL) agy espera a que alguien escriba y se cuelga. El prompt
@@ -345,11 +354,12 @@ def _llamar_agy(prompt, correr, plan=False):
     """
     modelo = motores_director.MODELO_AGY_PLAN if plan or len(prompt or "") > motores_director.TOPE_PROMPT_AGY \
         else motores_director.MODELO_AGY
+    tope = int(segundos or motores_director.SEGUNDOS_AGY)
     rc, salida = correr(
-        motores_director.orden_agy(prompt, modelo),
+        motores_director.orden_agy(prompt, modelo, segundos=tope),
         entrada=motores_director.SIN_ENTRADA,
         cwd=str(RAIZ),
-        segundos=motores_director.SEGUNDOS_AGY,
+        segundos=tope,
     )
     lectura = motores_director.leer_agy(salida, rc)
     if lectura.get("error") or not lectura.get("texto"):
@@ -360,13 +370,126 @@ def _llamar_agy(prompt, correr, plan=False):
     return lectura["texto"].strip(), "", uso
 
 
-def _llamar_chatgpt(prompt, correr):
+def _llamar_chatgpt(prompt, correr, segundos=None):
+    tope = int(segundos or motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
     rc, salida = correr(motores_director.orden_codex("gpt-5-codex", str(RAIZ)), entrada=prompt,
-                        segundos=motores_director.SEGUNDOS_PROVEEDOR_PRESIDENTE)
+                        segundos=tope)
     texto = (salida or "").strip()
     if rc != 0 or not texto:
         return None, director_chat.tachar((texto or "sin salida (rc=%s)" % rc)[:200]), {}
     return texto, "", {}
+
+
+def _cargar_entorno_flota():
+    """Lee variables de ~/.starseed/env y ~/.hermes/.env solo en memoria (sin imprimir nunca)."""
+    ent = dict(os.environ)
+    for ruta in ("~/.starseed/env", "~/.hermes/.env"):
+        p = Path(os.path.expanduser(ruta))
+        if not p.exists():
+            continue
+        try:
+            for linea in p.read_text(encoding="utf-8").splitlines():
+                l = linea.strip()
+                if l.startswith("export "):
+                    l = l[7:].strip()
+                if not l or l.startswith("#") or "=" not in l:
+                    continue
+                k, v = l.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k and v and not ent.get(k):
+                    ent[k] = v
+        except OSError:
+            pass
+    return ent
+
+
+def _llamar_flota_gratis(prompt, timeout=45, informe_ruta=None):
+    """Respaldo HTTP rápido usando solo pasarelas gratuitas vivas de `~/.starseed/pasarelas-informe.json`."""
+    import urllib.request
+
+    ruta_inf = Path(informe_ruta or os.path.expanduser("~/.starseed/pasarelas-informe.json"))
+    candidatos = []
+    try:
+        datos = json.loads(ruta_inf.read_text(encoding="utf-8"))
+        for p in datos.get("pasarelas") or []:
+            if p.get("estado") == "escribe":
+                candidatos.append((str(p.get("clave") or ""), str(p.get("modelo") or "")))
+    except (OSError, ValueError):
+        pass
+    if not candidatos:
+        candidatos = [("freellmapi", "auto"), ("google", "gemini-3.5-flash-lite"), ("groq", "openai/gpt-oss-20b")]
+
+    prioridad = {"google": 0, "groq": 1, "nvidia": 2, "freellmapi": 3, "openrouter": 4, "neurona": 9}
+    candidatos.sort(key=lambda c: prioridad.get(c[0], 5))
+    ent = _cargar_entorno_flota()
+    tope_por_intento = max(8, min(15, int(timeout)))
+
+    for clave, modelo in candidatos:
+        try:
+            t0 = time.time()
+            if clave == "google":
+                api_key = ent.get("GEMINI_API_KEY") or ent.get("GOOGLE_API_KEY")
+                if not api_key:
+                    continue
+                mod = modelo or "gemini-3.5-flash-lite"
+                url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s" % (mod, api_key)
+                cuerpo = json.dumps({"contents": [{"role": "user", "parts": [{"text": prompt[:24000]}]}],
+                                     "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1200}}).encode("utf-8")
+                req = urllib.request.Request(url, data=cuerpo, headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(req, timeout=tope_por_intento) as resp:
+                    d = json.loads(resp.read().decode("utf-8"))
+                partes = (((d.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [])
+                txt = "".join(str(x.get("text") or "") for x in partes).strip()
+                if txt:
+                    return txt, "", {"provider": "google", "model": mod, "via": "flota-gratis-http", "segundos": round(time.time() - t0, 1)}
+                continue
+
+            if clave == "freellmapi":
+                url = (ent.get("STARSEED_PASARELA_FREELLMAPI_URL") or "http://127.0.0.1:3001/v1").rstrip("/") + "/chat/completions"
+                api_key = ent.get("STARSEED_PASARELA_FREELLMAPI_KEY") or ent.get("FREELLMAPI_KEY") or "sin-clave"
+                mod = modelo or "auto"
+            elif clave == "groq":
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                api_key = ent.get("GROQ_API_KEY")
+                mod = modelo or "openai/gpt-oss-20b"
+            elif clave == "nvidia":
+                url = "https://integrate.api.nvidia.com/v1/chat/completions"
+                api_key = ent.get("NVIDIA_API_KEY")
+                mod = modelo or "moonshotai/kimi-k3"
+            elif clave == "neurona":
+                url = "http://127.0.0.1:11434/v1/chat/completions"
+                api_key = "ollama"
+                mod = modelo or "qwen2.5:0.5b"
+            elif clave == "openrouter" and str(modelo).endswith(":free"):
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                api_key = ent.get("OPENROUTER_API_KEY")
+                mod = modelo
+            else:
+                continue
+
+            if not api_key:
+                continue
+            payload = {
+                "model": mod,
+                "messages": [{"role": "user", "content": prompt[:18000]}],
+                "temperature": 0.3,
+                "max_tokens": 1200,
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % api_key},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=tope_por_intento) as resp:
+                d = json.loads(resp.read().decode("utf-8"))
+            txt = ((((d.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
+            if txt and not (len(txt) < 400 and "free resources" in txt.lower()):
+                return txt, "", {"provider": clave, "model": mod, "via": "flota-gratis-http", "segundos": round(time.time() - t0, 1)}
+        except Exception:
+            continue
+    return None, "ninguna pasarela HTTP gratuita respondió", {}
 
 
 # ── HER1111K · avisos de la sesión de Hermes en pausa ────────────────────────────
@@ -586,8 +709,49 @@ def leer_limites():
     return limites_claude.leer()
 
 
+def _ordenar_con_config(disponibilidad, enfriados, ahora, orden_cfg=None, activos_cfg=None):
+    """PURA. Respeta orden y activación configurados manteniendo orden único sin duplicados."""
+    orden = list(orden_cfg or PROVEEDORES)
+    for p in PROVEEDORES:
+        if p not in orden:
+            orden.append(p)
+    activos = dict(activos_cfg or {})
+    candidatos, descartes = [], []
+    for p in orden:
+        if p not in PROVEEDORES:
+            continue
+        if activos and not activos.get(p, True):
+            descartes.append((p, "desactivado en ajustes del Director presidente"))
+            continue
+        puede, motivo = disponibilidad.get(p, (False, "no configurado"))
+        frio = (enfriados or {}).get(p) or {}
+        if not puede:
+            descartes.append((p, motivo or "no disponible"))
+        elif float(frio.get("hasta") or 0) > ahora:
+            descartes.append((p, "falló hace poco (%s)" % (frio.get("motivo") or "sin detalle")))
+        else:
+            candidatos.append(p)
+    return candidatos, descartes
+
+
+def _sincronizar_respuesta_unificada(texto, origen, cfg):
+    """Sincroniza una breve copia al canal común cuando no estamos en pruebas."""
+    if director_chat.en_pruebas():
+        return
+    if not ((cfg or {}).get("sincronizar_canales") or {}).get("telegram", True):
+        return
+    try:
+        import puente  # noqa: PLC0415
+        resumen = " ".join((texto or "").split())[:280]
+        if resumen:
+            puente.decir("[%s] %s" % (origen, resumen), quien="director-presidente", tipo="hecho")
+    except Exception:
+        pass
+
+
 def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
-            contexto="", tope_opus=40, ahora=None, sesion_hermes=None, registros=None):
+            contexto="", tope_opus=40, ahora=None, sesion_hermes=None, registros=None,
+            config=None, llamar_flota=None):
     """Contesta un mensaje al presidente o lo deja en cola.
 
     Devuelve «respondido», «cola» (nadie pudo: queda pendiente con su detalle) o «espera»
@@ -600,6 +764,16 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     correr = correr or motores_director.correr
     existe = existe or existe_cli
     ahora = time.time() if ahora is None else ahora
+    if config is not None:
+        cfg = config
+    elif director_chat.en_pruebas():
+        cfg = json.loads(json.dumps(presidente_config.DEFAULTS))
+    else:
+        cfg, _ = presidente_config.cargar()
+    tope_opus_real = int(cfg.get("max_opus_dia") if cfg.get("max_opus_dia") is not None else tope_opus)
+    if config is None and director_chat.en_pruebas():
+        tope_opus_real = tope_opus
+
     datos_limites = leer_limites() if limites is None else limites
     pres = estado.setdefault("presidente", {})
     cola = pres.setdefault("cola", {})
@@ -618,17 +792,24 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         if volvio:
             previo = dict(previo, intentos=0)
 
+    intento_actual = int(previo.get("intentos") or 0) + 1
+    timeout_actual = _timeout_reintento(intento_actual, cfg.get("timeouts_reintento_s"))
+
     if estado.get("opus_fecha") != _hoy(ahora):
         estado["opus_fecha"] = _hoy(ahora)
         estado["opus_hoy"] = 0
     disponibilidad = {
-        "claude": disponibilidad_claude(datos_limites, ahora, int(estado.get("opus_hoy") or 0), tope_opus)
+        "claude": disponibilidad_claude(datos_limites, ahora, int(estado.get("opus_hoy") or 0), tope_opus_real)
         if existe("claude") else (False, "la orden claude no está instalada"),
         "hermes": (True, "") if existe("hermes") else (False, "la orden hermes no está instalada"),
         "agy": (True, "") if existe("agy") else (False, "la orden agy no está instalada"),
         "chatgpt": (True, "") if existe("codex") else (False, "la orden codex no está instalada"),
     }
-    candidatos, descartes = ordenar(disponibilidad, enfriados, ahora)
+    candidatos, descartes = _ordenar_con_config(
+        disponibilidad, enfriados, ahora,
+        orden_cfg=cfg.get("orden_proveedores"),
+        activos_cfg=cfg.get("proveedores_activos"),
+    )
 
     if registros is None:
         registros = director_chat.leer(limite=200, raiz=raiz)
@@ -650,7 +831,6 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     elif es_2d3d:
         # Entregable 2D/3D para la Mac: confirmar que se atiende
         prompt = prompt_entregable_2d3d(mensaje, hilo, contexto)
-        # Cualquier proveedor puede confirmar, pero preferimos Claude
     else:
         # Mensaje normal: prompt estándar
         prompt = prompt_presidente(mensaje.get("texto", ""), hilo, contexto)
@@ -660,20 +840,25 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         info = {}
         try:
             if p == "claude":
-                texto, motivo, uso = _llamar_claude(prompt, correr)
+                texto, motivo, uso = _llamar_claude(prompt, correr, segundos=timeout_actual)
             elif p == "hermes":
                 texto, motivo, uso = _llamar_hermes(
                     prompt, correr, sesion_hermes,
-                    lambda: prompt_sesion_fresca(mensaje.get("texto", ""), hilo, contexto), info)
+                    lambda: prompt_sesion_fresca(mensaje.get("texto", ""), hilo, contexto), info,
+                    segundos=timeout_actual)
                 # HER1111K: aviso único de la pausa / de la vuelta a la sesión de dirección.
                 if info.get("pausa"):
                     avisar_pausa_hermes(estado, info["pausa"], raiz=raiz, ahora=ahora)
                 elif texto and sesion_hermes:
                     hermes_reabierta(estado, sesion_hermes, raiz=raiz)
             elif p == "agy":
-                texto, motivo, uso = _llamar_agy(prompt, correr, plan=es_encargo)
+                prompt_agy = (
+                    "Modo headless sin permisos interactivos: responde directo en español usando el contexto "
+                    "proporcionado o solo lectura; no ejecutes comandos interactivos.\n\n" + prompt
+                )
+                texto, motivo, uso = _llamar_agy(prompt_agy, correr, plan=es_encargo, segundos=timeout_actual)
             else:
-                texto, motivo, uso = _llamar_chatgpt(prompt, correr)
+                texto, motivo, uso = _llamar_chatgpt(prompt, correr, segundos=timeout_actual)
         except OSError as e:
             texto, motivo, uso = None, "no se pudo lanzar: %s" % e, {}
         if not texto:
@@ -698,17 +883,14 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
                 # Publicar el plan mejorado como respuesta estructurada
                 eleccion["plan_mejorado"] = True
                 eleccion["plan"] = plan_mejorado
-                # El texto visible es un resumen
                 n_frentes = len(plan_mejorado.get("frentes", []))
                 texto = f"Plan mejorado para {datos_encargo['encargo_id']}: {n_frentes} frentes actualizados"
             else:
-                # Si no se pudo parsear JSON, tratar como fallo
                 enfriados[p] = {"hasta": ahora + ENFRIAMIENTO_S, "motivo": "respuesta no es JSON válido"}
                 descartes.append((p, "respuesta no es JSON válido"))
                 continue
 
         if p == "hermes" and info.get("fresca"):
-            # La tarjeta enseña «Contestó Hermes · <modelo>»: aquí queda dicho que fue una sesión nueva.
             eleccion["modelo"] = "%s (%s)" % (MODELOS[p], descripcion_sesion_nueva((info["pausa"] or {}).get("sesion")))
             eleccion["sesionNueva"] = True
             uso["via"] = "hermes-sesion-nueva"
@@ -720,10 +902,38 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         )
         director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
         cola.pop(idm, None)
-        despertar_cola(estado, ahora)  # un proveedor contesta: lo que siga en cola se reintenta ya
+        despertar_cola(estado, ahora)
+        _sincronizar_respuesta_unificada(texto, modelo_publicado, cfg)
         return "respondido"
 
-    intentos = int(previo.get("intentos") or 0) + 1
+    # Respaldo automático con Flota Gratuita HTTP (solo en ejecución real o si se inyecta `llamar_flota`, y nunca para JSON de encargo)
+    puede_flota = bool(cfg.get("respaldo_flota_gratis")) and not (es_encargo and datos_encargo)
+    if puede_flota and (llamar_flota is not None or (not director_chat.en_pruebas() and raiz is None)):
+        inicio_f = time.time()
+        fn_flota = llamar_flota or (lambda pr: _llamar_flota_gratis(pr, timeout=min(timeout_actual, 45)))
+        txt_f, mot_f, uso_f = fn_flota(prompt)
+        if txt_f:
+            prov_f = str((uso_f or {}).get("provider") or "flota")
+            mod_f = str((uso_f or {}).get("model") or "auto")
+            modelo_pub = "%s/%s" % (prov_f, mod_f)
+            uso_f = dict(uso_f or {})
+            uso_f.setdefault("segundos", round(time.time() - inicio_f, 1))
+            eleccion = {"proveedor": "flota-gratis", "modelo": modelo_pub}
+            if descartes:
+                eleccion["descartes"] = [{"proveedor": d, "motivo": m} for d, m in descartes]
+            director_chat.publicar(
+                txt_f, de=CANAL, rol="director", tipo="respuesta", canal=CANAL, modelo=modelo_pub,
+                responde_a=idm, uso=uso_f, raiz=raiz, sintesis=True, eleccion=eleccion,
+            )
+            director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
+            cola.pop(idm, None)
+            despertar_cola(estado, ahora)
+            _sincronizar_respuesta_unificada(txt_f, modelo_pub, cfg)
+            return "respondido"
+        if mot_f:
+            descartes.append(("flota-gratis", mot_f))
+
+    intentos = intento_actual
     proximo = ahora + intervalo_cola(intentos)
     detalle = detalle_cola(descartes, intentos, proximo)
     if previo.get("detalle") != detalle:

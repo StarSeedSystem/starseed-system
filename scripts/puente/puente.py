@@ -24,6 +24,8 @@ el chat de Antigravity o esta sesión de Claude— ve y dirige exactamente lo mi
   starseed-puente escuchar               # sigue el canal EN VIVO (chat principal)
   starseed-puente briefing               # el texto para pegar en un chat nuevo
   starseed-puente publicar [nota]        # commit → puertas → push → verificación
+  starseed-puente presidente "<texto>" [--motor auto|agy|hermes|claude|chatgpt|flota]
+  starseed-puente registros <fuente> [--lineas 40]   # enjambre|cartero|hermes|genesis-chats|pruebas|capacidad
 """
 import json, os, socket, subprocess, sys, tempfile, time, urllib.request
 
@@ -465,6 +467,100 @@ def cmd_publicar(nota=""):
         return 1
 
 
+def cmd_presidente(args):
+    """Habla o consulta de forma 100 % headless con el Director presidente / motores desde terminal."""
+    motor = "auto"
+    rest = list(args)
+    if "--motor" in rest:
+        i = rest.index("--motor")
+        if len(rest) > i + 1:
+            motor = rest[i + 1].strip().lower()
+            del rest[i:i + 2]
+    if not rest or rest[0].startswith("--"):
+        print('uso: starseed-puente presidente "<mensaje>" [--motor auto|agy|hermes|claude|chatgpt|flota]')
+        return 1
+    texto = " ".join(rest)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import cartero_director  # noqa: PLC0415
+    import director_chat  # noqa: PLC0415
+    import director_presidente  # noqa: PLC0415
+    import motores_director  # noqa: PLC0415
+
+    prompt = director_presidente.prompt_presidente(texto, [], cartero_director._contexto())
+    if motor == "flota":
+        resp, mot, uso = director_presidente._llamar_flota_gratis(prompt, timeout=45)
+        if not resp:
+            print("flota sin respuesta: %s" % mot)
+            return 1
+        print("[%s/%s]\n%s" % (uso.get("provider"), uso.get("model"), resp))
+        return 0
+    if motor == "agy":
+        resp, mot, uso = director_presidente._llamar_agy(prompt, motores_director.correr)
+        print(resp or ("agy falló: %s" % mot))
+        return 0 if resp else 1
+    if motor == "hermes":
+        resp, mot, uso = director_presidente._llamar_hermes(prompt, motores_director.correr)
+        print(resp or ("hermes falló: %s" % mot))
+        return 0 if resp else 1
+    if motor == "claude":
+        resp, mot, uso = director_presidente._llamar_claude(prompt, motores_director.correr)
+        print(resp or ("claude falló: %s" % mot))
+        return 0 if resp else 1
+    if motor == "chatgpt":
+        resp, mot, uso = director_presidente._llamar_chatgpt(prompt, motores_director.correr)
+        print(resp or ("chatgpt falló: %s" % mot))
+        return 0 if resp else 1
+
+    # auto: encola y atiende inmediatamente en línea con cadena completa (incluida flota gratuita)
+    msg = director_chat.publicar(texto, de="alex", rol="alex", tipo="mensaje",
+                                 canal="mando", canales=["director-presidente"])
+    estado = cartero_director.cargar_estado()
+    res = director_presidente.atender(
+        msg, estado, contexto=cartero_director._contexto(),
+        tope_opus=cartero_director.TOPE_OPUS,
+        sesion_hermes=motores_director.direccion_motor().get("sesion"),
+    )
+    cartero_director.guardar_estado(estado)
+    if res == "respondido":
+        ult = [r for r in director_chat.leer(limite=20) if r.get("respondeA") == msg["id"] and r.get("tipo") == "respuesta"]
+        if ult:
+            r = ult[-1]
+            print("[%s]\n%s" % (r.get("modelo") or "director-presidente", r.get("texto") or ""))
+            return 0
+    print("Estado: %s (revisa MetaGenesis o ejecuta de nuevo cuando vuelva un motor)" % res)
+    return 0 if res == "respondido" else 1
+
+
+def cmd_registros(args):
+    """Muestra las últimas líneas de los registros locales del sistema desde terminal."""
+    mapa = {
+        "enjambre": "/tmp/enjambre.log",
+        "cartero": "/tmp/starseed-cartero.log",
+        "hermes": os.path.expanduser("~/.hermes/logs/gateway.error.log"),
+        "genesis-chats": "/tmp/starseed-genesis-chats.log",
+        "pruebas": "/tmp/starseed-pruebas.log",
+        "capacidad": "/tmp/starseed-capacidad.log",
+        "tunel-a1": "/tmp/starseed-tunel-servicios-a1.log",
+        "mando": "/tmp/starseed-mando.log",
+    }
+    if not args or args[0] not in mapa:
+        print("Fuentes disponibles: " + ", ".join(sorted(mapa)))
+        return 1
+    n = 40
+    if "--lineas" in args:
+        i = args.index("--lineas")
+        if len(args) > i + 1 and args[i + 1].isdigit():
+            n = int(args[i + 1])
+    ruta = mapa[args[0]]
+    if not os.path.exists(ruta):
+        print("Sin registro todavía: %s" % ruta)
+        return 0
+    with open(ruta, encoding="utf-8", errors="replace") as fh:
+        for l in fh.read().splitlines()[-n:]:
+            print(l)
+    return 0
+
+
 def main():
     a = sys.argv[1:] or ["estado"]
     c = a[0]
@@ -503,6 +599,10 @@ def main():
     elif c == "publicar":
         nota = " ".join(a[1:]).strip()
         return cmd_publicar(nota)
+    elif c == "presidente":
+        return cmd_presidente(a[1:])
+    elif c == "registros":
+        return cmd_registros(a[1:])
     else:
         print(__doc__)
     return 0

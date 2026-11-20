@@ -81,6 +81,50 @@ class Rechazados(unittest.TestCase):
         rechazados = E.proveedores_con_clave_rechazada(log.splitlines(), ahora=ahora)
         self.assertNotIn("gemini", rechazados)
 
+    def test_reescribir_limpia_base_url_y_key_env_al_pasar_a_nativo(self):
+        yaml_roto = """model:
+  base_url: 'https://integrate.api.nvidia.com/v1'
+  default: minimaxai/minimax-m3.1-flash
+  provider: nvidia
+  api_mode: chat_completions
+  key_env: NVIDIA_API_KEY
+providers:
+  freellmapi:
+    base_url: http://127.0.0.1:3001/v1
+    key_env: FREELLMAPI_KEY
+    models:
+      auto:
+        context_length: 131072
+mcp_servers:
+  starseed-director:
+    command: python3
+"""
+        nuevo = E.reescribir(yaml_roto, ("gemini", "gemini-3.6-flash"), [("gemini", "gemini-3.6-flash", "escribe")])
+        self.assertIn("provider: gemini", nuevo)
+        self.assertIn("default: gemini-3.6-flash", nuevo)
+        self.assertNotIn("base_url: 'https://integrate.api.nvidia.com/v1'", nuevo.split("providers:")[0])
+        self.assertNotIn("key_env: NVIDIA_API_KEY", nuevo.split("providers:")[0])
+        self.assertIn("mcp_servers:", nuevo)
+
+    def test_reescribir_sincroniza_base_url_y_key_env_para_proveedor_custom(self):
+        yaml_base = """model:
+  default: gemini-3.6-flash
+  provider: gemini
+  api_mode: chat_completions
+providers:
+  freellmapi:
+    base_url: http://127.0.0.1:3001/v1
+    key_env: FREELLMAPI_KEY
+    models:
+      auto:
+        context_length: 131072
+"""
+        nuevo = E.reescribir(yaml_base, ("freellmapi", "auto"), [("freellmapi", "auto", "escribe")])
+        cabecera = nuevo.split("providers:")[0]
+        self.assertIn("provider: freellmapi", cabecera)
+        self.assertIn("base_url: http://127.0.0.1:3001/v1", cabecera)
+        self.assertIn("key_env: FREELLMAPI_KEY", cabecera)
+
 
 if __name__ == "__main__":
     unittest.main()

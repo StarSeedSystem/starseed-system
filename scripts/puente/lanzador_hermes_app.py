@@ -10,6 +10,8 @@ Subórdenes:
   deshacer            Revierte al plist original
   estado              Qué ejecuta hoy el servicio y si la app existe
 """
+from __future__ import annotations
+
 import argparse
 import plistlib
 import shutil
@@ -30,7 +32,10 @@ EJECUTABLE_NOMBRE = "starseed-hermes"
 # ─── Funciones puras (sin efectos de sistema) ───
 
 def extraer_comando_desde_plist(ruta_plist: Path) -> list[str]:
-    """Extrae el comando real tras 'exec ' del argumento de osascript en el plist."""
+    """Extrae el comando real tras 'exec ' en el argumento de osascript (directo o envuelto en JXA $.system)."""
+    import re
+    import shlex
+
     with open(ruta_plist, "rb") as f:
         data = plistlib.load(f)
 
@@ -38,27 +43,51 @@ def extraer_comando_desde_plist(ruta_plist: Path) -> list[str]:
     if not args or args[0] != "/usr/bin/osascript":
         raise ValueError("El plist no usa /usr/bin/osascript como programa")
 
-    # Buscar el argumento que contiene 'exec '
+    # Buscar el argumento -e (o varios posibles scripts JXA/AppleScript)
     script_arg = None
     for i, arg in enumerate(args):
         if arg == "-e" and i + 1 < len(args):
             script_arg = args[i + 1]
             break
-        elif arg.startswith("-e"):
+        elif isinstance(arg, str) and arg.startswith("-e") and len(arg) > 2:
             script_arg = arg[2:]
             break
 
     if not script_arg:
         raise ValueError("No se encontró argumento -e en osascript")
 
-    script_arg = script_arg.strip()
-    if not script_arg.startswith("exec "):
+    script_limpio = script_arg.strip()
+    comando_str = None
+    if script_limpio.startswith("exec "):
+        comando_str = script_limpio[5:].strip()
+    else:
+        # Formato JXA real del plist de Hermes: $.system("exec ... >> ... 2>> ...")
+        m = re.search(r'\$\.system\(\s*"((?:\\.|[^"\\])*)"\s*\)', script_limpio)
+        if m:
+            interno = bytes(m.group(1), "utf-8").decode("unicode_escape").strip()
+            if interno.startswith("exec "):
+                comando_str = interno[5:].strip()
+
+    if not comando_str:
         raise ValueError("El script de osascript no comienza con 'exec '")
 
-    comando_str = script_arg[5:].strip()  # quitar 'exec '
-    # Dividir respetando comillas simples/dobles
-    import shlex
-    return shlex.split(comando_str)
+    tokens = shlex.split(comando_str)
+    # Quitar redirecciones de shell (`>> log`, `2>> err`), ya que el plist define StandardOutPath/ErrorPath.
+    limpios = []
+    saltar = False
+    for tok in tokens:
+        if saltar:
+            saltar = False
+            continue
+        if tok in (">", ">>", "2>", "2>>", "&>"):
+            saltar = True
+            continue
+        if tok.startswith((">", "2>", "&>")):
+            continue
+        limpios.append(tok)
+    if not limpios:
+        raise ValueError("El script tras 'exec ' quedó vacío")
+    return limpios
 
 
 def generar_info_plist() -> dict:
@@ -179,11 +208,11 @@ def construir_app(seco: bool = False) -> dict:
         f.write(swift_code)
     resultado["pasos"].append(f"Escrito Swift: {swift_path}")
 
-    # Compilar
+    # Compilar y limpiar el .swift antes de firmar el bundle
     bin_path = macos / EJECUTABLE_NOMBRE
     try:
         subprocess.run(
-            ["xcrun", "swiftc", "-o", str(bin_path), str(swift_path)],
+            ["xcrun", "swiftc", "-parse-as-library", "-o", str(bin_path), str(swift_path)],
             check=True,
             capture_output=True,
             text=True,
@@ -193,8 +222,11 @@ def construir_app(seco: bool = False) -> dict:
         resultado["ok"] = False
         resultado["error"] = f"Error compilando Swift: {e.stderr}"
         return resultado
+    finally:
+        swift_path.unlink(missing_ok=True)
+    resultado["pasos"].append("Limpiado archivo .swift temporal")
 
-    # 6. Firmar ad-hoc
+    # 6. Firmar ad-hoc (ahora sin archivos fuente sin firmar en Contents/MacOS)
     try:
         subprocess.run(
             ["codesign", "--force", "--sign", "-", str(RUTA_APP)],
@@ -208,11 +240,28 @@ def construir_app(seco: bool = False) -> dict:
         resultado["error"] = f"Error firmando: {e.stderr}"
         return resultado
 
-    # Limpiar .swift
-    swift_path.unlink(missing_ok=True)
-    resultado["pasos"].append("Limpiado archivo .swift temporal")
-
     return resultado
+
+
+def _recargar_launchd(uid: int, label: str, plist: Path, pasos: list[str]) -> str | None:
+    """Descarga y vuelve a cargar un LaunchAgent tolerando el desmontaje asíncrono de launchd."""
+    import time
+
+    objetivo = f"gui/{uid}/{label}"
+    res_out = subprocess.run(["launchctl", "bootout", objetivo], check=False, capture_output=True, text=True)
+    pasos.append(f"launchctl bootout {objetivo} (rc={res_out.returncode})")
+
+    ultimo_error = ""
+    for intento in range(5):
+        if intento > 0:
+            time.sleep(1.5)
+        try:
+            subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], check=True, capture_output=True, text=True)
+            pasos.append(f"launchctl bootstrap gui/{uid} {plist}")
+            return None
+        except subprocess.CalledProcessError as e:
+            ultimo_error = (e.stderr or str(e)).strip()
+    return f"Error en bootstrap: {ultimo_error}"
 
 
 def instalar_app(seco: bool = False) -> dict:
@@ -257,20 +306,10 @@ def instalar_app(seco: bool = False) -> dict:
     resultado["pasos"].append(f"Plist actualizado: {RUTA_PLIST}")
 
     # Recargar launchd
-    uid = os.getuid()
-    label = "ai.hermes.gateway"
-    try:
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}", label], check=False, capture_output=True)
-        resultado["pasos"].append(f"launchctl bootout gui/{uid} {label}")
-    except Exception as e:
-        resultado["pasos"].append(f"Aviso bootout: {e}")
-
-    try:
-        subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(RUTA_PLIST)], check=True, capture_output=True, text=True)
-        resultado["pasos"].append(f"launchctl bootstrap gui/{uid} {RUTA_PLIST}")
-    except subprocess.CalledProcessError as e:
+    err = _recargar_launchd(os.getuid(), "ai.hermes.gateway", RUTA_PLIST, resultado["pasos"])
+    if err:
         resultado["ok"] = False
-        resultado["error"] = f"Error en bootstrap: {e.stderr}"
+        resultado["error"] = err
         return resultado
 
     return resultado
@@ -300,15 +339,10 @@ def deshacer_instalacion(seco: bool = False) -> dict:
     resultado["pasos"].append(f"Restaurado: {RUTA_PLIST}")
 
     # Recargar launchd
-    uid = os.getuid()
-    label = "ai.hermes.gateway"
-    try:
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}", label], check=False, capture_output=True)
-        subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(RUTA_PLIST)], check=True, capture_output=True, text=True)
-        resultado["pasos"].append("Launchd recargado")
-    except subprocess.CalledProcessError as e:
+    err = _recargar_launchd(os.getuid(), "ai.hermes.gateway", RUTA_PLIST, resultado["pasos"])
+    if err:
         resultado["ok"] = False
-        resultado["error"] = f"Error recargando launchd: {e.stderr}"
+        resultado["error"] = err
         return resultado
 
     return resultado

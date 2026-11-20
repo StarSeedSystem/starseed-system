@@ -1340,8 +1340,23 @@ header .animate-pulse,
 /* Apply Crystal styles to Shadcn Button when Body has class */
 /* --- Dynamic Selection --- */
 ::selection {
-  background: var(--selection-background, hsl(var(--primary)));
-  color: var(--selection-foreground, hsl(var(--primary-foreground)));
+  background: var(--selection-background, hsl(var(--primary-hsl) / 0.38));
+  color: var(--selection-foreground, hsl(var(--foreground-hsl)));
+}
+
+::-moz-selection {
+  background: var(--selection-background, hsl(var(--primary-hsl) / 0.38));
+  color: var(--selection-foreground, hsl(var(--foreground-hsl)));
+}
+
+.dark ::selection {
+  background: var(--selection-background, rgba(0, 127, 255, 0.42));
+  color: var(--selection-foreground, #ffffff);
+}
+
+.dark ::-moz-selection {
+  background: var(--selection-background, rgba(0, 127, 255, 0.42));
+  color: var(--selection-foreground, #ffffff);
 }
 
 /* --- Scrollbar Utilities --- */
@@ -3976,19 +3991,17 @@ html.ss-gesto [data-ventana-escritorio] {
    ════════════════════════════════════════════════════════════════════════ */
 
 /* ── eco (legacy + nuevo modo eco; también la decisión de «auto») ── */
-html[data-rendimiento="eco"],
-html[data-rendimiento-efectivo="eco"],
-html[data-perf="eco"] {
-  /* Animaciones y transiciones globales */
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    transition-delay: 0.01ms !important;
-  }
-  /* Desactiva backdrop-filter / desenfoques */
+/* Animaciones y transiciones globales */
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) *,
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) *::before,
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0.01ms !important;
+}
+/* Desactiva backdrop-filter / desenfoques */
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) :is(
   .liquid-glass-ui,
   .glass-card,
   .card-glass,
@@ -3997,20 +4010,22 @@ html[data-perf="eco"] {
   .liquid-glass-panel,
   .bento-base,
   [data-liquid-ui="true"] *,
-  .liquid-ui-enabled * {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  /* Reduce reflejos y sombras complejas */
-  .crystal-edge-glow,
-  .crystal-widget:hover .crystal-edge-glow {
-    box-shadow:
-      inset 0 0.5px 0 0.5px rgba(255, 255, 255, 0.15),
-      inset 0 -0.5px 0 0.5px rgba(255, 255, 255, 0.05),
-      0 0 15px rgba(0, 0, 0, 0.1),
-      0 8px 32px rgba(0, 0, 0, 0.2) !important;
-  }
-  /* Fondos animados → estáticos */
+  .liquid-ui-enabled *
+) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Reduce reflejos y sombras complejas */
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) .crystal-edge-glow,
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) .crystal-widget:hover .crystal-edge-glow {
+  box-shadow:
+    inset 0 0.5px 0 0.5px rgba(255, 255, 255, 0.15),
+    inset 0 -0.5px 0 0.5px rgba(255, 255, 255, 0.05),
+    0 0 15px rgba(0, 0, 0, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.2) !important;
+}
+/* Fondos animados → estáticos */
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) :is(
   .animate-liquid-flow,
   .animate-bg-pan,
   .animate-bg-zoom,
@@ -4025,32 +4040,33 @@ html[data-perf="eco"] {
   .bg-orbs .orb,
   .nebula-element,
   .breathing-element,
-  .crystal-border {
-    animation: none !important;
-    background-position: 50% 50% !important;
-  }
-  /* Spline / WebGL canvas: hint para bajar FPS (el hook JS hace el trabajo real) */
+  .crystal-border
+) {
+  animation: none !important;
+  background-position: 50% 50% !important;
+}
+/* Spline / WebGL canvas: hint para bajar FPS (el hook JS hace el trabajo real) */
+:is(html[data-rendimiento="eco"], html[data-rendimiento-efectivo="eco"], html[data-perf="eco"]) :is(
   canvas[data-spline],
   canvas[webgl],
-  [data-r3f-canvas] {
-    /* will-change removido para ahorrar VRAM */
-    will-change: auto !important;
-  }
+  [data-r3f-canvas]
+) {
+  /* will-change removido para ahorrar VRAM */
+  will-change: auto !important;
 }
 
 /* ── eficiente (máximo ahorro; también la decisión de «auto») ── */
-html[data-rendimiento="eficiente"],
-html[data-rendimiento-efectivo="eficiente"] {
-  /* TODAS las animaciones y transiciones pausadas */
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-    animation-duration: 0s !important;
-    transition-duration: 0s !important;
-  }
-  /* backdrop-filter / desenfoques COMPLETAMENTE desactivados */
+/* TODAS las animaciones y transiciones pausadas */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) *,
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) *::before,
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) *::after {
+  animation: none !important;
+  transition: none !important;
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+/* backdrop-filter / desenfoques COMPLETAMENTE desactivados */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   .liquid-glass-ui,
   .glass-card,
   .card-glass,
@@ -4061,14 +4077,15 @@ html[data-rendimiento-efectivo="eficiente"] {
   [data-liquid-ui="true"] *,
   .liquid-ui-enabled *,
   .spline-primary-button,
-  .liquid-glass-panel,
-  .crystal-window {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background-image: none !important;
-    background-color: transparent !important;
-  }
-  /* Reflejos, sombras complejas, aberración cromática → eliminados */
+  .crystal-window
+) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+/* Reflejos, sombras complejas, aberración cromática → eliminados */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   .crystal-edge-glow,
   .crystal-widget:hover .crystal-edge-glow,
   .crystal-panel::before,
@@ -4076,17 +4093,19 @@ html[data-rendimiento-efectivo="eficiente"] {
   .crystal-panel::after,
   .crystal-card::after,
   .liquid-glass-ui,
-  .crystal-button {
-    box-shadow: none !important;
-    border: none !important;
-    background: transparent !important;
-  }
-  .liquid-glass-ui {
-    box-shadow: none !important;
-    border: 1px solid hsl(var(--border-hsl) / 0.2) !important;
-    background: hsl(var(--card-hsl) / 0.8) !important;
-  }
-  /* Fondos dinámicos → cuadro fijo (color sólido del tema) */
+  .crystal-button
+) {
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+}
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .liquid-glass-ui {
+  box-shadow: none !important;
+  border: 1px solid hsl(var(--border-hsl) / 0.2) !important;
+  background: hsl(var(--card-hsl) / 0.8) !important;
+}
+/* Fondos dinámicos → cuadro fijo (color sólido del tema) */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   .animate-liquid-flow,
   .animate-bg-pan,
   .animate-bg-zoom,
@@ -4110,44 +4129,52 @@ html[data-rendimiento-efectivo="eficiente"] {
   .ss-derivar,
   .ss-caer,
   .ss-destello,
-  .ss-ola {
-    animation: none !important;
-    display: none !important;
-  }
-  .bg-orbs {
-    display: none !important;
-  }
-  /* Botones: sin transform, sin glow, sin transiciones */
+  .ss-ola
+) {
+  animation: none !important;
+  display: none !important;
+}
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .bg-orbs {
+  display: none !important;
+}
+/* Botones: sin transform, sin glow, sin transiciones */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   button,
   [role="button"],
   .shadcn-button,
   .crystal-button,
-  .spline-primary-button {
-    transform: none !important;
-    box-shadow: none !important;
-    transition: none !important;
-  }
+  .spline-primary-button
+) {
+  transform: none !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   button:hover,
   [role="button"]:hover,
   .shadcn-button:hover,
   .crystal-button:hover,
-  .spline-primary-button:hover {
-    transform: none !important;
-    box-shadow: none !important;
-  }
-  /* Spline / WebGL / rAF: hint para 0-10 fps (hook JS aplica requestAnimationFrame throttling) */
+  .spline-primary-button:hover
+) {
+  transform: none !important;
+  box-shadow: none !important;
+}
+/* Spline / WebGL / rAF: hint para 0-10 fps (hook JS aplica requestAnimationFrame throttling) */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   canvas[data-spline],
   canvas[webgl],
   [data-r3f-canvas],
-  canvas {
-    will-change: auto !important;
-    /* El hook JS en modo eficiente limita a ~10 fps via rAF throttling */
-  }
-  /* Scroll suave desactivado */
-  html {
-    scroll-behavior: auto !important;
-  }
-  /* Hover effects desactivados */
+  canvas
+) {
+  will-change: auto !important;
+  /* El hook JS en modo eficiente limita a ~10 fps via rAF throttling */
+}
+/* Scroll suave desactivado */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) {
+  scroll-behavior: auto !important;
+}
+/* Hover effects desactivados */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) :is(
   .os-widget-shell:hover,
   .explore-card:hover,
   .theme-preset-card:hover,
@@ -4155,27 +4182,32 @@ html[data-rendimiento-efectivo="eficiente"] {
   .glass-card:hover,
   .crystal-card:hover,
   .liquid-ui-enabled [data-component="card"]:hover,
-  .liquid-ui-enabled [data-component="button"]:hover {
-    transform: none !important;
-    box-shadow: none !important;
-    background: inherit !important;
-  }
-  /* Focus visible sin animación */
-  *:focus-visible {
-    transition: none !important;
-  }
+  .liquid-ui-enabled [data-component="button"]:hover
+) {
+  transform: none !important;
+  box-shadow: none !important;
+  background: inherit !important;
+}
+/* Focus visible sin animación */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) *:focus-visible {
+  transition: none !important;
 }
 
 /* ── auto y alto: sin restricciones extra (comportamiento normal) ──
    Ojo: si «auto» resolvió eco/eficiente, mandan las reglas de arriba y esta
    restauración NO debe pisarlas. */
-html[data-rendimiento="auto"]:not([data-rendimiento-efectivo="eco"]):not([data-rendimiento-efectivo="eficiente"]),
-html[data-rendimiento="alto"] {
-  /* Restaurar valores por defecto si vienen de eco/eficiente */
-  *,
-  *::before,
-  *::after {
-    animation: initial;
-    transition: initial;
-  }
+:is(
+  html[data-rendimiento="auto"]:not([data-rendimiento-efectivo="eco"]):not([data-rendimiento-efectivo="eficiente"]),
+  html[data-rendimiento="alto"]
+) *,
+:is(
+  html[data-rendimiento="auto"]:not([data-rendimiento-efectivo="eco"]):not([data-rendimiento-efectivo="eficiente"]),
+  html[data-rendimiento="alto"]
+) *::before,
+:is(
+  html[data-rendimiento="auto"]:not([data-rendimiento-efectivo="eco"]):not([data-rendimiento-efectivo="eficiente"]),
+  html[data-rendimiento="alto"]
+) *::after {
+  animation: initial;
+  transition: initial;
 }

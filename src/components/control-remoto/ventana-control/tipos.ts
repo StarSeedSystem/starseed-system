@@ -47,6 +47,15 @@ export interface PropsVentanaControl {
     color?: string;
     /** CTL1117I · MI color público: el de la onda de mis clics y el de «Tus toques». */
     miColor?: string;
+    /** Participantes y selecciones compartidas con color único por usuario en esta sesión. */
+    participantesSeleccion?: { id: string; nombre: string; colorPreferido?: string }[];
+    seleccionesActivas?: {
+        usuarioId: string;
+        nombre: string;
+        textoSeleccionado?: string;
+        rango?: { x: number; y: number; w: number; h: number };
+        colorPreferido?: string;
+    }[];
 }
 
 export type Giro = 0 | 90 | 180 | 270;

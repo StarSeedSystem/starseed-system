@@ -28,19 +28,25 @@ TODOS = sorted(A.CLAVES_DEL_ENJAMBRE)
 # autopublicación el 04-11 a las 20:29 y a las 21:40. Y CodexCuenta escribía su marca de
 # 2001 encima de la real. Ninguna prueba de este archivo lee ni escribe la de la Mac.
 _RUTA_CUPO_DE_LA_MAC = None
+_DIR_HF_DE_LA_MAC = None
 
 
 def setUpModule():
-    global _RUTA_CUPO_DE_LA_MAC
+    global _RUTA_CUPO_DE_LA_MAC, _DIR_HF_DE_LA_MAC
+    import tempfile
     if A._cupo is not None:
-        import tempfile
         _RUTA_CUPO_DE_LA_MAC = A._cupo.RUTA
         A._cupo.RUTA = os.path.join(tempfile.mkdtemp(prefix="cupo-codex-"), "codex-cupo.json")
+    if getattr(A, "_hfa", None) is not None:
+        _DIR_HF_DE_LA_MAC = A._hfa.DIR
+        A._hfa.DIR = tempfile.mkdtemp(prefix="hf-acciones-")
 
 
 def tearDownModule():
     if A._cupo is not None and _RUTA_CUPO_DE_LA_MAC is not None:
         A._cupo.RUTA = _RUTA_CUPO_DE_LA_MAC
+    if getattr(A, "_hfa", None) is not None and _DIR_HF_DE_LA_MAC is not None:
+        A._hfa.DIR = _DIR_HF_DE_LA_MAC
 
 
 class QueEntraEnLaLista(unittest.TestCase):
@@ -622,3 +628,41 @@ class LaMarcaDeCodexDeLaMacNoSeToca(unittest.TestCase):
         A._cupo.anotar("cuenta de ChatGPT sin Codex: prueba", ahora=1000000000.0, horas=24)
         self.assertTrue(os.path.exists(A._cupo.RUTA))
         self.assertEqual("cuenta de ChatGPT sin Codex: prueba", A._cupo.leer()["motivo"])
+
+
+class HiggsfieldEnAccionesDeAlex(unittest.TestCase):
+    """Propuestas Higgsfield traen contexto completo y se pueden aprobar o rechazar."""
+
+    def test_propuesta_higgsfield_trae_prompt_como_hacerlo_y_rechazo(self):
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            antes_dir = A._hfa.DIR
+            A._hfa.DIR = d
+            try:
+                with open(os.path.join(d, "propuestas.json"), "w", encoding="utf-8") as f:
+                    json.dump([{
+                        "id": "HGF999",
+                        "proyecto": "sistema-diseno",
+                        "pieza": "halo",
+                        "modelo": "seedance-2.0",
+                        "tomas": 2,
+                        "creditos_estimados": 12,
+                        "motivo": "Prueba visual",
+                        "fecha": "2026-11-19",
+                        "comando": ["higgsfield", "generate", "seedance_2_0", "--prompt", "Halo dorado"],
+                    }], f)
+                acciones = A.construir_acciones([], TODOS, CATALOGO, a1_tiene_token=True)
+                hf = [x for x in acciones if x["id"] == "higgsfield-HGF999"]
+                self.assertEqual(1, len(hf))
+                self.assertEqual("Halo dorado", hf[0]["prompt"])
+                self.assertTrue(hf[0]["rechazable"])
+                self.assertTrue(hf[0]["aprobable"])
+                self.assertIn("Aprobar", hf[0]["como_hacerlo"])
+                res = A.rechazar_accion("higgsfield-HGF999", motivo="No necesario", base_hf=d, regenerar=False)
+                self.assertTrue(res["ok"])
+                self.assertEqual("rechazada", res["estado"])
+                # Una vez rechazada ya no vuelve a salir como pendiente
+                despues = [x for x in A.construir_acciones([], TODOS, CATALOGO, a1_tiene_token=True) if x["id"] == "higgsfield-HGF999"]
+                self.assertEqual([], despues)
+            finally:
+                A._hfa.DIR = antes_dir
