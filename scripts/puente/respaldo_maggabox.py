@@ -386,9 +386,15 @@ def _copia_verificada(
     try:
         tam_ori = tamano_fn(origen)
         cnt_ori = contar_fn(origen)
-        # Usar las funciones inyectadas para verificar el destino (mock o real)
-        tam_dest = tamano_fn(destino)
-        cnt_dest = contar_fn(destino)
+        # El destino vive en la Maggabox: se verifica por SSH, no con du/find locales
+        r_tam = _ejecutar(_ssh_du(destino), ssh_fn, tope_s=tope_s)
+        if r_tam["codigo"] != 0 or not r_tam["salida"]:
+            return False
+        tam_dest = int(r_tam["salida"].split()[0])
+        r_cnt = _ejecutar(SSH_BASE + ["find", destino, "-printf", "."], ssh_fn, tope_s=tope_s)
+        if r_cnt["codigo"] != 0:
+            return False
+        cnt_dest = len(r_cnt["salida"])
         return tam_ori == tam_dest and cnt_ori == cnt_dest and tam_ori > 0
     except Exception:
         return False
@@ -399,11 +405,12 @@ def _mover_a_pesados(
     destino_base: str,
     ssh_fn: Callable[..., Any],
     seco: bool,
+    mac_root: str = MAC_ROOT,
     tamano_fn: Callable[[str], int] = _tamano_directorio,
     contar_fn: Callable[[str], int] = _contar_entradas,
 ) -> Dict[str, Any]:
     """Mueve origen a pesados/ en destino con copia verificada."""
-    rel = os.path.relpath(origen, MAC_ROOT)
+    rel = os.path.relpath(origen, mac_root)
     destino = os.path.join(destino_base, "pesados", rel)
 
     if seco:
@@ -517,7 +524,7 @@ def aliviar(
             break
         tam_kb = tamano_fn(cand)
         tam_gb = tam_kb / (1024 * 1024)
-        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, tamano_fn=tamano_fn, contar_fn=contar_fn)
+        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, mac_root=mac_root, tamano_fn=tamano_fn, contar_fn=contar_fn)
         movidos.append(res)
         if res.get("verificado"):
             liberado_gb += tam_gb
