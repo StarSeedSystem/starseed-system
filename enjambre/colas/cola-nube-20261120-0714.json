@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "A0BF43013",
+   "ola": "Ola A-desbloqueo · publicacion-4d8777e4d",
+   "titulo": "URGENTE · Desbloquear la publicación (4d8777e4d)",
+   "archivos": [
+    "scripts/puente/test_respaldo_maggabox.py"
+   ],
+   "depende": [],
+   "urgente": true,
+   "clave_desbloqueo": "publicacion-4d8777e4d",
+   "prompt": "La autopublicación lleva varias pasadas bloqueada por el mismo motivo y no sale nada a producción hasta que la causa se corrija en el código.\n\nLa publicación lleva 2 pasadas seguidas bloqueada: pruebas del puente en rojo\n\nEl archivo que señala la evidencia es `scripts/puente/test_respaldo_maggabox.py`. (El log nombra una copia generada; el archivo fuente del repo es ese.)\n\nEvidencia (tal cual la dio el compilador o la puerta):\n> .............................................................................................................................................................................................................................................................F..................................................................................................................................................\n> […]\n> Traceback (most recent call last):\n>   File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_respaldo_maggabox.py\", line 370, in test_aliviar_copia_verificada_antes_de_borrar\n>     self.assertTrue(movido[\"verificado\"])\n>     ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\n> AssertionError: False is not true\n> \n> ----------------------------------------------------------------------\n> Ran 6663 tests in 460.160s\n> \n> FAILED (failures=1, skipped=5, expected failures=4)\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 54098)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 54108)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 54113)>\n\nPide la corrección más pequeña que haga desaparecer ESE error. Reglas: la arreglo MÍNIMA, la causa y nada más (una línea si basta); no toques los frenos de la publicación (scripts/puente/autopublicar.py, scripts/puente/produccion_puertas.py), ni las pruebas guardia (si una prueba guardia falla, el código es el que se corrige, nunca la prueba), ni permisos (capabilities, AndroidManifest, entitlements, RLS); sin claves ni cadenas con forma de clave; ≤ 3 archivos; no hagas push, ni pidas ni lances compilaciones ni publicaciones: eso lo hace el director. Comprueba con la prueba o el compilador del archivo que cambies y di en tu respuesta qué cambiaste y por qué."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "A0BF43013"
+  ]
+ }
+}
