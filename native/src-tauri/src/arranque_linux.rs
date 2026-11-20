@@ -73,7 +73,7 @@ pub fn configurar_dmabuf_si_hace_falta() {
     let tipo = logica::detectar_tipo_gpu(&info);
     if let Some(valor) = logica::decidir_dmabuf(valor_existente.as_deref(), tipo) {
         // SAFE: solo afecta a este proceso y sus hijos (el webview hereda el entorno).
-        unsafe { env::set_var(VAR_DMABUF, valor); }
+        unsafe { env::set_var(VAR_DMABUF, &valor); }
         eprintln!("[arranque_linux] {VAR_DMABUF}={valor} (GPU: {:?})", tipo);
     }
 }
