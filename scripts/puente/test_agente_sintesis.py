@@ -342,8 +342,9 @@ class TestEncargarPorFlota(unittest.TestCase):
         self._tmp.cleanup()
 
     def _tarea(self, n=1):
-        # Fecha dentro del rango de poda (últimos 7 días), relativa al mismo reloj que poda.
-        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": A._iso(A._como_fecha()),
+        # Fecha relativa al reloj: siempre dentro del rango de poda (últimos 7 días).
+        creada = A._iso(datetime.now(timezone.utc) - timedelta(days=1))
+        return {"id": "SIN1112%d" % n, "agente": "sintesis-produccion", "creada": creada,
                 "tipo": "analisis", "modo": "libre", "prompt": "x", "salida": "y.json"}
 
     def test_sin_orquestador_deja_la_cola_lista(self):
