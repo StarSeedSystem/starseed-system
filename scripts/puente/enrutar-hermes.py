@@ -125,6 +125,7 @@ PATRONES_RECHAZO = [
     "api key not valid",
     "api_key_invalid",
     "permission_denied",
+    "clave rechazada",
 ]
 
 #: Mapeo de nombres legibles a ids de proveedor en Hermes.
