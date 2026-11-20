@@ -2,12 +2,13 @@
 // (micro, s, m, l, xl, panoramico, torre, acciones), igual que el widget original (312).
 // La regla «≤120 líneas» es para módulos puros; un widget con layout completo no cabe.
 import * as React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let medida = { width: 240, height: 240 };
 const TAM = { micro: 90, s: 150, m: 240, l: 360, xl: 500 } as const;
 const tam = (c: keyof typeof TAM) => { medida = { width: TAM[c], height: TAM[c] }; };
+
 vi.mock("@/components/dashboard/kit/use-element-size", () => ({
     useElementSize: () => ({ ref: { current: null }, size: { ...medida, tier: "regular", vTier: "regular", landscape: true } }),
 }));
@@ -76,49 +77,170 @@ global.window.matchMedia = global.window.matchMedia || function () {
     };
 };
 
+// ── Mock del puente Aurora (patrón de use-estado-astraura.test.tsx) ─────────
+type PuenteFalso = {
+    speaking: boolean;
+    listening: boolean;
+    actionStatus: string;
+    error?: boolean;
+    supported: boolean;
+    enabled: boolean;
+    getState: ReturnType<typeof vi.fn<() => PuenteFalso>>;
+    subscribe: ReturnType<typeof vi.fn<(cb: () => void) => () => void>>;
+    start: ReturnType<typeof vi.fn<() => void>>;
+    stop: ReturnType<typeof vi.fn<() => void>>;
+    _notificar: () => void;
+};
+
+let notificarActual: (() => void) | null = null;
+
+function crearPuenteFalso(estadoInicial: Partial<Omit<PuenteFalso, "getState" | "subscribe" | "start" | "stop" | "_notificar">> = {}): PuenteFalso {
+    const getState = vi.fn<() => PuenteFalso>();
+    const subscribe = vi.fn<(cb: () => void) => () => void>();
+    const start = vi.fn<() => void>();
+    const stop = vi.fn<() => void>();
+
+    let estado: PuenteFalso = {
+        speaking: false,
+        listening: false,
+        actionStatus: "",
+        error: false,
+        supported: true,
+        enabled: true,
+        ...estadoInicial,
+        getState,
+        subscribe,
+        start,
+        stop,
+        _notificar: () => { notificarActual?.(); },
+    };
+
+    getState.mockReturnValue(estado);
+    subscribe.mockImplementation((cb) => {
+        notificarActual = cb;
+        cb();
+        return vi.fn();
+    });
+
+    return estado;
+}
+
+beforeEach(() => {
+    vi.useFakeTimers();
+    notificarActual = null;
+    tam("m");
+    chat = [];
+    window.localStorage.clear();
+    // @ts-expect-error - test setup
+    window.STARSEED_AURORA = undefined;
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+    vi.restoreAllMocks();
+    notificarActual = null;
+    // @ts-expect-error - test cleanup
+    window.STARSEED_AURORA = undefined;
+});
+
 import { AstrauraLibreProto } from "../astraura-libre-proto";
 
-beforeEach(() => { tam("m"); chat = []; });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
-
 describe("Astraura libre proto", () => {
-    it("sin elección, auto en tamaño grande con conversación monta Conversación", () => {
+    it("sin elección, auto en tamaño grande con conversación monta Conversación", async () => {
+        const puente = crearPuenteFalso();
+        // @ts-expect-error - test setup
+        window.STARSEED_AURORA = puente;
+
         chat = [{ role: "user", text: "¿Qué tal?", ts: 1 }, { role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
         tam("l");
+
         render(<AstrauraLibreProto />);
+        await act(async () => { await vi.runAllTimersAsync(); });
+
         expect(screen.getByText("Todo en calma en la malla.")).toBeTruthy();
         expect(screen.getByText("Tú: ¿Qué tal?")).toBeTruthy();
     });
 
-    it("la elección guardada manda", () => {
+    it("la elección guardada manda", async () => {
+        const puente = crearPuenteFalso();
+        // @ts-expect-error - test setup
+        window.STARSEED_AURORA = puente;
+
         chat = [{ role: "aurora", text: "Todo en calma en la malla.", ts: 2 }];
         tam("l");
+
         render(<AstrauraLibreProto widget={{ settings: { astrauraDiseno: "acciones" } } as any} />);
+        await act(async () => { await vi.runAllTimersAsync(); });
+
         expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
         expect(screen.queryByText("Todo en calma en la malla.")).toBeNull();
     });
 
-    it("el estado del puente cambia la forma", () => {
-        chat = [];
-        const { unmount } = render(<AstrauraLibreProto />);
-        expect(screen.getByText("En calma")).toBeTruthy();
-        unmount();
-    });
+    it("el estado del puente cambia la forma", async () => {
+        const puente = crearPuenteFalso();
+        // @ts-expect-error - test setup
+        window.STARSEED_AURORA = puente;
 
-    it("chat vacío dice «Aún no habéis hablado»", () => {
         chat = [];
         tam("l");
+
         render(<AstrauraLibreProto />);
+        await act(async () => { await vi.runAllTimersAsync(); });
+
+        // Estado inicial: calma
+        expect(screen.getByText("En calma")).toBeTruthy();
+
+        // Cambiar a escuchando
+        await act(async () => {
+            puente.speaking = false;
+            puente.listening = true;
+            puente.getState.mockReturnValue(puente);
+            puente._notificar();
+        });
+
+        expect(screen.getByText("Escuchando…")).toBeTruthy();
+
+        // Cambiar a hablando
+        await act(async () => {
+            puente.speaking = true;
+            puente.listening = false;
+            puente.getState.mockReturnValue(puente);
+            puente._notificar();
+        });
+
+        expect(screen.getByText("Hablando")).toBeTruthy();
+    });
+
+    it("chat vacío dice «Aún no habéis hablado»", async () => {
+        const puente = crearPuenteFalso();
+        // @ts-expect-error - test setup
+        window.STARSEED_AURORA = puente;
+
+        chat = [];
+        tam("l");
+
+        render(<AstrauraLibreProto />);
+        await act(async () => { await vi.runAllTimersAsync(); });
+
         expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
     });
 
-    it("elegir otro diseño llama a onUpdateSettings con astrauraDiseno", () => {
+    it("elegir otro diseño llama a onUpdateSettings con astrauraDiseno", async () => {
+        const puente = crearPuenteFalso();
+        // @ts-expect-error - test setup
+        window.STARSEED_AURORA = puente;
+
         chat = [];
         const ajustes = vi.fn();
         tam("l");
+
         render(<AstrauraLibreProto widget={{} as any} onUpdateSettings={ajustes} />);
+        await act(async () => { await vi.runAllTimersAsync(); });
+
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
         fireEvent.click(screen.getByRole("radio", { name: /Conversación/i }));
+
         expect(ajustes).toHaveBeenCalledWith({ astrauraDiseno: "conversacion" });
     });
 });
