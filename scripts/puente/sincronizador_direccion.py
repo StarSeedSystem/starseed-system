@@ -801,9 +801,12 @@ def espejar_a_telegram_direccion(
     if not sync_cfg.get("telegram", True):
         return 0
 
+    def _a_segundos(val: float) -> float:
+        return (val / 1000.0) if val > 1e11 else val
+
     def _epoch_reg(reg: Dict[str, Any]) -> float:
         try:
-            return float(director_chat._epoch_de(reg) or 0.0)
+            return _a_segundos(float(director_chat._epoch_de(reg) or 0.0))
         except Exception:
             return 0.0
 
@@ -841,7 +844,7 @@ def espejar_a_telegram_direccion(
 
     fallos: Dict[str, int] = dict(estado.get("telegram_dir_fallos") or {})
     por_id = {r.get("id"): r for r in registros if isinstance(r, dict) and r.get("id")}
-    ultimo_epoch = float(estado.get("telegram_dir_ultimo_epoch") or 0.0)
+    ultimo_epoch = _a_segundos(float(estado.get("telegram_dir_ultimo_epoch") or 0.0))
     # En producción real (sin enviar_fn inyectada), si aún no había marca de agua temporal,
     # nunca reenviar mensajes con más de 10 minutos de antigüedad que hubieran sido desalojados por el set antiguo.
     corte_antiguedad = (time.time() - 600.0) if enviar_fn is None else 0.0

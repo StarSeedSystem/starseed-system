@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -179,6 +180,43 @@ class TestTresCanalesEspecializados(unittest.TestCase):
         self.assertTrue(
             SD.es_eco_interno("[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted...")
         )
+
+    def test_espejo_normaliza_epoch_ms_y_segundos(self):
+        cfg = {"sincronizar_canales": {"telegram": True}}
+        base_s = 1_795_205_303.683
+        estado = {
+            "telegram_dir_vistos": ["md-previo"],
+            "telegram_dir_ultimo_epoch": base_s * 1000.0,
+        }
+        viejo = {
+            "id": "md-viejo-iso",
+            "t": datetime.fromtimestamp(base_s - 600.0, timezone.utc).isoformat(),
+            "de": "alex",
+            "rol": "alex",
+            "tipo": "mensaje",
+            "canal": "director-presidente",
+            "texto": "Mensaje previo a la marca en ms",
+        }
+        nuevo = {
+            "id": "md-nuevo-iso",
+            "t": datetime.fromtimestamp(base_s + 30.0, timezone.utc).isoformat(),
+            "de": "antigravity",
+            "rol": "director",
+            "tipo": "respuesta",
+            "canal": "antigravity",
+            "texto": "Mensaje nuevo tras la marca",
+        }
+        enviados = []
+        n = SD.espejar_a_telegram_direccion(
+            [viejo, nuevo],
+            estado,
+            cfg,
+            enviar_fn=lambda et, tx: (enviados.append((et, tx)) or True, "ok"),
+        )
+        self.assertEqual(n, 1)
+        self.assertEqual(enviados, [("Antigravity", "Mensaje nuevo tras la marca")])
+        self.assertLess(estado["telegram_dir_ultimo_epoch"], 1e11)
+        self.assertAlmostEqual(estado["telegram_dir_ultimo_epoch"], base_s + 30.0, places=2)
 
     def test_recoger_maggacortex_siembra_offset_filtra_chat_y_enruta_a_directores(self):
         with tempfile.TemporaryDirectory() as tmp:
