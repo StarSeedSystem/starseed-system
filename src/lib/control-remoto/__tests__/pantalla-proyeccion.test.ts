@@ -33,11 +33,15 @@ function origenCon(respuesta: unknown) {
 }
 
 describe("PENC3 · fuente de pantalla", () => {
-    it("pide «auto» aunque quien manda pida otra: la elige el aparato", async () => {
-        const { origen, llamadas } = origenCon({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
-        await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
-        expect(llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("auto");
-        await origen.parar("fin");
+    it("la fuente pedida llega a lo nativo; sin fuente la elige el aparato", async () => {
+        const pedida = origenCon({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
+        await pedida.origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
+        expect(pedida.llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("proyeccion");
+        await pedida.origen.parar("fin");
+        const automatica = origenCon({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
+        await automatica.origen.ejecutar("pantalla-iniciar", {}, ctx());
+        expect(automatica.llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args).not.toHaveProperty("fuente");
+        await automatica.origen.parar("fin");
     });
 
     it("la fuente real que contesta el aparato es la que se refleja", async () => {

@@ -40,7 +40,7 @@ function montar(respuesta: Record<string, unknown>) {
     return { origen, llamadas };
 }
 
-const iniciar = (llamadas: { cmd: string }[]) => llamadas.find((l) => l.cmd === "control_pantalla_iniciar");
+const iniciar = (llamadas: { cmd: string; args?: Record<string, unknown> }[]) => llamadas.find((l) => l.cmd === "control_pantalla_iniciar");
 
 describe("RST1116A · la fuente pedida llega a lo nativo", () => {
     it("con «proyeccion» el invocador recibe fuente:proyeccion", async () => {
