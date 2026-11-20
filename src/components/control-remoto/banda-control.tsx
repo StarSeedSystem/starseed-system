@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
+import type { MetricasCalidad } from "@/lib/control-remoto/calidad";
 import { ENLACES_CONTROL, textoEnlace } from "@/lib/nativa/permisos-enlaces";
 import { pasosQueFaltan } from "@/lib/banco-llamadas/pasos";
 import {
@@ -36,6 +37,7 @@ import {
 import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
 import { AJUSTES_CONTROL_DEFECTO, leerAjustesControl, type AjustesControl } from "@/lib/control-remoto/ajustes-aparato";
 import { quienControla } from "@/lib/control-remoto/quien-controla";
+import { origenGlobal } from "@/lib/control-remoto/pantalla-origen";
 import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL } from "./ajustes-indicador";
 import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
@@ -288,7 +290,21 @@ export function BandaControl() {
 
     // CTL1117I: ya no hay banda roja. Con `indicador=punto`, un punto en la esquina con el color de quien controla (y su panelito);
     // con `oculto` no se dibuja nada: quién controla y «Terminar» siguen en el panel de ajustes de control.
-    const quien = quienControla(sesion, permiso);
+    const quienBase = quienControla(sesion, permiso);
+    // CTL1119B: obtener métricas de calidad del lado del aparato
+    const [calidadAparato, setCalidadAparato] = useState<MetricasCalidad | undefined>(undefined);
+    useEffect(() => {
+        if (!quienBase) {
+            setCalidadAparato(undefined);
+            return;
+        }
+        const o = origenGlobal();
+        const int = setInterval(() => {
+            setCalidadAparato(o.calidad() ?? undefined);
+        }, 500);
+        return () => clearInterval(int);
+    }, [quienBase?.neurona]);
+    const quien = quienBase ? { ...quienBase, calidad: calidadAparato } : null;
     // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
     const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
     if (!verPunto && !banco) return null;

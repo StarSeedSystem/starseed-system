@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { FuentePedida } from "@/lib/control-remoto/fuente-pantalla";
+import type { MetricasCalidad } from "@/lib/control-remoto/calidad";
 
 export { type FuentePedida };
 
@@ -26,6 +27,8 @@ export interface PropsVentanaControl {
     aparato: { volumen?: Record<string, number>; brillo?: number; bateria?: number; cargando?: boolean; red?: { wifi: boolean; datos: boolean; bluetooth: boolean } } | null;
     latenciaMs?: number;
     fps?: number;
+    /** CTL1119B: métricas de calidad calculadas (fps, rtt, kbps, resolución, codec, calidad, pérdidas, medio). */
+    calidad?: MetricasCalidad;
     /** CTL1117A · S3: hora máxima de la sesión (ms epoch); la ventana avisa con cuenta atrás los últimos 5 min. */
     caduca?: number;
     /** CTL1117A · S3: un clic para renovar/reabrir la sesión. */

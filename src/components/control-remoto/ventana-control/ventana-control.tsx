@@ -19,6 +19,7 @@ import { rotuloVia } from "@/lib/control-remoto/cuadro-malla";
 import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pantalla";
 import { estiloSeleccionUsuario } from "@/lib/seleccion/colores-seleccion";
 import { CapaSeleccionCompartida } from "@/components/seleccion/capa-seleccion-compartida";
+import { MedidorPresentacional } from "../medidor-calidad";
 
 export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
 
@@ -644,6 +645,9 @@ export function VentanaControl(props: PropsVentanaControl) {
             {TEXTO_ESTADO[estado]}
         </span>
     );
+    const medidor = props.calidad && estado === "en-vivo" ? (
+        <MedidorPresentacional metricas={props.calidad} className="ml-1" />
+    ) : null;
     const nota = nivel === "ver" ? (
         <span data-testid="ventana-control-solo-ver" className="whitespace-nowrap rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/70">
             Solo mirar
@@ -699,6 +703,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {leyendaMia}
                     {nota}
                     {chip}
+                    {medidor}
                     {nivel === "ver" && mostrarSelector && selector}
                     {botonCerrar}
                 </header>
@@ -769,6 +774,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 {leyendaMia}
                 {nota}
                 {chip}
+                {medidor}
                 {nivel === "ver" && mostrarSelector && selector}
                 {nivel === "controlar" && (
                     <button type="button" onClick={() => setMandosAbiertos((v) => !v)} aria-pressed={mandosAbiertos} className="min-h-10 cursor-pointer rounded-lg px-2 text-[12px] text-white/80 hover:bg-white/10">
