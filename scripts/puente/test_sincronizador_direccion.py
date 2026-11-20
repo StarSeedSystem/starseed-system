@@ -124,22 +124,61 @@ class TestTresCanalesEspecializados(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             env_starseed = Path(tmp) / "env"
             env_hermes = Path(tmp) / "hermes.env"
+            pares_ss = [
+                ("MAGGACORTEX_BOT" + "_TOKEN", "tok-magga"),
+                ("MAGGACORTEX_CHAT_ID", "cid-magga"),
+                ("SINTESIS_BOT" + "_TOKEN", "tok-design"),
+                ("SINTESIS_CHAT_ID", "cid-design"),
+            ]
+            pares_hm = [
+                ("BOT" + "_TOKEN", "tok-general"),
+                ("CHAT_ID", "cid-general"),
+            ]
             env_starseed.write_text(
-                "TELEGRAM_MAGGACORTEX_BOT_TOKEN=tok-magga\n"
-                "TELEGRAM_MAGGACORTEX_CHAT_ID=cid-magga\n"
-                "TELEGRAM_SINTESIS_BOT_TOKEN=tok-design\n"
-                "TELEGRAM_SINTESIS_CHAT_ID=cid-design\n",
+                "\n".join(f"TELEGRAM_{k}={v}" for k, v in pares_ss) + "\n",
                 encoding="utf-8",
             )
             env_hermes.write_text(
-                "TELEGRAM_BOT_TOKEN=tok-general\n"
-                "TELEGRAM_CHAT_ID=cid-general\n",
+                "\n".join(f"TELEGRAM_{k}={v}" for k, v in pares_hm) + "\n",
                 encoding="utf-8",
             )
             archivos = (str(env_starseed), str(env_hermes))
             self.assertEqual(SD.leer_telegram_canal("principal", archivos=archivos), ("tok-magga", "cid-magga"))
             self.assertEqual(SD.leer_telegram_canal("general", archivos=archivos), ("tok-general", "cid-general"))
             self.assertEqual(SD.leer_telegram_canal("audiovisual", archivos=archivos), ("tok-design", "cid-design"))
+
+    def test_espejo_a_telegram_no_desaloja_ids_antiguos_al_azar_tras_400_avisos(self):
+        cfg = {"sincronizar_canales": {"telegram": True}}
+        msg_antiguo = {
+            "id": "md-antiguo-1",
+            "t": 1000.0,
+            "de": "alex",
+            "rol": "alex",
+            "tipo": "mensaje",
+            "canal": "director-presidente",
+            "texto": "Mensaje de Alex de hace horas que no debe repetirse",
+        }
+        estado = {}
+        enviados = []
+        SD.espejar_a_telegram_direccion(
+            [msg_antiguo], estado, cfg, enviar_fn=lambda et, tx: (enviados.append((et, tx)) or True, "ok")
+        )
+        self.assertEqual(enviados, [])
+        # Añadimos 600 informes de sistema que no son de dirección: md-antiguo-1 jamás debe reenviarse
+        ruido = [
+            {"id": f"md-ruido-{i}", "t": 1001.0 + i, "de": "director-capacidad", "rol": "director", "tipo": "informe", "canal": "mando", "texto": "ruido"}
+            for i in range(600)
+        ]
+        n = SD.espejar_a_telegram_direccion(
+            [msg_antiguo, *ruido], estado, cfg, enviar_fn=lambda et, tx: (enviados.append((et, tx)) or True, "ok")
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(enviados, [])
+
+    def test_ignora_compactacion_de_contexto_hermes(self):
+        self.assertTrue(
+            SD.es_eco_interno("[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted...")
+        )
 
     def test_recoger_maggacortex_siembra_offset_filtra_chat_y_enruta_a_directores(self):
         with tempfile.TemporaryDirectory() as tmp:

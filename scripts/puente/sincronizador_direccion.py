@@ -61,6 +61,7 @@ _PREFIJOS_ECO_INTERNO = (
     "modo headless sin permisos interactivos",
     "responde solo ok y confirma capacidad activa",
     "confirma solo con ok que quedas registrada como sesión dedicada",
+    "[context compaction",
     "[metagenesis ·",
     "[dirección ·",
     "[general ·",
@@ -466,10 +467,20 @@ def sincronizar_desde_hermes(
             return 0
 
         ultimo_id = int(estado.get("hermes_sync_ultimo_id") or 0)
+        cols_msg = {
+            str(r[1])
+            for r in con.execute("PRAGMA table_info(messages)").fetchall()
+        }
+        filtro_tools = (
+            "AND (m.role = 'user' OR m.tool_calls IS NULL OR TRIM(CAST(m.tool_calls AS TEXT)) IN ('', '[]', 'null')) "
+            if "tool_calls" in cols_msg
+            else ""
+        )
         filas = con.execute(
             f"SELECT m.id, m.session_id, m.role, m.content, s.source, s.model "
             f"FROM messages m JOIN sessions s ON m.session_id = s.id "
             f"WHERE m.id > ? AND {where_sesiones} AND m.role IN ('user', 'assistant') "
+            f"{filtro_tools}"
             f"ORDER BY m.id ASC LIMIT 30",
             [ultimo_id, *params],
         ).fetchall()
@@ -572,10 +583,20 @@ def sincronizar_canal_secundario_hermes(
             return 0
 
         ultimo_id = int(estado.get(cursor_key) or 0)
+        cols_msg = {
+            str(r[1])
+            for r in con.execute("PRAGMA table_info(messages)").fetchall()
+        }
+        filtro_tools = (
+            "AND (m.role = 'user' OR m.tool_calls IS NULL OR TRIM(CAST(m.tool_calls AS TEXT)) IN ('', '[]', 'null')) "
+            if "tool_calls" in cols_msg
+            else ""
+        )
         filas = con.execute(
             f"SELECT m.id, m.session_id, m.role, m.content, s.source, s.model "
             f"FROM messages m JOIN sessions s ON m.session_id = s.id "
             f"WHERE m.id > ? AND {where_sesiones} AND m.role IN ('user', 'assistant') "
+            f"{filtro_tools}"
             f"ORDER BY m.id ASC LIMIT 30",
             [ultimo_id, *params],
         ).fetchall()
@@ -772,33 +793,76 @@ def espejar_a_telegram_direccion(
 ) -> int:
     """Espeja nuevos mensajes/respuestas de dirección principal hacia Maggacortex (`principal`).
 
-    Si `telegram_dir_vistos` no existe todavía en `estado`, siembra todos los IDs presentes para
-    arrancar limpio desde este instante sin reenviar mensajes pasados.
+    Mantiene `telegram_dir_vistos` en ORDEN CRONOLÓGICO ESTRICTO (hasta 2500 IDs, nunca `list(set)`
+    que desalojaba IDs antiguos al azar y los reenviaba horas después) y guarda marca de agua
+    temporal `telegram_dir_ultimo_epoch` para jamás reenviar mensajes antiguos.
     """
     sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
     if not sync_cfg.get("telegram", True):
         return 0
+
+    def _epoch_reg(reg: Dict[str, Any]) -> float:
+        try:
+            return float(director_chat._epoch_de(reg) or 0.0)
+        except Exception:
+            return 0.0
+
     if "telegram_dir_vistos" not in estado:
-        estado["telegram_dir_vistos"] = [
-            str(r.get("id")) for r in registros if isinstance(r, dict) and r.get("id")
-        ][-400:]
+        vistos_inicial: List[str] = []
+        vistos_set_init = set()
+        max_ep = 0.0
+        for r in registros:
+            if not isinstance(r, dict):
+                continue
+            ident = str(r.get("id") or "")
+            if ident and ident not in vistos_set_init:
+                vistos_set_init.add(ident)
+                vistos_inicial.append(ident)
+            ep = _epoch_reg(r)
+            if ep > max_ep:
+                max_ep = ep
+        estado["telegram_dir_vistos"] = vistos_inicial[-2500:]
+        if max_ep > 0:
+            estado["telegram_dir_ultimo_epoch"] = max_ep
         return 0
 
-    vistos = set(str(x) for x in (estado.get("telegram_dir_vistos") or []))
+    vistos_ordenados: List[str] = []
+    vistos: set[str] = set()
+    for x in estado.get("telegram_dir_vistos") or []:
+        s = str(x or "")
+        if s and s not in vistos:
+            vistos.add(s)
+            vistos_ordenados.append(s)
+
+    def _marcar_visto(ident_msg: str) -> None:
+        if ident_msg and ident_msg not in vistos:
+            vistos.add(ident_msg)
+            vistos_ordenados.append(ident_msg)
+
     fallos: Dict[str, int] = dict(estado.get("telegram_dir_fallos") or {})
     por_id = {r.get("id"): r for r in registros if isinstance(r, dict) and r.get("id")}
+    ultimo_epoch = float(estado.get("telegram_dir_ultimo_epoch") or 0.0)
+    # En producción real (sin enviar_fn inyectada), si aún no había marca de agua temporal,
+    # nunca reenviar mensajes con más de 10 minutos de antigüedad que hubieran sido desalojados por el set antiguo.
+    corte_antiguedad = (time.time() - 600.0) if enviar_fn is None else 0.0
     enviados = 0
 
     for r in registros:
+        if not isinstance(r, dict):
+            continue
         ident = str(r.get("id") or "")
         if not ident or ident in vistos:
             continue
         if not es_mensaje_direccion_para_telegram(r, por_id):
-            vistos.add(ident)
+            _marcar_visto(ident)
+            continue
+        ep = _epoch_reg(r)
+        if (ultimo_epoch > 0 and ep > 0 and ep < ultimo_epoch - 2.0) or (corte_antiguedad > 0 and 0 < ep < corte_antiguedad):
+            _marcar_visto(ident)
             continue
         texto = str(r.get("texto") or "").strip()
         if not texto:
-            vistos.add(ident)
+            _marcar_visto(ident)
             continue
         etiqueta = _etiqueta_origen(r)
         if enviar_fn is not None:
@@ -806,18 +870,22 @@ def espejar_a_telegram_direccion(
         else:
             ok, _ = enviar_telegram_canal("principal", texto, prefijo=f"MetaGenesis · {etiqueta}")
         if ok:
-            vistos.add(ident)
+            _marcar_visto(ident)
+            if ep > ultimo_epoch:
+                ultimo_epoch = ep
             fallos.pop(ident, None)
             enviados += 1
         else:
             intentos = int(fallos.get(ident) or 0) + 1
             if intentos >= 3:
-                vistos.add(ident)
+                _marcar_visto(ident)
                 fallos.pop(ident, None)
             else:
                 fallos[ident] = intentos
 
-    estado["telegram_dir_vistos"] = list(vistos)[-400:]
+    estado["telegram_dir_vistos"] = vistos_ordenados[-2500:]
+    if ultimo_epoch > 0:
+        estado["telegram_dir_ultimo_epoch"] = ultimo_epoch
     estado["telegram_dir_fallos"] = fallos
     return enviados
 
