@@ -128,7 +128,8 @@ escala uniforme al visor («contener»), nunca un layout que crece o encoge con 
   `data-rendimiento="eficiente"` (las transiciones quedan desactivadas).
 
 La especificación pura vive en `src/lib/video/editorial-paper/transitions.ts`
-(`ESCENARIO_ORBE`, `escalarEscenario`, `transicionOrbe`).
+(`ESCENARIO_ORBE`, `escalarEscenario`, `transicionOrbe`) y se aplica en
+`src/components/protomolecula/orbe-protomolecula.tsx` (estado activo, error sin WebGL y fundido de salida).
 
 ## 5. Componentes adaptativos a estilo seleccionado
 

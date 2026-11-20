@@ -67,6 +67,23 @@ describe("Orbe 4D de la Protomolécula", () => {
     expect(crear.mock.calls[0][1]).toMatchObject({ registro: "trinity", estilo: "expresiva", tamano: 112 });
   });
 
+  it("activa usa el estado y la tinta azul del orbe binario", async () => {
+    await montar();
+    const caja = screen.getByTestId("protomolecula-orbe");
+    expect(caja.dataset.estado).toBe("activo");
+    expect(caja.dataset.escenario).toBe("16:9");
+    expect(caja.style.getPropertyValue("--orbe-tinta")).toBe("var(--trinity-azure)");
+  });
+
+  it("sin WebGL cae al orbe binario de error dentro del escenario 16:9", async () => {
+    crear.mockReturnValueOnce(null as unknown as ReturnType<typeof crear>);
+    await montar();
+    const caja = screen.getByTestId("protomolecula-orbe");
+    await waitFor(() => expect(caja.dataset.estado).toBe("error"));
+    expect(caja.querySelector(".orbe-binario-escenario")).not.toBeNull();
+    expect(caja.querySelector(".orbe-binario")?.getAttribute("data-estado")).toBe("error");
+  });
+
   it("en un móvil estrecho el dibujo se encoge (0,7×) pero la diana táctil sigue en 44 px y la orbe cabe en pantalla", async () => {
     Object.defineProperty(window, "innerWidth", { value: 360, configurable: true, writable: true });
     Object.defineProperty(window, "innerHeight", { value: 740, configurable: true, writable: true });
