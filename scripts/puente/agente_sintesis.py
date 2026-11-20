@@ -423,7 +423,9 @@ def encargar_por_flota(raiz, tareas, ahora=None, vivos=None, apto=None, libre=No
                 and (t.get("agente") != AGENTE or str(t.get("creada") or "") >= limite)]
 
     fusion = fundir or S.fundir_tareas
-    S._escribir_json(ruta_cola, fusion(podar(lista), tareas))
+    # La poda es solo de lo que YA estaba en la cola: lo recién encargado se funde tal cual.
+    solo_previas = podar(lista)
+    S._escribir_json(ruta_cola, fusion(solo_previas, tareas))
     fuera = {"ok": True, "cola": "%s/%s" % (REL_OLAS, NOMBRE_COLA), "tareas": [t["id"] for t in tareas]}
     if not tareas:
         return fuera.update(accion="nada", mensaje="Sin tareas que encargar.") or fuera

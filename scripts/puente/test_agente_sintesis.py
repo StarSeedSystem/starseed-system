@@ -355,6 +355,20 @@ class TestEncargarPorFlota(unittest.TestCase):
             cola = json.load(f)
         self.assertEqual([t["id"] for t in cola], ["SIN11121"])
 
+    def test_tarea_recien_encargada_no_se_poda_aunque_su_fecha_sea_vieja(self):
+        # Regresión (publicación 60cd237df): la poda es solo de lo que YA estaba en la cola.
+        # Una tarea recién encargada con `creada` vieja no se descarta; antes la cola
+        # quedaba vacía y no se publicaba nada.
+        ahora = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
+        vieja = dict(self._tarea(1), creada="2026-11-12T06:24:00Z")
+        d = A.encargar_por_flota(self.raiz, [vieja], ahora=ahora, vivos=[],
+                                 apto=(True, 100.0), libre=(True, 100.0))
+        self.assertEqual(d["accion"], "cola_lista")
+        ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
+        with open(ruta, encoding="utf-8") as f:
+            cola = json.load(f)
+        self.assertEqual([t["id"] for t in cola], ["SIN11121"])
+
     def test_tanda_viva_metelas_tareas_en_la_cola_del_orquestador(self):
         viva = os.path.join(self.raiz, "starseed_memory_root", "olas", "cola-codigo.json")
         with open(viva, "w", encoding="utf-8") as f:
