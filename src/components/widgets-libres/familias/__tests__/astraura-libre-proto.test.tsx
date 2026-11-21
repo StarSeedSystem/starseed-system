@@ -1,6 +1,3 @@
-// NOTA: El widget proto supera las 120 líneas (248) por la complejidad de sus 7 diseños
-// (micro, s, m, l, xl, panoramico, torre, acciones), igual que el widget original (312).
-// La regla «≤120 líneas» es para módulos puros; un widget con layout completo no cabe.
 import * as React from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +65,83 @@ vi.mock("lucide-react", () => ({
     CalendarCheck: () => <svg data-testid="calendar-check" />,
 }));
 
+vi.mock("@/lib/widgets/forma/nivel-dispositivo", () => ({
+    useNivelRender: () => "normal",
+    nivelRender: () => "normal",
+    leerSenalesDispositivo: () => ({ nucleos: 8, memoriaGB: 16, movimientoReducido: false, ahorroDatos: false, bateriaBaja: false, enXR: false }),
+    conModoDelSistema: (n: string) => n,
+    presupuesto: () => ({ parallax: true, particulas: 6, inclinacionMax: 5, duracionEntradaMs: 280, halo: "suave" }),
+}));
+
+vi.mock("@/components/protomolecula/protomolecula-ligera", () => ({
+    ProtomoleculaLigera: ({ estado, tam }: { estado: string; tam: number }) => (
+        <svg data-testid="protomolecula-ligera" data-estado={estado} width={tam} height={tam} />
+    ),
+}));
+
+vi.mock("@/lib/widgets/astraura/estado-forma", () => ({
+    EstadoAsistente: "calma" as const,
+    formaDeEstado: (e: string) => "icosaedro",
+    paletaDeEstado: () => "astraura",
+    ritmoDeEstado: () => ({ giroS: 55, respiraS: 13 }),
+    derivarEstado: (s: any, ultimaMs: number | null, ahoraMs: number) => {
+        if (s?.error) return "error";
+        if (s?.speaking) return "hablando";
+        if (s?.listening) return "escuchando";
+        if (s?.actionStatus && /error|fall(o|ó)|fail/i.test(s.actionStatus)) return "error";
+        if (s?.actionStatus && /pens|procesa|think/i.test(s.actionStatus)) return "pensando";
+        if (ultimaMs !== null && ahoraMs - ultimaMs < 60_000) return "hablando";
+        return "calma";
+    },
+    textoDeEstado: (e: string) => {
+        switch (e) {
+            case "calma": return "En calma";
+            case "escuchando": return "Escuchando…";
+            case "pensando": return "Pensando…";
+            case "hablando": return "Hablando";
+            case "error": return "Algo falló";
+            default: return "En calma";
+        }
+    },
+    frasePantallaLectora: (e: string) => `Astraura está ${e === "calma" ? "en calma" : e}`,
+}));
+
+vi.mock("@/lib/widgets/astraura/disenos", () => {
+    const DISENOS = {
+        minimo: { nombre: "Mínimo", sirvePara: "Solo la forma" },
+        conversacion: { nombre: "Conversación", sirvePara: "El último intercambio" },
+        acciones: { nombre: "Acciones", sirvePara: "Atajos para empezar rápido" },
+        voz: { nombre: "Voz", sirvePara: "Botón enorme de hablar" },
+    };
+    const tamanoDe = (clase: string) => {
+        if (clase === "micro" || clase === "s") return "compacto";
+        if (clase === "m" || clase === "panoramico") return "medio";
+        return "grande";
+    };
+    const disenoValido = (x: unknown) => {
+        if (typeof x === "string" && ["minimo", "conversacion", "acciones", "voz", "auto"].includes(x)) return x;
+        return "auto";
+    };
+    const resolverDiseno = (eleccion: string, ctx: any) => {
+        const valida = disenoValido(eleccion);
+        if (valida !== "auto") {
+            if (ctx.tamano === "compacto" && valida !== "minimo") return { diseno: "minimo", degradado: true };
+            return { diseno: valida, degradado: false };
+        }
+        if (ctx.tamano === "compacto") return { diseno: "minimo", degradado: false };
+        if (ctx.tamano === "medio") return { diseno: ctx.hayConversacion ? "conversacion" : "acciones", degradado: false };
+        if (ctx.tactil && ctx.hayVoz) return { diseno: "voz", degradado: false };
+        if (ctx.hayConversacion) return { diseno: "conversacion", degradado: false };
+        return { diseno: "acciones", degradado: false };
+    };
+    return {
+        DISENOS,
+        tamanoDe,
+        disenoValido,
+        resolverDiseno,
+    };
+});
+
 global.window.matchMedia = global.window.matchMedia || function () {
     return {
         matches: false,
@@ -79,7 +153,6 @@ global.window.matchMedia = global.window.matchMedia || function () {
     };
 };
 
-// ── Mock del puente Aurora (patrón de use-estado-astraura.test.tsx) ─────────
 type PuenteFalso = {
     speaking: boolean;
     listening: boolean;
@@ -190,10 +263,8 @@ describe("Astraura libre proto", () => {
         render(<AstrauraLibreProto />);
         await act(async () => { await vi.runAllTimersAsync(); });
 
-        // Estado inicial: calma
         expect(screen.getByText("En calma")).toBeTruthy();
 
-        // Cambiar a escuchando
         await act(async () => {
             puente.speaking = false;
             puente.listening = true;
@@ -203,7 +274,6 @@ describe("Astraura libre proto", () => {
 
         expect(screen.getByText("Escuchando…")).toBeTruthy();
 
-        // Cambiar a hablando
         await act(async () => {
             puente.speaking = true;
             puente.listening = false;
