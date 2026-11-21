@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import select
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -90,24 +91,24 @@ class PruebasAtender(unittest.TestCase):
         r = mcp_director.atender(self._p("ping"))
         self.assertEqual(r, {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    def test_tools_list_diez_herramientas(self):
+    def test_tools_list_incluye_las_de_director_y_produccion(self):
         r = mcp_director.atender(self._p("tools/list"))
         nombres = [h["name"] for h in r["result"]["tools"]]
-        self.assertEqual(
-            nombres,
-            [
-                "director_leer",
-                "director_decir",
-                "director_bandeja",
-                "director_responder",
-                "produccion_estado",
-                "produccion_candidatos",
-                "produccion_historial",
-                "produccion_vetar",
-                "produccion_pausar",
-                "produccion_reanudar",
-            ],
-        )
+        for nombre in (
+            "director_leer",
+            "director_decir",
+            "director_bandeja",
+            "director_responder",
+            "produccion_estado",
+            "produccion_candidatos",
+            "produccion_historial",
+            "produccion_vetar",
+            "produccion_pausar",
+            "produccion_reanudar",
+        ):
+            with self.subTest(herramienta=nombre):
+                self.assertIn(nombre, nombres)
+        self.assertEqual(len(nombres), len(set(nombres)), "nombres repetidos")
 
     def test_tools_list_esquemas_completos(self):
         r = mcp_director.atender(self._p("tools/list"))
@@ -338,6 +339,110 @@ class PruebasProduccion(unittest.TestCase):
     def test_candidatos_sin_repo_devuelve_mensaje(self):
         texto = self._texto("produccion_candidatos", {})
         self.assertIn("No hay candidatos", texto)
+
+
+class PruebasSqlite(unittest.TestCase):
+    """Herramientas SQLite (CAP1119): solo lectura, dentro de raíces y con tope."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raiz = self.tmp.name
+        self.base = os.path.join(self.raiz, "memoria.db")
+        con = sqlite3.connect(self.base)
+        con.execute("CREATE TABLE notas (id INTEGER PRIMARY KEY, texto TEXT)")
+        con.executemany(
+            "INSERT INTO notas (texto) VALUES (?)", [("uno",), ("dos",), ("tres",)]
+        )
+        con.commit()
+        con.close()
+        self._guardada = os.environ.get("STARSEED_SQLITE_RAICES")
+        os.environ["STARSEED_SQLITE_RAICES"] = self.raiz
+
+    def tearDown(self):
+        if self._guardada is None:
+            os.environ.pop("STARSEED_SQLITE_RAICES", None)
+        else:
+            os.environ["STARSEED_SQLITE_RAICES"] = self._guardada
+        self.tmp.cleanup()
+
+    def _atender(self, nombre, argumentos):
+        return mcp_director.atender(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": nombre, "arguments": argumentos},
+            }
+        )
+
+    def _texto(self, nombre, argumentos):
+        r = self._atender(nombre, argumentos)
+        self.assertNotIn("isError", r["result"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def _error(self, nombre, argumentos):
+        r = self._atender(nombre, argumentos)
+        self.assertTrue(r["result"].get("isError"), r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def test_bases_lista_la_base_de_la_raiz(self):
+        self.assertIn("memoria.db", self._texto("sqlite_bases", {}))
+
+    def test_esquema_muestra_tabla_y_columnas(self):
+        texto = self._texto("sqlite_esquema", {"base": self.base})
+        self.assertIn("notas", texto)
+        self.assertIn("texto", texto)
+
+    def test_consultar_devuelve_filas_y_recorta(self):
+        texto = self._texto(
+            "sqlite_consultar",
+            {
+                "base": self.base,
+                "consulta": "SELECT id, texto FROM notas ORDER BY id",
+                "limite": 2,
+            },
+        )
+        datos = json.loads(texto)
+        self.assertEqual([f["texto"] for f in datos["filas"]], ["uno", "dos"])
+        self.assertTrue(datos["recortado"])
+
+    def test_consultar_permite_with(self):
+        texto = self._texto(
+            "sqlite_consultar",
+            {
+                "base": self.base,
+                "consulta": "WITH n AS (SELECT count(*) c FROM notas) SELECT c FROM n",
+            },
+        )
+        self.assertEqual(json.loads(texto)["filas"][0]["c"], 3)
+
+    def test_consultar_rechaza_escritura_y_varias_sentencias(self):
+        self.assertIn(
+            "solo lectura",
+            self._error(
+                "sqlite_consultar", {"base": self.base, "consulta": "DELETE FROM notas"}
+            ),
+        )
+        self.assertIn(
+            "una sola sentencia",
+            self._error(
+                "sqlite_consultar",
+                {"base": self.base, "consulta": "SELECT 1; SELECT 2"},
+            ),
+        )
+
+    def test_base_fuera_de_raices_se_rechaza(self):
+        fuera = os.path.join(self.tmp.name, "..", "ajena.db")
+        self.assertIn(
+            "fuera de las raíces",
+            self._error("sqlite_consultar", {"base": fuera, "consulta": "SELECT 1"}),
+        )
+
+    def test_bases_raiz_no_permitida(self):
+        self.assertIn(
+            "raíz no permitida",
+            self._error("sqlite_bases", {"raiz": os.path.dirname(self.tmp.name)}),
+        )
 
 
 #: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).

@@ -14,10 +14,13 @@ STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 
 import json
 import os
+import re
+import sqlite3
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -28,7 +31,8 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, "
-    "y consulta, veta, pausa o reanuda la producción."
+    "consulta, veta, pausa o reanuda la producción, "
+    "y lee en solo lectura las bases SQLite del OS."
 )
 
 
@@ -48,6 +52,15 @@ _P_CANAL = _s(
 _P_MODELO = _s("string", "Motor/modelo que firma el mensaje («motor/modelo»).")
 _P_QUIEN = _s("string", "Quién firma la acción (director o persona). Obligatorio.")
 _P_MOTIVO = _s("string", "Motivo de la acción; queda registrado. Obligatorio.")
+_P_BASE = _s(
+    "string", "Base SQLite (.db/.sqlite), absoluta o dentro de una raíz permitida."
+)
+_P_CONSULTA = _s(
+    "string", "Una sola sentencia de lectura: SELECT, WITH, EXPLAIN o PRAGMA."
+)
+_P_FILAS = _s(
+    "integer", "Máximo de filas a devolver (1-500; por defecto 50).", minimum=1, maximum=500
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -107,6 +120,14 @@ ESQUEMAS = {
     "produccion_reanudar": _esquema(
         {"quien": _P_QUIEN, "motivo": _P_MOTIVO}, ["quien", "motivo"]
     ),
+    "sqlite_bases": _esquema(
+        {"raiz": _s("string", "Raíz permitida a listar; por defecto, todas.")}, []
+    ),
+    "sqlite_esquema": _esquema({"base": _P_BASE}, ["base"]),
+    "sqlite_consultar": _esquema(
+        {"base": _P_BASE, "consulta": _P_CONSULTA, "limite": _P_FILAS},
+        ["base", "consulta"],
+    ),
 }
 
 _HERR = [
@@ -120,6 +141,9 @@ _HERR = [
     ("produccion_vetar", "Veta un sha o una tarea con motivo."),
     ("produccion_pausar", "Pausa la publicación (las puertas siguen corriendo)."),
     ("produccion_reanudar", "Quita la pausa de producción."),
+    ("sqlite_bases", "Lista las bases SQLite de las raíces permitidas."),
+    ("sqlite_esquema", "Tablas, vistas y columnas de una base SQLite."),
+    ("sqlite_consultar", "Ejecuta una consulta de solo lectura sobre una base SQLite."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -318,11 +342,161 @@ def _produccion(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+# --- SQLite: consulta de solo lectura sobre las bases del OS (CAP1119) ---
+
+_EXTENSIONES_SQLITE = (".db", ".sqlite", ".sqlite3")
+_CARPETAS_IGNORADAS = {"node_modules", ".git", "dist", "build", ".next", "__pycache__"}
+_PROFUNDIDAD_MAXIMA = 4
+_LECTURAS = ("select", "with", "explain", "pragma")
+_MAXIMO_FILAS = 500
+
+
+def _raices_sqlite():
+    """Raíces donde se permite abrir bases; `STARSEED_SQLITE_RAICES` las inyecta."""
+    crudo = os.environ.get("STARSEED_SQLITE_RAICES")
+    if crudo:
+        return [os.path.realpath(p) for p in crudo.split(os.pathsep) if p.strip()]
+    return [
+        os.path.realpath(os.path.join(_raiz_repo(), "starseed_memory_root")),
+        os.path.realpath(os.path.expanduser("~/.starseed")),
+        os.path.realpath(os.path.expanduser("~/.hermes")),
+    ]
+
+
+def _resolver_base(ruta):
+    """Ruta real de una base dentro de las raíces permitidas; ValueError si no."""
+    if not str(ruta or "").strip():
+        raise ValueError("la ruta de la base es obligatoria")
+    candidata = os.path.realpath(os.path.expanduser(str(ruta)))
+    raices = _raices_sqlite()
+    if any(candidata.startswith(r + os.sep) for r in raices):
+        if os.path.isfile(candidata):
+            return candidata
+        raise ValueError("la base no existe: %s" % ruta)
+    raise ValueError("ruta fuera de las raíces permitidas: %s" % ruta)
+
+
+def _conectar_sqlite(ruta):
+    """Solo lectura: ni WAL ni escritura, y una consulta no puede bloquear la base."""
+    con = sqlite3.connect("file:%s?mode=ro" % quote(ruta), uri=True, timeout=2.0)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA query_only = ON")
+    return con
+
+
+def _sqlite_bases(args):
+    raiz_pedida = str(args.get("raiz") or "").strip()
+    raices = _raices_sqlite()
+    if raiz_pedida:
+        raiz_pedida = os.path.realpath(os.path.expanduser(raiz_pedida))
+        if raiz_pedida not in raices:
+            raise ValueError("raíz no permitida: %s" % args.get("raiz"))
+        raices = [raiz_pedida]
+    encontradas = []
+    for raiz in raices:
+        base_profundidad = raiz.rstrip(os.sep).count(os.sep)
+        for actual, carpetas, archivos in os.walk(raiz):
+            if actual.count(os.sep) - base_profundidad >= _PROFUNDIDAD_MAXIMA:
+                carpetas[:] = []
+            carpetas[:] = [c for c in carpetas if c not in _CARPETAS_IGNORADAS]
+            for nombre in sorted(archivos):
+                if nombre.endswith(_EXTENSIONES_SQLITE):
+                    ruta = os.path.join(actual, nombre)
+                    kb = os.path.getsize(ruta) // 1024
+                    encontradas.append("%s (%d KB)" % (ruta, kb))
+    if not encontradas:
+        return "No hay bases SQLite en las raíces permitidas."
+    return "\n".join(encontradas[:200])
+
+
+def _sqlite_esquema(args):
+    ruta = _resolver_base(args.get("base"))
+    con = _conectar_sqlite(ruta)
+    try:
+        tablas = [
+            f[0]
+            for f in con.execute(
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') "
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        lineas = ["%s · %d tablas/vistas" % (ruta, len(tablas))]
+        for tabla in tablas:
+            columnas = con.execute(
+                "SELECT name, type FROM pragma_table_info(?)", (tabla,)
+            ).fetchall()
+            detalle = ", ".join("%s %s" % (c[0], c[1] or "") for c in columnas)
+            lineas.append("- %s (%s)" % (tabla, detalle))
+        return "\n".join(lineas)
+    finally:
+        con.close()
+
+
+def _sql_lectura(consulta):
+    """Valida que sea UNA sentencia de lectura; devuelve el SQL sin el `;` final."""
+    sql = str(consulta or "").strip().rstrip(";").strip()
+    if not sql:
+        raise ValueError("la consulta es obligatoria")
+    if len(sql) > 4000:
+        raise ValueError("consulta demasiado larga (máximo 4000 caracteres)")
+    sin_comentarios = re.sub(r"--[^\n]*|/\*.*?\*/", " ", sql, flags=re.S)
+    if ";" in sin_comentarios:
+        raise ValueError("una sola sentencia por consulta")
+    if not sin_comentarios.strip().lower().startswith(_LECTURAS):
+        raise ValueError("solo lectura: SELECT, WITH, EXPLAIN o PRAGMA")
+    return sql
+
+
+def _limite_filas(args):
+    limite = args.get("limite")
+    limite = 50 if limite is None else int(limite)
+    if not 1 <= limite <= _MAXIMO_FILAS:
+        raise ValueError("limite fuera de rango (1-%d): %d" % (_MAXIMO_FILAS, limite))
+    return limite
+
+
+def _sqlite_consultar(args):
+    ruta = _resolver_base(args.get("base"))
+    sql = _sql_lectura(args.get("consulta"))
+    limite = _limite_filas(args)
+    con = _conectar_sqlite(ruta)
+    try:
+        cursor = con.execute(sql)
+        columnas = [d[0] for d in (cursor.description or [])]
+        filas = cursor.fetchmany(limite + 1)
+        recortado = len(filas) > limite
+        datos = [
+            {columnas[i]: fila[i] for i in range(len(columnas))}
+            for fila in filas[:limite]
+        ]
+    finally:
+        con.close()
+    salida = {
+        "base": ruta,
+        "columnas": columnas,
+        "filas": datos,
+        "recortado": recortado,
+    }
+    return json.dumps(salida, ensure_ascii=False, indent=2, default=str)
+
+
+def _sqlite(nombre, args):
+    if nombre == "sqlite_bases":
+        return _sqlite_bases(args)
+    if nombre == "sqlite_esquema":
+        return _sqlite_esquema(args)
+    if nombre == "sqlite_consultar":
+        return _sqlite_consultar(args)
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
+    if nombre.startswith("sqlite_"):
+        return _sqlite(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
@@ -386,7 +560,7 @@ def atender(peticion):
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
             texto = _llamar(nombre, params.get("arguments"))
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError, sqlite3.Error) as e:
             contenido = {
                 "content": [{"type": "text", "text": "Error: %s" % e}],
                 "isError": True,
