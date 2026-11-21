@@ -21,6 +21,7 @@ import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
 import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 import { emitirVectorPorClausula } from "@/lib/aurora/vector-por-clausula";
+import { emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 
 const MULETILLA_TRAS_MS = 1200;
 const HISTORIAL_TURNOS = 12;
@@ -125,6 +126,9 @@ export async function turnoEnVivo(opts: {
                     primerToken = true;
                     clearTimeout(muletilla);
                     opts.onPrimerToken?.(e.motor, e.local);
+                } else if (e.t === "params") {
+                    // Forward orb visual params from 1.58b to the quantum orb bus (onda 1.58b)
+                    emitQuantumOrbParams(e.v);
                 } else if (e.t === "token") {
                     texto += e.v;
                     // Generación degenerada (un tramo repetido 3+ veces): se corta

@@ -33,6 +33,7 @@ import {
   DEFAULT_QUANTUM_ORB_PARAMS,
   type QuantumOrbParams,
 } from "@/lib/aurora/quantum-orb-theme";
+import { getPersonaParams } from "@/lib/aurora/persona-params";
 import {
   createQuantumOrbRenderer,
   prefersReducedMotion,
@@ -53,20 +54,6 @@ export interface QuantumOrbAvatarProps {
 
 /** Menos partículas que `<QuantumOrb>` (28) — "ligera", pensada para listas. */
 const AVATAR_PARTICLE_COUNT = 8;
-
-/** Ajustes base por personalidad (derivados de su estilo visual). */
-const PERSONA_PARAM_ADJUSTMENTS: Record<string, Partial<QuantumOrbParams>> = {
-  hephaestus: { turbulence: 0.6, spikiness: 0.7, symmetry: 0.3, hueShift: 0.1, breath: 0.4 },
-  hermione: { turbulence: 0.2, spikiness: 0.3, symmetry: 0.9, hueShift: 0.4, breath: 0.3 },
-  atenea: { turbulence: 0.3, spikiness: 0.4, symmetry: 0.8, hueShift: 0.3, breath: 0.5 },
-  oneiros: { turbulence: 0.7, spikiness: 0.2, symmetry: 0.4, hueShift: 0.6, breath: 0.7 },
-  hermes: { turbulence: 0.4, spikiness: 0.5, symmetry: 0.5, hueShift: 0.2, breath: 0.6 },
-  logos: { turbulence: 0.1, spikiness: 0.2, symmetry: 0.95, hueShift: 0.0, breath: 0.3 },
-  mnemosyne: { turbulence: 0.3, spikiness: 0.2, symmetry: 0.6, hueShift: 0.5, breath: 0.5 },
-  kallisti: { turbulence: 0.5, spikiness: 0.6, symmetry: 0.4, hueShift: 0.8, breath: 0.6 },
-  astraura_prime: { turbulence: 0.2, spikiness: 0.3, symmetry: 0.85, hueShift: 0.1, breath: 0.4 },
-  aurora: { turbulence: 0.35, spikiness: 0.4, symmetry: 0.6, hueShift: 0.5, breath: 0.5 },
-};
 
 /** Ajustes por estado (modulan el vector base). */
 const STATE_PARAM_ADJUSTMENTS: Record<QuantumOrbState, Partial<QuantumOrbParams>> = {
@@ -89,7 +76,7 @@ function computeEffectiveParams(
   propsParams?: Partial<QuantumOrbParams>
 ): QuantumOrbParams {
   const base = { ...DEFAULT_QUANTUM_ORB_PARAMS };
-  const personaAdj = PERSONA_PARAM_ADJUSTMENTS[personaId.toLowerCase()] ?? PERSONA_PARAM_ADJUSTMENTS.aurora;
+  const personaAdj = getPersonaParams(personaId);
   const stateAdj = STATE_PARAM_ADJUSTMENTS[state] ?? STATE_PARAM_ADJUSTMENTS.idle;
 
   // Aplicar ajustes de personalidad

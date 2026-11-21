@@ -8,6 +8,7 @@ import {
     sistemaConversacion,
     trozoDeLineaSSE,
     type TurnoConversacion,
+    type QuantumOrbParams,
 } from "@/lib/astraura/conversacion-rapida";
 
 // (2026-09-22) Alex: «que responda inmediatamente con la voz en tiempo real». El sistema
@@ -90,5 +91,22 @@ describe("eventoDeLinea", () => {
         });
         expect(eventoDeLinea("data: {}")).toBeNull();
         expect(eventoDeLinea("nada")).toBeNull();
+    });
+
+    it("lee el evento params con vector visual de la orbe", () => {
+        const params: Partial<QuantumOrbParams> = {
+            turbulence: 0.7,
+            spikiness: 0.3,
+            symmetry: 0.8,
+            hueShift: 0.2,
+            breath: 0.6,
+        };
+        const evento = eventoDeLinea(`data: {"t":"params","v":${JSON.stringify(params)}}`);
+        expect(evento).toEqual({ t: "params", v: params });
+    });
+
+    it("acepta params parciales", () => {
+        const evento = eventoDeLinea('data: {"t":"params","v":{"turbulence":0.5}}');
+        expect(evento).toEqual({ t: "params", v: { turbulence: 0.5 } });
     });
 });

@@ -19,6 +19,8 @@
  * carrera y gana quien hable primero (la voz no cambia: es la misma).
  */
 
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
+
 export interface TurnoConversacion {
     rol: "usuario" | "astraura";
     texto: string;
@@ -102,8 +104,11 @@ export function trozoDeLineaSSE(linea: string): string | null {
 export type EventoConversacion =
     | { t: "ruta"; motor: string; local: boolean }
     | { t: "token"; v: string }
+    | { t: "params"; v: Partial<QuantumOrbParams> }
     | { t: "fin"; motor: string; local: boolean; msPrimerToken: number | null; msTotal: number; caracteres: number }
     | { t: "error"; error: string };
+
+export type { QuantumOrbParams };
 
 /** Lee una línea `data: {json}` del stream propio. PURA. */
 export function eventoDeLinea(linea: string): EventoConversacion | null {

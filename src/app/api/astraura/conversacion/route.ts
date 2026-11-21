@@ -23,9 +23,12 @@ import {
     type MensajeChat,
     type PersonaConversacion,
     type TurnoConversacion,
+    type QuantumOrbParams,
 } from "@/lib/astraura/conversacion-rapida";
 import { repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 import { esDespliegueLocal } from "@/lib/aurora/voz-starseed/puerta-local";
+import { getPersonaParams } from "@/lib/aurora/persona-params";
+import { mergeQuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -203,6 +206,9 @@ export async function POST(req: Request): Promise<Response> {
                         ganador = carril;
                         primerToken = Date.now() - inicio;
                         enviar({ t: "ruta", motor: carril.nombre, local: carril.local });
+                        // Emit vector visual de la orbe para esta personalidad (onda 1.58b)
+                        const paramsOrbe = mergeQuantumOrbParams(getPersonaParams(persona.id));
+                        enviar({ t: "params", v: paramsOrbe });
                         for (const [n, c] of cortes) if (n !== carril.nombre) c.abort();
                         avisarPrimero();
                     }
