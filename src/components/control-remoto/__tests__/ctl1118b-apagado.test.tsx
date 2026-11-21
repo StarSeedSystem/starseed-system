@@ -41,6 +41,8 @@ describe("CTL1118B · control apagado", () => {
         render(<ControlEntreNeuronasPanel />);
         expect(await screen.findByTestId("control-apagado-aviso")).toHaveTextContent(TEXTO_CONTROL_APAGADO);
         await userEvent.click(screen.getByRole("button", { name: "Aceptar y encender el control" }));
+        await screen.findByTestId("selector-limite");
+        await userEvent.click(screen.getByRole("radio", { name: "Sin límite" }));
         await waitFor(() => expect(permiso().encendido).toBe(true));
         expect(permiso().controladores.map((c) => c.huella)).toEqual([HUELLA]);
         expect(permiso().pendientes).toHaveLength(0);
