@@ -487,6 +487,16 @@ def main(argv: list[str] | None = None) -> int:
 
 # ────────────────────────────── Respaldo 08:30 (SIN1116B §3.1) ──────────────────────────────
 
+HORA_RESPALDO_INICIO = 8.5   # 08:30 CDMX
+HORA_RESPALDO_FIN = 9.5      # 09:30 CDMX (ventana de 1 hora)
+HORA_FALLBACK = 12.0         # 12:00 CDMX fallback
+
+
+def _marcador_path(raiz: Path) -> Path:
+    """Ruta del archivo marcador 'hecho hoy' para una raíz dada."""
+    return raiz / "starseed_memory_root" / "respaldos" / "hecho_hoy.json"
+
+
 def _fecha_cdmx(ahora: Optional[float] = None) -> str:
     """Fecha en zona horaria de Ciudad de México (AAAA-MM-DD)."""
     if ahora is None:
@@ -496,8 +506,8 @@ def _fecha_cdmx(ahora: Optional[float] = None) -> str:
         tz = zoneinfo.ZoneInfo("America/Mexico_City")
         return datetime.fromtimestamp(ahora, tz).date().isoformat()
     except Exception:
-        from datetime import datetime, timezone
-        return datetime.fromtimestamp(ahora, timezone.utc).date().isoformat()
+        from datetime import datetime as dt_class, timezone
+        return dt_class.fromtimestamp(ahora, timezone.utc).date().isoformat()
 
 
 def _hora_cdmx(ahora: Optional[float] = None) -> float:
@@ -510,9 +520,24 @@ def _hora_cdmx(ahora: Optional[float] = None) -> float:
         dt = datetime.fromtimestamp(ahora, tz)
         return dt.hour + dt.minute / 60.0
     except Exception:
-        from datetime import datetime, timezone
-        dt = datetime.fromtimestamp(ahora, timezone.utc)
+        from datetime import datetime as dt_class, timezone
+        dt = dt_class.fromtimestamp(ahora, timezone.utc)
         return dt.hour + dt.minute / 60.0
+
+
+def _ya_hecho_hoy(marcador_path: Path, fecha: str) -> bool:
+    """Verifica si el respaldo ya se hizo hoy (marcador persistido en disco)."""
+    try:
+        datos = _leer_json(marcador_path, {})
+        return datos.get("fecha") == fecha and datos.get("hecho", False)
+    except Exception:
+        return False
+
+
+def _marcar_hecho_hoy(marcador_path: Path, fecha: str) -> None:
+    """Marca el respaldo como hecho hoy (persiste en disco)."""
+    datos = {"fecha": fecha, "hecho": True, "timestamp": time.time()}
+    _escribir_atomico(marcador_path, datos)
 
 
 def _exportar_texto_drive(fid: str, token_google_fn: Callable[[str], str]) -> str:
@@ -698,6 +723,7 @@ def _generar_resumen(texto: str, min_chars: int = RESUMEN_MIN, max_chars: int = 
 def ejecutar_respaldo_0830(
     raiz: Optional[Path] = None,
     ahora: Optional[float] = None,
+    fecha: Optional[str] = None,
     nb_fn: Optional[NbCliente] = None,
     drive_fn: Optional[Callable] = None,
     token_google_fn: Optional[Callable[[str], str]] = None,
@@ -722,6 +748,7 @@ def ejecutar_respaldo_0830(
     Args:
         raiz: Raíz del repo (default: RAIZ_DEF)
         ahora: Timestamp para testing (default: time.time())
+        fecha: Fecha opcional (AAAA-MM-DD) para testing; si None, se calcula de ahora
         nb_fn: Cliente NotebookLM inyectable
         drive_fn: Función Drive API inyectable
         token_google_fn: Función token Google inyectable
@@ -743,18 +770,45 @@ def ejecutar_respaldo_0830(
     if log_fn is None:
         log_fn = lambda msg: print(f"[respaldo_0830] {msg}", flush=True)
 
-    fecha = _fecha_cdmx(ahora)
+    # Usar fecha proporcionada o calcular de ahora
+    if fecha is None:
+        fecha = _fecha_cdmx(ahora)
     hora = _hora_cdmx(ahora)
 
     log_fn(f"Respaldo 08:30 - Fecha: {fecha}, Hora CDMX: {hora:.2f}")
 
-    # Verificar hora (solo ejecutar si son las 08:30 ± 15 min)
-    if not seco and abs(hora - HORA_RESPALDO_CDMX) > 0.25:
+    # Verificar marcador "hecho hoy"
+    marcador = _marcador_path(raiz)
+    if _ya_hecho_hoy(marcador, fecha):
+        log_fn(f"Respaldo ya realizado hoy ({fecha})")
         return {
-            "ok": False,
-            "accion": "fuera_horario",
-            "mensaje": f"No es hora de respaldo (son las {hora:.2f}, esperado ~{HORA_RESPALDO_CDMX})",
+            "ok": True,
+            "accion": "ya_existe",
+            "mensaje": f"Respaldo ya completado hoy ({fecha})",
         }
+
+    # Determinar si estamos en ventana de respaldo (08:30-09:30) o fallback (12:00+)
+    en_ventana = HORA_RESPALDO_INICIO <= hora <= HORA_RESPALDO_FIN
+    en_fallback = hora >= HORA_FALLBACK
+
+    if not en_ventana and not en_fallback:
+        if not seco:
+            return {
+                "ok": False,
+                "accion": "fuera_horario",
+                "mensaje": f"No es hora de respaldo (son las {hora:.2f}, ventana {HORA_RESPALDO_INICIO}-{HORA_RESPALDO_FIN}, fallback >={HORA_FALLBACK})",
+            }
+        else:
+            # En modo seco, reportar que se saltaría por hora
+            return {
+                "ok": True,
+                "accion": "fuera_horario_seco",
+                "mensaje": f"(seco) Fuera de horario: son las {hora:.2f}, ventana {HORA_RESPALDO_INICIO}-{HORA_RESPALDO_FIN}, fallback >={HORA_FALLBACK}",
+            }
+
+    es_fallback = en_fallback and not en_ventana
+    if es_fallback:
+        log_fn(f"Ejecutando fallback de respaldo a las {hora:.2f} CDMX")
 
     # 1. Verificar si ya hay síntesis válida en Drive
     if drive_fn is None or token_google_fn is None:
@@ -928,10 +982,16 @@ def ejecutar_respaldo_0830(
 
     log_fn(f"Respaldo completado: {len(texto)} chars, Drive: {'sí' if drive_id else 'no'}")
 
+    # Marcar como hecho hoy
+    _marcar_hecho_hoy(marcador, fecha)
+
+    accion = "fallback_completado" if es_fallback else "respaldo_completado"
+    mensaje = f"Respaldo {'fallback ' if es_fallback else ''}completado: {len(texto)} caracteres"
+
     return {
         "ok": True,
-        "accion": "respaldo_completado",
-        "mensaje": f"Respaldo 08:30 completado: {len(texto)} caracteres",
+        "accion": accion,
+        "mensaje": mensaje,
         "drive_id": drive_id,
         "caracteres": len(texto),
         "resumen": resumen,

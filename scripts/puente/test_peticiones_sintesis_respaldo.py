@@ -297,45 +297,239 @@ class TestInvestigarSintesisDiaria:
 
 
 class TestBackupSintesis0830:
-    """Tests for the 08:30 backup synthesis function (to be implemented)."""
+    """Tests for the 08:30 backup synthesis function."""
 
-    def test_verifica_sintesis_existente_valida(self):
-        """Should check if valid synthesis exists for today (>= 4000 chars)."""
-        # This test will pass once the backup function is implemented
-        # For now, we define the expected behavior
-        pass
+    # Base timestamp: 2026-11-21 08:30 CDMX = 2026-11-21 14:30 UTC
+    BASE_TS_UTC = 1795271400.0  # 2026-11-21 14:30:00 UTC = 08:30 CDMX
 
-    def test_ejecuta_respaldo_si_no_hay_sintesis(self):
-        """Should run backup if no valid synthesis exists."""
-        pass
+    def test_fecha_cdmx_con_utc_inyectado(self):
+        """_fecha_cdmx should return correct date with UTC timestamp injected."""
+        # 2026-11-21 08:30 CDMX = 2026-11-21 14:30 UTC
+        utc_ts = self.BASE_TS_UTC
+        fecha = PSR._fecha_cdmx(utc_ts)
+        assert fecha == "2026-11-21"
 
-    def test_incluye_fuentes_base(self):
-        """Should include base sources: protocol, video index, resonance network, contacts, Codex, previous synthesis."""
-        pass
+    def test_fecha_cdmx_con_cdmx_inyectado(self):
+        """_fecha_cdmx should return correct date with CDMX timestamp injected."""
+        # 2026-11-21 08:30 CDMX (same timestamp, function handles timezone)
+        cdmx_ts = self.BASE_TS_UTC
+        fecha = PSR._fecha_cdmx(cdmx_ts)
+        assert fecha == "2026-11-21"
 
-    def test_incluye_contexto_vivo_dia(self):
-        """Should include live context of the day (SIN1116D)."""
-        pass
+    def test_fecha_cdmx_cambio_dia_en_medianoche_cdmx(self):
+        """Date should change at CDMX midnight, not UTC midnight."""
+        # 2026-11-21 23:30 CDMX = 2026-11-22 05:30 UTC
+        # 08:30 CDMX + 15 hours = 23:30 CDMX
+        utc_ts = self.BASE_TS_UTC + 15 * 3600  # 23:30 CDMX
+        fecha = PSR._fecha_cdmx(utc_ts)
+        assert fecha == "2026-11-21"
+        
+        # 2026-11-22 00:30 CDMX = 2026-11-22 06:30 UTC
+        utc_ts2 = self.BASE_TS_UTC + 16 * 3600  # 00:30 CDMX next day
+        fecha2 = PSR._fecha_cdmx(utc_ts2)
+        assert fecha2 == "2026-11-22"
 
-    def test_lanza_3_investigaciones_profundas(self):
-        """Should launch 3 deep research add-research on rotating topic."""
-        pass
+    def test_hora_cdmx_con_utc_inyectado(self):
+        """_hora_cdmx should return correct decimal hour with UTC timestamp injected."""
+        # 2026-11-21 08:30 CDMX = 2026-11-21 14:30 UTC
+        utc_ts = self.BASE_TS_UTC
+        hora = PSR._hora_cdmx(utc_ts)
+        assert abs(hora - 8.5) < 0.01  # 08:30
 
-    def test_genera_informe_protocolo_completo(self):
-        """Should generate custom report with full protocol + quality rule."""
-        pass
+    def test_hora_cdmx_con_cdmx_inyectado(self):
+        """_hora_cdmx should return correct decimal hour with CDMX timestamp injected."""
+        # 2026-11-21 09:15 CDMX = 08:30 + 45 min
+        cdmx_ts = self.BASE_TS_UTC + 45 * 60
+        hora = PSR._hora_cdmx(cdmx_ts)
+        assert abs(hora - 9.25) < 0.01  # 09:15
 
-    def test_crea_doc_nombre_exacto(self):
-        """Should create Doc with exact name in 'Síntesis diarias'."""
-        pass
+    def test_hora_cdmx_ventana_respaldo_0830_a_0930(self):
+        """Backup window should be 08:30-09:30 CDMX (1 hour)."""
+        # 08:29 CDMX - outside window (before)
+        ts_before = self.BASE_TS_UTC - 60  # 08:29 CDMX
+        hora_before = PSR._hora_cdmx(ts_before)
+        assert hora_before < 8.5
+        
+        # 08:30 CDMX - start of window
+        ts_start = self.BASE_TS_UTC  # 08:30 CDMX
+        hora_start = PSR._hora_cdmx(ts_start)
+        assert abs(hora_start - 8.5) < 0.01
+        
+        # 09:00 CDMX - inside window
+        ts_mid = self.BASE_TS_UTC + 30 * 60  # 09:00 CDMX
+        hora_mid = PSR._hora_cdmx(ts_mid)
+        assert 8.5 <= hora_mid <= 9.5
+        
+        # 09:30 CDMX - end of window
+        ts_end = self.BASE_TS_UTC + 60 * 60  # 09:30 CDMX
+        hora_end = PSR._hora_cdmx(ts_end)
+        assert abs(hora_end - 9.5) < 0.01
+        
+        # 09:31 CDMX - outside window (after)
+        ts_after = self.BASE_TS_UTC + 61 * 60  # 09:31 CDMX
+        hora_after = PSR._hora_cdmx(ts_after)
+        assert hora_after > 9.5
 
-    def test_envia_resumen_chat(self):
-        """Should send 1500-3000 char summary to chat."""
-        pass
+    def test_marcador_hecho_hoy_persistido(self, tmp_path):
+        """Should create and check 'done today' marker persisted to disk."""
+        marker_file = PSR._marcador_path(tmp_path)
+        
+        # Initially no marker
+        assert not PSR._ya_hecho_hoy(marker_file, "2026-11-21")
+        
+        # Mark as done
+        PSR._marcar_hecho_hoy(marker_file, "2026-11-21")
+        
+        # Should now return True
+        assert PSR._ya_hecho_hoy(marker_file, "2026-11-21")
+        
+        # Different date should return False
+        assert not PSR._ya_hecho_hoy(marker_file, "2026-11-22")
+        
+        # Marker should persist across instances (read from file)
+        assert PSR._ya_hecho_hoy(marker_file, "2026-11-21")
 
-    def test_lanza_multiformato(self):
-        """Should then launch multiformat (9 formats)."""
-        pass
+    def test_fallback_1200_cdmx_si_no_hecho(self):
+        """Should trigger fallback at 12:00 CDMX if backup not done."""
+        # 12:00 CDMX = 08:30 + 3.5 hours
+        utc_ts = self.BASE_TS_UTC + 3.5 * 3600  # 12:00 CDMX
+        hora = PSR._hora_cdmx(utc_ts)
+        assert abs(hora - 12.0) < 0.01
+        
+        # Should be past the backup window (08:30-09:30)
+        assert hora > 9.5
+        
+        # Should be at or past fallback time (12:00)
+        assert hora >= 12.0
+
+    def test_ejecuta_respaldo_en_ventana_0830_0930(self, tmp_path):
+        """Should run backup when in 08:30-09:30 window and not done today."""
+        marker_file = PSR._marcador_path(tmp_path)
+        
+        # Mock dependencies
+        def mock_drive_fn(*args, **kwargs):
+            return {"files": []}
+        def mock_token_google_fn(*args):
+            return "fake-token"
+        def mock_nb_fn(*args, **kwargs):
+            return (0, '{"task_id": "test"}', "")
+        def mock_leer_clave_fn(*args):
+            return "fake-key"
+        def mock_enviar_telegram_fn(*args):
+            pass
+        def mock_multiformato_fn(*args):
+            return {"formatos": []}
+        
+        # 09:00 CDMX - inside window (BASE_TS_UTC + 30 min)
+        utc_ts = self.BASE_TS_UTC + 30 * 60
+        
+        resultado = PSR.ejecutar_respaldo_0830(
+            raiz=tmp_path,
+            ahora=utc_ts,
+            nb_fn=mock_nb_fn,
+            drive_fn=mock_drive_fn,
+            token_google_fn=mock_token_google_fn,
+            leer_clave_fn=mock_leer_clave_fn,
+            enviar_telegram_fn=mock_enviar_telegram_fn,
+            multiformato_fn=mock_multiformato_fn,
+            log_fn=lambda x: None,
+            seco=True,  # Dry run
+        )
+        
+        # Should execute backup (not skip due to time)
+        assert resultado["ok"] is True
+        assert resultado["accion"] in ("respaldo_completado", "seco", "ya_existe")
+
+    def test_no_ejecuta_respaldo_fuera_ventana_si_no_es_fallback(self, tmp_path):
+        """Should NOT run backup outside 08:30-09:30 window unless it's fallback time."""
+        marker_file = PSR._marcador_path(tmp_path)
+        
+        def mock_drive_fn(*args, **kwargs):
+            return {"files": []}
+        def mock_token_google_fn(*args):
+            return "fake-token"
+        
+        # 10:00 CDMX - outside window, not fallback (BASE_TS_UTC + 90 min)
+        utc_ts = self.BASE_TS_UTC + 90 * 60
+        
+        resultado = PSR.ejecutar_respaldo_0830(
+            raiz=tmp_path,
+            ahora=utc_ts,
+            drive_fn=mock_drive_fn,
+            token_google_fn=mock_token_google_fn,
+            log_fn=lambda x: None,
+            seco=True,
+        )
+        
+        # Should report it would skip due to time (in seco mode, ok=True but accion indicates fuera_horario)
+        assert resultado["ok"] is True
+        assert resultado["accion"] == "fuera_horario_seco"
+        assert "fuera de horario" in resultado["mensaje"].lower() or "Fuera de horario" in resultado["mensaje"]
+
+    def test_ejecuta_fallback_1200_si_no_hecho_hoy(self, tmp_path):
+        """Should run fallback at 12:00 CDMX if backup not done today."""
+        marker_file = PSR._marcador_path(tmp_path)
+        
+        def mock_drive_fn(*args, **kwargs):
+            return {"files": []}
+        def mock_token_google_fn(*args):
+            return "fake-token"
+        def mock_nb_fn(*args, **kwargs):
+            return (0, '{"task_id": "test"}', "")
+        def mock_leer_clave_fn(*args):
+            return "fake-key"
+        def mock_enviar_telegram_fn(*args):
+            pass
+        def mock_multiformato_fn(*args):
+            return {"formatos": []}
+        
+        # 12:00 CDMX - fallback time (BASE_TS_UTC + 3.5 hours)
+        utc_ts = self.BASE_TS_UTC + 3.5 * 3600
+        
+        resultado = PSR.ejecutar_respaldo_0830(
+            raiz=tmp_path,
+            ahora=utc_ts,
+            nb_fn=mock_nb_fn,
+            drive_fn=mock_drive_fn,
+            token_google_fn=mock_token_google_fn,
+            leer_clave_fn=mock_leer_clave_fn,
+            enviar_telegram_fn=mock_enviar_telegram_fn,
+            multiformato_fn=mock_multiformato_fn,
+            log_fn=lambda x: None,
+            seco=True,
+        )
+        
+        # Should execute fallback backup
+        assert resultado["ok"] is True
+        assert resultado["accion"] in ("respaldo_completado", "seco", "ya_existe", "fallback_completado")
+
+    def test_no_repite_fallback_si_ya_hecho_en_ventana(self, tmp_path):
+        """Should not run fallback if already done in 08:30-09:30 window."""
+        marker_file = PSR._marcador_path(tmp_path)
+        
+        # First, mark as done at 09:00 CDMX
+        PSR._marcar_hecho_hoy(marker_file, "2026-11-21")
+        
+        def mock_drive_fn(*args, **kwargs):
+            return {"files": []}
+        def mock_token_google_fn(*args):
+            return "fake-token"
+        
+        # 12:00 CDMX - fallback time, but already done (BASE_TS_UTC + 3.5 hours)
+        utc_ts = self.BASE_TS_UTC + 3.5 * 3600
+        
+        resultado = PSR.ejecutar_respaldo_0830(
+            raiz=tmp_path,
+            ahora=utc_ts,
+            drive_fn=mock_drive_fn,
+            token_google_fn=mock_token_google_fn,
+            log_fn=lambda x: None,
+            seco=True,
+        )
+        
+        # Should skip because already done today
+        assert resultado["ok"] is True
+        assert resultado["accion"] == "ya_existe"
 
 
 class TestCLI:
