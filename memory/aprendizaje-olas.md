@@ -7502,3 +7502,134 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `SIN11155` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-ideas.json (ya estaba)
 - `SIN11156` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-guiones.json (ya estaba)
 - `SIN11157` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-15-youtube.json (ya estaba)
+
+## 2026-11-21 10:58 · auto-1118-175743
+
+**Lo que se pidió.** Ventana en otro escritorio
+
+**Resultado.** 74 de 184 integradas. 110 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 89 tareas se fueron por lo mismo — otra cosa (PRM1119B-d3, CTL1119A-d2, ASW15, SVF1B5b, CTL1119A-d1b, ASW14b). Es 48 % de la ola.
+- 12 tareas se fueron por lo mismo — la revisión lo rechazó (AN01-d1, RST06-d2b, A3445965C, CTL1119G, LNX1118WB, IMG-diaria-canal-params-de-la-orbe-publicado). Es 7 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (PENA1-d1, PRU1118A-d3, PRM1119B). Es 2 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (GEM1119D, AN01, CTL1119A). Es 2 % de la ola.
+- 3 tareas se fueron por lo mismo — pruebas en rojo (CTL1119A-d1, ASW14, RST06b). Es 2 % de la ola.
+- nim/minimaxai/minimax-m3.1-flash no integró ninguna de sus 18 tareas.
+- nim/nvidia/nemotron-3-ultra-550b-a55b no integró ninguna de sus 18 tareas.
+- explabs/deepseek-v4.1-flash no integró ninguna de sus 12 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 4 tareas.
+- openrouter/google/gemma-4-31b-it:free integró 2 tareas sin fallar una.
+- openrouter/cohere/north-mini-code:free integró 3 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `PENA1-d1` — no escribió nada: devuelta de la nube: su run terminó · la nube dijo «sin_cambios»
+- `PRU1118A-d3` — no escribió nada: devuelta de la nube: su run terminó · la nube dijo «sin_cambios»
+- `PRM1119B-d3` — otra cosa: devuelta de la nube: su run terminó · la nube dijo «en_curso»
+- `CTL1119A-d2` — otra cosa: dependencia(s) que no llegarán quitadas desde Genesis: CTL1119A-d1
+- `ASW15` — otra cosa: reasignada a la nube 20261121
+- `GEM1119D` — los tipos no compilan: revisor: dividida en GEM1119D-d1, GEM1119D-d2 (tarea:tsc con 4 archivos: se divide en 2 partes encadenadas)
+- `SVF1B5b` — otra cosa: intento 1
+- `AN01-d1` — la revisión lo rechazó: rechazada automáticamente por aprobador (sin revisión humana); rama ola/AN01-d1 conservada
+- `CTL1119A-d1` — pruebas en rojo: vitest falla (rama conservada)
+- `CTL1119A-d1b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `ASW14b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `RST06-d2b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/RST06-d2b conservada)
+- `ASW14` — pruebas en rojo: vitest falla (rama conservada)
+- `AN01` — los tipos no compilan: revisor: dividida en AN01-d1, AN01-d2 (tarea:tsc con 4 archivos: se divide en 2 partes encadenadas)
+- `RST06-d2` — otra cosa
+- `RST06` — otra cosa: revisor: dividida en RST06-d1, RST06-d2, RST06-d3 (tarea:pruebas con 3 archivos: se divide en 3 partes encadenadas)
+- `ASW13-d3` — otra cosa
+- `CTL1119A` — los tipos no compilan: revisor: dividida en CTL1119A-d1, CTL1119A-d2 (tarea:tsc con 4 archivos: se divide en 2 partes encadenadas)
+- `ENT-agentes-referencias-diseno-agentes-re-b59ecf-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-b59ecf-v1.json
+- `IRD11183` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-18-3.json
+- `A3445965C` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/A3445965C conservada)
+- `CTL1119G` — la revisión lo rechazó: rechazada automáticamente por aprobador (sin revisión humana); rama ola/CTL1119G conservada
+- `IRD11181` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-18-1.json
+- `LNX1118WB` — la revisión lo rechazó: la nube la integró en su rama nube/44861112949 (50df69018 · revisión ok): traer_nube la trae a main con sus puertas; no se vuelve a mandar
+- `IRD11182` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-18-2.json
+- `IMG-diaria-canal-params-de-la-orbe-publicado` — la revisión lo rechazó: la nube la integró en su rama nube/44858839223 (983be59f1 · revisión ok): traer_nube la trae a main con sus puertas; no se vuelve a mandar
+- `IMG-agentes-reimaginada-agentes-referencias` — otra cosa: revisor: dividida en IMG-agentes-reimaginada-agentes-referencias-d1, IMG-agentes-reimaginada-agentes-referencias-d2, IMG-agentes-reimaginada
+- `ENT-agentes-referencias-diseno-agentes-re-603970-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-603970-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-cb1a60-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-cb1a60-v1.json
+- `PRM1119B` — no escribió nada: revisor: dividida en PRM1119B-d1, PRM1119B-d2, PRM1119B-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `ENT-agentes-referencias-diseno-agentes-re-c0123c-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-c0123c-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-231322-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-231322-v1.json
+- `IMG-diaria-hilo-unico-de-direccion-cross-med` — la revisión lo rechazó: la nube la integró en su rama nube/44845206062 (9f49e1043 · revisión ok): traer_nube la trae a main con sus puertas; no se vuelve a mandar
+- `CAP1119B-d1` — la revisión lo rechazó: rechazada automáticamente por aprobador (sin revisión humana); rama ola/CAP1119B-d1 conservada
+- `ENT-agentes-referencias-diseno-agentes-re-a037ec-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-a037ec-v1.json
+- `AF44EE5BF` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/AF44EE5BF conservada)
+- `SIN11202` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-noticias.json
+- `SIN11203` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-referencias.json
+- `SIN11204` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-actividad.json
+- `SIN11205` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-ideas.json
+- `SIN11206` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-guiones.json
+- `SIN11207` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-youtube.json
+- `A900E21C0` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/A900E21C0 conservada)
+- `SIN11201` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-20-contactos.json
+- `A39897682` — otra cosa: continúa como A39897682b desde la rama nube/44669703506 (traer_nube)
+- `A0FDE8168` — otra cosa: continúa como A0FDE8168b desde la rama nube/44672705062 (traer_nube)
+- `MGP1119-4A64DC` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado e02479ebce49)
+- `IRD11191` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-19-1.json
+- `IRD11192` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-19-2.json
+- `IRD11193` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-19-3.json
+- `MGP1119-374A6D` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado 52f66f6db5ac)
+- `RST10` — otra cosa: continúa como RST10b desde la rama nube/44535386436 (traer_nube)
+- `FMT1119B` — otra cosa: continúa como FMT1119Bb desde la rama nube/44507857468 (traer_nube)
+- `MGP1119-159FF5` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado 60cd237df58d)
+- `TU18b-d2` — otra cosa: continúa como TU18c desde la rama nube/44502919097 (traer_nube)
+- `CTL1119B` — otra cosa: continúa como CTL1119Bb desde la rama nube/44507857468 (traer_nube)
+- `CAP1119Eb` — otra cosa: continúa como CAP1119Ec desde la rama nube/44492255917 (traer_nube)
+- `A4F047CA3` — otra cosa: intento 1
+- `PENA1` — otra cosa: revisor: dividida en PENA1-d1, PENA1-d2, PENA1-d3 (tarea:otro con 3 archivos: se divide en 3 partes encadenadas)
+- `CAP1119B` — otra cosa: revisor: dividida en CAP1119B-d1, CAP1119B-d2 (tarea:pruebas con 4 archivos: se divide en 2 partes encadenadas)
+- `HAL05` — otra cosa: continúa como HAL05b desde la rama nube/44456538890 (traer_nube)
+- `MGP1118-5364BB` — otra cosa: NO APLICA: la puerta de publicación volvió a verde (publicado 4f4bf0c566b3)
+- `PEND1b` — otra cosa: revisor: dividida en PEND1b-d1, PEND1b-d2 (tarea:otro con 2 archivos: se divide en 2 partes encadenadas)
+- `A13BE11E4` — otra cosa: intento 1
+- `CAP1119C` — otra cosa: intento 1
+- `ALM1118A-d2` — otra cosa: intento 1
+- `PRU1118A-d1b` — otra cosa: huérfana: ninguna cola fuente la define ya (estaba pendiente)
+- `PRU1118A-d1` — otra cosa
+- `ENT-agentes-referencias-diseno-agentes-re-6823f5-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-6823f5-v1.json
+- `PEND1` — otra cosa: continúa como PEND1b desde la rama nube/44431215473 (traer_nube)
+- `PET1116A-d1-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/PET1116A-d1-d2 conservada)
+- `ASW13-d1` — otra cosa: revisor: la cadena ya sigue por su sucesora ASW13-d1b (pendiente): esta copia se cierra con su rama guardada
+- `MRA8b-d2` — otra cosa: intento 1
+- `TU30` — otra cosa: superada: el mismo encargo entró en main con TU30b (bf4e5e768); esta copia ya no hace falta (rama ola/TU30 conservada)
+- `AQ00b` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/AQ00b conservada)
+- `CAP1119E` — otra cosa: continúa como CAP1119Eb desde la rama nube/44459896953 (traer_nube)
+- `ENT-agentes-referencias-diseno-agentes-re-e6b1d0-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-e6b1d0-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-353c83-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-353c83-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-a7186e-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-a7186e-v1.json
+- `RIM-agentes-referencias-diseno-agentes-re-fc659a-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-referencias-diseno-agentes-referencias-diseno-fc659a-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-838604-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-838604-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-a4bab4-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-a4bab4-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-bfe106-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-bfe106-v1.json
+- `IRD11201` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-20-1.json
+- `IRD11202` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-20-2.json
+- `IRD11203` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-20-3.json
+- `ENT-agentes-referencias-diseno-agentes-re-9909e7-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-9909e7-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-351231-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-351231-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-81343e-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-81343e-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-a202ac-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-a202ac-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-3f4668-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-3f4668-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-0270f4-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-0270f4-v1.json
+- `SIN11211` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-contactos.json
+- `SIN11212` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-noticias.json
+- `SIN11213` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-referencias.json
+- `SIN11214` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-actividad.json
+- `SIN11215` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-ideas.json
+- `SIN11216` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-guiones.json
+- `SIN11217` — otra cosa: 0 propuesta(s) · starseed_memory_root/imaginacion/agentes/sintesis-2026-11-21-youtube.json
+- `IRD11211` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-21-1.json
+- `IRD11212` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-21-2.json
+- `IRD11213` — otra cosa: 5 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-21-3.json
+- `ENT-agentes-referencias-diseno-agentes-re-b4f9c6-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-b4f9c6-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-46bbb1-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-46bbb1-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-0dd280-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-0dd280-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-d88ac4-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-d88ac4-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-41b86d-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-41b86d-v1.json
+- `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-referencias-diseno-agentes-referencias-diseno-6b9d9e-v1.json
+- `RST06-d3` — otra cosa: continúa como RST06b desde la rama nube/44912433621 (traer_nube)
+- `RST06b` — pruebas en rojo: vitest falla (rama conservada)
