@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { webcrypto } from "node:crypto";
 import { b64url } from "@/lib/chats-genesis/firma-aparato";
 import { AUD_CONTROL, huellaDeSpki, type CargaOrden } from "../orden";
-import { PuertaControl, aceptarPendiente, permisoDeFabrica, SESION_MAX_MS, TOPE_LECTURA_SEGUNDO, TOPE_SEGUNDO, TOPE_TOTAL_SEGUNDO, type PermisoControl } from "../sesion";
+import { PuertaControl, aceptarPendiente, permisoDeFabrica, TOPE_LECTURA_SEGUNDO, TOPE_SEGUNDO, TOPE_TOTAL_SEGUNDO, type PermisoControl } from "../sesion";
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
 const CUENTA = "cuenta-alex";
@@ -49,18 +49,18 @@ beforeEach(async () => {
 });
 
 describe("S1 · abrir otra vez es la misma sesión", () => {
-    it("con la sesión viva y el mismo controlador devuelve el mismo token y NO estira la hora máxima", async () => {
+    it("con la sesión viva y el mismo controlador devuelve el mismo token y NO inventa un límite", async () => {
         const a = await puerta.recibir(await firmar("abrir-sesion"));
-        const b0 = Date.parse((a.resultado as { caduca: string }).caduca);
-        for (let i = 0; i < 30; i++) {
-            reloj += 60_000; // la ventana lee cada pocos segundos: la sesión no pasa de 2 min sin órdenes
+        expect((a.resultado as { sinLimite?: boolean }).sinLimite).toBe(true);
+        for (let i = 0; i < 180; i++) {
+            reloj += 10_000; // CTL1119A: un latido cada 10 s mantiene viva la sesión, sin hora máxima
             expect((await puerta.recibir(await firmar("leer-estado", {}, { sesion: tokenNativo }))).ok).toBe(true);
         }
         const b = await puerta.recibir(await firmar("abrir-sesion"));
         expect(b.ok).toBe(true);
         expect((b.resultado as { sesion: string }).sesion).toBe(tokenNativo);
-        expect(Date.parse((b.resultado as { caduca: string }).caduca)).toBe(b0);
-        expect(b0 - Date.parse("2026-11-17T10:00:00Z")).toBe(SESION_MAX_MS);
+        expect((b.resultado as { caduca?: string }).caduca).toBeUndefined();
+        expect((b.resultado as { sinLimite?: boolean }).sinLimite).toBe(true);
     });
 });
 

@@ -4,6 +4,8 @@
  * en la cara de la persona (el código crudo se añade solo al final, para quien lo busque en el registro).
  */
 
+import type { LimiteSesion } from "./sesion";
+
 /** `control_entrada` (seam 1) y los motivos de la puerta de la web que la persona puede ver. */
 export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     firma: "La orden no venía firmada por un aparato de confianza: este aparato no la ejecutó. Si es la primera vez, vuelve a pedir el control.",
@@ -21,12 +23,12 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "permiso-apagado-avisado": "La otra neurona tiene el control apagado; ya se lo avisamos a su dueño.",
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
-    "sesion-caducada": "La sesión terminó (por inactividad o por llegar a su hora máxima). Pulsa «Reabrir» para seguir.",
+    "sesion-caducada": "Se dejaron de recibir los latidos de quien controla (45 s) y la sesión se cortó. Se reabre sola mientras el permiso siga encendido.",
     "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
     // CTL1117C · FALLO 3: sin el motivo real no se sabe QUIÉN paró (antes toda parada se decía «Terminar»).
     "parada-nativa": "El aparato cerró el control por su cuenta y no dijo por qué.",
     "parada-nativa-persona": "La persona terminó la sesión desde el aviso del aparato («Terminar»). El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
-    "parada-nativa-caducada": "La sesión de control caducó en el aparato (2 minutos sin órdenes o 1 hora de duración).",
+    "parada-nativa-caducada": "La sesión de control caducó en el aparato por falta de latidos (45 s) o porque se cumplió el límite elegido al aceptar.",
     "parada-nativa-sin-indicador": "El aviso de control del aparato (el borde rojo y su botón) dejó de verse y el control se cortó por seguridad.",
     "parada-nativa-no-se-pudo-mostrar": "Android no dejó mantener el aviso de control en el aparato: sin aviso no hay control.",
     "parada-nativa-indicador-perdido": "El aparato perdió su aviso de control y lo cerró.",
@@ -35,6 +37,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "parada-nativa-revocado": "La persona quitó el permiso de control en el aparato.",
     "a-mano": "La persona usó el aparato con la mano y el control se detuvo.",
     "terminado-por-el-dueno": "La persona terminó la sesión en el aparato. El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
+    "limite-cumplido": "Se cumplió el tiempo de control que se eligió al aceptar. Para seguir, la persona dueña tiene que aceptar otra vez y elegir un nuevo límite.",
     "apagado-por-el-dueno": "La persona apagó el control en el aparato.",
     nivel: "Esa orden pide un nivel de control que la sesión no tiene.",
     caducada: "La orden llegó tarde y no se ejecutó.",
@@ -146,4 +149,32 @@ export function palabrasEstado(estado: "conectando" | "en-vivo" | "pausa-local" 
         case "sin-pantalla": return `${nombre} no enseña su pantalla ahora.`;
         default: return `La ventana de ${nombre} está cerrada.`;
     }
+}
+
+/** CTL1119A · «Límite de tiempo» al aceptar el control: las opciones que ve la persona. */
+export const PALABRAS_LIMITE: Readonly<Record<string, string>> = {
+    "sin-limite": "Sin límite de tiempo",
+    "15-minutos": "15 minutos",
+    "1-hora": "1 hora",
+    "hasta-las": "Hasta las…",
+};
+
+/** El nombre llano de un límite (para el ajuste local y el punto de color). */
+export function palabrasLimite(limite: LimiteSesion | null | undefined): string {
+    if (!limite || limite.tipo === "sin-limite") return PALABRAS_LIMITE["sin-limite"];
+    if (limite.tipo === "hasta") return `Hasta las ${limite.hora}`;
+    if (limite.minutos === 60) return PALABRAS_LIMITE["1-hora"];
+    return limite.minutos === 1 ? "1 minuto" : `${Math.round(limite.minutos)} minutos`;
+}
+
+/** CTL1119A: el tiempo que queda, en llano; undefined si no hay límite (el punto no inventa cuenta atrás). */
+export function palabrasRestante(ms: number | null | undefined): string | undefined {
+    if (ms === null || ms === undefined) return undefined;
+    if (ms <= 0) return "El tiempo de control terminó";
+    const minutos = Math.ceil(ms / 60_000);
+    if (minutos < 60) return minutos === 1 ? "Queda 1 min" : `Quedan ${minutos} min`;
+    const horas = Math.floor(minutos / 60);
+    const resto = minutos % 60;
+    const base = horas === 1 ? "Queda 1 h" : `Quedan ${horas} h`;
+    return resto ? `${base} ${resto} min` : base;
 }

@@ -16,7 +16,7 @@
  */
 
 import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type RespuestaOrden } from "./orden";
-import { PuertaControl, sanearPermiso, type PermisoControl } from "./sesion";
+import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
@@ -367,6 +367,10 @@ export async function crearClaveYPedirControl(
  */
 export class SesionHacia {
     private token: string | null = null;
+    /** CTL1119A: el latido firmado que mantiene viva la sesión aceptada (cada 10 s). */
+    private latido: ReturnType<typeof setInterval> | null = null;
+    /** CTL1119A: un cierre en curso no debe resucitar la sesión si un latido estaba en vuelo. */
+    private cerrando = false;
     constructor(
         readonly para: string,
         private readonly mandar: typeof mandarOrden = mandarOrden,
@@ -377,7 +381,15 @@ export class SesionHacia {
 
     async abrir(forzar = false): Promise<RespuestaOrden> {
         const r = await this.registro.abrir(this.para, this.porAqui, { nivel: "controlar", debil: true, auto: true, forzar });
-        this.token = r.ok ? ((r.resultado as { sesion?: string } | undefined)?.sesion ?? null) : null;
+        const token = r.ok ? ((r.resultado as { sesion?: string } | undefined)?.sesion ?? null) : null;
+        if (this.cerrando) {
+            // CTL1119A: el cierre llegó mientras se abría; no se resucita la sesión, se suelta lo recién tomado.
+            if (token) void this.registro.soltar(this.para, token, this.porAqui, false);
+            return r;
+        }
+        this.token = token;
+        if (this.token) this.arrancarLatido();
+        else this.pararLatido();
         return r;
     }
 
@@ -397,10 +409,54 @@ export class SesionHacia {
         return r;
     }
 
+    /**
+     * CTL1119A: un latido firmado cada 10 s. Si la sesión ya no existe (45 s sin latidos), se reabre sola: la
+     * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió, se para.
+     */
+    async latir(): Promise<boolean> {
+        const t = this.token;
+        if (!t || this.cerrando) return false;
+        try {
+            const r = await this.mandar(this.para, "leer-estado", {}, { nivel: "ver", sesion: t });
+            if (this.cerrando || this.token !== t) return false; // CTL1119A: cerraron mientras el latido iba en vuelo
+            if (r.ok) {
+                this.registro.usada(this.para);
+                return true;
+            }
+            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") {
+                if (this.cerrando) return false;
+                this.registro.olvidar(this.para, t);
+                return (await this.abrir(true)).ok;
+            }
+            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+        } catch {
+            /* un latido que falla no rompe nada: el siguiente lo reintenta */
+        }
+        return false;
+    }
+
+    private arrancarLatido(): void {
+        if (this.latido !== null || typeof setInterval !== "function") return;
+        this.latido = setInterval(() => void this.latir(), LATIDO_CADA_MS);
+        (this.latido as unknown as { unref?: () => void }).unref?.();
+    }
+
+    private pararLatido(): void {
+        if (this.latido === null) return;
+        clearInterval(this.latido);
+        this.latido = null;
+    }
+
     async cerrar(): Promise<void> {
+        this.cerrando = true;
         const t = this.token;
         this.token = null;
-        if (t) await this.registro.soltar(this.para, t, this.porAqui, false);
+        this.pararLatido();
+        try {
+            if (t) await this.registro.soltar(this.para, t, this.porAqui, false);
+        } finally {
+            this.cerrando = false;
+        }
     }
 }
 
