@@ -476,6 +476,65 @@ function FichaDesplegable({ f }: { f: FilaMedidor }) {
 }
 
 /**
+ * (MAG1120) «Almacenamiento»: el disco libre de cada nodo y de qué medio se midió.
+ * Un solo medio medido no es redundancia, y se dice: si el único nodo se llena, el OS
+ * se queda sin sitio para escribir. Se pinta aparte de la lista genérica porque aquí
+ * lo que importa es la cifra y su origen, no el estado de una tarea.
+ */
+function PanelAlmacenamiento({ datos }: { datos: DetalleMedidor }) {
+    if (!datos.filas.length) {
+        return <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>;
+    }
+    const medios = new Set(datos.filas.map((f) => f.detalle?.origen ?? "desconocido"));
+    return (
+        <div className="mt-2 grid gap-2" data-testid="medidor-almacenamiento">
+            {medios.size === 1 ? (
+                <p
+                    role="status"
+                    className="rounded-md border border-amber-300/35 bg-amber-400/10 px-2 py-1.5 text-[11px] leading-snug text-amber-100"
+                >
+                    {datos.aviso ?? "Medio único: solo hay un medio con disco medido; no hay otro nodo donde repartir."}
+                </p>
+            ) : null}
+            <ul className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                {datos.filas.map((f) => {
+                    const libre = f.detalle?.discoLibres;
+                    const tono =
+                        typeof libre !== "number"
+                            ? "border-white/10 text-white/50"
+                            : libre < 5
+                              ? "border-rose-300/35 bg-rose-400/10 text-rose-200"
+                              : libre < 15
+                                ? "border-amber-300/35 bg-amber-400/10 text-amber-200"
+                                : "border-emerald-300/30 bg-emerald-400/10 text-emerald-200";
+                    return (
+                        <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+                            <p className="flex flex-wrap items-baseline justify-between gap-1.5">
+                                <span className="font-mono text-[11px] text-cyan-200/90">{f.titulo}</span>
+                                <span className={`rounded-full border px-1.5 text-[10px] ${tono}`}>{f.estado}</span>
+                            </p>
+                            <p
+                                className={`mt-1 text-sm font-semibold tabular-nums ${
+                                    typeof libre === "number" && libre < 15 ? "text-amber-200" : "text-white/85"
+                                }`}
+                            >
+                                {typeof libre === "number" ? `${libre} GB libres` : "sin disco medido"}
+                            </p>
+                            <p className="mt-0.5 text-[10px] leading-snug text-white/40">
+                                origen: {f.detalle?.origen ?? "desconocido"}
+                                {f.detalle?.almacen?.length
+                                    ? ` · ${f.detalle.almacen.slice(0, 3).join(", ")}`
+                                    : ""}
+                            </p>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+/**
  * EL PANEL. Uno solo, debajo de la rejilla y a todo el ancho. Pide su detalle al
  * abrirse (nunca al montar: ocho peticiones que nadie ha pedido son lo contrario
  * de «que no ocupe muchos recursos»).
@@ -859,6 +918,8 @@ export function PanelMedidor({
                 // (2026-10-20) Las esperas normales de una cadena, en su propio medidor y agrupadas
                 // por la tarea a la que esperan: no son un problema, se desbloquean solas.
                 <CadenasBloqueadas detalle={datos} />
+            ) : datos && clave === "almacenamiento" ? (
+                <PanelAlmacenamiento datos={datos} />
             ) : datos ? (clave === "bloqueadas" ? (
                 // (Ola 1005Z · BLQ1005C) El medidor «Bloqueadas» ya no pinta la lista
                 // genérica: la ÚNICA lista de bloqueadas es `BloqueadasPanel`, con la
