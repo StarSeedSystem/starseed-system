@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "IMG-diaria-hilo-unico-de-direccion-cross-med",
+   "titulo": "Hilo único de dirección cross-media",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Hilo único de dirección cross-media. : unificar Telegram (bot Hermes), Astraura › Chat › Genesis y Chat Director con mismos mensajes/respuestas (contrato GEN1113 §10 hoy incumplido). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-unificar-3-motores-de-permisos",
+   "titulo": "Unificar 3 motores de permisos",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Unificar 3 motores de permisos. (`lib/senses`, `request-permission`, `universalDeviceBridge`) en uno solo — reduce superficie de bugs y duplicación. (En `tasks`). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMG-diaria-hilo-unico-de-direccion-cross-med",
+   "IMG-diaria-unificar-3-motores-de-permisos"
+  ]
+ }
+}
