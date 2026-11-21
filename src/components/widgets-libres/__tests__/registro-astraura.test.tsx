@@ -82,8 +82,9 @@ describe("widgetLibre · AURORA_LAST", () => {
         const componente = await cargadorDe(el)();
         expect(componente).toBe(piezas.AstrauraLibreProto);
         expect(componente).not.toBe(piezas.AstrauraLibre);
-        expect(el.props.widget).toBe(widget);
-        expect(el.props.onUpdateSettings).toBe(onUpdateSettings);
+        const props = el.props as { widget: DashboardWidget; onUpdateSettings: unknown };
+        expect(props.widget).toBe(widget);
+        expect(props.onUpdateSettings).toBe(onUpdateSettings);
     });
 });
 
