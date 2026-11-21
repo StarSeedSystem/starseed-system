@@ -189,7 +189,13 @@ describe("pantalla-iniciar", () => {
     it("RST1116A: si la proyeccion no se puede, la sesión sigue con lo que haya", async () => {
         const inv = origen as unknown as { d: DepsOrigen };
         const base = inv.d.invocar!;
-        inv.d.invocar = async (c, a) => (c === "control_pantalla_iniciar" && a?.fuente === "proyeccion" ? { ok: false, motivo: "sin-consentimiento" } : base(c, a));
+        inv.d.invocar = async (c, a) => {
+            if (c === "control_pantalla_iniciar" && a?.fuente === "proyeccion") {
+                llamadas.push({ cmd: c, args: a });
+                return { ok: false, motivo: "sin-consentimiento" };
+            }
+            return base(c, a);
+        };
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
         expect(n("control_pantalla_iniciar").map((l) => l.args?.fuente).slice(0, 2)).toEqual(["proyeccion", "auto"]);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
