@@ -16,17 +16,17 @@ let llamadas: { cmd: string; args?: Record<string, unknown> }[];
 let respuestas: Record<string, unknown>;
 let origen: OrigenPantalla;
 
-function montar() {
+function montar(invocar?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>) {
     llamadas = [];
     respuestas = {
         control_pantalla_iniciar: { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 },
         control_capacidades: { pantalla: { accesibilidad: true, proyeccion: false, fuente_activa: "accesibilidad" }, falta: [] },
     };
     origen = new OrigenPantalla({
-        invocar: async (cmd, args) => {
+        invocar: invocar ?? (async (cmd, args) => {
             llamadas.push({ cmd, args });
             return respuestas[cmd] ?? { ok: true };
-        },
+        }),
         iceServers: async () => [],
         crearPeer: () => {
             throw new Error("sin conexión en estas pruebas");
@@ -69,6 +69,24 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
     it("se pidió proyeccion y el aparato contesta accesibilidad: se dice la real + fuente_pedida, y la sesión sigue", async () => {
         respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        expect(origen.enMarcha()).toBe(true);
+        expect(de("control_pantalla_parar")).toHaveLength(0);
+    });
+
+    it("si el aparato no ofrece proyeccion, la sesión sigue con la fuente disponible", async () => {
+        montar(async (cmd, args) => {
+            llamadas.push({ cmd, args });
+            if (cmd === "control_pantalla_iniciar" && args?.fuente === "proyeccion") {
+                return { ok: false, motivo: "sin-consentimiento" };
+            }
+            if (cmd === "control_pantalla_iniciar") {
+                return { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+            }
+            return { ok: true };
+        });
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(de("control_pantalla_iniciar").slice(0, 2).map((l) => l.args?.fuente)).toEqual(["proyeccion", undefined]);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         expect(origen.enMarcha()).toBe(true);
         expect(de("control_pantalla_parar")).toHaveLength(0);
