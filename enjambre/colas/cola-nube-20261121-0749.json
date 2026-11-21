@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "ola": "CTL1119",
+   "id": "CTL1119A-d2",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar) (parte 2 de 2)",
+   "archivos": [
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió CTL1119A: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/control-remoto/banda-control.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTL1119A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "ola": "PRM1119",
+   "id": "PRM1119B-d3",
+   "titulo": "Permisos completos en todos los medios: pedir al instalar o al abrir si faltan, sin insistir en los denegados a mano (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/olas/cola-permisos-por-medio-1119.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): revisar los permisos completos de todos los sistemas —macOS, Android, Linux, Windows, iOS, navegadores web, terminal y cualquier medio donde se use StarSeed OS— y pedirlos desde la instalación o al abrir la app cuando se detecte que faltan, salvo los que la persona haya denegado a mano. Lee AUDITORIA-PRM.md y el código de la lista de permisos de la neurona (grep «permisos» en src/lib y native/src-tauri/src). Tarea: (1) docs/contratos/permisos-por-medio.md con la matriz real permiso × medio (micrófono, cámara, pantalla, accesibilidad/control, ubicación, Bluetooth, red local, notificaciones, segundo plano, almacenamiento/archivos, entrada virtual, energía…): cómo se detecta, cómo se pide, si hay enlace directo a ajustes, y cómo distinguir «falta» de «denegado a mano» en cada medio; (2) src/lib/permisos/matriz.ts puro con esa matriz y la regla: al instalar y al abrir, pedir lo que falte y sea útil; si la persona lo denegó a mano, no volver a pedirlo solo, pero mostrarlo en la lista con «Abrir ajustes»; con pruebas; (3) una cola de 3 a 6 tareas en starseed_memory_root/olas/cola-permisos-por-medio-1119.json para aplicarlo por medio. Nunca se concede nada por la persona. Español neutro.\n\n## PARTE 3 DE 3 (la dirección dividió PRM1119B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: starseed_memory_root/olas/cola-permisos-por-medio-1119.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRM1119B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "PRM1119B-d2"
+   ]
+  },
+  {
+   "id": "IMG-profunda-catch-silencioso-en-auroratrans",
+   "titulo": "Catch silencioso en auroraTranscript",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/aurora-guide.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Catch silencioso en auroraTranscript. Catch silencioso en auroraTranscript Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMG-profunda-catch-silencioso-en-auroratrans",
+   "PRM1119B-d3",
+   "CTL1119A-d2"
+  ]
+ }
+}
