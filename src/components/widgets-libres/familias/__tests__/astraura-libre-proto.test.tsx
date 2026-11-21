@@ -225,7 +225,7 @@ describe("Astraura libre proto", () => {
         render(<AstrauraLibreProto />);
         await act(async () => { await vi.runAllTimersAsync(); });
 
-        expect(screen.getByText("Aún no habéis hablado.")).toBeTruthy();
+        expect(screen.getByText(/Aún no habéis hablado/)).toBeTruthy();
     });
 
     it("elegir otro diseño llama a onUpdateSettings con astrauraDiseno", async () => {
