@@ -232,7 +232,8 @@ describe("Astraura adaptativo (ASW16)", () => {
 
     it("los cinco estados dicen su frase para lector de pantalla en el botón de la forma", async () => {
         const { AstrauraForma } = await import("../astraura-forma");
-        const { frasePantallaLectora, type EstadoAsistente } = await import("@/lib/widgets/astraura/estado-forma");
+        const { frasePantallaLectora } = await import("@/lib/widgets/astraura/estado-forma");
+        type EstadoAsistente = import("@/lib/widgets/astraura/estado-forma").EstadoAsistente;
         const estados: EstadoAsistente[] = ["calma", "escuchando", "pensando", "hablando", "error"];
 
         for (const estado of estados) {
