@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "ola": "AUD1117",
+   "id": "AN01-d1",
+   "titulo": "Internet por la malla: el modo banco cuenta y raciona de verdad (parte 1 de 2)",
+   "archivos": [
+    "src/lib/malla/puerta/servicio.ts",
+    "src/lib/malla/puerta/tunel.ts",
+    "src/lib/malla/internet/almacen-contadores.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117N.md, arreglo F1 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: cada byte que la puerta presta o usa se suma con `registrarBytes` por audiencia; con «modo banco» encendido y la ración del día agotada, el túnel rechaza a otras cuentas con un motivo que la interfaz ya sabe mostrar, y las neuronas de la propia cuenta no se racionan; `usadoHoyMb` refleja lo sumado. Con «modo mesh» nada se raciona. Prueba: integración con un túnel falso que mueve 5 MB y una ración de 1 MB (otra cuenta: rechazada al pasar de 1 MB; misma cuenta: pasa).\n\n## PARTE 1 DE 2 (la dirección dividió AN01: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/malla/puerta/servicio.ts, src/lib/malla/puerta/tunel.ts, src/lib/malla/internet/almacen-contadores.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "AN01",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ]
+}
