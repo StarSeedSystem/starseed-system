@@ -478,12 +478,39 @@ def actualizar(pid: int, **cambios: Any) -> None:
         escribir_json(COLA, cola)
 
 
+def _clientes_de_encargo() -> Any:
+    """Clientes reales que el productor necesita para un encargo: NotebookLM (create, ask, generate,
+    download…) y Drive (carpeta, doc, archivo). DIR1121B: PET1121A los construye en peticiones_clientes.py;
+    mientras no existan devuelve None y el encargo se atiende como petición normal. Nunca devuelve las
+    funciones sueltas de peticiones_notebooklm (era el fallo «'function' object has no attribute 'doc'»)."""
+    try:
+        import peticiones_clientes as _pc
+        nb_c, drive_c = _pc.ClienteNotebookLM(), _pc.ClienteDrive()
+    except Exception:
+        return None
+    if not all(callable(getattr(drive_c, m, None)) for m in ("carpeta", "doc", "archivo")):
+        return None
+    if not all(callable(getattr(nb_c, m, None)) for m in ("create", "ask", "generate", "download")):
+        return None
+    return nb_c, drive_c
+
+
 def atender(p: dict[str, Any]) -> None:
     actualizar(p["id"], estado="en_curso", intentos=p.get("intentos", 0) + 1)
     try:
         plan = p.get("plan") or interpretar(p["texto"], excluir_id=p.get("id"))
         actualizar(p["id"], plan=plan)
         tipo = plan["tipo"]
+        if tipo == "encargo" and _clientes_de_encargo() is None:
+            # DIR1121B: el modo de encargo aún no tiene clientes reales de NotebookLM y Drive. Antes fallaba
+            # tres veces con «'function' object has no attribute 'doc'» y contestaba «petición fallida».
+            # Se atiende como petición normal, que sí funciona, y se dice una sola vez.
+            tipo = "notebooklm" if plan.get("artefactos") else "respuesta"
+            plan = dict(plan, tipo=tipo)
+            if not p.get("avisado_sin_encargo"):
+                actualizar(p["id"], avisado_sin_encargo=True)
+                decir("El modo de encargo por frentes (carpeta y panel en Drive) aún no está listo. "
+                      "Atiendo tu mensaje como petición normal.")
         if tipo == "encargo":
             atender_encargo(p, plan)
         elif tipo == "alcance":
@@ -518,8 +545,10 @@ def atender(p: dict[str, Any]) -> None:
 
 def atender_encargo(p: dict[str, Any], plan: dict[str, Any]) -> None:
     """Atiende un encargo: usa peticiones_productor para ejecutar frentes."""
-    from peticiones_notebooklm import nb as nb_cliente
-    from peticiones_notebooklm import drive as drive_cliente
+    clientes = _clientes_de_encargo()
+    if clientes is None:
+        raise RuntimeError("el modo de encargo aún no tiene clientes de NotebookLM y Drive")
+    nb_cliente, drive_cliente = clientes
     
     # Construir estructura de encargo para el productor
     encargo = {
