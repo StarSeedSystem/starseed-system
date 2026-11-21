@@ -109,3 +109,45 @@ export function valorAnchoAKhz(valor: string, unidad: UnidadAncho): number | nul
 }
 
 export interface BandaConocidaRef extends BandaConocida {}
+
+import type { FiltroEspectro } from "@/lib/senales/espectro/filtros";
+
+export function filtroEspectroASenales(f: FiltroEspectro): FiltroSenales {
+  return {
+    frecuencia: {
+      minKhz: f.frecuenciaKhz?.desde ?? null,
+      maxKhz: f.frecuenciaKhz?.hasta ?? null,
+    },
+    ancho: {
+      minKhz: f.anchoKhz?.desde ?? null,
+      maxKhz: f.anchoKhz?.hasta ?? null,
+    },
+    capas: f.capas ?? [],
+    medios: f.medios ?? [],
+    origenes: f.origenes ?? [],
+    soloCompatibles: f.soloCompatibles ?? false,
+    texto: f.texto ?? "",
+  };
+}
+
+export function filtroSenalesAEspectro(f: FiltroSenales): FiltroEspectro {
+  const espectro: FiltroEspectro = {};
+  if (f.frecuencia.minKhz !== null || f.frecuencia.maxKhz !== null) {
+    espectro.frecuenciaKhz = {
+      desde: f.frecuencia.minKhz ?? undefined,
+      hasta: f.frecuencia.maxKhz ?? undefined,
+    };
+  }
+  if (f.ancho.minKhz !== null || f.ancho.maxKhz !== null) {
+    espectro.anchoKhz = {
+      desde: f.ancho.minKhz ?? undefined,
+      hasta: f.ancho.maxKhz ?? undefined,
+    };
+  }
+  if (f.capas.length) espectro.capas = f.capas;
+  if (f.medios.length) espectro.medios = f.medios;
+  if (f.origenes.length) espectro.origenes = f.origenes;
+  if (f.soloCompatibles) espectro.soloCompatibles = true;
+  if (f.texto) espectro.texto = f.texto;
+  return espectro;
+}

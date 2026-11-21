@@ -8,8 +8,9 @@
  * Incluye filtros de señales por banda, ancho, capa, medio y origen (AQ03).
  */
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MapPinOff, WifiOff } from "lucide-react";
+import { MapPinOff, WifiOff, SlidersHorizontal } from "lucide-react";
 import { MapView } from "@/components/map/map-view";
 import type { EstadoBaseGeografica, MapViewExtension } from "@/components/map/map-view-extension";
 import { safeGet, safeSet } from "@/lib/safe-storage";
@@ -31,6 +32,13 @@ import type { SenalesMedio } from "@/lib/neurons/senales-medio";
 import type { DescripcionMedio } from "@/lib/neurons/medio";
 import { filtrarSenales } from "@/lib/senales/espectro/filtrar";
 import type { FiltroSenales } from "./panel-filtros-senales";
+import { leerPreferenciasMapa, guardarPreferenciasMapa, type FiltroEspectro } from "@/lib/senales/preferencias-mapa";
+import { filtroEspectroASenales, filtroSenalesAEspectro } from "./panel-filtros-senales-tipos";
+
+const PanelFiltrosSenalesDinamico = dynamic(
+  () => import("./panel-filtros-senales").then((m) => m.PanelFiltrosSenales),
+  { ssr: false, loading: () => null }
+);
 
 function useEnLinea(): { enLinea: boolean; desde: number | null } {
   const [est, setEst] = useState<{ enLinea: boolean; desde: number | null }>({ enLinea: true, desde: null });
@@ -112,16 +120,12 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     return senales;
   }, [marcas]);
 
-  // (AQ03) Estado del filtro de señales.
-  const [filtroSenales, setFiltroSenales] = useState<FiltroSenales>({
-    frecuencia: { minKhz: null, maxKhz: null },
-    ancho: { minKhz: null, maxKhz: null },
-    capas: [],
-    medios: [],
-    origenes: [],
-    soloCompatibles: false,
-    texto: "",
-  });
+  // (AQ03) Estado del filtro de señales: carga de preferencias y guarda al cambiar.
+  const [filtroSenales, setFiltroSenales] = useState<FiltroSenales>(() => filtroEspectroASenales(leerPreferenciasMapa().filtroEspectro));
+  const guardarFiltro = useCallback((nuevo: FiltroSenales) => {
+    setFiltroSenales(nuevo);
+    guardarPreferenciasMapa({ ...leerPreferenciasMapa(), filtroEspectro: filtroSenalesAEspectro(nuevo) });
+  }, []);
 
   // (AQ03) Señales filtradas para pasar a MarcasEnMapa (solo afecta a capas red-*).
   const senalesFiltradas = useMemo(() => filtrarSenales(todasLasSenales, filtroSenales), [todasLasSenales, filtroSenales]);
@@ -169,7 +173,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
         onPublicacion={onPublicacion}
         todasLasSenales={todasLasSenales}
         filtroSenales={filtroSenales}
-        onCambiarFiltroSenales={setFiltroSenales}
+        onCambiarFiltroSenales={guardarFiltro}
       />
     ),
     superposicion: (ctx) => (
@@ -190,7 +194,18 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion, todasLasSenales, filtroSenales, senalesFiltradas]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion, todasLasSenales, filtroSenales, senalesFiltradas, guardarFiltro]);
+
+  const ocultasSinDato = useMemo(() => todasLasSenales.filter((s) => s.frecuenciaKhz === null).length, [todasLasSenales]);
+  const filtrosActivos = useMemo(() => (
+    (filtroSenales.frecuencia.minKhz !== null || filtroSenales.frecuencia.maxKhz !== null ? 1 : 0) +
+    (filtroSenales.ancho.minKhz !== null || filtroSenales.ancho.maxKhz !== null ? 1 : 0) +
+    filtroSenales.capas.length +
+    filtroSenales.medios.length +
+    filtroSenales.origenes.length +
+    (filtroSenales.soloCompatibles ? 1 : 0) +
+    (filtroSenales.texto ? 1 : 0)
+  ), [filtroSenales]);
 
   if (sinBase) {
     return (
@@ -210,6 +225,24 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
   return (
     <section aria-label="Mapa de señales" data-testid="pestana-mapa">
       <MapView className="h-[calc(100svh-6rem)] min-h-[520px]" extension={extension} />
+      {estrecho && (
+        <details className="pointer-events-none absolute left-3 right-16 bottom-3 z-20 group" data-testid="panel-filtros-flotante">
+          <summary className="pointer-events-auto flex cursor-pointer list-none items-center gap-1.5 rounded-xl border border-white/10 bg-black/65 px-2.5 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-xl">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-sky-300" />
+            Filtros de señales
+            {filtrosActivos > 0 && <span className="rounded-full bg-sky-500/20 px-1.5 text-[9px] text-sky-100">{filtrosActivos} activos</span>}
+            <span className="ml-auto text-[9px] font-normal text-white/35 group-open:hidden">pulsa para desplegar</span>
+          </summary>
+          <div className="pointer-events-auto mt-2 max-h-[50vh] overflow-auto rounded-xl border border-white/10 bg-black/70 p-3 backdrop-blur-xl w-full sm:w-80">
+            <PanelFiltrosSenalesDinamico
+              filtro={filtroSenales}
+              onCambiar={guardarFiltro}
+              visibles={senalesFiltradas.length}
+              ocultasSinDato={ocultasSinDato}
+            />
+          </div>
+        </details>
+      )}
     </section>
   );
 }

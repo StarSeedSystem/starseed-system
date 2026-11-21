@@ -5,10 +5,12 @@
  * lectores de pantalla) a todo lo que el lienzo pinta. Primero «Tú» (con los demás medios abiertos
  * en este aparato) y luego las señales de mejor a peor calidad; los medios abiertos de cada aparato
  * cuelgan debajo de él. Los aparatos dicen su estado y su enlace real, no una distancia inventada.
+ * Incluye panel de filtros de espectro (MAP1116B) cuando se proveen señales de espectro.
  */
 
-import { useState } from "react";
-import { ChevronDown, CornerDownRight } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useState, useMemo } from "react";
+import { ChevronDown, CornerDownRight, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DetectedSignal } from "@/ai/astraura/mesh/signals";
 import { COLOR_ESTADO, TEXTO_ESTADO } from "@/lib/senales/aparatos";
@@ -22,8 +24,15 @@ import type { MedioMapa, VivoMapa } from "@/lib/senales/tipos-vivo";
 import { avatarDeSenal, cuentaDe } from "@/lib/senales/cuentas";
 import { FotoPerfil } from "./foto-perfil";
 import { GlifoIcono } from "./icono-2d";
+import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
+import type { FiltroEspectro } from "@/lib/senales/espectro/filtros";
 
 const FILAS_INICIALES = 8;
+
+const PanelFiltrosSenalesDinamico = dynamic(
+  () => import("./geo/panel-filtros-senales").then((m) => m.PanelFiltrosSenales),
+  { ssr: false, loading: () => null }
+);
 
 const CLASE_MODO: Record<DetectedSignal["placement"]["mode"], string> = {
   gps: "border-emerald-400/35 bg-emerald-500/10 text-emerald-200",
@@ -75,15 +84,74 @@ export interface ListaSenalesProps {
   className?: string;
   /** Hay filtros activos (si no, una lista vacía significa que no se oye nada). */
   hayFiltros?: boolean;
+  /** (MAP1116B) Señales del espectrómetro para el panel de filtros de espectro. */
+  senalesEspectro?: readonly SenalEspectro[];
+  /** (MAP1116B) Filtro actual del espectrómetro. */
+  filtroEspectro?: FiltroEspectro;
+  /** (MAP1116B) Callback cuando cambia el filtro del espectrómetro. */
+  onCambiarFiltroEspectro?: (f: FiltroEspectro) => void;
+  /** (MAP1116B) Pantalla estrecha: pliega el panel de filtros. */
+  compacto?: boolean;
 }
 
-export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro = null, avatarPropio = null, seleccionId, apuntadaId, onSeleccionar, onApuntar, className, hayFiltros = true }: ListaSenalesProps) {
+export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro = null, avatarPropio = null, seleccionId, apuntadaId, onSeleccionar, onApuntar, className, hayFiltros = true, senalesEspectro, filtroEspectro, onCambiarFiltroEspectro, compacto }: ListaSenalesProps) {
   const [todas, setTodas] = useState(false);
   // La seleccionada siempre es visible aunque caiga fuera de las primeras filas.
   const idxSel = senales.findIndex((s) => s.id === seleccionId || vivo?.medios.some((m) => m.id === seleccionId && m.padreId === s.id));
   const mostrarTodas = todas || idxSel >= FILAS_INICIALES;
   const visibles = mostrarTodas ? senales : senales.slice(0, FILAS_INICIALES);
   const mediosYo = vivo?.medios.filter((m) => m.padreId === "yo") ?? [];
+
+  const filtroPanel = useMemo(() => {
+    if (!senalesEspectro || !filtroEspectro || !onCambiarFiltroEspectro) return null;
+    const filtradas = senalesEspectro.filter((s) => {
+      if (filtroEspectro.frecuenciaKhz?.desde !== undefined && (s.frecuenciaKhz ?? -Infinity) < filtroEspectro.frecuenciaKhz.desde) return false;
+      if (filtroEspectro.frecuenciaKhz?.hasta !== undefined && (s.frecuenciaKhz ?? Infinity) > filtroEspectro.frecuenciaKhz.hasta) return false;
+      if (filtroEspectro.anchoKhz?.desde !== undefined && (s.anchoKhz ?? -Infinity) < filtroEspectro.anchoKhz.desde) return false;
+      if (filtroEspectro.anchoKhz?.hasta !== undefined && (s.anchoKhz ?? Infinity) > filtroEspectro.anchoKhz.hasta) return false;
+      if (filtroEspectro.capas?.length && !filtroEspectro.capas.includes(s.capa)) return false;
+      if (filtroEspectro.medios?.length && !filtroEspectro.medios.includes(s.medio)) return false;
+      if (filtroEspectro.origenes?.length && !filtroEspectro.origenes.includes(s.origen)) return false;
+      if (filtroEspectro.soloCompatibles && !s.compatibles.some((c) => c.posible)) return false;
+      if (filtroEspectro.texto && ![s.id, s.banda, s.medio, s.origen, s.capa, s.fuente, s.zona ?? ""].join(" ").toLowerCase().includes(filtroEspectro.texto.toLowerCase())) return false;
+      return true;
+    });
+    const ocultasSinDato = senalesEspectro.filter((s) => s.frecuenciaKhz === null).length;
+    const filtrosActivos = (filtroEspectro.frecuenciaKhz?.desde !== undefined || filtroEspectro.frecuenciaKhz?.hasta !== undefined ? 1 : 0) +
+      (filtroEspectro.anchoKhz?.desde !== undefined || filtroEspectro.anchoKhz?.hasta !== undefined ? 1 : 0) +
+      (filtroEspectro.capas?.length ?? 0) + (filtroEspectro.medios?.length ?? 0) + (filtroEspectro.origenes?.length ?? 0) +
+      (filtroEspectro.soloCompatibles ? 1 : 0) + (filtroEspectro.texto ? 1 : 0);
+
+    if (!compacto) {
+      return (
+        <PanelFiltrosSenalesDinamico
+          key="filtro-espectro"
+          filtro={{ frecuencia: { minKhz: filtroEspectro.frecuenciaKhz?.desde ?? null, maxKhz: filtroEspectro.frecuenciaKhz?.hasta ?? null }, ancho: { minKhz: filtroEspectro.anchoKhz?.desde ?? null, maxKhz: filtroEspectro.anchoKhz?.hasta ?? null }, capas: filtroEspectro.capas ?? [], medios: filtroEspectro.medios ?? [], origenes: filtroEspectro.origenes ?? [], soloCompatibles: filtroEspectro.soloCompatibles ?? false, texto: filtroEspectro.texto ?? "" }}
+          onCambiar={(f) => onCambiarFiltroEspectro({ frecuenciaKhz: f.frecuencia.minKhz !== null || f.frecuencia.maxKhz !== null ? { desde: f.frecuencia.minKhz ?? undefined, hasta: f.frecuencia.maxKhz ?? undefined } : undefined, anchoKhz: f.ancho.minKhz !== null || f.ancho.maxKhz !== null ? { desde: f.ancho.minKhz ?? undefined, hasta: f.ancho.maxKhz ?? undefined } : undefined, capas: f.capas.length ? f.capas : undefined, medios: f.medios.length ? f.medios : undefined, origenes: f.origenes.length ? f.origenes : undefined, soloCompatibles: f.soloCompatibles || undefined, texto: f.texto || undefined })}
+          visibles={filtradas.length}
+          ocultasSinDato={ocultasSinDato}
+        />
+      );
+    }
+    return (
+      <details className="group mb-2" data-testid="panel-filtros-lista">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-white/70">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-sky-300" />
+          Filtros de espectro
+          {filtrosActivos > 0 && <span className="rounded-full bg-sky-500/20 px-1.5 text-[9px] text-sky-100">{filtrosActivos} activos</span>}
+          <span className="ml-auto text-[9px] font-normal text-white/35 group-open:hidden">pulsa para desplegar</span>
+        </summary>
+        <div className="mt-2">
+          <PanelFiltrosSenalesDinamico
+            filtro={{ frecuencia: { minKhz: filtroEspectro.frecuenciaKhz?.desde ?? null, maxKhz: filtroEspectro.frecuenciaKhz?.hasta ?? null }, ancho: { minKhz: filtroEspectro.anchoKhz?.desde ?? null, maxKhz: filtroEspectro.anchoKhz?.hasta ?? null }, capas: filtroEspectro.capas ?? [], medios: filtroEspectro.medios ?? [], origenes: filtroEspectro.origenes ?? [], soloCompatibles: filtroEspectro.soloCompatibles ?? false, texto: filtroEspectro.texto ?? "" }}
+            onCambiar={(f) => onCambiarFiltroEspectro({ frecuenciaKhz: f.frecuencia.minKhz !== null || f.frecuencia.maxKhz !== null ? { desde: f.frecuencia.minKhz ?? undefined, hasta: f.frecuencia.maxKhz ?? undefined } : undefined, anchoKhz: f.ancho.minKhz !== null || f.ancho.maxKhz !== null ? { desde: f.ancho.minKhz ?? undefined, hasta: f.ancho.maxKhz ?? undefined } : undefined, capas: f.capas.length ? f.capas : undefined, medios: f.medios.length ? f.medios : undefined, origenes: f.origenes.length ? f.origenes : undefined, soloCompatibles: f.soloCompatibles || undefined, texto: f.texto || undefined })}
+            visibles={filtradas.length}
+            ocultasSinDato={ocultasSinDato}
+          />
+        </div>
+      </details>
+    );
+  }, [senalesEspectro, filtroEspectro, onCambiarFiltroEspectro, compacto]);
 
   const filaYo = (
     <li>
@@ -121,6 +189,7 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
   if (senales.length === 0) {
     return (
       <div className={className}>
+        {filtroPanel}
         <ul className="mb-1.5 space-y-1" aria-label="Tú">{filaYo}</ul>
         <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-[11px] leading-snug text-white/45">
           {hayFiltros
@@ -133,6 +202,7 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
 
   return (
     <div className={className}>
+      {filtroPanel}
       <ul className="space-y-1" aria-label="Señales detectadas">
         {filaYo}
         {visibles.map((s) => {
