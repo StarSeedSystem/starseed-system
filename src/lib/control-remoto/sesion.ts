@@ -38,6 +38,8 @@ import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
 
+export const LATIDO_INTERVALO_MS = 10_000;
+export const LATIDO_TOLERANCIA_MS = 45_000;
 export const SESION_MAX_MS = 60 * 60_000;
 export const SESION_INACTIVA_MS = 2 * 60_000;
 export const TOPE_SEGUNDO = 5;
@@ -61,6 +63,10 @@ export interface Controlador {
     desde: string;
     /** CTL1117H: color público que declaró al presentarse (#rrggbb); si falta, el de su id (`colorPorDefecto`). */
     color?: string;
+    /** CTL1119A: límite de tiempo por defecto para este controlador (ms desde epoch, null = sin límite). */
+    limiteDefecto?: number | null;
+    /** CTL1119A: límite máximo permitido para este controlador (ms desde epoch, null = sin límite). */
+    limiteMaximo?: number | null;
 }
 
 /** Lo que el dueño decidió en ESTE aparato. Se guarda; las sesiones no (viven en memoria). */
@@ -84,6 +90,8 @@ export interface SesionActiva {
     ultima: number;
     /** CTL1117I: color público que el controlador firmó al abrir (`#rrggbb`) o, si no, el que declaró al presentarse. */
     color?: string;
+    /** CTL1119A: límite de tiempo elegido al aceptar (timestamp de caducidad, null = sin límite). */
+    limite?: number | null;
 }
 
 export interface DepsPuerta {
@@ -215,9 +223,27 @@ export class PuertaControl {
         const s = this.sesion;
         if (!s) return;
         const t = this.d.ahora();
-        if (t - s.inicio > SESION_MAX_MS || t - s.ultima > SESION_INACTIVA_MS) {
+        
+        // CTL1119A: caducidad por límite de tiempo elegido al aceptar
+        if (s.limite !== null && s.limite !== undefined && t >= s.limite) {
+            this.sesion = null;
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada:limite`);
+            this.d.alCambiar?.();
+            return;
+        }
+        
+        // CTL1119A: caducidad por falta de latidos (45s sin latido/actividad)
+        if (t - s.ultima >= LATIDO_TOLERANCIA_MS) {
             this.sesion = null;
             this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada`);
+            this.d.alCambiar?.();
+            return;
+        }
+        
+        // Mantener compatibilidad: sesión máxima de 1h como tope de seguridad
+        if (t - s.inicio > SESION_MAX_MS) {
+            this.sesion = null;
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada:maxima`);
             this.d.alCambiar?.();
         }
     }
@@ -363,18 +389,38 @@ export class PuertaControl {
             // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
             const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
+            
+            // CTL1119A: calcular límite de tiempo de la sesión
+            // Prioridad: 1) límite pedido en la orden (si no supera el máximo del controlador), 2) límite por defecto del controlador, 3) sin límite
+            const limitePedido = typeof c.accion.args.limite === "number" ? c.accion.args.limite : null;
+            const limiteDefecto = ctl.limiteDefecto ?? null;
+            const limiteMaximo = ctl.limiteMaximo ?? null;
+            let limite: number | null = null;
+            if (limitePedido !== null && limiteMaximo !== null && limitePedido > limiteMaximo) {
+                // El límite pedido supera el máximo permitido: usar el máximo
+                limite = limiteMaximo;
+            } else if (limitePedido !== null) {
+                limite = limitePedido;
+            } else {
+                limite = limiteDefecto;
+            }
+            
             const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
             const color = colorFirmado ?? ctl.color;
-            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
+            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, color, limite };
             this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
             if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
             this.d.alCambiar?.();
             if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
+            
+            // Calcular caducidad para la respuesta: usar el límite si hay, si no SESION_MAX_MS como tope de seguridad
+            const caducidadTimestamp = limite ?? (inicio + SESION_MAX_MS);
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
                 nivel,
                 capacidades: capacidadesDeNivel(nivel),
-                caduca: new Date(inicio + SESION_MAX_MS).toISOString(),
+                caduca: new Date(caducidadTimestamp).toISOString(),
+                limite: limite ?? null,
             });
         }
 
@@ -386,7 +432,17 @@ export class PuertaControl {
         }
         if (!s || s.de !== c.de || c.sesion !== s.token) return this.respuesta(c.nonce, false, s ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
         if (rangoNivel(def.nivel) > rangoNivel(s.nivel)) return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
-        s.ultima = ahora;
+
+        // CTL1119A: solo latidos y actividad de pantalla actualizan la última actividad de la sesión
+        const esActividadPantalla = nombre.startsWith("pantalla-");
+        if (nombre === "latido" || esActividadPantalla) {
+            s.ultima = ahora;
+        }
+
+        if (nombre === "latido") {
+            // CTL1119A: latido de vida - actualiza la última actividad y devuelve ok
+            return this.respuesta(c.nonce, true, "ok", nombre, c.de, s.nivel);
+        }
 
         if (nombre === "cerrar-sesion") {
             this.sesion = null;
@@ -493,10 +549,19 @@ export class PuertaControl {
 }
 
 /** El dueño acepta EN ESTE aparato a un aparato que se presentó (lo fija por su clave). */
-export function aceptarPendiente(p: PermisoControl, huella: string): PermisoControl {
+export function aceptarPendiente(
+    p: PermisoControl,
+    huella: string,
+    opts?: { limiteDefecto?: number | null; limiteMaximo?: number | null }
+): PermisoControl {
     const x = p.pendientes.find((y) => y.huella === huella);
     if (!x) return p;
-    const controladores = [x, ...p.controladores.filter((y) => y.huella !== huella)].slice(0, MAX_CONTROLADORES);
+    const controlador: Controlador = {
+        ...x,
+        limiteDefecto: opts?.limiteDefecto ?? null,
+        limiteMaximo: opts?.limiteMaximo ?? null,
+    };
+    const controladores = [controlador, ...p.controladores.filter((y) => y.huella !== huella)].slice(0, MAX_CONTROLADORES);
     return { ...p, controladores, pendientes: p.pendientes.filter((y) => y.huella !== huella) };
 }
 

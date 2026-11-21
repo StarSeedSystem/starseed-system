@@ -21,12 +21,12 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "permiso-apagado-avisado": "La otra neurona tiene el control apagado; ya se lo avisamos a su dueño.",
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
-    "sesion-caducada": "La sesión terminó (por inactividad o por llegar a su hora máxima). Pulsa «Reabrir» para seguir.",
+    "sesion-caducada": "La sesión terminó (45 segundos sin latido o se alcanzó el límite de tiempo). Pulsa «Reabrir» para seguir.",
     "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
     // CTL1117C · FALLO 3: sin el motivo real no se sabe QUIÉN paró (antes toda parada se decía «Terminar»).
     "parada-nativa": "El aparato cerró el control por su cuenta y no dijo por qué.",
     "parada-nativa-persona": "La persona terminó la sesión desde el aviso del aparato («Terminar»). El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
-    "parada-nativa-caducada": "La sesión de control caducó en el aparato (2 minutos sin órdenes o 1 hora de duración).",
+    "parada-nativa-caducada": "La sesión de control caducó en el aparato (45 segundos sin latido o límite de tiempo alcanzado).",
     "parada-nativa-sin-indicador": "El aviso de control del aparato (el borde rojo y su botón) dejó de verse y el control se cortó por seguridad.",
     "parada-nativa-no-se-pudo-mostrar": "Android no dejó mantener el aviso de control en el aparato: sin aviso no hay control.",
     "parada-nativa-indicador-perdido": "El aparato perdió su aviso de control y lo cerró.",
@@ -146,4 +146,47 @@ export function palabrasEstado(estado: "conectando" | "en-vivo" | "pausa-local" 
         case "sin-pantalla": return `${nombre} no enseña su pantalla ahora.`;
         default: return `La ventana de ${nombre} está cerrada.`;
     }
+}
+
+/** CTL1119A: textos para el selector de límite de tiempo al aceptar control. */
+export const PALABRAS_LIMITE_TIEMPO = {
+    /** Etiqueta del selector. */
+    etiqueta: "Límite de tiempo",
+    /** Opción: sin límite (por defecto en neuronas propias). */
+    sinLimite: "Sin límite",
+    /** Opción: 15 minutos. */
+    quinceMin: "15 minutos",
+    /** Opción: 1 hora. */
+    unaHora: "1 hora",
+    /** Opción: hasta una hora concreta (HH:MM). */
+    hastaHora: "Hasta las…",
+    /** Texto de ayuda según el tipo de neurona. */
+    ayuda: {
+        /** Neuronas propias: sin límite por defecto. */
+        propia: "Tus neuronas no tienen límite de tiempo por defecto. Puedes poner uno si quieres.",
+        /** Neuronas de otras cuentas o públicas: el dueño define el máximo. */
+        ajena: "El dueño de esta neurona ha establecido un tiempo máximo. No puedes superarlo.",
+        /** Nodos públicos: gobernanza comunitaria define el máximo. */
+        publica: "Esta neurona es un nodo público. Su comunidad define el tiempo máximo de control.",
+    },
+    /** Texto para el punto de color que muestra el tiempo restante. */
+    puntoColor: {
+        /** Sin límite: punto fijo. */
+        sinLimite: "Sin límite de tiempo",
+        /** Con límite: muestra el tiempo restante. */
+        conLimite: (restanteMin: number, restanteSeg: number) =>
+            restanteMin > 0
+                ? `Quedan ${restanteMin} min ${restanteSeg} s`
+                : `Quedan ${restanteSeg} s`,
+        /** A punto de caducar (menos de 1 min). */
+        urgente: (restanteSeg: number) => `¡Quedan ${restanteSeg} s!`,
+    },
+    /** Mensaje cuando el controlador intenta superar el máximo del dueño. */
+    maximoSuperado: (maxMin: number) => `El dueño ha limitado el control a ${maxMin} minutos como máximo.`,
+};
+
+/** CTL1119A: formatea el tiempo restante en minutos y segundos. */
+export function formatearTiempoRestante(ms: number): { min: number; seg: number } {
+    const totalSeg = Math.max(0, Math.ceil(ms / 1000));
+    return { min: Math.floor(totalSeg / 60), seg: totalSeg % 60 };
 }

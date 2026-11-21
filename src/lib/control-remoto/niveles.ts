@@ -51,12 +51,13 @@ function sinArgs(a: Args): Args | null {
 }
 
 /**
- * CTL1117H / CTL1118G: «abrir-sesion» lleva, opcionales, el color público del controlador (#rrggbb en minúsculas) y el nombre de SU neurona
- * (texto, 1 a 60 caracteres, sin controles); cualquier otro argumento se rechaza.
+ * CTL1117H / CTL1118G / CTL1119A: «abrir-sesion» lleva, opcionales, el color público del controlador (#rrggbb en minúsculas),
+ * el nombre de SU neurona (texto, 1 a 60 caracteres, sin controles) y el límite de tiempo (timestamp ms desde epoch, null = sin límite);
+ * cualquier otro argumento se rechaza.
  */
 function conColorOpcional(a: Args): Args | null {
     if (Object.keys(a).length === 0) return {};
-    if (!soloClaves(a, ["color", "nombre"])) return null;
+    if (!soloClaves(a, ["color", "nombre", "limite"])) return null;
     const salida: Args = {};
     if ("color" in a) {
         if (typeof a.color !== "string" || !/^#[0-9a-f]{6}$/.test(a.color)) return null;
@@ -65,6 +66,10 @@ function conColorOpcional(a: Args): Args | null {
     if ("nombre" in a) {
         if (typeof a.nombre !== "string" || a.nombre.length === 0 || a.nombre.length > 120 || /[\u0000-\u001f\u007f]/.test(a.nombre) || a.nombre.trim() === "") return null;
         salida.nombre = a.nombre;
+    }
+    if ("limite" in a) {
+        if (a.limite !== null && (typeof a.limite !== "number" || !Number.isFinite(a.limite) || a.limite <= 0)) return null;
+        salida.limite = a.limite;
     }
     return salida;
 }
@@ -249,6 +254,7 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     brillo: { nivel: "controlar", entrada: true, validar: (a) => (soloClaves(a, ["nivel"]) && unidad(a.nivel) ? { nivel: redondear(a.nivel) } : null), que: "pone el brillo del aparato (0 a 1)" },
     texto: { nivel: "controlar", entrada: true, validar: validarTexto, que: "escribe un texto (hasta 512 caracteres) en el campo con foco" },
     "simular-vuelve-ip": { nivel: "controlar", simulacion: true, validar: sinArgs, que: "SIMULACIÓN: deshace «simular-corte-ip»" },
+    "latido": { nivel: "ver", validar: sinArgs, que: "latido de vida de la sesión (lo manda quien controla cada 10 s)" },
 };
 
 export function definicion(nombre: unknown): DefAccion | null {

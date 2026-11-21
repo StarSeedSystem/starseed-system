@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { webcrypto } from "node:crypto";
 import { b64url } from "@/lib/chats-genesis/firma-aparato";
 import { AUD_CONTROL, huellaDeSpki, type CargaOrden } from "../orden";
-import { PuertaControl, aceptarPendiente, permisoDeFabrica, sanearPermiso, type PermisoControl, SESION_INACTIVA_MS } from "../sesion";
+import { PuertaControl, aceptarPendiente, permisoDeFabrica, sanearPermiso, type PermisoControl, SESION_INACTIVA_MS, SESION_MAX_MS, LATIDO_INTERVALO_MS, LATIDO_TOLERANCIA_MS } from "../sesion";
 import { definicion } from "../niveles";
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
@@ -254,6 +254,165 @@ describe("puerta de control entre neuronas", () => {
     it("una orden para otra neurona no se ejecuta aquí", async () => {
         await emparejar();
         expect((await puerta.recibir(await firmar(mac, "abrir-sesion", {}, { para: NEURONA_MAC }))).motivo).toBe("otro-destino");
+    });
+
+    it("la sesión expira si no hay latido durante 45s (no 2 min ni 1 h)", async () => {
+        await emparejar();
+        const sesion = await abrirSesion();
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).ok).toBe(true);
+        
+        // A los 44s de inactividad: la sesión sigue viva
+        reloj += 44_000;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).ok).toBe(true);
+        
+        // A los 45s: la sesión caduca
+        reloj += 1_000;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).motivo).toBe("sesion-caducada");
+    });
+
+    it("un latido cada 10s mantiene la sesión viva indefinidamente", async () => {
+        await emparejar();
+        const sesion = await abrirSesion();
+        
+        // Simular latidos cada 10s durante 5 minutos
+        for (let i = 0; i < 30; i++) {
+            reloj += LATIDO_INTERVALO_MS;
+            const r = await puerta.recibir(await firmar(mac, "latido", {}, { sesion }));
+            expect(r.ok).toBe(true);
+        }
+        
+        // La sesión sigue viva después de 5 minutos
+        expect(puerta.sesionActiva()).not.toBeNull();
+    });
+
+    it("la actividad de pantalla cuenta como latido y mantiene la sesión", async () => {
+        await emparejar();
+        const sesion = await abrirSesion();
+        
+        // Pantalla inicia (actividad) a los 40s
+        reloj += 40_000;
+        expect((await puerta.recibir(await firmar(mac, "pantalla-iniciar", {}, { sesion }))).ok).toBe(true);
+        
+        // A los 44s desde la actividad (84s total): sigue viva
+        reloj += 44_000;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).ok).toBe(true);
+        
+        // A los 45s desde la actividad (85s total): caduca
+        reloj += 1_000;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).motivo).toBe("sesion-caducada");
+    });
+
+    it("la sesión caducada se reabre sola dentro de la misma aceptación (sin pedir aceptar de nuevo)", async () => {
+        await emparejar();
+        const sesion1 = await abrirSesion();
+        
+        // Dejar caducar la sesión (45s sin latido)
+        reloj += 46_000;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion: sesion1 }))).motivo).toBe("sesion-caducada");
+        
+        // Reabrir con la MISMA aceptación (mismo controlador, permiso encendido)
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r.ok).toBe(true);
+        const sesion2 = (r.resultado as { sesion: string }).sesion;
+        
+        // Debe ser una sesión nueva (token distinto) pero sin pedir aceptar de nuevo
+        expect(sesion2).not.toBe(sesion1);
+        expect(puerta.sesionActiva()?.de).toBe(mac.huella);
+    });
+
+    it("por defecto, neuronas de la misma cuenta no tienen límite de tiempo", async () => {
+        await emparejar();
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r.ok).toBe(true);
+        const resultado = r.resultado as { limite: number | null; caduca: string };
+        expect(resultado.limite).toBeNull();
+        // caduca debe ser inicio + SESION_MAX_MS (tope de seguridad)
+        const caducidad = Date.parse(resultado.caduca);
+        const inicio = reloj;
+        expect(caducidad - inicio).toBe(SESION_MAX_MS);
+    });
+
+    it("al aceptar, se puede establecer un límite de tiempo por defecto (ej. 15 min)", async () => {
+        await emparejar();
+        // Modificar el controlador aceptado para añadir límite por defecto
+        const limite15min = reloj + 15 * 60_000;
+        permiso = {
+            ...permiso,
+            controladores: permiso.controladores.map((c) =>
+                c.huella === mac.huella ? { ...c, limiteDefecto: limite15min, limiteMaximo: limite15min } : c
+            ),
+        };
+        
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r.ok).toBe(true);
+        const resultado = r.resultado as { limite: number | null; caduca: string };
+        expect(resultado.limite).toBe(limite15min);
+        const caducidad = Date.parse(resultado.caduca);
+        expect(caducidad).toBe(limite15min);
+    });
+
+    it("al aceptar, se puede establecer un límite máximo y el controlador puede pedir menos", async () => {
+        await emparejar();
+        // Dueño acepta con máximo 1 hora
+        const limiteMaximo = reloj + 60 * 60_000;
+        permiso = {
+            ...permiso,
+            controladores: permiso.controladores.map((c) =>
+                c.huella === mac.huella ? { ...c, limiteDefecto: null, limiteMaximo: limiteMaximo } : c
+            ),
+        };
+        
+        // Controlador pide 30 min
+        const limite30min = reloj + 30 * 60_000;
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion", { limite: limite30min }));
+        expect(r.ok).toBe(true);
+        const resultado = r.resultado as { limite: number | null; caduca: string };
+        expect(resultado.limite).toBe(limite30min);
+    });
+
+    it("el controlador no puede superar el límite máximo establecido por el dueño", async () => {
+        await emparejar();
+        // Dueño acepta con máximo 15 min
+        const limiteMaximo = reloj + 15 * 60_000;
+        permiso = {
+            ...permiso,
+            controladores: permiso.controladores.map((c) =>
+                c.huella === mac.huella ? { ...c, limiteDefecto: null, limiteMaximo: limiteMaximo } : c
+            ),
+        };
+        
+        // Controlador pide 1 hora (supera el máximo)
+        const limite1hora = reloj + 60 * 60_000;
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion", { limite: limite1hora }));
+        expect(r.ok).toBe(true);
+        const resultado = r.resultado as { limite: number | null; caduca: string };
+        // Debe usar el máximo del dueño
+        expect(resultado.limite).toBe(limiteMaximo);
+    });
+
+    it("la sesión caduca al alcanzar el límite de tiempo elegido", async () => {
+        await emparejar();
+        // Usar un límite corto (2s) para evitar el timeout de latidos (45s)
+        const limite2s = reloj + 2_000;
+        permiso = {
+            ...permiso,
+            controladores: permiso.controladores.map((c) =>
+                c.huella === mac.huella ? { ...c, limiteDefecto: limite2s, limiteMaximo: limite2s } : c
+            ),
+        };
+        
+        const r = await puerta.recibir(await firmar(mac, "abrir-sesion"));
+        expect(r.ok).toBe(true);
+        const sesion = (r.resultado as { sesion: string }).sesion;
+        
+        // Antes del límite: ok (enviamos latido para mantener viva)
+        reloj += 1_000;
+        await puerta.recibir(await firmar(mac, "latido", {}, { sesion }));
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).ok).toBe(true);
+        
+        // En el límite: caduca por límite de tiempo
+        reloj = limite2s;
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion }))).motivo).toBe("sesion-caducada");
     });
 
     it("la simulación de corte IP queda marcada SIMULACION en el registro", async () => {
