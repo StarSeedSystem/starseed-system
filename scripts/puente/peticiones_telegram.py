@@ -482,7 +482,11 @@ def _clientes_de_encargo() -> Any:
     """Clientes reales que el productor necesita para un encargo: NotebookLM (create, ask, generate,
     download…) y Drive (carpeta, doc, archivo). DIR1121B: PET1121A los construye en peticiones_clientes.py;
     mientras no existan devuelve None y el encargo se atiende como petición normal. Nunca devuelve las
-    funciones sueltas de peticiones_notebooklm (era el fallo «'function' object has no attribute 'doc'»)."""
+    funciones sueltas de peticiones_notebooklm (era el fallo «'function' object has no attribute 'doc'»).
+
+    Además, verifica que el token de Google tenga permiso de escritura en Drive. Si solo tiene lectura,
+    devuelve None y queda una acción clara para Alex en acciones-de-alex.
+    """
     try:
         import peticiones_clientes as _pc
         nb_c, drive_c = _pc.ClienteNotebookLM(), _pc.ClienteDrive()
@@ -492,7 +496,47 @@ def _clientes_de_encargo() -> Any:
         return None
     if not all(callable(getattr(nb_c, m, None)) for m in ("create", "ask", "generate", "download")):
         return None
+    # Verificar permiso de escritura en Drive antes de habilitar el modo encargo
+    try:
+        ok, detalle = _pc.verificar_permiso_drive_escritura()
+        if not ok:
+            log("Drive sin permiso de escritura:", detalle)
+            # Registrar acción para Alex (sin imprimir token ni clave)
+            _registrar_accion_alex_drive_escritura(detalle)
+            return None
+    except Exception as e:
+        log("Error verificando permiso Drive:", e)
+        return None
     return nb_c, drive_c
+
+
+def _registrar_accion_alex_drive_escritura(detalle: str) -> None:
+    """Registra una acción clara para Alex cuando Drive no tiene permiso de escritura."""
+    try:
+        acciones_path = os.path.join(DIR, "acciones-de-alex.json")
+        acciones = leer_json(acciones_path, [])
+        accion = {
+            "id": f"drive-escritura-{int(time.time())}",
+            "tipo": "google-oauth-escritura",
+            "titulo": "Volver a autorizar Drive con permiso de escritura",
+            "descripcion": (
+                "El token actual de Google solo tiene permiso de lectura. "
+                "Para usar el modo de encargo (carpetas y panel en Drive), "
+                "necesitas reautorizar con scope 'drive' o 'drive.file'.\n\n"
+                "Paso exacto:\n"
+                "  cd /Users/alex/Documents/starseed-os-main && "
+                "~/.starseed/herramientas/alta-cuentas-google.py alex --scopes drive,drive.file\n\n"
+                f"Detalle técnico: {detalle}"
+            ),
+            "estado": "pendiente",
+            "creada": time.time(),
+        }
+        # Evitar duplicados
+        if not any(a.get("tipo") == "google-oauth-escritura" and a.get("estado") == "pendiente" for a in acciones):
+            acciones.append(accion)
+            escribir_json(acciones_path, acciones)
+    except Exception as e:
+        log("No se pudo registrar acción para Alex:", e)
 
 
 def atender(p: dict[str, Any]) -> None:
@@ -565,8 +609,37 @@ def atender_encargo(p: dict[str, Any], plan: dict[str, Any]) -> None:
         decir(texto_avance)
     
     def enviar_entregable(tipo: str, ruta_local: str, titulo: str, enlace_drive: str) -> None:
-        # Enviar archivo al chat si es posible
-        pass
+        """Envía el archivo generado al chat de Telegram."""
+        if not os.path.exists(ruta_local):
+            log("enviar_entregable: archivo no existe", ruta_local)
+            return
+        tam = os.path.getsize(ruta_local)
+        if tam == 0:
+            log("enviar_entregable: archivo vacío", ruta_local)
+            return
+        nombre_archivo = os.path.basename(ruta_local)
+        pie = f"{tipo.capitalize()} · {titulo}"
+        if enlace_drive:
+            pie += f"\nDrive: {enlace_drive}"
+        
+        # Determinar método de Telegram según tipo y tamaño
+        try:
+            if tipo == "infographic" and tam < 10 * 1024 * 1024:
+                _telegram_send_photo(ruta_local, pie, nombre_archivo)
+                _telegram_send_document(ruta_local, pie + " (calidad completa)", nombre_archivo)
+            elif tipo == "audio":
+                _telegram_send_audio(ruta_local, pie, nombre_archivo)
+            elif tipo == "video":
+                if tam > 49 * 1024 * 1024:
+                    log("enviar_entregable: vídeo demasiado grande para Telegram", tam)
+                    decir(f"⚠️ {titulo}: archivo demasiado grande para Telegram ({tam//1024//1024} MB). Disponible en Drive: {enlace_drive}")
+                else:
+                    _telegram_send_video(ruta_local, pie, nombre_archivo)
+            else:
+                _telegram_send_document(ruta_local, pie, nombre_archivo)
+        except Exception as e:
+            log("enviar_entregable falló:", e)
+            decir(f"⚠️ No pude enviar {titulo} al chat (disponible en Drive: {enlace_drive})")
     
     try:
         ejecutar_encargo(
@@ -583,7 +656,116 @@ def atender_encargo(p: dict[str, Any], plan: dict[str, Any]) -> None:
         raise
     except Exception as e:
         log("encargo falló", str(e))
+        # Mensaje en lenguaje llano para el usuario
+        msg = _mensaje_error_encargo_llano(e)
+        decir(msg)
         raise
+
+
+def _telegram_send_photo(ruta: str, caption: str, filename: str) -> dict[str, Any]:
+    """Envía foto a Telegram."""
+    import uuid
+    frontera = uuid.uuid4().hex
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    partes = [
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{CHAT}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n{caption[:1000]}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="photo"; filename="{filename}"\r\nContent-Type: image/png\r\n\r\n').encode() + contenido + b'\r\n',
+        (f'--{frontera}--\r\n').encode(),
+    ]
+    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    req = urllib.request.Request(url, b"".join(partes), {"Content-Type": f"multipart/form-data; boundary={frontera}"})
+    with urllib.request.urlopen(req, timeout=900) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _telegram_send_document(ruta: str, caption: str, filename: str) -> dict[str, Any]:
+    """Envía documento a Telegram."""
+    import uuid
+    frontera = uuid.uuid4().hex
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    partes = [
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{CHAT}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n{caption[:1000]}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\nContent-Type: application/octet-stream\r\n\r\n').encode() + contenido + b'\r\n',
+        (f'--{frontera}--\r\n').encode(),
+    ]
+    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+    req = urllib.request.Request(url, b"".join(partes), {"Content-Type": f"multipart/form-data; boundary={frontera}"})
+    with urllib.request.urlopen(req, timeout=900) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _telegram_send_audio(ruta: str, caption: str, filename: str) -> dict[str, Any]:
+    """Envía audio a Telegram."""
+    import uuid
+    frontera = uuid.uuid4().hex
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    partes = [
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{CHAT}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n{caption[:1000]}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="audio"; filename="{filename}"\r\nContent-Type: audio/mpeg\r\n\r\n').encode() + contenido + b'\r\n',
+        (f'--{frontera}--\r\n').encode(),
+    ]
+    url = f"https://api.telegram.org/bot{TOKEN}/sendAudio"
+    req = urllib.request.Request(url, b"".join(partes), {"Content-Type": f"multipart/form-data; boundary={frontera}"})
+    with urllib.request.urlopen(req, timeout=900) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _telegram_send_video(ruta: str, caption: str, filename: str) -> dict[str, Any]:
+    """Envía vídeo a Telegram."""
+    import uuid
+    frontera = uuid.uuid4().hex
+    with open(ruta, "rb") as f:
+        contenido = f.read()
+    partes = [
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n{CHAT}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n{caption[:1000]}\r\n').encode(),
+        (f'--{frontera}\r\nContent-Disposition: form-data; name="video"; filename="{filename}"\r\nContent-Type: video/mp4\r\n\r\n').encode() + contenido + b'\r\n',
+        (f'--{frontera}--\r\n').encode(),
+    ]
+    url = f"https://api.telegram.org/bot{TOKEN}/sendVideo"
+    req = urllib.request.Request(url, b"".join(partes), {"Content-Type": f"multipart/form-data; boundary={frontera}"})
+    with urllib.request.urlopen(req, timeout=900) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _mensaje_error_encargo_llano(e: Exception) -> str:
+    """Convierte una excepción técnica en un mensaje en lenguaje llano para el usuario."""
+    err = str(e)
+    # Errores comunes y sus explicaciones
+    if "Authentication expired" in err or "Run 'notebooklm login'" in err:
+        return (
+            "❌ La sesión de NotebookLM ha caducado.\n"
+            "Se necesita renovar la autenticación. El sistema lo intentará automáticamente.\n"
+            "Si persiste, ejecuta en la Mac: `notebooklm login`"
+        )
+    if "timeout" in err.lower():
+        return (
+            "⏱️ La operación tardó demasiado y se canceló.\n"
+            "Puede ser por carga alta o red lenta. Se reintentará automáticamente."
+        )
+    if "quota" in err.lower() or "rate limit" in err.lower() or "429" in err:
+        return (
+            "📊 Se alcanzó el límite de uso de la API.\n"
+            "El sistema cambiará a otro modelo gratuito y reintentará."
+        )
+    if "drive" in err.lower() and ("permission" in err.lower() or "403" in err):
+        return (
+            "🔒 No hay permiso para escribir en Google Drive.\n"
+            "Reautoriza la cuenta con alcance de escritura (ver /acciones)."
+        )
+    if "not found" in err.lower() or "404" in err:
+        return (
+            "🔍 No se encontró el recurso solicitado (cuaderno, fuente o archivo).\n"
+            "Verifica que el ID sea correcto."
+        )
+    # Fallback genérico
+    return f"❌ Error en el encargo: {err[:400]}\nSe reintentará automáticamente. Si persiste, revisa /estado."
 
 
 def atender_alcance(p: dict[str, Any], plan: dict[str, Any]) -> None:
