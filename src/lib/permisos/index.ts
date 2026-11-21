@@ -4,3 +4,4 @@
 export * from "./tipos";
 export * from "./motor";
 export * from "./motor-extra";
+export * from "./medios";
