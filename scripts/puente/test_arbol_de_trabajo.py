@@ -239,5 +239,47 @@ class TestColasArchivadas(unittest.TestCase):
             with self.subTest(ruta=ruta):
                 self.assertEqual(clasificar(" D " + ruta, raiz=self.raiz)[2], [ruta])
 
+class TestIdentificarEditores(unittest.TestCase):
+    """Pruebas de detección de quién edita main (DIR1121C)."""
+
+    def test_generar_informe_editores_no_falla_sin_lsof(self):
+        """Si lsof no está disponible o falla, devuelve estructura vacía sin error."""
+        from arbol_de_trabajo import generar_informe_editores
+        informe = generar_informe_editores("/ruta/inexistente/que/no/existe")
+        self.assertIn("timestamp", informe)
+        self.assertIn("editores_detectados", informe)
+        self.assertIn("otros_procesos", informe)
+        self.assertEqual(informe["editores_detectados"], [])
+        self.assertEqual(informe["otros_procesos"], [])
+
+    def test_corregir_configuracion_editor_conocidos(self):
+        """Editores conocidos devuelven instrucciones específicas."""
+        from arbol_de_trabajo import corregir_configuracion_editor
+        
+        antigravity = corregir_configuracion_editor("Antigravity IDE", "/tmp/wt")
+        self.assertIn("comando", antigravity)
+        self.assertIn("Antigravity", antigravity["comando"])
+        
+        codex = corregir_configuracion_editor("Codex CLI", "/tmp/wt")
+        self.assertIn("STARSEED_WT", codex["comando"])
+        
+        opencode = corregir_configuracion_editor("opencode (agente)", "/tmp/wt")
+        self.assertIn("worktree", opencode["config"].lower())
+
+    def test_corregir_configuracion_editor_desconocido(self):
+        """Editor desconocido devuelve fallback genérico."""
+        from arbol_de_trabajo import corregir_configuracion_editor
+        resultado = corregir_configuracion_editor("EditorDesconocidoXYZ", "/tmp/wt")
+        self.assertEqual(resultado["metodo"], "desconocido")
+        self.assertIn("EditorDesconocidoXYZ", resultado["config"])
+
+    def test_identificar_editores_main_estructura(self):
+        """identificar_editores_main devuelve lista con estructura esperada."""
+        from arbol_de_trabajo import identificar_editores_main
+        # Sin lsof o sin permisos, devuelve lista vacía
+        resultado = identificar_editores_main("/ruta/inexistente/que/no/existe")
+        self.assertIsInstance(resultado, list)
+
+
 if __name__ == "__main__":
     unittest.main()

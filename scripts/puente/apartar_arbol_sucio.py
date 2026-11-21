@@ -7,6 +7,10 @@ integración en curso (cerrojo integrar.lock), guarda parche + copia de cada
 archivo + MANIFIESTO.json en ~/.starseed/cuarentena/<fecha-hora>/ (nunca borra
 sin copia verificada), deja main limpio, lo anuncia en el canal Principal con la
 lista de archivos y crea una tarea para volver a aplicar el cambio con pruebas.
+
+Incluye detección de QUIÉN edita main directamente (Antigravity IDE, Codex,
+agente con directorio equivocado) y genera instrucciones para corregir su
+configuración a worktree.
 """
 import json
 import os
@@ -36,6 +40,7 @@ UMBRAL_SEGUNDOS = 900
 try:
     sys.path.insert(0, os.path.join(ROOT, "scripts", "puente"))
     from arbol_de_trabajo import PROPIAS as ARCHIVOS_PROPIOS
+    from arbol_de_trabajo import generar_informe_editores, corregir_configuracion_editor
 except Exception:
     ARCHIVOS_PROPIOS = (
         "memory/aprendizaje-olas.md",
@@ -44,6 +49,10 @@ except Exception:
         ".cursor/rules/puente-de-mando.mdc",
         "memory/workflow-actual.md",
     )
+    def generar_informe_editores(raiz=None):
+        return {"timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "editores_detectados": [], "otros_procesos": []}
+    def corregir_configuracion_editor(editor, worktree_ruta):
+        return {"metodo": "desconocido", "comando": "", "config": f"No hay instrucción para '{editor}'."}
 
 
 def _git(*args, **kwargs) -> str:
@@ -171,6 +180,18 @@ def _generar_parche(carpeta: str) -> bool:
 
 def _escribir_manifiesto(carpeta: str, rutas: List[str], copiados: List[str]) -> Dict:
     """Escribe MANIFIESTO.json con metadatos de la cuarentena."""
+    # Detectar quién tiene main abierto
+    informe_editores = generar_informe_editores(ROOT)
+    
+    # Generar instrucciones de corrección para cada editor detectado
+    correcciones = {}
+    for ed in informe_editores.get("editores_detectados", []):
+        editor_nombre = ed.get("editor")
+        if editor_nombre:
+            # Intentar determinar worktree base
+            wt_base = os.environ.get("STARSEED_WT") or os.path.join(os.path.dirname(ROOT), "starseed-wt")
+            correcciones[editor_nombre] = corregir_configuracion_editor(editor_nombre, wt_base)
+    
     manifiesto = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "epoch": time.time(),
@@ -183,6 +204,8 @@ def _escribir_manifiesto(carpeta: str, rutas: List[str], copiados: List[str]) ->
         "raiz_repo": ROOT,
         "rama": _git("branch", "--show-current").strip() or "main",
         "commit_head": _git("log", "--oneline", "-1").strip(),
+        "quien_edita_main": informe_editores,
+        "correcciones_sugeridas": correcciones,
     }
     with open(os.path.join(carpeta, "MANIFIESTO.json"), "w", encoding="utf-8") as f:
         json.dump(manifiesto, f, ensure_ascii=False, indent=2)
@@ -196,10 +219,18 @@ def _anunciar_en_canal(manifiesto: Dict, carpeta: str) -> None:
         archivos_lista = ", ".join([a["ruta"] for a in manifiesto["archivos"][:10]])
         if len(manifiesto["archivos"]) > 10:
             archivos_lista += f" … (+{len(manifiesto['archivos']) - 10} más)"
+        
+        # Info de quién edita main
+        editores = manifiesto.get("quien_edita_main", {}).get("editores_detectados", [])
+        info_editores = ""
+        if editores:
+            nombres = [f"{e['editor']} (pid {e['pid']})" for e in editores]
+            info_editores = f" Editores detectados en main: {', '.join(nombres)}."
+        
         mensaje = (
             f"🔒 CUARENTENA: main tenía {manifiesto['archivos_totales']} archivo(s) con cambios "
-            f"sin commit >15 min sin integración en curso. Apartados a {carpeta}: {archivos_lista}. "
-            f"Se creará tarea para reaplicar con pruebas."
+            f"sin commit >15 min sin integración en curso. Apartados a {carpeta}: {archivos_lista}."
+            f"{info_editores} Se creará tarea para reaplicar con pruebas."
         )
         fila = {
             "t": time.strftime("%Y-%m-%d %H:%M:%S"),

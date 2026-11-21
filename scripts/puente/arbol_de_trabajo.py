@@ -16,10 +16,15 @@ propio y sigue, y se planta solo si hay algo ajeno).
 
 Módulo PURO: entra el texto de `git status --porcelain`, salen dos listas. La única lectura de
 disco es comprobar que una cola versionada sigue siendo una lista JSON de tareas con `id`.
+
+(2026-11-21, DIR1121C) Nuevo: detectar QUÉ proceso/editor tiene el main abierto
+(Antigravity IDE, Codex, agente con directorio equivocado) para incluirlo en el
+informe de cuarentena y corregir su configuración a worktree.
 """
 
 import json
 import os
+import subprocess
 
 # Este módulo vive en <raíz>/scripts/puente/: tres carpetas arriba está el repositorio.
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -175,3 +180,156 @@ def solo_es_nuestro(porcelain, propias=PROPIAS):
     """
     mias, ajenas = repartir(porcelain, propias)
     return bool(mias) and not ajenas
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DETECCIÓN DE QUIÉN EDITA MAIN DIRECTAMENTE (DIR1121C)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Procesos conocidos que pueden editar main directamente (nombre en lsof/ps -> nombre legible)
+EDITORES_CONOCIDOS = {
+    "Antigravity": "Antigravity IDE",
+    "antigravity": "Antigravity IDE",
+    "codex": "Codex CLI",
+    "Codex": "Codex CLI",
+    "opencode": "opencode (agente)",
+    "opencode-agent": "opencode (agente)",
+    "claude": "Claude Code",
+    "cursor": "Cursor",
+    "code": "VS Code",
+    "vscode": "VS Code",
+    "zed": "Zed",
+    "sublime_text": "Sublime Text",
+    "vim": "Vim/Neovim",
+    "nvim": "Neovim",
+    "emacs": "Emacs",
+}
+
+
+def _ejecutar_lsof(raiz: str) -> list[dict]:
+    """Ejecuta lsof en la raíz del repo y devuelve lista de procesos con archivos abiertos.
+
+    Cada entrada: {"pid": int, "proceso": str, "usuario": str, "archivos": [str]}
+    """
+    try:
+        # lsof +D sigue directorios recursivamente; -F pcn da PID, comando, nombre archivo
+        salida = subprocess.run(
+            ["lsof", "+D", raiz, "-F", "pcn"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+
+    procesos: dict[int, dict] = {}
+    pid_actual = None
+    for linea in salida.splitlines():
+        if not linea:
+            continue
+        tipo = linea[0]
+        valor = linea[1:]
+        if tipo == "p":  # PID
+            pid_actual = int(valor)
+            if pid_actual not in procesos:
+                procesos[pid_actual] = {"pid": pid_actual, "proceso": "", "usuario": "", "archivos": []}
+        elif tipo == "c" and pid_actual is not None:  # comando
+            procesos[pid_actual]["proceso"] = valor
+        elif tipo == "n" and pid_actual is not None:  # nombre archivo
+            procesos[pid_actual]["archivos"].append(valor)
+
+    return list(procesos.values())
+
+
+def identificar_editores_main(raiz: str | None = None) -> list[dict]:
+    """Detecta qué procesos tienen el main repo abierto e identifica editores conocidos.
+
+    Args:
+        raiz: Ruta al repositorio main. Por defecto usa RAIZ del módulo.
+
+    Returns:
+        Lista de dicts con: {"pid", "proceso", "editor": str|None, "archivos": [str]}
+        "editor" es el nombre legible si el proceso coincide con EDITORES_CONOCIDOS.
+    """
+    raiz = raiz or RAIZ
+    procesos = _ejecutar_lsof(raiz)
+    for p in procesos:
+        nombre_proceso = p["proceso"].lower()
+        p["editor"] = None
+        for clave, nombre_legible in EDITORES_CONOCIDOS.items():
+            if clave.lower() in nombre_proceso:
+                p["editor"] = nombre_legible
+                break
+    return procesos
+
+
+def generar_informe_editores(raiz: str | None = None) -> dict:
+    """Genera un informe estructurado de quién tiene main abierto.
+
+    Returns:
+        {"timestamp": str, "editores_detectados": [...], "otros_procesos": [...]}
+    """
+    raiz = raiz or RAIZ
+    todos = identificar_editores_main(raiz)
+    editores = [p for p in todos if p["editor"]]
+    otros = [p for p in todos if not p["editor"]]
+    return {
+        "timestamp": __import__("time").strftime("%Y-%m-%d %H:%M:%S"),
+        "editores_detectados": [
+            {"pid": p["pid"], "proceso": p["proceso"], "editor": p["editor"], "archivos": p["archivos"][:20]}
+            for p in editores
+        ],
+        "otros_procesos": [
+            {"pid": p["pid"], "proceso": p["proceso"], "archivos": p["archivos"][:10]}
+            for p in otros
+        ],
+    }
+
+
+def corregir_configuracion_editor(editor: str, worktree_ruta: str) -> dict:
+    """Genera instrucciones para corregir la configuración de un editor a worktree.
+
+    Args:
+        editor: Nombre del editor (ej. "Antigravity IDE", "Codex CLI", "opencode (agente)")
+        worktree_ruta: Ruta del worktree que debería usar.
+
+    Returns:
+        Dict con instrucciones específicas por editor.
+    """
+    instrucciones = {
+        "Antigravity IDE": {
+            "metodo": "abrir worktree directamente",
+            "comando": f"open -a 'Antigravity IDE' '{worktree_ruta}'",
+            "config": "Antigravity no tiene config persistente; abrir la carpeta del worktree.",
+        },
+        "Codex CLI": {
+            "metodo": "variable de entorno STARSEED_WT",
+            "comando": f"STARSEED_WT={os.path.dirname(worktree_ruta)} codex",
+            "config": "Codex usa STARSEED_WT para saber la base de worktrees. Asegúrate de que el agente reciba el worktree correcto vía --worktree.",
+        },
+        "opencode (agente)": {
+            "metodo": "lanzar en worktree",
+            "comando": f"opencode -C {worktree_ruta}",
+            "config": "El orquestador ya lanza opencode con -C <worktree>. Si un agente edita main, es que se lanzó sin -C o con directorio equivocado. Revisar el lanzador.",
+        },
+        "VS Code": {
+            "metodo": "abrir worktree",
+            "comando": f"code '{worktree_ruta}'",
+            "config": "VS Code recuerda la última carpeta. Cerrar main y abrir worktree explícitamente.",
+        },
+        "Cursor": {
+            "metodo": "abrir worktree",
+            "comando": f"cursor '{worktree_ruta}'",
+            "config": "Igual que VS Code.",
+        },
+        "Claude Code": {
+            "metodo": "cd al worktree",
+            "comando": f"cd '{worktree_ruta}' && claude",
+            "config": "Claude Code usa el cwd actual. Lanzar desde el worktree.",
+        },
+    }
+    return instrucciones.get(editor, {
+        "metodo": "desconocido",
+        "comando": "",
+        "config": f"No hay instrucción automática para '{editor}'. Revisar manualmente.",
+    })
