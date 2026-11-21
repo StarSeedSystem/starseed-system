@@ -51,32 +51,40 @@ describe("registro-libre: widget AURORA_LAST usa AstrauraLibreProto", () => {
 
         expect(resultado).not.toBeNull();
         expect(React.isValidElement(resultado)).toBe(true);
-        expect(resultado?.props?.children?.props?.["data-testid"]).toBe("astraura-libre-proto");
-        expect(resultado?.props?.children?.props?.["data-widget"]).toBe(JSON.stringify(widget));
-        expect(resultado?.props?.children?.props?.["data-on-update"]).toBe("true");
+        const props = resultado?.props as Record<string, any>;
+        expect(props?.children?.props?.["data-testid"]).toBe("astraura-libre-proto");
+        expect(props?.children?.props?.["data-widget"]).toBe(JSON.stringify(widget));
+        expect(props?.children?.props?.["data-on-update"]).toBe("true");
     });
 
     it("los demás tipos siguen devolviendo lo mismo", () => {
         const reloj = widgetLibre(baseWidget("w2", "CLOCK_DATE"), vi.fn());
-        expect(reloj?.props?.children?.props?.["data-testid"]).toBe("reloj-libre");
+        const relojProps = reloj?.props as Record<string, any>;
+        expect(relojProps?.children?.props?.["data-testid"]).toBe("reloj-libre");
 
         const clima = widgetLibre(baseWidget("w3", "WEATHER_BASIC"));
-        expect(clima?.props?.children?.props?.["data-testid"]).toBe("clima-libre");
+        const climaProps = clima?.props as Record<string, any>;
+        expect(climaProps?.children?.props?.["data-testid"]).toBe("clima-libre");
 
         const notif = widgetLibre(baseWidget("w4", "NOTIFICATIONS"));
-        expect(notif?.props?.children?.props?.["data-testid"]).toBe("notificaciones-libre");
+        const notifProps = notif?.props as Record<string, any>;
+        expect(notifProps?.children?.props?.["data-testid"]).toBe("notificaciones-libre");
 
         const accesos = widgetLibre(baseWidget("w5", "QUICK_ACCESS"));
-        expect(accesos?.props?.children?.props?.["data-testid"]).toBe("accesos-libre");
+        const accesosProps = accesos?.props as Record<string, any>;
+        expect(accesosProps?.children?.props?.["data-testid"]).toBe("accesos-libre");
 
         const estado = widgetLibre(baseWidget("w6", "SYSTEM_STATUS"));
-        expect(estado?.props?.children?.props?.["data-testid"]).toBe("estado-sistema-libre");
+        const estadoProps = estado?.props as Record<string, any>;
+        expect(estadoProps?.children?.props?.["data-testid"]).toBe("estado-sistema-libre");
 
         const eventos = widgetLibre(baseWidget("w7", "MY_EVENTS"));
-        expect(eventos?.props?.children?.props?.["data-testid"]).toBe("eventos-libre");
+        const eventosProps = eventos?.props as Record<string, any>;
+        expect(eventosProps?.children?.props?.["data-testid"]).toBe("eventos-libre");
 
         const tareas = widgetLibre(baseWidget("w8", "TASKS_QUICK"));
-        expect(tareas?.props?.children?.props?.["data-testid"]).toBe("tareas-libre");
+        const tareasProps = tareas?.props as Record<string, any>;
+        expect(tareasProps?.children?.props?.["data-testid"]).toBe("tareas-libre");
     });
 
     it("TIPOS_CON_DISENO_LIBRE no cambia", () => {
