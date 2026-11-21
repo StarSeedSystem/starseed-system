@@ -4211,3 +4211,92 @@ html.ss-gesto [data-ventana-escritorio] {
   animation: initial;
   transition: initial;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   ORBE BINARIO · escenario fijo 16:9 (patrón Frontend Slides)
+   El lienzo mide 1920×1080 y se escala ENTERO al visor con
+   `transform` —las bandas son del visor, no del layout—. Las
+   transiciones de estado idle → activo → error solo tocan
+   opacidad y escala, nunca width/height/top/left: cero reflujo.
+   Duraciones y curvas son los tokens ya existentes (--dur-* y
+   --ease-*); con prefers-reduced-motion queda solo el fundido.
+   Los valores espejan ESTADOS_ORBE en
+   src/lib/video/editorial-paper/transitions.ts.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --orbe-escenario-aspecto: 16 / 9;
+  --orbe-escenario-ancho: 1920px;
+  --orbe-escenario-alto: 1080px;
+  --orbe-escenario-escala: 1;
+  --orbe-opacidad-idle: 0.72;
+  --orbe-opacidad-activo: 1;
+  --orbe-opacidad-error: 0.9;
+  --orbe-escala-idle: 1;
+  --orbe-escala-activo: 1.06;
+  --orbe-escala-error: 0.94;
+}
+
+.ss-orbe-visor {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: size;
+}
+
+.ss-orbe-escenario {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--orbe-escenario-ancho);
+  height: var(--orbe-escenario-alto);
+  aspect-ratio: var(--orbe-escenario-aspecto);
+  transform: scale(var(--orbe-escenario-escala, 1));
+  transform-origin: center;
+}
+
+.ss-orbe {
+  --orbe-opacidad: var(--orbe-opacidad-idle);
+  --orbe-escala: var(--orbe-escala-idle);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: var(--orbe-opacidad);
+  transform: scale(var(--orbe-escala));
+  will-change: opacity, transform;
+  transition-property: opacity, transform !important;
+  transition-duration: var(--dur-slow) !important;
+  transition-timing-function: var(--ease-glide) !important;
+}
+
+/* El estado de destino manda valores, duración y curva (espejo de ESTADOS_ORBE). */
+.ss-orbe[data-estado="idle"] {
+  --orbe-opacidad: var(--orbe-opacidad-idle);
+  --orbe-escala: var(--orbe-escala-idle);
+  transition-duration: var(--dur-slow) !important;
+  transition-timing-function: var(--ease-glide) !important;
+}
+.ss-orbe[data-estado="activo"] {
+  --orbe-opacidad: var(--orbe-opacidad-activo);
+  --orbe-escala: var(--orbe-escala-activo);
+  transition-duration: var(--dur-base) !important;
+  transition-timing-function: var(--ease-organic) !important;
+}
+.ss-orbe[data-estado="error"] {
+  --orbe-opacidad: var(--orbe-opacidad-error);
+  --orbe-escala: var(--orbe-escala-error);
+  transition-duration: var(--dur-fast) !important;
+  transition-timing-function: var(--ease-soft) !important;
+}
+
+/* Movimiento reducido: solo fundido de opacidad y escala fija (sin transform). */
+@media (prefers-reduced-motion: reduce) {
+  .ss-orbe,
+  .ss-orbe[data-estado] {
+    --orbe-escala: 1;
+    transform: none;
+    transition-property: opacity !important;
+    transition-duration: var(--dur-fast) !important;
+    transition-timing-function: var(--ease-soft) !important;
+  }
+}

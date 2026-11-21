@@ -256,4 +256,28 @@ Si encuentras un caso no cubierto:
 
 ---
 
+## 12. Orbe binario en escenario fijo (movimiento de estado)
+
+El orbe binario (identidad de Astraura) se mueve dentro de un **escenario fijo 16:9** que se
+escala entero al visor, como una diapositiva de Frontend Slides. El lienzo mide 1920×1080
+unidades de diseño y se ajusta con `transform: scale()`, nunca recolocando el contenido.
+
+- **Estados.** `idle` (opacidad 0,72 · escala 1) → `activo` (1 · 1,06) → `error` (0,9 · 0,94).
+  El estado de destino manda valores, duración y curva.
+- **Solo `opacity` y `transform`.** Prohibido animar `width`, `height`, `top`, `left`, `margin`
+  o `padding`: cambiar de estado no puede provocar layout shift ni reflujo.
+- **Tokens existentes.** `activo` usa `--dur-base`/`--ease-organic`, `error` `--dur-fast`/
+  `--ease-soft` e `idle` `--dur-slow`/`--ease-glide`. No se inventan duraciones paralelas.
+- **Movimiento reducido.** Con `prefers-reduced-motion: reduce` la transición cae a **solo
+  fundido de opacidad** y la escala queda fija en 1; el orbe no se encoge ni se agranda.
+- **Implementación.** Lógica pura y factor de escalado en
+  `src/lib/video/editorial-paper/transitions.ts` (`ESCENARIO_ORBE`, `ESTADOS_ORBE`,
+  `escalaEscenario`, `transicionOrbe`); tokens y clases `.ss-orbe-visor` / `.ss-orbe-escenario`
+  / `.ss-orbe[data-estado]` en `src/app/globals.css`. La etiqueta de estado nunca se apoya solo
+  en color: va con icono o texto (WCAG AA 4.5:1).
+- **Comprobación.** Móvil 390×844, plegable 280, tableta y TV 3840×2160: el escenario cabe con
+  bandas, sin overflow; con movimiento reducido se ve un fundido y ninguna escala.
+
+---
+
 *Estas reglas son cláusula viva, no pétrea. Pueden ampliarse, pero solo para ampliar libertad de personalización, jamás para restringirla.*
