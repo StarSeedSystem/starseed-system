@@ -43,11 +43,106 @@ import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
 import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
 
+type LimiteTiempo = "sin-limite" | "15min" | "1h" | "hasta";
+
+interface SelectorLimiteProps {
+    abierto: boolean;
+    onCerrar: () => void;
+    onElegir: (limite: LimiteTiempo, hasta?: number) => void;
+    nombreNeurona: string;
+    esOtraCuenta: boolean;
+    maximoPermitido?: number;
+}
+
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
 const abrirPaginaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirPaginaControl(neurona, nombre));
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function hhmmss(ms: number): string {
+    const s = Math.max(0, Math.round(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+}
+
+function SelectorLimite({ abierto, onCerrar, onElegir, nombreNeurona, esOtraCuenta, maximoPermitido }: SelectorLimiteProps) {
+    if (!abierto) return null;
+    const [hasta, setHasta] = useState<string>("");
+    const ahora = Date.now();
+    const opciones: { valor: LimiteTiempo; texto: string; ms?: number; deshabilitado?: boolean }[] = [
+        { valor: "sin-limite", texto: "Sin límite" },
+        { valor: "15min", texto: "15 min", ms: 15 * 60_000, deshabilitado: maximoPermitido !== undefined && maximoPermitido < 15 * 60_000 },
+        { valor: "1h", texto: "1 hora", ms: 60 * 60_000, deshabilitado: maximoPermitido !== undefined && maximoPermitido < 60 * 60_000 },
+        { valor: "hasta", texto: "Hasta…", ms: undefined },
+    ];
+    const horaPorDefecto = new Date(ahora + 60 * 60_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (!hasta) setHasta(horaPorDefecto);
+    return (
+        <div className="pointer-events-auto fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="selector-limite-titulo" data-testid="selector-limite">
+            <div className="w-full max-w-sm rounded-xl border border-white/20 bg-[#10131a]/95 p-4 text-[12px] text-white shadow-lg">
+                <h3 id="selector-limite-titulo" className="font-medium text-white/90 mb-3">
+                    Límite de tiempo para {nombreNeurona}
+                </h3>
+                {esOtraCuenta && maximoPermitido !== undefined && (
+                    <p className="text-amber-200/80 mb-3 text-[11px]">
+                        Esta neurona es de otra cuenta o pública. El máximo permitido es {hhmmss(maximoPermitido)}.
+                    </p>
+                )}
+                <div className="space-y-2" role="radiogroup" aria-labelledby="selector-limite-titulo">
+                    {opciones.map((o) => (
+                        <button
+                            key={o.valor}
+                            type="button"
+                            role="radio"
+                            aria-checked={false}
+                            disabled={o.deshabilitado}
+                            onClick={() => o.valor === "hasta" ? undefined : onElegir(o.valor, o.ms ? Date.now() + o.ms : undefined)}
+                            className={`w-full min-h-9 cursor-pointer rounded-lg border px-3 py-2 font-medium transition-colors text-left ${o.deshabilitado ? "cursor-not-allowed opacity-50 border-white/10 bg-white/5 text-white/40" : "border-white/20 bg-white/5 text-white/80 hover:bg-white/10"}`}
+                        >
+                            {o.texto}
+                            {o.ms && !o.deshabilitado && <span className="text-white/50 ml-2">({hhmmss(o.ms)})</span>}
+                            {o.deshabilitado && <span className="text-amber-300 ml-2">(máx. {hhmmss(maximoPermitido!)}</span>}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-3 space-y-2">
+                    <label className="flex items-center gap-2 text-white/80">
+                        <input
+                            type="time"
+                            value={hasta}
+                            onChange={(e) => setHasta(e.target.value)}
+                            className="rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[12px] text-white"
+                        />
+                        <span>Hora exacta (HH:MM)</span>
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const [h, m] = hasta.split(":").map(Number);
+                            const ts = new Date();
+                            ts.setHours(h, m, 0, 0);
+                            if (ts.getTime() <= ahora) ts.setDate(ts.getDate() + 1);
+                            const ms = ts.getTime() - ahora;
+                            if (maximoPermitido !== undefined && ms > maximoPermitido) return;
+                            onElegir("hasta", ts.getTime());
+                        }}
+                        className="w-full min-h-9 cursor-pointer rounded-lg bg-sky-500/80 px-3 py-2 font-medium text-black hover:bg-sky-400"
+                    >
+                        Confirmar hora
+                    </button>
+                </div>
+                <button type="button" onClick={onCerrar} className="w-full mt-3 min-h-9 cursor-pointer rounded-lg bg-white/10 px-3 py-2 text-white/70 hover:bg-white/20">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    );
+}
 
 function useCambios(): number {
     const [n, setN] = useState(0);
@@ -291,6 +386,8 @@ export function BandaControl() {
     // CTL1117I: ya no hay banda roja. Con `indicador=punto`, un punto en la esquina con el color de quien controla (y su panelito);
     // con `oculto` no se dibuja nada: quién controla y «Terminar» siguen en el panel de ajustes de control.
     const quienBase = quienControla(sesion, permiso);
+    // CTL1119A: sesión puede tener expira (timestamp fin de límite elegido al aceptar)
+    const expiraSesion = sesion && (sesion as unknown as { expira?: number }).expira;
     // CTL1119B: obtener métricas de calidad del lado del aparato
     const [calidadAparato, setCalidadAparato] = useState<MetricasCalidad | undefined>(undefined);
     useEffect(() => {
@@ -304,7 +401,7 @@ export function BandaControl() {
         }, 500);
         return () => clearInterval(int);
     }, [quienBase?.neurona]);
-    const quien = quienBase ? { ...quienBase, calidad: calidadAparato } : null;
+    const quien = quienBase ? { ...quienBase, calidad: calidadAparato, expira: expiraSesion } : null;
     // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
     const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
     if (!verPunto && !banco) return null;
@@ -347,6 +444,11 @@ export function ControlEntreNeuronasPanel() {
     const [sesionAct, setSesionAct] = useState<SesionActiva | null>(null); // CTL1117I: quién controla ahora (aunque el punto esté oculto)
     const [esperando, setEsperando] = useState<string | null>(null);
     const [alcance, setAlcance] = useState<"total" | "protegido">("total"); // CTL1117J · S2
+    // CTL1119A: selector de límite de tiempo al aceptar
+    const [selectorAbierto, setSelectorAbierto] = useState(false);
+    const [selectorHuella, setSelectorHuella] = useState<string | null>(null);
+    const [selectorEncender, setSelectorEncender] = useState(false);
+    const [selectorMaximoPermitido, setSelectorMaximoPermitido] = useState<number | undefined>(undefined);
     useEffect(() => {
         let vivo = true;
         const leer = () => void leerAjustesControl().then((a) => vivo && setAlcance(a.alcance));
@@ -478,22 +580,55 @@ export function ControlEntreNeuronasPanel() {
 
     const aceptar = useCallback(
         async (huella: string, encender = false) => {
+            const c = await import("@/lib/control-remoto/canal");
+            const antes = c.leerPermisoLocal();
+            const pendiente = antes.pendientes.find((x) => x.huella === huella);
+            if (!pendiente) return;
+            // CTL1119A: determinar si es de otra cuenta/pública y el máximo permitido
+            let maximoPermitido: number | undefined;
+            try {
+                const { uidActual } = await import("@/lib/consumo/usuario");
+                const cuentaPropia = await uidActual();
+                if (cuentaPropia && pendiente.cuenta.trim().toLowerCase() !== cuentaPropia.trim().toLowerCase()) {
+                    // Es de otra cuenta: el máximo sale del filtro de permisos del dueño (privado/público)
+                    // Por ahora usamos 1 hora como máximo por defecto para otras cuentas
+                    maximoPermitido = 60 * 60_000;
+                }
+            } catch {
+                // sin sesión: tratamos como otra cuenta por seguridad
+                maximoPermitido = 60 * 60_000;
+            }
+            setSelectorHuella(huella);
+            setSelectorEncender(encender);
+            setSelectorMaximoPermitido(maximoPermitido);
+            setSelectorAbierto(true);
+        },
+        [],
+    );
+
+    const confirmarAceptar = useCallback(
+        async (limite: LimiteTiempo, hasta?: number) => {
+            const huella = selectorHuella;
+            const encender = selectorEncender;
+            if (!huella) return;
+            setSelectorAbierto(false);
+            setSelectorHuella(null);
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
-            const quien = antes.pendientes.find((x) => x.huella === huella);
+            const pendiente = antes.pendientes.find((x) => x.huella === huella);
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
             await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
             // UNI1115M · costura g: para tocar este aparato (nivel «controlar») lo NATIVO enseña su diálogo con el código y solo
             // el «Sí» de la persona acepta; la página solo lo pide. Sin ese «Sí», las órdenes de entrada se rechazan.
-            if (quien && antes.nivel === "controlar") {
-                const r = await aceptarControladorNativo(quien.spki, quien.cuenta, quien.nombre);
-                if (r.ok) setAviso(`Mira este aparato: te enseña el código ${r.codigo ?? ""} de ${quien.nombre}. Si coincide con el que ves allí, di «Sí» para dejarle tocar la pantalla.`);
+            if (pendiente && antes.nivel === "controlar") {
+                const r = await aceptarControladorNativo(pendiente.spki, pendiente.cuenta, pendiente.nombre);
+                if (r.ok) setAviso(`Mira este aparato: te enseña el código ${r.codigo ?? ""} de ${pendiente.nombre}. Si coincide con el que ves allí, di «Sí» para dejarle tocar la pantalla.`);
                 else if (r.motivo && r.motivo !== "sin-soporte") setAviso(`Quedó aceptada para ver, pero no para tocar: ${palabrasMotivo(r.motivo) ?? r.motivo}`);
                 for (const ms of [1500, 6000, 15000]) setTimeout(leerPantallaEntrada, ms);
             }
         },
-        [cambiar, leerPantallaEntrada],
+        [cambiar, leerPantallaEntrada, selectorHuella, selectorEncender],
     );
     const quitar = useCallback(
         async (huella: string) => {
@@ -584,149 +719,159 @@ export function ControlEntreNeuronasPanel() {
 
     if (!permiso) return null;
     return (
-        <div id="control-entre-neuronas" className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
-            <div className="flex flex-wrap items-center gap-3">
-                <h3 className="flex-1 text-sm font-medium text-white/80">Control entre mis neuronas</h3>
-                <button
-                    role="switch"
-                    aria-checked={permiso.encendido}
-                    onClick={() => void cambiar((p) => ({ ...p, encendido: !p.encendido }))}
-                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${permiso.encendido ? "border-[#DC143C] bg-[#DC143C]/30 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
-                >
-                    {permiso.encendido ? "Encendido en este aparato" : "Apagado en este aparato"}
-                </button>
-            </div>
-            <p className="text-[12px] text-white/55">
-                Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
-                {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso a la vista y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
-            </p>
-            {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
-                <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
-                    <span className="min-w-0 flex-1">{TEXTO_CONTROL_APAGADO}</span>
-                    <button onClick={() => void cambiar((p) => ({ ...p, encendido: true }))} className="min-h-9 cursor-pointer rounded-md bg-amber-400/80 px-2 py-1 font-medium text-black transition-colors hover:bg-amber-400">
-                        Encender el control
-                    </button>
-                </div>
-            )}
-            <label className="flex items-center gap-2 text-[12px] text-white/70">
-                Nivel
-                <select
-                    value={permiso.nivel}
-                    onChange={(e) => {
-                        // CTL1118B: el valor se lee YA; `cambiar` espera una importación y para entonces React ya devolvió el <select> a su valor de antes (el nivel no cambiaba nunca).
-                        const nivel = e.target.value === "ver" ? "ver" : "controlar";
-                        void cambiar((p) => ({ ...p, nivel }));
-                    }}
-                    className="cursor-pointer rounded-md border border-white/20 bg-black/40 px-2 py-1"
-                >
-                    <option value="ver">ver (solo leer el estado)</option>
-                    <option value="controlar">controlar (órdenes de la app)</option>
-                </select>
-            </label>
-            <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
-            <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
-            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
-            <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (se crea al pedir control)"}</p>
-            {permiso.pendientes.map((x) => (
-                <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
-                    <PuntoColor color={colorDe(x.neurona, x.color)} />
-                    <span className="flex-1">
-                        {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
-                    </span>
-                    <button onClick={() => void aceptar(x.huella, !permiso.encendido)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
-                        {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
-                    </button>
-                    <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
-                        Rechazar
-                    </button>
-                </div>
-            ))}
-            {permiso.controladores.map((x) => (
-                <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
-                    <PuntoColor color={colorDe(x.neurona, x.color)} />
-                    <span className="flex-1">
-                        {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
-                    </span>
-                    <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
-                        Quitar
-                    </button>
-                </div>
-            ))}
-            {informe?.sesion?.estado === "aceptada" && informe.objetivo && (
-                <div className="flex flex-wrap items-center gap-2" data-testid="este-aparato-puede">
-                    <p className="min-w-0 flex-1 text-[12px] text-emerald-300/80">{quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}</p>
-                    {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
+        <>
+            <div id="control-entre-neuronas" className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
+                <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="flex-1 text-sm font-medium text-white/80">Control entre mis neuronas</h3>
                     <button
-                        onClick={() => informe.objetivo && abrirVentanaControl(informe.objetivo, nombreDe(informe.objetivo))}
-                        className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
+                        role="switch"
+                        aria-checked={permiso.encendido}
+                        onClick={() => void cambiar((p) => ({ ...p, encendido: !p.encendido }))}
+                        className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${permiso.encendido ? "border-[#DC143C] bg-[#DC143C]/30 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
                     >
-                        Abrir ventana de control
-                    </button>
-                    <button
-                        onClick={() => informe.objetivo && abrirPaginaControl(informe.objetivo, nombreDe(informe.objetivo))}
-                        className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
-                    >
-                        Abrir en una pestaña
+                        {permiso.encendido ? "Encendido en este aparato" : "Apagado en este aparato"}
                     </button>
                 </div>
-            )}
-            {esperando && (
-                <p className="text-[12px] text-sky-200" data-testid="esperando-aceptacion">
-                    Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, la ventana de control se abrirá sola.
+                <p className="text-[12px] text-white/55">
+                    Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
+                    {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso a la vista y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
                 </p>
-            )}
-            {neuronas.length > 0 && (
-                <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3" role="listbox" aria-label="Neuronas de tu cuenta" data-testid="neuronas-elegir">
-                    {neuronas.map((x) => (
-                        <button
-                            key={x.id}
-                            role="option"
-                            aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
-                            onClick={() => void elegir(x.id)}
-                            className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
-                        >
-                            <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
+                {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
+                    <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
+                        <span className="min-w-0 flex-1">{TEXTO_CONTROL_APAGADO}</span>
+                        <button onClick={() => void cambiar((p) => ({ ...p, encendido: true }))} className="min-h-9 cursor-pointer rounded-md bg-amber-400/80 px-2 py-1 font-medium text-black transition-colors hover:bg-amber-400">
+                            Encender el control
                         </button>
-                    ))}
-                </div>
-            )}
-            {(destino.trim() !== "" || banco) && (
-                <ul className="space-y-1 text-[12px]" data-testid="pasos-banco">
-                    {pasosQueFaltan({ informe, destino: destino.trim(), codigo: miCodigo }).map((p) => (
-                        <li key={p.clave} className={p.hecho ? "text-emerald-300/80" : "text-amber-200"}>
-                            {p.hecho ? "✓ " : "• "}
-                            {p.texto}
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {RE_UUID.test(destino.trim()) && (
-                <p className="text-[12px] text-sky-200" data-testid="este-aparato-pide">
-                    {quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}
-                </p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-                <input
-                    value={destino}
-                    onChange={(e) => void elegir(e.target.value)}
-                    placeholder="o escribe el id de la otra neurona"
-                    className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[12px] text-white"
-                />
-                <button onClick={() => void ofrecer()} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20">
-                    Pedir controlarla desde aquí
-                </button>
-                {banco ? (
-                    <button onClick={() => void apagar()} className="cursor-pointer rounded-md bg-[#FFBF00] px-2 py-1 text-[12px] text-black">
-                        Apagar el modo de pruebas de llamadas
-                    </button>
-                ) : (
-                    <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10">
-                        Modo de pruebas de llamadas hacia esa neurona (4 h, 40 llamadas)
-                    </button>
+                    </div>
                 )}
+                <label className="flex items-center gap-2 text-[12px] text-white/70">
+                    Nivel
+                    <select
+                        value={permiso.nivel}
+                        onChange={(e) => {
+                            // CTL1118B: el valor se lee YA; `cambiar` espera una importación y para entonces React ya devolvió el <select> a su valor de antes (el nivel no cambiaba nunca).
+                            const nivel = e.target.value === "ver" ? "ver" : "controlar";
+                            void cambiar((p) => ({ ...p, nivel }));
+                        }}
+                        className="cursor-pointer rounded-md border border-white/20 bg-black/40 px-2 py-1"
+                    >
+                        <option value="ver">ver (solo leer el estado)</option>
+                        <option value="controlar">controlar (órdenes de la app)</option>
+                    </select>
+                </label>
+                <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
+                <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
+                <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
+                <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (se crea al pedir control)"}</p>
+                {permiso.pendientes.map((x) => (
+                    <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
+                        <PuntoColor color={colorDe(x.neurona, x.color)} />
+                        <span className="flex-1">
+                            {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
+                        </span>
+                        <button onClick={() => void aceptar(x.huella, !permiso.encendido)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
+                            {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
+                        </button>
+                        <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                            Rechazar
+                        </button>
+                    </div>
+                ))}
+                {permiso.controladores.map((x) => (
+                    <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
+                        <PuntoColor color={colorDe(x.neurona, x.color)} />
+                        <span className="flex-1">
+                            {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
+                        </span>
+                        <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                            Quitar
+                        </button>
+                    </div>
+                ))}
+                {informe?.sesion?.estado === "aceptada" && informe.objetivo && (
+                    <div className="flex flex-wrap items-center gap-2" data-testid="este-aparato-puede">
+                        <p className="min-w-0 flex-1 text-[12px] text-emerald-300/80">{quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}</p>
+                        {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
+                        <button
+                            onClick={() => informe.objetivo && abrirVentanaControl(informe.objetivo, nombreDe(informe.objetivo))}
+                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
+                        >
+                            Abrir ventana de control
+                        </button>
+                        <button
+                            onClick={() => informe.objetivo && abrirPaginaControl(informe.objetivo, nombreDe(informe.objetivo))}
+                            className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
+                        >
+                            Abrir en una pestaña
+                        </button>
+                    </div>
+                )}
+                {esperando && (
+                    <p className="text-[12px] text-sky-200" data-testid="esperando-aceptacion">
+                        Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, la ventana de control se abrirá sola.
+                    </p>
+                )}
+                {neuronas.length > 0 && (
+                    <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3" role="listbox" aria-label="Neuronas de tu cuenta" data-testid="neuronas-elegir">
+                        {neuronas.map((x) => (
+                            <button
+                                key={x.id}
+                                role="option"
+                                aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
+                                onClick={() => void elegir(x.id)}
+                                className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                            >
+                                <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {(destino.trim() !== "" || banco) && (
+                    <ul className="space-y-1 text-[12px]" data-testid="pasos-banco">
+                        {pasosQueFaltan({ informe, destino: destino.trim(), codigo: miCodigo }).map((p) => (
+                            <li key={p.clave} className={p.hecho ? "text-emerald-300/80" : "text-amber-200"}>
+                                {p.hecho ? "✓ " : "• "}
+                                {p.texto}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {RE_UUID.test(destino.trim()) && (
+                    <p className="text-[12px] text-sky-200" data-testid="este-aparato-pide">
+                        {quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}
+                    </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+                    <input
+                        value={destino}
+                        onChange={(e) => void elegir(e.target.value)}
+                        placeholder="o escribe el id de la otra neurona"
+                        className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[12px] text-white"
+                    />
+                    <button onClick={() => void ofrecer()} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20">
+                        Pedir controlarla desde aquí
+                    </button>
+                    {banco ? (
+                        <button onClick={() => void apagar()} className="cursor-pointer rounded-md bg-[#FFBF00] px-2 py-1 text-[12px] text-black">
+                            Apagar el modo de pruebas de llamadas
+                        </button>
+                    ) : (
+                        <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10">
+                            Modo de pruebas de llamadas hacia esa neurona (4 h, 40 llamadas)
+                        </button>
+                    )}
+                </div>
+                {aviso && <p className="text-[12px] text-sky-300">{aviso}</p>}
             </div>
-            {aviso && <p className="text-[12px] text-sky-300">{aviso}</p>}
-        </div>
+            <SelectorLimite
+                abierto={selectorAbierto}
+                onCerrar={() => { setSelectorAbierto(false); setSelectorHuella(null); }}
+                onElegir={confirmarAceptar}
+                nombreNeurona={selectorHuella ? permiso?.pendientes.find((x) => x.huella === selectorHuella)?.nombre ?? "esa neurona" : ""}
+                esOtraCuenta={selectorMaximoPermitido !== undefined}
+                maximoPermitido={selectorMaximoPermitido}
+            />
+        </>
     );
 }
 
