@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "CAP1119D",
+   "ola": "CAP1119",
+   "titulo": "Los directores revisan solos, cada día, que se usen todas las capacidades, herramientas y conexiones disponibles",
+   "archivos": [
+    "scripts/puente/revisor_capacidades.py",
+    "scripts/puente/test_revisor_capacidades.py"
+   ],
+   "depende": [],
+   "prompt": "Auditoría de la dirección (19-11, 21:00 local) con medios_disponibles.py y ~/.starseed/salud-proveedores.json: mac listo (2 agentes, recursos al límite, disco 7,5 GB → la guardia de 10 GB frena la tanda); claude usable (sin usar hace 12 días); cloudroom usable con 100 agentes/30 días gratis y 0 hilos abiertos (SIN USAR); nube-gh listo (2 ejecuciones; el último empuje de la cola falló por tiempo agotado de git push a los 120 s); hf requiere PRO; gcloud marcado «usable» pero la facturación está desactivada desde el 25-09 (Cloud Run no arranca sin cuenta de facturación: revisar la clasificación); colab/kaggle requieren un cuaderno lanzador; oracle A1 listo con solo 15 % de CPU usada y 5,6 GB libres (INFRAUTILIZADO). Proveedores: groq, tokenrouter y explabs vivos; xkiro, openrouter y freellmapi con el cupo del día agotado (429); nim con un modelo colgado; aihubmix bloqueado por abuso; llm7 caído; apinex «sin crédito (402)» y aun así acciones-de-alex.json NO pide el check-in diario (solo tiene 2 aprobaciones de Higgsfield). Faltan en la salud de proveedores: abliteration, Antigravity (agy), Ollama del A1 (qwen 4B), Codex y OpenCode Zen. Además starseed_memory_root/olas/medios.json tiene 2336 medios acumulados (codex:mac:mac:<puerto> y opencode:mac:mac:<puerto>, casi todos inactivos). Alex (19-11): «no creo que los directores estén considerando aún todas las capacidades y herramientas completas». Tarea: revisor_capacidades.py, que corre cada día (y a demanda desde Genesis) y compara lo disponible (medios_disponibles, salud de proveedores, Antigravity, herramientas y habilidades de MetaGenesis y de la Biblioteca de StarSeed OS, conexiones MCP) con lo que de verdad se usó en las últimas 24 h; publica en el Chat Director un informe corto de lo infrautilizado con la acción concreta (activar, repartir, pedir a Alex con enlace) y abre tareas para lo que el enjambre pueda arreglar. Pruebas con estados de ejemplo. Reglas: nunca imprimir ni guardar claves fuera de variables de entorno; no bajar ningún freno de publicación ni la guardia de disco; lógica pura con pruebas. Español neutro.",
+   "revisor_quitadas": [
+    "CAP1119B-d2"
+   ],
+   "dependencias_ya_en_main": [
+    "CAP1119C"
+   ]
+  }
+ ]
+}
