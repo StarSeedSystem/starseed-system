@@ -68,7 +68,7 @@ export function PestanaMapa({ compacto }: { compacto?: boolean }) {
 }
 
 export interface VistaMapaProps {
-  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces" | "publicadas" | "senales" | "deviceId" | "medio">;
+  datos: Pick<MarcasGeo, "marcas" | "presenciaConectada" | "ahora" | "permiso" | "compartir" | "fijarCompartir" | "alMiPosicion" | "errorUbicacion" | "alErrorUbicacion" | "desde" | "canal" | "enlaces" | "publicadas" | "senales" | "deviceId" | "medio"> & { camposRed?: MarcasGeo["camposRed"] };
   enLinea: boolean;
   sinRedDesde?: number | null;
   compacto?: boolean;
@@ -184,13 +184,14 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
         enlaces={datos.enlaces}
         publicadas={datos.publicadas}
         senalesFiltradas={senalesFiltradas}
+        camposRed={datos.camposRed}
         aviso={<Avisos enLinea={enLinea} sinRedDesde={sinRedDesde ?? null} presenciaConectada={presenciaConectada} errorUbicacion={datos.errorUbicacion} />}
         vacio={colocadas.length === 0 ? <EstadoVacio yo={yo} permiso={permiso} desde={datos.desde} total={marcas.length} onUbicarme={ctx.ubicarme} /> : null}
       >
         {marcaSel && <FichaGeo marca={marcaSel} ahora={ahora} compacto={estrecho} onCerrar={() => setSel(null)} />}
       </MarcasEnMapa>
     ),
-  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion, todasLasSenales, filtroSenales, senalesFiltradas]);
+  }), [permiso, datos.alMiPosicion, datos.alErrorUbicacion, datos.compartir, datos.canal, datos.enlaces, datos.fijarCompartir, datos.errorUbicacion, datos.desde, datos.publicadas, datos.camposRed, capas, alternar, opacidad, marcas, ahora, sel, estrecho, enLinea, sinRedDesde, presenciaConectada, colocadas.length, yo, marcaSel, publicacion, onPublicacion, todasLasSenales, filtroSenales, senalesFiltradas]);
 
   if (sinBase) {
     return (

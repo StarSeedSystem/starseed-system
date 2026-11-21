@@ -12,8 +12,8 @@ import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { medirSenales, type SenalesMedio } from "@/lib/neurons/senales-medio";
 import { describirMedio, type DescripcionMedio } from "@/lib/neurons/medio";
 import { construirMarcas, type MarcaGeo } from "@/lib/senales/geo/marcas";
-import { CAPAS_SENALES } from "@/lib/senales/geo/capas";
-import { camposDeCapa, contarSenalesSinZona, type Campo } from "@/lib/senales/geo/cobertura";
+import { CAPAS_SENALES, CAPA_RED_POR_ID } from "@/lib/senales/geo/capas";
+import { camposDeCapa, contarSenalesSinZona, decodificarZona, type Campo } from "@/lib/senales/geo/cobertura";
 import {
   EVENTO_POSICION, fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda,
 } from "@/lib/senales/geo/almacen-posicion";
@@ -210,7 +210,10 @@ export function useMarcasGeo(): MarcasGeo {
     const sinZona: Record<string, number> = {};
     for (const capa of CAPAS_SENALES) {
       if (capa.grupo !== "red") continue;
-      campos[capa.id] = camposDeCapa(capa, marcas, ahora, publicadas.senales);
+      const red = CAPA_RED_POR_ID[capa.id];
+      // Solo las que traen una zona gruesa legible se dibujan; las demás se cuentan aparte.
+      const conZona = publicadas.senales.filter((s) => s.capa === red && s.zona && decodificarZona(s.zona));
+      campos[capa.id] = camposDeCapa(capa, marcas, ahora, conZona);
       sinZona[capa.id] = contarSenalesSinZona(capa, marcas, publicadas.senales);
     }
     return { campos, sinZona };

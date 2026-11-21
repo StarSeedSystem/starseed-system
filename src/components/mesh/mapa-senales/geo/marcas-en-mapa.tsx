@@ -12,7 +12,7 @@ import { escapeHtml } from "@/lib/map/map-config";
 import type { MapExtensionCtx } from "@/components/map/map-view-extension";
 import type { EstadoLectura } from "@/lib/senales/espectro/leer-senales";
 import { CAPA_POR_ID, NOTA_ALCANCE, NOTA_PARCHE, OPACIDAD_POR_DEFECTO, motivoSenalesPublicadas, tramoDe, tramoDeCalidad, type EstadoCapas } from "@/lib/senales/geo/capas";
-import { camposDeCapa, lineasDeEnlaces } from "@/lib/senales/geo/cobertura";
+import { camposDeCapa, contarSenalesSinZona, lineasDeEnlaces, type Campo } from "@/lib/senales/geo/cobertura";
 import type { EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
 import { horaDe } from "@/lib/senales/geo/ficha-geo";
 import { COLOR_DESCONOCIDO } from "@/lib/senales/geo/capas";
@@ -62,12 +62,14 @@ export interface MarcasEnMapaProps {
   publicadas?: { estado: EstadoLectura; motivo?: string };
   /** (AQ03) Señales publicadas ya filtradas por el panel de filtros; solo afecta a capas red-*. */
   senalesFiltradas?: readonly SenalEspectro[];
+  /** (MRA10b) Campos de las capas red-* ya calculados (zonas publicadas, nunca puntos exactos) y su cuenta sin zona. */
+  camposRed?: { campos: Record<string, Campo[]>; sinZona: Record<string, number> };
   vacio?: React.ReactNode;
   aviso?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, senalesFiltradas = [], vacio, aviso, children }: MarcasEnMapaProps) {
+export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, compacto, enlaces = [], publicadas, senalesFiltradas = [], camposRed, vacio, aviso, children }: MarcasEnMapaProps) {
   const { L, map } = ctx;
   const capasRef = useRef<Record<string, CapaParches | CapaAlcance>>({});
   const lineasRef = useRef<any>(null);
@@ -115,16 +117,18 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
       z += 1;
       // (AQ03) Para capas red-* usar marcas filtradas; para el resto, marcas originales.
       const marcasParaCapa = capa.grupo === "red" ? marcasParaRed : marcas;
-      if (capa.tipo === "alcance") {
+      // (MRA10b) Las capas red-* se dibujan como campos de la zona publicada, nunca como puntos.
+      if (capa.tipo === "alcance" || capa.grupo === "red") {
         if (!hechas[id]) hechas[id] = crearCapaAlcance(L, map, id, z);
-        (hechas[id] as CapaAlcance).poner(camposDeCapa(capa, marcasParaCapa, ahora));
+        const previos = capa.grupo === "red" && senalesFiltradas.length === 0 ? camposRed?.campos[id] : undefined;
+        (hechas[id] as CapaAlcance).poner(previos ?? camposDeCapa(capa, marcasParaCapa, ahora));
       } else {
         if (!hechas[id]) hechas[id] = crearCapaParches(L, map, id, z);
         (hechas[id] as CapaParches).poner(parchesDeCapa(capa, marcasParaCapa, ahora));
       }
       hechas[id].opacidad(estado.opacidad[id] ?? OPACIDAD_POR_DEFECTO);
     }
-  }, [L, map, estado, marcas, marcasParaRed, ahora, hayCapasRedActivas]);
+  }, [L, map, estado, marcas, marcasParaRed, ahora, hayCapasRedActivas, senalesFiltradas, camposRed]);
 
   // Las líneas medidas: trazo SÓLIDO coloreado por calidad; al tocar una, su calidad y la hora de la medida.
   useEffect(() => {
@@ -203,6 +207,10 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
   // (AUD1117) Si la lectura de señales publicadas falló y hay capas de red encendidas, el panel dice el motivo
   // en vez de dejarlas pintar cero como si fuera la verdad.
   const motivoPublicadas = activas.some((c) => c.grupo === "red") ? motivoSenalesPublicadas(publicadas?.estado ?? "ok", publicadas?.motivo) : null;
+  // (MRA10b) Las señales publicadas sin zona no se dibujan: se cuentan aparte para que no desaparezcan en silencio.
+  const sinZonaRed = activas
+    .filter((c) => c.grupo === "red")
+    .reduce((n, c) => n + (senalesFiltradas.length === 0 ? (camposRed?.sinZona[c.id] ?? contarSenalesSinZona(c, marcasParaRed)) : contarSenalesSinZona(c, marcasParaRed)), 0);
 
   return (
     <>
@@ -237,7 +245,7 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
             <div className="pointer-events-auto max-w-[22rem] space-y-1 rounded-xl border border-white/10 bg-black/60 px-2.5 py-1.5 backdrop-blur-xl" data-testid="leyendas-mapa">
               {compacto && (
                 <button type="button" onClick={() => setLeyendaAbierta((v) => !v)} aria-expanded={leyendaAbierta} className="flex min-h-8 w-full cursor-pointer items-center justify-between gap-2 text-left text-[10px] leading-snug text-white/70">
-                  <span>{activas.some((c) => c.tipo === "alcance") ? "Rayado = alcance estimado, no medido. " : ""}Trazo sólido = medido.</span>
+                  <span>{activas.some((c) => c.tipo === "alcance" || c.grupo === "red") ? "Rayado = zona o alcance estimado, no medido. " : ""}Trazo sólido = medido.</span>
                   <span className="shrink-0 font-semibold uppercase tracking-wide text-white/60">Leyenda {leyendaAbierta ? "−" : "+"}</span>
                 </button>
               )}
@@ -250,9 +258,14 @@ export function MarcasEnMapa({ ctx, marcas, ahora, estado, seleccion, onElegir, 
               {motivoPublicadas && (
                 <p className="text-[10px] leading-snug text-amber-300" data-testid="motivo-publicadas" role="status">{motivoPublicadas}</p>
               )}
+              {sinZonaRed > 0 && (
+                <p className="text-[10px] leading-snug text-white/60" data-testid="sin-zona-red">
+                  {`${sinZonaRed} ${sinZonaRed === 1 ? "señal sin zona" : "señales sin zona"}`}
+                </p>
+              )}
               {!compacto && (
                 <p className="text-[10px] leading-snug text-white/60">
-                  {`${activas.some((c) => c.tipo === "alcance") ? NOTA_ALCANCE + " " : ""}${activas.some((c) => (c.tipo ?? "parche") === "parche") ? NOTA_PARCHE : ""}`}
+                  {`${activas.some((c) => c.tipo === "alcance" || c.grupo === "red") ? NOTA_ALCANCE + " " : ""}${activas.some((c) => (c.tipo ?? "parche") === "parche" && c.grupo !== "red") ? NOTA_PARCHE : ""}`}
                 </p>
               )}
             </div>
