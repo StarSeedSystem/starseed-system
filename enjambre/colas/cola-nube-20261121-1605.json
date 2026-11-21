@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "IMG-diaria-encargos-largos-en-background-par",
+   "titulo": "Encargos largos en background para Director presidente",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Encargos largos en background para Director presidente. lanzar Hermes como job con su id, publicar \"en curso\" y resultado al acabar (hoy todo se corta a 120s). `último informe de ola` punto a) Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "titulo": "Publicar vector visual 1.58b por cláusula",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar vector visual 1.58b por cláusula. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en canal `params` del bus de la orbe — ya está en tasks abiertas, permitiría sincronizar avatar cuántico con estado cognitivo real. `tasks abiertas` línea \"Publicar desde el 1.58b el vector visual…\" Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-des-simular-director-imaginacion",
+   "titulo": "Des-simular Director + Imaginación",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Des-simular Director + Imaginación. : `formulate_next_intelligent_task` (random.choice de blueprints) → formular con motor real o `starseed-sub`; recomendador de imaginación si queda plantilla (tasks abiertas). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-114606.json": [
+   "IMG-diaria-des-simular-director-imaginacion",
+   "IMG-diaria-encargos-largos-en-background-par",
+   "IMG-diaria-publicar-vector-visual-1-58b-por"
+  ]
+ }
+}
