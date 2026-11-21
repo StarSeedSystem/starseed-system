@@ -256,4 +256,75 @@ Si encuentras un caso no cubierto:
 
 ---
 
+## 12. Orbe binario — Transiciones de estado en escenario fijo
+
+El **orbe binario** de la Protomolécula vive en un **escenario fijo 16:9** que se escala al visor (sin layout shift). Sus transiciones de estado usan **opacidad y escala**, integradas en los tokens de movimiento existentes.
+
+### 12.1 Estados y transiciones
+
+| Estado | Descripción | Opacidad | Escala | Duración | Easing |
+|---|---|---|---|---|---|
+| `idle` | Reposo, respiración sutil | `1` | `1` | — | — |
+| `activo` | Procesando / hablando | `1` | `1.02` | `300ms` | `cubic-bezier(0.2, 0, 0, 1)` |
+| `error` | Fallo temporal | `0.6` | `0.98` | `200ms` | `cubic-bezier(0.4, 0, 1, 1)` |
+
+**Transiciones permitidas:** `idle ↔ activo`, `activo → error`, `error → idle`. No hay `idle → error` directo.
+
+### 12.2 Tokens CSS de movimiento
+
+```css
+:root {
+  --orb-transition-duration: 300ms;
+  --orb-transition-easing: cubic-bezier(0.2, 0, 0, 1);
+  --orb-scale-active: 1.02;
+  --orb-scale-error: 0.98;
+  --orb-opacity-error: 0.6;
+}
+```
+
+### 12.3 Reduced-motion (prefers-reduced-motion)
+
+Cuando el usuario activa **reducir movimiento**, el orbe **solo hace fade** entre estados:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --orb-transition-duration: 150ms;
+    --orb-scale-active: 1;
+    --orb-scale-error: 1;
+  }
+  .orb-binario {
+    transition: opacity var(--orb-transition-duration) var(--orb-transition-easing) !important;
+    transform: none !important;
+  }
+}
+```
+
+### 12.4 Implementación de referencia (CSS-in-JS / Tailwind)
+
+```tsx
+<div className="relative aspect-video w-full max-w-xs mx-auto" aria-hidden="true">
+  <motion.div
+    className="orb-binario absolute inset-0"
+    style={{
+      opacity: estado === "error" ? "var(--orb-opacity-error)" : 1,
+      transform: `scale(${estado === "activo" ? "var(--orb-scale-active)" : estado === "error" ? "var(--orb-scale-error)" : 1})`,
+      transition: `opacity var(--orb-transition-duration) var(--orb-transition-easing), transform var(--orb-transition-duration) var(--orb-transition-easing)`,
+    }}
+  >
+    {/* SVG del orbe procedural */}
+  </motion.div>
+</div>
+```
+
+### 12.5 Reglas de integración
+
+- **Nunca** cambies `width`/`height`/`top`/`left` del contenedor: el escenario 16:9 es fijo y se escala con `aspect-video`.
+- **Solo** `opacity` y `transform: scale()` en las transiciones de estado.
+- El `prefers-reduced-motion` **desactiva scale** y reduce la duración a `150ms` (solo fade).
+- Usa los tokens `--orb-*` para que cualquier tema/estilo los pueda sobrescribir.
+- El componente debe exponer `estado: "idle" | "activo" | "error"` como prop tipada.
+
+---
+
 *Estas reglas son cláusula viva, no pétrea. Pueden ampliarse, pero solo para ampliar libertad de personalización, jamás para restringirla.*
