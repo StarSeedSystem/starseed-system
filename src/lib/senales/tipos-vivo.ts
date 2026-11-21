@@ -216,12 +216,33 @@ export interface AnilloAlcance {
 
 /* ── Red (capa pública) ──────────────────────────────────────────────────────── */
 
+/**
+ * Estado de la lectura de la capa pública de toda la red. Se nombra aquí para que el contrato
+ * del mapa no dependa del módulo de datos: es el mismo conjunto que devuelve la lectura.
+ * `ok` con cero señales NO significa «no se sabe»: significa que la lectura fue buena y que
+ * nadie más ha publicado. Cualquier otro estado sí es «faltan datos» y exige un `motivo`.
+ */
+export type EstadoRed = EstadoLectura;
+
+/**
+ * Los dos motivos honestos de una capa de red que viene sin señales. Distinguirlos es la regla:
+ *   · `sin-tabla`  — el servidor todavía no tiene la capa pública → «no está activada»;
+ *   · `ok` y vacía — la lectura fue buena y nadie más publicó → «nadie más ha publicado».
+ * Los demás motivos son el error real de la lectura y se dicen tal cual, sin sustituirlos.
+ */
+export type MotivoRedVacia =
+  | "las señales públicas aún no están activadas en este servidor"
+  | "nadie más ha publicado en esta capa todavía";
+
 export interface MapaVivoRed {
   /** Señales de la capa pública más los enlaces directos propios sin internet. */
   senales: SenalEspectro[];
   /** Estado de la lectura de la capa pública. */
-  estado: EstadoLectura;
-  /** Motivo si el estado no es "ok" o si la lectura fue exitosa pero vino vacía. */
+  estado: EstadoRed;
+  /**
+   * Por qué faltan las demás. Si el estado no es `ok`, dice qué impidió la lectura; si fue `ok`
+   * y vino vacía, dice que nadie más ha publicado. Nunca se deja vacío en esos dos casos.
+   */
   motivo?: string;
   /** Cuántas cuentas distintas (diferente a la propia) están publicando señales. */
   otrasCuentasPublicando: number;
