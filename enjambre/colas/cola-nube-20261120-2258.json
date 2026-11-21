@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "CTL1119Gs",
+   "ola": "CTL1119",
+   "titulo": "Mac controlada: el control y el vídeo siguen en segundo plano, en otros escritorios y con la ventana cerrada (sin pausas falsas) · lo que faltó: native/src-tauri/src/bandeja.rs",
+   "archivos": [
+    "native/src-tauri/src/bandeja.rs"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de CTL1119G, que ya está integrada (sha e2a1cf9fde3b). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: native/src-tauri/src/bandeja.rs.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Mac controlada: el control y el vídeo siguen en segundo plano, en otros escritorios y con la ventana cerrada (sin pausas falsas)\n\n--- encargo original, como contexto ---\nAlex (19-11), .55: controlando la Mac desde la tableta Android, todo funciona mientras StarSeed OS está en primer plano en la Mac; al ir a otros escritorios (Spaces) se ve unos segundos y luego se para el control y el vídeo; «Reanudar» en la barra superior de la Mac no sirve hasta volver a la app. Quiere que funcione en segundo plano, incluso con la ventana cerrada (desde el icono de StarSeed en la barra superior), y que no se pause al salir de la app. Evidencia (~/Library/Logs/app.starseed.os/control-neuronas.log): 39× «una accion local pauso el control», y luego leer-aparato, abrir-sesion, pantalla-iniciar y pantalla-parar de=bb90840c «rechazo:pausa-local»; en primer plano el resumen dice propias-descontadas=74 (los eventos propios se descuentan), fuera no. Tarea: (1) el detector de «acción local» no confunde los eventos inyectados por el control ni los del sistema al cambiar de escritorio con una persona usando la Mac: marca cada evento inyectado (CGEventSetIntegerValueField kCGEventSourceUserData con un valor propio y fuente de eventos propia) y descártalos por esa marca, sea cual sea la app de delante; ignora eventos sintéticos del sistema (Mission Control, cambio de Space); solo pausa ante entrada física real sostenida (umbral en una función pura control_pausa_local_logica.rs con pruebas). Registra cada pausa con tipo de evento, origen y app de delante. (2) «Reanudar» en el menú del icono de la barra superior quita la pausa local y reanuda pantalla y entrada sin traer la ventana al frente. (3) Segundo plano real: mientras haya una sesión de control activa, NSProcessInfo beginActivityWithOptions (UserInitiated | LatencyCritical) para que App Nap no frene; la captura de pantalla y la entrada no dependen de que la ventana web esté visible (si hoy el bucle vive en la web, pásalo a nativo o mantén la web activa); cerrar la ventana deja la app en la barra superior con la sesión viva. Reglas: el aviso (punto de color, y en la barra superior) sigue visible; «Terminar»",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "CTL1119Gs"
+  ]
+ }
+}
