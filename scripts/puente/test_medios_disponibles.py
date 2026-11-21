@@ -1,12 +1,20 @@
 import os
 import sys
 import unittest
+from typing import Any, Dict, List, Optional
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import medios_disponibles as M  # noqa: E402
+
+
+class MockCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 class Clasificar(unittest.TestCase):
@@ -68,6 +76,58 @@ class Clasificar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Maggabox(unittest.TestCase):
+    """Tests para clasificar_maggabox usando la sonda de MAG1120A."""
+
+    def test_maggabox_listo_con_ssh_funcionando(self):
+        from sonda_maggabox import sonda_maggabox
+
+        def mock_ssh_fn(argv, *args, **kwargs):
+            if "df" in argv and "-BG" in argv:
+                return MockCompletedProcess(0, stdout="Filesystem     1G-blocks   Used Available Use% Mounted on\n/dev/sda1       500G   82G   418G   17% /")
+            if "free" in argv and "-m" in argv:
+                return MockCompletedProcess(0, stdout="              total        used        free      shared  buff/cache   available\nMem:          32768       4096       220        1024       26464       27000")
+            if "nproc" in argv:
+                return MockCompletedProcess(0, stdout="4")
+            if "which" in argv:
+                return MockCompletedProcess(1, stdout="")
+            return MockCompletedProcess(0, stdout="")
+
+        sonda = lambda: sonda_maggabox(ssh_fn=mock_ssh_fn)
+        d = M.clasificar_maggabox(sonda)
+        self.assertEqual(d["estado"], "listo")
+        self.assertEqual(d["id"], "maggabox")
+        self.assertEqual(d["nombre"], "Maggabox (Neurona)")
+        self.assertIn("418 GB libres", d["capacidad"])
+        self.assertIn("Nodo Debian 13", d["detalle"])
+        self.assertIn("4 CPU", d["detalle"])
+        self.assertIn("220 MB RAM libre", d["detalle"])
+        self.assertIn("Sin runtime de contenedores", d["detalle"])
+        self.assertIn("instalar Podman rootless", d["siguiente_paso"])
+
+    def test_maggabox_no_disponible_si_ssh_falla(self):
+        def mock_ssh_fn(argv, *args, **kwargs):
+            raise Exception("Connection refused")
+
+        sonda = lambda: M.sonda_maggabox(ssh_fn=mock_ssh_fn) if hasattr(M, "sonda_maggabox") else {"error": "fallo"}
+        d = M.clasificar_maggabox(lambda: {"error": "ssh fallo"})
+        self.assertEqual(d["estado"], "no_disponible")
+        self.assertEqual(d["id"], "maggabox")
+        self.assertEqual(d["nombre"], "Maggabox (Neurona)")
+
+    def test_maggabox_estado_valido(self):
+        def sonda_ok():
+            return {"discoLibreGb": 418, "ramLibreMb": 220, "cpu": 4, "contenedores": False}
+
+        def sonda_fail():
+            raise Exception("ssh fallo")
+
+        for s in (sonda_ok, sonda_fail):
+            d = M.clasificar_maggabox(s)
+            self.assertIn(d["estado"], M.ESTADOS)
+            self.assertTrue(d["id"] and d["nombre"])
 
 
 class SecretosDelEnjambre(unittest.TestCase):

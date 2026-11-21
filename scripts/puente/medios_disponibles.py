@@ -232,6 +232,50 @@ def clasificar_oracle(datos: dict | None, medios: dict | None, ahora: float, con
     )
 
 
+def clasificar_maggabox(sondear_fn) -> dict:
+    """PURA. Estado de Maggabox según la sonda de MAG1120A.
+    - listo: SSH funciona y la sonda devuelve datos reales (disco > 0)
+    - no_disponible: SSH falla o la sonda no responde / devuelve ceros
+    """
+    try:
+        resultado = sondear_fn()
+        if isinstance(resultado, dict) and "discoLibreGb" in resultado:
+            disco = resultado.get("discoLibreGb", 0)
+            ram = resultado.get("ramLibreMb", 0)
+            cpu = resultado.get("cpu", 0)
+            contenedores = resultado.get("contenedores", False)
+            if disco > 0 and cpu > 0:
+                detalle = f"Nodo Debian 13 · {cpu} CPU · {ram} MB RAM libre"
+                if not contenedores:
+                    detalle += " · Sin runtime de contenedores (sudo requiere a Alex)"
+                return medio(
+                    "maggabox",
+                    "Maggabox (Neurona)",
+                    "listo",
+                    f"{disco} GB libres",
+                    detalle,
+                    "instalar Podman rootless / habilitar contenedores",
+                )
+            return medio(
+                "maggabox",
+                "Maggabox (Neurona)",
+                "no_disponible",
+                "",
+                "SSH conecta pero sonda devuelve ceros (sin datos reales)",
+                "verificar ~/.ssh/starseed_nodo1 y conectividad a starseed-nodo-1.local",
+            )
+    except Exception:
+        pass
+    return medio(
+        "maggabox",
+        "Maggabox (Neurona)",
+        "no_disponible",
+        "",
+        "SSH falla o sonda sin respuesta",
+        "verificar ~/.ssh/starseed_nodo1 y conectividad a starseed-nodo-1.local",
+    )
+
+
 def clasificar_agy(binario: str | None, medidor: dict | None, ahora: float) -> dict:
     """PURA. Estado de Antigravity CLI (agy).
     - listo: binario existe y modelos principales no pausados por cuota
@@ -319,6 +363,12 @@ def sondear() -> dict:
         reg = None
     medios.append(clasificar_claude(reg, ahora))
     medios.append(sondear_cloudroom())
+    try:
+        import sonda_maggabox
+        medios.append(clasificar_maggabox(sonda_maggabox.sonda_maggabox))
+    except Exception:
+        medios.append(medio("maggabox", "Maggabox (Neurona)", "no_disponible", "",
+                           "no pude sondearlo (import falló)", "comprueba scripts/puente/sonda_maggabox.py"))
     rc, _, _ = _sh(["gh", "auth", "status"])
     wf = os.path.exists(os.path.join(RAIZ, ".github", "workflows", "enjambre-nube.yml"))
     rc_s, out_s, _ = _sh(["gh", "secret", "list", "--json", "name"], cwd=RAIZ)
