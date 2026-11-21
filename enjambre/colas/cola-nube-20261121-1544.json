@@ -1,0 +1,96 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "CAP-skill-agent-reach-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use."
+  },
+  {
+   "id": "SIN1121A",
+   "ola": "DIR1121",
+   "titulo": "Respaldo diario de la síntesis: la hora 08:30 CDMX se compara en UTC y nunca se cumple",
+   "archivos": [
+    "scripts/puente/peticiones_sintesis_respaldo.py",
+    "scripts/puente/test_peticiones_sintesis_respaldo.py"
+   ],
+   "depende": [],
+   "prompt": "El journal del A1 dice «Hora de respaldo 08:30 CDMX detectada (8.27)… No es hora de respaldo (son las 14.27)»: el A1 va en UTC y la\ncomparación usa la hora local del servidor. Usa zoneinfo America/Mexico_City para la hora actual, deja ventana (08:30–09:30) y marca de\n«hecho hoy» para que un reinicio no lo pierda ni lo repita, y si a las 12:00 CDMX no se hizo, se hace entonces y se dice. Prueba con el\nreloj inyectado en UTC y en CDMX.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "MND1121A",
+   "ola": "DIR1121",
+   "titulo": "MetaGenesis: volver a aplicar con pruebas el arreglo de pestañas (Radix TabsList) que alguien dejó sin commit en main",
+   "archivos": [
+    "src/components/mando/navegacion-pestanas-metagenesis.tsx",
+    "src/components/mando/__tests__/navegacion-pestanas-metagenesis.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "El 21-11 a las 14:27 alguien editó main A MANO (sin commit): un arreglo en navegacion-pestanas-metagenesis.tsx (TabsList de Radix) y\nuna copia `centro-mando.tsx.backup-…`. Eso paró al orquestador. La dirección lo apartó sin perder nada: el parche está en\nstarseed_memory_root/olas/contextos/1121b-pestanas-metagenesis.patch (copia en ~/.starseed/cuarentena/1121b-arbol-sucio/). Léelo,\nentiende qué fallo corrige, vuelve a aplicarlo bien en un worktree, añade una prueba que falle sin él (las pestañas se montan sin el error\nde Radix y cambian de panel) y entrégalo por la puerta. No recuperes la copia .backup.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "PET1121A",
+   "ola": "DIR1121",
+   "titulo": "Bot de diseño: clientes reales de NotebookLM y Drive para el modo de encargo (era «petición fallida»)",
+   "archivos": [
+    "scripts/puente/peticiones_clientes.py",
+    "scripts/puente/test_peticiones_clientes.py",
+    "scripts/puente/peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "URGENTE. La noche del 20-11 Alex escribió al chat de diseño (@StarSeed_Design_bot, corre en el A1 como\nstarseed-peticiones-telegram) y recibió «No pude completar tu petición tras 3 intentos» + «Petición fallida». Causa leída en el\njournal del A1: `atender_encargo` pasaba a `ejecutar_encargo` las FUNCIONES `nb` y `drive` de peticiones_notebooklm, y\npeticiones_productor espera CLIENTES con métodos: AttributeError «'function' object has no attribute 'doc'» (productor, actualizar_panel).\nLa dirección ya dejó el parche de contención DIR1121B (commit 4f408dd21): `_clientes_de_encargo()` en peticiones_telegram.py devuelve\nNone mientras no exista `peticiones_clientes.py`, y el encargo se atiende como petición normal. TU TRABAJO es construir los clientes:\n1) `ClienteNotebookLM` con EXACTAMENTE los métodos que usa el productor vía `_llamar_nb` y que simula `MockNotebookLM` en\ntest_peticiones_productor.py: create, source_add_research (mode list/deep/delete, source_id, timeout), source_add_drive, source_wait,\nask, generate (no_wait, retry, json_output), artifact_wait, download (force). Cada uno llama a `peticiones_notebooklm.nb([...])` y\ndevuelve (rc, out, err). NO inventes banderas: lee la ayuda real del CLI (`~/.starseed/venvs/notebooklm/bin/notebooklm --help` y la de\ncada subcomando; en el A1 con `oracle_nodo.py`) y fija en una prueba la línea de órdenes exacta de cada método.\n2) `ClienteDrive` con carpeta(nombre, padre)->(id, enlace), doc(nombre, markdown, padre=None, archivo_id=None)->(id, enlace) y\narchivo(ruta, padre, nombre=None)->(id, enlace), igual que `MockDrive`. Usa `token_google()` y la API de Drive v3 (crear carpeta, subir\nmultipart, convertir markdown a Documento de Google, actualizar por archivo_id). ANTES de escribir comprueba con tokeninfo que el permiso\nde la cuenta alcanza para escribir: si solo es de lectura, `_clientes_de_encargo()` debe seguir devolviendo None y debe quedar UNA acción\nclara para Alex en acciones-de-alex («volver a autorizar Drive con permiso de escritura», con el paso exacto); nunca pidas ni muestres el token.\n3) `enviar_entregable` en atender_encargo hoy es `pass`: que envíe de verdad el archivo o el enlace al chat.\n4) Si un encargo falla, el mensaje a la persona dice en lenguaje llano qué paso falló y qué puede hacer; nunca el texto de una excepción.\n5) Prueba de punta a punta con los dobles y, si el permiso lo permite, UNA prueba real marcada que crea una carpeta «prueba PET1121A» y la\nborra. Cuando esté publicado, vuelve a poner en `reintentar` la petición fallida de Alex de la noche del 20-11 (cola del A1) y comprueba\nen el journal que termina en «hecha».\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "PET1121B",
+   "ola": "DIR1121",
+   "titulo": "Bot de diseño en el A1: las rutas gratuitas del planificador están caídas (FreeLLMAPI 0 modelos, NIM sin respuesta, OpenRouter con lista vieja)",
+   "archivos": [
+    "scripts/puente/peticiones_llm.py",
+    "scripts/puente/test_peticiones_llm.py",
+    "scripts/puente/peticiones_productor.py"
+   ],
+   "depende": [],
+   "prompt": "Journal del A1, 21-11 01:11: «Catálogo FreeLLMAPI actualizado: 0 modelos»; NIM sin respuesta de minimax-m3.1-flash y\nnemotron-3.5-lightning (cuerpo vacío); OpenRouter: los cuatro modelos `:free` escritos a mano ya no existen\n(llama-3.1-8b-instruct, mistral-7b-instruct, gemma-2-9b-it, qwen-2.5-7b-instruct). Solo respondió Hermes (gemini-flash-lite). Cada\npetición pierde ~17 s en rutas muertas y depende de una sola. Arregla: a) la lista de OpenRouter sale del catálogo vivo\n(`/api/v1/models`, los que terminan en `:free` y aceptan chat), con caché de 6 h y respaldo a la última lista buena, nunca escrita a mano;\nb) averigua por qué FreeLLMAPI da 0 modelos y NIM no responde EN EL A1 (¿clave ausente en el archivo 600 del servicio?, ¿nombre de\nmodelo retirado?, ¿salida de red?) y arréglalo o deja la causa exacta y la acción; c) el orden de rutas lo decide la salud reciente\n(la que respondió va primero) y una ruta que falla tres veces seguidas se salta 30 min; d) en `/estado` del bot una línea con las rutas\nvivas. Pruebas sin red para a) y c).\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "DIR1121C",
+   "ola": "DIR1121",
+   "titulo": "Que un main con cambios sin commit no pare al enjambre 17 horas: apartarlo solo, sin perder nada, y avisar",
+   "archivos": [
+    "scripts/puente/apartar_arbol_sucio.py",
+    "scripts/puente/test_apartar_arbol_sucio.py",
+    "scripts/puente/arbol_de_trabajo.py"
+   ],
+   "depende": [],
+   "prompt": "Dos veces esta semana main quedó con archivos editados a mano y el orquestador se negó a arrancar (el 20/21-11, 17,5 h y 107 commits\nsin publicar). Regla de Alex: main nunca se queda sucio. Haz `apartar_arbol_sucio.py`: si el árbol de main lleva más de 15 min con cambios\nsin commit y no hay una integración en curso (cerrojo integrar.lock), guarda parche + copia de cada archivo + MANIFIESTO.json en\n~/.starseed/cuarentena/<fecha-hora>/ (nunca borra sin copia verificada), deja main limpio, lo anuncia en el canal Principal con la lista\nde archivos y crea una tarea para volver a aplicar el cambio con pruebas. Engánchalo donde el orquestador hoy solo se niega. Además deja\nen el informe QUIÉN edita main directamente (mira qué proceso/editor tocó esos archivos: Antigravity IDE, Codex, un agente con el\ndirectorio equivocado) y corrige esa configuración para que trabaje en worktree. Pruebas con un repositorio temporal.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "CTL1121N",
+   "ola": "DIR1121",
+   "titulo": "La clave propia del aparato en Rust no compila: sin esto no hay app nativa nueva",
+   "archivos": [
+    "native/src-tauri/src/clave_aparato_nativa.rs",
+    "native/src-tauri/src/lib.rs",
+    "native/src-tauri/Cargo.toml"
+   ],
+   "depende": [],
+   "prompt": "La supervisión del 21-11 encontró «Tauri · cargo check» en rojo: el Rust de CTL1119E (clave propia del aparato en el llavero del\nsistema, órdenes clave-aparato-crear/firmar/spki/estado/olvidar) no compila, así que ninguna compilación de prueba (.56) puede salir y\nLinux/Windows siguen sin clave propia. Compílalo DE VERDAD (cargo check en el A1 o en la nube; en el Mac no hay sitio: 10 GB libres),\narregla los errores uno a uno sin quitar la función, y deja `cargo check` y `cargo test` verdes para macOS, Linux y Windows (con cfg por\nplataforma donde el llavero difiera). La parte privada nunca sale a la página. Si ya hay otra tarea abierta para lo mismo, únete a ella\ny dilo. Al terminar pide la compilación de prueba con director_pruebas.py.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-114606.json": [
+   "CAP-skill-agent-reach-uso",
+   "MND1121A",
+   "CTL1121N",
+   "SIN1121A",
+   "DIR1121C",
+   "PET1121A",
+   "PET1121B"
+  ]
+ }
+}
