@@ -1,110 +1,103 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { PanelConversacion } from "../panel-conversacion";
-import type { DependenciasConversacion, EstadoConversacion, TurnoCompleto, Hablante } from "@/lib/traductor/conversacion";
-import type { ParIdiomas } from "@/lib/traductor/tipos";
-import type { ResultadoTraductor } from "@/lib/traductor/tipos";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { PanelConversacion, estadoDeLado, formatearMs, type PanelConversacionProps } from "../panel-conversacion";
+import type { TurnoCompleto } from "@/lib/traductor/conversacion";
 
-const parA: ParIdiomas = { origen: "es", destino: "en" };
-const parB: ParIdiomas = { origen: "en", destino: "es" };
+const turnos: TurnoCompleto[] = [
+    { quien: "A", texto: "Hola, ¿qué tal?", traduccion: "Hi, how are you?", msReconocer: 820, msTraducir: 140, msHablar: 950 },
+    { quien: "B", texto: "Muy bien, gracias", traduccion: "Very well, thanks", msReconocer: 610, msTraducir: 120, msHablar: 0 },
+];
 
-function crearDepsMock(overrides: Partial<DependenciasConversacion> = {}): DependenciasConversacion {
-    const turnosCompletos: TurnoCompleto[] = [];
-    const cambiosEstado: EstadoConversacion[] = [];
-
+function base(extra: Partial<PanelConversacionProps> = {}): PanelConversacionProps {
     return {
-        reloj: () => 1000,
-        reconocimiento: {
-            disponible: (idioma: string) => ({ ok: true, audioSaleDelAparato: true }),
-            iniciar: vi.fn(),
-            detener: vi.fn(),
-        },
-        traducir: vi.fn().mockResolvedValue({
-            texto: "translated",
-            origenDetectado: "es",
-            motor: "paquete-local",
-            local: true,
-            ms: 100,
-        } as ResultadoTraductor),
-        voz: {
-            disponible: (idioma: string) => ({ ok: true, motivo: undefined }),
-            hablar: vi.fn().mockReturnValue({ ok: true }),
-            detener: vi.fn(),
-            cuandoTermine: vi.fn((cb) => cb(true)),
-        },
-        parIdiomas: (quien: Hablante) => (quien === "A" ? parA : parB),
-        alTurnoCompleto: (turno: TurnoCompleto) => turnosCompletos.push(turno),
-        alCambioEstado: (estado: EstadoConversacion) => cambiosEstado.push(estado),
-        ...overrides,
+        estado: { fase: "inactivo" },
+        turnos,
+        idiomaA: "Español",
+        idiomaB: "Inglés",
+        reconocimientoA: true,
+        reconocimientoB: true,
+        vozA: true,
+        vozB: true,
+        audioSaleDelAparato: false,
+        onPulsarHablar: vi.fn(),
+        onEscribir: vi.fn(),
+        ...extra,
     };
 }
 
-function renderPanel(deps: DependenciasConversacion) {
-    return render(<PanelConversacion deps={deps} />);
+function montar(extra: Partial<PanelConversacionProps> = {}): PanelConversacionProps {
+    const props = base(extra);
+    render(<PanelConversacion {...props} />);
+    return props;
 }
 
+describe("formatearMs y estadoDeLado", () => {
+    it("muestra los milisegundos reales y marca la ausencia de dato", () => {
+        expect(formatearMs(820)).toBe("820 ms");
+        expect(formatearMs(0)).toBe("0 ms");
+        expect(formatearMs(-1)).toBe("—");
+        expect(formatearMs(Number.NaN)).toBe("—");
+    });
+
+    it("describe la fase por lado", () => {
+        expect(estadoDeLado({ fase: "inactivo" }, "A")).toBe("Listo");
+        const estado = { fase: "escuchando", quien: "A", inicioMs: 0, parcial: "hola" } as const;
+        expect(estadoDeLado(estado, "A")).toBe("Escuchando (hola)");
+        expect(estadoDeLado(estado, "B")).toBe("En espera");
+    });
+});
+
 describe("PanelConversacion", () => {
-    it("muestra dos mitades con sus idiomas y botones de micrófono", () => {
-        const deps = crearDepsMock();
-        renderPanel(deps);
-
-        expect(screen.getByText(/persona a/i)).toBeInTheDocument();
-        expect(screen.getByText(/persona b/i)).toBeInTheDocument();
-        expect(screen.getByText(/español/i)).toBeInTheDocument();
-        expect(screen.getByText(/inglés/i)).toBeInTheDocument();
-        expect(screen.getAllByRole("button", { name: /micrófono/i })).toHaveLength(2);
+    it("muestra el turno de cada lado con su texto original, su traducción y sus latencias", () => {
+        montar();
+        expect(screen.getByText("Hola, ¿qué tal?")).toBeInTheDocument();
+        expect(screen.getByText("Hi, how are you?")).toBeInTheDocument();
+        expect(screen.getByText("Muy bien, gracias")).toBeInTheDocument();
+        expect(screen.getByText("Very well, thanks")).toBeInTheDocument();
+        expect(screen.getByText(/Reconocido 820 ms · Traducido 140 ms · Hablado 950 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Reconocido 610 ms · Traducido 120 ms · Hablado 0 ms/)).toBeInTheDocument();
     });
 
-    it("botón de micrófono desactivado cuando no hay reconocimiento", () => {
-        const deps = crearDepsMock({
-            reconocimiento: {
-                disponible: () => ({ ok: false, motivo: "No hay reconocimiento", audioSaleDelAparato: false }),
-                iniciar: vi.fn(),
-                detener: vi.fn(),
-            },
-        });
-        renderPanel(deps);
-
-        const botonesMic = screen.getAllByRole("button", { name: /micrófono/i });
-        botonesMic.forEach((boton) => {
-            expect(boton).toBeDisabled();
-        });
+    it("desactiva el micrófono sin reconocimiento y ofrece escribir en ese lado", async () => {
+        const props = montar({ reconocimientoA: false });
+        const ladoA = within(screen.getByRole("region", { name: /Lado A/ }));
+        const micA = ladoA.getByRole("button", { name: /micrófono no disponible en español/i });
+        expect(micA).toBeDisabled();
+        expect(ladoA.getByText(/sin reconocimiento de voz para este idioma/i)).toBeInTheDocument();
+        await userEvent.click(ladoA.getByRole("button", { name: /escribir el turno/i }));
+        expect(props.onEscribir).toHaveBeenCalledWith("A");
+        expect(screen.getByRole("button", { name: /hablar en inglés/i })).toBeEnabled();
     });
 
-    it("aviso fijo: traducción no simultánea y audioSaleDelAparato", () => {
-        const deps = crearDepsMock();
-        renderPanel(deps);
-
-        expect(screen.getByText(/la traducción en tiempo real no es simultánea/i)).toBeInTheDocument();
-        expect(screen.getByText(/el audio sale del aparato/i)).toBeInTheDocument();
+    it("ofrece escribir cuando falta la voz de salida", () => {
+        montar({ vozB: false });
+        const ladoB = within(screen.getByRole("region", { name: /Lado B/ }));
+        expect(ladoB.getByText(/sin voz de salida para este idioma/i)).toBeInTheDocument();
+        expect(ladoB.getByRole("button", { name: /escribir el turno/i })).toBeInTheDocument();
     });
 
-    it("ofrece escribir cuando no hay reconocimiento ni voz", () => {
-        const deps = crearDepsMock({
-            reconocimiento: {
-                disponible: () => ({ ok: false, motivo: "Sin micrófono", audioSaleDelAparato: false }),
-                iniciar: vi.fn(),
-                detener: vi.fn(),
-            },
-            voz: {
-                disponible: () => ({ ok: false, motivo: "Sin voz" }),
-                hablar: vi.fn(),
-                detener: vi.fn(),
-                cuandoTermine: vi.fn(),
-            },
-        });
-        renderPanel(deps);
+    it("avisa de que la traducción no es simultánea y de dónde sale el audio", () => {
+        montar();
+        const aviso = screen.getByRole("note");
+        expect(aviso).toHaveTextContent(/no es simultánea/i);
+        expect(aviso).toHaveTextContent(/el audio no sale del aparato/i);
+    });
 
-        expect(screen.getByText(/escribe tu turno/i)).toBeInTheDocument();
-        expect(screen.getByRole("textbox", { name: /turno persona a/i })).toBeInTheDocument();
-        expect(screen.getByRole("textbox", { name: /turno persona b/i })).toBeInTheDocument();
+    it("declara cuando el audio sale del aparato", () => {
+        montar({ audioSaleDelAparato: true });
+        expect(screen.getByRole("note")).toHaveTextContent(/el audio sale del aparato/i);
+    });
+
+    it("pide el turno del lado que pulsa su micrófono disponible", async () => {
+        const props = montar();
+        await userEvent.click(screen.getByRole("button", { name: /hablar en inglés/i }));
+        expect(props.onPulsarHablar).toHaveBeenCalledWith("B");
     });
 
     it("mitad B girada 180° opcional", () => {
-        const deps = crearDepsMock();
-        render(<PanelConversacion deps={deps} girarB />);
-
+        const props = montar({ girarB: true });
         const mitadB = screen.getByTestId("mitad-b");
         expect(mitadB).toHaveStyle({ transform: "rotate(180deg)" });
     });

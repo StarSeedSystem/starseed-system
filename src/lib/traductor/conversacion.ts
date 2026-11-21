@@ -49,7 +49,7 @@ export type EventoConversacion =
 export interface DependenciasConversacion {
     reloj: () => number;
     reconocimiento: {
-        disponible: (idioma: string) => { ok: boolean; motivo?: string };
+        disponible: (idioma: string) => { ok: boolean; motivo?: string; audioSaleDelAparato: boolean };
         iniciar: (idioma: string, callbacks: {
             alResultado: (r: ResultadoReconocimiento) => void;
             alError: (error: ErrorReconocimiento, mensaje: string) => void;
