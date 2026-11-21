@@ -95,11 +95,11 @@ describe("CTL1117J · S1 · la pausa local no cierra la sesión", () => {
         expect(r2.ok).toBe(true);
     });
 
-    it("la pausa mantiene viva la sesión aunque dure: sigue contando como actividad y no caduca por inactividad en 2 min", async () => {
+    it("la pausa mantiene viva la sesión aunque dure: sigue contando como actividad y no caduca por falta de latidos (45 s)", async () => {
         const sesion = await abrir();
         nativoDice = { ok: false, motivo: "pausa-local" };
-        for (let i = 0; i < 4; i++) {
-            reloj += 60_000;
+        for (let i = 0; i < 8; i++) {
+            reloj += 30_000;
             await puerta.recibir(await firmar("leer-estado", {}, { sesion }));
         }
         expect(puerta.sesionActiva()?.token).toBe(TOKEN);

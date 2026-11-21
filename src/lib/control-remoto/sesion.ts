@@ -16,7 +16,8 @@
  *  10. la acción está en la lista cerrada — si no, «accion-desconocida» (nunca se adivina);
  *  11. sus argumentos son los tipados — si no, «argumentos»;
  *  12. su nivel no pasa del concedido ni del de la sesión — si no, «nivel»;
- *  13. hay sesión abierta por ESE aparato, viva (1 h máx., 2 min sin actividad) — si no, «sin-sesion»/«sesion-caducada».
+ *  13. hay sesión abierta por ESE aparato, viva (latidos cada 10 s; cae a los 45 s sin ellos) — si no, «sin-sesion»/«sesion-caducada».
+ *      CTL1119A: sin límite elegido al aceptar no hay hora máxima; si se eligió uno, al cumplirse es «limite-cumplido» y no se reabre sola.
  * Cada orden, aceptada o no, deja una línea `orden <acción> de=<8> nivel=<n> resultado=<…>`.
  * Revocar (un toque) cierra la sesión y APAGA el permiso: lo siguiente es «permiso-apagado».
  *
@@ -38,8 +39,14 @@ import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
 
+/** CTL1119A: la hora máxima histórica (1 h) se conserva como referencia; ya no se aplica sola: sin límite no hay techo. */
 export const SESION_MAX_MS = 60 * 60_000;
-export const SESION_INACTIVA_MS = 2 * 60_000;
+/** CTL1119A: la neurona que controla manda un latido firmado cada 10 s. */
+export const LATIDO_CADA_MS = 10_000;
+/** CTL1119A: la sesión solo cae si faltan latidos 45 s (o si se cumplió el límite elegido al aceptar). */
+export const SIN_LATIDOS_MS = 45_000;
+/** Se conserva el nombre anterior: es el plazo sin latidos que caduca una sesión. */
+export const SESION_INACTIVA_MS = SIN_LATIDOS_MS;
 export const TOPE_SEGUNDO = 5;
 export const TOPE_MINUTO = 60;
 /** (PAN1115J) Órdenes de entrada (toque, tecla…): hasta 60 por segundo, sin tope por minuto (§2.4). */
@@ -52,6 +59,70 @@ const ACCIONES_LECTURA = new Set(["leer-estado", "leer-aparato"]);
 export const MAX_CONTROLADORES = 4;
 export const MAX_PENDIENTES = 5;
 
+/** CTL1119A: de quién es la neurona que se va a aceptar (decide el filtro de límites por defecto). */
+export type AmbitoControl = "propia" | "otra-cuenta" | "publica";
+
+/** CTL1119A: el límite de tiempo que la persona elige al aceptar el control. */
+export type LimiteSesion = { tipo: "sin-limite" } | { tipo: "minutos"; minutos: number } | { tipo: "hasta"; hora: string };
+
+/** CTL1119A: el filtro del dueño (privado/público): qué se propone y hasta dónde se puede elegir. */
+export interface FiltroPermisos {
+    porDefecto: LimiteSesion;
+    maximo: LimiteSesion;
+}
+
+/** En las neuronas de la cuenta no hay techo; en las ajenas y públicas manda el filtro del dueño. */
+export const FILTRO_PROPIA: FiltroPermisos = { porDefecto: { tipo: "sin-limite" }, maximo: { tipo: "sin-limite" } };
+export const FILTRO_OTRA_CUENTA: FiltroPermisos = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 60 } };
+export const FILTRO_PUBLICA: FiltroPermisos = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 15 } };
+
+/** El filtro de un ámbito, con lo que el dueño haya configurado por encima (si lo hay). */
+export function filtroPorAmbito(ambito: AmbitoControl, delDueno?: Partial<FiltroPermisos> | null): FiltroPermisos {
+    const base = ambito === "propia" ? FILTRO_PROPIA : ambito === "publica" ? FILTRO_PUBLICA : FILTRO_OTRA_CUENTA;
+    return { porDefecto: delDueno?.porDefecto ?? base.porDefecto, maximo: delDueno?.maximo ?? base.maximo };
+}
+
+function horaDeHasta(hora: string, desde: number): number {
+    const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+    if (!m) return desde;
+    const d = new Date(desde);
+    d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    if (d.getTime() <= desde) d.setDate(d.getDate() + 1);
+    return d.getTime();
+}
+
+/** Cuánto dura un límite desde un instante; null si no tiene límite. */
+export function duracionDeLimite(limite: LimiteSesion, desde: number): number | null {
+    if (limite.tipo === "sin-limite") return null;
+    if (limite.tipo === "minutos") return Math.max(0, Math.round(limite.minutos * 60_000));
+    return Math.max(0, horaDeHasta(limite.hora, desde) - desde);
+}
+
+/** El fin absoluto de un límite desde que se aceptó; null si no hay límite. */
+export function finDeLimite(limite: LimiteSesion | null | undefined, aceptadoEn: number): number | null {
+    if (!limite || limite.tipo === "sin-limite") return null;
+    if (limite.tipo === "minutos") return aceptadoEn + Math.max(0, Math.round(limite.minutos * 60_000));
+    return horaDeHasta(limite.hora, aceptadoEn);
+}
+
+/** Recorta lo elegido al máximo del filtro: nunca se supera lo que el dueño permite. */
+export function limiteNormalizado(elegido: LimiteSesion | null | undefined, filtro: FiltroPermisos, ahora: number): LimiteSesion {
+    const limite = elegido ?? filtro.porDefecto;
+    const maxMs = duracionDeLimite(filtro.maximo, ahora);
+    if (maxMs === null) return limite;
+    const ms = duracionDeLimite(limite, ahora);
+    if (ms === null || ms > maxMs) {
+        if (filtro.maximo.tipo === "hasta") return filtro.maximo;
+        return { tipo: "minutos", minutos: Math.max(1, Math.floor(maxMs / 60_000)) };
+    }
+    return limite;
+}
+
+/** Lo que queda de una sesión con límite (ms); null si no hay límite. */
+export function restanteDeSesion(s: { fin?: number | null }, ahora: number): number | null {
+    return s.fin === null || s.fin === undefined ? null : Math.max(0, s.fin - ahora);
+}
+
 export interface Controlador {
     huella: string;
     spki: string;
@@ -61,6 +132,10 @@ export interface Controlador {
     desde: string;
     /** CTL1117H: color público que declaró al presentarse (#rrggbb); si falta, el de su id (`colorPorDefecto`). */
     color?: string;
+    /** CTL1119A: límite de tiempo elegido por la persona al aceptar; sin él no hay tope de duración. */
+    limite?: LimiteSesion;
+    /** CTL1119A: cuándo se aceptó (ISO); desde ahí cuenta el límite. */
+    aceptadoEn?: string;
 }
 
 /** Lo que el dueño decidió en ESTE aparato. Se guarda; las sesiones no (viven en memoria). */
@@ -84,6 +159,8 @@ export interface SesionActiva {
     ultima: number;
     /** CTL1117I: color público que el controlador firmó al abrir (`#rrggbb`) o, si no, el que declaró al presentarse. */
     color?: string;
+    /** CTL1119A: cuándo termina el límite elegido (ms epoch) o null si la sesión no tiene límite. */
+    fin?: number | null;
 }
 
 export interface DepsPuerta {
@@ -145,6 +222,8 @@ export class PuertaControl {
      * (una persona pulsó «Reabrir») la borra. Solo en memoria.
      */
     private terminadoPor = new Set<string>();
+    /** CTL1119A: por qué cayó la última sesión (latidos o límite cumplido), para decírselo a quien manda. */
+    private caducadaPor: "latidos" | "limite" | null = null;
 
     constructor(private readonly d: DepsPuerta) {}
 
@@ -166,6 +245,7 @@ export class PuertaControl {
     terminar(motivo = MOTIVO_TERMINADO): void {
         const s = this.sesion;
         this.sesion = null;
+        this.caducadaPor = null;
         if (s) this.terminadoPor.add(s.de);
         void this.d.nativo.parar(motivo).catch(() => undefined);
         this.d.anotar(`orden terminar de=${s ? s.de.slice(0, 8) : "-"} nivel=- resultado=${motivo}`);
@@ -181,6 +261,7 @@ export class PuertaControl {
     revocar(motivo = "revocado"): void {
         const s = this.sesion;
         this.sesion = null;
+        this.caducadaPor = null;
         this.terminadoPor.clear();
         void this.d.nativo.parar(motivo).catch(() => undefined); // ORD1114Q
         const p = this.d.leerPermiso();
@@ -194,6 +275,7 @@ export class PuertaControl {
         const s = this.sesion;
         if (!s) return;
         this.sesion = null;
+        this.caducadaPor = null;
         if (esTerminarDeLaPersona(motivo)) this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
         this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${/^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada"}`);
         this.d.alCambiar?.();
@@ -205,6 +287,7 @@ export class PuertaControl {
         this.aMano = /^[a-z-]{1,24}$/.test(que) ? que : "a-mano";
         if (s) {
             this.sesion = null;
+            this.caducadaPor = null;
             void this.d.nativo.parar("a-mano").catch(() => undefined);
             this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=a-mano:${this.aMano}`);
             this.d.alCambiar?.();
@@ -215,9 +298,12 @@ export class PuertaControl {
         const s = this.sesion;
         if (!s) return;
         const t = this.d.ahora();
-        if (t - s.inicio > SESION_MAX_MS || t - s.ultima > SESION_INACTIVA_MS) {
+        const porLimite = s.fin !== null && s.fin !== undefined && t > s.fin;
+        const porLatidos = t - s.ultima > SESION_INACTIVA_MS;
+        if (porLimite || porLatidos) {
             this.sesion = null;
-            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada`);
+            this.caducadaPor = porLimite ? "limite" : "latidos";
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${porLimite ? "limite-cumplido" : "caducada"}`);
             this.d.alCambiar?.();
         }
     }
@@ -356,17 +442,25 @@ export class PuertaControl {
             // se aceptó con el nombre viejo, sin aceptarlo otra vez. Nunca desde algo sin firma.
             const nombreFirmado = nombreLimpio(c.accion.args.nombre);
             const nombreCtl = nombreFirmado ?? ctl.nombre;
+            // CTL1119A: el límite se eligió al aceptar; si ya se cumplió, ni se abre ni se pide otra aceptación.
+            const aceptadoEn = ctl.aceptadoEn ? Date.parse(ctl.aceptadoEn) : ahora;
+            const fin = finDeLimite(ctl.limite ?? { tipo: "sin-limite" }, Number.isFinite(aceptadoEn) ? aceptadoEn : ahora);
+            if (fin !== null && ahora >= fin) {
+                this.caducadaPor = "limite";
+                return this.respuesta(c.nonce, false, "limite-cumplido", nombre, c.de, c.nivel);
+            }
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
             const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
-            // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token, misma hora
-            // máxima): renovar la ventana de inactividad sí, estirar la hora máxima de 1 h no.
+            // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token y mismo fin):
+            // renovar la ventana de latidos sí, estirar el límite elegido no.
             const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
             const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
             const color = colorFirmado ?? ctl.color;
-            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, ...(color ? { color } : {}) };
+            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ...(color ? { color } : {}) };
             this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
+            this.caducadaPor = null;
             if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
             this.d.alCambiar?.();
             if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
@@ -374,7 +468,7 @@ export class PuertaControl {
                 sesion: this.sesion.token,
                 nivel,
                 capacidades: capacidadesDeNivel(nivel),
-                caduca: new Date(inicio + SESION_MAX_MS).toISOString(),
+                ...(fin !== null ? { caduca: new Date(fin).toISOString() } : { sinLimite: true }),
             });
         }
 
@@ -384,6 +478,7 @@ export class PuertaControl {
             // CTL1118G: la persona terminó esta sesión. Se dice con el motivo de siempre de «parada-nativa» (terminal: no reabre sola).
             return this.respuesta(c.nonce, false, "parada-nativa", nombre, c.de, c.nivel, undefined, { motivo: MOTIVO_TERMINADO });
         }
+        if (!s && this.caducadaPor === "limite") return this.respuesta(c.nonce, false, "limite-cumplido", nombre, c.de, c.nivel);
         if (!s || s.de !== c.de || c.sesion !== s.token) return this.respuesta(c.nonce, false, s ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
         if (rangoNivel(def.nivel) > rangoNivel(s.nivel)) return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
         s.ultima = ahora;
@@ -492,16 +587,40 @@ export class PuertaControl {
     }
 }
 
-/** El dueño acepta EN ESTE aparato a un aparato que se presentó (lo fija por su clave). */
-export function aceptarPendiente(p: PermisoControl, huella: string): PermisoControl {
+/** CTL1119A: lo que la persona elige al aceptar (ámbito, límite y filtro del dueño). */
+export interface OpcionesAceptar {
+    ambito?: AmbitoControl;
+    limite?: LimiteSesion;
+    filtro?: Partial<FiltroPermisos> | null;
+    ahora?: number;
+}
+
+/** El dueño acepta EN ESTE aparato a un aparato que se presentó (lo fija por su clave y su límite). */
+export function aceptarPendiente(p: PermisoControl, huella: string, o: OpcionesAceptar = {}): PermisoControl {
     const x = p.pendientes.find((y) => y.huella === huella);
     if (!x) return p;
-    const controladores = [x, ...p.controladores.filter((y) => y.huella !== huella)].slice(0, MAX_CONTROLADORES);
+    const ahora = o.ahora ?? Date.now();
+    const filtro = filtroPorAmbito(o.ambito ?? "propia", o.filtro);
+    const limite = limiteNormalizado(o.limite ?? filtro.porDefecto, filtro, ahora);
+    const aceptado: Controlador = { ...x, limite, aceptadoEn: new Date(ahora).toISOString() };
+    const controladores = [aceptado, ...p.controladores.filter((y) => y.huella !== huella)].slice(0, MAX_CONTROLADORES);
     return { ...p, controladores, pendientes: p.pendientes.filter((y) => y.huella !== huella) };
 }
 
 export function quitarControlador(p: PermisoControl, huella: string): PermisoControl {
     return { ...p, controladores: p.controladores.filter((y) => y.huella !== huella), pendientes: p.pendientes.filter((y) => y.huella !== huella) };
+}
+
+/** CTL1119A: un límite guardado que no tenga forma exacta no se inventa. */
+function sanearLimite(v: unknown): LimiteSesion | undefined {
+    if (!v || typeof v !== "object") return undefined;
+    const o = v as Record<string, unknown>;
+    if (o.tipo === "sin-limite") return { tipo: "sin-limite" };
+    if (o.tipo === "minutos" && typeof o.minutos === "number" && Number.isFinite(o.minutos) && o.minutos > 0 && o.minutos <= 24 * 60) {
+        return { tipo: "minutos", minutos: Math.round(o.minutos) };
+    }
+    if (o.tipo === "hasta" && typeof o.hora === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(o.hora)) return { tipo: "hasta", hora: o.hora };
+    return undefined;
 }
 
 /** Lee un permiso guardado con forma estricta; cualquier cosa rara vuelve al de fábrica (apagado). */
@@ -524,6 +643,22 @@ export function sanearPermiso(x: unknown): PermisoControl {
                           typeof (c as Controlador).neurona === "string",
                   )
                   .slice(0, MAX_CONTROLADORES + MAX_PENDIENTES)
+                  .map((c) => {
+                      const limite = sanearLimite(c.limite);
+                      const aceptadoEn = typeof c.aceptadoEn === "string" && Number.isFinite(Date.parse(c.aceptadoEn)) ? c.aceptadoEn : undefined;
+                      const color = typeof c.color === "string" && /^#[0-9a-f]{6}$/.test(c.color) ? c.color : undefined;
+                      return {
+                          huella: c.huella,
+                          spki: c.spki,
+                          cuenta: c.cuenta,
+                          nombre: c.nombre,
+                          neurona: c.neurona,
+                          desde: typeof c.desde === "string" ? c.desde : new Date(0).toISOString(),
+                          ...(color ? { color } : {}),
+                          ...(limite ? { limite } : {}),
+                          ...(aceptadoEn ? { aceptadoEn } : {}),
+                      };
+                  })
             : [];
     return {
         encendido: o.encendido === true,
