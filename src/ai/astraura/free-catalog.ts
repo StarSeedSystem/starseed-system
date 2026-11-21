@@ -625,6 +625,23 @@ export const FREE_CATALOG: CatalogSource[] = [
     ],
   },
   {
+    id: "tokenrouter-free",
+    label: "TokenRouter :free",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://api.tokenrouter.com/v1",
+    requiresKey: true,
+    getKeyUrl: "https://tokenrouter.com",
+    limits: "Modelos `:free` de relevo (GLM 5.3, Nemotron 3 Nano Omni) con clave TokenRouter. Cupo por proveedor tras el router.",
+    why: "Router gratuito que enruta a modelos `:free` de múltiples proveedores (Z.ai, NVIDIA). Útil como relevo cuando otras fuentes agotan cupo: GLM 5.3 para revisión/escritura, Nemotron Nano Omni para visión+razonamiento.",
+    privacy: "cloud",
+    weight: 0.95,
+    models: [
+      { id: "z-ai/glm-5.3-free", label: "GLM 5.3 (tokenrouter)", strengths: ["chat", "reasoning", "creative", "summary"], quality: 8, context: 128000, note: "Escritor y revisor · 128K ctx" },
+      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron 3 Nano Omni (visión+razonamiento)", strengths: ["vision", "reasoning"], quality: 8, vision: true, context: 256000, note: "Ve y razona (256K ctx)" },
+    ],
+  },
+  {
     id: "gemini-free",
     label: "Google Gemini (gratis)",
     tier: "free-key",
