@@ -3,19 +3,26 @@
 
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
-historial, vetar, pausar y reanudar.
+historial, vetar, pausar y reanudar; y `brave_buscar` para buscar en la web
+(CAP1119, Brave Search).
 
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
 STARSEED_PRODUCCION_VETOS, STARSEED_PRODUCCION_PAUSA,
 STARSEED_PRODUCCION_RAIZ (raíz del repo para `candidatos`) y
 STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
+La clave de Brave se lee SOLO por nombre: BRAVE_SEARCH_API_KEY (o BRAVE_API_KEY).
 """
 
+import html
 import json
 import os
+import re
 import sys
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -28,7 +35,8 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, "
-    "y consulta, veta, pausa o reanuda la producción."
+    "consulta, veta, pausa o reanuda la producción, "
+    "y busca en la web con Brave."
 )
 
 
@@ -57,6 +65,105 @@ def _esquema(propiedades, requeridos):
         "required": requeridos,
         "additionalProperties": False,
     }
+
+
+# --- Brave Search (CAP1119): búsqueda web para las tareas ---
+#
+# La clave NO se guarda ni se imprime: se lee del entorno por su nombre. Las
+# funciones puras (`brave_url`, `brave_limpiar`, `brave_formatear`) y el
+# `abrir` inyectable permiten probar la conexión sin red en `test_mcp_director.py`;
+# la prueba real vive en `.agent/skills/mcp-brave-search/comprobar.py`.
+
+BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_VARIABLES = ("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")
+BRAVE_MAX_CUENTA = 20
+
+
+def brave_clave(entorno=None):
+    """Primera clave de Brave presente en el entorno; cadena vacía si no hay."""
+    entorno = os.environ if entorno is None else entorno
+    for nombre in BRAVE_VARIABLES:
+        valor = str(entorno.get(nombre) or "").strip()
+        if valor:
+            return valor
+    return ""
+
+
+def brave_url(consulta, cuenta=5, pais=None, idioma=None):
+    """URL de la API de Brave (pura): la clave NUNCA viaja en la URL."""
+    parametros = {"q": consulta, "count": str(cuenta), "text_decorations": "0"}
+    if pais:
+        parametros["country"] = str(pais).strip().upper()
+    if idioma:
+        parametros["search_lang"] = str(idioma).strip().lower()
+    return BRAVE_ENDPOINT + "?" + urllib.parse.urlencode(parametros)
+
+
+def brave_limpiar(texto):
+    """Quita etiquetas HTML y resuelve entidades de un fragmento de Brave."""
+    sin_etiquetas = re.sub(r"<[^>]+>", "", str(texto or ""))
+    return html.unescape(sin_etiquetas).strip()
+
+
+def brave_formatear(datos):
+    """Resultados de la API como texto legible (pura); «Sin resultados.» si no hay."""
+    resultados = ((datos or {}).get("web") or {}).get("results") or []
+    lineas = []
+    for posicion, resultado in enumerate(resultados, 1):
+        if not isinstance(resultado, dict):
+            continue
+        titulo = brave_limpiar(resultado.get("title")) or "(sin título)"
+        url = str(resultado.get("url") or "").strip()
+        descripcion = brave_limpiar(resultado.get("description"))
+        linea = "%d. %s" % (posicion, titulo)
+        if url:
+            linea += "\n   %s" % url
+        if descripcion:
+            linea += "\n   %s" % descripcion
+        lineas.append(linea)
+    return "\n".join(lineas) if lineas else "Sin resultados."
+
+
+def brave_consultar(
+    consulta, cuenta=5, pais=None, idioma=None, abrir=None, clave=None
+):
+    """Consulta Brave y devuelve el texto formateado; ValueError si falla."""
+    clave = brave_clave() if clave is None else clave
+    if not clave:
+        raise ValueError("falta BRAVE_SEARCH_API_KEY (o BRAVE_API_KEY) en el entorno")
+    peticion = urllib.request.Request(
+        brave_url(consulta, cuenta, pais, idioma),
+        headers={
+            "Accept": "application/json",
+            "Accept-Encoding": "identity",
+            "X-Subscription-Token": clave,
+            "User-Agent": "starseed-mcp-director/1.0",
+        },
+    )
+    abrir = abrir or urllib.request.urlopen
+    try:
+        with abrir(peticion, timeout=15) as respuesta:
+            datos = json.loads(respuesta.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise ValueError("Brave respondió %s" % error.code)
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        motivo = getattr(error, "reason", error)
+        raise ValueError("sin conexión con Brave: %s" % motivo)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise ValueError("la respuesta de Brave no es JSON válido")
+    return brave_formatear(datos)
+
+
+def _brave(args):
+    """Ejecuta `brave_buscar` validando sus argumentos."""
+    consulta = str(args.get("consulta") or "").strip()
+    if not consulta:
+        raise ValueError("consulta es obligatoria")
+    cuenta = args.get("cuenta")
+    cuenta = 5 if cuenta is None else int(cuenta)
+    if not 1 <= cuenta <= BRAVE_MAX_CUENTA:
+        raise ValueError("cuenta fuera de rango (1-20): %d" % cuenta)
+    return brave_consultar(consulta, cuenta, args.get("pais"), args.get("idioma"))
 
 
 ESQUEMAS = {
@@ -107,6 +214,20 @@ ESQUEMAS = {
     "produccion_reanudar": _esquema(
         {"quien": _P_QUIEN, "motivo": _P_MOTIVO}, ["quien", "motivo"]
     ),
+    "brave_buscar": _esquema(
+        {
+            "consulta": _s("string", "Texto que se busca en la web."),
+            "cuenta": _s(
+                "integer",
+                "Número de resultados (1-20; por defecto 5).",
+                minimum=1,
+                maximum=BRAVE_MAX_CUENTA,
+            ),
+            "pais": _s("string", "Código de país de dos letras (p. ej. «ES», «MX»)."),
+            "idioma": _s("string", "Código de idioma de dos letras (p. ej. «es»)."),
+        },
+        ["consulta"],
+    ),
 }
 
 _HERR = [
@@ -120,6 +241,10 @@ _HERR = [
     ("produccion_vetar", "Veta un sha o una tarea con motivo."),
     ("produccion_pausar", "Pausa la publicación (las puertas siguen corriendo)."),
     ("produccion_reanudar", "Quita la pausa de producción."),
+    (
+        "brave_buscar",
+        "Busca en la web con Brave Search (requiere BRAVE_SEARCH_API_KEY).",
+    ),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -323,6 +448,8 @@ def _llamar(nombre, args):
     args = args or {}
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
+    if nombre == "brave_buscar":
+        return _brave(args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)

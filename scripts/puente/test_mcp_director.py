@@ -90,7 +90,7 @@ class PruebasAtender(unittest.TestCase):
         r = mcp_director.atender(self._p("ping"))
         self.assertEqual(r, {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    def test_tools_list_diez_herramientas(self):
+    def test_tools_list_once_herramientas(self):
         r = mcp_director.atender(self._p("tools/list"))
         nombres = [h["name"] for h in r["result"]["tools"]]
         self.assertEqual(
@@ -106,6 +106,7 @@ class PruebasAtender(unittest.TestCase):
                 "produccion_vetar",
                 "produccion_pausar",
                 "produccion_reanudar",
+                "brave_buscar",
             ],
         )
 
@@ -338,6 +339,186 @@ class PruebasProduccion(unittest.TestCase):
     def test_candidatos_sin_repo_devuelve_mensaje(self):
         texto = self._texto("produccion_candidatos", {})
         self.assertIn("No hay candidatos", texto)
+
+
+class PruebasBrave(unittest.TestCase):
+    """Conexión MCP brave-search: funciones puras y HTTP con `abrir` falso."""
+
+    _VARS = ("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self._VARS}
+        for v in self._VARS:
+            os.environ.pop(v, None)
+
+    def tearDown(self):
+        for v in self._VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+
+    def test_url_lleva_consulta_y_no_la_clave(self):
+        url = mcp_director.brave_url("salas de StarSeed", 7, "es", "ES")
+        self.assertIn("q=salas+de+StarSeed", url)
+        self.assertIn("count=7", url)
+        self.assertIn("country=ES", url)
+        self.assertIn("search_lang=es", url)
+        self.assertNotIn("X-Subscription-Token", url)
+        self.assertNotIn("BRAVE", url)
+
+    def test_limpiar_quita_etiquetas_y_entidades(self):
+        self.assertEqual(
+            mcp_director.brave_limpiar("<b>Hola</b> &amp; adiós"),
+            "Hola & adiós",
+        )
+        self.assertEqual(mcp_director.brave_limpiar(None), "")
+
+    def test_formatear_vacio_y_con_resultados(self):
+        self.assertEqual(mcp_director.brave_formatear({}), "Sin resultados.")
+        texto = mcp_director.brave_formatear(
+            {
+                "web": {
+                    "results": [
+                        {
+                            "title": "Uno <b>fuerte</b>",
+                            "url": "https://uno.example",
+                            "description": "Primera &amp; útil",
+                        },
+                        {"title": "", "url": ""},
+                    ]
+                }
+            }
+        )
+        self.assertIn("1. Uno fuerte", texto)
+        self.assertIn("https://uno.example", texto)
+        self.assertIn("Primera & útil", texto)
+        self.assertIn("2. (sin título)", texto)
+
+    def test_clave_por_nombre_y_orden(self):
+        self.assertEqual(mcp_director.brave_clave({}), "")
+        self.assertEqual(
+            mcp_director.brave_clave(
+                {"BRAVE_API_KEY": "b", "BRAVE_SEARCH_API_KEY": "a"}
+            ),
+            "a",
+        )
+        self.assertEqual(mcp_director.brave_clave({"BRAVE_API_KEY": "b"}), "b")
+
+    def _respuesta(self, cuerpo):
+        class Respuesta:
+            def __init__(self, datos):
+                self._datos = datos
+
+            def read(self):
+                return self._datos
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        return Respuesta(cuerpo)
+
+    def test_consultar_usa_abrir_y_formatea(self):
+        visto = {}
+
+        def abrir(peticion, timeout=None):
+            visto["url"] = peticion.full_url
+            visto["clave"] = peticion.get_header("X-subscription-token")
+            visto["timeout"] = timeout
+            return self._respuesta(
+                json.dumps(
+                    {"web": {"results": [{"title": "A", "url": "https://a"}]}}
+                ).encode("utf-8")
+            )
+
+        texto = mcp_director.brave_consultar(
+            "algo", 3, abrir=abrir, clave="clave-de-prueba"
+        )
+        self.assertIn("1. A", texto)
+        self.assertIn("count=3", visto["url"])
+        self.assertEqual(visto["clave"], "clave-de-prueba")
+        self.assertEqual(visto["timeout"], 15)
+
+    def test_consultar_sin_clave_no_sale_a_la_red(self):
+        with self.assertRaises(ValueError) as error:
+            mcp_director.brave_consultar(
+                "algo", abrir=lambda *a, **k: self.fail("sin red")
+            )
+        self.assertIn("BRAVE_SEARCH_API_KEY", str(error.exception))
+
+    def test_consultar_http_error_es_value_error(self):
+        def abrir(peticion, timeout=None):
+            raise mcp_director.urllib.error.HTTPError(
+                peticion.full_url, 429, "Too Many Requests", {}, None
+            )
+
+        with self.assertRaises(ValueError) as error:
+            mcp_director.brave_consultar("algo", abrir=abrir, clave="x")
+        self.assertIn("429", str(error.exception))
+
+    def test_herramienta_sin_clave_es_isError(self):
+        r = mcp_director.atender(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "brave_buscar", "arguments": {"consulta": "algo"}},
+            }
+        )
+        self.assertTrue(r["result"]["isError"])
+        self.assertIn("BRAVE_SEARCH_API_KEY", r["result"]["content"][0]["text"])
+
+    def test_herramienta_valida_cuenta(self):
+        r = mcp_director.atender(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "brave_buscar",
+                    "arguments": {"consulta": "algo", "cuenta": 99},
+                },
+            }
+        )
+        self.assertTrue(r["result"]["isError"])
+        self.assertIn("cuenta fuera de rango", r["result"]["content"][0]["text"])
+
+    def test_herramienta_pasa_argumentos(self):
+        original = getattr(mcp_director, "brave_consultar")
+        visto = {}
+
+        def falso(consulta, cuenta=5, pais=None, idioma=None, **extra):
+            visto.update(consulta=consulta, cuenta=cuenta, pais=pais, idioma=idioma)
+            return "resultado"
+
+        setattr(mcp_director, "brave_consultar", falso)
+        try:
+            r = mcp_director.atender(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "brave_buscar",
+                        "arguments": {
+                            "consulta": " algo ",
+                            "cuenta": 3,
+                            "pais": "ES",
+                            "idioma": "es",
+                        },
+                    },
+                }
+            )
+        finally:
+            setattr(mcp_director, "brave_consultar", original)
+        self.assertEqual(r["result"]["content"][0]["text"], "resultado")
+        self.assertEqual(
+            visto,
+            {"consulta": "algo", "cuenta": 3, "pais": "ES", "idioma": "es"},
+        )
 
 
 #: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).
