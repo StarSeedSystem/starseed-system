@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { FilaMedio } from "@/lib/mando/mapa-medios";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
 export type EstadoMedio = "listo" | "usable" | "requiere_alex" | "no_disponible";
@@ -25,6 +26,12 @@ export interface ResumenMedios {
     medios: MedioComputo[];
     resumen: ConteoMedios;
     error?: string;
+    /** Mapa de almacenamiento global (Mac, Maggabox, A1 y Drive como espejo). */
+    mapa?: FilaMedio[];
+    /** Fila agregada del mapa, ya calculada por `filaAlmacenamiento`. */
+    almacenamientoGlobal?: FilaMedio;
+    /** Avisos 2+1 de capacidades que viven en un solo medio. */
+    avisosMediosUnicos?: string[];
 }
 
 const execFileAsync = promisify(execFile);

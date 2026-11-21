@@ -12,6 +12,12 @@ const TONES: Record<EstadoMedio, { bg: string; label: string }> = {
     no_disponible: { bg: "border-zinc-500/40 bg-zinc-500/20 text-zinc-400", label: "No disponible" },
 };
 
+const TONOS_MAPA: Record<"ok" | "alerta" | "bloqueado", string> = {
+    ok: "border-emerald-500/40 bg-emerald-500/20 text-emerald-300",
+    alerta: "border-amber-500/40 bg-amber-500/20 text-amber-300",
+    bloqueado: "border-red-500/40 bg-red-500/20 text-red-300",
+};
+
 export function BotonMedios() {
     const [abierto, setAbierto] = useState(false);
     const [cargando, setCargando] = useState(false);
@@ -83,6 +89,27 @@ export function BotonMedios() {
                         </div>
                     ) : resumen ? (
                         <div className="mt-3">
+                            {resumen.almacenamientoGlobal ? (
+                                <div className="mb-3 rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="font-semibold text-white">Almacenamiento global</span>
+                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${TONOS_MAPA[resumen.almacenamientoGlobal.estado]}`}>
+                                            {resumen.almacenamientoGlobal.estado}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-[11px] text-white/60">{resumen.almacenamientoGlobal.porque}</p>
+                                    {resumen.mapa && resumen.mapa.length > 1 ? (
+                                        <ul className="mt-2 space-y-1">
+                                            {resumen.mapa.slice(1).map((fila) => (
+                                                <li key={fila.id} className="flex items-baseline justify-between gap-2">
+                                                    <span className="truncate text-white/70">{fila.nombre}</span>
+                                                    <span className="shrink-0 font-mono text-white/50">{fila.capacidad ?? 0} GB</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : null}
+                                </div>
+                            ) : null}
                             <SeccionPlegable
                                 id="mando.medios-computo"
                                 titulo="Medios disponibles"
