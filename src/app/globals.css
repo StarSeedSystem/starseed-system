@@ -3981,6 +3981,174 @@ html.ss-gesto [data-ventana-escritorio] {
 .ss-barra-ajusta { display: flex; flex-wrap: wrap; gap: 0.25rem; height: auto; }
 
 /* ════════════════════════════════════════════════════════════════════════
+   ORBE BINARIO — escenario fijo 16:9 con transiciones de estado
+   ────────────────────────────────────────────────────────────────────────
+   Estados: idle → activo → error. Transiciones por opacidad y escala,
+   sin layout shift. Escenario 16:9 escalado al visor (aspect-ratio).
+   prefers-reduced-motion: solo fade (escala 1), misma identidad de gesto.
+   Tokens integrados con --dur-*, --ease-*, --phi del sistema.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Duraciones del orbe (sincronizadas con transicionOrbe en TS) */
+  --orb-dur-idle: 0.6s;
+  --orb-dur-activo: 0.5s;
+  --orb-dur-error: 0.4s;
+  --orb-dur-reduced: 0.2s;
+  /* Easing compartido (cubic-bezier(0.2, 0.9, 0.25, 1) = --ease-glide aprox) */
+  --orb-ease: var(--ease-glide, cubic-bezier(0.2, 0.9, 0.25, 1));
+  /* Escalas por estado */
+  --orb-scale-idle: 1;
+  --orb-scale-activo: 1.08;
+  --orb-scale-error: 0.92;
+  /* Opacidades por estado */
+  --orb-opacity-idle: 1;
+  --orb-opacity-activo: 1;
+  --orb-opacity-error: 0.6;
+}
+
+/* Contenedor del escenario fijo 16:9 — se escala al visor sin layout shift */
+.orb-escenario {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  contain: layout style paint;
+  overflow: hidden;
+}
+
+/* Orbe binario — centrado en el escenario, transiciones solo transform/opacity */
+.orb-binario {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: clamp(80px, min(18vw, 28vh), 220px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  /* Identidad visual: gradiente binario (dos mitades) */
+  background:
+    radial-gradient(ellipse at 30% 30%, var(--orb-color-a, hsl(var(--primary-hsl))) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 70%, var(--orb-color-b, hsl(var(--secondary-hsl))) 0%, transparent 55%),
+    conic-gradient(from 180deg at 50% 50%, var(--orb-color-a, hsl(var(--primary-hsl))) 0%, var(--orb-color-b, hsl(var(--secondary-hsl))) 50%, var(--orb-color-a, hsl(var(--primary-hsl))) 100%);
+  /* Transiciones de estado: solo transform y opacity para compositor GPU */
+  transition:
+    transform var(--orb-dur-idle) var(--orb-ease),
+    opacity var(--orb-dur-idle) var(--orb-ease);
+  will-change: transform, opacity;
+  /* Estado por defecto: idle */
+  transform: translate(-50%, -50%) scale(var(--orb-scale-idle));
+  opacity: var(--orb-opacity-idle);
+}
+
+/* Estados del orbe — cambian custom properties para transicionar */
+.orb-binario[data-estado="idle"] {
+  --orb-dur: var(--orb-dur-idle);
+  transform: translate(-50%, -50%) scale(var(--orb-scale-idle));
+  opacity: var(--orb-opacity-idle);
+}
+
+.orb-binario[data-estado="activo"] {
+  --orb-dur: var(--orb-dur-activo);
+  transform: translate(-50%, -50%) scale(var(--orb-scale-activo));
+  opacity: var(--orb-opacity-activo);
+}
+
+.orb-binario[data-estado="error"] {
+  --orb-dur: var(--orb-dur-error);
+  transform: translate(-50%, -50%) scale(var(--orb-scale-error));
+  opacity: var(--orb-opacity-error);
+}
+
+/* Transiciones explícitas por cambio de estado (evita flicker en Safari) */
+.orb-binario[data-estado="idle"],
+.orb-binario[data-estado="activo"],
+.orb-binario[data-estado="error"] {
+  transition-duration: var(--orb-dur, var(--orb-dur-idle));
+}
+
+/* Anillo de actividad (pulso) — solo en estado activo */
+.orb-binario::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--orb-color-a, hsl(var(--primary-hsl) / 0.5));
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.8);
+  transition:
+    opacity var(--orb-dur-activo) var(--orb-ease),
+    transform var(--orb-dur-activo) var(--orb-ease);
+  pointer-events: none;
+}
+
+.orb-binario[data-estado="activo"]::before {
+  animation: orb-pulso 2s var(--orb-ease) infinite;
+  opacity: 0.6;
+}
+
+@keyframes orb-pulso {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 0;
+  }
+}
+
+/* ── prefers-reduced-motion: solo fade, sin escala ni pulso ─────────────────
+   Misma identidad de gesto (opacidad), precisión mínima (escala = 1).
+   Duración reducida a 0.2s. El pulso se desactiva.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .orb-binario {
+    transition-duration: var(--orb-dur-reduced) !important;
+    /* Escala fija en 1 — sin layout shift, solo opacidad */
+    transform: translate(-50%, -50%) scale(1) !important;
+  }
+
+  .orb-binario[data-estado="idle"],
+  .orb-binario[data-estado="activo"],
+  .orb-binario[data-estado="error"] {
+    transform: translate(-50%, -50%) scale(1) !important;
+    transition-duration: var(--orb-dur-reduced) !important;
+  }
+
+  .orb-binario::before {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
+/* ── Integración con modo rendimiento "eficiente" ───────────────────────────
+   En modo eficiente: animaciones pausadas, opacidad base por estado.
+   ────────────────────────────────────────────────────────────────────────── */
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .orb-binario {
+  transition: none !important;
+  animation: none !important;
+}
+
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .orb-binario[data-estado="idle"] {
+  opacity: var(--orb-opacity-idle) !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .orb-binario[data-estado="activo"] {
+  opacity: var(--orb-opacity-activo) !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .orb-binario[data-estado="error"] {
+  opacity: var(--orb-opacity-error) !important;
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+
+:is(html[data-rendimiento="eficiente"], html[data-rendimiento-efectivo="eficiente"]) .orb-binario::before {
+  display: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    MODO RENDIMIENTO — data-rendimiento en <html>
    ────────────────────────────────────────────────────────────────────────
    Modos: auto | alto | eco | eficiente
