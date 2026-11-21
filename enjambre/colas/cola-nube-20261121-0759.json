@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "ASW16",
+   "ola": "ASW1116A",
+   "titulo": "Pruebas de movimiento reducido, dispositivo modesto y tema claro/oscuro",
+   "archivos": [
+    "src/components/widgets-libres/familias/__tests__/astraura-adaptativo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. LO QUE YA EXISTE (léelo antes): el widget del dashboard cuyo texto de estado es «En calma» es `AstrauraLibre` en `src/components/widgets-libres/familias/astraura-libre.tsx` (268 líneas; `TEXTO_VOZ` :31, `useVozAurora` :38 lee el puente `getAuroraBridge()` de `src/lib/aurora/open-aurora.ts` con `speaking`, `listening`, `actionStatus`; el `Orbe` de :65 es el círculo de colores violeta/turquesa; `Preguntar` :90; el diseño por tamaño :170-262 con `disenoDe(clase)` de `familias/comun.tsx:23`). Se monta desde `src/components/widgets-libres/registro-libre.tsx:38` (`case \"AURORA_LAST\"`, hoy sin recibir el widget ni `onUpdateSettings`, a diferencia del reloj). La Protomolécula: la orbe 4D completa es `src/components/protomolecula/orbe-protomolecula.tsx` (475 líneas, three.js a demanda, arrastrable y flotante: NO sirve para meterla en un widget); su lógica pura está en `src/lib/protomolecula/orbe4d/` (`coreografia.ts`: `IdForma` semilla/merkaba/jitterbug/teseracto/dodecaedro/matriz/icosaedro, `PALETAS` por registro con `astraura`, `ESTILOS`, `FICHAS`, tiempos de Fibonacci; `geometria.ts`: `merkaba()`, `icosaedro()`, `dodecaedro()`, `jitterbug()`, `teseractoVertices()`, `PHI`). Ya hay una versión ligera en SVG: `src/components/layout/trinity/horizon/vista-previa-orbe.tsx` (flor de la vida y merkaba, solo `transform`/`opacity`, quieta con `motion-safe`), pero NO depende del estado del asistente. El presupuesto de render del dispositivo es `src/lib/widgets/forma/nivel-dispositivo.ts` (`useNivelRender`, `nivelRender`: ligero/normal/pleno). La identidad: colores SOLO de `PALETAS` (marca Trinity Liquid Crystal, `adn-y-tokens.md` §2 y §6), nunca hexadecimales inventados. Solo pruebas. (1) Movimiento reducido: con `matchMedia(\"(prefers-reduced-motion: reduce)\")` verdadero, `AstrauraLibreProto` pinta la forma con `data-viva=\"false\"` y ningún elemento del widget lleva animación CSS (`animation`, clases `animate-*` ni `ss-girar`). (2) Dispositivo modesto: con `useNivelRender` simulado en `ligero` la forma queda quieta pero SIGUE cambiando de forma con el estado. (3) Pleno y sin reducción: `data-viva=\"true\"`. (4) Tema: renderiza con la clase `dark` y sin ella en `document.documentElement` y comprueba que el texto principal del widget no usa una clase `text-white` fija en los tres diseños que no pintan su propio fondo (si alguno la usa porque el fondo del widget es siempre oscuro, la prueba lo anota en un comentario y lo permite solo ahí). (5) Los cinco estados dicen su frase para lector de pantalla (`frasePantallaLectora`) en el botón de la forma.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "revisor_quitadas": [
+    "ASW14"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "ASW16"
+  ]
+ }
+}
