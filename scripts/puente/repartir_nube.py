@@ -10,6 +10,7 @@ nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
 import json
+import math
 import os
 import re
 import time
@@ -51,6 +52,87 @@ MAX_ARCHIVOS_NUBE = 3
 #: saber que repetir no sirve: a partir de ahí van a «Bloqueadas», donde se ven y se
 #: pueden reintentar con un cambio.
 MAX_ENVIOS_NUBE = 3
+
+#: (CAP1119B) A1 de Oracle Always Free: 2 OCPU y 12 GB. Su tope es suyo (el gobernador de la
+#: Mac no manda allí): un trabajador por OCPU libre, con ~1,5 GB de RAM y ~0,5 OCPU cada uno.
+A1_OCPU = 2
+A1_RAM_TOTAL_GB = 12
+A1_RAM_POR_TRABAJADOR_GB = 1.5
+A1_OCPU_POR_TRABAJADOR = 0.5
+A1_TOPE_HARDWARE = max(1, A1_OCPU - 1)
+
+
+def calcular_trabajadores_a1(cpu_libre_pct: float, mem_libre_gb: float,
+                             ocpu: int = A1_OCPU, ram_total_gb: int = A1_RAM_TOTAL_GB) -> int:
+    """PURA (CAP1119B). Trabajadores que puede correr el A1 AHORA, con CPU y memoria libres.
+
+    Reglas, como el gobernador de la Mac pero con el tope del A1:
+    - Tope por hardware: OCPU - 1 (con 2 OCPU → 1 trabajador).
+    - Por CPU: `cpu_libre_pct` de `ocpu` entre lo que pide cada trabajador.
+    - Por RAM: `mem_libre_gb` entre lo que pide cada trabajador.
+    - 0 si no llega ni a 1 GB libre; mínimo 1 si hay recursos; nunca pasa del tope.
+    `ram_total_gb` se acepta por la firma del medidor: el margen ya llega en GB libres.
+    """
+    if mem_libre_gb is None or cpu_libre_pct is None or float(mem_libre_gb) < 1.0:
+        return 0
+    tope_hardware = max(1, int(ocpu) - 1)
+    por_cpu = int((float(cpu_libre_pct) / 100.0) * int(ocpu) / A1_OCPU_POR_TRABAJADOR)
+    por_ram = int(float(mem_libre_gb) / A1_RAM_POR_TRABAJADOR_GB)
+    return max(0, min(tope_hardware, max(1, por_cpu), max(1, por_ram)))
+
+
+#: (CAP1119B) El otro tope del A1: hasta 4 agentes por hardware, con ~3 GB por agente. Se usa
+#: cuando lo que llega es el consumo medido (`margen_a1` de `medidor_oracle`), no el margen suelto.
+CAPACIDAD_A1_OCPU = 2
+CAPACIDAD_A1_GB = 12
+MAX_AGENTES_A1 = 4
+MIN_AGENTES_A1 = 1
+A1_GB_POR_AGENTE = 3.0
+
+
+def a1_escalar_agentes(consumo, ahora=None, tope_max=MAX_AGENTES_A1, tope_min=MIN_AGENTES_A1):
+    """PURA (CAP1119B). Agentes que caben en el A1 según su consumo medido.
+
+    `consumo`: el documento de `medidor_oracle` (`leido`, `freno`, `margen`). Sin medidor, o sin
+    margen, va el tope mínimo: el A1 no se queda parado por no saber cuánto le queda. Con el
+    freno de gasto activo, cero. Si no, uno por OCPU libre (redondeando hacia arriba) y como
+    mucho uno por cada `A1_GB_POR_AGENTE` GB libres, sin pasar de `tope_max`.
+    """
+    if not isinstance(consumo, dict) or not consumo.get("leido"):
+        return {"agentes": tope_min, "capacidad": "A1 %d OCPU · %d GB (sin medidor: tope mínimo)" % (
+            CAPACIDAD_A1_OCPU, CAPACIDAD_A1_GB),
+            "motivo": "sin medidor de consumo: usa tope mínimo (%d)" % tope_min}
+    freno = consumo.get("freno") or {}
+    if isinstance(freno, dict) and freno.get("activo"):
+        return {"agentes": 0, "capacidad": "A1 %d OCPU · %d GB" % (CAPACIDAD_A1_OCPU, CAPACIDAD_A1_GB),
+                "motivo": "freno: %s" % (freno.get("motivo") or "el gasto del mes pasó de 0")}
+    margen = consumo.get("margen") or {}
+    cpu_libre, mem_libre = (margen.get("cpu_libre_pct"), margen.get("mem_libre_gb")) \
+        if isinstance(margen, dict) else (None, None)
+    if cpu_libre is None or mem_libre is None:
+        return {"agentes": tope_min, "capacidad": "A1 %d OCPU · %d GB (margen desconocido: tope mínimo)" % (
+            CAPACIDAD_A1_OCPU, CAPACIDAD_A1_GB),
+            "motivo": "margen sin datos: usa tope mínimo (%d)" % tope_min}
+    ocpu_libres = max(0.0, CAPACIDAD_A1_OCPU * float(cpu_libre) / 100.0)
+    por_cpu = max(tope_min, int(math.ceil(ocpu_libres)))
+    por_mem = max(tope_min, int(float(mem_libre) / A1_GB_POR_AGENTE))
+    agentes = max(tope_min, min(int(tope_max), por_cpu, por_mem))
+    return {"agentes": agentes,
+            "capacidad": "A1 %d OCPU · %d GB · libre ahora: %.1f %% CPU · %.1f GB" % (
+                CAPACIDAD_A1_OCPU, CAPACIDAD_A1_GB, float(cpu_libre), float(mem_libre)),
+            "motivo": "%d agente(s) (CPU: %d, RAM: %d, tope %d)" % (agentes, por_cpu, por_mem, tope_max)}
+
+
+def a1_motivo_medio(medio):
+    """PURA (CAP1119B). Por qué no se puede usar el A1 ("" si se puede), en las palabras del parte."""
+    medio = medio if isinstance(medio, dict) else {}
+    estado, detalle = medio.get("estado"), str(medio.get("detalle") or "")
+    if estado in ("usable", "listo"):
+        return ""
+    if estado == "requiere_alex":
+        return "sin A1 listo (%s)" % (medio.get("siguiente_paso") or detalle
+                                     or "vincula la cuenta y despliega el A1")
+    return "no disponible (%s)" % (detalle or "estado desconocido")
 
 
 def ids_de_la_tanda_viva(args_procesos, olas):
@@ -387,10 +469,11 @@ class CerrojoReparto:
     def __exit__(self, *exc):
         import fcntl
 
-        try:
-            fcntl.flock(self.f, fcntl.LOCK_UN)
-        finally:
-            self.f.close()
+        if self.f is not None:
+            try:
+                fcntl.flock(self.f, fcntl.LOCK_UN)
+            finally:
+                self.f.close()
         return False
 
 
