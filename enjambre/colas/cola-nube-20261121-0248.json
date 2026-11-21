@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "MAG1120E",
+   "ola": "MAG1120",
+   "titulo": "Collector de capacidades nodos (recopila fichas de todos los medios)",
+   "archivos": [
+    "scripts/puente/recopilar-capacidades-nodos.py",
+    "scripts/puente/test_recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Crea scripts/puente/recopilar-capacidades-nodos.py que lea: (1) ~/.starseed/orquestador.json (state del orquestador Mac), (2) ~/.starseed/a1-autocuracion.json (state del Oracle A1), (3) salida de sonda_maggabox.py (state de Maggabox), y produce ~/.starseed/capacidades-nodos.json con array {nodos: [...]}. Cada nodo tiene nodoId (mac-local, maggabox, a1-oracle), medio ('mac'|'linux'|'nube'|'android'), nucleos, ramLibreMb, cpu, discoLibreGb, almacen ([rutas]), y capas instaladas. Usa el modelo CapacidadesNodo de src/lib/network/capacidades-nodo.ts como referencia. Pruebas en test_recopilar-capacidades-nodos.py con stubs. REGLAS: ≤120 líneas por archivo; puro sin red real en pruebas; usa inyección de dependencias (read_fn, write_fn); JSON parseable.",
+   "revisor": "presidencia",
+   "tiempo_estimado_seg": 600,
+   "dependencias_ya_en_main": [
+    "MAG1120A",
+    "MAG1120D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "MAG1120E"
+  ]
+ }
+}
