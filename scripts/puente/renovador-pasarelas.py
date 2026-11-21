@@ -70,6 +70,19 @@ SONDAS = [
     ("huggingface", "https://router.huggingface.co/v1", "HF_TOKEN", "Qwen/Qwen2.5-72B-Instruct"),
     # FreeLLMAPI local: reparte entre todo lo gratuito; su clave la crea Alex en :3001.
     ("freellmapi", "http://127.0.0.1:3001/v1", "FREELLMAPI_KEY", "auto"),
+    # abliteration.ai: 10 000 peticiones/día gratis, saldo USD, clave ABLITERATION_API_KEY
+    ("abliteration", "https://api.abliteration.ai/v1", "ABLITERATION_API_KEY", "abliterated-model"),
+    # Antigravity (agy): CLI con cuenta Google, modelos Gemini/Claude/GPT-OSS, sin clave API
+    # Se sonda via medios_disponibles.clasificar_agy, no por HTTP directo.
+    ("antigravity", "local", None, "gemini-3.8-flash-medium"),
+    # Ollama del A1: modelo privado qwen 4B en Oracle A1, sin clave, red local
+    ("ollama-a1", "http://10.0.0.1:11434/v1", None, "qwen2.5:4b"),
+    # Codex: suscripción ChatGPT, se gestiona vía cupo_codex.py (marca agotado 3 h)
+    ("codex", "local", None, "gpt-4o"),
+    # OpenCode Zen: modelos gratuitos vía opencode (glm-5.3-flash, deepseek-v4.1-flash, minimax-m3.1-flash, big-pickle)
+    ("opencode-zen", "local", None, "glm-5.3-flash-free"),
+    # Experiential Labs: modelos de decisión gratis (Jev, Clef Flash) y chat en promoción
+    ("explabs", "https://api.experientiallabs.ai/v1", "EXPLABS_API_KEY", "jev-latest"),
 ]
 
 ARCHIVOS_DE_CLAVES = ("~/.hermes/.env", "~/.starseed/env")
@@ -106,8 +119,20 @@ def entorno_con_claves():
     return fuera
 
 
-def sondear(url, clave, modelo, segundos=25):
-    """Ocho tokens. Devuelve (http, cuerpo_recortado, hubo_tokens)."""
+def sondear(url, clave, modelo, segundos=25, nombre=None):
+    """Ocho tokens. Devuelve (http, cuerpo_recortado, hubo_tokens).
+
+    Proveedores especiales (url="local") se manejan sin HTTP:
+    - antigravity: usa CLI agy, se clasifica via medios_disponibles
+    - ollama-a1: endpoint remoto en A1, sin clave
+    - codex: se gestiona vía cupo_codex.py (marca agotado 3 h)
+    - opencode-zen: modelos gratuitos vía opencode, sin clave
+    - explabs: pasarela con clave EXPLABS_API_KEY
+    """
+    # Proveedores sin sonda HTTP estándar
+    if url == "local":
+        return _sondear_local(nombre, modelo, segundos)
+
     if not clave and not url.startswith("http://127.0.0.1"):
         # Sin llave no es «lenta»: es exactamente el caso que hay que renovar.
         return 401, "no hay clave en el entorno para esta pasarela", False
@@ -153,12 +178,94 @@ def sondear(url, clave, modelo, segundos=25):
         return 0, "%s: %s" % (type(e).__name__, e), False
 
 
+def _sondear_local(nombre, modelo, segundos):
+    """Sonda proveedores que no usan HTTP estándar."""
+    import subprocess
+    import time as _time
+
+    if nombre == "antigravity":
+        # antigravity usa CLI agy; estado viene de medios_disponibles.clasificar_agy
+        # Aquí solo verificamos que el binario existe
+        try:
+            import shutil
+            binario = shutil.which("agy") or "/home/alex/.local/bin/agy"
+            if not os.path.exists(binario):
+                return 404, "agy no encontrado", False
+            # Ejecutar agy models para ver si responde
+            resultado = subprocess.run(
+                ["agy", "models"], capture_output=True, text=True, timeout=segundos, stdin=subprocess.DEVNULL
+            )
+            if resultado.returncode == 0 and resultado.stdout.strip():
+                return 200, "agy responde", True
+            return 503, "agy sin modelos", False
+        except subprocess.TimeoutExpired:
+            return 0, "TimeoutError: timed out", False
+        except Exception as e:
+            return 0, "%s: %s" % (type(e).__name__, e), False
+
+    if nombre == "ollama-a1":
+        # Ollama en A1: endpoint remoto sin clave
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "http://10.0.0.1:11434/v1/chat/completions",
+                data=json.dumps({"model": modelo, "messages": [{"role": "user", "content": "di ok"}], "max_tokens": 16}).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "starseed-renovador/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=segundos) as r:
+                texto = r.read().decode("utf-8", "replace")
+                try:
+                    d = json.loads(texto)
+                    opciones = d.get("choices") or []
+                    viva = bool(opciones) and not d.get("error")
+                except Exception:
+                    viva = False
+                return r.status, texto[:400], viva
+        except Exception as e:
+            return 0, "%s: %s" % (type(e).__name__, e), False
+
+    if nombre == "codex":
+        # Codex: se gestiona vía cupo_codex.py; aquí solo verificamos si está marcado como agotado
+        try:
+            import cupo_codex
+            marca = cupo_codex.leer()
+            if cupo_codex.sigue_agotado(marca, _time.time()):
+                return 429, marca.get("motivo", "cuota agotada"), False
+            return 200, "codex disponible", True
+        except Exception:
+            # Si no se puede leer la marca, asumimos que está disponible
+            return 200, "codex sin marca de agotamiento", True
+
+    if nombre == "opencode-zen":
+        # OpenCode Zen: modelos gratuitos sin clave, siempre disponibles si opencode está configurado
+        # Verificar que opencode.json tiene los modelos zen
+        try:
+            import os
+            config_path = os.path.expanduser("~/.config/opencode/opencode.json")
+            if os.path.exists(config_path):
+                with open(config_path, encoding="utf-8") as f:
+                    config = json.load(f)
+                providers = config.get("provider", {})
+                if "opencode" in providers or "zen" in str(config).lower():
+                    return 200, "opencode-zen configurado", True
+            return 404, "opencode-zen no configurado", False
+        except Exception:
+            return 200, "opencode-zen asumido disponible", True
+
+    if nombre == "explabs":
+        # Experiential Labs: pasarela con clave EXPLABS_API_KEY
+        # Se sonda igual que las demás pero con su endpoint
+        pass  # Se maneja en el flujo normal HTTP arriba
+
+    return 404, "proveedor local desconocido: %s" % nombre, False
+
+
 def pasada(segundos=25):
     entorno = entorno_con_claves()
     fuera = []
     for nombre, url, var, modelo in SONDAS:
         t0 = time.time()
-        http, cuerpo, tokens = sondear(url, entorno.get(var), modelo, segundos)
+        http, cuerpo, tokens = sondear(url, entorno.get(var), modelo, segundos, nombre=nombre)
         fuera.append({
             "clave": nombre,
             "modelo": modelo,

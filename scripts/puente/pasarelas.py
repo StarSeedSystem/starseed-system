@@ -53,10 +53,22 @@ CATALOGO = {
                    "humano": True, "nota": "Local: sin clave, sin cupo y sin red. Solo necesita que haya un modelo descargado que sepa programar."},
     "google":     {"nombre": "Google AI Studio (Gemini)", "enlace": "https://aistudio.google.com/apikey",
                    "humano": True, "nota": "Gemini gratis con cupo diario (GEMINI_API_KEY). Escribe con herramientas y 1M de contexto."},
-    "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
-                   "humano": True, "nota": "Inference API con cuota mensual gratuita."},
+"huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
+                    "humano": True, "nota": "Inference API con cuota mensual gratuita."},
     "freellmapi": {"nombre": "FreeLLMAPI (local :3001)", "enlace": "https://github.com/tashfeenahmed/freellmapi",
-                   "humano": True, "nota": "Pasarela unificada local; la clave freellmapi-… se crea en su panel y se guarda como FREELLMAPI_KEY."},
+                     "humano": True, "nota": "Pasarela unificada local; la clave freellmapi-… se crea en su panel y se guarda como FREELLMAPI_KEY."},
+    "abliteration": {"nombre": "abliteration.ai", "enlace": "https://abliteration.ai/",
+                     "humano": True, "nota": "10 000 peticiones/día gratis; saldo en USD; clave en ABLITERATION_API_KEY."},
+    "antigravity": {"nombre": "Antigravity (agy)", "enlace": "https://antigravity.dev/",
+                    "humano": True, "nota": "CLI con cuenta Google de Alex; modelos Gemini/Claude/GPT-OSS; cuota de Antigravity (GEM1119C)."},
+    "ollama-a1": {"nombre": "Ollama del A1 (qwen 4B)", "enlace": "https://ollama.com/library",
+                  "humano": False, "nota": "Modelo privado 4B en Oracle A1; sin clave, sin cupo, solo red local."},
+    "codex": {"nombre": "Codex (ChatGPT)", "enlace": "https://chatgpt.com/",
+              "humano": True, "nota": "Suscripción ChatGPT; cuota por ventana; se aparta 3 h al agotarse (cupo_codex.py)."},
+    "opencode-zen": {"nombre": "OpenCode Zen", "enlace": "https://opencode.ai/",
+                     "humano": False, "nota": "Modelos gratuitos vía opencode (glm-5.3-flash, deepseek-v4.1-flash, minimax-m3.1-flash, big-pickle); sin clave."},
+    "explabs": {"nombre": "Experiential Labs", "enlace": "https://api.experientiallabs.ai/",
+                "humano": True, "nota": "Modelos de decisión gratis (Jev, Clef Flash) y chat en promoción; clave EXPLABS_API_KEY."},
 }
 
 _PISTAS = (
@@ -141,6 +153,20 @@ _PISTAS = (
     ("socket.timeout", LENTA),
     ("timeout", LENTA),
     ("read operation timed out", LENTA),
+    # abliteration.ai
+    ("insufficient credits", SIN_CUPO),
+    ("credit limit", SIN_CUPO),
+    ("payment required", FICHAJE),
+    # antigravity (agy) — usa cuenta Google, sin clave API
+    ("quota exceeded", SIN_CUPO),
+    ("rate limit", SIN_CUPO),
+    # codex — suscripción ChatGPT
+    ("usage limit", SIN_CUPO),
+    ("upgrade to pro", SIN_CUPO),
+    # opencode-zen — modelos gratuitos sin clave
+    # explabs — promociones y decisiones gratis
+    ("requires payment method", FICHAJE),
+    ("promotion expired", SIN_CUPO),
 )
 
 

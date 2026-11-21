@@ -349,6 +349,186 @@ def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servic
     )
 
 
+def clasificar_abliteration(estado: dict | None, ahora: float) -> dict:
+    """PURA. Estado de abliteration.ai.
+    - listo: saldo > 0 y gasto del día < tope
+    - usable: saldo > 0 pero gasto del día cerca del tope
+    - requiere_alex: sin clave o saldo 0
+    """
+    if not estado or estado.get("saldo_usd") is None:
+        return medio(
+            "abliteration", "abliteration.ai", "requiere_alex",
+            "10 000 peticiones/día · saldo USD",
+            "sin datos de saldo (falta ABLITERATION_API_KEY o no se sondeó)",
+            "ejecutar: python3 scripts/puente/abliteration.py",
+        )
+    saldo = float(estado.get("saldo_usd", 0))
+    gastado = float(estado.get("gastado_total_usd", 0))
+    if saldo <= 0:
+        return medio(
+            "abliteration", "abliteration.ai", "requiere_alex",
+            "10 000 peticiones/día · saldo USD",
+            "saldo agotado: %.2f USD" % saldo,
+            "recargar en https://abliteration.ai/",
+        )
+    # tope diario por defecto 0.50 USD (configurable via STARSEED_ABLITERATION_DIA_USD)
+    tope_dia = 0.5
+    try:
+        import os
+        tope_dia = float(os.environ.get("STARSEED_ABLITERATION_DIA_USD", "0.5"))
+    except Exception:
+        pass
+    if gastado >= tope_dia * 0.8:
+        return medio(
+            "abliteration", "abliteration.ai", "usable",
+            "10 000 peticiones/día · saldo USD",
+            "saldo %.2f USD · gastado hoy %.2f/%.2f USD (cerca del tope)" % (saldo, gastado, tope_dia),
+            "esperar reinicio diario o aumentar tope",
+        )
+    return medio(
+        "abliteration", "abliteration.ai", "listo",
+        "10 000 peticiones/día · saldo USD",
+        "saldo %.2f USD · gastado hoy %.2f/%.2f USD" % (saldo, gastado, tope_dia),
+        "",
+    )
+
+
+def clasificar_ollama_a1(datos_oracle: dict | None, ahora: float) -> dict:
+    """PURA. Estado de Ollama en el A1 (modelo qwen 4B privado).
+    - listo: A1 RUNNING y nodo MetaGenesis vivo con Ollama respondiendo
+    - usable: A1 RUNNING pero Ollama no sondea
+    - requiere_alex: Oracle no vinculada o A1 no RUNNING
+    """
+    if not datos_oracle or not datos_oracle.get("vinculada"):
+        return medio(
+            "ollama-a1", "Ollama del A1 (qwen 4B)", "requiere_alex",
+            "modelo privado 4B en Oracle A1",
+            "Oracle no vinculada o sin A1",
+            "vincular Oracle y desplegar A1: scripts/puente/oracle_desplegar.py",
+        )
+    instancias = datos_oracle.get("instancias") or []
+    a1 = next((i for i in instancias if isinstance(i, dict)
+               and "a1" in (str(i.get("nombre")) + str(i.get("forma"))).lower()), {})
+    if str(a1.get("estado") or "").upper() != "RUNNING":
+        return medio(
+            "ollama-a1", "Ollama del A1 (qwen 4B)", "requiere_alex",
+            "modelo privado 4B en Oracle A1",
+            "A1 no está RUNNING",
+            "desplegar el A1: scripts/puente/oracle_desplegar.py --simular",
+        )
+    # Verificar si el nodo MetaGenesis en A1 está vivo (latido fresco)
+    nodo = datos_oracle.get("nodo") if isinstance(datos_oracle.get("nodo"), dict) else {}
+    if nodo.get("vivo") and nodo.get("latido") and ahora - float(nodo["latido"]) < 2700:
+        return medio(
+            "ollama-a1", "Ollama del A1 (qwen 4B)", "listo",
+            "modelo privado 4B · sin clave · sin cupo",
+            "A1 RUNNING · nodo MetaGenesis vivo (fase: %s)" % (nodo.get("fase") or "?"),
+            "",
+        )
+    return medio(
+        "ollama-a1", "Ollama del A1 (qwen 4B)", "usable",
+        "modelo privado 4B · sin clave · sin cupo",
+        "A1 RUNNING pero nodo MetaGenesis no anuncia latido fresco",
+        "verificar orquestador en A1 (oracle_nodo.py estado)",
+    )
+
+
+def clasificar_codex(marca: dict | None, ahora: float) -> dict:
+    """PURA. Estado de Codex (suscripción ChatGPT).
+    - listo: sin marca de agotamiento o marca vencida
+    - usable: marca de agotamiento vigente (faltan X min)
+    """
+    try:
+        import cupo_codex
+        if not marca:
+            marca = cupo_codex.leer()
+        if cupo_codex.sigue_agotado(marca, ahora):
+            min_rest = cupo_codex.minutos_restantes(marca, ahora)
+            return medio(
+                "codex", "Codex (ChatGPT)", "usable",
+                "suscripción ChatGPT · cuota por ventana",
+                "agotado: vuelve en %d min (motivo: %s)" % (min_rest, marca.get("motivo", "cuota")),
+                "esperar reinicio de cuota (ventana de 3 h aprox)",
+            )
+    except Exception:
+        pass
+    return medio(
+        "codex", "Codex (ChatGPT)", "listo",
+        "suscripción ChatGPT · cuota por ventana",
+        "sin marca de agotamiento activa",
+        "",
+    )
+
+
+def clasificar_opencode_zen(config_opencode: dict | None) -> dict:
+    """PURA. Estado de OpenCode Zen (modelos gratuitos vía opencode).
+    - listo: opencode configurado con proveedores zen
+    - usable: opencode instalado pero sin configuración zen
+    - no_disponible: opencode no instalado
+    """
+    if not config_opencode:
+        return medio(
+            "opencode-zen", "OpenCode Zen", "no_disponible",
+            "glm-5.3-flash · deepseek-v4.1-flash · minimax-m3.1-flash · big-pickle",
+            "opencode.json no encontrado o sin proveedores zen",
+            "configurar opencode: opencode run --model zen/glm-5.3-flash-free",
+        )
+    providers = config_opencode.get("provider", {})
+    tiene_zen = any("zen" in str(k).lower() or "glm-5.3-flash" in str(v).lower()
+                    for k, v in providers.items())
+    if tiene_zen:
+        return medio(
+            "opencode-zen", "OpenCode Zen", "listo",
+            "glm-5.3-flash · deepseek-v4.1-flash · minimax-m3.1-flash · big-pickle",
+            "opencode configurado con modelos Zen gratuitos",
+            "",
+        )
+    return medio(
+        "opencode-zen", "OpenCode Zen", "usable",
+        "glm-5.3-flash · deepseek-v4.1-flash · minimax-m3.1-flash · big-pickle",
+        "opencode instalado pero sin modelos Zen configurados",
+        "añadir proveedor zen a ~/.config/opencode/opencode.json",
+    )
+
+
+def clasificar_explabs(estado: dict | None, ahora: float) -> dict:
+    """PURA. Estado de Experiential Labs.
+    - listo: hay modelos de decisión gratis (Jev, Clef Flash) o chat en promoción
+    - usable: clave configurada pero sin promociones activas
+    - requiere_alex: sin EXPLABS_API_KEY
+    """
+    if not estado or not estado.get("hecho"):
+        return medio(
+            "explabs", "Experiential Labs", "requiere_alex",
+            "Jev/Clef Flash gratis · chat en promoción",
+            "sin foto de promociones (falta EXPLABS_API_KEY o no se sondeó)",
+            "ejecutar: python3 scripts/puente/explabs_promos.py actualizar",
+        )
+    decisiones_gratis = estado.get("decisiones_gratis") or []
+    chat_gratis = estado.get("chat_gratis") or []
+    chat_promo = estado.get("chat_promocion") or []
+    if decisiones_gratis or chat_gratis or chat_promo:
+        items = []
+        if decisiones_gratis:
+            items.append("decisiones gratis: %s" % ", ".join(decisiones_gratis))
+        if chat_gratis:
+            items.append("chat gratis: %s" % ", ".join(chat_gratis))
+        if chat_promo:
+            items.append("chat promo: %s" % ", ".join(c["slug"] + " (-%d%%)" % c["descuento"] for c in chat_promo))
+        return medio(
+            "explabs", "Experiential Labs", "listo",
+            "Jev/Clef Flash gratis · chat en promoción",
+            " · ".join(items),
+            "",
+        )
+    return medio(
+        "explabs", "Experiential Labs", "usable",
+        "Jev/Clef Flash gratis · chat en promoción",
+        "clave configurada pero sin promociones activas ahora",
+        "esperar próxima actualización (cada 6 h) o revisar en la web",
+    )
+
+
 # ── sondas ───────────────────────────────────────────────────────────────────
 def sondear() -> dict:
     env = _env(); ahora = time.time(); medios = []
@@ -423,6 +603,42 @@ def sondear() -> dict:
     except (OSError, ValueError):
         medidor_agy = None
     medios.append(clasificar_agy(agy_bin, medidor_agy, ahora))
+
+    # abliteration.ai
+    try:
+        with open(os.path.expanduser("~/.starseed/abliteration-uso.json"), encoding="utf-8") as f:
+            ablit_state = json.load(f)
+    except (OSError, ValueError):
+        ablit_state = None
+    medios.append(clasificar_abliteration(ablit_state, ahora))
+
+    # Ollama del A1 (qwen 4B)
+    medios.append(clasificar_ollama_a1(oracle_datos, ahora))
+
+    # Codex (ChatGPT)
+    try:
+        import cupo_codex
+        codex_marca = cupo_codex.leer()
+    except Exception:
+        codex_marca = None
+    medios.append(clasificar_codex(codex_marca, ahora))
+
+    # OpenCode Zen
+    try:
+        with open(os.path.expanduser("~/.config/opencode/opencode.json"), encoding="utf-8") as f:
+            opencode_config = json.load(f)
+    except (OSError, ValueError):
+        opencode_config = None
+    medios.append(clasificar_opencode_zen(opencode_config))
+
+    # Experiential Labs
+    try:
+        with open(os.path.expanduser("~/.starseed/explabs-promos.json"), encoding="utf-8") as f:
+            explabs_state = json.load(f)
+    except (OSError, ValueError):
+        explabs_state = None
+    medios.append(clasificar_explabs(explabs_state, ahora))
+
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
 
