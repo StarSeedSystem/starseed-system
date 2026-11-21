@@ -117,6 +117,8 @@ y encola lo válido, con o sin la Mac encendida.
 
 El chat **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el **A1 (Oracle, líder de dirección)** sin la Mac. Procesa peticiones con FreeLLMAPI local (modelos gratuitos con nombre, nunca `auto` ni Claude) y genera en NotebookLM (infografía, audio tipo podcast, vídeo, presentación, mapa mental, informe, cuestionario, tarjetas, tabla) usando la última síntesis diaria de Drive o el cuaderno de producción. Comandos: `/estado`, `/ayuda`, `/encargos`, `/pausa`, `/sigue`, `/cancela`. La sesión de NotebookLM es **solo del A1** (único dueño); se renueva cada 20 min con `auth refresh` y, si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex` del navegador propio para importar cookies al CLI. Todo en el A1: claves en `~/.starseed/env`, cola durable en `~/.starseed/peticiones/cola.json`, preferencias en `~/.starseed/peticiones/preferencias.json`.
 
+**PET1116 (dirección):** enrutador con salud (FreeLLMAPI → NIM → OpenRouter `:free` → Hermes) nunca deja una petición fallida; tipos: «encargo», «alcance», «descartar», «notebooklm», «respuesta»; una URL en el mensaje es FUENTE que se usa (YouTube → NotebookLM, Drive → add-drive, web → add); «alcance» usa la plantilla de `ALC-NICK-1116` (informe, ficha y mensaje **pendiente de aprobación**); una petición fallida abre reparación automática en `cola-auto-salud` con traza y aviso al chat. Detalles en `architecture/peticiones-direccion-1116.md`.
+
 El Doc lleva:
 
 - **Título:** `<qué> · contrato y cola <OLA> (léelo, director)`.

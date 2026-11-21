@@ -202,3 +202,14 @@ Mac ni Claude».
 ]
 }
 ```
+
+---
+
+## Referencia: PET1116 · Despacho, alcance y autorreparación
+
+`architecture/peticiones-direccion-1116.md` documenta la evolución de este sistema (ola PET1116):
+
+- **Enrutador con salud** (PET1116A): FreeLLMAPI (modelos vivos de `/v1/models`) → NIM → OpenRouter `:free` → Hermes; memoria de salud compartida con el sanador; una petición nunca queda fallida por modelos.
+- **Despacho completo** (PET1116B): tipos «encargo», «alcance», «descartar», «notebooklm», «respuesta»; URLs como FUENTE (YouTube/Drive/web); alcance con plantilla `ALC-NICK-1116` (informe, ficha, mensaje **pendiente de aprobación**); registro de capacidades activas.
+- **Autorreparación dirigida** (PET1116C): fallo abre `cola-auto-salud` con traza y aviso; investigación profunda con criterio (solo fuentes citadas/relevantes, máx. 25, limpieza, lo descartado no vuelve).
+- Prioridad `adelantar` (orden de Maggasukha), igual que SIN1116A–C.

@@ -118,6 +118,11 @@ se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
 
+## Despacho de peticiones con salud y alcance (PET1116)
+
+Enrutador con salud (FreeLLMAPI → NIM → OpenRouter `:free` → Hermes) nunca deja una petición fallida.
+Tipos: «encargo» (planificación por frentes), «alcance» (creador/canal/vídeo a analizar y contactar, informe+ficha+mensaje **pendiente de aprobación** con plantilla `ALC-NICK-1116`), «descartar» (tema/fuente a quitar), «notebooklm» (formato concreto), «respuesta». Una URL en el mensaje es FUENTE que se usa (YouTube → NotebookLM, Drive → add-drive, web → add). Una petición fallida abre reparación automática en `cola-auto-salud` con traza y aviso al chat. Detalles en `architecture/peticiones-direccion-1116.md`.
+
 ## Autorreparación de sesiones (SES1113)
 
 Sanador en `scripts/puente/sanador_sesiones.py`: corre cada 15 min en el A1 y a demanda. Comprueba y repara sesiones (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram) con recetas ordenadas; **Claude nunca es un paso necesario**; la caída de un proveedor se rodea por la ruta gratuita. Regla de despliegue: tests del repo cubren los arreglos antes de sustituir herramienta en servicio.

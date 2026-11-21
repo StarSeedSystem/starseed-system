@@ -196,6 +196,7 @@ Más detalles en `STARSEED_ANALISIS_COMPLETO.md` y en `memory/design-tokens.md`.
 4. **Después de cambios significativos**, actualiza `memory/state.md` con la fecha, el cambio y la razón.
 5. **Antes de cualquier deploy**, verifica `DESPLIEGUE.md` y que el repo git esté sincronizado con `StarSeedSystem/starseed-system`.
 6. **Tono y diseño:** sigue `design-system/starseed-system/MASTER.md`. No usar emojis como iconos (usar Lucide/Heroicons). Cursor pointer en todo lo clicable. Transiciones 150-300ms.
+7. **Peticiones por Telegram (PET1116):** el enrutador con salud (FreeLLMAPI → NIM → OpenRouter `:free` → Hermes) nunca deja una petición fallida; tipos: «encargo», «alcance», «descartar», «notebooklm», «respuesta»; una URL en el mensaje es FUENTE que se usa (YouTube → NotebookLM, Drive → add-drive, web → add); «alcance» usa la plantilla de `ALC-NICK-1116` (informe, ficha y mensaje **pendiente de aprobación**); una petición fallida abre reparación automática en `cola-auto-salud` con traza y aviso al chat.
 
 ## Alcance por GitHub
 
@@ -601,6 +602,8 @@ las mismas puertas del enjambre. Se rechaza cualquier prompt que pida claves, pu
 lanzar un orquestador nuevo.
 
 Contrato completo: `architecture/encargos-chats-metagenesis.md`.
+
+**Pedir cosas a MetaGenesis por Telegram:** el chat **@StarSeed_Design_bot** («Síntesis de producción StarSeed») atiende a Alex desde el **A1 (Oracle, líder de dirección)** sin la Mac. Procesa peticiones con FreeLLMAPI local (modelos gratuitos con nombre, nunca `auto` ni Claude) y genera en NotebookLM (infografía, audio tipo podcast, vídeo, presentación, mapa mental, informe, cuestionario, tarjetas, tabla) usando la última síntesis diaria de Drive o el cuaderno de producción. La sesión de NotebookLM es **solo del A1** (único dueño); se renueva cada 20 min con `auth refresh` y, si cae, `navegador_alta.py notebooklm` usa la sesión `google-alex` del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, cola durable en `~/.starseed/peticiones/cola.json`, preferencias en `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md` y `architecture/peticiones-direccion-1116.md` (PET1116: enrutador con salud, tipos de petición, URLs como fuente, alcance con aprobación, reparación automática).
 
 ## 🌌 Inteligencia primaria del OS (Adenda 155 · 2026-08-23)
 
