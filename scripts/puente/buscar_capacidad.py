@@ -1150,7 +1150,6 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
     vivo = 0
     candado_tomado = False
 
-<<<<<<< HEAD
     with ThreadPoolExecutor(2) as ex:
         futuro_medios = ex.submit(_otros_medios) if sondear_medios else None
 
@@ -1331,9 +1330,6 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         texto = texto + "\n" + _texto_preguntas(preguntas)
     estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
                        hechas=hechas, resumen=texto)
-=======
-    # Candado para ejecución exclusiva (solo cuando se aplica)
->>>>>>> c4e6da489 (salvavidas · CAP1119Ec: trabajo del agente antes de las puertas (tsc / vitest))
     if aplicar:
         candado_tomado = _tomar_candado()
         if not candado_tomado:

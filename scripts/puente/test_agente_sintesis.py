@@ -382,11 +382,8 @@ class TestEncargarPorFlota(unittest.TestCase):
         self.assertEqual([t["id"] for t in viva_t], ["COD1", "SIN11121"])
 
     def test_poda_lo_propio_viejo(self):
-<<<<<<< HEAD
-=======
         vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
         A.encargar_por_flota(self.raiz, [vieja, self._tarea(2)], vivos=[], apto=(True, 100.0), libre=(True, 100.0), ahora=AHORA_CDMX_00)
->>>>>>> c4e6da489 (salvavidas · CAP1119Ec: trabajo del agente antes de las puertas (tsc / vitest))
         ruta = os.path.join(self.raiz, "starseed_memory_root", "olas", A.NOMBRE_COLA)
         vieja = dict(self._tarea(1), creada="2026-10-01T00:00:00Z")
         with open(ruta, "w", encoding="utf-8") as f:
