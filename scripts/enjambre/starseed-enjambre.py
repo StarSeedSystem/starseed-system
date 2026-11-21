@@ -9948,7 +9948,8 @@ def _recoger_lo_nuestro(rutas):
 def _guardia_del_arbol(sucio):
     """El guardia de `main`: None si se puede arrancar, 2 si NO (y dice por qué en la salida).
 
-    · Trabajo AJENO sin commit → no arranco (nadie quiere agentes escribiendo encima).
+    · Trabajo AJENO sin commit → si lleva >15 min y no hay integración en curso, lo pone en
+      cuarentena (~/.starseed/cuarentena/) y arranca (DIR1121C). Si no, no arranca.
     · Solo ESTORBO (un informe suelto, una copia `.new`, una cola `.no-lanzada`) → se aparta a
       `olas/_apartado/AAAAMMDD/` y se arranca. (2026-10-25, ENJ1025A) Un `informe_analisis.md`
       paró el enjambre de la Mac ~29 h.
@@ -9956,6 +9957,17 @@ def _guardia_del_arbol(sucio):
     """
     mias, estorbo, ajenas = _reparto_del_arbol(sucio)
     if ajenas:
+        # DIR1121C: intentar poner en cuarentena si son cambios antiguos sin cerrojo integrar
+        try:
+            ruta_puente = os.path.join(ROOT, "scripts", "puente")
+            if ruta_puente not in sys.path:
+                sys.path.insert(0, ruta_puente)
+            import apartar_arbol_sucio
+            if apartar_arbol_sucio.apartar_si_lleva_tiempo():
+                print("main puesto en cuarentena por cambios ajenos >15 min; árbol limpio, arranco")
+                return None
+        except Exception:
+            pass  # Si falla la cuarentena, seguimos con la lógica original
         print(
             "working tree de main con cambios sin commit: %d archivos — no arranco"
             % len(ajenas)
