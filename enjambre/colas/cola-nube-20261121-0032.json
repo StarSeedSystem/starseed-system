@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "GEM1119E",
+   "ola": "GEM1119",
+   "titulo": "Antigravity CLI también en el A1 (sin pantalla) para que el trabajo largo de los directores no dependa de la Mac",
+   "archivos": [
+    "scripts/puente/antigravity_a1.py",
+    "scripts/puente/test_antigravity_a1.py",
+    "starseed_memory_root/fundamentos/accesos-y-recuperacion.md"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11) preguntó si convenía abrir Antigravity en la Mac, en el A1 y en los demás contenedores con un chat vinculado a la dirección. Decisión de la dirección: (1) NO dejar el Antigravity IDE abierto de forma permanente en la Mac (consume la RAM y el disco que ya faltan); (2) SÍ el CLI `agy` sin pantalla en el A1 (ARM64, 12 GB, CPU casi libre) y, si cabe, en la Maggabox, como motor de los trabajos largos de los directores: la cuota es de la cuenta de Google de Alex (no aumenta), pero el trabajo deja de cargar la Mac y deja de depender solo de ella; (3) NO en contenedores efímeros de terceros (GitHub Actions, Cloudroom): habría que dejar el token de Google de Alex en secretos ajenos. Tarea: scripts/puente/antigravity_a1.py con `estado`, `instalar --seco`/`instalar` (comprueba que existe una versión de agy para Linux ARM64 desde la fuente oficial de Antigravity y la instala en el usuario del A1, sin root si se puede) y `probar` (agy -p corto con stdin vacío y --print-timeout 180s, registra tiempo y tokens). El inicio de sesión de Google lo hace Alex una sola vez por SSH (agy muestra un enlace y pide pegar el código): deja la orden exacta en «Te toca a ti»; nadie más pega códigos ni contraseñas. El reparto de GEM1119C manda a agy-A1 los trabajos largos cuando esté vivo y a agy-Mac si no. Evalúa `agy remote-control` (daemon de control remoto de sesiones) para que la dirección y Alex puedan ver o seguir esas sesiones desde otros medios, y anótalo en el informe. Anota el acceso en starseed_memory_root/fundamentos/accesos-y-recuperacion.md sin secretos. Pruebas de la lógica pura (elección de máquina, lectura de errores). Español neutro.",
+   "dependencias_ya_en_main": [
+    "GEM1119C"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "GEM1119E"
+  ]
+ }
+}
