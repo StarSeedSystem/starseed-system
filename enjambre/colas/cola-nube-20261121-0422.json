@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "ola": "CAP1119",
+   "id": "CAP1119Bb",
+   "titulo": "Usar todos los contenedores en la nube que ya están disponibles: Cloudroom, el A1 al completo y la nube de GitHub sin atascos (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_buscar_capacidad.py"
+   ],
+   "depende": [],
+   "prompt": "Auditoría de la dirección (19-11, 21:00 local) con medios_disponibles.py y ~/.starseed/salud-proveedores.json: mac listo (2 agentes, recursos al límite, disco 7,5 GB → la guardia de 10 GB frena la tanda); claude usable (sin usar hace 12 días); cloudroom usable con 100 agentes/30 días gratis y 0 hilos abiertos (SIN USAR); nube-gh listo (2 ejecuciones; el último empuje de la cola falló por tiempo agotado de git push a los 120 s); hf requiere PRO; gcloud marcado «usable» pero la facturación está desactivada desde el 25-09 (Cloud Run no arranca sin cuenta de facturación: revisar la clasificación); colab/kaggle requieren un cuaderno lanzador; oracle A1 listo con solo 15 % de CPU usada y 5,6 GB libres (INFRAUTILIZADO). Proveedores: groq, tokenrouter y explabs vivos; xkiro, openrouter y freellmapi con el cupo del día agotado (429); nim con un modelo colgado; aihubmix bloqueado por abuso; llm7 caído; apinex «sin crédito (402)» y aun así acciones-de-alex.json NO pide el check-in diario (solo tiene 2 aprobaciones de Higgsfield). Faltan en la salud de proveedores: abliteration, Antigravity (agy), Ollama del A1 (qwen 4B), Codex y OpenCode Zen. Además starseed_memory_root/olas/medios.json tiene 2336 medios acumulados (codex:mac:mac:<puerto> y opencode:mac:mac:<puerto>, casi todos inactivos). Alex (19-11): «verifica que se estén usando todos los contenedores en nube disponibles de MetaGenesis… creo que faltan activar contenedores que se pueden usar». Tarea: (1) «Buscar más capacidad» y el reparto envían tareas a Cloudroom (100 agentes/30 días, cuenta conectada, cloudroom_modelos.py) respetando su cupo mensual; (2) el A1 sube de agentes mientras tenga CPU y memoria libres (hoy 15 % de CPU), con su propio tope; (3) cuando la Mac está frenada por la guardia de disco o de memoria, las tareas listas van a la nube en vez de esperar; (4) el empuje de la rama de la cola a GitHub reintenta con espera y no deja el job sin salir; (5) medios_disponibles.py clasifica bien gcloud con la facturación desactivada (no «usable» si Cloud Run exige facturación) y explica qué haría falta. Pruebas de las decisiones de reparto. Reglas: nunca imprimir ni guardar claves fuera de variables de entorno; no bajar ningún freno de publicación ni la guardia de disco; lógica pura con pruebas. Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió CAP1119B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/test_buscar_capacidad.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44886204333`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44886204333:refs/remotes/origin/nube/44886204333\"` y `git cherry-pick --no-commit 883af7c8a027 d4a14f47c137`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/buscar_capacidad.py, scripts/puente/medios_disponibles.py, scripts/puente/repartir_nube.py, scripts/puente/test_buscar_capacidad.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "CAP1119B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "revisor_quitadas": [
+    "CAP1119B-d1"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44886204333"
+  },
+  {
+   "id": "MAG1120F",
+   "ola": "MAG1120",
+   "titulo": "Medidor nuevo 'almacenamiento' en el pulso (medidores.ts + route.ts + medidor-abrible.tsx)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/components/mando/medidor-abrible.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Añade nueva clave 'almacenamiento' a ClaveMedidor. En src/lib/mando/medidores.ts, añade caso 'almacenamiento' que devuelve: titulo='Almacenamiento', resumen='Nodos con disco libre: Mac (X GB), Maggabox (Y GB), A1 (Z GB)', filas=[{id, nombre, detalle: {discoLibres}, estado}] para cada medio con discoLibreGb, acciones=[IR_A('Ver mapa de medios', 'mapa-medios')]. En route.ts, añade lectura de capacidades-nodos.json y construye el dataset. En medidor-abrible.tsx, el caso 'almacenamiento' muestra filas con discos libres y origen, con avisos de 'medio único'. También actualiza ORDEN_POR_DEFECTO para incluir 'almacenamiento' después de 'disco'. REGLAS: ≤120 líneas por archivo; mantener compatibilidad; Spanish neutro; avisos activos.",
+   "revisor": "presidencia",
+   "tiempo_estimado_seg": 900,
+   "dependencias_ya_en_main": [
+    "MAG1120B",
+    "MAG1120E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "MAG1120F"
+  ]
+ }
+}
