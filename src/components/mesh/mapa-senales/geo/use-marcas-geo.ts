@@ -12,6 +12,8 @@ import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { medirSenales, type SenalesMedio } from "@/lib/neurons/senales-medio";
 import { describirMedio, type DescripcionMedio } from "@/lib/neurons/medio";
 import { construirMarcas, type MarcaGeo } from "@/lib/senales/geo/marcas";
+import { CAPAS_SENALES } from "@/lib/senales/geo/capas";
+import { camposDeCapa, contarSenalesSinZona, type Campo } from "@/lib/senales/geo/cobertura";
 import {
   EVENTO_POSICION, fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda,
 } from "@/lib/senales/geo/almacen-posicion";
@@ -46,6 +48,9 @@ export interface MarcasGeo {
   /** (AUD1117) Lectura de las señales publicadas por toda la red (`useSenalesPublicadas`), que pintan
    * las capas `red-*`; con lectura fallida, su `estado` y `motivo` son lo que dice el panel. */
   publicadas: EstadoSenalesPublicadas;
+  /** (MRA10b) Campos de las capas `red-*`: solo zonas aproximadas publicadas, nunca un punto exacto;
+   * `sinZona` cuenta aparte las señales que no se pueden dibujar. */
+  camposRed: { campos: Record<string, Campo[]>; sinZona: Record<string, number> };
   /** (AUD1117F4) Señales medidas de ESTE medio, para publicarlas en el espectrómetro. */
   senales: SenalesMedio | null;
   /** (AUD1117F4) Id de este dispositivo (neuronId) para publicar sus señales. */
@@ -198,9 +203,22 @@ export function useMarcasGeo(): MarcasGeo {
     });
   }, [filas, presencia.medios, deviceId, mia?.nombre, mia?.plataforma, senales, capas, cruda, ficha, ahora, canal, enlaces, publicadas.senales]);
 
+  // (MRA10b) A `camposDeCapa` solo le llega lo que necesita: las señales publicadas de cada capa `red-*`
+  // (con su zona, nunca un punto) y las marcas para el resto de capas.
+  const camposRed = useMemo(() => {
+    const campos: Record<string, Campo[]> = {};
+    const sinZona: Record<string, number> = {};
+    for (const capa of CAPAS_SENALES) {
+      if (capa.grupo !== "red") continue;
+      campos[capa.id] = camposDeCapa(capa, marcas, ahora, publicadas.senales);
+      sinZona[capa.id] = contarSenalesSinZona(capa, marcas, publicadas.senales);
+    }
+    return { campos, sinZona };
+  }, [marcas, ahora, publicadas.senales]);
+
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
-    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces, publicadas,
+    fijarCompartir: fijarCompartirPosicion, alMiPosicion, errorUbicacion, alErrorUbicacion: setError, desde, canal, enlaces, publicadas, camposRed,
     senales, deviceId, medio,
   };
 }
