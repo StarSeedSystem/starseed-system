@@ -30,6 +30,11 @@ const ETIQUETAS_HABLANTE: Record<Hablante, string> = {
     B: "Persona B",
 };
 
+const ETIQUETAS_LADO: Record<Hablante, string> = {
+    A: "Lado A",
+    B: "Lado B",
+};
+
 const IDIOMAS_HABLANTE: Record<Hablante, { codigo: string; nombre: string }> = {
     A: { codigo: "es", nombre: "Español" },
     B: { codigo: "en", nombre: "Inglés" },
@@ -116,7 +121,7 @@ export function PanelConversacion({
                 />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-white/60" role="note">
                 <span className="flex items-center gap-1">
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-white/10">⚠</span>
                     La traducción en tiempo real no es simultánea.
@@ -174,7 +179,7 @@ function MitadPanel({
             className={`flex-1 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4`}
             style={{ transform: girada ? "rotate(180deg)" : undefined }}
             role="region"
-            aria-label={`Lado ${ETIQUETAS_HABLANTE[quien]}`}
+            aria-label={ETIQUETAS_LADO[quien]}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -188,7 +193,7 @@ function MitadPanel({
             </div>
 
             <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-                {ultimoTurno ? (
+                {ultimoTurno && (
                     <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm">
                         <div className="flex items-center gap-2 text-xs text-white/60 mb-2">
                             <span className="font-medium">{ETIQUETAS_HABLANTE[ultimoTurno.quien]}</span>
@@ -197,88 +202,84 @@ function MitadPanel({
                             <span>·</span>
                             <span>Trad: {formatearMs(ultimoTurno.msTraducir)}</span>
                             <span>·</span>
-                            <span>Voz: {formatearMs(ultimoTurno.msHablar)}</span>
+                            <span>Hablado {formatearMs(ultimoTurno.msHablar)}</span>
                         </div>
                         <div className="text-white/80 mb-1">{ultimoTurno.texto}</div>
                         <div className="text-cyan-300">{ultimoTurno.traduccion}</div>
                     </div>
-                ) : (
+                )}
+
+                {!reconocimientoOk ? (
                     <>
-                        {!reconocimientoOk && !vozOk ? (
-                            <button
-                                type="button"
-                                data-testid={`boton-mic-${quien}`}
-                                role="button"
-                                aria-label={`Micrófono ${ETIQUETAS_HABLANTE[quien]}`}
-                                onClick={() => onEscribir(quien)}
-                                className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
-                            >
-                                <div className="flex flex-col items-center gap-2">
-                                    <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                                    <span className="text-lg font-semibold text-white/80">
-                                        Escribe tu turno
-                                    </span>
-                                    <span className="text-xs text-amber-300 text-center max-w-[200px]">
-                                        Sin reconocimiento de voz para este idioma
-                                    </span>
-                                </div>
-                            </button>
-                        ) : !reconocimientoOk ? (
-                            <button
-                                type="button"
-                                data-testid={`boton-mic-${quien}`}
-                                role="button"
-                                aria-label={`Micrófono ${ETIQUETAS_HABLANTE[quien]}`}
-                                onClick={() => onEscribir(quien)}
-                                className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
-                            >
-                                <div className="flex flex-col items-center gap-2">
-                                    <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                                    <span className="text-lg font-semibold text-white/80">
-                                        Escribe tu turno
-                                    </span>
-                                    <span className="text-xs text-amber-300 text-center max-w-[200px]">
-                                        No hay micrófono disponible en {idiomaNombre}
-                                    </span>
-                                </div>
-                            </button>
-                        ) : !vozOk ? (
-                            <button
-                                type="button"
-                                data-testid={`boton-mic-${quien}`}
-                                role="button"
-                                aria-label={`Micrófono ${ETIQUETAS_HABLANTE[quien]}`}
-                                onClick={() => onEscribir(quien)}
-                                className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
-                            >
-                                <div className="flex flex-col items-center gap-2">
-                                    <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                                    <span className="text-lg font-semibold text-white/80">
-                                        Escribe tu turno
-                                    </span>
-                                    <span className="text-xs text-amber-300 text-center max-w-[200px]">
-                                        Sin voz de salida para este idioma
-                                    </span>
-                                </div>
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                data-testid={`boton-mic-${quien}`}
-                                role="button"
-                                aria-label={`Micrófono ${ETIQUETAS_HABLANTE[quien]}`}
-                                onClick={() => onPulsarHablar(quien)}
-                                className="relative flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-cyan-400/50 bg-cyan-400/10 hover:bg-cyan-400/20 transition-all"
-                            >
-                                <div className="flex flex-col items-center gap-2">
-                                    <Mic className="h-16 w-16 text-cyan-300" aria-hidden />
-                                    <span className="text-lg font-semibold text-white/80">
-                                        Hablar en {idiomaDelOponente}
-                                    </span>
-                                </div>
-                            </button>
-                        )}
+                        <button
+                            type="button"
+                            data-testid={`boton-mic-${quien}`}
+                            role="button"
+                            aria-label={`Micrófono no disponible en ${idiomaNombre}`}
+                            disabled
+                            className="flex min-h-[120px] flex-1 cursor-not-allowed items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all opacity-50"
+                        >
+                            <div className="flex flex-col items-center gap-2">
+                                <MicOff className="h-16 w-16 text-white/60" aria-hidden />
+                                <span className="text-lg font-semibold text-white/80">
+                                    Micrófono no disponible
+                                </span>
+                                <span className="text-xs text-amber-300 text-center max-w-[200px]">
+                                    Sin reconocimiento de voz para este idioma
+                                </span>
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            data-testid={`boton-escribir-${quien}`}
+                            role="button"
+                            aria-label="Escribir el turno"
+                            onClick={() => onEscribir(quien)}
+                            className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
+                        >
+                            <div className="flex flex-col items-center gap-2">
+                                <MicOff className="h-16 w-16 text-white/60" aria-hidden />
+                                <span className="text-lg font-semibold text-white/80">
+                                    Escribe tu turno
+                                </span>
+                            </div>
+                        </button>
                     </>
+                ) : !vozOk ? (
+                    <button
+                        type="button"
+                        data-testid={`boton-mic-${quien}`}
+                        role="button"
+                        aria-label="Escribir el turno"
+                        onClick={() => onEscribir(quien)}
+                        className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
+                    >
+                        <div className="flex flex-col items-center gap-2">
+                            <MicOff className="h-16 w-16 text-white/60" aria-hidden />
+                            <span className="text-lg font-semibold text-white/80">
+                                Escribe tu turno
+                            </span>
+                            <span className="text-xs text-amber-300 text-center max-w-[200px]">
+                                Sin voz de salida para este idioma
+                            </span>
+                        </div>
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        data-testid={`boton-mic-${quien}`}
+                        role="button"
+                        aria-label={`Hablar en ${idiomaNombre}`}
+                        onClick={() => onPulsarHablar(quien)}
+                        className="relative flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-cyan-400/50 bg-cyan-400/10 hover:bg-cyan-400/20 transition-all"
+                    >
+                        <div className="flex flex-col items-center gap-2">
+                            <Mic className="h-16 w-16 text-cyan-300" aria-hidden />
+                            <span className="text-lg font-semibold text-white/80">
+                                Hablar en {idiomaNombre}
+                            </span>
+                        </div>
+                    </button>
                 )}
             </div>
         </div>
