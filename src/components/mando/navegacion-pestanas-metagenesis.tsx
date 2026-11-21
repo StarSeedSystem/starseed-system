@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Search, X } from "lucide-react";
-import { TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 
 export interface DefinicionPestana {
@@ -147,27 +147,30 @@ export function NavegacionPestanasMetaGenesis({
                     </div>
                 </div>
 
-                <TabsList
-                    aria-label="Pestañas de Genesis"
-                    className="h-auto w-full flex-nowrap justify-start gap-1.5 overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-1.5 scrollbar-thin"
-                >
-                    {visibles.length === 0 ? (
-                        <span className="px-2 py-1 text-[11px] text-slate-400">
+                <Tabs value={pestanaActiva} onValueChange={alCambiarPestana}>
+                    <TabsList
+                        aria-label="Pestañas de Genesis"
+                        className="h-auto w-full flex-nowrap justify-start gap-1.5 overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-1.5 scrollbar-thin"
+                    >
+                        {visibles.length === 0 ? null : (
+                            visibles.map((p) => (
+                                <TabsTrigger
+                                    key={p.id}
+                                    value={p.id}
+                                    className="mc-alzar flex-none cursor-pointer rounded-md px-3 py-1.5 text-xs data-[state=active]:border data-[state=active]:border-sky-400/50 data-[state=active]:bg-sky-500/20 data-[state=active]:text-sky-50"
+                                >
+                                    {p.etiqueta}
+                                    {renderInsignia ? renderInsignia(p.id) : null}
+                                </TabsTrigger>
+                            ))
+                        )}
+                    </TabsList>
+                    {visibles.length === 0 && (
+                        <div className="px-2 py-1 text-[11px] text-slate-400" role="status">
                             Sin secciones para «{busqueda}».
-                        </span>
-                    ) : (
-                        visibles.map((p) => (
-                            <TabsTrigger
-                                key={p.id}
-                                value={p.id}
-                                className="mc-alzar flex-none cursor-pointer rounded-md px-3 py-1.5 text-xs data-[state=active]:border data-[state=active]:border-sky-400/50 data-[state=active]:bg-sky-500/20 data-[state=active]:text-sky-50"
-                            >
-                                {p.etiqueta}
-                                {renderInsignia ? renderInsignia(p.id) : null}
-                            </TabsTrigger>
-                        ))
+                        </div>
                     )}
-                </TabsList>
+                </Tabs>
             </div>
 
             <div className="flex items-center justify-center sm:hidden py-1">
