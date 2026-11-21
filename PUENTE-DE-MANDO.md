@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-19 20:38:24 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-21 10:58:23 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -9,50 +9,143 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 
 ## Estado ahora mismo
 
-Genesis está **apagado**. Levántalo con `bash scripts/puente/arrancar-mando.sh`
-y vuelve a ejecutar este script; sin él los cuatro entornos van a ciegas.
-| HEAD | `e02479ebc fix(puente): inicializar estado_mac en buscar_capacidad y actualizar fechas de t` |
-| Sin publicar | 77 commits |
-| Árbol | 43 archivos sin commitear |
+| | |
+|---|---|
+| Genesis | **encendido** en http://127.0.0.1:9002/mando |
+| Ola arriba | Ola A-desbloqueo · publicacion-4d8777e4d |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 1 · integradas 1 |
+| HEAD | `d17ef0a69 chore(memoria): aprendizaje de la ola auto-1118-175743` |
+| Sin publicar | 73 commits |
+| Árbol | 3 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1118-175743.json`, hace 146s)
+## Quién escribe ahora (latido de `cola-auto-1118-175743.json`, hace 12s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `A392821BE` | hecho |  | 2 min | 147 s | 0 |
-| `AC2E049E1` | escribiendo | opencode/big-pickle | 25 min | 374 s | 2797 |
-| `A0FDE8168` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 19 min | 1137 s | 55080 |
-| `A39897682` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 31 min | 1831 s | 79027 |
-| `A80CF23A6` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 79 min | 4744 s | 47636 |
-| `A1705AD28` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 122 min | 7315 s | 37263 |
-| `ENT-agentes-referencias-diseno-agentes-re-bfe106-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 143 min | 8597 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-a4bab4-v1` | hecho | explabs/deepseek-v4.1-flash | 144 min | 8631 s | 484 |
-| `ENT-agentes-referencias-diseno-agentes-re-838604-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 144 min | 8646 s | 703 |
-| `RIM-agentes-referencias-diseno-agentes-re-fc659a-v2` | hecho | explabs/deepseek-v4.1-flash | 164 min | 9849 s | 490 |
-| `ENT-agentes-referencias-diseno-agentes-re-a7186e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 165 min | 9878 s | 807 |
-| `ENT-agentes-referencias-diseno-agentes-re-353c83-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 167 min | 10005 s | 785 |
-| `ENT-agentes-referencias-diseno-agentes-re-e6b1d0-v1` | hecho | explabs/deepseek-v4.1-flash | 168 min | 10081 s | 683 |
-| `IRD11193` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 169 min | 10137 s | 559 |
-| `IRD11192` | hecho | explabs/deepseek-v4.1-flash | 170 min | 10208 s | 442 |
-| `IRD11191` | hecho | groq/openai/gpt-oss-120b | 171 min | 10237 s | 541 |
-| `PEND1b-d2` | hecho | openrouter/cohere/north-mini-code: | 1104 min | 66253 s | 99175 |
-| `A4F047CA3` | hecho | freellmapi/auto | 1115 min | 66886 s | 2054 |
-| `A0BF43013` | hecho | openrouter/thinkingmachines/inklin | 1140 min | 68412 s | 198062 |
-| `CAP1119B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1157 min | 69439 s | 356778 |
-| `ASW13-d1b` | hecho | codex/gpt-5.6-sol | 1200 min | 72025 s | 315517 |
-| `PEND1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1280 min | 76788 s | 42295 |
-| `A13BE11E4` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1305 min | 78301 s | 13129 |
-| `CTL1119Fb` | hecho | openrouter/cohere/north-mini-code: | 1311 min | 78687 s | 46497 |
-| `ALM1118A-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 1338 min | 80296 s | 20015 |
-| `CAP1119C` | hecho | freellmapi/auto | 1338 min | 80300 s | 68236 |
-| `AF0E9F413` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1371 min | 82269 s | 20427 |
-| `PRU1118A-d1` | hecho | freellmapi/auto | 1478 min | 88681 s | 176190 |
-| `IMG-agentes-reimaginada-profunda-corregir-ti-d2` | hecho | openrouter/cohere/north-mini-code: | 1531 min | 91835 s | 70215 |
-| `ENT-agentes-referencias-diseno-agentes-re-6823f5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1535 min | 92119 s | 490 |
-| `EFI1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1541 min | 92445 s | 156485 |
-| `LNX1118WA` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1578 min | 94702 s | 51713 |
-| `ASW13-d1` | hecho | openrouter/thinkingmachines/inklin | 1585 min | 95074 s | 361833 |
-| `MRA8b-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1586 min | 95133 s | 5219 |
+| `RST06b` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 5 min | 302 s | 108975 |
+| `GEM1119D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 29 min | 1763 s | 188556 |
+| `ASW15` | hecho | openrouter/thinkingmachines/inklin | 37 min | 2224 s | 493441 |
+| `AN01-d1s` | hecho | freellmapi/auto | 54 min | 3217 s | 146387 |
+| `AN01-d2` | hecho | freellmapi/auto | 61 min | 3643 s | 61964 |
+| `IMG-profunda-catch-silencioso-en-auroratrans` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 93 min | 5607 s | 73409 |
+| `AN01-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 113 min | 6754 s | 133404 |
+| `GEM1119D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 124 min | 7416 s | 114723 |
+| `SVF1B5b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 146 min | 8753 s | 36342 |
+| `RST06-d2b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 174 min | 10433 s | 37649 |
+| `CTL1119A-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 197 min | 11794 s | 311780 |
+| `ASW14` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 207 min | 12405 s | 74730 |
+| `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 207 min | 12427 s | 501 |
+| `ENT-agentes-referencias-diseno-agentes-re-41b86d-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 208 min | 12471 s | 489 |
+| `ENT-agentes-referencias-diseno-agentes-re-d88ac4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 210 min | 12581 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-0dd280-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 211 min | 12686 s | 490 |
+| `ENT-agentes-referencias-diseno-agentes-re-46bbb1-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 214 min | 12818 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-b4f9c6-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 215 min | 12882 s | 489 |
+| `IRD11213` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 228 min | 13652 s | 452 |
+| `IRD11212` | hecho | nim/minimaxai/minimax-m3.1-flash | 229 min | 13762 s | 447 |
+| `AN01` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 231 min | 13851 s | 228148 |
+| `IRD11211` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 231 min | 13866 s | 452 |
+| `RST06-d2` | hecho | freellmapi/auto | 268 min | 16092 s | 15089 |
+| `ASW13-d3b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 273 min | 16408 s | 34418 |
+| `PRM1119B-d3` | hecho | llm7/minimax-m2.7 | 278 min | 16664 s | 32740 |
+| `SIN11217` | hecho | nim/minimaxai/minimax-m3.1-flash | 288 min | 17268 s | 377 |
+| `SIN11216` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 288 min | 17299 s | 382 |
+| `SIN11215` | hecho | nim/minimaxai/minimax-m3.1-flash | 289 min | 17325 s | 375 |
+| `SIN11214` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 290 min | 17395 s | 384 |
+| `SIN11213` | hecho | nim/minimaxai/minimax-m3.1-flash | 291 min | 17439 s | 381 |
+| `SIN11212` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 293 min | 17583 s | 383 |
+| `SIN11211` | hecho | nim/minimaxai/minimax-m3.1-flash | 294 min | 17632 s | 380 |
+| `RST06` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 319 min | 19156 s | 126427 |
+| `CTL1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 343 min | 20599 s | 188936 |
+| `IMG-agentes-reimaginada-agentes-referencias-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 358 min | 21455 s | 23895 |
+| `ASW13-d3` | hecho | freellmapi/auto | 373 min | 22369 s | 3615 |
+| `CTL1119E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 379 min | 22725 s | 132425 |
+| `SIN1116G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 425 min | 25521 s | 36408 |
+| `PET1116D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 430 min | 25808 s | 31699 |
+| `TU18c` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 432 min | 25916 s | 121484 |
+| `ASW13-d2` | hecho | openrouter/google/gemma-4-31b-it:f | 433 min | 25993 s | 487826 |
+| `TU18b-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 459 min | 27515 s | 552675 |
+| `IMG-agentes-reimaginada-agentes-referencias-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 485 min | 29082 s | 39541 |
+| `MAG1120D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 492 min | 29500 s | 70357 |
+| `CAP1119B-d1s` | hecho | freellmapi/auto | 506 min | 30337 s | 300518 |
+| `MAG1120B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 519 min | 31143 s | 73235 |
+| `MAG1120A` | hecho | freellmapi/auto | 538 min | 32271 s | 69831 |
+| `IMG-agentes-reimaginada-agentes-referencias-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 569 min | 34111 s | 29401 |
+| `CAP1119Ed` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 569 min | 34126 s | 421352 |
+| `GEM1119C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 642 min | 38509 s | 121376 |
+| `ABBA5CF6E` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 687 min | 41215 s | 251669 |
+| `ASW13-d1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 711 min | 42659 s | 643817 |
+| `ENT-agentes-referencias-diseno-agentes-re-0270f4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 738 min | 44295 s | 495 |
+| `ENT-agentes-referencias-diseno-agentes-re-3f4668-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 739 min | 44361 s | 490 |
+| `ENT-agentes-referencias-diseno-agentes-re-a202ac-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 740 min | 44413 s | 495 |
+| `CTL1119G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 743 min | 44596 s | 53727 |
+| `IRD11183` | hecho | nim/minimaxai/minimax-m3.1-flash | 750 min | 44997 s | 1828 |
+| `A3445965C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 755 min | 45305 s | 1013543 |
+| `ENT-agentes-referencias-diseno-agentes-re-81343e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 756 min | 45356 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-b59ecf-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 769 min | 46123 s | 489 |
+| `IRD11181` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 770 min | 46171 s | 3621 |
+| `ENT-agentes-referencias-diseno-agentes-re-351231-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 771 min | 46268 s | 489 |
+| `IRD11182` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 773 min | 46404 s | 939 |
+| `PRM1119B` | hecho | xkiro/mistralai/devstral-medium | 914 min | 54811 s | 82480 |
+| `ENT-agentes-referencias-diseno-agentes-re-cb1a60-v1` | hecho | explabs/deepseek-v4.1-flash | 915 min | 54891 s | 485 |
+| `ENT-agentes-referencias-diseno-agentes-re-603970-v1` | hecho | explabs/deepseek-v4.1-flash | 915 min | 54920 s | 1640 |
+| `ENT-agentes-referencias-diseno-agentes-re-231322-v1` | hecho | explabs/deepseek-v4.1-flash | 952 min | 57116 s | 484 |
+| `ENT-agentes-referencias-diseno-agentes-re-c0123c-v1` | hecho | explabs/deepseek-v4.1-flash | 957 min | 57427 s | 698 |
+| `A3F915889` | hecho | openrouter/google/gemma-4-31b-it:f | 1210 min | 72625 s | 469999 |
+| `FMT1119Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1276 min | 76536 s | 216487 |
+| `CAP1119B-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1318 min | 79060 s | 200703 |
+| `CTL1119Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1322 min | 79298 s | 708749 |
+| `AF44EE5BF` | hecho | freellmapi/auto | 1364 min | 81822 s | 278670 |
+| `ENT-agentes-referencias-diseno-agentes-re-9909e7-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1391 min | 83485 s | 1638 |
+| `ENT-agentes-referencias-diseno-agentes-re-a037ec-v1` | hecho | explabs/deepseek-v4.1-flash | 1393 min | 83608 s | 484 |
+| `A1705AD28` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1411 min | 84683 s | 49038 |
+| `IRD11203` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1418 min | 85063 s | 452 |
+| `IRD11202` | hecho | explabs/deepseek-v4.1-flash | 1419 min | 85145 s | 442 |
+| `IRD11201` | hecho | groq/openai/gpt-oss-120b | 1420 min | 85181 s | 439 |
+| `SIN11207` | hecho | nim/minimaxai/minimax-m3.1-flash | 1420 min | 85187 s | 377 |
+| `SIN11206` | hecho | explabs/deepseek-v4.1-flash | 1420 min | 85189 s | 372 |
+| `SIN11205` | hecho | groq/openai/gpt-oss-120b | 1420 min | 85222 s | 367 |
+| `SIN11204` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1420 min | 85230 s | 384 |
+| `SIN11203` | hecho | explabs/deepseek-v4.1-flash | 1421 min | 85270 s | 573 |
+| `SIN11202` | hecho | nim/minimaxai/minimax-m3.1-flash | 1421 min | 85288 s | 476 |
+| `A900E21C0` | hecho | freellmapi/auto | 1687 min | 101208 s | 75450 |
+| `A39897682b` | hecho | freellmapi/auto | 1693 min | 101562 s | 186665 |
+| `SIN11201` | hecho | groq/openai/gpt-oss-120b | 1707 min | 102442 s | 352 |
+| `A0FDE8168b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1708 min | 102503 s | 196756 |
+| `AE4588AA8` | hecho | freellmapi/auto | 2069 min | 124132 s | 97613 |
+| `AC2E049E1` | hecho | freellmapi/auto | 2274 min | 136467 s | 5392 |
+| `A392821BE` | hecho |  | 2302 min | 138147 s | 0 |
+| `A0FDE8168` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2319 min | 139137 s | 55080 |
+| `A39897682` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2331 min | 139830 s | 79027 |
+| `A80CF23A6` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2379 min | 142743 s | 47636 |
+| `ENT-agentes-referencias-diseno-agentes-re-bfe106-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2443 min | 146597 s | 494 |
+| `ENT-agentes-referencias-diseno-agentes-re-a4bab4-v1` | hecho | explabs/deepseek-v4.1-flash | 2444 min | 146630 s | 484 |
+| `ENT-agentes-referencias-diseno-agentes-re-838604-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 2444 min | 146645 s | 703 |
+| `RIM-agentes-referencias-diseno-agentes-re-fc659a-v2` | hecho | explabs/deepseek-v4.1-flash | 2464 min | 147848 s | 490 |
+| `ENT-agentes-referencias-diseno-agentes-re-a7186e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2465 min | 147877 s | 807 |
+| `ENT-agentes-referencias-diseno-agentes-re-353c83-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 2467 min | 148005 s | 785 |
+| `ENT-agentes-referencias-diseno-agentes-re-e6b1d0-v1` | hecho | explabs/deepseek-v4.1-flash | 2468 min | 148080 s | 683 |
+| `IRD11193` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2469 min | 148137 s | 559 |
+| `IRD11192` | hecho | explabs/deepseek-v4.1-flash | 2470 min | 148207 s | 442 |
+| `IRD11191` | hecho | groq/openai/gpt-oss-120b | 2471 min | 148236 s | 541 |
+| `PEND1b-d2` | hecho | openrouter/cohere/north-mini-code: | 3404 min | 204252 s | 99175 |
+| `A4F047CA3` | hecho | freellmapi/auto | 3415 min | 204886 s | 2054 |
+| `A0BF43013` | hecho | openrouter/thinkingmachines/inklin | 3440 min | 206411 s | 198062 |
+| `CAP1119B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3457 min | 207439 s | 356778 |
+| `PEND1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3580 min | 214787 s | 42295 |
+| `A13BE11E4` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3605 min | 216300 s | 13129 |
+| `CTL1119Fb` | hecho | openrouter/cohere/north-mini-code: | 3611 min | 216686 s | 46497 |
+| `ALM1118A-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 3638 min | 218295 s | 20015 |
+| `CAP1119C` | hecho | freellmapi/auto | 3638 min | 218300 s | 68236 |
+| `AF0E9F413` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3671 min | 220269 s | 20427 |
+| `PRU1118A-d1` | hecho | freellmapi/auto | 3778 min | 226680 s | 176190 |
+| `IMG-agentes-reimaginada-profunda-corregir-ti-d2` | hecho | openrouter/cohere/north-mini-code: | 3831 min | 229835 s | 70215 |
+| `ENT-agentes-referencias-diseno-agentes-re-6823f5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 3835 min | 230118 s | 490 |
+| `EFI1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3841 min | 230445 s | 156485 |
+| `LNX1118WA` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3878 min | 232702 s | 51713 |
+| `ASW13-d1` | hecho | openrouter/thinkingmachines/inklin | 3885 min | 233074 s | 361833 |
+| `MRA8b-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3886 min | 233133 s | 5219 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -221,6 +314,11 @@ se renueva cada 20 min con `auth refresh`; si cae, `navegador_alta.py notebooklm
 del navegador propio para importar cookies al CLI. Claves en `~/.starseed/env`, preferencias en
 `~/.starseed/peticiones/preferencias.json`. Detalles en `architecture/peticiones-telegram-a1.md`.
 
+## Despacho de peticiones con salud y alcance (PET1116)
+
+Enrutador con salud (FreeLLMAPI → NIM → OpenRouter `:free` → Hermes) nunca deja una petición fallida.
+Tipos: «encargo» (planificación por frentes), «alcance» (creador/canal/vídeo a analizar y contactar, informe+ficha+mensaje **pendiente de aprobación** con plantilla `ALC-NICK-1116`), «descartar» (tema/fuente a quitar), «notebooklm» (formato concreto), «respuesta». Una URL en el mensaje es FUENTE que se usa (YouTube → NotebookLM, Drive → add-drive, web → add). Una petición fallida abre reparación automática en `cola-auto-salud` con traza y aviso al chat. Detalles en `architecture/peticiones-direccion-1116.md`.
+
 ## Autorreparación de sesiones (SES1113)
 
 Sanador en `scripts/puente/sanador_sesiones.py`: corre cada 15 min en el A1 y a demanda. Comprueba y repara sesiones (NotebookLM, google-oauth, Higgsfield, FreeLLMAPI/NIM, Telegram) con recetas ordenadas; **Claude nunca es un paso necesario**; la caída de un proveedor se rodea por la ruta gratuita. Regla de despliegue: tests del repo cubren los arreglos antes de sustituir herramienta en servicio.
@@ -242,3 +340,7 @@ diaria 2026-11-14 · formatos»); su registro queda en
 permanente (`STARSEED_PRUEBAS=1`, síntesis por fecha del título con mínimo de 4.000 caracteres,
 respaldo diario en el bot del repo, registros y limpieza sin borrar) en
 `architecture/sintesis-diaria-arreglo-1114.md`.
+
+## Síntesis diaria autónoma con contexto (SIN1116)
+
+La síntesis sale cada día **sin Claude**: el agente nativo (`scripts/puente/agente_sintesis.py`) usa el enrutador gratuito con modelos nombrados (orden: `gemini-flash-lite` → NIM `minimax-m3.1-flash` → `nemotron-3.5-lightning`), claves leídas por `entorno.leer_clave()` (acepta `export VAR=…`). Respaldo del A1 a las 08:30 con NotebookLM (investigación profunda, informe con protocolo completo, contexto vivo, 9 formatos). El bot y el agente publican avances en el chat por hitos (arranque 06:30, agentes, redacción, entrega, multiformato); a las 09:00 sin síntesis avisan motivo y acción. Cada agente recibe **paquete de contexto vivo** (lo integrado 30 días, producción audiovisual, alcance, investigaciones 7 días, recuerdos LEANN por rol, libreta JLA1116) y el **libro de recomendaciones** (`starseed_memory_root/sintesis/recomendaciones.jsonl`) con estados propuesta→aprobada/rechazada/ya existe/encargada/integrada. **Filtro de novedad** (LEANN/TF-IDF 14 días) descarta o replantea propuestas repetidas; revisor gratuito puntúa novedad/concreción/anclaje (≥6/10). **Una tarea crítica nunca queda huérfana en silencio**: el líder reencola desde el contrato o escala a Mando y chat (caso SIN1114C).
