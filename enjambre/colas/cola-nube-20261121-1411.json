@@ -1,0 +1,86 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "CAP-cloudroom-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar Cloudroom",
+   "archivos": [
+    "scripts/puente/cloudroom_config.py"
+   ],
+   "depende": [],
+   "prompt": "usar en próxima ola. Crear script de configuración y prueba de Cloudroom."
+  },
+  {
+   "id": "CAP-opencode-zen-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar OpenCode Zen",
+   "archivos": [
+    "scripts/puente/opencode-zen_config.py"
+   ],
+   "depende": [],
+   "prompt": "configurar proveedor zen. Crear script de configuración y prueba de OpenCode Zen."
+  },
+  {
+   "id": "CAP-skill-agent-reach-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use."
+  },
+  {
+   "id": "CAP-skill-awesome-design-md-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill awesome-design-md en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/awesome-design-md/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill awesome-design-md para que el enjambre la use."
+  },
+  {
+   "id": "CAP-skill-claude-video-studio-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill claude-video-studio en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/claude-video-studio/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill claude-video-studio para que el enjambre la use."
+  },
+  {
+   "id": "CAP-skill-coop-qa-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-qa en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-qa/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-qa para que el enjambre la use."
+  },
+  {
+   "id": "CAP-skill-coop-sync-testing-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-sync-testing en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-sync-testing/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-sync-testing para que el enjambre la use."
+  },
+  {
+   "id": "CAP-prov-aihubmix-rotacion",
+   "ola": "CAP1119",
+   "titulo": "Añadir aihubmix a rotación de escritores/revisores",
+   "archivos": [
+    "src/ai/astraura/free-catalog.ts",
+    "scripts/puente/medios_disponibles.py"
+   ],
+   "depende": [],
+   "prompt": "Incluir aihubmix en el catálogo gratuito y en la rotación del enjambre. aihubmix vivo pero solo 5 peticiones en 24h"
+  }
+ ]
+}
