@@ -349,6 +349,35 @@ def clasificar_gcloud(instalado: bool, cuentas: list[str], proyecto: str, servic
     )
 
 
+def clasificar_llm7(estado: dict | None, ahora: float) -> dict:
+    """PURA. Estado de LLM7.io (sin clave, ~30 req/min anónimo, 120 con token gratis).
+    - listo: sin marca de agotamiento o marca vencida
+    - usable: marca de agotamiento vigente (cuota diaria)
+    """
+    if not estado or estado.get("agotado_hasta") is None:
+        return medio(
+            "llm7", "LLM7.io (sin clave)", "listo",
+            "gemma3:27b · codestral · ~30 req/min anónimo (120 con token.llm7.io)",
+            "sin marca de agotamiento activa",
+            "",
+        )
+    agotado_hasta = float(estado.get("agotado_hasta", 0))
+    if ahora < agotado_hasta:
+        min_rest = int((agotado_hasta - ahora) / 60) + 1
+        return medio(
+            "llm7", "LLM7.io (sin clave)", "usable",
+            "gemma3:27b · codestral · ~30 req/min anónimo (120 con token.llm7.io)",
+            "cuota diaria agotada: vuelve en %d min" % min_rest,
+            "esperar reinicio de cuota diaria (medianoche UTC) o añadir token en https://token.llm7.io",
+        )
+    return medio(
+        "llm7", "LLM7.io (sin clave)", "listo",
+        "gemma3:27b · codestral · ~30 req/min anónimo (120 con token.llm7.io)",
+        "cuota renovada",
+        "",
+    )
+
+
 def clasificar_abliteration(estado: dict | None, ahora: float) -> dict:
     """PURA. Estado de abliteration.ai.
     - listo: saldo > 0 y gasto del día < tope
@@ -671,6 +700,14 @@ def sondear() -> dict:
     except (OSError, ValueError):
         ablit_state = None
     medios.append(clasificar_abliteration(ablit_state, ahora))
+
+    # LLM7.io (sin clave)
+    try:
+        with open(os.path.expanduser("~/.starseed/llm7-uso.json"), encoding="utf-8") as f:
+            llm7_state = json.load(f)
+    except (OSError, ValueError):
+        llm7_state = None
+    medios.append(clasificar_llm7(llm7_state, ahora))
 
     # Ollama del A1 (qwen 4B)
     medios.append(clasificar_ollama_a1(oracle_datos, ahora))
