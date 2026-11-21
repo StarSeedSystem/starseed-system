@@ -1,13 +1,10 @@
-//! (PENA1) Latido del modo de pruebas de llamadas: macOS frena los temporizadores de la página con la ventana en otro
-//! escritorio. Con la serie armada, la página pide `banco_latido_activar(true)` y un hilo emite `banco-llamadas-latido`
-//! cada 20 s (solo `{ "t": ms }`); no toca `~/.starseed`, no pide aserción de energía (no mantiene despierta la Mac) y se
-//! para al apagar o, solo, a las 9 h (la serie dura 8 como máximo). Solo el lanzamiento del hilo es de macOS.
+//! (PENA1) Latido del banco de llamadas: macOS frena el temporizador de la página con la ventana en otro escritorio; con la
+//! serie armada, un hilo emite `banco-llamadas-latido` cada 20 s (solo `{ "t": ms }`, sin tocar `~/.starseed`) y se para al
+//! apagar o, solo, a las 9 h (la serie dura 8 como máximo). Solo el lanzamiento del hilo es de macOS.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
-
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-
 pub const PERIODO_MS: u64 = 20_000;
 pub const EVENTO: &str = "banco-llamadas-latido";
 const VIDA_MAX_MS: u64 = 9 * 3_600_000;
@@ -105,6 +102,9 @@ mod pruebas {
         let (parar, ahora, n) = (AtomicBool::new(false), Cell::new(0u64), Cell::new(0u32));
         bucle(&parar, || ahora.get(), || ahora.set(ahora.get() + 10_000), || { n.set(n.get() + 1); if n.get() == 3 { parar.store(true, Ordering::Release) } });
         assert_eq!((n.get(), ahora.get()), (3, 60_000), "uno cada 20 s");
+        let (parar, n) = (AtomicBool::new(false), Cell::new(0u32));
+        bucle(&parar, || 0, || parar.store(true, Ordering::Release), || n.set(n.get() + 1));
+        assert_eq!(n.get(), 0, "apagado durante la espera: ni un latido");
     }
     #[test]
     fn el_bucle_acaba_solo_a_las_9_h_y_se_recupera_de_un_reloj_que_retrocede() {
