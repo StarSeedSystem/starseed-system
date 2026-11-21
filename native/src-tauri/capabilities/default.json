@@ -179,6 +179,11 @@
     "allow-ubicacion-ahora",
     "allow-ubicacion-vigilar",
     "allow-ubicacion-parar",
-    "allow-ubicacion-ultima"
+    "allow-ubicacion-ultima",
+    "allow-clave-aparato-crear",
+    "allow-clave-aparato-firmar",
+    "allow-clave-aparato-spki",
+    "allow-clave-aparato-estado",
+    "allow-clave-aparato-olvidar"
   ]
 }

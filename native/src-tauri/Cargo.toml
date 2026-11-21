@@ -87,12 +87,11 @@ flate2 = "1"
 base64 = "0.22"
 # AND1115K: verificación ECDSA P-256 (r‖s) de las órdenes de control en Rust puro (sin C: compila en Android sin NDK extra).
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic", "pkcs8"] }
-# CTL1119E: Secret Service (Linux) para guardar la clave nativa del aparato en el llavero del sistema.
-secret-service = { version = "3", default-features = false, features = ["blocking"] }
+# CTL1119E: el Secret Service (llavero del sistema) va solo en las dependencias de Linux, más abajo (SUP1121C).
 # CTL1119E: rand para generación de claves (ya viene con p256 pero lo hacemos explícito).
 rand = "0.9"
-# CTL1119E: base64 para encoding URL-safe (ya estaba pero aseguramos features).
-base64 = { version = "0.22", features = ["std"] }
+# (SUP1121C) base64 ya está arriba (AND1114L; «std» va en sus features por defecto): repetirla aquí era
+# «duplicate key» y cargo no leía el manifiesto.
 
 # ─── Plugins SOLO ESCRITORIO (no compilan / no aplican en Android · iOS) ───
 # Patrón oficial de la doc de Tauri 2: van bajo un target cfg que excluye móvil,

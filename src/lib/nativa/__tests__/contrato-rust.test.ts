@@ -50,7 +50,10 @@ describe("contrato web ↔ app nativa", () => {
     const llamados = [...ts("puente.ts").matchAll(/llamar(?:<[^>]+>)?\("([a-z_]+)"/g)].map((m) => m[1]);
     expect(llamados.length).toBeGreaterThan(15);
     for (const c of llamados) expect(registrados, `falta ${c} en generate_handler!`).toContain(c);
-    for (const c of llamados) expect(rust("nativa.rs")).toMatch(new RegExp(`pub (async )?fn ${c}\\(`));
+    // (SUP1121A) La función vive en el módulo desde el que lib.rs la registra («modulo::comando»): casi
+    // siempre nativa.rs; las de la clave nativa del aparato (CTL1119E), en clave_aparato_nativa.rs.
+    const modulo = (c: string) => lib.match(new RegExp(`\\b(\\w+)::${c}\\s*,`))?.[1] ?? "nativa";
+    for (const c of llamados) expect(rust(`${modulo(c)}.rs`), `${c} en ${modulo(c)}.rs`).toMatch(new RegExp(`pub (async )?fn ${c}\\(`));
   });
 
   it("cada comando propio tiene su permiso y una capability que lo concede (tauri ≥ 2.11.1, APP1107B)", () => {
@@ -87,6 +90,22 @@ describe("contrato web ↔ app nativa", () => {
     for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
     // (CAP1107A) «Actualizar ahora» tampoco: solo el servidor local (servidor-capas.json).
     for (const p of [...permisos(def), ...permisos(escr), ...migracion]) expect(p).not.toMatch(/^allow-servidor-local-(actualizar|buscar)$/);
+  });
+
+  it("(SUP1121C) Cargo.toml no repite una clave en la misma tabla (cargo no lo lee: «duplicate key»)", () => {
+    const toml = readFileSync(join(process.cwd(), "native/src-tauri/Cargo.toml"), "utf8");
+    const repetidas: string[] = [];
+    const vistas = new Set<string>();
+    let tabla = "";
+    for (const linea of toml.split("\n")) {
+      const t = linea.match(/^\s*\[\[?([^\]]+)\]\]?\s*(#.*)?$/);
+      if (t) { tabla = t[1].trim(); vistas.clear(); continue; }
+      const k = linea.match(/^\s*([A-Za-z0-9_.-]+|"[^"]+")\s*=/);
+      if (!k) continue;
+      if (vistas.has(k[1])) repetidas.push(`[${tabla}] ${k[1]}`);
+      vistas.add(k[1]);
+    }
+    expect(repetidas).toEqual([]);
   });
 
   it("(CAP1107A · T1) capas del servidor: Rust, envoltorio, capa.mjs, capability y web dicen lo mismo", () => {

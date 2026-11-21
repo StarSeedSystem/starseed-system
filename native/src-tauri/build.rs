@@ -180,6 +180,12 @@ const COMANDOS_APP: &[&str] = &[
     "ubicacion_vigilar",
     "ubicacion_parar",
     "ubicacion_ultima",
+    // (CTL1119E · SUP1121A) Clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
+    "clave_aparato_crear",
+    "clave_aparato_firmar",
+    "clave_aparato_spki",
+    "clave_aparato_estado",
+    "clave_aparato_olvidar",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
