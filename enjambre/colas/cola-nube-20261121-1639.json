@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "IMG-diaria-encargos-largos-en-background-par",
+   "titulo": "Encargos largos en background para Director presidente",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Encargos largos en background para Director presidente. lanzar Hermes como job con su id, publicar \"en curso\" y resultado al acabar (hoy todo se corta a 120s). `último informe de ola` punto a) Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "titulo": "Publicar vector visual 1.58b por cláusula",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar vector visual 1.58b por cláusula. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en canal `params` del bus de la orbe — ya está en tasks abiertas, permitiría sincronizar avatar cuántico con estado cognitivo real. `tasks abiertas` línea \"Publicar desde el 1.58b el vector visual…\" Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-des-simular-director-imaginacion",
+   "titulo": "Des-simular Director + Imaginación",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Des-simular Director + Imaginación. : `formulate_next_intelligent_task` (random.choice de blueprints) → formular con motor real o `starseed-sub`; recomendador de imaginación si queda plantilla (tasks abiertas). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "MND1121A",
+   "ola": "DIR1121",
+   "titulo": "MetaGenesis: volver a aplicar con pruebas el arreglo de pestañas (Radix TabsList) que alguien dejó sin commit en main",
+   "archivos": [
+    "src/components/mando/navegacion-pestanas-metagenesis.tsx",
+    "src/components/mando/__tests__/navegacion-pestanas-metagenesis.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "El 21-11 a las 14:27 alguien editó main A MANO (sin commit): un arreglo en navegacion-pestanas-metagenesis.tsx (TabsList de Radix) y\nuna copia `centro-mando.tsx.backup-…`. Eso paró al orquestador. La dirección lo apartó sin perder nada: el parche está en\nstarseed_memory_root/olas/contextos/1121b-pestanas-metagenesis.patch (copia en ~/.starseed/cuarentena/1121b-arbol-sucio/). Léelo,\nentiende qué fallo corrige, vuelve a aplicarlo bien en un worktree, añade una prueba que falle sin él (las pestañas se montan sin el error\nde Radix y cambian de panel) y entrégalo por la puerta. No recuperes la copia .backup.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "PET1121B",
+   "ola": "DIR1121",
+   "titulo": "Bot de diseño en el A1: las rutas gratuitas del planificador están caídas (FreeLLMAPI 0 modelos, NIM sin respuesta, OpenRouter con lista vieja)",
+   "archivos": [
+    "scripts/puente/peticiones_llm.py",
+    "scripts/puente/test_peticiones_llm.py",
+    "scripts/puente/peticiones_productor.py"
+   ],
+   "depende": [],
+   "prompt": "Journal del A1, 21-11 01:11: «Catálogo FreeLLMAPI actualizado: 0 modelos»; NIM sin respuesta de minimax-m3.1-flash y\nnemotron-3.5-lightning (cuerpo vacío); OpenRouter: los cuatro modelos `:free` escritos a mano ya no existen\n(llama-3.1-8b-instruct, mistral-7b-instruct, gemma-2-9b-it, qwen-2.5-7b-instruct). Solo respondió Hermes (gemini-flash-lite). Cada\npetición pierde ~17 s en rutas muertas y depende de una sola. Arregla: a) la lista de OpenRouter sale del catálogo vivo\n(`/api/v1/models`, los que terminan en `:free` y aceptan chat), con caché de 6 h y respaldo a la última lista buena, nunca escrita a mano;\nb) averigua por qué FreeLLMAPI da 0 modelos y NIM no responde EN EL A1 (¿clave ausente en el archivo 600 del servicio?, ¿nombre de\nmodelo retirado?, ¿salida de red?) y arréglalo o deja la causa exacta y la acción; c) el orden de rutas lo decide la salud reciente\n(la que respondió va primero) y una ruta que falla tres veces seguidas se salta 30 min; d) en `/estado` del bot una línea con las rutas\nvivas. Pruebas sin red para a) y c).\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  },
+  {
+   "id": "CTL1121N",
+   "ola": "DIR1121",
+   "titulo": "La clave propia del aparato en Rust no compila: sin esto no hay app nativa nueva",
+   "archivos": [
+    "native/src-tauri/src/clave_aparato_nativa.rs",
+    "native/src-tauri/src/lib.rs",
+    "native/src-tauri/Cargo.toml"
+   ],
+   "depende": [],
+   "prompt": "La supervisión del 21-11 encontró «Tauri · cargo check» en rojo: el Rust de CTL1119E (clave propia del aparato en el llavero del\nsistema, órdenes clave-aparato-crear/firmar/spki/estado/olvidar) no compila, así que ninguna compilación de prueba (.56) puede salir y\nLinux/Windows siguen sin clave propia. Compílalo DE VERDAD (cargo check en el A1 o en la nube; en el Mac no hay sitio: 10 GB libres),\narregla los errores uno a uno sin quitar la función, y deja `cargo check` y `cargo test` verdes para macOS, Linux y Windows (con cfg por\nplataforma donde el llavero difiera). La parte privada nunca sale a la página. Si ya hay otra tarea abierta para lo mismo, únete a ella\ny dilo. Al terminar pide la compilación de prueba con director_pruebas.py.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-114606.json": [
+   "IMG-diaria-des-simular-director-imaginacion",
+   "IMG-diaria-encargos-largos-en-background-par",
+   "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "MND1121A",
+   "CTL1121N",
+   "PET1121B"
+  ]
+ }
+}
