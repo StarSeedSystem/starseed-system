@@ -134,7 +134,7 @@ export function ListaPermisos({ estado, onEmpezar, onOmitir, onOmitirTodo, onPed
                           )}
                           <span className={`block ${colorEstado(a)}`} data-testid={`estado-${d.id}`}>
                             {textoEstado(d, estado.estados[d.id], a)}
-                            {r && a !== "listo" && r !== "concedido" ? ` · ${textoResultado(r)}` : ""}
+                            {r && a !== "listo" && r !== "concedido" ? ` · ${textoResultado(r, estado.sistema)}` : ""}
                           </span>
                         </span>
                         {puedeBoton && (
