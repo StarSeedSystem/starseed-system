@@ -26,7 +26,7 @@ function crearDepsMock(overrides: Partial<DependenciasConversacion> = {}): Depen
     return {
         reloj: () => 0,
         reconocimiento: {
-            disponible: () => ({ ok: true }),
+            disponible: () => ({ ok: true, audioSaleDelAparato: true }),
             iniciar: vi.fn(),
             detener: vi.fn(),
         },

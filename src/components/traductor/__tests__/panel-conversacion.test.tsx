@@ -56,8 +56,11 @@ describe("PanelConversacion", () => {
         expect(screen.getByText("Hi, how are you?")).toBeInTheDocument();
         expect(screen.getByText("Muy bien, gracias")).toBeInTheDocument();
         expect(screen.getByText("Very well, thanks")).toBeInTheDocument();
-        expect(screen.getByText(/Reconocido 820 ms · Traducido 140 ms · Hablado 950 ms/)).toBeInTheDocument();
-        expect(screen.getByText(/Reconocido 610 ms · Traducido 120 ms · Hablado 0 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Rec: 820 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Trad: 140 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Hablado 950 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Rec: 610 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Trad: 120 ms/)).toBeInTheDocument();
     });
 
     it("desactiva el micrófono sin reconocimiento y ofrece escribir en ese lado", async () => {
