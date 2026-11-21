@@ -173,6 +173,29 @@ describe("pantalla-iniciar", () => {
         expect((r.capacidades as { entrada: { max_dedos: number } }).entrada.max_dedos).toBe(10);
         await origen.parar("fin");
     });
+    it("RST1116A: con fuente proyeccion se manda explícita y se devuelve la real con lo pedido", async () => {
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0].args).toMatchObject({ sesion: SESION.token, fuente: "proyeccion" });
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        await origen.parar("fin");
+    });
+    it("RST1116A: si lo nativo contesta proyeccion, la fuente real es proyeccion", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "proyeccion", ancho: 1280, alto: 798, giro: 0 };
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, fuente: "proyeccion", ancho: 1280, alto: 798 });
+        expect(r).not.toHaveProperty("fuente_pedida");
+        await origen.parar("fin");
+    });
+    it("RST1116A: si la proyeccion no se puede, la sesión sigue con lo que haya", async () => {
+        const inv = origen as unknown as { d: DepsOrigen };
+        const base = inv.d.invocar!;
+        inv.d.invocar = async (c, a) => (c === "control_pantalla_iniciar" && a?.fuente === "proyeccion" ? { ok: false, motivo: "sin-consentimiento" } : base(c, a));
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar").map((l) => l.args?.fuente).slice(0, 2)).toEqual(["proyeccion", "auto"]);
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        expect(origen.enMarcha()).toBe(true);
+        await origen.parar("fin");
+    });
     it("si lo nativo no puede, la orden se cumple y dice qué falta (sin arrancar nada)", async () => {
         respuestas.control_pantalla_iniciar = { ok: false, motivo: "sin-servicio", falta: ["servicio-accesibilidad", "otra cosa"] };
         const r = await origen.ejecutar("pantalla-iniciar", {}, ctx());
