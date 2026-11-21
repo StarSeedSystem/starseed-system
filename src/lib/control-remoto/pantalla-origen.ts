@@ -237,15 +237,20 @@ export class OrigenPantalla {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
-        // CTL1118F: SIEMPRE se arranca con lo que el aparato tenga («auto»: la fluida si la persona ya la dio en esta sesión, si no accesibilidad)
-        // para que haya imagen YA; si va por accesibilidad, más abajo el aparato pide él solo la fluida (diálogo nativo, solo con su «Sí»).
-        // Lo que pida quien manda (`fuente: "proyeccion"`) no cambia el arranque: se atiende como una petición de la persona, después.
-        const r = await inv("control_pantalla_iniciar", {
+        // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
+        // sin campo o con «auto» se mantiene el arranque de siempre (la fluida se busca después, con su «Sí»).
+        const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
+        const pide = (fuente: "auto" | FuenteReal): Record<string, unknown> => ({
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
             calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            fuente: FUENTE_DEFECTO,
-        }).catch(() => null);
+            fuente,
+        });
+        let r = await inv("control_pantalla_iniciar", pide(pedida ?? FUENTE_DEFECTO)).catch(() => null);
+        if (pedida && (!esObjeto(r) || r.ok !== true)) {
+            // Lo nativo no pudo con la proyección: la sesión sigue con lo que haya, sin cerrar nada.
+            r = await inv("control_pantalla_iniciar", pide(FUENTE_DEFECTO)).catch(() => null);
+        }
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
             const motivo = esObjeto(r) && typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "sin-soporte";
@@ -305,13 +310,16 @@ export class OrigenPantalla {
         // CTL1119B: actualización de calidad cada 500 ms
         const intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
         this.intervalos.add(intCalidad);
-        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${args.fuente === "proyeccion" ? "proyeccion" : "auto"}`);
-        // CTL1118F: la pantalla ya sale; lo fluido se pide sin esperar y sin cerrar nada.
-        if (debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, args.fuente === "proyeccion")) void this.buscarFluida(a, args.fuente === "proyeccion");
+        this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${pedida ?? "auto"}`);
+        // CTL1118F: si no se pidió explícita, la pantalla ya sale y lo fluido se busca UNA vez sin cerrar nada.
+        // RST1116A: con «proyeccion» la petición ya fue la de arriba; no se repite sola.
+        if (!pedida && debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, false)) void this.buscarFluida(a, false);
         const capacidades = await inv("control_capacidades").catch(() => null);
         return {
             ok: true,
             fuente,
+            // RST1116A: se avisa de lo pedido solo cuando el aparato no lo cumplió (el otro lado puede avisar con RST04).
+            ...(pedida && fuente !== pedida ? { fuente_pedida: pedida } : {}),
             ancho,
             alto,
             giro,
@@ -348,7 +356,7 @@ export class OrigenPantalla {
         const manual = args.fuente === "proyeccion";
         this.d.anotar(`control-fuente paso=mantener fuente=${a.fuente} manual=${manual ? "si" : "no"}`);
         if (manual && debePedirFluida(a.fuente, this.fluidaPedidas.get(a.token) ?? 0, true)) void this.buscarFluida(a, true);
-        return { ok: true, mantenida: true, fuente: a.fuente, ancho: a.ancho, alto: a.alto, giro: a.giro };
+        return { ok: true, mantenida: true, fuente: a.fuente, ...(manual && a.fuente !== "proyeccion" ? { fuente_pedida: "proyeccion" as const } : {}), ancho: a.ancho, alto: a.alto, giro: a.giro };
     }
 
     private async llamarFluida(a: Activa): Promise<{ ok: boolean; r: Record<string, unknown> | null }> {

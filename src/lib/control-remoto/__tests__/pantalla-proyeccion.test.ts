@@ -33,10 +33,10 @@ function origenCon(respuesta: unknown) {
 }
 
 describe("PENC3 · fuente de pantalla", () => {
-    it("pide «auto» aunque quien manda pida otra: la elige el aparato", async () => {
+    it("RST1116A · con «proyeccion» la petición llega explícita a lo nativo", async () => {
         const { origen, llamadas } = origenCon({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 });
         await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
-        expect(llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("auto");
+        expect(llamadas.find((l) => l.cmd === "control_pantalla_iniciar")?.args?.fuente).toBe("proyeccion");
         await origen.parar("fin");
     });
 
