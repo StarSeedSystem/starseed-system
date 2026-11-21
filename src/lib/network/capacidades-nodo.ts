@@ -4,7 +4,6 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
-import { describe, it, expect } from "vitest";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -438,61 +437,4 @@ export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
     conJev: conJev.length,
     adaptadorMasNuevo: conAdaptador.length > 0 ? conAdaptador[0].needle!.adaptador! : null,
   };
-}
-
-/** Pruebas unitarias puras de `crearFichaNodo` y campos nuevos. */
-export function testCapacidadesNodo(): void {
-  describe("crearFichaNodo", () => {
-    it("incluye discoLibreGb y almacen cuando están presentes", () => {
-      const entrada = {
-        nodoId: "test-nodo-1",
-        medio: "mac" as const,
-        discoLibreGb: 256,
-        almacen: ["/mnt/data", "/home/user"],
-      };
-      const ficha = crearFichaNodo(entrada);
-      expect(ficha.discoLibreGb).toBe(256);
-      expect(ficha.almacen).toEqual(["/mnt/data", "/home/user"]);
-    });
-
-    it("omite discoLibreGb y almacen cuando no están presentes (compatibilidad hacia atrás)", () => {
-      const entrada = {
-        nodoId: "test-nodo-2",
-        medio: "linux" as const,
-      };
-      const ficha = crearFichaNodo(entrada);
-      expect(ficha.discoLibreGb).toBeUndefined();
-      expect(ficha.almacen).toBeUndefined();
-    });
-
-    it("permite discoLibreGb null explícito", () => {
-      const entrada = {
-        nodoId: "test-nodo-3",
-        medio: "nube" as const,
-        discoLibreGb: null,
-        almacen: [],
-      };
-      const ficha = crearFichaNodo(entrada);
-      expect(ficha.discoLibreGb).toBeNull();
-      expect(ficha.almacen).toEqual([]);
-    });
-
-    it("mantiene los campos existentes intactos", () => {
-      const entrada = {
-        nodoId: "test-nodo-4",
-        medio: "android" as const,
-        ramLibreMb: 4096,
-        cpu: 15,
-        jev: true,
-        discoLibreGb: 128,
-        almacen: ["/storage/emulated/0"],
-      };
-      const ficha = crearFichaNodo(entrada);
-      expect(ficha.ramLibreMb).toBe(4096);
-      expect(ficha.cpu).toBe(15);
-      expect(ficha.jev).toBe(true);
-      expect(ficha.discoLibreGb).toBe(128);
-      expect(ficha.almacen).toEqual(["/storage/emulated/0"]);
-    });
-  });
 }

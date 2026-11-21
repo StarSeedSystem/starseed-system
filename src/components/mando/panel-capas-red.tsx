@@ -15,7 +15,7 @@ import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert, Clock, Send, Trash2,
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import type { CapaNueva, FilaCapaRed, UltimoBanco } from "@/lib/mando/capas-red";
 
 /** Forma REAL de la respuesta de GET /api/mando/capas (sin `catalogo` ni `espejos`). */
@@ -387,7 +387,7 @@ export function PanelCapasRed() {
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
-                <TableHead>
+                <TableHeader>
                   <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>Capa</TableCell>
@@ -397,7 +397,7 @@ export function PanelCapasRed() {
                     <TableCell>Estado</TableCell>
                     <TableCell className="w-[160px]">Acciones</TableCell>
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {propuestasAplanadas.map((p) => (
                     <TableRow key={p.id} data-testid={`propuesta-${p.id}`}>
@@ -482,7 +482,7 @@ export function PanelCapasRed() {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHead>
+              <TableHeader>
                 <TableRow>
                   <TableCell>Capa</TableCell>
                   <TableCell>Versión</TableCell>
@@ -493,7 +493,7 @@ export function PanelCapasRed() {
                   <TableCell>Espejos</TableCell>
                   <TableCell>Último banco</TableCell>
                 </TableRow>
-              </TableHead>
+              </TableHeader>
               <TableBody>
                 {(respuesta.filas ?? []).map((capa) => {
                   const estado = textoEstado(capa.estado);

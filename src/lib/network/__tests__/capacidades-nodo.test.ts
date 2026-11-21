@@ -11,6 +11,7 @@ import {
   permitePrivacidad,
   resumenRed,
   type CapacidadesNodo,
+  type DatosFichaNodo,
 } from "../capacidades-nodo";
 import { selectDeliberatorNode, selectReflejoNode } from "../lan-sync";
 import { resolveNetworkCapacities } from "@/ai/astraura/router";
@@ -97,5 +98,59 @@ describe("capacidades-nodo", () => {
 
     const res = resolveNetworkCapacities({ kind: "reasoning", needsVision: false, chars: 10, difficulty: 0.5 }, fixtureCincoNodos, AHORA);
     expect(res.deliberador?.nodoId).toBe("nodo-nube");
+  });
+});
+
+describe("crearFichaNodo · campos nuevos discoLibreGb y almacen", () => {
+  it("incluye discoLibreGb y almacen cuando están presentes", () => {
+    const entrada: DatosFichaNodo = {
+      nodoId: "test-nodo-1",
+      medio: "mac",
+      discoLibreGb: 256,
+      almacen: ["/mnt/data", "/home/user"],
+    };
+    const ficha = crearFichaNodo(entrada);
+    expect(ficha.discoLibreGb).toBe(256);
+    expect(ficha.almacen).toEqual(["/mnt/data", "/home/user"]);
+  });
+
+  it("omite discoLibreGb y almacen cuando no están presentes (compatibilidad hacia atrás)", () => {
+    const entrada: DatosFichaNodo = {
+      nodoId: "test-nodo-2",
+      medio: "linux",
+    };
+    const ficha = crearFichaNodo(entrada);
+    expect(ficha.discoLibreGb).toBeUndefined();
+    expect(ficha.almacen).toBeUndefined();
+  });
+
+  it("permite discoLibreGb null explícito", () => {
+    const entrada: DatosFichaNodo = {
+      nodoId: "test-nodo-3",
+      medio: "nube",
+      discoLibreGb: null,
+      almacen: [],
+    };
+    const ficha = crearFichaNodo(entrada);
+    expect(ficha.discoLibreGb).toBeNull();
+    expect(ficha.almacen).toEqual([]);
+  });
+
+  it("mantiene los campos existentes intactos", () => {
+    const entrada: DatosFichaNodo = {
+      nodoId: "test-nodo-4",
+      medio: "android",
+      ramLibreMb: 4096,
+      cpu: 15,
+      jev: true,
+      discoLibreGb: 128,
+      almacen: ["/storage/emulated/0"],
+    };
+    const ficha = crearFichaNodo(entrada);
+    expect(ficha.ramLibreMb).toBe(4096);
+    expect(ficha.cpu).toBe(15);
+    expect(ficha.jev).toBe(true);
+    expect(ficha.discoLibreGb).toBe(128);
+    expect(ficha.almacen).toEqual(["/storage/emulated/0"]);
   });
 });
