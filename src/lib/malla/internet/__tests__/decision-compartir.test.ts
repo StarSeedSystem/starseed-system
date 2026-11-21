@@ -30,7 +30,38 @@ const ajustesBase = ajustesPorDefecto();
 const contadoresBase = contadoresVacios(ahora, desfaseMin);
 
 describe('decidirCompartir', () => {
-  describe('Regla 1: mi-cuenta', () => {
+  describe('Regla 1: mi-cuenta - modo banco', () => {
+    it('modo banco con ración agotada para "otros", mi-cuenta con limiteMeshMb → permitido con ese límite', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: false,
+        banco: { activo: true, modo: 'diario', diarioMb: 1, ventanas: [] },
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: 500 },
+        },
+      };
+      // 1 MB usado por "otros" → banco agotado para otros
+      const contadores = {
+        ...contadoresBase,
+        bytesDia: { 'mi-cuenta': 0, entidad: 0, publico: 1 * 1_000_000 },
+      };
+      const puerta = crearPuerta({ medida: false, topeMensualMb: 1000, usadoMesMb: 0 });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(500);
+      expect(resultado.motivo).toBe('límite: 500 MB');
+    });
+
     it('cuenta propia sin límite con "otros" apagado → permitido, hastaMb null', () => {
       const ajustes: AjustesInternet = {
         ...ajustesBase,
@@ -110,6 +141,82 @@ describe('decidirCompartir', () => {
       expect(resultado.permitido).toBe(true);
       expect(resultado.hastaMb).toBeNull();
       expect(resultado.motivo).toContain('sin límite');
+    });
+
+    it('mi-cuenta con puerta medida: límite es tope - usado (sin restar reserva)', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: true,
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: null },
+        },
+      };
+      // Puerta: tope 1000, usado 200, reserva 20% = 200
+      // Para "otros": 1000 - 200 - 200 = 600 (resta reserva)
+      // Para mi-cuenta: 1000 - 200 = 800 (NO resta reserva)
+      const puerta = crearPuerta({ topeMensualMb: 1000, usadoMesMb: 200, reservaDuenoPct: 20, medida: true });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores: contadoresBase,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(800);
+      expect(resultado.motivo).toBe('límite: 800 MB');
+    });
+
+    it('túnel falso: mi-cuenta con puerta medida, tope 100, usado 0, sin límiteMeshMb → hastaMb = 100', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: true,
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: null },
+        },
+      };
+      const puerta = crearPuerta({ medida: true, topeMensualMb: 100, usadoMesMb: 0 });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores: contadoresBase,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(100);
+    });
+
+    it('túnel falso: mi-cuenta con límiteMeshMb 500, puerta tope 1000, usado 200 → hastaMb = 500 (mínimo)', () => {
+      const ajustes: AjustesInternet = {
+        ...ajustesBase,
+        compartirConOtros: true,
+        porAudiencia: {
+          ...ajustesBase.porAudiencia,
+          'mi-cuenta': { mesh: true, limiteMeshMb: 500 },
+        },
+      };
+      const puerta = crearPuerta({ medida: true, topeMensualMb: 1000, usadoMesMb: 200 });
+
+      const resultado = decidirCompartir({
+        audiencia: 'mi-cuenta',
+        ajustes,
+        contadores: contadoresBase,
+        puerta,
+        ahora,
+        desfaseMin,
+      });
+
+      expect(resultado.permitido).toBe(true);
+      expect(resultado.hastaMb).toBe(500);
     });
   });
 

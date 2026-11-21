@@ -5,6 +5,7 @@ import {
   PuertaInternet,
   Solicitante,
   restanteParaOtrosMb,
+  restanteParaDueñoMb,
   puedeUsar,
   costePuerta,
   elegirPuerta,
@@ -78,6 +79,68 @@ describe('restanteParaOtrosMb', () => {
         usadoMesMb: 900, // 900 usado + 200 reserva = 1100 > 1000 tope
       })
     ).toBe(0);
+  });
+});
+
+describe('restanteParaDueñoMb', () => {
+  const basePuerta: PuertaInternet = {
+    id: 'p1',
+    neurona: 'n1',
+    cuenta: 'c1',
+    tipo: 'movil-4g',
+    bajadaKbps: 10000,
+    subidaKbps: 5000,
+    latenciaMs: 50,
+    medida: true,
+    topeMensualMb: 1000,
+    usadoMesMb: 200,
+    reservaDuenoPct: 20,
+    compartir: 'publico',
+  };
+
+  it('devuelve null si no es medida', () => {
+    expect(
+      restanteParaDueñoMb({ ...basePuerta, medida: false })
+    ).toBeNull();
+  });
+
+  it('devuelve null si no tiene tope mensual', () => {
+    expect(
+      restanteParaDueñoMb({ ...basePuerta, topeMensualMb: undefined })
+    ).toBeNull();
+  });
+
+  it('calcula correctamente el restante para el dueño (sin restar reserva)', () => {
+    // tope: 1000 MB, usado: 200 MB, reserva: 20% = 200 MB
+    // restante para el dueño: 1000 - 200 = 800 MB (NO resta reserva)
+    expect(restanteParaDueñoMb(basePuerta)).toBe(800);
+  });
+
+  it('devuelve 0 si el dueño ha usado todo el tope', () => {
+    expect(
+      restanteParaDueñoMb({
+        ...basePuerta,
+        usadoMesMb: 1000,
+      })
+    ).toBe(0);
+  });
+
+  it('devuelve 0 si el usado supera el tope', () => {
+    expect(
+      restanteParaDueñoMb({
+        ...basePuerta,
+        usadoMesMb: 1100,
+      })
+    ).toBe(0);
+  });
+
+  it('siempre da el tope completo al dueño sin importar la reserva', () => {
+    // tope 1000, usado 0, reserva 50% = 500
+    // restante para "otros": 1000 - 0 - 500 = 500
+    // restante para el dueño: 1000 - 0 = 1000
+    const puertaConAltaReserva = { ...basePuerta, usadoMesMb: 0, reservaDuenoPct: 50 };
+    expect(restanteParaOtrosMb(puertaConAltaReserva)).toBe(500);
+    expect(restanteParaDueñoMb(puertaConAltaReserva)).toBe(1000);
   });
 });
 

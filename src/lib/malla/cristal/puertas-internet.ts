@@ -34,6 +34,13 @@ export function restanteParaOtrosMb(p: PuertaInternet): number | null {
   return !p.medida || !p.topeMensualMb ? null : Math.max(0, p.topeMensualMb - (p.usadoMesMb ?? 0) - (p.topeMensualMb * (p.reservaDuenoPct ?? 20)) / 100);
 }
 
+export function restanteParaDueñoMb(p: PuertaInternet): number | null {
+  if (!p.medida || !p.topeMensualMb) return null;
+  const usado = p.usadoMesMb ?? 0;
+  if (usado >= p.topeMensualMb) return 0;
+  return Math.max(0, p.topeMensualMb - usado);
+}
+
 export function puedeUsar(
   p: PuertaInternet,
   s: Solicitante,

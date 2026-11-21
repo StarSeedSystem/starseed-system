@@ -1,4 +1,4 @@
-import { PuertaInternet, puedeUsar, restanteParaOtrosMb, Compartir, Solicitante } from '../cristal/puertas-internet';
+import { PuertaInternet, puedeUsar, restanteParaOtrosMb, restanteParaDueñoMb, Compartir, Solicitante } from '../cristal/puertas-internet';
 import { Audiencia, AjustesInternet } from './tipos';
 import { Contadores, usadoHoyMb } from './contadores';
 import { cupoBanco } from './cupo-banco';
@@ -68,7 +68,7 @@ export function decidirCompartir(entrada: EntradaDecidirCompartir): ResultadoDec
     }
 
     const limiteAudiencia = porAudiencia.limiteMeshMb;
-    const restantePuerta = restanteParaOtrosMb(puerta);
+    const restantePuerta = restanteParaDueñoMb(puerta);
 
     const limites: (number | null)[] = [limiteAudiencia];
     if (restantePuerta !== null) {
