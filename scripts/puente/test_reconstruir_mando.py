@@ -707,6 +707,7 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
 
     def test_la_pasada_espera_y_no_compila(self):
         with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "_porcelain_src", return_value=[]), \
                 mock.patch.object(R, "huella_de", return_value="bbb"), \
                 mock.patch.object(R, "_leer_estado", return_value={"huella_construida": "aaa", "ok": True}), \
                 mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
@@ -731,6 +732,7 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
         # solo allí: tumbaron la puerta de toda tarea de Python (SP092916, SP092918, CDC1004).
         guardados = []
         with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "_porcelain_src", return_value=[]), \
                 mock.patch.object(R, "huella_de", return_value="bbb"), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado)), \
                 mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
@@ -881,6 +883,7 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
         mock.patch.object(R, "anterior_entero", return_value=anterior).start()  # (SUP0111D) nunca el .next-anterior real
         self.reponer = mock.patch.object(R, "reponer_anterior_y_reiniciar", return_value=repone).start()  # ni launchctl
         with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
+                mock.patch.object(R, "_porcelain_src", return_value=[]), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
                 mock.patch.object(R, "genesis_caido", return_value=caido), \
                 mock.patch.object(R, "build_terminado", return_value=False), \
