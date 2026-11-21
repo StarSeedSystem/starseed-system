@@ -9,6 +9,13 @@ const tam = (c: keyof typeof TAM) => { medida = { width: TAM[c], height: TAM[c] 
 vi.mock("@/components/dashboard/kit/use-element-size", () => ({
     useElementSize: () => ({ ref: { current: null }, size: { ...medida, tier: "regular", vTier: "regular", landscape: true } }),
 }));
+vi.mock("@/components/widgets-libres/widget-libre", () => ({
+    WidgetLibre: ({ children }: { children: React.ReactNode | ((c: { clase: string; ancho: number; alto: number }) => React.ReactNode) }) => {
+        const w = medida.width;
+        const clase = w <= 110 ? "micro" : w <= 170 ? "s" : w <= 280 ? "m" : w <= 420 ? "l" : "xl";
+        return <div data-testid="widget-libre">{typeof children === "function" ? children({ clase, ancho: medida.width, alto: medida.height }) : children}</div>;
+    },
+}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...r }: any) => <a href={String(href)} {...r}>{children}</a> }));
 vi.mock("@/components/dashboard/kit", () => ({ timeAgo: () => "hace 1m" }));
 
