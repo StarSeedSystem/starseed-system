@@ -10,6 +10,7 @@ import type { AntennaKind } from "@/ai/astraura/mesh/signals";
 import { FAMILIAS, MODOS_ALTURA, type ModoAltura, type ModoEtiquetas } from "./mapa-3d";
 import { FILTROS_CUENTA, type FiltroCuenta } from "./tipos-vivo";
 import { FILTRO_VACIO, type FiltroEspectro } from "./espectro/filtros";
+export type { FiltroEspectro };
 import type { CapaRed, Medio, OrigenDato } from "./espectro/tipos";
 
 export const CLAVE_PREFERENCIAS_MAPA = "starseed.mapa-senales.v1";
