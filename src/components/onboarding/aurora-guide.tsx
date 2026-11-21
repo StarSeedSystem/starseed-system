@@ -696,15 +696,14 @@ export function AuroraGuide() {
   // Solo en modo voz y sin mute. Lee getState().transcript por el puente y, si
   // detecta "siguiente"/"anterior"/"cerrar", actúa. Defensivo: si no hay puente,
   // no hace nada (degrada al botón).
-  const lastCmdTsRef = useRef<number>(0);
-  const lastTranscriptRef = useRef<string>("");
-  useEffect(() => {
-    if (!inTour || mode !== "voice" || muted) return;
-    if (typeof window === "undefined") return;
-    const id = window.setInterval(() => {
-      let tx = "";
-      try { tx = auroraTranscript(); } catch { tx = ""; }
-      if (!tx || tx === lastTranscriptRef.current) return;
+const lastCmdTsRef = useRef<number>(0);
+   const lastTranscriptRef = useRef<string>("");
+   useEffect(() => {
+     if (!inTour || mode !== "voice" || muted) return;
+     if (typeof window === "undefined") return;
+     const id = window.setInterval(() => {
+       const tx = auroraTranscript();
+       if (!tx || tx === lastTranscriptRef.current) return;
       lastTranscriptRef.current = tx;
       const cmd = parseVoiceCommand(tx);
       if (!cmd) return;
