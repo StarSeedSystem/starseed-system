@@ -47,7 +47,7 @@
  * SSR-safe: todo el trabajo de `window`/`canvas` vive dentro de `useEffect`.
  */
 
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 import {
   resolveQuantumOrbTheme,
@@ -66,6 +66,7 @@ import {
   type RGB,
 } from "@/lib/aurora/quantum-orb-theme";
 import type { QuantumOrbVoiceState } from "@/lib/aurora/quantum-orb-bus";
+import { onQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 import { isReducedMotion, subscribePRM } from "@/lib/avatares/movimiento/prm";
 
 /** Mismo vocabulario que `quantum-orb-bus.ts` (re-exportado para comodidad). */
@@ -807,6 +808,29 @@ export function QuantumOrb({
   // cambio de prop (mismo patrón de `aurora-orb.tsx::modeRef`).
   const liveRef = useRef({ personaId, state, level, frequencies, params, trail });
   liveRef.current = { personaId, state, level, frequencies, params, trail };
+
+  // Suscripción al canal `params` del bus de la orbe (publicado por BitNet 1.58b
+  // o por el heurístico de cláusulas del frontend). Los params del bus tienen
+  // prioridad visual; los props sirven como fallback/override local.
+  const [busParams, setBusParams] = useState<Partial<QuantumOrbParams>>({});
+  const mergedParams = ((): QuantumOrbParams => {
+    const base = mergeQuantumOrbParams(params);
+    return {
+      turbulence: busParams.turbulence ?? base.turbulence,
+      spikiness: busParams.spikiness ?? base.spikiness,
+      symmetry: busParams.symmetry ?? base.symmetry,
+      hueShift: busParams.hueShift ?? base.hueShift,
+      breath: busParams.breath ?? base.breath,
+    };
+  })();
+
+  useEffect(() => {
+    const unsub = onQuantumOrbParams((p) => setBusParams(p));
+    return unsub;
+  }, []);
+
+  // Actualizar liveRef con los params fusionados en cada render
+  liveRef.current.params = mergedParams;
 
   useEffect(() => {
     const canvas = canvasRef.current;
