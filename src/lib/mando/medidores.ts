@@ -34,6 +34,8 @@ import type { EnMarcha } from "./en-marcha";
 import { DONDE_CLOUDROOM, TEXTO_CLOUDROOM } from "./agentes-cloudroom";
 import { DONDE_ORACLE, TEXTO_ORACLE } from "./agentes-oracle";
 import { estadoCreditos, type DocCreditos } from "./creditos-pago-tipos";
+// GEM1119D · Los créditos completos de Antigravity (`agy`) también se miden en el pulso.
+import { detalleAntigravity, resumirAntigravity, type ResumenAntigravity } from "./creditos-antigravity";
 import {
     resumirBloqueadas,
     type EstadoRevisorBloqueadas,
@@ -93,6 +95,9 @@ export type ClaveMedidor =
     | "credito-claude"
     // (2026-10-06) Alex: «El medidor de Claude debe usar la terminal para autoactualizarse y contar con un medidor para cada crédito del usuario en sus APIs y modelos de pago». MC1007G
     | "creditos"
+    // (GEM1119D) Alex: «los medidores de los créditos completos de Antigravity deben añadirse a
+    // los del pulso de trabajo de MetaGenesis». Ver `creditos-antigravity.ts`.
+    | "antigravity"
     // (2026-10-09) «Fallidas 0» con PT1009Cb en fallo_tsc: la pastilla contaba solo la ola
     // activa. Este medidor cuenta lo que ha fallado HOY y nadie ha resuelto todavía.
     | "fallidas"
@@ -1700,6 +1705,9 @@ export interface DatosMedidores {
     fila?: FilaContable[];
     /** (2026-10-06) Medidores de crédito por terminal, MC1007F. */
     creditosPago?: DocCreditos | null;
+    /** (GEM1119D) Créditos completos de Antigravity (`agy`): catálogo y uso de `~/.starseed/`.
+     *  Lo lee la ruta con `leerAntigravity`; `null` = todavía no hay archivos (sin medir aún). */
+    antigravity?: ResumenAntigravity | null;
     /** (IMG1024B) Propuestas de la imaginación (todas) y sus ajustes, con el ámbito pedido en `?ambito=`.
      *  `null` = no se pudieron leer: la pastilla dice «sin datos». Lo lee la ruta con `leerPropuestas`. */
     imaginacion?: {
@@ -3409,6 +3417,13 @@ const busca = d.buscarCapacidad;
             };
         }
 
+        case "antigravity": {
+            // GEM1119D: la decisión (cuota, reserva del 20 %, estado y papeles) vive en el módulo
+            // puro; aquí solo se elige el resumen ya leído o el «sin medir aún» de respaldo.
+            const r = d.antigravity ?? resumirAntigravity(null, null, ahora ?? Date.now());
+            return detalleAntigravity(r);
+        }
+
         case "creditos": {
             const doc = d.creditosPago;
             if (!doc || !doc.medidores) {
@@ -3637,6 +3652,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "contenedores",
     "credito-claude",
     "creditos",
+    "antigravity", // GEM1119D: los créditos completos de Antigravity, junto a los demás créditos
     "listas",
     "bloqueadas",
     "en-cadena",

@@ -37,6 +37,7 @@ import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import { MedidorConsumo } from "@/components/mando/medidor-consumo";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { cargaDePublicacion, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import { RESERVA_PORCENTAJE, TOKENS_BASE_POR_TURNO } from "@/lib/mando/creditos-antigravity";
 import {
     CLAVES_RESUMEN_PULSO,
     RESUMEN_MEDIDORES_VACIO,
@@ -307,6 +308,7 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     Jev: ["modelos", 2],
     "credito-claude": ["modelos", 3],
     creditos: ["modelos", 4],
+    antigravity: ["modelos", 4.5], // GEM1119D: junto a los créditos, antes de la nube
     contenedores: ["modelos", 5],
     memoria: ["maquina", 0],
     disco: ["maquina", 1],
@@ -1645,6 +1647,23 @@ export function CentroMando() {
                                     detalle: detalle.join(" · ") || undefined,
                                 };
                             }),
+                            {
+                                // (GEM1119D) Alex: los créditos completos de Antigravity, junto a
+                                // los demás créditos. La cifra es lo que se lleva hoy; su ventana
+                                // abre el detalle por modelo con `PanelMedidor`.
+                                clave: "antigravity" as const,
+                                titulo: "Antigravity",
+                                valor: (() => {
+                                    const a = medidoresResumen?.antigravity;
+                                    if (!a) return "sin medir aún";
+                                    if (a.cuenta !== undefined) return `${a.cuenta} hoy`;
+                                    return a.vacio ?? "sin medir aún";
+                                })(),
+                                tono: (medidoresResumen?.antigravity?.tono ?? "normal") as TonoMedidor,
+                                detalle:
+                                    medidoresResumen?.antigravity?.resumen ??
+                                    `créditos completos · reserva del ${Math.round(RESERVA_PORCENTAJE * 100)} % · ${TOKENS_BASE_POR_TURNO / 1000} k tokens por turno`,
+                            },
                             {
                                 compacto: true,
                                 titulo: "Actualizar créditos",

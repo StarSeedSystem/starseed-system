@@ -51,6 +51,8 @@ export interface ResumenMedidoresPulso {
     creditoResumen: string | null;
     creditoTono: TonoResumenMedidor;
     creditos: FilaMedidor[];
+    /** GEM1119D: el detalle de Antigravity, para la pastilla y su ventana por modelo. */
+    antigravity: DetalleMedidor | null;
 }
 
 export const RESUMEN_MEDIDORES_VACIO: ResumenMedidoresPulso = {
@@ -80,6 +82,7 @@ export const RESUMEN_MEDIDORES_VACIO: ResumenMedidoresPulso = {
     creditoResumen: null,
     creditoTono: "normal",
     creditos: [],
+    antigravity: null,
 };
 
 export const CLAVES_RESUMEN_PULSO: readonly ClaveMedidor[] = [
@@ -94,6 +97,7 @@ export const CLAVES_RESUMEN_PULSO: readonly ClaveMedidor[] = [
     "integradas",
     "credito-claude",
     "creditos",
+    "antigravity",
     "fallidas",
     "imaginacion",
 ] as const;
@@ -114,6 +118,7 @@ export const TODAS_CLAVES_MEDIDOR: readonly ClaveMedidor[] = [
     "ola-activa",
     "credito-claude",
     "creditos",
+    "antigravity",
     "fallidas",
     "en-cadena",
     "imaginacion",
@@ -169,6 +174,7 @@ export function extraerResumenMedidores(
     let creditoResumen: string | null = null;
     let creditoTono: TonoResumenMedidor = "normal";
     let creditos: FilaMedidor[] = [];
+    let antigravity: DetalleMedidor | null = null;
 
     const dListas = detalles.listas;
     if (dListas?.filas) {
@@ -265,6 +271,8 @@ export function extraerResumenMedidores(
         creditos = dCreditos.filas ?? [];
     }
 
+    antigravity = detalles.antigravity ?? null;
+
     return {
         listas,
         bloqueadas,
@@ -295,5 +303,6 @@ export function extraerResumenMedidores(
         creditoResumen,
         creditoTono,
         creditos,
+        antigravity,
     };
 }

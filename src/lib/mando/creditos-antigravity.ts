@@ -309,12 +309,13 @@ export function detalleAntigravity(resumen: ResumenAntigravity): DetalleMedidor 
         };
     });
     return {
-        // La clave «antigravity» la añadirá al tipo la parte 2 del pulso; aquí ya viaja en `detalles`.
-        clave: "antigravity" as unknown as DetalleMedidor["clave"],
+        clave: "antigravity",
         titulo: "Antigravity",
         resumen: resumen.resumen,
         filas,
         acciones: [],
+        // La cifra de la pastilla: las llamadas de hoy. Sin medir o sin sesión no se inventa un 0.
+        cuenta: resumen.sinMedir || resumen.sinSesion ? undefined : resumen.total.llamadasHoy,
         tono: TONO_MEDIDOR[resumen.estado],
         vacio: resumen.sinMedir
             ? "sin medir aún"
