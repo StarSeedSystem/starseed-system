@@ -249,6 +249,32 @@ class ElSilencioDeLaMac(Base):
         self.assertEqual(R.etime_a_s("2-00:00:10"), 172810)
         self.assertIsNone(R.etime_a_s("raro"))
 
+    def test_turno_pesado_no_toma_el_turno_mientras_hay_ronda_y_no_gasta_su_plazo(self):
+        import turno_pesado as TP
+        ahora = time.time()
+        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 2, ahora - 119.0)       # le quedan ~1 s de las 2 min
+        self.w.escribir_json(R.ARCHIVO, datos)
+        antes = (os.environ.get("STARSEED_PRODUCCION_DIR"), TP.CERROJOS, R.AVISO_S)
+        os.environ["STARSEED_PRODUCCION_DIR"] = self.tmp
+        TP.CERROJOS = os.path.join(self.tmp, "cerrojos")
+        R.AVISO_S = 0.5   # aviso cada medio segundo para que la prueba no espere 60 segundos
+        sondeo, R.SONDEO_S = R.SONDEO_S, 0.1
+        try:
+            avisos = []
+            t0 = time.time()
+            with TP.turno(espera_s=0.5, reintento_s=0.05, avisar_ronda=lambda t, s: avisos.append(t)):
+                tomado = os.path.isdir(os.path.join(TP.CERROJOS, "pesado.lock"))
+            self.assertTrue(tomado)
+            self.assertTrue(avisos)                                # esperó la ronda y lo dijo
+        finally:
+            R.SONDEO_S = sondeo
+            R.AVISO_S = antes[2]
+            TP.CERROJOS = antes[1]
+            if antes[0] is None:
+                os.environ.pop("STARSEED_PRODUCCION_DIR", None)
+            else:
+                os.environ["STARSEED_PRODUCCION_DIR"] = antes[0]
+
 
 class LaPuertaDeAdmision(Base):
     def test_esperar_sin_ronda_no_espera(self):
@@ -293,30 +319,6 @@ class LaPuertaDeAdmision(Base):
         con = subprocess.run([sys.executable, os.path.join(AQUI, "ronda.py"), "activa"], capture_output=True, text=True, env=env)
         self.assertEqual((con.returncode, len(con.stdout.strip().splitlines())), (0, 1))
         self.assertIn("ronda de aparatos activa", con.stdout)
-
-    def test_turno_pesado_no_toma_el_turno_mientras_hay_ronda_y_no_gasta_su_plazo(self):
-        import turno_pesado as TP
-        ahora = time.time()
-        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 1, ahora - 59.0)       # le queda ~1 s
-        self.w.escribir_json(R.ARCHIVO, datos)
-        antes = (os.environ.get("STARSEED_PRODUCCION_DIR"), TP.CERROJOS)
-        os.environ["STARSEED_PRODUCCION_DIR"] = self.tmp
-        TP.CERROJOS = os.path.join(self.tmp, "cerrojos")
-        sondeo, R.SONDEO_S = R.SONDEO_S, 0.1
-        try:
-            avisos = []
-            t0 = time.time()
-            with TP.turno(espera_s=0.5, reintento_s=0.05, avisar_ronda=lambda t, s: avisos.append(t)):
-                tomado = os.path.isdir(os.path.join(TP.CERROJOS, "pesado.lock"))
-            self.assertTrue(tomado)
-            self.assertTrue(avisos)                                # esperó la ronda y lo dijo
-        finally:
-            R.SONDEO_S = sondeo
-            TP.CERROJOS = antes[1]
-            if antes[0] is None:
-                os.environ.pop("STARSEED_PRODUCCION_DIR", None)
-            else:
-                os.environ["STARSEED_PRODUCCION_DIR"] = antes[0]
 
     def test_tsc_turno_sh_espera_a_la_ronda_y_con_la_ronda_terminada_compila(self):
         raiz = os.path.dirname(os.path.dirname(AQUI))

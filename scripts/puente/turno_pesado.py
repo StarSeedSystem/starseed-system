@@ -113,7 +113,7 @@ def puedo_soltar(texto_dueno_actual, mi_pid):
 # ── la ronda de aparatos (RON1112C) ───────────────────────────────────────────
 
 
-def esperar_ronda(avisar_ronda=None, nombre="un trabajo pesado"):
+def esperar_ronda(avisar_ronda=None, nombre="un trabajo pesado", aviso_s=None):
     """Mientras haya una «ronda de aparatos» (ronda.py) no EMPIEZA nada pesado. → segundos esperados (0 si no había).
 
     Un trabajo que ya corre no se toca. Quien llama empieza sus plazos DESPUÉS de esto: esperar una ronda no gasta
@@ -132,7 +132,7 @@ def esperar_ronda(avisar_ronda=None, nombre="un trabajo pesado"):
             avisar_ronda(texto, seg)
 
     try:
-        return ronda.esperar(nombre, avisar=decir)
+        return ronda.esperar(nombre, avisar=decir, aviso_s=aviso_s)
     except Exception:
         return 0
 
@@ -163,7 +163,7 @@ def _leer_dueno(ruta):
 
 
 @contextlib.contextmanager
-def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None, avisar_ronda=None):
+def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None, avisar_ronda=None, aviso_s=None):
     """Toma el turno de lo pesado, lo suelta pase lo que pase.
 
         with turno():
@@ -171,6 +171,7 @@ def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None, avisar_ronda=
 
     `avisar(segundos_esperando)` se llama una vez por minuto mientras espera,
     para que quien mira Genesis sepa que no está colgado, está haciendo cola.
+    `aviso_s` es el intervalo en segundos entre avisos (por defecto 60).
     """
     os.makedirs(CERROJOS, exist_ok=True)
     ruta = os.path.join(CERROJOS, NOMBRE)
@@ -184,7 +185,7 @@ def turno(espera_s=ESPERA_S, reintento_s=REINTENTO_S, avisar=None, avisar_ronda=
     ultimo_aviso = t0
     while True:
         # (RON1112C) Con una ronda de aparatos no se toma el turno; esperarla no cuenta para el plazo de forzarlo.
-        if esperar_ronda(avisar_ronda):
+        if esperar_ronda(avisar_ronda, aviso_s=aviso_s):
             t0 = ultimo_aviso = time.time()
         if os.path.isdir(ruta) and es_huerfano(_leer_dueno(ruta), _pids_vivos(), time.time()):
             shutil.rmtree(ruta, ignore_errors=True)
