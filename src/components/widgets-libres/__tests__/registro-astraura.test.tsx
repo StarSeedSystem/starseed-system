@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 vi.mock("@/components/widgets-libres/familias/astraura-libre-proto", () => ({
     AstrauraLibreProto: ({ widget, onUpdateSettings }: { widget?: any; onUpdateSettings?: any }) => (
@@ -33,9 +33,18 @@ vi.mock("@/components/widgets-libres/familias/tareas-libre", () => ({
 
 import { widgetLibre, TIPOS_CON_DISENO_LIBRE } from "../registro-libre";
 
+const baseWidget = (id: string, widget_type: DashboardWidget["widget_type"]): DashboardWidget => ({
+    id,
+    dashboard_id: "d1",
+    widget_type,
+    layout: { x: 0, y: 0, w: 2, h: 2 },
+    settings: {},
+    created_at: new Date().toISOString(),
+});
+
 describe("registro-libre: widget AURORA_LAST usa AstrauraLibreProto", () => {
     it("devuelve el widget nuevo y le llegan widget y onUpdateSettings", () => {
-        const widget = { id: "w1", widget_type: "AURORA_LAST", settings: {} };
+        const widget = baseWidget("w1", "AURORA_LAST");
         const onUpdateSettings = vi.fn();
 
         const resultado = widgetLibre(widget, onUpdateSettings);
@@ -48,25 +57,25 @@ describe("registro-libre: widget AURORA_LAST usa AstrauraLibreProto", () => {
     });
 
     it("los demás tipos siguen devolviendo lo mismo", () => {
-        const reloj = widgetLibre({ id: "w2", widget_type: "CLOCK_DATE", settings: {} }, vi.fn());
+        const reloj = widgetLibre(baseWidget("w2", "CLOCK_DATE"), vi.fn());
         expect(reloj?.props?.children?.props?.["data-testid"]).toBe("reloj-libre");
 
-        const clima = widgetLibre({ id: "w3", widget_type: "WEATHER_BASIC", settings: {} });
+        const clima = widgetLibre(baseWidget("w3", "WEATHER_BASIC"));
         expect(clima?.props?.children?.props?.["data-testid"]).toBe("clima-libre");
 
-        const notif = widgetLibre({ id: "w4", widget_type: "NOTIFICATIONS", settings: {} });
+        const notif = widgetLibre(baseWidget("w4", "NOTIFICATIONS"));
         expect(notif?.props?.children?.props?.["data-testid"]).toBe("notificaciones-libre");
 
-        const accesos = widgetLibre({ id: "w5", widget_type: "QUICK_ACCESS", settings: {} });
+        const accesos = widgetLibre(baseWidget("w5", "QUICK_ACCESS"));
         expect(accesos?.props?.children?.props?.["data-testid"]).toBe("accesos-libre");
 
-        const estado = widgetLibre({ id: "w6", widget_type: "SYSTEM_STATUS", settings: {} });
+        const estado = widgetLibre(baseWidget("w6", "SYSTEM_STATUS"));
         expect(estado?.props?.children?.props?.["data-testid"]).toBe("estado-sistema-libre");
 
-        const eventos = widgetLibre({ id: "w7", widget_type: "MY_EVENTS", settings: {} });
+        const eventos = widgetLibre(baseWidget("w7", "MY_EVENTS"));
         expect(eventos?.props?.children?.props?.["data-testid"]).toBe("eventos-libre");
 
-        const tareas = widgetLibre({ id: "w8", widget_type: "TASKS_QUICK", settings: {} });
+        const tareas = widgetLibre(baseWidget("w8", "TASKS_QUICK"));
         expect(tareas?.props?.children?.props?.["data-testid"]).toBe("tareas-libre");
     });
 
