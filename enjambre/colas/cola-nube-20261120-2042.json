@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-publicado",
+   "titulo": "Canal `params` de la orbe publicado por 1.58b",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe publicado por 1.58b. : emitir vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → consumible por Nexus/Exocortex para UI reactiva. (Ya en `tasks`: \"Publicar desde el 1.58b el vector visual…\"). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMG-diaria-canal-params-de-la-orbe-publicado"
+  ]
+ }
+}
