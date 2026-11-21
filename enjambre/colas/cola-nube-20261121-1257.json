@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "MRA10b",
+   "ola": "MAP1116B",
+   "titulo": "Mapa: dibujar las señales de la red como zonas aproximadas (nunca puntos exactos) con medido y estimado aparte",
+   "archivos": [
+    "src/lib/senales/geo/cobertura.ts",
+    "src/components/mesh/mapa-senales/geo/use-marcas-geo.ts",
+    "src/lib/senales/geo/__tests__/cobertura-red.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Con `MapaVivo.red` (MRA8) y las capas `red-*` (MRA9): en `src/lib/senales/geo/cobertura.ts` (`camposDeCapa`, línea 23, devuelve `Campo[]`) añade el camino de las capas de red: cada señal publicada con `zona` se pinta como un CAMPO centrado en el centro de la zona gruesa (decodifica el geohash de ≤5 caracteres; el radio es el de la celda, estimado), rayado y con la etiqueta «zona aproximada · publicado por su dueño»; las señales sin zona NO se dibujan en el mapa (van a la lista, MRE6/MRE7) y se cuentan aparte («3 señales sin zona»); lo medido (`origen:\"medida\"`) lleva borde continuo y hora. `use-marcas-geo.ts` solo entrega a `camposDeCapa` lo que necesita (≤30 líneas). NUNCA se calcula un punto exacto de nadie ajeno. PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBAS: señal con zona → un campo estimado; sin zona → ninguno y cuenta; dos dueños en la misma zona se mezclan; lo medido y lo estimado tienen estilos distintos; ninguna entrada ajena produce un marcador puntual. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/geo src/components/mesh/mapa-senales` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA10b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "MRA8b-d3",
+    "MRA9"
+   ]
+  }
+ ]
+}
