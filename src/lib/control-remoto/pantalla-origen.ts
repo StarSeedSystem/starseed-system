@@ -174,7 +174,6 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 }
 
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
-const FUENTE_DEFECTO = "auto";
 
 export class OrigenPantalla {
     private activa: Activa | null = null;
@@ -238,18 +237,18 @@ export class OrigenPantalla {
         if (!inv) throw new Error("sin-soporte");
         await this.parar("reinicio");
         // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
-        // sin campo o con «auto» se mantiene el arranque de siempre (la fluida se busca después, con su «Sí»).
+        // sin campo o con «auto» no se manda la clave (el aparato arranca con lo que tenga, como siempre).
         const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
-        const pide = (fuente: "auto" | FuenteReal): Record<string, unknown> => ({
+        const pide = (fuente?: FuenteReal): Record<string, unknown> => ({
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
             calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            fuente,
+            ...(fuente ? { fuente } : {}),
         });
-        let r = await inv("control_pantalla_iniciar", pide(pedida ?? FUENTE_DEFECTO)).catch(() => null);
+        let r = await inv("control_pantalla_iniciar", pide(pedida ?? undefined)).catch(() => null);
         if (pedida && (!esObjeto(r) || r.ok !== true)) {
             // Lo nativo no pudo con la proyección: la sesión sigue con lo que haya, sin cerrar nada.
-            r = await inv("control_pantalla_iniciar", pide(FUENTE_DEFECTO)).catch(() => null);
+            r = await inv("control_pantalla_iniciar", pide()).catch(() => null);
         }
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
