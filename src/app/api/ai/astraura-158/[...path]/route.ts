@@ -95,6 +95,7 @@ const GET_ALLOW: RegExp[] = [
   // ── Studio 1.58 (lectura de subsistemas; sin archivos, sin OS, sin claves) ──
   /^\/api\/starseed\/(events|processes)$/,
   /^\/api\/starseed\/cognition\/preference$/,
+  /^\/api\/starseed\/orb\/params$/,
   /^\/api\/cerebros\/auto_detect$/,
   /^\/api\/imagination\/(status|process_types|sync_execution_state)$/,
   /^\/api\/imagination\/process\/[\w.-]+(\/branches)?$/,
