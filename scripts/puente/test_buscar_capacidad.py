@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Pruebas de «Buscar más capacidad» (buscar_capacidad.py) y de la segunda oportunidad en la
 nube (repartir_nube: motivo_fuera, clasificar, reaperturas)."""
+import inspect
 import json
 import os
 import sys
@@ -988,3 +989,223 @@ class LanzarJobConReintentos(unittest.TestCase):
             self.assertIn("lanzado: job 1", hechos[0])
             self.assertIn("lanzado: job 3", hechos[1])
             self.assertIn("fallos: job 2:", hechos[2])
+
+
+# ── CAP1119B · Decisiones de reparto a los contenedores de la nube ──────────────
+# Especificación de la parte 2: Cloudroom con su cupo mensual, el A1 escalando agentes,
+# la Mac guardada cediendo trabajo y el empuje a GitHub con reintentos. Sin red y sin
+# tocar los archivos reales de estado.
+
+
+def _agentes_a1(cpu_libre_pct, mem_libre_gb):
+    """Agentes que caben en el A1 con esos recursos, con la forma que tenga el cálculo.
+
+    La lectura del A1 llega de dos maneras (el cálculo directo por CPU/RAM o el consumo
+    medido en `~/.starseed/oracle-consumo.json`); es la misma decisión y se ejerce por la
+    que exista, para no atar la prueba a un nombre interno.
+    """
+    if hasattr(RN, "calcular_trabajadores_a1"):
+        return RN.calcular_trabajadores_a1(cpu_libre_pct=cpu_libre_pct, mem_libre_gb=mem_libre_gb)
+    consumo = {"leido": True, "freno": {"activo": False},
+               "margen": {"cpu_libre_pct": cpu_libre_pct, "mem_libre_gb": mem_libre_gb}}
+    return RN.a1_escalar_agentes(consumo)["agentes"]
+
+
+def _tope_a1():
+    return getattr(RN, "MAX_AGENTES_A1", getattr(RN, "A1_TOPE_HARDWARE", 4))
+
+
+class CloudroomCupoMensual(unittest.TestCase):
+    """(CAP1119B) Cloudroom tiene 100 hilos por ciclo de 30 días: se reparten por día y no
+    se agotan de golpe."""
+
+    AHORA = time.mktime(time.strptime("2026-11-19 12:00:00", "%Y-%m-%d %H:%M:%S"))
+
+    def _ritmo(self, registro, **kw):
+        import cloudroom_lanzar as CL
+
+        return CL.ritmo(registro, self.AHORA, **kw)
+
+    def test_un_cupo_nuevo_no_se_agota_de_golpe(self):
+        r = self._ritmo([], total=100, max_vivos=3, tope_dia=6)
+        self.assertEqual(r["quedan"], 100)
+        self.assertEqual(r["hoy"], 3)          # manda el tope de hilos a la vez
+        self.assertEqual(r["por_dia"], 4.0)    # ceil(100/30), no los 6 del tope diario
+        self.assertIn("caben 3", r["motivo"])
+
+    def test_lo_usado_en_el_ciclo_descuenta_del_cupo(self):
+        viejo = self.AHORA - 10 * 86400
+        registro = [{"t": viejo, "tarea": "T%d" % i, "hilo": "h%d" % i, "final": "traida"}
+                    for i in range(20)]
+        r = self._ritmo(registro, total=100, max_vivos=3, tope_dia=6)
+        self.assertEqual(r["quedan"], 80)
+        self.assertGreaterEqual(r["hoy"], 1)
+        self.assertLessEqual(r["hoy"], 3)
+
+    def test_ciclo_agotado_no_lanza_y_lo_dice(self):
+        registro = [{"t": self.AHORA - (i % 30) * 86400, "tarea": "T%d" % i, "hilo": "h%d" % i}
+                    for i in range(100)]
+        r = self._ritmo(registro, total=100, max_vivos=3, tope_dia=6)
+        self.assertEqual((r["hoy"], r["quedan"]), (0, 0))
+        self.assertIn("sin cupo", r["motivo"])
+
+
+class CloudroomEnElReparto(unittest.TestCase):
+    """(CAP1119B) El reparto cuenta solo lo que el ritmo de Cloudroom dejó lanzar."""
+
+    USABLE = {"id": "cloudroom", "estado": "usable", "detalle": "cuenta conectada"}
+
+    class Lanzador:
+        def __init__(self, lanzado):
+            self.lanzado, self.llamadas = lanzado, []
+
+        def seguir(self, aplicar=True, ahora=None):
+            self.llamadas.append(("seguir", aplicar))
+            return {"acciones": {}, "errores": []}
+
+        def lanzar(self, ids, seco=False, priorizar=False, medio=None, ahora=None):
+            self.llamadas.append(("lanzar", list(ids), seco, priorizar, medio))
+            return dict(self.lanzado)
+
+    def test_cuenta_lo_que_dejo_el_ritmo_y_lo_que_queda(self):
+        cr = self.Lanzador({"lanzadas": ["A"], "quedan": 97,
+                            "motivo": "caben 1 (quedan 97 para 30 día(s): 4 al día, tope 6)"})
+        sumadas, linea, ids = B.cloudroom(True, ["A", "B", "C"], AHORA, cr=cr,
+                                          sondear=lambda: self.USABLE)
+        self.assertEqual((sumadas, ids), (1, ["A"]))
+        self.assertIn("quedan 97 del ciclo", linea)
+        self.assertIn("1 lanzadas", linea)
+
+    def test_sin_cupo_no_cuenta_ninguna(self):
+        cr = self.Lanzador({"lanzadas": [], "quedan": 0,
+                            "motivo": "sin cupo: 100 de 100 hilos de la nube usados en 30 días"})
+        sumadas, linea, ids = B.cloudroom(True, ["A"], AHORA, cr=cr, sondear=lambda: self.USABLE)
+        self.assertEqual((sumadas, ids), (0, []))
+        self.assertTrue(linea.startswith("Cloudroom:"))
+
+
+class MacGuardadaCedeALaNube(unittest.TestCase):
+    """(CAP1119B) Con la guardia de disco o de memoria el gobernador baja el tope de la Mac;
+    lo que no alcanza a la Mac viaja a la nube en vez de esperar."""
+
+    def test_la_tanda_cede_lo_que_no_cabe_en_el_tope_guardado(self):
+        listas = ["T%d" % i for i in range(10)]
+        colas = [("c", [{"id": t} for t in listas])]
+        cedibles, lote = RN.cedibles_y_lote(set(listas), {"listas": listas, "tope": 1}, colas, {})
+        # La Mac se queda tope × 2 rondas = T0 y T1; el resto lo pueden coger otros medios.
+        self.assertEqual(cedibles, listas[2:])
+        self.assertEqual(lote, set())
+
+    def test_plan_nube_reabre_cuando_la_mac_esta_guardada(self):
+        agotadas = ["A%d" % i for i in range(10)]
+        p = B.plan_nube([], agotadas, 0, None, {}, AHORA, listas_mac=10, tope_mac=1,
+                        tope_runs=2,
+                        motivo_tope="guardia de disco: 7,5 GB libres (mínimo 10 GB)")
+        self.assertEqual(p["reabrir"], agotadas[:9])   # 10 listas − 1 del tope guardado
+        self.assertEqual(p["lanzar"], 2)
+
+    @unittest.skipUnless("mac_guardada" in inspect.signature(B.plan_nube).parameters,
+                         "esta versión no separa la guardia del tope de la Mac")
+    def test_la_guardia_no_le_quita_a_la_mac_el_trabajo_que_si_puede(self):
+        sin = B.plan_nube([], ["A", "B", "C"], 0, None, {}, AHORA, listas_mac=2, tope_mac=1,
+                          tope_runs=2)
+        con = B.plan_nube([], ["A", "B", "C"], 0, None, {}, AHORA, listas_mac=2, tope_mac=1,
+                          tope_runs=2, mac_guardada=True)
+        self.assertGreater(len(con["reabrir"]), len(sin["reabrir"]))
+
+
+class A1SubeDeAgentes(unittest.TestCase):
+    """(CAP1119B) El A1 (2 OCPU · 12 GB) usa la CPU y la memoria libres, con su propio tope,
+    en vez de quedarse parado al 15 % de CPU."""
+
+    def test_con_la_cpu_casi_libre_aprovecha_el_a1(self):
+        # Auditoría del 19-11: 15 % de CPU usada (85 % libre) y 5,6 GB libres.
+        self.assertGreaterEqual(_agentes_a1(85, 5.6), 1)
+
+    def test_nunca_pasa_de_su_propio_tope(self):
+        self.assertGreaterEqual(_agentes_a1(100, 100), 1)
+        self.assertLessEqual(_agentes_a1(100, 100), _tope_a1())
+
+    def test_mas_recursos_no_bajan_los_agentes(self):
+        self.assertGreaterEqual(_agentes_a1(100, 10), _agentes_a1(50, 2))
+
+    @unittest.skipUnless(hasattr(RN, "a1_escalar_agentes"),
+                         "esta versión no tiene lectura de consumo del A1")
+    def test_el_freno_de_gasto_para_el_a1(self):
+        consumo = {"leido": True, "freno": {"activo": True, "motivo": "el gasto del mes pasó de 0"},
+                   "margen": {"cpu_libre_pct": 100, "mem_libre_gb": 10}}
+        self.assertEqual(RN.a1_escalar_agentes(consumo)["agentes"], 0)
+
+
+class EmpujeAGitHubConReintentos(unittest.TestCase):
+    """(CAP1119B) El empuje de la rama de la cola a GitHub reintenta con espera ante un fallo
+    transitorio y no deja el job «en camino» si no salió."""
+
+    def _correr(self, respuestas):
+        import subprocess as sp
+
+        llamadas = []
+
+        def falso_run(cmd, *a, **k):
+            llamadas.append(list(cmd))
+            rc, out, err = respuestas[min(len(llamadas) - 1, len(respuestas) - 1)]
+            return sp.CompletedProcess(cmd, rc, stdout=out, stderr=err)
+
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "estado.json")
+            with mock.patch.object(B, "ESTADO", ruta), \
+                    mock.patch.object(B, "ESPERA_BASE_REINTENTO_S", 0, create=True), \
+                    mock.patch.object(B.time, "sleep", lambda *_: None), \
+                    mock.patch.object(B, "_avisar", lambda *a, **k: None), \
+                    mock.patch.object(sp, "run", side_effect=falso_run):
+                hechos = B.desplegar(1, 2)
+                estado = B._leer_json(ruta, {})
+        return llamadas, hechos, estado
+
+    def test_un_fallo_transitorio_se_reintenta_y_sale(self):
+        llamadas, hechos, estado = self._correr([
+            (1, "", "remote: error: temporary failure, please retry"),
+            (0, "lanzado: cola-test.json · run 12345", ""),
+        ])
+        self.assertEqual(len(llamadas), 2)              # falló una vez y se reintentó
+        self.assertEqual(estado.get("en_camino"), 1)    # lo que salió de verdad
+        self.assertEqual(estado.get("ultimo_despliegue", {}).get("lanzados"), 1)
+        self.assertIn("lanzado:", " ".join(hechos))
+
+    def test_un_fallo_definitivo_no_deja_el_job_colgado(self):
+        llamadas, hechos, estado = self._correr([
+            (1, "", "fatal: push failed permanently: no space left on device"),
+        ])
+        tope = max(1, getattr(B, "MAX_REINTENTOS_DESPLEGAR", 3))
+        self.assertLessEqual(len(llamadas), tope)       # no se queda reintentando sin fin
+        self.assertEqual(estado.get("en_camino"), 0)
+        self.assertEqual(estado.get("ultimo_despliegue", {}).get("lanzados"), 0)
+        self.assertIn("no salió", " ".join(hechos))
+
+    @unittest.skipUnless(hasattr(B, "_es_error_transitorio"),
+                         "esta versión no clasifica los errores del empuje")
+    def test_distingue_lo_transitorio_de_lo_definitivo(self):
+        self.assertTrue(B._es_error_transitorio("remote: error: temporary failure"))
+        self.assertTrue(B._es_error_transitorio("HTTP 503 Service Unavailable"))
+        self.assertFalse(B._es_error_transitorio("fatal: no space left on device"))
+
+
+class GcloudConFacturacionApagada(unittest.TestCase):
+    """(CAP1119B) Cloud Run exige facturación aunque el plan sea gratis: con la facturación
+    desactivada, Google Cloud NO es «usable» y el medio dice qué hace falta."""
+
+    def _clasificar(self, activa):
+        import medios_disponibles as M
+
+        return M.clasificar_gcloud(True, ["alex@ejemplo.com"], "starseed-os", [],
+                                   facturacion_activa=activa)
+
+    def test_sin_facturacion_pide_a_alex_y_explica_el_paso(self):
+        d = self._clasificar(False)
+        self.assertEqual(d["estado"], "requiere_alex")
+        self.assertNotEqual(d["estado"], "usable")
+        self.assertIn("facturación", (d["detalle"] + " " + d["siguiente_paso"]).lower())
+        self.assertIn("billing", d["siguiente_paso"].lower())
+
+    def test_con_facturacion_sigue_siendo_usable(self):
+        self.assertEqual(self._clasificar(True)["estado"], "usable")
