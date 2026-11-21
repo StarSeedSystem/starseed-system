@@ -40,13 +40,8 @@ export function clienteFalso(op: {
     enviar?: (e: Parameters<ClienteChatsGenesis["enviar"]>[0], chat?: Parameters<ClienteChatsGenesis["enviar"]>[1]) => Promise<RespEnviar>;
     acuses?: (ids: number[]) => Promise<RespAcuses>;
 } = {}) {
-    const feed = vi.fn((f: Parameters<ClienteChatsGenesis["feed"]>[0], senal?: AbortSignal): Promise<RespFeed> => {
-        if (f.desde === undefined) {
-            return Promise.resolve(op.feeds?.[f.fuente] ?? { ok: true, registros: [], cursor: 0, latido: null });
-        }
-        return new Promise((resolver) => {
-            senal?.addEventListener("abort", () => resolver({ ok: false, estado: 0, error: "cancelado" }), { once: true });
-        });
+    const feed = vi.fn((fuente: string, senal?: AbortSignal): Promise<RespFeed> => {
+        return Promise.resolve(op.feeds?.[fuente] ?? { ok: true, registros: [], cursor: 0, latido: null });
     });
     // GEN1114F: `enviar` recibe también el chat que se ve (segundo argumento).
     const enviar = vi.fn(op.enviar ?? (async (_e: Parameters<ClienteChatsGenesis["enviar"]>[0], _chat?: Parameters<ClienteChatsGenesis["enviar"]>[1]): Promise<RespEnviar> => ({ ok: true as const, id: 7 })));
