@@ -51,6 +51,7 @@ import {
     tituloDeRunNube,
     veredictoDeAgente,
     detalleDeMedidor,
+    leerNodosAlmacenamiento,
     ejecutablesDeColas,
     olasDeLaMac,
     tituloDeOla,
@@ -467,6 +468,21 @@ async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
 }
 
 /**
+ * (MAG1120) El disco libre de cada nodo, de `~/.starseed/capacidades-nodos.json`, que escribe
+ * `scripts/puente/recopilar-capacidades-nodos.py`. Solo se lee: la petición del panel no sondea
+ * la red. Si el archivo falta o está roto, `null` y el medidor dice «sin dato».
+ */
+async function leerAlmacenamientoNodos(): Promise<DatosMedidores["almacenamiento"]> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "capacidades-nodos.json"), "utf8");
+        const nodos = leerNodosAlmacenamiento(JSON.parse(crudo) as unknown);
+        return nodos.length ? { nodos } : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Los agentes que trabajan en la NUBE, para que el medidor los cuente.
  *
  * (2026-09-22, Alex: «aún no veo que suba el número de agentes con las capacidades de los
@@ -755,6 +771,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         tokens,
         olasNube,
         disco,
+        almacenamiento,
         memoria,
         autopublicacion,
         enMarchaBase,
@@ -799,6 +816,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
         midiendo("disco", conTope(medirDisco().then(discoParaMedidor), 3_000, undefined)),
+        midiendo("almacenamiento", conTope(leerAlmacenamientoNodos(), 2_000, null)),
         midiendo("memoria", conTope(medirMemoriaMedidor(), 3_000, undefined)),
         leerAutopublicacion().catch(() => null),
         midiendo("enMarcha", leerEnMarcha(null)),
@@ -996,6 +1014,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         contenedores,
         potenciar,
         disco,
+        almacenamiento,
         memoria,
         creditoClaude,
         limitesClaude,
