@@ -31,7 +31,7 @@ import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const VIOLETA = "#7c5cff";
 const TURQUESA = "#23d5ab";
-export const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
+export const SUGERENCIAS: string[] = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
 
 type EstadoVoz = "calma" | "escuchando" | "hablando" | "pensando";
 const TEXTO_VOZ: Record<EstadoVoz, string> = { calma: "En calma", escuchando: "Escuchando…", hablando: "Hablando", pensando: "Pensando…" };
