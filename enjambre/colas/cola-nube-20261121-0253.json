@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "MAG1120C",
+   "ola": "MAG1120",
+   "titulo": "Mapa de medios: unificar almacenamiento global (tapaz libre + origen)",
+   "archivos": [
+    "src/lib/mando/mapa-medios.ts",
+    "src/lib/mando/__tests__/mapa-medios.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Crea src/lib/mando/mapa-medios.ts (módulo puro) con: tipo MedioVivo = { id: string; nombre: string; medio: 'mac'|'linux'|'nube'|'android'; estado: 'listo'|'usable'|'requiere_alex'|'no_disponible'; capacidad: number; detalle: string; discos: { libreGb: number; origen: string }[]; computo: { cpu: number; ramMb: number; contenedores: boolean }; enjambre: { agentes: number; tipo: 'python'|'nextjs'|'rust' }; capas: string[]; avisos: string[] } // regla 2+1: aviso si una capacidad vive en un solo medio. FilaMedio = { id: string; nombre: string; estado: 'ok'|'alerta'|'bloqueado'; porque: string; detalle: { discoLibres: number, origen: string }[]; capacidad?: number }. filaAlmacenamiento(medios: MedioVivo[]): FilaMedio que muestra el mapa de almacenamiento global: Mac (local), Maggabox (SSH), A1 (Oracle), Drive (espejo). Calcula: discos libres por origen, total, y si algún medio es único (aviso 'nunca medio único: X solo tiene Y'). Usa las sondas de MAG1120A para Maggabox, el hardware de la Mac y el estado del A1. Exporta funcion construirMapaAlmacenamiento(medios: MedioVivo[]): FilaMedio[]. Pruebas en __tests__/mapa-medios.test.ts con 3 medios de prueba (Mac con 100GB libre, Maggabox con 415GB, A1 con 50GB libre, Drive como espejo). REGLAS: ≤120 líneas por archivo; puro sin red; tipos exportados; Spanish neutral; avisos activos para 'medios únicos'.",
+   "revisor": "presidencia",
+   "tiempo_estimado_seg": 600,
+   "dependencias_ya_en_main": [
+    "MAG1120A",
+    "MAG1120B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "MAG1120C"
+  ]
+ }
+}
