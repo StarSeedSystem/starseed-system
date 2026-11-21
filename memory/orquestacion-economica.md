@@ -277,6 +277,7 @@ repositorio).
 | **FreeTheAi** | `https://api.freetheai.xyz/v1` | `FREETHEAI_API_KEY` | 60+ modelos (gpt-oss-120b…); clave por su Discord (`/signup` y `/checkin` diario; la crea Alex, nunca un agente) | 10-35 req/min, 250/día | revisor de reserva (solo con clave) |
 | **Pasarela declarada por entorno** | `STARSEED_PASARELA_<NOMBRE>_URL` | `STARSEED_PASARELA_<NOMBRE>_KEY` (+ `_MODELOS`, `_RPM`) | cualquier enrutador OpenAI-compatible: **freellmapi** en local (`http://127.0.0.1:3001/v1`, 29 proveedores gratis tras un bearer, ~40 MB RSS), NavyAI, pasarela propia… | el que declare `_RPM` (10 si falta) | revisor; entra sin tocar código en el orquestador y en el catálogo de Genesis |
 | **Higgsfield** (pago, créditos limitados) | `https://mcp.higgsfield.ai/mcp` (Claude) · `@higgsfield/cli` (nodos) | `HIGGSFIELD_API_KEY` (cuenta Fundación) | modelos de vídeo/imagen/audio Cinema Studio | aprobado por Maggasukha, presupuesto por proyecto | **solo con aprobación**: vía `higgsfield_aprobado.py`; nunca tareas rutinarias ni respaldo automático |
+| **Antigravity** (`agy` CLI) | Cuenta Google de Alex (sin clave API) | `gemini-4-hydrogen/neon/argon` (low…xhigh), `gemini-3.8-flash` (low/medium/high), `claude-opus-5-5`, `claude-sonnet-5-5` (low/medium/high, cuota Antigravity), `gpt-oss-120b-medium` | cuota de Antigravity (ventana día/semana) | **DIRECCIÓN y META-GENESIS**: Director presidente, directores, escritores, revisores, tareas mecánicas (§23) |
 
 ### Catálogos de proveedores gratuitos (2026-09-05)
 
@@ -290,6 +291,55 @@ repositorio).
   (Node 20+, ~40 MB) cuando Alex meta sus claves en su panel (puerto 3001); se conecta como pasarela.
 - **github.com/Free-The-Ai/free-ai** — pasarela comunitaria (ver fila FreeTheAi).
 - **github.com/public-apis/public-apis** — ya indexado en `starseed_memory_root/fuentes/apis-publicas.json`.
+
+## 5bis. Flota Antigravity (`agy`) para MetaGenesis (2026-11-20, GEM1119C)
+
+**CLI:** `~/.local/bin/agy` (v1.5.11), cuenta de Google de Alex, sin clave API, 100 % headless.
+**Regla de llamada:** `stdin=DEVNULL`, `cwd` del repo, `--print-timeout ≥ 180 s`, `--mode plan`, sin `--dangerously-skip-permissions`.
+
+### Modelos ofrecidos por `agy models`
+
+| Familia | Niveles | Uso principal |
+|---|---|---|
+| `gemini-4-hydrogen` | low, medium, high, xhigh | Dirección: planes, revisiones, decisiones (high/xhigh) |
+| `gemini-4-neon` | low, medium, high, xhigh | Directores producción/pruebas/capacidad (medium) |
+| `gemini-4-argon` | low, medium, high, xhigh | Reserva para contexto muy largo |
+| `gemini-3.8-flash` | low, medium, high | Enjambre: escritores (medium), mecánicas (low); fallback revisores |
+| `claude-opus-5-5` | low, medium, high | Alternativa dirección si hay cuota (high) |
+| `claude-sonnet-5-5` | low, medium, high | Fallback escritores tras 2 fallos (medium); revisores |
+| `gpt-oss-120b` | medium | Tareas especializadas, reserva |
+
+### Tabla de papeles → modelo (implementada en `scripts/puente/antigravity_flota.py`)
+
+| Papel | Modelo principal (Antigravity) | Alternativa Antigravity | Alternativas fuera de Antigravity |
+|---|---|---|---|
+| **Director presidente / dirección** | `gemini-4-hydrogen-high` | `claude-opus-5-5-high` | Hermes, Codex |
+| **Directores producción/pruebas/capacidad** | `gemini-4-neon-medium` | — | Hermes, Codex, `nim/kimi-k3` |
+| **Escritores del enjambre** | `gemini-3.8-flash-medium` | — | `nim/kimi-k3`, `nim/deepseek-v4-flash`, `xkiro/qwen3-coder-plus` (tras 2 fallos → `claude-sonnet-5-5-medium`) |
+| **Revisores** | `claude-sonnet-5-5-medium` | — | AIHubMix, `nim/deepseek-v4-pro`, OpenRouter `:free` |
+| **Tareas mecánicas** | `gemini-3.8-flash-low` | — | `nim/gpt-oss-20b`, LLM7 `minimax-m2.7`, OpenRouter `:free` |
+
+### Regla de reserva del 20 % (regla de economía de Alex: no agotar ningún modelo)
+
+- Cada modelo lleva medidor en `~/.starseed/antigravity-uso.json`: llamadas, tiempo, errores de cuota y su texto.
+- Cuota diaria estimada = promedio últimos 7 días × 1,5 (o máximo si hay errores de cuota recientes).
+- **Reserva = 20 % de la cuota estimada** — nunca se gasta.
+- Si llamadas de hoy ≥ 80 % de la cuota estimada → modelo **en reserva**.
+- En reserva: `obtener_modelo_para_papel()` devuelve la primera alternativa disponible (Antigravity u otra flota).
+- Medidor y catálogo: `python3 scripts/puente/antigravity_flota.py modelos|uso|papel <nombre>|config|medir-arranque <modelo>`.
+
+### Contexto y acceso para agentes `agy` por papel
+
+- `--add-dir starseed_memory_root` y `--add-dir .` (repo).
+- Memorias MetaGenesis inyectadas en el prompt: `relevo`, `plan_de_pruebas`, `registro_de_pruebas`, `orquestacion-economica.md`.
+- Servidores MCP de MetaGenesis añadidos con `agy mcp add` (lista en `~/.starseed/antigravity-config.json`, sin claves en repo).
+- Cuenta de Google de Alex: **modo lectura por defecto**; enviar correos, publicar, compartir o borrar requiere confirmación explícita de Alex.
+
+### Medida de arranque y tokens de base (GEM1118A, 2026-11-18)
+
+- `gemini-3.8-flash-low`: 89 s, ~24 000 tokens de entrada base por turno.
+- `agy agents` lista agentes disponibles (ej. `firestore-rules-author`).
+- Propuestas para reducir tokens/arranque: agente propio con system prompt corto, reutilizar conversación (`--conversation`/`--continue`), limitar `--add-dir` y MCP a lo estricto.
 
 ## 6. Agentes de código disponibles
 

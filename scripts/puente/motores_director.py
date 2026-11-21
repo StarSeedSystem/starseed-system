@@ -13,6 +13,33 @@ import re
 import signal
 import subprocess
 import sys
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Optional
+
+# GEM1119C: integración con flota Antigravity
+try:
+    from antigravity_flota import (
+        obtener_modelo_para_papel,
+        en_reserva,
+        medir_tiempo_arranque_agy,
+        proponer_reduccion_tokens_base,
+        registrar_uso,
+    )
+except ImportError:
+    # Fallback si no está disponible (ej. en tests sin el módulo)
+    def obtener_modelo_para_papel(papel: str, modelo_actual: str | None = None):
+        return "gemini-4-hydrogen-high", ["claude-opus-5-5-high", "hermes", "codex"]
+    def en_reserva(modelo: str) -> bool:
+        return False
+    def medir_tiempo_arranque_agy(modelo: str, prompt: str = "OK"):
+        return 0.0, 0
+    def proponer_reduccion_tokens_base():
+        return []
+    def registrar_uso(modelo: str, duracion_seg: float, error_cuota: str | None = None):
+        pass
 
 MODELO_DIRECTOR = "claude-opus-5-5"
 #: GEM1118A · Antigravity CLI (`agy`) con la cuenta de Google de Alex: cuota de Antigravity,
@@ -465,3 +492,198 @@ def _correr(orden, entrada, segundos, env, cwd):
         except subprocess.TimeoutExpired:
             salida = ""
         return -9, (salida or "") + "\n[tiempo agotado]"
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# GEM1119C · Antigravity para dirección: planes, revisiones, decisiones largas
+# ════════════════════════════════════════════════════════════════════════════
+
+PAPEL_DIRECCION = "director_presidente"
+# Tiempo para trabajo en segundo plano (sin tope de 120 s del chat): 10 min por defecto
+SEGUNDOS_AGY_FONDO = 600
+
+
+@dataclass
+class ResultadoAgyFondo:
+    """Resultado de una llamada a agy en segundo plano."""
+    texto: str
+    modelo: str
+    tokens_entrada: int
+    tokens_salida: int
+    duracion_seg: float
+    error: str | None = None
+    en_reserva: bool = False
+    fallback_usado: str | None = None
+
+
+def _aviso_inicio_agy(papel: str, modelo: str, callback: Callable[[str], None] | None = None) -> None:
+    """Envía aviso al chat de que empieza el trabajo en segundo plano con agy."""
+    msg = f"[agy · {papel}] Iniciando con {modelo} (trabajo en segundo plano, sin tope de 120 s)…"
+    if callback:
+        callback(msg)
+    else:
+        print(msg, file=sys.stderr, flush=True)
+
+
+def _aviso_fin_agy(papel: str, modelo: str, ok: bool, duracion: float, tokens_entrada: int,
+                   callback: Callable[[str], None] | None = None) -> None:
+    """Envía aviso al chat de que terminó el trabajo en segundo plano."""
+    estado = "completado" if ok else "falló"
+    msg = (f"[agy · {papel}] {estado} con {modelo} en {duracion:.1f}s "
+           f"({tokens_entrada} tokens entrada)")
+    if callback:
+        callback(msg)
+    else:
+        print(msg, file=sys.stderr, flush=True)
+
+
+def correr_agy_fondo(
+    prompt: str,
+    papel: str = PAPEL_DIRECCION,
+    callback_aviso: Callable[[str], None] | None = None,
+    segundos: int = SEGUNDOS_AGY_FONDO,
+) -> ResultadoAgyFondo:
+    """Ejecuta `agy` en segundo plano para tareas largas de la dirección.
+
+    Flujo:
+    1. Obtiene el modelo para el papel (con reserva del 20 %).
+    2. Si el modelo principal está en reserva o falla, usa alternativas (agy → Hermes → Codex).
+    3. Mide tiempo de arranque y tokens de base.
+    4. Registra uso en el medidor (~/.starseed/antigravity-uso.json).
+    5. Devuelve resultado estructurado con aviso de inicio/fin vía callback.
+
+    Args:
+        prompt: Prompt completo para la tarea (plan, revisión, informe, decisión).
+        papel: Papel que define el modelo (default: "director_presidente").
+        callback_aviso: Función para enviar avisos al chat (recibe str).
+        segundos: Timeout para la llamada (default 600s = 10 min).
+
+    Returns:
+        ResultadoAgyFondo con texto, modelo, tokens, duración, error y fallback usado.
+    """
+    # 1. Modelo principal y alternativas para el papel
+    modelo_principal, alternativas = obtener_modelo_para_papel(papel)
+    en_reserva_principal = en_reserva(modelo_principal)
+
+    # Si el principal está en reserva, la primera alternativa ya fue puesta al frente por obtener_modelo_para_papel
+    modelos_a_probar = [modelo_principal] + alternativas
+
+    # 2. Aviso de inicio
+    _aviso_inicio_agy(papel, modelos_a_probar[0], callback_aviso)
+
+    # 3. Probar modelos en orden (agy → Hermes → Codex)
+    for i, modelo in enumerate(modelos_a_probar):
+        es_agy = not modelo.startswith(("hermes", "codex", "nim/", "xkiro/", "openrouter", "aihubmix", "llm7"))
+        inicio = time.perf_counter()
+        error_cuota: str | None = None
+        fallback_usado = None if i == 0 else modelo
+
+        try:
+            if es_agy:
+                # Llamada a agy con stdin=DEVNULL, modo plan, timeout extendido
+                orden = orden_agy(prompt, modelo=modelo, segundos=segundos)
+                rc, salida = correr(orden, entrada=SIN_ENTRADA, segundos=segundos, cwd=Path.cwd())
+                datos = leer_agy(salida, rc)
+                texto = datos.get("texto", "")
+                tokens_entrada = datos.get("tokens_entrada", 0)
+                tokens_salida = datos.get("tokens_salida", 0)
+                error = datos.get("error")
+                if error and any(p in error.lower() for p in ("quota", "rate limit", "429", "402", "credit", "billing")):
+                    error_cuota = error
+            elif modelo == "hermes":
+                # Fallback a Hermes
+                orden = orden_hermes(prompt)
+                rc, salida = correr(orden, entrada=SIN_ENTRADA, segundos=segundos, cwd=Path.cwd())
+                # Hermes no devuelve JSON estructurado; parseo simple
+                texto = salida.strip() if rc == 0 else ""
+                tokens_entrada = 0
+                tokens_salida = 0
+                error = None if rc == 0 and texto else (salida.strip() or "hermes falló")
+            elif modelo == "codex":
+                # Fallback a Codex
+                orden = orden_codex("gpt-4o", Path.cwd())
+                rc, salida = correr(orden, entrada=prompt, segundos=segundos, cwd=Path.cwd())
+                texto = salida.strip() if rc == 0 else ""
+                tokens_entrada = 0
+                tokens_salida = 0
+                error = None if rc == 0 and texto else (salida.strip() or "codex falló")
+            else:
+                # Otros proveedores (nim, xkiro, etc.) - no implementados aquí
+                continue
+
+            duracion = time.perf_counter() - inicio
+
+            # 4. Registrar uso si es agy
+            if es_agy:
+                registrar_uso(modelo, duracion, error_cuota)
+
+            # 5. Éxito
+            if texto and not error:
+                _aviso_fin_agy(papel, modelo, True, duracion, tokens_entrada, callback_aviso)
+                return ResultadoAgyFondo(
+                    texto=texto,
+                    modelo=modelo,
+                    tokens_entrada=tokens_entrada,
+                    tokens_salida=tokens_salida,
+                    duracion_seg=duracion,
+                    error=None,
+                    en_reserva=en_reserva_principal,
+                    fallback_usado=fallback_usado,
+                )
+            else:
+                # Fallo de este modelo, continuar con el siguiente
+                if error_cuota:
+                    _aviso_fin_agy(papel, modelo, False, duracion, tokens_entrada, callback_aviso)
+                continue
+
+        except Exception as e:
+            duracion = time.perf_counter() - inicio
+            if es_agy:
+                registrar_uso(modelo, duracion, str(e))
+            continue
+
+    # 6. Todos fallaron
+    _aviso_fin_agy(papel, modelos_a_probar[0], False, 0, 0, callback_aviso)
+    return ResultadoAgyFondo(
+        texto="",
+        modelo=modelos_a_probar[0],
+        tokens_entrada=0,
+        tokens_salida=0,
+        duracion_seg=0,
+        error="Todos los modelos fallaron o están en reserva",
+        en_reserva=en_reserva_principal,
+        fallback_usado="ninguno",
+    )
+
+
+def medir_y_proponer_optimizacion_agy(modelo: str = "gemini-3.8-flash-low") -> dict:
+    """Mide tiempo de arranque y tokens base de agy y propone optimizaciones.
+
+    Returns:
+        dict con 'tiempo_arranque_seg', 'tokens_base_estimados', 'propuestas'
+    """
+    tiempo, tokens = medir_tiempo_arranque_agy(modelo)
+    propuestas = proponer_reduccion_tokens_base()
+    return {
+        "modelo": modelo,
+        "tiempo_arranque_seg": round(tiempo, 2),
+        "tokens_base_estimados": tokens,
+        "propuestas": propuestas,
+    }
+
+
+def obtener_modelo_direccion() -> tuple[str, list[str]]:
+    """Obtiene el modelo principal y alternativas para el papel 'director_presidente'.
+
+    Returns:
+        (modelo_principal, lista_alternativas)
+    """
+    return obtener_modelo_para_papel(PAPEL_DIRECCION)
+
+
+# Para compatibilidad con código existente que usa MODELO_AGY / MODELO_AGY_PLAN
+def modelo_agy_para_prompt(prompt: str) -> str:
+    """Selecciona el modelo agy según la longitud del prompt (compatibilidad)."""
+    if len(prompt) > TOPE_PROMPT_AGY:
+        return MODELO_AGY_PLAN
+    return MODELO_AGY
