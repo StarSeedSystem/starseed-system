@@ -147,16 +147,14 @@ describe("CTL1119E · Lógica de decisión de vía (sin app nativa real)", () =>
         configurarFirmaAparato({ subtle: null, indexedDB: crearIdbFalso(respaldo) });
         // Sin mock de puente nativo, soporteClaveNativa devuelve false
         const s = await soporteFirma();
-        expect(s.ok).toBe(false);
-        expect(s.motivo).toBe("sin-webcrypto");
+        expect(s).toEqual({ ok: false, motivo: "sin-webcrypto" });
     });
 
     it("si no hay IndexedDB, soporteFirma devuelve false (sin app nativa mock)", async () => {
         montarBase(respaldo, marca);
         configurarFirmaAparato({ subtle, indexedDB: null });
         const s = await soporteFirma();
-        expect(s.ok).toBe(false);
-        expect(s.motivo).toBe("sin-indexeddb");
+        expect(s).toEqual({ ok: false, motivo: "sin-indexeddb" });
     });
 
     it("crearClaveAparato lanza si no hay WebCrypto ni IndexedDB ni app nativa", async () => {
