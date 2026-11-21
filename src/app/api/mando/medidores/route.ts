@@ -24,6 +24,7 @@ import { rondaParaEnviar } from "@/lib/mando/ronda-aparatos"; // RON1112C
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
+import { detalleAntigravity, resumirAntigravity, type ResumenAntigravity } from "@/lib/mando/creditos-antigravity";
 import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
 // MED1111E
 import { agentesDeCarrilClaude } from "@/lib/mando/carril-claude";
@@ -386,6 +387,29 @@ async function leerProveedores(): Promise<{ id: string; estado: string; motivo?:
     }
 
     return [...filas.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
+ * Antigravity (`agy`): catálogo y uso que escribe `scripts/puente/antigravity_flota.py`
+ * (GEM1119C) en `~/.starseed/`. Aquí solo se leen y se parsean; la decisión (cuota,
+ * reserva del 20 %, estado y papeles) vive en el módulo puro `creditos-antigravity.ts`.
+ * Si todavía no hay archivos, el resumen dice «sin medir aún» y nunca falla. No viaja
+ * ningún dato de la cuenta de Google ni clave alguna.
+ */
+async function leerAntigravity(): Promise<ResumenAntigravity> {
+    const carpeta = path.join(os.homedir(), ".starseed");
+    const leer = async (nombre: string): Promise<unknown> => {
+        try {
+            return JSON.parse(await readFile(path.join(carpeta, nombre), "utf8")) as unknown;
+        } catch {
+            return null;
+        }
+    };
+    const [modelos, uso] = await Promise.all([
+        leer("antigravity-modelos.json"),
+        leer("antigravity-uso.json"),
+    ]);
+    return resumirAntigravity(modelos, uso, Date.now());
 }
 
 /**
@@ -1139,12 +1163,13 @@ export async function GET(peticion: Request): Promise<Response> {
         if (necesitaReunion) {
             await Promise.race([semillaMedidores, new Promise((r) => setTimeout(r, 800))]);
         }
-        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno] = await Promise.all([
+        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno, antigravity] = await Promise.all([
             claves.includes("imaginacion") ? leerImaginacion(ambito) : Promise.resolve(null),
             claves.includes("credito-claude") ? leerLimitesClaude().catch(() => null) : Promise.resolve(null),
             claves.includes("creditos") ? leerCreditosPago().catch(() => null) : Promise.resolve(null),
             claves.includes("versiones") ? leerLanzamientosEstado().catch(() => null) : Promise.resolve(null),
             necesitaReunion ? reunion.obtener() : Promise.resolve(null),
+            leerAntigravity(),
         ]);
         const base = turno?.datos ?? {};
         const datosDe = turno && turno.t > 0 ? new Date(turno.t).toISOString() : null;
@@ -1159,7 +1184,7 @@ export async function GET(peticion: Request): Promise<Response> {
                     lista: [],
                 };
         }
-        const detalles: Partial<Record<ClaveMedidor, DetalleMedidor>> = {};
+        const detalles: Partial<Record<ClaveMedidor | "antigravity", DetalleMedidor>> = {};
         for (const c of claves) {
             if (c === "imaginacion") detalles[c] = detalleDeMedidor(c, { imaginacion });
             else if (c === "credito-claude") detalles[c] = detalleDeMedidor(c, { limitesClaude });
@@ -1168,9 +1193,11 @@ export async function GET(peticion: Request): Promise<Response> {
             else if (c === "pruebas") detalles[c] = detalleDeMedidor(c, {});
             else detalles[c] = detalleDeMedidor(c, datos);
         }
+        detalles.antigravity = detalleAntigravity(antigravity);
         return Response.json(
             {
                 detalles,
+                antigravity,
                 enMarcha: datos.enMarcha ?? null,
                 generadoEn: new Date().toISOString(),
                 datosDe,
@@ -1221,6 +1248,14 @@ export async function GET(peticion: Request): Promise<Response> {
     if (clave === "pruebas") {
         return Response.json(
             { detalle: detalleDeMedidor(clave, {}), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    // La clave «antigravity» la declarará el pulso en la parte 2; aquí ya se sirve sola.
+    if ((clave as string) === "antigravity") {
+        const antigravity = await leerAntigravity();
+        return Response.json(
+            { detalle: detalleAntigravity(antigravity), antigravity, generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
