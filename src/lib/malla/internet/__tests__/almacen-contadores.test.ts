@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { leerContadores, registrarBytes } from '../almacen-contadores';
+import { leerContadores, registrarBytes, crearContadorBanco, audienciaDeAmbito } from '../almacen-contadores';
 import { contadoresVacios, diaLocal, mesLocal } from '../contadores';
 import type { Contadores, Audiencia } from '../contadores';
+import type { AjustesBanco } from '../tipos';
 
 const CLAVE = 'starseed.malla.internet.contadores.v1';
 
@@ -158,5 +159,57 @@ describe('registrarBytes', () => {
     expect(resultado.bytesDia.entidad).toBe(100);
     expect(resultado.bytesDia.publico).toBe(100);
     expect(resultado.bytesMes['mi-cuenta']).toBe(100);
+  });
+});
+
+describe('audienciaDeAmbito', () => {
+  it('traduce los ámbitos de la puerta a las audiencias del contrato', () => {
+    expect(audienciaDeAmbito('mias')).toBe('mi-cuenta');
+    expect(audienciaDeAmbito('grupo')).toBe('entidad');
+    expect(audienciaDeAmbito('otras')).toBe('publico');
+    expect(audienciaDeAmbito('publica')).toBe('publico');
+  });
+});
+
+describe('crearContadorBanco', () => {
+  const banco = (parche: Partial<AjustesBanco> = {}): AjustesBanco => ({
+    activo: true,
+    modo: 'diario',
+    diarioMb: 1,
+    ventanas: [],
+    ...parche,
+  });
+
+  it('suma con registrarBytes y usadoHoyMb refleja lo sumado', () => {
+    const almacen = crearAlmacen({});
+    const contador = crearContadorBanco(almacen, () => banco(), () => ahora, () => desfaseMin);
+    contador.contar('otras', 400_000);
+    contador.contar('otras', 100_000);
+    expect(contador.usadoHoyMb('otras')).toBeCloseTo(0.5, 5);
+    expect(leerContadores(almacen, ahora, desfaseMin).bytesDia.publico).toBe(500_000);
+  });
+
+  it('raciona a otras cuentas cuando se agota la ración del día', () => {
+    const almacen = crearAlmacen({});
+    const contador = crearContadorBanco(almacen, () => banco(), () => ahora, () => desfaseMin);
+    expect(contador.revisar('otras').permitido).toBe(true);
+    contador.contar('otras', 1_000_000);
+    const r = contador.revisar('otras');
+    expect(r.permitido).toBe(false);
+    expect(r.motivo).toBe('ración diaria agotada');
+  });
+
+  it('las neuronas de la propia cuenta no se racionan', () => {
+    const almacen = crearAlmacen({});
+    const contador = crearContadorBanco(almacen, () => banco({ diarioMb: 0.1 }), () => ahora, () => desfaseMin);
+    contador.contar('mias', 5_000_000);
+    expect(contador.revisar('mias').permitido).toBe(true);
+  });
+
+  it('con el modo banco apagado (modo mesh) nada se raciona', () => {
+    const almacen = crearAlmacen({});
+    const contador = crearContadorBanco(almacen, () => banco({ activo: false }), () => ahora, () => desfaseMin);
+    contador.contar('otras', 5_000_000);
+    expect(contador.revisar('otras').permitido).toBe(true);
   });
 });
