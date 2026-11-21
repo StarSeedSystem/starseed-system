@@ -84,6 +84,9 @@ export type ClaveMedidor =
     | "integradas"
     | "memoria"
     | "disco"
+    // (MAG1120) Disco libre de cada nodo (Mac, Maggabox, A1) y aviso cuando solo hay un
+    // medio medido: un disco con sitio en un único nodo no es redundancia.
+    | "almacenamiento"
     | "ola-activa"
     // (2026-09-27) Alex: «agrega un medidor en el pulso de trabajo de lo que queda de los
     // 250 $ de crédito de Claude en la nube». Ver `credito-claude.ts`.
@@ -171,6 +174,8 @@ export interface FilaMedidor {
     etapa?: string;
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
+    /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
+    detalle?: { discoLibres?: number; origen?: string; almacen?: string[] };
     desde?: string;
     quien?: string;
     enlace?: string;
@@ -1471,6 +1476,15 @@ export interface OlaActiva {
     tareas: { id: string; titulo: string; descripcion?: string; archivos?: string[] }[];
 }
 
+/** (MAG1120) Un nodo con disco medido, de `~/.starseed/capacidades-nodos.json`. */
+export interface NodoAlmacenamiento {
+    id: string;
+    nombre: string;
+    medio: string;
+    discoLibreGb: number;
+    almacen: string[];
+}
+
 export interface DatosMedidores {
     progreso: Record<
         string,
@@ -1661,6 +1675,8 @@ export interface DatosMedidores {
     enjambrePausado?: boolean;
     disco?: { libreGb: number; usadoPct: number };
     memoria?: { libreMb: number; swapMb: number };
+    /** (MAG1120) Fichas de disco por nodo, leídas de `~/.starseed/capacidades-nodos.json`. */
+    almacenamiento?: { nodos: NodoAlmacenamiento[] } | null;
     /** (2026-09-22) Lo que cada tarea viva está tocando AHORA en su worktree, y su
      *  historial de mensajes. Lo lee la ruta (toca disco) y aquí solo se pinta. */
     obras?: Record<string, { rama?: string; archivos?: string[]; ruta?: string }>;
@@ -2353,6 +2369,80 @@ function filasDeImaginacion(propuestas: PropuestaImaginacion[]): FilaMedidor[] {
 }
 
 /** El detalle completo de un medidor: filas, porqués y acciones. */
+const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, a1: 2 };
+
+/** Un GB medido: 0 es un dato (disco lleno), no «sin dato». PURA. */
+function discoMedido(valor: unknown): number | null {
+    return typeof valor === "number" && Number.isFinite(valor) && valor >= 0 ? valor : null;
+}
+
+/** (MAG1120) «mac-local» → «Mac», «maggabox» → «Maggabox», «a1-oracle» → «A1». PURA. */
+export function nombreDeNodoAlmacenamiento(nodoId: string, medio?: string): string {
+    const id = nodoId.toLowerCase();
+    if (id.includes("maggabox")) return "Maggabox";
+    if (/(^|[-_])a1|oracle/.test(id)) return "A1";
+    if (id.includes("mac") || medio === "mac") return "Mac";
+    if (medio === "linux") return "Linux";
+    if (medio === "nube") return "Nube";
+    return nodoId;
+}
+
+/**
+ * (MAG1120) Fichas de disco de `capacidades-nodos.json`, sin inventar lo que no se midió:
+ * solo entra un nodo con `discoLibreGb` numérico. Acepta `{ nodos: [...] }` o el array. PURA.
+ */
+export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
+    const objeto = crudo && typeof crudo === "object" && !Array.isArray(crudo) ? (crudo as Record<string, unknown>) : null;
+    const lista = Array.isArray(crudo) ? crudo : objeto && Array.isArray(objeto.nodos) ? objeto.nodos : [];
+    const salida: NodoAlmacenamiento[] = [];
+    for (const item of lista) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const n = item as Record<string, unknown>;
+        const id = typeof n.nodoId === "string" ? n.nodoId : typeof n.id === "string" ? n.id : "";
+        if (!id.trim()) continue;
+        const medio = typeof n.medio === "string" && n.medio.trim() ? n.medio.trim() : "desconocido";
+        const disco =
+            discoMedido(n.discoLibreGb) ??
+            discoMedido(n.disco_libre_gb) ??
+            discoMedido(n.discoLibreGB) ??
+            discoMedido(n.disco_gb);
+        if (disco === null) continue;
+        const almacen = Array.isArray(n.almacen)
+            ? n.almacen.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim())
+            : [];
+        salida.push({ id: id.trim(), nombre: nombreDeNodoAlmacenamiento(id, medio), medio, discoLibreGb: disco, almacen });
+    }
+    const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
+    return salida.sort((a, b) => rango(a) - rango(b) || a.id.localeCompare(b.id));
+}
+
+/** (MAG1120) Una fila por nodo con disco libre; estado según lo que le queda. PURA. */
+export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): FilaMedidor[] {
+    return nodos.map((n) => ({
+        id: n.id,
+        titulo: n.nombre,
+        estado: n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
+        porque: `disco libre en ${n.nombre} (${n.medio})`,
+        detalle: { discoLibres: n.discoLibreGb, origen: n.medio, almacen: n.almacen },
+        acciones: [],
+    }));
+}
+
+/** (MAG1120) «Nodos con disco libre: Mac (X GB), …». Sin nodos, «sin dato». PURA. */
+export function resumenDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): string {
+    if (!nodos.length) return "sin dato";
+    return `Nodos con disco libre: ${nodos.map((n) => `${n.nombre} (${n.discoLibreGb} GB)`).join(", ")}`;
+}
+
+/** (MAG1120) Aviso cuando todos los nodos medidos son del MISMO medio. PURA. */
+export function avisoDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): string | undefined {
+    if (!nodos.length) return undefined;
+    const medios = new Set(nodos.map((n) => n.medio));
+    if (medios.size > 1) return undefined;
+    const nombres = nodos.map((n) => n.nombre).join(", ");
+    return `Medio único: solo ${nombres} declara disco libre; no hay otro medio medido para repartir ni comparar.`;
+}
+
 export function detalleDeMedidor(
     clave: ClaveMedidor,
     datos: Partial<DatosMedidores>,
@@ -3402,6 +3492,19 @@ const busca = d.buscarCapacidad;
                 vacio: "Lo primero que se puede retirar son los worktrees de tareas ya cerradas.",
             };
 
+        case "almacenamiento": {
+            const nodos = d.almacenamiento?.nodos ?? [];
+            return {
+                clave,
+                titulo: "Almacenamiento",
+                resumen: resumenDeAlmacenamiento(nodos),
+                filas: filasDeAlmacenamiento(nodos),
+                acciones: [IR_A("Ver mapa de medios", "mapa-medios")],
+                aviso: avisoDeAlmacenamiento(nodos),
+                vacio: "Ningún nodo declara disco libre: lo mide `scripts/puente/recopilar-capacidades-nodos.py`.",
+            };
+        }
+
         case "memoria":
             return {
                 clave,
@@ -3543,6 +3646,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "proveedores",
     "memoria",
     "disco",
+    "almacenamiento", // MAG1120: el disco de cada nodo, justo detrás del disco de esta Mac
 ];
 
 export function configuracionPorDefecto(): ConfiguracionMedidores {
