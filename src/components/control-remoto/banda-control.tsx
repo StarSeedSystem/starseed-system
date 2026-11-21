@@ -609,13 +609,13 @@ export function ControlEntreNeuronasPanel() {
                 setAviso(limite.motivo);
                 return;
             }
+            guardarFin(huella, limite.fin);
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
             await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
-            guardarFin(huella, limite.fin);
             setElegidas((m) => {
                 const r = { ...m };
                 delete r[huella];
