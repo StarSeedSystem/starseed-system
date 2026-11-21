@@ -26,6 +26,16 @@ import {
   type IdPermiso as IdRegistro,
   type SistemaPermisos,
 } from "./permisos-registro";
+import {
+  PISTA_DENEGADO,
+  celdaDe,
+  estadoDesdeLectura,
+  planDeApertura,
+  type Estado as EstadoMatriz,
+  type Lectura as LecturaMatriz,
+  type Medio as MedioMatriz,
+  type Permiso as PermisoMatriz,
+} from "@/lib/permisos/matriz";
 
 export type SistemaAsistente = SistemaPermisos;
 export type IdPermiso = IdRegistro;
@@ -46,6 +56,84 @@ export function sistemaDeAsistente(plataforma: string, sesion?: string | null): 
 /** Todo lo que la lista enseña en este sistema (agrupado y en orden). */
 export function catalogoDe(sistema: SistemaAsistente): DefPermiso[] {
   return registroDe(sistema);
+}
+
+/* ══════════════════════════ La matriz permiso × medio (PRM1119) ══════════════════════════ */
+
+/** El medio de `src/lib/permisos/matriz.ts` que corresponde a cada sistema de la lista. */
+const MEDIO_DE_MATRIZ: Record<SistemaAsistente, MedioMatriz> = {
+  macos: "macos",
+  android: "android",
+  windows: "windows",
+  "linux-x11": "linux",
+  "linux-wayland": "linux",
+};
+
+/** Los ids del registro que son el mismo permiso que una celda de la matriz. */
+const PERMISO_DE_MATRIZ: Partial<Record<IdPermiso, PermisoMatriz>> = {
+  microfono: "microfono",
+  camara: "camara",
+  pantalla: "pantalla",
+  accesibilidad: "accesibilidad",
+  "monitor-entrada": "entrada-virtual",
+  ubicacion: "ubicacion",
+  "ubicacion-wifi": "ubicacion",
+  bluetooth: "bluetooth",
+  cercanos: "bluetooth",
+  "red-local": "red-local",
+  notificaciones: "notificaciones",
+  arranque: "segundo-plano",
+  bateria: "energia",
+  carpetas: "archivos",
+  "disco-completo": "archivos",
+  "todos-archivos": "archivos",
+};
+
+/** Lo leído del sistema, en el vocabulario de la matriz. Puro. */
+function lecturaDeMatriz(estado: EstadoSistema | undefined): LecturaMatriz {
+  switch (estado) {
+    case "concedido":
+      return { soportado: true, concedido: true };
+    case "denegado":
+      return { soportado: true, concedido: false, diceDenegado: true };
+    case "no-aplica":
+      return { soportado: false, concedido: false };
+    case "desconocido":
+      return { soportado: true, concedido: false, ilegible: true };
+    default:
+      return { soportado: true, concedido: false };
+  }
+}
+
+/** Lo que la matriz manda para este permiso, o null si el medio no lo contempla. Puro. */
+function accionMatrizDe(
+  sistema: SistemaAsistente,
+  id: IdPermiso,
+  estado: EstadoSistema | undefined,
+): ReturnType<typeof accionDe> | null {
+  const permiso = PERMISO_DE_MATRIZ[id];
+  if (!permiso) return null;
+  const medio = MEDIO_DE_MATRIZ[sistema];
+  if (celdaDe(medio, permiso).deteccion === "no-aplica") return null;
+  const estados: Partial<Record<PermisoMatriz, EstadoMatriz>> = {};
+  estados[permiso] = estadoDesdeLectura(medio, permiso, lecturaDeMatriz(estado));
+  const fila = planDeApertura(medio, estados, "abrir").find((f) => f.permiso === permiso);
+  return fila ? fila.accion : null;
+}
+
+/**
+ * La acción que toca a `d` en este estado. La del registro; lo denegado a mano manda a la
+ * matriz, que decide si el medio tiene pantalla de Ajustes y no se vuelve a pedir solo.
+ */
+function accionConMatriz(
+  sistema: SistemaAsistente | null,
+  def: DefPermiso,
+  estado: EstadoSistema | undefined,
+  yaPedido: boolean,
+): ReturnType<typeof accionDe> {
+  const base = accionDe(def, estado, yaPedido);
+  if (!sistema || estado !== "denegado" || base === "mas-adelante" || base === "listo") return base;
+  return accionMatrizDe(sistema, def.id, estado) === "abrir-ajustes" ? "abrir-ajustes" : base;
 }
 
 /* ══════════════════════════ Lo guardado ══════════════════════════ */
@@ -101,7 +189,7 @@ export function yaPedido(g: Pick<GuardadoPermisos, "avisos">, id: IdPermiso): bo
 /** Los permisos que se pueden pedir ahora y no están concedidos (todos, o solo los que esa persona no vio). */
 export function colaDe(sistema: SistemaAsistente, g: GuardadoPermisos, estados: EstadosSistema = {}, forzar = false): DefPermiso[] {
   return catalogoDe(sistema).filter(
-    (d) => esAccionable(accionDe(d, estados[d.id], yaPedido(g, d.id))) && (forzar || !g.vistos.includes(d.id)),
+    (d) => esAccionable(accionConMatriz(sistema, d, estados[d.id], yaPedido(g, d.id))) && (forzar || !g.vistos.includes(d.id)),
   );
 }
 
@@ -185,7 +273,7 @@ export function permisoActual(e: EstadoAsistente): DefPermiso | null {
 
 /** La acción que toca a `d` en este estado. */
 export function accionEn(e: EstadoAsistente, d: DefPermiso) {
-  return accionDe(d, e.estados[d.id], e.avisos.includes(d.id));
+  return accionConMatriz(e.sistema, d, e.estados[d.id], e.avisos.includes(d.id));
 }
 
 /** Avanza saltando lo que entretanto quedó concedido (la persona lo dio en Ajustes por su cuenta). */
@@ -258,12 +346,14 @@ export function guardadoTras(g: GuardadoPermisos, e: EstadoAsistente): GuardadoP
 }
 
 /** Frase corta del resultado de este recorrido. */
-export function textoResultado(r: ResultadoPermiso | undefined): string {
+export function textoResultado(r: ResultadoPermiso | undefined, sistema?: SistemaAsistente | null): string {
   switch (r) {
     case "concedido":
       return "Listo";
-    case "denegado":
-      return "Denegado: se cambia en Ajustes del sistema";
+    case "denegado": {
+      const pista = sistema ? PISTA_DENEGADO[MEDIO_DE_MATRIZ[sistema]] : "";
+      return pista ? `Denegado: se cambia en Ajustes del sistema. ${pista}` : "Denegado: se cambia en Ajustes del sistema";
+    }
     case "omitido":
       return "Omitido por ahora";
     case "no-disponible":
