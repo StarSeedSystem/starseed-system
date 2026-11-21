@@ -59,6 +59,7 @@ import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws 
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
+import { publicarParamsDeOrbe158 } from "@/lib/astraura/params-orbe-158";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -681,6 +682,11 @@ export async function readAstraura158Sse(res: Response, onChunk?: (delta: string
       if (typeof ev.full_text === "string" && ev.full_text.trim()) full = ev.full_text;
       if (ev.personalities_involved) involved = ev.personalities_involved;
       collectAstraura158Event(collected, ev);
+    } else if (ev.type === "params") {
+      // Vector visual por cláusula que publica el propio 1.58b (canal
+      // `params` del bus de la orbe). Forma anidada o plana; ver
+      // `params-orbe-158.ts`. No es telemetría del turno: no se acumula.
+      publicarParamsDeOrbe158(ev);
     } else if (ev.type === "error" && typeof ev.message === "string") {
       throw new Error(`Astraura 1.58 error: ${ev.message}`);
     } else {
@@ -848,6 +854,11 @@ export async function attemptAstraura158WsTurn(
             options.onChunk?.(ev.token);
             return;
           }
+          if (ev.type === "params") {
+            // Mismo canal `params` de la orbe por el transporte WebSocket.
+            publicarParamsDeOrbe158(ev);
+            return;
+          }
           if (ev.type === "done") {
             if (typeof ev.full_text === "string" && ev.full_text.trim()) full = ev.full_text;
             if (ev.personalities_involved) involved = ev.personalities_involved;
@@ -998,6 +1009,8 @@ async function chat(
     const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     const text = String(json?.response ?? json?.full_text ?? json?.text ?? "");
     if (text && options.onChunk) options.onChunk(text);
+    // Respuesta tamponada: si trae vector, también va al bus de la orbe.
+    if (json?.params != null) publicarParamsDeOrbe158(json.params);
     const raw: Astraura158Raw & { json?: Record<string, unknown> } = {
       astraura158: collectAstraura158FromJson(json),
       persona,
