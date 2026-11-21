@@ -36,6 +36,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +45,7 @@ from typing import Any, Dict, List, Optional, Tuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_chat
+import hermes_job
 import motores_director
 import presidente_config
 
@@ -343,6 +345,67 @@ def _llamar_hermes(prompt, correr, sesion=None, prompt_fresco=None, info=None, s
     uso = {"tokensEntrada": datos.get("input_tokens", 0), "tokensSalida": datos.get("output_tokens", 0),
            "coste": datos.get("cost_usd", 0.0)}
     return texto, "", uso
+
+
+def _llamar_hermes_background(prompt, correr, raiz, sesion_hermes=None, modelo=None,
+                               callback_aviso=None, segundos=hermes_job.SEGUNDOS_JOB_FONDO):
+    """Lanza Hermes como job en background para tareas largas (>120s).
+
+    Publica aviso "en curso" al iniciar y el resultado al terminar.
+    Devuelve (job_id, hilo) para que el llamador pueda esperar si quiere.
+
+    Args:
+        prompt: Prompt para Hermes.
+        correr: Función para ejecutar órdenes.
+        raiz: Raíz del repo (para director_chat.publicar).
+        sesion_hermes: Sesión opcional de Hermes.
+        modelo: Modelo opcional para Hermes.
+        callback_aviso: Callback para avisos adicionales.
+        segundos: Timeout en segundos (default 600s).
+
+    Returns:
+        (job_id, hilo) del job lanzado.
+    """
+    estado = {"hermes_jobs": {}}
+    job_id = hermes_job.crear_job(prompt, estado)
+
+    def _callback(msg):
+        director_chat.publicar(
+            msg, de=CANAL, rol="director", tipo="aviso", canal=CANAL,
+            modelo=f"hermes/job-{job_id[:8]}", raiz=raiz, sintesis=True,
+        )
+        if callback_aviso:
+            try:
+                callback_aviso(msg)
+            except Exception:
+                pass
+
+    hilo = hermes_job.lanzar_job(
+        job_id, estado, correr, modelo=modelo, sesion=sesion_hermes,
+        segundos=segundos, callback_progreso=_callback,
+    )
+
+    # Esperar a que termine y publicar resultado
+    def _esperar_y_publicar():
+        hilo.join()
+        job = hermes_job.obtener_estado(job_id, estado)
+        if job and job["estado"] == "completado":
+            director_chat.publicar(
+                job["resultado"], de=CANAL, rol="director", tipo="respuesta",
+                canal=CANAL, modelo=f"hermes/job-{job_id[:8]}", raiz=raiz,
+                sintesis=True, uso={"via": "hermes-background-job"},
+            )
+        elif job and job["estado"] == "error":
+            director_chat.publicar(
+                f"Job Hermes falló: {job.get('error', 'desconocido')}",
+                de=CANAL, rol="director", tipo="aviso", canal=CANAL,
+                modelo=f"hermes/job-{job_id[:8]}", raiz=raiz, sintesis=True,
+            )
+
+    hilo_publicar = threading.Thread(target=_esperar_y_publicar, daemon=True)
+    hilo_publicar.start()
+
+    return job_id, hilo
 
 
 def _llamar_agy(prompt, correr, plan=False, segundos=None):
