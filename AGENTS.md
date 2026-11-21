@@ -200,3 +200,7 @@ de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metag
 | Orquestador | `scripts/enjambre/starseed-enjambre.py` → `~/.local/bin/` |
 | Puente entre IDE | `scripts/puente/` → `starseed-puente` |
 | Publicado | https://starseed-os.vercel.app |
+
+## Síntesis diaria autónoma con contexto (SIN1116)
+
+La síntesis sale cada día **sin Claude**: agente nativo (`scripts/puente/agente_sintesis.py`) con enrutador gratuito (orden: `gemini-flash-lite` → NIM `minimax-m3.1-flash` → `nemotron-3.5-lightning`), claves por `entorno.leer_clave()`. Respaldo A1 a las 08:30 con NotebookLM (investigación profunda, informe completo, 9 formatos). Avances en el chat por hitos (arranque 06:30, agentes, redacción, entrega, multiformato); a las 09:00 sin síntesis avisan retraso y acción. Cada agente recibe **paquete de contexto vivo** (integrado 30 días, producción audiovisual, alcance, investigaciones 7 días, recuerdos LEANN por rol, libreta JLA1116) y **libro de recomendaciones** con estados (propuesta→aprobada/rechazada/ya existe/encargada/integrada). **Filtro de novedad** (LEANN/TF-IDF 14 días) descarta repetidas; revisor gratuito puntúa (≥6/10). **Una tarea crítica nunca queda huérfana en silencio**: el líder reencola o escala a Mando/chat.

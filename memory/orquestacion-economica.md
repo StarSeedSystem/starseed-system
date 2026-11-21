@@ -902,6 +902,16 @@ informe de pasarelas + rotación + revisores, y reparto por turnos entre todos. 
 changed size during iteration» (progreso y latidos tocados por cinco hilos) → RLock y copias atómicas.
 Regla: **una flota gratuita se reparte por turnos entre TODOS los proveedores vivos; nunca una lista fija.**
 
+## 16bis. Redactor de la síntesis diaria: orden de modelos gratuitos (SIN1116 · 2026-11-21)
+
+El redactor del agente nativo de síntesis (`scripts/puente/agente_sintesis.py`) usa el enrutador gratuito con **modelos nombrados que funcionan hoy**, en este orden exacto:
+
+1. `gemini-flash-lite` (Google Gemini, clave `GEMINI_API_KEY`)
+2. NIM `minimax-m3.1-flash` (NVIDIA NIM, clave `NVIDIA_API_KEY` / `NVIDIA_SHARED_KEY`)
+3. `nemotron-3.5-lightning` (NVIDIA NIM, misma clave)
+
+Con espera y presupuesto por modelo; nunca un modelo fijo que no exista en el catálogo vivo. Claves leídas por `entorno.leer_clave()` (acepta `export VAR=…`, `VAR=…` y comillas). Respaldo del A1 a las 08:30 usa NotebookLM (investigación profunda, informe completo, 9 formatos) y no sigue este orden.
+
 ## 17. Protocolo común de los agentes: un mismo contexto y Jev en todos (regla permanente · 2026-09-30)
 
 **Qué pidió Alex.** «Que se usen más las habilidades, herramientas y conectores de Genesis,

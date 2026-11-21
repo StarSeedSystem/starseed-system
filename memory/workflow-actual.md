@@ -144,3 +144,7 @@ diaria 2026-11-14 · formatos»); su registro queda en
 permanente (`STARSEED_PRUEBAS=1`, síntesis por fecha del título con mínimo de 4.000 caracteres,
 respaldo diario en el bot del repo, registros y limpieza sin borrar) en
 `architecture/sintesis-diaria-arreglo-1114.md`.
+
+## Síntesis diaria autónoma con contexto (SIN1116)
+
+La síntesis sale cada día **sin Claude**: el agente nativo (`scripts/puente/agente_sintesis.py`) usa el enrutador gratuito con modelos nombrados (orden: `gemini-flash-lite` → NIM `minimax-m3.1-flash` → `nemotron-3.5-lightning`), claves leídas por `entorno.leer_clave()` (acepta `export VAR=…`). Respaldo del A1 a las 08:30 con NotebookLM (investigación profunda, informe con protocolo completo, contexto vivo, 9 formatos). El bot y el agente publican avances en el chat por hitos (arranque 06:30, agentes, redacción, entrega, multiformato); a las 09:00 sin síntesis avisan motivo y acción. Cada agente recibe **paquete de contexto vivo** (lo integrado 30 días, producción audiovisual, alcance, investigaciones 7 días, recuerdos LEANN por rol, libreta JLA1116) y el **libro de recomendaciones** (`starseed_memory_root/sintesis/recomendaciones.jsonl`) con estados propuesta→aprobada/rechazada/ya existe/encargada/integrada. **Filtro de novedad** (LEANN/TF-IDF 14 días) descarta o replantea propuestas repetidas; revisor gratuito puntúa novedad/concreción/anclaje (≥6/10). **Una tarea crítica nunca queda huérfana en silencio**: el líder reencola desde el contrato o escala a Mando y chat (caso SIN1114C).
