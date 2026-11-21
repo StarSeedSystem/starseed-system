@@ -1,0 +1,73 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "DR1121-1",
+   "ola": "Ola Imaginación 2026-11-21 · lo que el análisis nocturno encontró",
+   "titulo": "Canal `params` de la orbe publicado por BitNet 1.58b",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-21.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Canal `params` de la orbe publicado por BitNet 1.58b — vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → permite que Nexus/Exocortex/agentes reaccionen al estado interno del modelo en tiempo real (tasks abiertas: \"Publicar vector visual por cláusula\").\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "DR1121-2",
+   "ola": "Ola Imaginación 2026-11-21 · lo que el análisis nocturno encontró",
+   "titulo": "Des-simular Director + Imaginación",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-21.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Des-simular Director + Imaginación — : `formulate_next_intelligent_task` (random.choice de blueprints) → formular con motor real o `starseed-sub`; recomendador de imaginación si queda plantilla (tasks abiertas).\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "ola": "CTL1119",
+   "id": "CTL1119A-d2",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar) (parte 2 de 2)",
+   "archivos": [
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió CTL1119A: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/control-remoto/banda-control.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTL1119A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "CTL1119A-d1"
+   ]
+  },
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "ola": "PEN1116",
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "PENA1-d1",
+   "titulo": "Mac: latido desde Rust para que el banco de llamadas siga sondeando con la ventana en otro escritorio (parte 1 de 3)",
+   "archivos": [
+    "native/src-tauri/src/banco_latido.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado leyendo `architecture/ronda-automatica-llamadas.md` §9.5 «Ventana en otro escritorio»): el sondeo del banco de llamadas es un temporizador de la página (`src/lib/banco-llamadas/app.ts`, `setInterval`); macOS lo frena si la ventana no está a la vista y la serie armada se queda sin sondear. «Hacerlo despertar desde Rust no se ha podido comprobar sin la Mac, así que no se ha construido».\nConstruye SOLO el lado Rust: `banco_latido.rs` con (a) una función pura `toca_latido(ultimo_ms: u64, ahora_ms: u64, periodo_ms: u64) -> bool` y un `PERIODO_MS = 20_000`; (b) el comando `banco_latido_activar(app, webview, activo: bool) -> Result<Value, String>` que, SOLO en macOS (`cfg(target_os = \"macos\")`; en otros sistemas devuelve `{\"ok\": false, \"motivo\": \"sin-soporte\"}`), arranca o para UN hilo (nunca dos: guarda un `AtomicBool`/handle) que cada 20 s emite `app.emit(\"banco-llamadas-latido\", json!({\"t\": ahora_ms}))` mientras esté activo, y se para solo al apagar; copia de `control_neuronas.rs` la guarda de página (`pagina_ok`) que usan los demás comandos; (c) el alta del módulo y del comando en `lib.rs` (`mod` + `invoke_handler`, UNA línea cada uno, con comentario `// PENA1`) y en la lista de comandos permitidos de `native/src-tauri/build.rs` (donde está `\"control_entrada_aceptados\"`, una línea). El latido NO lee ni escribe `~/.starseed`: solo despierta a la página.\nPRUEBAS `cargo test --lib banco_latido`: `toca_latido` en los bordes (justo en el periodo, antes, reloj que retrocede = false); activar dos veces no crea dos hilos (con el hilo falso inyectable); desactivar para. COMPRUEBA: `cd native/src-tauri && cargo test --lib banco_latido` en verde y `cargo check` sin errores nuevos. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas `cargo test --lib` (en `native/src-tauri`) y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENA1:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 1 DE 3 (la dirección dividió PENA1: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: native/src-tauri/src/banco_latido.rs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PENA1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ]
+}
