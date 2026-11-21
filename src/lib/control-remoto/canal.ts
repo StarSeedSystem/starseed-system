@@ -16,7 +16,7 @@
  */
 
 import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type RespuestaOrden } from "./orden";
-import { PuertaControl, sanearPermiso, type PermisoControl } from "./sesion";
+import { PuertaControl, sanearPermiso, type PermisoControl, LATIDO_INTERVALO_MS } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
@@ -364,9 +364,12 @@ export async function crearClaveYPedirControl(
  * Una sesión hacia otra neurona: la abre si hace falta y la reabre una vez si caducó.
  * CTL1117A · S1/S2/S4: comparte la sesión con la ventana de control (`registroGlobal`): no manda una segunda
  * `abrir-sesion` si ya hay una viva o en vuelo, y su `cerrar` solo cierra si nadie más la usa.
+ * CTL1119A: manda latidos firmados cada 10 s mientras la sesión está viva; si faltan latidos 45 s el
+ * aparato controlado cierra la sesión y esta se reabre sola dentro de la misma sesión aceptada.
  */
 export class SesionHacia {
     private token: string | null = null;
+    private latidoTimer: ReturnType<typeof setInterval> | null = null;
     constructor(
         readonly para: string,
         private readonly mandar: typeof mandarOrden = mandarOrden,
@@ -375,9 +378,28 @@ export class SesionHacia {
 
     private porAqui: MandarSesion = (nombre, args, o) => this.mandar(this.para, nombre, args, o);
 
+    private iniciarLatidos(): void {
+        this.pararLatidos();
+        this.latidoTimer = setInterval(() => {
+            if (this.token) {
+                void this.mandar(this.para, "latido", {}, { sesion: this.token, esperaMs: 5000 }).catch(() => undefined);
+            } else {
+                this.pararLatidos();
+            }
+        }, LATIDO_INTERVALO_MS);
+    }
+
+    private pararLatidos(): void {
+        if (this.latidoTimer) {
+            clearInterval(this.latidoTimer);
+            this.latidoTimer = null;
+        }
+    }
+
     async abrir(forzar = false): Promise<RespuestaOrden> {
         const r = await this.registro.abrir(this.para, this.porAqui, { nivel: "controlar", debil: true, auto: true, forzar });
         this.token = r.ok ? ((r.resultado as { sesion?: string } | undefined)?.sesion ?? null) : null;
+        if (this.token) this.iniciarLatidos();
         return r;
     }
 
@@ -389,6 +411,7 @@ export class SesionHacia {
         let r = await this.mandar(this.para, nombre, args, { sesion: this.token });
         if (r.ok) this.registro.usada(this.para);
         if (!r.ok && (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada")) {
+            this.pararLatidos();
             this.registro.olvidar(this.para, this.token);
             const a = await this.abrir(true);
             if (!a.ok) return a;
@@ -398,6 +421,7 @@ export class SesionHacia {
     }
 
     async cerrar(): Promise<void> {
+        this.pararLatidos();
         const t = this.token;
         this.token = null;
         if (t) await this.registro.soltar(this.para, t, this.porAqui, false);
