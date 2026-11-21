@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Servidor MCP del Chat Director: JSON-RPC 2.0 por stdio, sin dependencias.
+"""Servidor MCP del Chat Director: JSON-RPC 2.0 por stdio, sin dependencias. 
 
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
 historial, vetar, pausar y reanudar.
+
+También expone las herramientas del MCP PostgreSQL (`.agent/skills/mcp-postgres/mcp_postgres.py`)
+para acceso a la base de datos Supabase del OS.
 
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
 STARSEED_PRODUCCION_VETOS, STARSEED_PRODUCCION_PAUSA,
 STARSEED_PRODUCCION_RAIZ (raíz del repo para `candidatos`) y
 STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
+
+Variables de entorno para MCP PostgreSQL:
+- SUPABASE_URL o NEXT_PUBLIC_SUPABASE_URL - URL del proyecto Supabase
+- SUPABASE_SERVICE_ROLE_KEY - Clave de servicio (solo servidor)
 """
 
 import json
@@ -23,6 +30,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import director_chat
 import produccion_candidatos as pc
+
+_mcp_postgres_path = Path(__file__).resolve().parent.parent.parent / ".agent" / "skills" / "mcp-postgres" / "mcp_postgres.py"
+if _mcp_postgres_path.exists():
+    import importlib.util as _impl_util
+    _mcp_spec = _impl_util.spec_from_file_location("mcp_postgres_hybrid", str(_mcp_postgres_path))
+    if _mcp_spec and _mcp_spec.loader:
+        _mcp_postgres_module = _impl_util.module_from_spec(_mcp_spec)
+        try:
+            _mcp_spec.loader.exec_module(_mcp_postgres_module)
+            _MCP_POSTGRES_AVAILABLE = True
+        except Exception:
+            _MCP_POSTGRES_AVAILABLE = False
+    else:
+        _MCP_POSTGRES_AVAILABLE = False
+else:
+    _MCP_POSTGRES_AVAILABLE = False
 
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
@@ -318,11 +341,49 @@ def _produccion(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+# --- MCP PostgreSQL: integración desde .agent/skills/mcp-postgres/ ---
+
+def _llamar_postgres(nombre, args):
+    """Delegate a las herramientas del MCP PostgreSQL."""
+    if not _MCP_POSTGRES_AVAILABLE:
+        raise RuntimeError(
+            "MCP PostgreSQL no disponible. "
+            "Asegúrate de tener supabase-py instalado: pip install supabase"
+        )
+    handler = getattr(_mcp_postgres_module, "_llamar", None)
+    if handler:
+        return handler(nombre, args, None)
+    raise ValueError("Herramienta no implementada: %s" % nombre)
+
+
+def _herramientas_postgres():
+    """Obtiene las herramientas del MCP PostgreSQL."""
+    if not _MCP_POSTGRES_AVAILABLE:
+        return []
+    if hasattr(_mcp_postgres_module, "HERRAMIENTAS"):
+        return _mcp_postgres_module.HERRAMIENTAS
+    return []
+
+
+def _esquemas_postgres():
+    """Obtiene los esquemas de las herramientas del MCP PostgreSQL."""
+    if not _MCP_POSTGRES_AVAILABLE:
+        return {}
+    if hasattr(_mcp_postgres_module, "ESQUEMAS"):
+        return _mcp_postgres_module.ESQUEMAS
+    return {}
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
+    if nombre in ("postgres_query", "postgres_execute", "postgres_list_tables",
+                  "postgres_describe_table", "postgres_count_rows"):
+        return _llamar_postgres(
+            nombre.replace("postgres_", ""), args
+        )
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
@@ -352,6 +413,21 @@ def _llamar(nombre, args):
         director_chat.entrega(args["id"], canal, "respondido")
         return "Respondido a %s como %s" % (args["id"], m["id"])
     raise ValueError("herramienta desconocida: %s" % nombre)
+
+
+_esquemas_postgres_dict = _esquemas_postgres()
+_ESQUEMAS_POSTGRES = {
+    f"postgres_{k}": v for k, v in _esquemas_postgres_dict.items()
+}
+ESQUEMAS.update(_ESQUEMAS_POSTGRES)
+
+_herramientas_postgres_list = _herramientas_postgres()
+for h in _herramientas_postgres_list:
+    nombre = h["name"]
+    _HERR.append((f"postgres_{nombre}", h["description"]))
+HERRAMIENTAS = [
+    {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
+]
 
 
 def atender(peticion):
@@ -386,7 +462,7 @@ def atender(peticion):
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
             texto = _llamar(nombre, params.get("arguments"))
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError, RuntimeError) as e:
             contenido = {
                 "content": [{"type": "text", "text": "Error: %s" % e}],
                 "isError": True,

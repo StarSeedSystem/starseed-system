@@ -142,6 +142,15 @@ export const RECURSOS_MCP: RecursoAgente[] = [
     ruta: "src/lib/genesis/mcp/descubrimiento-progresivo.ts",
     docs: "architecture/repos-libreria-1025.md",
   },
+  {
+    id: "os:mcp-postgres", tipo: "mcp", origen: "os", maquina: "cualquiera",
+    nombre: "MCP PostgreSQL del OS",
+    descripcion: "Servidor MCP para acceso a Supabase/PostgreSQL del StarSeed OS. Provee herramientas: query (SELECT), execute (INSERT/UPDATE/DELETE), list_tables, describe_table, count_rows. Requiere SUPABASE_SERVICE_ROLE_KEY.",
+    etiquetas: ["mcp", "postgres", "supabase", "base de datos", "api"],
+    requiere: ["SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_URL"],
+    ruta: "scripts/puente/mcp_director.py",
+    docs: ".agent/skills/mcp-postgres/SKILL.md",
+  },
 ];
 
 /* ── ArtCraft: tres MCP del OS por la pasarela, con directorio de trabajo ──

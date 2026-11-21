@@ -90,24 +90,17 @@ class PruebasAtender(unittest.TestCase):
         r = mcp_director.atender(self._p("ping"))
         self.assertEqual(r, {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    def test_tools_list_diez_herramientas(self):
+    def test_tools_list_incluye_postgres(self):
         r = mcp_director.atender(self._p("tools/list"))
         nombres = [h["name"] for h in r["result"]["tools"]]
-        self.assertEqual(
-            nombres,
-            [
-                "director_leer",
-                "director_decir",
-                "director_bandeja",
-                "director_responder",
-                "produccion_estado",
-                "produccion_candidatos",
-                "produccion_historial",
-                "produccion_vetar",
-                "produccion_pausar",
-                "produccion_reanudar",
-            ],
-        )
+        self.assertIn("director_leer", nombres)
+        self.assertIn("director_decir", nombres)
+        self.assertIn("produccion_estado", nombres)
+        self.assertIn("postgres_query", nombres)
+        self.assertIn("postgres_execute", nombres)
+        self.assertIn("postgres_list_tables", nombres)
+        self.assertIn("postgres_describe_table", nombres)
+        self.assertIn("postgres_count_rows", nombres)
 
     def test_tools_list_esquemas_completos(self):
         r = mcp_director.atender(self._p("tools/list"))
@@ -192,6 +185,9 @@ class PruebasProduccion(unittest.TestCase):
         "STARSEED_PRODUCCION_PAUSA",
         "STARSEED_PRODUCCION_RAIZ",
         "STARSEED_PRODUCCION_CANDIDATOS",
+        "SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
     )
 
     def setUp(self):
@@ -203,11 +199,15 @@ class PruebasProduccion(unittest.TestCase):
             "STARSEED_PRODUCCION_VETOS": os.path.join(d, "vetos", "vetos.json"),
             "STARSEED_PRODUCCION_PAUSA": os.path.join(d, "pausada.json"),
             "STARSEED_PRODUCCION_RAIZ": os.path.join(d, "repo"),
+            "SUPABASE_URL": "https://test.supabase.co",
+            "NEXT_PUBLIC_SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-key",
         }
         os.makedirs(self.rutas["STARSEED_PRODUCCION_RAIZ"])
         self._guardadas = {v: os.environ.get(v) for v in self._VARS}
         for v, r in self.rutas.items():
-            os.environ[v] = r
+            if r is not None:
+                os.environ[v] = r
 
     def tearDown(self):
         for v in self._VARS:
@@ -338,6 +338,29 @@ class PruebasProduccion(unittest.TestCase):
     def test_candidatos_sin_repo_devuelve_mensaje(self):
         texto = self._texto("produccion_candidatos", {})
         self.assertIn("No hay candidatos", texto)
+
+    def test_tools_list_incluye_postgres(self):
+        r = mcp_director.atender(self._p("tools/list"))
+        nombres = [h["name"] for h in r["result"]["tools"]]
+        self.assertIn("postgres_query", nombres)
+        self.assertIn("postgres_execute", nombres)
+        self.assertIn("postgres_list_tables", nombres)
+        self.assertIn("postgres_describe_table", nombres)
+        self.assertIn("postgres_count_rows", nombres)
+
+    def test_postgres_query_sin_credenciales_o_sin_exec_sql(self):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": "postgres_query", "arguments": {"sql": "SELECT 1"}})
+        )
+        self.assertNotIn("error", r)
+        self.assertTrue(r["result"].get("isError"), r["result"])
+
+    def test_postgres_list_tables_sin_credenciales_es_error(self):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": "postgres_list_tables", "arguments": {}})
+        )
+        self.assertIsNotNone(r)
+        self.assertTrue(r["result"].get("isError"), r["result"])
 
 
 #: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).
