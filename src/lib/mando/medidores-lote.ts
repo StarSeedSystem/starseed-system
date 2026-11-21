@@ -110,6 +110,7 @@ export const TODAS_CLAVES_MEDIDOR: readonly ClaveMedidor[] = [
     "integradas",
     "memoria",
     "disco",
+    "almacenamiento",
     "ola-activa",
     "credito-claude",
     "creditos",
