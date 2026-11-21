@@ -55,7 +55,7 @@ function useCambios(): number {
         const f = () => setN((x) => x + 1);
         if (typeof window === "undefined" || typeof window.addEventListener !== "function") return; // entornos sin eventos (pruebas)
         window.addEventListener("starseed:control-neuronas-cambio", f);
-        const t = setInterval(f, 15_000); // la sesión caduca sola por inactividad
+        const t = setInterval(f, 10_000); // CTL1119A: latido de la neurona que controla; la sesión ya no caduca por 2 min sin órdenes
         return () => {
             window.removeEventListener("starseed:control-neuronas-cambio", f);
             clearInterval(t);
@@ -66,6 +66,108 @@ function useCambios(): number {
 
 function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// ── CTL1119A · límite de tiempo elegido al ACEPTAR (parte 2 de 2) ──────────────────────────────
+
+export type OpcionLimite = "sin-limite" | "15-min" | "1-hora" | "hasta";
+
+export const OPCIONES_LIMITE: ReadonlyArray<{ valor: OpcionLimite; texto: string }> = [
+    { valor: "sin-limite", texto: "Sin límite" },
+    { valor: "15-min", texto: "15 minutos" },
+    { valor: "1-hora", texto: "1 hora" },
+    { valor: "hasta", texto: "Hasta las…" },
+];
+
+export type ResultadoLimite = { ok: true; fin: number | null } | { ok: false; motivo: string };
+
+/** PURA. En propia manda la persona; en ajena o pública el tope del filtro del dueño nunca se supera. */
+export function opcionesPara(propia: boolean, topeMin: number | null): OpcionLimite[] {
+    if (propia || topeMin === null) return ["sin-limite", "15-min", "1-hora", "hasta"];
+    const permitidas: OpcionLimite[] = ["15-min"];
+    if (topeMin >= 60) permitidas.push("1-hora");
+    permitidas.push("hasta");
+    return permitidas;
+}
+
+/** PURA. En neuronas ajenas o públicas el defecto es el límite corto, nunca «sin límite». */
+export function opcionInicial(propia: boolean, topeMin: number | null): OpcionLimite {
+    return propia ? "sin-limite" : "15-min";
+}
+
+/** PURA. Convierte la elección en hora de fin, o explica por qué no es válida. */
+export function finElegido(opcion: OpcionLimite, hora: string, ahora: number, topeMin: number | null, propia: boolean): ResultadoLimite {
+    if (opcion === "sin-limite") {
+        if (!propia && topeMin !== null) return { ok: false, motivo: "El dueño no permite dejar el control sin límite." };
+        return { ok: true, fin: null };
+    }
+    let fin: number;
+    if (opcion === "15-min") fin = ahora + 15 * 60_000;
+    else if (opcion === "1-hora") fin = ahora + 60 * 60_000;
+    else {
+        const partes = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora.trim());
+        if (!partes) return { ok: false, motivo: "Escribe la hora como HH:MM." };
+        fin = new Date(ahora).setHours(Number(partes[1]), Number(partes[2]), 0, 0);
+        if (fin <= ahora) fin += 24 * 60 * 60_000;
+    }
+    if (!propia && topeMin !== null && fin - ahora > topeMin * 60_000) {
+        return { ok: false, motivo: `El dueño permite como máximo ${topeMin} minutos.` };
+    }
+    return { ok: true, fin };
+}
+
+/** PURA. Texto del punto de color mientras quede límite; «sin límite» no muestra nada. */
+export function textoRestante(fin: number | null | undefined, ahora: number): string | null {
+    if (fin === null || fin === undefined) return null;
+    const minutos = Math.max(0, Math.ceil((fin - ahora) / 60_000));
+    if (minutos === 0) return "Límite alcanzado";
+    if (minutos < 60) return `Quedan ${minutos} min`;
+    return `Hasta las ${hhmm(fin)} · quedan ${Math.floor(minutos / 60)} h`;
+}
+
+interface DatosDelDueño {
+    cuenta?: string;
+    publico?: boolean;
+    visibilidad?: string;
+    limiteMaxMin?: number;
+    filtro?: { maxMin?: number };
+}
+
+/** PURA. Tope que puso el dueño del aparato ajeno; `null` significa que él permite sin límite. */
+export function topeMinimos(datos: DatosDelDueño, miCuenta: string | null): number | null {
+    if (!miCuenta || datos.cuenta === miCuenta) return null;
+    const declarado = datos.filtro?.maxMin ?? datos.limiteMaxMin;
+    if (typeof declarado === "number" && Number.isFinite(declarado)) return Math.max(1, Math.min(1440, Math.floor(declarado)));
+    return datos.publico === true || datos.visibilidad === "publica" || datos.visibilidad === "público" ? 15 : null;
+}
+
+const CLAVE_LIMITES_CONTROL = "starseed.control-limites.v1";
+
+function leerFinesGuardados(): Record<string, number> {
+    try {
+        const crudo = window.localStorage.getItem(CLAVE_LIMITES_CONTROL);
+        if (!crudo) return {};
+        const datos: unknown = JSON.parse(crudo);
+        if (!datos || typeof datos !== "object" || Array.isArray(datos)) return {};
+        const salida: Record<string, number> = {};
+        for (const [huella, fin] of Object.entries(datos)) {
+            if (/^[0-9a-f]{16,128}$/i.test(huella) && typeof fin === "number" && Number.isFinite(fin)) salida[huella] = fin;
+        }
+        return salida;
+    } catch {
+        return {};
+    }
+}
+
+function guardarFin(huella: string, fin: number | null): void {
+    try {
+        const fines = leerFinesGuardados();
+        if (fin === null) delete fines[huella];
+        else fines[huella] = fin;
+        window.localStorage.setItem(CLAVE_LIMITES_CONTROL, JSON.stringify(fines));
+    } catch {
+        /* sin almacenamiento (pruebas): el límite vive mientras dure el montaje */
+    }
 }
 
 /** (CAL1115I) La plataforma de ESTE aparato, para que lo que falta se diga con las palabras de su sistema. */
@@ -229,6 +331,11 @@ export function BandaControl() {
     // CTL1117I: ¿hay indicador nativo (app Android con control de pantalla)? Misma detección que apaga los ajustes del panel. null = aún no se sabe.
     const [hayNativo, setHayNativo] = useState<boolean | null>(null);
     const [banco, setBanco] = useState<{ con: string; hasta: number; restantes: number } | null>(null);
+    const [fines, setFines] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        setFines(leerFinesGuardados());
+    }, [n]);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -305,12 +412,23 @@ export function BandaControl() {
         return () => clearInterval(int);
     }, [quienBase?.neurona]);
     const quien = quienBase ? { ...quienBase, calidad: calidadAparato } : null;
+    // CTL1119A: si al aceptar se puso límite, el punto de color lo dice mientras quede tiempo.
+    const finSesion = sesion ? (sesion as SesionActiva & { fin?: number | null }).fin ?? fines[sesion.de] ?? null : null;
+    const resto = sesion ? textoRestante(finSesion, Date.now()) : null;
     // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
     const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
     if (!verPunto && !banco) return null;
     return (
         <>
             {verPunto && quien && <PuntoControl quien={quien} onTerminar={terminar} onQuitarPermiso={quitarPermiso} />}
+            {verPunto && quien && resto && (
+                <span
+                    data-testid="punto-limite-restante"
+                    className="pointer-events-none fixed right-9 top-1 z-[2147482999] max-w-[calc(100vw-80px)] truncate rounded-full border border-white/15 bg-[#10131a]/95 px-2 py-0.5 text-right text-[12px] text-white/85"
+                >
+                    {resto}
+                </span>
+            )}
             {banco && (
                 <div className="pointer-events-none fixed inset-x-0 top-0 z-[2147483000] flex flex-col items-center gap-1 p-2" data-testid="banda-control">
                     <div role="status" className="pointer-events-auto flex max-w-[calc(100vw-32px)] flex-wrap items-center gap-3 rounded-xl border-2 border-[#FFBF00] bg-[#1a1404]/95 px-4 py-2 text-sm text-white shadow-lg">
@@ -347,6 +465,9 @@ export function ControlEntreNeuronasPanel() {
     const [sesionAct, setSesionAct] = useState<SesionActiva | null>(null); // CTL1117I: quién controla ahora (aunque el punto esté oculto)
     const [esperando, setEsperando] = useState<string | null>(null);
     const [alcance, setAlcance] = useState<"total" | "protegido">("total"); // CTL1117J · S2
+    const [elegidas, setElegidas] = useState<Record<string, OpcionLimite>>({}); // CTL1119A
+    const [horas, setHoras] = useState<Record<string, string>>({}); // CTL1119A
+    const [miCuenta, setMiCuenta] = useState<string | null>(null); // CTL1119A
     useEffect(() => {
         let vivo = true;
         const leer = () => void leerAjustesControl().then((a) => vivo && setAlcance(a.alcance));
@@ -459,6 +580,11 @@ export function ControlEntreNeuronasPanel() {
         })();
     }, [n, leerPantallaEntrada]);
 
+    // CTL1119A: la cuenta propia decide si el límite lo elige libremente la persona o manda el filtro del dueño.
+    useEffect(() => {
+        void import("@/lib/consumo/usuario").then((u) => u.uidActual()).then(setMiCuenta).catch(() => setMiCuenta(null));
+    }, []);
+
     const nombreDe = useCallback(
         (id: string) => neuronas.find((x) => x.id.toLowerCase() === id.toLowerCase())?.nombre ?? "esa neurona",
         [neuronas],
@@ -477,13 +603,29 @@ export function ControlEntreNeuronasPanel() {
     }, []);
 
     const aceptar = useCallback(
-        async (huella: string, encender = false) => {
+        async (huella: string, encender = false, opcion: OpcionLimite = "sin-limite", hora = "", topeMin: number | null = null, propia = true) => {
+            const limite = finElegido(opcion, hora, Date.now(), topeMin, propia);
+            if (!limite.ok) {
+                setAviso(limite.motivo);
+                return;
+            }
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
             await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
+            guardarFin(huella, limite.fin);
+            setElegidas((m) => {
+                const r = { ...m };
+                delete r[huella];
+                return r;
+            });
+            setHoras((m) => {
+                const r = { ...m };
+                delete r[huella];
+                return r;
+            });
             // UNI1115M · costura g: para tocar este aparato (nivel «controlar») lo NATIVO enseña su diálogo con el código y solo
             // el «Sí» de la persona acepta; la página solo lo pide. Sin ese «Sí», las órdenes de entrada se rechazan.
             if (quien && antes.nivel === "controlar") {
@@ -582,6 +724,16 @@ export function ControlEntreNeuronasPanel() {
         b.apagarBanco("apagar");
     }, []);
 
+    // CTL1119A: todas las decisiones del límite se calculan aquí, antes de pintar; el botón solo aplica lo elegido.
+    const limiteDePendiente = (x: PermisoControl["pendientes"][number]) => {
+        const ajena = !miCuenta || x.cuenta !== miCuenta;
+        const topeMin = topeMinimos(x as DatosDelDueño, miCuenta);
+        const permitidas = opcionesPara(!ajena, topeMin);
+        const inicial = opcionInicial(!ajena, topeMin);
+        const elegida = permitidas.includes(elegidas[x.huella] ?? inicial) ? (elegidas[x.huella] ?? inicial) : inicial;
+        return { ajena, topeMin, permitidas, elegida };
+    };
+
     if (!permiso) return null;
     return (
         <div id="control-entre-neuronas" className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
@@ -599,6 +751,11 @@ export function ControlEntreNeuronasPanel() {
             <p className="text-[12px] text-white/55">
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
                 {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso a la vista y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
+            </p>
+            <p className="text-[12px] text-white/55" data-testid="ctl1119-limite-ayuda">
+                La sesión se mantiene con latidos de 10 segundos: ver la pantalla cuenta como actividad y, si faltan 45 segundos, se reabre sola
+                dentro de la misma aceptación mientras el permiso siga encendido. Al aceptar puedes poner un límite; en neuronas de otras cuentas
+                o públicas el valor por defecto y el máximo los pone el dueño y nunca se superan. El punto de color dice el tiempo que queda.
             </p>
             {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
                 <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
@@ -627,20 +784,55 @@ export function ControlEntreNeuronasPanel() {
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
             <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (se crea al pedir control)"}</p>
-            {permiso.pendientes.map((x) => (
-                <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
-                    <PuntoColor color={colorDe(x.neurona, x.color)} />
-                    <span className="flex-1">
-                        {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
-                    </span>
-                    <button onClick={() => void aceptar(x.huella, !permiso.encendido)} className="cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600">
-                        {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
-                    </button>
-                    <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
-                        Rechazar
-                    </button>
-                </div>
-            ))}
+            {permiso.pendientes.map((x) => {
+                const { ajena, topeMin, permitidas, elegida } = limiteDePendiente(x);
+                return (
+                    <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
+                        <PuntoColor color={colorDe(x.neurona, x.color)} />
+                        <span className="min-w-[14rem] flex-1">
+                            {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
+                        </span>
+                        <label className="flex items-center gap-2 text-[12px] text-white/70">
+                            Límite de tiempo
+                            <select
+                                aria-label={`Límite de tiempo para ${x.nombre}`}
+                                data-testid={`limite-tiempo-${x.huella.slice(0, 8)}`}
+                                value={elegida}
+                                onChange={(e) => setElegidas((m) => ({ ...m, [x.huella]: e.target.value as OpcionLimite }))}
+                                className="min-h-9 cursor-pointer rounded-md border border-white/20 bg-black/40 px-2 py-1"
+                            >
+                                {OPCIONES_LIMITE.filter((o) => permitidas.includes(o.valor)).map((o) => (
+                                    <option key={o.valor} value={o.valor}>{o.texto}</option>
+                                ))}
+                            </select>
+                            {elegida === "hasta" && (
+                                <input
+                                    type="time"
+                                    aria-label={`Hasta las ${x.nombre}`}
+                                    data-testid={`limite-hasta-${x.huella.slice(0, 8)}`}
+                                    value={horas[x.huella] ?? ""}
+                                    onChange={(e) => setHoras((m) => ({ ...m, [x.huella]: e.target.value }))}
+                                    className="min-h-9 cursor-pointer rounded-md border border-white/20 bg-black/40 px-2 py-1 text-white"
+                                />
+                            )}
+                        </label>
+                        {ajena && (
+                            <span className="text-white/55" data-testid={`limite-tope-${x.huella.slice(0, 8)}`}>
+                                {topeMin === null ? "Esta neurona permite sin límite, pero por defecto se pone 15 min." : `El dueño permite como máximo ${topeMin} min.`}
+                            </span>
+                        )}
+                        <button
+                            onClick={() => void aceptar(x.huella, !permiso.encendido, elegida, horas[x.huella] ?? "", topeMin, !ajena)}
+                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600"
+                        >
+                            {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
+                        </button>
+                        <button onClick={() => void quitar(x.huella)} className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                            Rechazar
+                        </button>
+                    </div>
+                );
+            })}
             {permiso.controladores.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
                     <PuntoColor color={colorDe(x.neurona, x.color)} />
