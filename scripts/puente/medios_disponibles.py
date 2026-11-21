@@ -529,6 +529,66 @@ def clasificar_explabs(estado: dict | None, ahora: float) -> dict:
     )
 
 
+def clasificar_tokenrouter(estado: dict | None, ahora: float) -> dict:
+    """PURA. Estado de TokenRouter (modelos gratuitos vía API gateway).
+    - listo: clave válida y modelo gratuito responde (escribe tokens)
+    - usable: clave válida pero sin canal para el modelo gratis (503)
+    - requiere_alex: sin TOKENROUTER_API_KEY o clave inválida (401/403)
+    """
+    if not estado or not estado.get("hecho"):
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "requiere_alex",
+            "z-ai/glm-5.3-free · nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "sin sondeo reciente (falta TOKENROUTER_API_KEY o no se ejecutó renovador-pasarelas.py)",
+            "ejecutar: python3 scripts/puente/renovador-pasarelas.py",
+        )
+    http = estado.get("http")
+    estado_pasarela = estado.get("estado")
+    modelo = estado.get("modelo", "z-ai/glm-5.3-free")
+    tiene_clave = bool(estado.get("tiene_clave"))
+    if not tiene_clave:
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "requiere_alex",
+            modelo,
+            "sin TOKENROUTER_API_KEY en ~/.starseed/env ni ~/.hermes/.env",
+            "guardar-clave.sh TOKENROUTER_API_KEY",
+        )
+    if estado_pasarela == "escribe":
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "listo",
+            modelo,
+            "clave válida · modelo gratuito escribe tokens",
+            "",
+        )
+    if estado_pasarela == "sin_canal":
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "usable",
+            modelo,
+            "clave válida · «no available channel» para el modelo gratis (lado de ellos)",
+            "esperar a que el proveedor vuelva a tener canal o cambiar de modelo en la pasarela",
+        )
+    if estado_pasarela == "sin_cupo":
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "usable",
+            modelo,
+            "cuota agotada: se repone sola",
+            "esperar reinicio de cuota",
+        )
+    if estado_pasarela in ("sin_clave", "fichaje"):
+        return medio(
+            "tokenrouter", "TokenRouter (gratis)", "requiere_alex",
+            modelo,
+            "clave inválida o pide acción manual: %s" % estado.get("mensaje", estado_pasarela),
+            "renovar TOKENROUTER_API_KEY en https://tokenrouter.com",
+        )
+    return medio(
+        "tokenrouter", "TokenRouter (gratis)", "no_disponible",
+        modelo,
+        "estado: %s · %s" % (estado_pasarela, estado.get("mensaje", "")),
+        "revisar informe de pasarelas: python3 scripts/puente/renovador-pasarelas.py",
+    )
+
+
 # ── sondas ───────────────────────────────────────────────────────────────────
 def sondear() -> dict:
     env = _env(); ahora = time.time(); medios = []
@@ -638,6 +698,15 @@ def sondear() -> dict:
     except (OSError, ValueError):
         explabs_state = None
     medios.append(clasificar_explabs(explabs_state, ahora))
+
+    # TokenRouter (modelos gratuitos vía API gateway)
+    try:
+        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"), encoding="utf-8") as f:
+            pasarelas_informe = json.load(f)
+        tr_data = next((p for p in (pasarelas_informe.get("pasarelas") or []) if p.get("clave") == "tokenrouter"), None)
+    except (OSError, ValueError):
+        tr_data = None
+    medios.append(clasificar_tokenrouter(tr_data, ahora))
 
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
