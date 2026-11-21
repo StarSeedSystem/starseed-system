@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { leerContadores, registrarBytes } from '../almacen-contadores';
-import { contadoresVacios, diaLocal, mesLocal } from '../contadores';
+import { leerContadores, registrarBytes, AUDIENCIAS, contadoresConValor, puedePasarConBanco } from '../almacen-contadores';
+import { contadoresVacios, diaLocal, mesLocal, usadoHoyMb } from '../contadores';
 import type { Contadores, Audiencia } from '../contadores';
 
 const CLAVE = 'starseed.malla.internet.contadores.v1';
@@ -158,5 +158,82 @@ describe('registrarBytes', () => {
     expect(resultado.bytesDia.entidad).toBe(100);
     expect(resultado.bytesDia.publico).toBe(100);
     expect(resultado.bytesMes['mi-cuenta']).toBe(100);
+  });
+});
+
+describe('AUDIENCIAS', () => {
+  it('exporta los tres tipos de audiencia', () => {
+    expect(AUDIENCIAS).toEqual(['mi-cuenta', 'entidad', 'publico']);
+  });
+});
+
+describe('contadoresConValor', () => {
+  it('establece el valor para una audiencia sin afectar otras', () => {
+    const c = contadoresVacios(ahora, desfaseMin);
+    c.bytesDia['mi-cuenta'] = 500_000_000;
+    c.bytesMes['mi-cuenta'] = 2_000_000_000;
+
+    const resultado = contadoresConValor(c, 'entidad', 1_500_000);
+
+    expect(resultado.bytesDia['mi-cuenta']).toBe(500_000_000);
+    expect(resultado.bytesDia.entidad).toBe(1_500_000);
+    expect(resultado.bytesDia.publico).toBe(0);
+    expect(resultado.bytesMes['mi-cuenta']).toBe(2_000_000_000);
+    expect(resultado.bytesMes.entidad).toBe(1_500_000);
+    expect(resultado.bytesMes.publico).toBe(0);
+  });
+});
+
+describe('puedePasarConBanco', () => {
+  it('permitido=true cuando no se supera la ración', () => {
+    const c = contadoresVacios(ahora, desfaseMin);
+    const resultado = puedePasarConBanco(c, ahora, desfaseMin, 10, 2_000_000);
+
+    expect(resultado.permitido).toBe(true);
+    if (resultado.permitido) {
+      expect(resultado.hastaMb).toBe(10);
+    }
+  });
+
+  it('permitido=false cuando se supera la ración (ración 1 MB, 5 MB usados)', () => {
+    const c = contadoresVacios(ahora, desfaseMin);
+    c.bytesDia['mi-cuenta'] = 0;
+    c.bytesDia.entidad = 0;
+    c.bytesDia.publico = 5_000_000;
+
+    const resultado = puedePasarConBanco(c, ahora, desfaseMin, 1, 1_000_000);
+
+    expect(resultado.permitido).toBe(false);
+    if (!resultado.permitido) {
+      expect(resultado.usadoMb).toBe(5);
+      expect(resultado.racionMb).toBe(1);
+    }
+  });
+
+  it('permitido=true cuando hay espacio disponible', () => {
+    const c = contadoresVacios(ahora, desfaseMin);
+    c.bytesDia['mi-cuenta'] = 0;
+    c.bytesDia.entidad = 0;
+    c.bytesDia.publico = 0;
+
+    const resultado = puedePasarConBanco(c, ahora, desfaseMin, 10, 2_000_000);
+
+    expect(resultado.permitido).toBe(true);
+    if (resultado.permitido) {
+      expect(resultado.hastaMb).toBe(10);
+    }
+  });
+
+  it('permitido=false para otras cuentas cuando ración agotada', () => {
+    const c = contadoresVacios(ahora, desfaseMin);
+    c.bytesDia['mi-cuenta'] = 0;
+    c.bytesDia.entidad = 1_000_000;
+    c.bytesDia.publico = 0;
+    const usadoActual = usadoHoyMb(c, 'otros', ahora, desfaseMin);
+    expect(usadoActual).toBe(1);
+
+    const resultado = puedePasarConBanco(c, ahora, desfaseMin, 1, 1_000_000);
+
+    expect(resultado.permitido).toBe(false);
   });
 });
