@@ -10,6 +10,7 @@ import {
   type Trama,
   type TransportePuerta,
 } from "@/lib/malla/puerta/tunel";
+import { crearContadorBanco, type AlmacenContadores, type ContadorBanco } from "@/lib/malla/internet/almacen-contadores";
 
 /* ── Red en memoria ── */
 interface Nodo {
@@ -22,6 +23,8 @@ interface Nodo {
   preguntas: string[];
   /** PTA1110A · destinos `host:puerto` que la puerta preguntó a su dueño. */
   hostsPreguntados: string[];
+  /** AUD1117 · contador del modo banco de esta neurona (si lo tiene). */
+  contador?: ContadorBanco;
 }
 
 class FalsoSocket implements SocketSalida {
@@ -86,9 +89,9 @@ function crearRed(opts: { desordenar?: boolean } = {}) {
     cuenta(id: string, c: string): void {
       cuenta.set(id, c);
     },
-    nodo(id: string, o: { tcp?: boolean; est?: EstadoPropio; aj?: Partial<AjustesPuerta>; pregunta?: "permitir" | "denegar" | "siempre" | "nunca" } = {}): Nodo {
+    nodo(id: string, o: { tcp?: boolean; est?: EstadoPropio; aj?: Partial<AjustesPuerta>; pregunta?: "permitir" | "denegar" | "siempre" | "nunca"; contador?: ContadorBanco } = {}): Nodo {
       const tabla = new TablaPuertas(() => Date.now(), id);
-      const n = { id, tabla, aj: { ...AJUSTES_PUERTA_POR_DEFECTO, ...(o.aj ?? {}) }, est: o.est ?? estadoSin, sockets: [], preguntas: [], hostsPreguntados: [] } as unknown as Nodo;
+      const n = { id, tabla, aj: { ...AJUSTES_PUERTA_POR_DEFECTO, ...(o.aj ?? {}) }, est: o.est ?? estadoSin, sockets: [], preguntas: [], hostsPreguntados: [], contador: o.contador } as unknown as Nodo;
       cuenta.set(id, cuenta.get(id) ?? "yo");
       const transporte: TransportePuerta = {
         yo: () => id,
@@ -118,6 +121,7 @@ function crearRed(opts: { desordenar?: boolean } = {}) {
           n.aj = f(n.aj);
         },
         estado: () => n.est,
+        contadorBanco: o.contador, // AUD1117
         miCuenta: () => cuenta.get(id) ?? null, // PTA1110B
         anuncioPropio: () => (n.est.conInternet ? crearAnuncioPropio({ id, uid: cuenta.get(id), capas: ["internet"], latenciaMs: 20, estado: n.est, ahora: Date.now() }) : null),
         abrirTcp: o.tcp
@@ -560,4 +564,68 @@ describe("PTA1110A · puertos públicos: web corriente, política «Preguntar» 
     expect("error" in (await tab.gestor.abrirTunel("sitio.example", 9090))).toBe(true);
     expect(mac.hostsPreguntados).toEqual([]);
   });
+});
+
+describe("AUD1117 · modo banco: cuenta y raciona de verdad", () => {
+  const ahoraBanco = 1_700_000_000_000;
+  const almacenVacio = (): AlmacenContadores => {
+    const datos = new Map<string, string>();
+    return {
+      getItem: (clave) => datos.get(clave) ?? null,
+      setItem: (clave, valor) => {
+        datos.set(clave, valor);
+      },
+    };
+  };
+  const bancoDeUnMb = () => ({ activo: true, modo: "diario" as const, diarioMb: 1, ventanas: [] });
+
+  const cerrarCuando = (t: { alCerrar: (cb: (m: string) => void) => void }, ms: number): Promise<string> =>
+    new Promise<string>((res) => {
+      const temporizador = setTimeout(() => res(""), ms);
+      t.alCerrar((m) => {
+        clearTimeout(temporizador);
+        res(m);
+      });
+    });
+
+  it("otra cuenta: mueve 5 MB, se corta al pasar la ración de 1 MB y no abre más", async () => {
+    const red = crearRed();
+    red.cuenta("amiga", "otra");
+    const contador = crearContadorBanco(almacenVacio(), bancoDeUnMb, () => ahoraBanco, () => 0);
+    const amiga = listo(red.nodo("amiga"));
+    const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, aj: { otrasCuentas: "automatico" }, contador }));
+    red.enlazar("amiga", "mac");
+    mac.gestor.anunciar();
+    await pausa(20);
+
+    const t = (await amiga.gestor.abrirTunel("example.com", 443)) as Exclude<Awaited<ReturnType<GestorPuerta["abrirTunel"]>>, { error: string }>;
+    const cierre = cerrarCuando(t, 8000);
+    await t.escribir(aleatorios(5_000_000));
+    expect(await cierre).toBe("cuota");
+    expect(contador.usadoHoyMb("otras")).toBeGreaterThanOrEqual(1);
+    expect(contador.usadoHoyMb("otras")).toBeLessThan(2);
+    expect(contador.revisar("otras").permitido).toBe(false);
+
+    amiga.tabla.marcarAcierto("mac");
+    expect(await amiga.gestor.abrirTunel("example.com", 443)).toEqual({ error: "cuota" });
+  }, 30_000);
+
+  it("misma cuenta: la ración de otras cuentas no la raciona", async () => {
+    const red = crearRed();
+    const contador = crearContadorBanco(almacenVacio(), bancoDeUnMb, () => ahoraBanco, () => 0);
+    const tablet = listo(red.nodo("tablet"));
+    const mac = listo(red.nodo("mac", { tcp: true, est: estadoConInternet, contador }));
+    red.enlazar("tablet", "mac");
+    mac.gestor.anunciar();
+    await pausa(20);
+
+    const t = (await tablet.gestor.abrirTunel("example.com", 443)) as Exclude<Awaited<ReturnType<GestorPuerta["abrirTunel"]>>, { error: string }>;
+    let cierre = "";
+    t.alCerrar((m) => (cierre = m));
+    expect(await t.escribir(aleatorios(5_000_000))).toBe(true);
+    await pausa(300);
+    expect(cierre).toBe("");
+    expect(contador.usadoHoyMb("mias")).toBeGreaterThanOrEqual(4.99);
+    expect(contador.revisar("mias").permitido).toBe(true);
+  }, 30_000);
 });

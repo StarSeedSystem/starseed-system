@@ -33,6 +33,7 @@ import { destinoNecesitaCapa, evaluarDestino, type CapaPuerta, type Concesion } 
 import { BIN_ACUSE, BIN_DATOS, codificarBin, decodificarBin } from "@/lib/malla/puerta/binario"; // PTA1110A
 import { BYTES_DESCARGA_GRANDE, clasificarTrafico } from "@/lib/malla/puerta/actividad"; // PTA1110A
 import { MAX_SALTOS, REANUNCIO_MS, TablaPuertas, leerAnuncio, reanunciar, type AnuncioPuerta, type EstimacionEnlace } from "@/lib/malla/puerta/tabla";
+import type { ContadorBanco } from "@/lib/malla/internet/almacen-contadores"; // AUD1117 · modo banco
 
 /* ───────────────────────── Tramas ───────────────────────── */
 
@@ -128,6 +129,11 @@ export interface DepsGestor {
   usoConfirmado?: (puerta: string, ambito: Ambito, grupo?: string) => boolean;
   /** PTA1110A · Una descarga grande va por un carril lento: pregunta (una vez) qué hacer. Sin esto se continúa. */
   alGrande?: (i: InfoGrande) => Promise<{ eleccion: Exclude<EleccionGrande, "preguntar">; recordar: boolean }>;
+  /**
+   * AUD1117 · Modo banco: cada byte servido o usado se suma a su audiencia con `registrarBytes` y la
+   * ración del día se consulta aquí. Sin esto no se raciona (modo mesh) pero tampoco se cuenta.
+   */
+  contadorBanco?: ContadorBanco;
 }
 
 /** PTA1110A · Por debajo de esto un carril es «lento» para avisar de descargas grandes. */
@@ -582,6 +588,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     s.ultimo = t;
     medir(s, parte.length);
     if (s.rol !== "cliente") contar(s.grupo, parte.length, s.rol === "puerta");
+    if (s.rol !== "rele") deps.contadorBanco?.contar(s.ambito, parte.length); // AUD1117: lo que se presta o se usa, por audiencia
     void enviarDat(l, n, parte).then((ok) => {
       if (!ok) cerrar(s, "enlace-caido");
     });
@@ -710,6 +717,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     s.ultimo = ahora();
     if (s.rol === "puerta") {
       contar(s.grupo, bytes.length, true);
+      deps.contadorBanco?.contar(s.ambito, bytes.length); // AUD1117
       s.bytes += bytes.length;
       await s.socket?.escribir(bytes);
       if (cuotaVencida(s)) cerrar(s, "cuota");
@@ -719,6 +727,7 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     } else if (s.datos) {
       if (s.rol === "cliente") {
         s.bytes += bytes.length; // PTA1110A: lo recibido también cuenta en la actividad
+        deps.contadorBanco?.contar(s.ambito, bytes.length); // AUD1117: lo que esta neurona usa
         medir(s, bytes.length);
         await vigilarGrande(s);
       }
@@ -791,6 +800,8 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
     const a = deps.ajustes();
     // PTA1110B: cuota POR ÁMBITO (mis neuronas, cada grupo, otras cuentas, pública) y tope aparte por datos móviles.
     if (usoDe(s.grupo) >= topesDeAmbito(a, s.ambito, s.grupoId).bytesDia) return true;
+    // AUD1117 · Modo banco: la ración del día manda sobre otras cuentas; «mias» nunca se raciona y un relé no gasta la ración.
+    if (s.rol === "puerta" && deps.contadorBanco && !deps.contadorBanco.revisar(s.ambito).permitido) return true;
     return s.rol === "puerta" && deps.estado().medida && uso.movil >= a.datosMoviles.bytesDia;
   }
 
@@ -991,6 +1002,11 @@ export function crearGestorPuerta(deps: DepsGestor): GestorPuerta {
       const dec = decidirServir(aj, sol, estServir, { bytesHoyGrupo: usoDe(grupo), tunelesGrupo: gruposSes, bytesMovilHoy: movilHoy });
       motivoPuerta = dec.motivo;
       let veredicto = dec.veredicto;
+      // AUD1117 · Modo banco: si la ración del día se agotó, no se sirve a otras cuentas (se intenta relé, que no gasta la ración).
+      if (deps.contadorBanco && !deps.contadorBanco.revisar(amb.ambito).permitido) {
+        veredicto = "denegar";
+        motivoPuerta = "cuota";
+      }
       if (veredicto === "preguntar") {
         responder({ k: "esp", s: t.s });
         let r: Pregunta = "denegar";

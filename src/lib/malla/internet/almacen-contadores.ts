@@ -5,7 +5,9 @@
  */
 
 import type { Contadores, Audiencia } from './contadores';
-import { sumarBytes, contadoresVacios, diaLocal, mesLocal } from './contadores';
+import { sumarBytes, contadoresVacios, diaLocal, mesLocal, usadoHoyMb as usadoHoyMbDeContadores } from './contadores';
+import { cupoBanco, type ResultadoCupoBanco } from './cupo-banco';
+import type { AjustesBanco } from './tipos';
 
 export const CLAVE_CONTADORES = 'starseed.malla.internet.contadores.v1';
 
@@ -72,4 +74,71 @@ export function registrarBytes(
   }
 
   return actualizados;
+}
+
+/* ───────── Modo banco: cuenta por audiencia y raciona ───────── */
+
+/** Los ámbitos de la puerta (`Ambito`) traducidos a las audiencias del contrato §8.2. */
+export type AmbitoContador = 'mias' | 'grupo' | 'otras' | 'publica';
+
+export function audienciaDeAmbito(ambito: AmbitoContador): Audiencia {
+  if (ambito === 'mias') return 'mi-cuenta';
+  if (ambito === 'grupo') return 'entidad';
+  return 'publico';
+}
+
+export interface ContadorBanco {
+  /** Suma bytes al contador de ese ámbito (con `registrarBytes`) y devuelve lo acumulado. */
+  contar(ambito: AmbitoContador, bytes: number): Contadores;
+  /** MB usados hoy por ese ámbito. */
+  usadoHoyMb(ambito: AmbitoContador): number;
+  /** ¿La ración del día permite seguir sirviendo a ese ámbito? «mias» nunca se raciona. */
+  revisar(ambito: AmbitoContador): ResultadoCupoBanco;
+}
+
+const SIN_RACION: ResultadoCupoBanco = {
+  aplica: false,
+  permitido: true,
+  restanteMb: Infinity,
+  motivo: 'las neuronas de mi cuenta no se racionan',
+};
+
+/**
+ * Cuenta y raciona el modo banco. El almacén, el reloj y los ajustes del banco se inyectan para
+ * que el módulo siga siendo puro y se pueda probar sin disco.
+ */
+export function crearContadorBanco(
+  almacen: AlmacenContadores,
+  ajustesBanco: () => AjustesBanco,
+  ahora: () => number,
+  desfaseMin: () => number
+): ContadorBanco {
+  let cache: Contadores | null = null;
+
+  const vigentes = (): Contadores => {
+    const t = ahora();
+    const d = desfaseMin();
+    if (cache && cache.dia === diaLocal(t, d) && cache.mes === mesLocal(t, d)) return cache;
+    cache = leerContadores(almacen, t, d);
+    return cache;
+  };
+
+  return {
+    contar(ambito, bytes) {
+      cache = registrarBytes(almacen, audienciaDeAmbito(ambito), bytes, ahora(), desfaseMin());
+      return cache;
+    },
+    usadoHoyMb(ambito) {
+      const t = ahora();
+      const d = desfaseMin();
+      return usadoHoyMbDeContadores(vigentes(), audienciaDeAmbito(ambito), t, d);
+    },
+    revisar(ambito) {
+      if (ambito === 'mias') return { ...SIN_RACION };
+      const t = ahora();
+      const d = desfaseMin();
+      const usados = usadoHoyMbDeContadores(vigentes(), 'otros', t, d);
+      return cupoBanco(ajustesBanco(), usados, new Date(t), d);
+    },
+  };
 }

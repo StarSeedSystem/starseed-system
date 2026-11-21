@@ -28,6 +28,11 @@ import { DecisorRol, textoCambioRol, type RolMalla } from "@/lib/malla/puerta/ro
 import { nodosIaPorMalla, type NodoIaMalla } from "@/lib/malla/puerta/ia"; // PTA1110A
 import { carrilPermitido, type EleccionGrande } from "@/lib/malla/puerta/politica"; // PTA1110A
 import { registrarRespaldoFetch } from "@/lib/malla/puerta/fetch-puerta";
+// AUD1117 · Modo banco: los bytes que se prestan o se usan se cuentan por audiencia y la ración del día raciona.
+import { crearContadorBanco } from "@/lib/malla/internet/almacen-contadores";
+import { leerAjustes } from "@/lib/malla/internet/almacen-ajustes";
+import { ajustesPorDefecto } from "@/lib/malla/internet/defectos-audiencia";
+import { safeGet, safeSet } from "@/lib/safe-storage";
 import { activarModoLocal, atenderEntradas, crearAbrirTcpLocal, leerIaLocal, leerSubredesLocales, postLocalPorDefecto, puertaLocalDisponible, respaldoFetchLocal, sondaPropiaNode, type HandleAtencion, type PostLocal } from "@/lib/malla/puerta/puente-local";
 // PTA1108B: el webview, el navegador de la app y las descargas de Rust salen por el proxy local de la puerta.
 import { crearSincroProxy, puenteProxyPorDefecto, textoVia, type PuenteProxy, type SincroProxy } from "@/lib/malla/puerta/proxy-nativo";
@@ -350,6 +355,19 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
       const gestorTabla = new TablaPuertas(() => Date.now(), yo);
       const estadoPropio = (): EstadoPropio => ({ conInternet: sonda.conInternet, ...fisico });
       const decisor = new DecisorRol(); // PTA1110B: papeles que cambian solos, sin parpadeo
+      // AUD1117 · Contadores del modo banco en el almacén local de la neurona (nunca se suben a un servidor).
+      const almacenLocal = {
+        getItem: (clave: string) => safeGet(clave),
+        setItem: (clave: string, valor: string) => {
+          safeSet(clave, valor);
+        },
+      };
+      const contadorBanco = crearContadorBanco(
+        almacenLocal,
+        () => leerAjustes(almacenLocal, ajustesPorDefecto()).banco,
+        () => Date.now(),
+        () => -new Date().getTimezoneOffset(),
+      );
 
       const gestor = crearGestorPuerta({
         transporte,
@@ -357,6 +375,7 @@ export function iniciarPuertaMalla(op: OpcionesServicio = {}): () => void {
         ajustes: () => aj,
         cambiarAjustes: cambiarAjustesPuerta,
         estado: estadoPropio,
+        contadorBanco,
         anuncioPropio: () => {
           const e = estadoPropio();
           // PTA1110B: también si solo se ofrece a algún grupo o a la capa pública.
