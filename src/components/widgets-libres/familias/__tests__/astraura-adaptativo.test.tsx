@@ -97,10 +97,14 @@ afterEach(() => {
     document.documentElement.classList.remove("dark");
 });
 
+// (SUP1121B) Las entradas y el paralaje del widget van con motion, que mide el tiempo con performance.now()
+// (reloj REAL) y pide sus fotogramas con relojes falsos: con vi.runAllTimersAsync() una entrada de 280 ms
+// puede agotar los 10 000 relojes antes de acabar («Aborting after running 10000 timers»; rojo suelto de la
+// CI en 5 de 6 candidatos del 21-11, cada vez en un caso distinto). Se avanza un tramo acotado del reloj falso.
 async function renderProto() {
     const mod = await import("../astraura-libre-proto");
     render(<mod.AstrauraLibreProto />);
-    await act(async () => { await vi.runAllTimersAsync(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
 }
 
 function formas() {

@@ -221,6 +221,12 @@ afterEach(() => {
 
 import { AstrauraLibreProto } from "../astraura-libre-proto";
 
+// (SUP1121B) Las entradas y el paralaje del widget van con motion, que mide el tiempo con performance.now()
+// (reloj REAL) y pide sus fotogramas con relojes falsos: con vi.runAllTimersAsync() una entrada de 280 ms
+// puede agotar los 10 000 relojes antes de acabar («Aborting after running 10000 timers»; rojo suelto de la
+// CI en 5 de 6 candidatos del 21-11, cada vez en un caso distinto). Se avanza un tramo acotado del reloj falso.
+const asentar = () => vi.advanceTimersByTimeAsync(3_000);
+
 describe("Astraura libre proto", () => {
     it("sin elección, auto en tamaño grande con conversación monta Conversación", async () => {
         const puente = crearPuenteFalso();
@@ -231,7 +237,7 @@ describe("Astraura libre proto", () => {
         tam("l");
 
         render(<AstrauraLibreProto />);
-        await act(async () => { await vi.runAllTimersAsync(); });
+        await act(async () => { await asentar(); });
 
         expect(screen.getByText("Todo en calma en la malla.")).toBeTruthy();
         expect(screen.getByText("Tú: ¿Qué tal?")).toBeTruthy();
@@ -246,7 +252,7 @@ describe("Astraura libre proto", () => {
         tam("l");
 
         render(<AstrauraLibreProto widget={{ settings: { astrauraDiseno: "acciones" } } as any} />);
-        await act(async () => { await vi.runAllTimersAsync(); });
+        await act(async () => { await asentar(); });
 
         expect(screen.getByRole("group", { name: "Atajos para empezar rápido" })).toBeTruthy();
         expect(screen.queryByText("Todo en calma en la malla.")).toBeNull();
@@ -261,7 +267,7 @@ describe("Astraura libre proto", () => {
         tam("l");
 
         render(<AstrauraLibreProto />);
-        await act(async () => { await vi.runAllTimersAsync(); });
+        await act(async () => { await asentar(); });
 
         expect(screen.getByText("En calma")).toBeTruthy();
 
@@ -293,7 +299,7 @@ describe("Astraura libre proto", () => {
         tam("l");
 
         render(<AstrauraLibreProto />);
-        await act(async () => { await vi.runAllTimersAsync(); });
+        await act(async () => { await asentar(); });
 
         expect(screen.getByText(/Aún no habéis hablado/)).toBeTruthy();
     });
@@ -308,7 +314,7 @@ describe("Astraura libre proto", () => {
         tam("l");
 
         render(<AstrauraLibreProto widget={{} as any} onUpdateSettings={ajustes} />);
-        await act(async () => { await vi.runAllTimersAsync(); });
+        await act(async () => { await asentar(); });
 
         fireEvent.click(screen.getByRole("button", { name: /Diseño/i }));
         fireEvent.click(screen.getByRole("radio", { name: /Conversación/i }));
