@@ -17,7 +17,7 @@ const AccesosLibre = dynamic(() => import("./familias/accesos-libre").then((m) =
 const EstadoSistemaLibre = dynamic(() => import("./familias/estado-sistema-libre").then((m) => m.EstadoSistemaLibre), { ssr: false, loading: cargando });
 const EventosLibre = dynamic(() => import("./familias/eventos-libre").then((m) => m.EventosLibre), { ssr: false, loading: cargando });
 const TareasLibre = dynamic(() => import("./familias/tareas-libre").then((m) => m.TareasLibre), { ssr: false, loading: cargando });
-const AstrauraLibre = dynamic(() => import("./familias/astraura-libre").then((m) => m.AstrauraLibre), { ssr: false, loading: cargando });
+const AstrauraLibreProto = dynamic(() => import("./familias/astraura-libre-proto").then((m) => m.AstrauraLibreProto), { ssr: false, loading: cargando });
 
 /** Tipos que ya tienen diseño libre propio. */
 export const TIPOS_CON_DISENO_LIBRE = [
@@ -35,7 +35,7 @@ export function widgetLibre(widget: DashboardWidget, onUpdateSettings?: (patch: 
         case "SYSTEM_STATUS": return <EstadoSistemaLibre />;
         case "MY_EVENTS": return <EventosLibre />;
         case "TASKS_QUICK": return <TareasLibre />;
-        case "AURORA_LAST": return <AstrauraLibre widget={widget} onUpdateSettings={onUpdateSettings} />;
+        case "AURORA_LAST": return <AstrauraLibreProto widget={widget} onUpdateSettings={onUpdateSettings} />;
         default: return null;
     }
 }
