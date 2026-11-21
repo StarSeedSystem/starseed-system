@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "DR1121-1",
+   "ola": "Ola Imaginación 2026-11-21 · lo que el análisis nocturno encontró",
+   "titulo": "Canal `params` de la orbe publicado por BitNet 1.58b",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-21.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Canal `params` de la orbe publicado por BitNet 1.58b — vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → permite que Nexus/Exocortex/agentes reaccionen al estado interno del modelo en tiempo real (tasks abiertas: \"Publicar vector visual por cláusula\").\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "DR1121-2",
+   "ola": "Ola Imaginación 2026-11-21 · lo que el análisis nocturno encontró",
+   "titulo": "Des-simular Director + Imaginación",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-21.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Des-simular Director + Imaginación — : `formulate_next_intelligent_task` (random.choice de blueprints) → formular con motor real o `starseed-sub`; recomendador de imaginación si queda plantilla (tasks abiertas).\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "ola": "MAP1116B",
+   "id": "MRA8b-d2",
+   "titulo": "Mapa vivo: sumar las señales de toda la red (propias + publicadas) y decir cuándo nadie más publica (parte 2 de 3)",
+   "archivos": [
+    "src/lib/senales/tipos-vivo.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CAUSA QUE ARREGLAS (leída en el código): `useMapaVivo` construye todo desde `malla.misDispositivos` (`src/components/mesh/mapa-senales/use-mapa-vivo.ts:85`, `construirVivo(... filas ...)` en :89): solo los aparatos de la propia cuenta, y los faros ajenos (`malla.cercanas`) no se usan; por eso solo se ve lo de la neurona que visita. Cambio acotado (≤50 líneas) manteniendo la firma pública de `useMapaVivo` y añadiendo a `MapaVivo` el campo `red: { senales: SenalEspectro[]; estado: …; motivo?: string; otrasCuentasPublicando: number }` con lo que devuelve `useSenalesPublicadas()` más las propias de `construirVivo`. Si `estado` no es `ok`, el mapa conserva exactamente lo de hoy y `red.motivo` dice por qué faltan las demás («las señales públicas aún no están activadas en este servidor»; «nadie más ha publicado en esta capa todavía» solo cuando la lectura fue buena y vino vacía). Tipos nuevos en `tipos-vivo.ts` (solo añadir). PRIVACIDAD Y HONESTIDAD (decisiones de Alex del 14-11, `architecture/mapa-de-senales.md` §2 y §12; valen para esta tarea): la posición exacta de un aparato personal viaja SOLO por el canal privado `pos:<uid>` entre las neuronas de su propia cuenta (`src/lib/senales/geo/canal-posicion.ts`); en las capas pública y de comunidad una neurona enseña únicamente lo que su dueño eligió publicar, y nunca una posición exacta (como mucho una zona gruesa); una capa de toda la red se construye con lo que cada dueño publica, JAMÁS con una neurona informando de la posición de sus vecinas; el alcance dibujado como campo es «estimado» y lo medido se marca aparte (`NOTA_ALCANCE` de `geo/capas.ts`). Nada se inventa: si una plataforma no da un dato, el mapa lo dice («sin fuente: <motivo>») y no pinta un número. Un valor lleva siempre su fuente (`medida`, `declarada` o `estimada`) y la hora de la lectura.\nPRUEBA (`mapa-vivo-red.test.ts`, con los hooks simulados como hacen las pruebas de `src/lib/senales/__tests__`): con dos cuentas publicando salen las dos; sin tabla el mapa sigue igual y dice el motivo; vacío bueno ≠ no se sabe. COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales src/components/mesh` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA8b:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 2 DE 3 (la dirección dividió MRA8b: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/senales/tipos-vivo.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MRA8b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "MRA8b-d1"
+   ]
+  },
+  {
+   "ola": "ALM1118",
+   "id": "ALM1118A-d2",
+   "titulo": "Contrato del almacén de neurona por la malla (capas de capacidades locales y funciones de nodo, privadas y públicas) (parte 2 de 2)",
+   "archivos": [
+    "starseed_memory_root/olas/cola-almacen-neurona-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): lo planeado para el disco Maggabit se hace con la neurona Maggabox (Debian, 500 GB, ~425 GB libres) a través de las capas de conciencia de capacidades locales mesh P2P y de las funciones de nodo de las neuronas de StarSeed OS, privadas y públicas: respaldos de los sistemas y sus versiones; todo el código con reflejo de GitHub autoactualizado; archivos y carpetas pesados de la producción y el desarrollo a través de MetaGenesis; capas de conciencia colectivas privadas de la cuenta y públicas; medios de producción, contenedor en la nube de MetaGenesis y funciones de nodo de las neuronas públicas. Nunca medio único de lo principal. En el nodo ya hay (o habrá al pasar el guion del nodo) ~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas/privadas,capas/publicas,nube} con temporizadores de espejo (15 min) y versiones (1 h). Tarea: escribe docs/contratos/almacen-de-neurona.md con (1) «Lo que ya existe»: dónde está hoy en el código el elegir medio de almacenamiento por neurona, el enjambre de datos (semillas, imanes, espejos), las capas de capacidades de la neurona, el servidor de capas y las funciones de nodo público (rutas y funciones exactas, con grep); (2) el diseño: una neurona anuncia capacidad de almacén (GB libres, cuota que fija su dueño), espacio privado de la cuenta cifrado de punta a punta y solo para neuronas de la misma cuenta, espacio público direccionado por contenido para las capas colectivas, réplica obligatoria de lo principal en otro medio, y cómo lo usa MetaGenesis (respaldos, datos pesados, contenedor en la nube); (3) los riesgos y lo que nunca se sirve en público. Y una cola de 3 a 6 tareas pequeñas en starseed_memory_root/olas/cola-almacen-neurona-1118.json (mismo formato que esta cola) para construirlo por partes con sus pruebas. No escribas código de producto en esta tarea. Reglas: nunca imprimas claves ni variables de entorno; nada de borrar sin copia comprobada; la Maggabox nunca es el medio único de nada principal; la lógica pura va con pruebas unitarias (sin red ni aparatos reales en las pruebas). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió ALM1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/olas/cola-almacen-neurona-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "ALM1118A-d1"
+   ]
+  },
+  {
+   "ola": "PEN1116",
+   "modelo": "codex/gpt-5.6-sol",
+   "id": "PENA1-d1",
+   "titulo": "Mac: latido desde Rust para que el banco de llamadas siga sondeando con la ventana en otro escritorio (parte 1 de 3)",
+   "archivos": [
+    "native/src-tauri/src/banco_latido.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Qué está abierto (verificado leyendo `architecture/ronda-automatica-llamadas.md` §9.5 «Ventana en otro escritorio»): el sondeo del banco de llamadas es un temporizador de la página (`src/lib/banco-llamadas/app.ts`, `setInterval`); macOS lo frena si la ventana no está a la vista y la serie armada se queda sin sondear. «Hacerlo despertar desde Rust no se ha podido comprobar sin la Mac, así que no se ha construido».\nConstruye SOLO el lado Rust: `banco_latido.rs` con (a) una función pura `toca_latido(ultimo_ms: u64, ahora_ms: u64, periodo_ms: u64) -> bool` y un `PERIODO_MS = 20_000`; (b) el comando `banco_latido_activar(app, webview, activo: bool) -> Result<Value, String>` que, SOLO en macOS (`cfg(target_os = \"macos\")`; en otros sistemas devuelve `{\"ok\": false, \"motivo\": \"sin-soporte\"}`), arranca o para UN hilo (nunca dos: guarda un `AtomicBool`/handle) que cada 20 s emite `app.emit(\"banco-llamadas-latido\", json!({\"t\": ahora_ms}))` mientras esté activo, y se para solo al apagar; copia de `control_neuronas.rs` la guarda de página (`pagina_ok`) que usan los demás comandos; (c) el alta del módulo y del comando en `lib.rs` (`mod` + `invoke_handler`, UNA línea cada uno, con comentario `// PENA1`) y en la lista de comandos permitidos de `native/src-tauri/build.rs` (donde está `\"control_entrada_aceptados\"`, una línea). El latido NO lee ni escribe `~/.starseed`: solo despierta a la página.\nPRUEBAS `cargo test --lib banco_latido`: `toca_latido` en los bordes (justo en el periodo, antes, reloj que retrocede = false); activar dos veces no crea dos hilos (con el hilo falso inyectable); desactivar para. COMPRUEBA: `cd native/src-tauri && cargo test --lib banco_latido` en verde y `cargo check` sin errores nuevos. NO se puede comprobar en esta nube (no hay aparato): entrega lógica pura con sus pruebas `cargo test --lib` (en `native/src-tauri`) y di en el commit, en una lista, qué debe mirar Alex en su aparato; nada se da por probado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `PENA1:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 1 DE 3 (la dirección dividió PENA1: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: native/src-tauri/src/banco_latido.rs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PENA1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ]
+}
