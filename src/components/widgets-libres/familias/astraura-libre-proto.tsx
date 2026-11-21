@@ -5,18 +5,19 @@ import Link from "next/link";
 import { WidgetLibre } from "@/components/widgets-libres/widget-libre";
 import { readAuroraChatEntries, AURORA_CHATLOG_CHANGE_EVENT, AURORA_CHATLOG_KEY, type AuroraChatLogEntry } from "@/lib/aurora/aurora-chat-log";
 import { AURORA_EXOCORTEX_OPEN_EVENT } from "@/lib/aurora/aurora-orb-bus";
-import { getAuroraBridge, openAurora } from "@/lib/aurora/open-aurora";
-import { disenoDe, recortarPalabras } from "./comun";
-import { Accion, escalaTipo, esTactil, haceCuanto, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
+import { openAurora } from "@/lib/aurora/open-aurora";
+import { disenoDe } from "./comun";
+import { Accion, escalaTipo, esTactil, useClaseForzada, useDispositivo, useEnPantalla } from "./inicio-piezas";
 import { SelectorDisenoAstraura } from "./selector-diseno-astraura";
 import { DisenoAcciones } from "./diseno-acciones";
-import { resolverDiseno, tamanoDe, type PropsDiseno, type EstadoAsistente, type EleccionDiseno } from "@/lib/widgets/astraura/disenos";
+import DisenoMinimo from "./diseno-minimo";
+import DisenoConversacion from "./diseno-conversacion";
+import DisenoVoz from "./diseno-voz";
+import { resolverDiseno, tamanoDe, type PropsDiseno } from "@/lib/widgets/astraura/disenos";
 import { useDisenoAstraura } from "./use-diseno-astraura";
 import { useEstadoAstraura } from "./use-estado-astraura";
-import { AstrauraForma } from "./astraura-forma";
 import { PALETAS } from "@/lib/protomolecula/orbe4d/coreografia";
-import { textoDeEstado } from "@/lib/widgets/astraura/estado-forma";
-import { Mic, MicOff, MessageCircle, Send, Sparkles } from "lucide-react";
+import { Mic, MicOff, Send } from "lucide-react";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 
 const SUGERENCIAS = ["Resúmeme mi día", "¿Qué hay nuevo en la red?", "Ayúdame a ordenar mis tareas de hoy"];
@@ -91,10 +92,6 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
 
     const [diseno, elegir] = useDisenoAstraura(widget, onUpdateSettings);
 
-    const frase = (clases: string, max = 150) => ultima
-        ? <p className={clases} title={ultima.text}>{recortarPalabras(ultima.text, max)}</p>
-        : <p className="text-[12.5px] text-white/65">{entradas === null ? "…" : "Aún no habéis hablado."}</p>;
-
     const botonVoz = voz ? (
         <Accion icono={estado === "escuchando" ? MicOff : Mic} color={TURQUESA} grande={tactil} onClick={estado === "escuchando" ? callar : escuchar}
             aria-label={estado === "escuchando" ? "Dejar de escuchar" : "Hablar con Astraura por voz"}>
@@ -114,132 +111,62 @@ export function AstrauraLibreProto({ widget, onUpdateSettings }: { widget?: Dash
                         hayConversacion: hilo.length > 0,
                     });
 
-                    const esAcciones = resuelto.diseno === "acciones" && hilo.length > 0;
-                    if (esAcciones) {
-                        const tamOrbe = b === "m"
-                            ? Math.min(lado * 0.34, 110) * k
-                            : Math.min(alto * 0.42, ancho * 0.26, b === "xl" ? 170 : 140) * k;
-                        return (
-                            <DisenoAcciones
-                                estado={vivaAhora}
-                                tam={tamOrbe}
-                                ultima={ultima ? { texto: ultima.text, ts: ultima.ts } : null}
-                                hilo={hilo.map((e) => ({ rol: e.role, texto: e.text, ts: e.ts }))}
-                                ahora={ahora || Date.now()}
-                                tactil={tactil}
-                                voz={voz}
-                                preguntar={
-                                    <div className="flex w-full min-w-0 flex-col gap-1.5">
-                                        <Preguntar tactil={tactil} />
-                                        <SelectorDisenoAstraura valor={diseno} onCambiar={elegir} degradado={resuelto.degradado} />
-                                    </div>
-                                }
-                                botonVoz={botonVoz}
-                                sugerencias={SUGERENCIAS}
-                                onAbrirChat={abrirChat}
-                                onSugerencia={(t) => { void openAurora({ prompt: t, reveal: true }); }}
-                            />
-                        );
-                    }
-
-                    if (b === "micro") return <div className="flex h-full items-center justify-center" data-diseno="micro"><AstrauraForma estado={vivaAhora} tam={lado * 0.62} onClick={abrirChat} /></div>;
-
-                    if (b === "s") {
-                        return (
-                            <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center" data-diseno="s">
-                                <AstrauraForma estado={vivaAhora} tam={lado * 0.42} onClick={abrirChat} />
-                                {frase("line-clamp-2 text-[12.5px] leading-snug text-white/90", 90)}
-                            </div>
-                        );
-                    }
-
-                    if (clase === "panoramico") {
-                        return (
-                            <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="panoramico">
-                                <AstrauraForma estado={vivaAhora} tam={Math.min(alto * 0.72, 110)} onClick={abrirChat} />
-                                <div className="min-w-0 flex-1">{frase("line-clamp-2 text-[13px] leading-snug text-white/90", 110)}</div>
-                                <div className="w-[40%] min-w-[200px] max-w-[340px]"><Preguntar tactil={tactil} compacto /></div>
-                            </div>
-                        );
-                    }
-
-                    if (clase === "torre") {
-                        return (
-                            <div className="flex h-full w-full flex-col items-center gap-3 px-3 py-3" data-diseno="torre">
-                                <AstrauraForma estado={vivaAhora} tam={Math.min(ancho * 0.55, 120)} onClick={abrirChat} />
-                                <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,.6)" }}>{textoDeEstado(vivaAhora)}</span>
-                                <div className="min-h-0 w-full flex-1 flex items-center justify-center">
-                                    {hilo.length ? (
-                                        <ol className="flex min-w-0 flex-col gap-1.5" aria-label="Última conversación">
-                                            {hilo.slice(-2).map((e, i) => (
-                                                <li key={`${e.ts}-${i}`} className={`min-w-0 text-[12.5px] leading-snug ${e.role === "user" ? "text-white/60" : "text-white/90"}`}>
-                                                    <p className="line-clamp-2" title={e.text}>{recortarPalabras(e.role === "user" ? `Tú: ${e.text}` : e.text, 110)}</p>
-                                                    {e.role === "aurora" && i === 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, ahora || Date.now())}</span>}
-                                                </li>
-                                            ))}
-                                        </ol>
-                                    ) : (
-                                        <p className="text-[12.5px] text-white/60">Aún no habéis hablado. Pregúntale lo que quieras.</p>
-                                    )}
-                                </div>
-                                <Preguntar tactil={tactil} compacto />
-                            </div>
-                        );
-                    }
-
-                    const apaisado = ancho >= alto * 1.3;
-                    if (b === "m") {
-                        if (apaisado) {
-                            return (
-                                <div className="flex h-full w-full items-center gap-4 px-3" data-diseno="m-fila">
-                                    <AstrauraForma estado={vivaAhora} tam={Math.min(alto * 0.5, 120) * k} onClick={abrirChat} />
-                                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                                        {frase("line-clamp-3 text-[13px] leading-snug text-white/90")}
-                                        <Preguntar tactil={tactil} compacto />
-                                    </div>
-                                </div>
-                            );
-                        }
-                        return (
-                            <div className="flex h-full flex-col items-center justify-center px-3 text-center" data-diseno="m">
-                                <div className="my-auto flex w-full min-w-0 flex-col items-center gap-2">
-                                    <AstrauraForma estado={vivaAhora} tam={Math.min(lado * 0.34, 110) * k} onClick={abrirChat} />
-                                    {frase("line-clamp-3 text-[13px] leading-snug text-white/90", 140)}
-                                    <Preguntar tactil={tactil} compacto />
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    const tamOrbe = Math.min(alto * 0.42, ancho * 0.26, b === "xl" ? 170 : 140) * k;
-                    return (
-                        <div className={`flex h-full w-full gap-5 px-4 py-3 ${apaisado || b === "xl" ? "flex-row items-center" : "flex-col items-center justify-center"}`} data-diseno={`${b}-hilo`}>
-                            <div className="flex shrink-0 flex-col items-center gap-2">
-                                <AstrauraForma estado={vivaAhora} tam={tamOrbe} onClick={abrirChat} />
-                                <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,.6)" }}>{textoDeEstado(vivaAhora)}</span>
-                                <div className="flex flex-wrap justify-center gap-1.5">
-                                    {botonVoz}
-                                    <Accion icono={MessageCircle} color={VIOLETA} grande={tactil} onClick={abrirChat} aria-label="Abrir el chat de Astraura">Chat</Accion>
-                                    <SelectorDisenoAstraura valor={diseno} onCambiar={elegir} degradado={false} />
-                                </div>
-                            </div>
-                            <div className="min-w-0 flex-1 self-stretch flex flex-col gap-2.5">
-                                {hilo.length ? (
-                                    <ol className="flex min-w-0 flex-col gap-1.5" aria-label="Última conversación">
-                                        {hilo.slice(-(b === "xl" ? 3 : alto >= 340 ? 2 : 1)).map((e, i) => (
-                                            <li key={`${e.ts}-${i}`} className={`min-w-0 text-[12.5px] leading-snug ${e.role === "user" ? "text-white/60" : "text-white/90"}`}>
-                                                <p className="line-clamp-2" title={e.text}>{recortarPalabras(e.role === "user" ? `Tú: ${e.text}` : e.text, 110)}</p>
-                                                {e.role === "aurora" && i === hilo.length - 1 && <span className="text-[10.5px] text-violet-200/70">{haceCuanto(e.ts, ahora || Date.now())}</span>}
-                                            </li>
-                                        ))}
-                                    </ol>
-                                ) : (
-                                    <p className="text-[12.5px] text-white/60">Aún no habéis hablado. Pregúntale lo que quieras.</p>
-                                )}
-                                <Preguntar tactil={tactil} compacto />
-                            </div>
+                    const hiloDiseno = hilo.map((e) => ({ rol: e.role, texto: e.text, ts: e.ts }));
+                    const preguntar = (
+                        <div className="flex w-full min-w-0 flex-col gap-1.5">
+                            <Preguntar tactil={tactil} compacto={tamanoDe(clase) === "compacto"} />
+                            <SelectorDisenoAstraura valor={diseno} onCambiar={elegir}
+                                degradado={resuelto.degradado || tamanoDe(clase) === "compacto"} />
                         </div>
                     );
+                    const comun: Omit<PropsDiseno, "tam"> = {
+                        estado: vivaAhora,
+                        ultima: ultima ? { texto: ultima.text, ts: ultima.ts } : null,
+                        hilo: hiloDiseno,
+                        ahora: ahora || Date.now(),
+                        tactil,
+                        voz,
+                        preguntar,
+                        botonVoz,
+                        sugerencias: SUGERENCIAS,
+                        onAbrirChat: abrirChat,
+                        onSugerencia: (t) => { void openAurora({ prompt: t, reveal: true }); },
+                    };
+
+                    if (resuelto.diseno === "minimo") {
+                        return (
+                            <div className="h-full w-full overflow-hidden" data-diseno="minimo">
+                                <DisenoMinimo {...comun} tam={Math.min(lado * 0.42, 120) * k} />
+                            </div>
+                        );
+                    }
+
+                    if (resuelto.diseno === "conversacion") {
+                        return (
+                            <div className="h-full w-full overflow-hidden" data-diseno="conversacion">
+                                <DisenoConversacion {...comun} tam={Math.min(lado * 0.4, 120) * k} />
+                            </div>
+                        );
+                    }
+
+                    if (resuelto.diseno === "voz") {
+                        return (
+                            <div className="h-full w-full overflow-hidden" data-diseno="voz">
+                                <DisenoVoz {...comun} tam={Math.min(lado * 0.5, 160) * k} />
+                            </div>
+                        );
+                    }
+
+                    const tamOrbe = b === "m"
+                        ? Math.min(lado * 0.34, 110) * k
+                        : Math.min(alto * 0.42, ancho * 0.26, b === "xl" ? 170 : 140) * k;
+                    const preguntarAcciones = hilo.length === 0 ? (
+                        <div className="flex w-full min-w-0 flex-col gap-1.5">
+                            <p className="text-[12.5px] text-white/60">Aún no habéis hablado. Pregúntale lo que quieras.</p>
+                            {preguntar}
+                        </div>
+                    ) : preguntar;
+                    return <DisenoAcciones {...comun} tam={tamOrbe} preguntar={preguntarAcciones} />;
                 }}
             </WidgetLibre>
         </div>
