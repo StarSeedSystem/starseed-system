@@ -16,7 +16,7 @@
  *  10. la acción está en la lista cerrada — si no, «accion-desconocida» (nunca se adivina);
  *  11. sus argumentos son los tipados — si no, «argumentos»;
  *  12. su nivel no pasa del concedido ni del de la sesión — si no, «nivel»;
- *  13. hay sesión abierta por ESE aparato, viva (1 h máx., 2 min sin actividad) — si no, «sin-sesion»/«sesion-caducada».
+ *  13. hay sesión abierta por ESE aparato, viva (latidos cada 10 s, caduca a los 45 s sin latido/actividad de pantalla; límite opcional al aceptar) — si no, «sin-sesion»/«sesion-caducada».
  * Cada orden, aceptada o no, deja una línea `orden <acción> de=<8> nivel=<n> resultado=<…>`.
  * Revocar (un toque) cierra la sesión y APAGA el permiso: lo siguiente es «permiso-apagado».
  *
@@ -153,6 +153,8 @@ export class PuertaControl {
      * (una persona pulsó «Reabrir») la borra. Solo en memoria.
      */
     private terminadoPor = new Set<string>();
+    /** CTL1119A: hasta cuándo se extiende la gracia por una pausa local (timestamp, 0 = sin pausa). */
+    private pausaHasta = 0;
 
     constructor(private readonly d: DepsPuerta) {}
 
@@ -232,18 +234,15 @@ export class PuertaControl {
             return;
         }
         
-        // CTL1119A: caducidad por falta de latidos (45s sin latido/actividad)
-        if (t - s.ultima >= LATIDO_TOLERANCIA_MS) {
-            this.sesion = null;
-            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada`);
-            this.d.alCambiar?.();
+        // CTL1119A: pausa local extiende la sesión (gracia de 60s tras pausa-local)
+        if (this.pausaHasta > t) {
             return;
         }
         
-        // Mantener compatibilidad: sesión máxima de 1h como tope de seguridad
-        if (t - s.inicio > SESION_MAX_MS) {
+        // CTL1119A: caducidad por falta de latidos (45s sin latido/actividad de pantalla)
+        if (t - s.ultima >= LATIDO_TOLERANCIA_MS) {
             this.sesion = null;
-            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada:maxima`);
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=caducada`);
             this.d.alCambiar?.();
         }
     }
@@ -413,7 +412,7 @@ export class PuertaControl {
             this.d.alCambiar?.();
             if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
             
-            // Calcular caducidad para la respuesta: usar el límite si hay, si no SESION_MAX_MS como tope de seguridad
+            // Calcular caducidad para la respuesta: si hay límite elegido, usarlo; si no, 1 h como valor de referencia para la UI (la sesión no caduca por tiempo sin límite)
             const caducidadTimestamp = limite ?? (inicio + SESION_MAX_MS);
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: this.sesion.token,
@@ -424,7 +423,6 @@ export class PuertaControl {
             });
         }
 
-        this.caducarSesion();
         const s = this.sesion;
         if (!s && this.terminadoPor.has(c.de)) {
             // CTL1118G: la persona terminó esta sesión. Se dice con el motivo de siempre de «parada-nativa» (terminal: no reabre sola).
@@ -433,7 +431,8 @@ export class PuertaControl {
         if (!s || s.de !== c.de || c.sesion !== s.token) return this.respuesta(c.nonce, false, s ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
         if (rangoNivel(def.nivel) > rangoNivel(s.nivel)) return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
 
-        // CTL1119A: solo latidos y actividad de pantalla actualizan la última actividad de la sesión
+        // CTL1119A: latidos y actividad de pantalla actualizan la última actividad de la sesión
+        // Las lecturas (leer-estado, leer-aparato) NO cuentan como actividad para el latido
         const esActividadPantalla = nombre.startsWith("pantalla-");
         if (nombre === "latido" || esActividadPantalla) {
             s.ultima = ahora;
@@ -441,6 +440,7 @@ export class PuertaControl {
 
         if (nombre === "latido") {
             // CTL1119A: latido de vida - actualiza la última actividad y devuelve ok
+            this.caducarSesion();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, s.nivel);
         }
 
@@ -455,6 +455,8 @@ export class PuertaControl {
         if (!visto.ok && visto.motivo === "pausa-local") {
             // CTL1117J · S1: una pausa local NO es una parada. Lo nativo sostiene la entrada ~3 s (también las lecturas: contesta igual a toda
             // orden) y la reanuda solo; la sesión, su token y la pantalla siguen vivos. Quien manda recibe «pausa-local» y su ventana dice «En pausa».
+            // CTL1119A: la pausa extiende la gracia de latido 60s para cubrir la retención nativa.
+            this.pausaHasta = ahora + 60_000;
             return this.respuesta(c.nonce, false, "pausa-local", nombre, c.de, s.nivel);
         }
         if (!visto.ok) {
@@ -463,6 +465,13 @@ export class PuertaControl {
             // CTL1117C · FALLO 3: «parada-nativa» lleva el motivo REAL de lo nativo (no siempre es «Terminar»).
             const sinIndicador = visto.motivo === "sin-indicador-nativo";
             return this.respuesta(c.nonce, false, sinIndicador ? "sin-indicador-nativo" : "parada-nativa", nombre, c.de, s.nivel, undefined, visto.detalle);
+        }
+        // CTL1119A: pausa terminada, limpiar gracia
+        this.pausaHasta = 0;
+        // CTL1119A: verificar caducidad después de lo nativo (para que pausa-local haya extendido la gracia)
+        this.caducarSesion();
+        if (!this.sesion) {
+            return this.respuesta(c.nonce, false, "sesion-caducada", nombre, c.de, s.nivel);
         }
         try {
             const r = await this.d.ejecutar(nombre, args, c, sobre, { token: s.token, nivel: s.nivel });
