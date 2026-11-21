@@ -905,7 +905,9 @@ def _pedir_https(url, cuerpo):
 
 def _subir_doc(fecha, texto, pedir=None):
     """Sube el markdown como Doc de Google con el alias «alex-docs» (solo drive.file) en la
-    carpeta «Síntesis diarias». Devuelve el id del Doc, o None: su fallo no bloquea la entrega."""
+    carpeta «Síntesis diaria». Devuelve el id del Doc, o None: su fallo no bloquea la entrega."""
+    if os.environ.get("STARSEED_PRUEBAS") == "1":
+        return None
     try:
         import cuentas_google as CG
         acceso = CG.token("alex-docs", pedir or _pedir_https)

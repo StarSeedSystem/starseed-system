@@ -3,6 +3,7 @@
 prefijo `cola-suenos-`, puntuación con Jev, entrega a Telegram, escritura
 atómica, una entrega al día, cerrojo. Puras: sin red, sin orquestador."""
 import http.client
+import io
 import json
 import os
 import socket
@@ -497,6 +498,13 @@ class TestRespaldo(unittest.TestCase):
         import cuentas_google as CG
         with patch.object(CG, 'token', return_value=None):
             self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
+
+    def test_subir_doc_no_sube_a_drive_en_pruebas(self):
+        import cuentas_google as CG
+        with patch.dict(os.environ, {"STARSEED_PRUEBAS": "1"}):
+            with patch.object(CG, "token", return_value="token-de-prueba"):
+                with patch.object(urllib.request, "urlopen", return_value=io.BytesIO(b'{"id":"doc-real"}')):
+                    self.assertIsNone(A._subir_doc(FECHA, "texto", pedir=lambda u, c: None))
 
 
 class TestPuntuacionJev(unittest.TestCase):
