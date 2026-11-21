@@ -656,6 +656,131 @@ def correr_agy_fondo(
     )
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# Hermes para dirección: trabajos largos en segundo plano (sin tope de 120 s)
+# ════════════════════════════════════════════════════════════════════════════
+
+# Tiempo por defecto para trabajo en segundo plano con Hermes: 10 min
+SEGUNDOS_HERMES_FONDO = 600
+
+
+@dataclass
+class ResultadoHermesFondo:
+    """Resultado de una llamada a Hermes en segundo plano."""
+    texto: str
+    modelo: str
+    duracion_seg: float
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    error: str | None = None
+    fallback_usado: str | None = None
+
+
+def _aviso_inicio_hermes(papel: str, modelo: str, callback: Callable[[str], None] | None = None) -> None:
+    """Envía aviso al chat de que empieza el trabajo en segundo plano con Hermes."""
+    msg = f"[hermes · {papel}] Iniciando con {modelo} (trabajo en segundo plano, sin tope de 120 s)…"
+    if callback:
+        callback(msg)
+    else:
+        print(msg, file=sys.stderr, flush=True)
+
+
+def _aviso_fin_hermes(papel: str, modelo: str, ok: bool, duracion: float,
+                      callback: Callable[[str], None] | None = None) -> None:
+    """Envía aviso al chat de que terminó el trabajo en segundo plano con Hermes."""
+    estado = "completado" if ok else "falló"
+    msg = f"[hermes · {papel}] {estado} con {modelo} en {duracion:.1f}s"
+    if callback:
+        callback(msg)
+    else:
+        print(msg, file=sys.stderr, flush=True)
+
+
+def correr_hermes_fondo(
+    prompt: str,
+    papel: str = PAPEL_DIRECCION,
+    callback_aviso: Callable[[str], None] | None = None,
+    segundos: int = SEGUNDOS_HERMES_FONDO,
+    correr_func: Callable | None = None,
+) -> ResultadoHermesFondo:
+    """Ejecuta `hermes` en segundo plano para tareas largas de la dirección.
+
+    A diferencia del chat (120 s), este modo permite hasta 10 min por defecto
+    y publica avisos de "en curso" y resultado final vía callback.
+
+    Flujo:
+    1. Aviso de inicio ("en curso").
+    2. Llama a Hermes con timeout extendido.
+    3. Si falla, devuelve error estructurado.
+    4. Aviso de fin con resultado.
+
+    Args:
+        prompt: Prompt completo para la tarea (informe, análisis, decisión larga).
+        papel: Papel que define el contexto (default: "director_presidente").
+        callback_aviso: Función para enviar avisos al chat (recibe str).
+        segundos: Timeout para la llamada (default 600s = 10 min).
+        correr_func: Función `correr` inyectable para tests (usa `motores_director.correr` por defecto).
+
+    Returns:
+        ResultadoHermesFondo con texto, modelo, duración, error y fallback usado.
+    """
+    modelo = "hermes/predeterminado"
+    _correr = correr_func or correr
+
+    # 1. Aviso de inicio
+    _aviso_inicio_hermes(papel, modelo, callback_aviso)
+
+    inicio = time.perf_counter()
+    try:
+        # 2. Llamada a Hermes con stdin=DEVNULL y timeout extendido
+        orden = orden_hermes(prompt)
+        rc, salida = _correr(orden, entrada=SIN_ENTRADA, segundos=segundos, cwd=Path.cwd())
+
+        duracion = time.perf_counter() - inicio
+
+        # 3. Procesar resultado
+        texto = salida.strip() if rc == 0 else ""
+        error = None if rc == 0 and texto else (salida.strip() or "hermes falló")
+
+        if texto and not error:
+            # 4. Éxito: aviso de fin y resultado
+            _aviso_fin_hermes(papel, modelo, True, duracion, callback_aviso)
+            return ResultadoHermesFondo(
+                texto=texto,
+                modelo=modelo,
+                duracion_seg=duracion,
+                tokens_entrada=0,
+                tokens_salida=0,
+                error=None,
+                fallback_usado=None,
+            )
+        else:
+            # Fallo
+            _aviso_fin_hermes(papel, modelo, False, duracion, callback_aviso)
+            return ResultadoHermesFondo(
+                texto="",
+                modelo=modelo,
+                duracion_seg=duracion,
+                tokens_entrada=0,
+                tokens_salida=0,
+                error=error,
+                fallback_usado=None,
+            )
+
+    except Exception as e:
+        duracion = time.perf_counter() - inicio
+        _aviso_fin_hermes(papel, modelo, False, duracion, callback_aviso)
+        return ResultadoHermesFondo(
+            texto="",
+            modelo=modelo,
+            duracion_seg=duracion,
+            tokens_entrada=0,
+            tokens_salida=0,
+            error=str(e),
+            fallback_usado=None,
+        )
+
+
 def medir_y_proponer_optimizacion_agy(modelo: str = "gemini-3.8-flash-low") -> dict:
     """Mide tiempo de arranque y tokens base de agy y propone optimizaciones.
 

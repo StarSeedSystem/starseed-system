@@ -380,6 +380,99 @@ def _llamar_chatgpt(prompt, correr, segundos=None):
     return texto, "", {}
 
 
+# ── Hermes en segundo plano para encargos largos ───────────────────────────────────
+
+def _publicar_aviso_hermes_fondo(texto, raiz, tarea_id=None):
+    """Publica un aviso de progreso/resultado de Hermes en segundo plano."""
+    director_chat.publicar(
+        texto,
+        de="director-presidente",
+        rol="director",
+        tipo="aviso",
+        canal="director-presidente",
+        raiz=raiz,
+        tarea=tarea_id,
+    )
+
+
+def lanzar_hermes_fondo(
+    prompt: str,
+    raiz=None,
+    tarea_id=None,
+    callback_aviso=None,
+    segundos: int = motores_director.SEGUNDOS_HERMES_FONDO,
+    correr_func=None,
+) -> motores_director.ResultadoHermesFondo:
+    """Lanza Hermes como job en segundo plano para encargos largos del Director presidente.
+
+    A diferencia del chat normal (tope 120 s), este modo permite hasta 10 min por defecto
+    y publica avisos de "en curso" y resultado final.
+
+    Flujo:
+    1. Publica aviso "en curso" con el ID de la tarea.
+    2. Ejecuta `correr_hermes_fondo` con callback que publica progreso.
+    3. Publica resultado final (éxito o error) al terminar.
+
+    Args:
+        prompt: Prompt completo para la tarea larga.
+        raiz: Raíz del repo (para publicar en el chat).
+        tarea_id: ID opcional de la tarea/encargo para asociar los avisos.
+        callback_aviso: Callback adicional para avisos (además de publicar en chat).
+        segundos: Timeout en segundos (default 600s = 10 min).
+        correr_func: Función `correr` inyectable para tests.
+
+    Returns:
+        ResultadoHermesFondo con el resultado de la ejecución.
+    """
+    # Callback que publica en el chat del Director presidente
+    def _callback_chat(msg: str):
+        _publicar_aviso_hermes_fondo(msg, raiz, tarea_id)
+        if callback_aviso:
+            callback_aviso(msg)
+
+    # Aviso inicial "en curso"
+    inicio_msg = f"🔄 Hermes en segundo plano iniciado (tarea: {tarea_id or 'nueva'})"
+    _publicar_aviso_hermes_fondo(inicio_msg, raiz, tarea_id)
+
+    # Ejecutar en segundo plano
+    resultado = motores_director.correr_hermes_fondo(
+        prompt=prompt,
+        papel="director_presidente",
+        callback_aviso=_callback_chat,
+        segundos=segundos,
+        correr_func=correr_func,
+    )
+
+    # Publicar resultado final
+    if resultado.error:
+        fin_msg = f"❌ Hermes en segundo plano falló (tarea: {tarea_id or 'nueva'}): {resultado.error}"
+    else:
+        fin_msg = f"✅ Hermes en segundo plano completado (tarea: {tarea_id or 'nueva'}) en {resultado.duracion_seg:.1f}s"
+    _publicar_aviso_hermes_fondo(fin_msg, raiz, tarea_id)
+
+    # Si hay resultado de texto, publicarlo como informe
+    if resultado.texto and not resultado.error:
+        director_chat.publicar(
+            resultado.texto,
+            de="director-presidente",
+            rol="director",
+            tipo="informe",
+            canal="director-presidente",
+            modelo=resultado.modelo,
+            raiz=raiz,
+            tarea=tarea_id,
+            uso={
+                "tokensEntrada": resultado.tokens_entrada,
+                "tokensSalida": resultado.tokens_salida,
+                "segundos": round(resultado.duracion_seg, 1),
+                "via": "hermes-fondo",
+            },
+            sintesis=True,
+        )
+
+    return resultado
+
+
 def _cargar_entorno_flota():
     """Lee variables de ~/.starseed/env y ~/.hermes/.env solo en memoria (sin imprimir nunca)."""
     ent = dict(os.environ)
@@ -961,6 +1054,8 @@ __all__ = [
     "texto_aviso_pausa", "texto_aviso_recuperada", "avisar_pausa_hermes",
     "hermes_reabierta", "descripcion_sesion_nueva", "fuera_de_vista",
     "existe_cli", "leer_limites", "atender",
+    # Hermes en segundo plano
+    "lanzar_hermes_fondo", "_publicar_aviso_hermes_fondo",
     # PET1112I
     "T_AVISO", "T_PLAN_DIR", "T_AVANCE_DIR", "T_ENTREGABLE_2D3D",
     "es_mensaje_encargo", "extraer_datos_encargo", "prompt_revisar_plan",
