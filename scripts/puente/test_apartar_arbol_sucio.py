@@ -207,6 +207,34 @@ class ApartarArbolSucioTest(unittest.TestCase):
         self.assertFalse(resultado)
         self.assertTrue(os.path.exists(os.path.join(self.raiz, "informe_analisis.md")))
 
+    def test_manifiesto_incluye_quien_edita_main(self):
+        """MANIFIESTO.json incluye campo 'quien_edita_main' con estructura esperada."""
+        self.escribe("app.ts", "const a = 2\n")
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            modulo.apartar_si_lleva_tiempo()
+        carpetas = [d for d in os.listdir(self.cuarentena_base) if os.path.isdir(os.path.join(self.cuarentena_base, d))]
+        carpeta = os.path.join(self.cuarentena_base, carpetas[0])
+        mani = self.leer_manifiesto(carpeta)
+        self.assertIn("quien_edita_main", mani)
+        self.assertIn("editores_detectados", mani["quien_edita_main"])
+        self.assertIn("otros_procesos", mani["quien_edita_main"])
+        self.assertIn("correcciones_sugeridas", mani)
+
+    def test_anuncio_incluye_editores_detectados(self):
+        """Si hay editores detectados, el anuncio en canal los menciona."""
+        self.escribe("app.ts", "const a = 2\n")
+        # Mockear generar_informe_editores para simular editores detectados
+        from unittest.mock import patch
+        with patch("apartar_arbol_sucio.generar_informe_editores", return_value={
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "editores_detectados": [{"pid": 1234, "proceso": "codex", "editor": "Codex CLI", "archivos": ["app.ts"]}],
+            "otros_procesos": [],
+        }), patch.object(time, "time", return_value=time.time() + 1000):
+            modulo.apartar_si_lleva_tiempo()
+        with open(self.canal_path, encoding="utf-8") as f:
+            lineas = f.read().splitlines()
+        self.assertTrue(any("Codex CLI" in l for l in lineas))
+
 
 if __name__ == "__main__":
     unittest.main()
