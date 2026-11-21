@@ -70,3 +70,82 @@ export function transicionAnuncio(useRisographTransition: boolean): TransicionAn
         ],
     };
 }
+
+/* ─────────────────── Orbe binario: transiciones de estado ─────────────────── */
+/** Estados del orbe binario en escenario fijo 16:9. */
+export type EstadoOrbe = "idle" | "activo" | "error";
+
+/** Transición de estado del orbe: opacidad y escala, sin layout shift. */
+export interface TransicionOrbe {
+    /** Estado destino. */
+    estado: EstadoOrbe;
+    /** Duración en segundos. */
+    duracion: number;
+    /** Curva de easing CSS. */
+    easing: string;
+    /** Opacidad final (0-1). */
+    opacidad: number;
+    /** Escala final (1 = tamaño base). */
+    escala: number;
+}
+
+/** Easing suave para el orbe (igual que fundido plano). */
+const EASING_ORBE = "cubic-bezier(0.2, 0.9, 0.25, 1)";
+
+/** Duración del fade en reduced-motion. */
+const DURACION_REDUCIDA = 0.2;
+
+/**
+ * Transición de estado del orbe binario.
+ *
+ * Escenario fijo 16:9 escalado al visor: las transiciones son de opacidad y
+ * escala, nunca de posición, para evitar layout shift.
+ *
+ * @param estado Estado destino (idle | activo | error)
+ * @param reducirMovimiento Si true, usa solo fade (prefers-reduced-motion)
+ */
+export function transicionOrbe(estado: EstadoOrbe, reducirMovimiento: boolean): TransicionOrbe {
+    if (reducirMovimiento) return transicionOrbeReducida(estado);
+
+    switch (estado) {
+        case "idle":
+            return {
+                estado: "idle",
+                duracion: 0.6,
+                easing: EASING_ORBE,
+                opacidad: 1,
+                escala: 1,
+            };
+        case "activo":
+            return {
+                estado: "activo",
+                duracion: 0.5,
+                easing: EASING_ORBE,
+                opacidad: 1,
+                escala: 1.08,
+            };
+        case "error":
+            return {
+                estado: "error",
+                duracion: 0.4,
+                easing: EASING_ORBE,
+                opacidad: 0.6,
+                escala: 0.92,
+            };
+    }
+}
+
+/**
+ * Transición reducida (prefers-reduced-motion): solo fade, sin escala.
+ * Misma identidad de gesto, precisión mínima.
+ */
+export function transicionOrbeReducida(estado: EstadoOrbe): TransicionOrbe {
+    const opacidadBase = estado === "error" ? 0.6 : 1;
+    return {
+        estado,
+        duracion: DURACION_REDUCIDA,
+        easing: EASING_ORBE,
+        opacidad: opacidadBase,
+        escala: 1,
+    };
+}

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FUNDIDO_PLANO, transicionAnuncio, type TransicionAnuncio } from "../transitions";
+import { type EstadoOrbe, type TransicionOrbe, transicionOrbe, transicionOrbeReducida } from "../transitions";
 import { anchor, gradienteAcento, horizonte, logica, neutro, zenith, type TokenColor } from "../tokens";
 
 describe("transicionAnuncio", () => {
@@ -37,7 +38,61 @@ describe("transicionAnuncio", () => {
     });
 });
 
-describe("tokens editorial-papel", () => {
+    describe("transicionOrbe", () => {
+        it("define los tres estados del orbe binario", () => {
+            const estados: EstadoOrbe[] = ["idle", "activo", "error"];
+            for (const estado of estados) {
+                const t = transicionOrbe(estado, false);
+                expect(t.estado).toBe(estado);
+                expect(t.duracion).toBeGreaterThan(0);
+                expect(typeof t.opacidad).toBe("number");
+                expect(typeof t.escala).toBe("number");
+                expect(t.easing).toBeTruthy();
+            }
+        });
+
+        it("idle: opacidad 1, escala 1, duracion 0.6s", () => {
+            const t = transicionOrbe("idle", false);
+            expect(t.opacidad).toBe(1);
+            expect(t.escala).toBe(1);
+            expect(t.duracion).toBe(0.6);
+        });
+
+        it("activo: opacidad 1, escala 1.08, duracion 0.5s", () => {
+            const t = transicionOrbe("activo", false);
+            expect(t.opacidad).toBe(1);
+            expect(t.escala).toBe(1.08);
+            expect(t.duracion).toBe(0.5);
+        });
+
+        it("error: opacidad 0.6, escala 0.92, duracion 0.4s", () => {
+            const t = transicionOrbe("error", false);
+            expect(t.opacidad).toBe(0.6);
+            expect(t.escala).toBe(0.92);
+            expect(t.duracion).toBe(0.4);
+        });
+
+        it("con reduced-motion: solo fade (escala 1), duracion 0.2s", () => {
+            const t = transicionOrbe("activo", true);
+            expect(t.escala).toBe(1);
+            expect(t.duracion).toBe(0.2);
+            expect(t.opacidad).toBeLessThanOrEqual(1);
+            expect(t.opacidad).toBeGreaterThan(0);
+        });
+    });
+
+    describe("transicionOrbeReducida", () => {
+        it("siempre devuelve fade sin escala (prefers-reduced-motion)", () => {
+            const t = transicionOrbeReducida("activo");
+            expect(t.escala).toBe(1);
+            expect(t.duracion).toBe(0.2);
+            expect(t.opacidad).toBeLessThanOrEqual(1);
+            expect(t.opacidad).toBeGreaterThan(0);
+            expect(t.easing).toBe("cubic-bezier(0.2, 0.9, 0.25, 1)");
+        });
+    });
+
+    describe("tokens editorial-papel", () => {
     it("traen los cuatro colores Trinity y el neutro con cobertura", () => {
         expect(zenith.valor).toBe("#007FFF");
         expect(horizonte.valor).toBe("#10B981");
