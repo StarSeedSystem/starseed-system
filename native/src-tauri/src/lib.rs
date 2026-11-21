@@ -200,8 +200,24 @@ mod control_captura; // CTL1118L · CTL1119C: la captura JPEG (XShm/xcap) que co
 mod control_escritorio_linux_logica;
 #[cfg(target_os = "linux")]
 mod control_entrada_linux; // CTL1118L
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "linux-gui"))]
 mod control_neuronas_linux; // CTL1118L (indicador GTK)
+#[cfg(all(target_os = "linux", not(feature = "linux-gui")))]
+mod control_neuronas_linux {
+    use tauri::AppHandle;
+
+    pub fn indicador_visible() -> bool {
+        false
+    }
+
+    pub fn poner(_app: &AppHandle, _nombre: &str, _color_hex: &str, _nivel: &str, _indicador: &str) -> bool {
+        false
+    }
+
+    pub fn quitar(_app: &AppHandle) {}
+
+    pub fn marcar_pausa(_app: &AppHandle, _pausada: bool, _nombre: String) {}
+}
 #[cfg(target_os = "linux")]
 mod control_vigia_linux; // CTL1118L (pausa por toque físico)
 #[cfg(test)]

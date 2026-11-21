@@ -132,26 +132,19 @@ enigo = "0.6"
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.
 [target.'cfg(target_os = "linux")'.dependencies]
 rust-ini = "=0.21.1"
-# (TAM1107A · T4b) Migración del origen web SIN internet (src/migracion_origen_local.rs): la ventana oculta
-# carga un HTML del binario con la dirección de la web publicada. Son las MISMAS crates y versiones que ya
-# trae tauri para cada motor (se unifican; no se descarga nada nuevo): WebKitGTK `load_html`.
-# (MIC1108A) `v2_38` para `set_enable_webrtc` (MediaStream y WebRTC vienen apagados en WebKitGTK):
-# es el mismo feature que ya pide tauri-runtime-wry, no compila nada nuevo.
-webkit2gtk = { version = "2", features = ["v2_38"] }
 # (LNX1109B) Bluetooth directo (BlueZ) y Wi-Fi Direct (wpa_supplicant P2P + NetworkManager) por D-Bus, sin privilegios.
 # zbus 5.19 y libc ya están en el árbol (notify-rust/xcap/tauri): se unifican, no baja ni compila nada nuevo. `bluer`
 # se descartó: exige libdbus-1-dev del sistema (libdbus-sys) y tokio entero; con zbus (Rust puro) el CI de Linux no
 # necesita ningún paquete más. Los sockets L2CAP LE CoC se abren con libc (AF_BLUETOOTH/BTPROTO_L2CAP).
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 libc = "0.2"
-# (CTL1118L) Linux como aparato CONTROLADO (control entre neuronas): la franja del indicador es una ventana GTK (la misma
-# `gtk` 0.18 que ya trae tauri/wry para la ventana de la app: se unifica, no baja ni compila nada nuevo y no pide paquetes
-# del sistema) y la pausa por toque físico lee eventos crudos de XInput2 con `x11rb` (Rust puro, SIN libxcb; es la misma
-# crate 0.13 que ya usa enigo: aquí solo se enciende su feature `xinput`, que no añade ninguna dependencia nueva al lock).
-gtk = "0.18"
 x11rb = { version = "0.13", default-features = false, features = ["xinput", "shm"] }
 # CTL1119E: Secret Service para llavero del sistema en Linux (clave nativa del aparato).
-secret-service = { version = "3", default-features = false, features = ["blocking"] }
+secret-service = { version = "3", default-features = false, features = ["rt-async-io-crypto-rust"] }
+# WebKitGTK y GTK son dependencias opcionales (requieren librerías del sistema).
+# Se habilitan con las features `linux-webkit` y `linux-gui` respectivamente.
+webkit2gtk = { version = "2", features = ["v2_38"], optional = true }
+gtk = { version = "0.18", optional = true }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -189,6 +182,14 @@ windows = { version = "0.62", features = [
 #   · Compilar Café:   cargo tauri build -c tauri.cafe.conf.json
 #   · Android:         cargo tauri android init  &&  cargo tauri android build
 # ═══════════════════════════════════════════════════════════════════════════
+
+[features]
+# Feature `linux-gui`: habilita el indicador GTK en Linux (requiere libglib-2.0 del sistema).
+# Sin esta feature, se usan stubs que no requieren dependencias del sistema.
+linux-gui = ["gtk"]
+# Feature `linux-webkit`: habilita WebKitGTK en Linux (requiere libwebkit2gtk-4.1 del sistema).
+# Sin esta feature, se usan stubs que no requieren dependencias del sistema.
+linux-webkit = ["webkit2gtk"]
 
 [profile.release]
 # Binarios más pequeños y rápidos para distribución.
