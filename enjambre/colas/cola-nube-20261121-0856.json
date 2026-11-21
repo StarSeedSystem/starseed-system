@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "ola": "GEM1119",
+   "id": "GEM1119D-d1",
+   "titulo": "Medidores de los créditos completos de Antigravity en el pulso de trabajo de MetaGenesis (parte 1 de 2)",
+   "archivos": [
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/creditos-antigravity.ts",
+    "src/lib/mando/__tests__/creditos-antigravity.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Alex (19-11): los medidores de los créditos completos de Antigravity deben añadirse a los del pulso de trabajo de MetaGenesis. Tarea: src/lib/mando/creditos-antigravity.ts (puro, con pruebas) que lee ~/.starseed/antigravity-modelos.json y ~/.starseed/antigravity-uso.json (los escribe scripts/puente/antigravity_flota.py de GEM1119C) y devuelve, por modelo y en total: llamadas y tokens de hoy, cuota diaria estimada, lo que queda, la reserva del 20 % que no se gasta, último error de cuota con su hora, tiempo medio por turno y qué papeles lo usan; estado verde/ámbar (entrando en la reserva)/rojo (sin cuota o sin sesión de Google: dice «inicia sesión con `agy`»). Súmalo a la respuesta de src/app/api/mando/medidores/route.ts junto a los demás proveedores (mismo estilo que leerCreditosPago y salud-proveedores.json, sin duplicar listas) y muéstralo en el pulso de trabajo de MetaGenesis como una pastilla «Antigravity» con su ventana desplegable por modelo (componente medidor-antigravity.tsx, diseño StarSeed, se puede cerrar la lista como las demás ventanas). Si los archivos no existen todavía, la pastilla dice «sin medir aún» en vez de fallar. Nada de claves ni datos de la cuenta de Google en la respuesta. Verificación: vitest del módulo y tsc. Español neutro.\n\n## PARTE 1 DE 2 (la dirección dividió GEM1119D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/app/api/mando/medidores/route.ts, src/lib/mando/creditos-antigravity.ts, src/lib/mando/__tests__/creditos-antigravity.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GEM1119D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GEM1119C"
+   ]
+  }
+ ]
+}
