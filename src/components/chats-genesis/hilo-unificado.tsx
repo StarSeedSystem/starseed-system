@@ -40,18 +40,18 @@ export function HiloUnificado({ cliente, esDueno }: HiloUnificadoProps) {
         let cancelado = false;
         setCargando(true);
         Promise.all([
-            cliente.feed("direccion"),
-            cliente.feed("puente:hermes-avisos"),
-            cliente.feed("puente:peticiones"),
-            cliente.feed("puente:avisos-directores"),
+            cliente.feed({ fuente: "direccion" }),
+            cliente.feed({ fuente: "puente:hermes-avisos" }),
+            cliente.feed({ fuente: "puente:peticiones" }),
+            cliente.feed({ fuente: "puente:avisos-directores" }),
         ]).then(([dir, hermes, pet, avisos]) => {
             if (cancelado) return;
-            setMensajes(fusionarMensajes(
+            setMensajes(fusionarMensajes([
                 dir.ok ? dir.registros : [],
                 hermes.ok ? hermes.registros : [],
                 pet.ok ? pet.registros : [],
                 avisos.ok ? avisos.registros : [],
-            ));
+            ]));
             setCargando(false);
         }).catch(() => { if (!cancelado) setCargando(false); });
         return () => { cancelado = true; };

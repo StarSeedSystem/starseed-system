@@ -27,6 +27,10 @@ export interface MensajeUnificado {
     metadata?: Record<string, unknown>;
 }
 
+interface MensajeConFuente extends MensajeDirector {
+    fuente?: string;
+}
+
 function epochDe(t: string): number {
     if (typeof t !== "string" || t.trim() === "") return 0;
     const ms = Date.parse(t);
@@ -57,7 +61,7 @@ function tipoUnificadoDe(tipo: string): TipoUnificado {
     return tipos.includes(tipo as TipoUnificado) ? (tipo as TipoUnificado) : "mensaje";
 }
 
-export function mensajeAUnificado(m: MensajeDirector): MensajeUnificado {
+export function mensajeAUnificado(m: MensajeConFuente): MensajeUnificado {
     const fuente = fuenteNormalizada(m.fuente);
     return {
         id: m.id,

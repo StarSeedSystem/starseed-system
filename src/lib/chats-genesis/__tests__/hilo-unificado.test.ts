@@ -11,9 +11,12 @@ import {
 } from "../hilo-unificado";
 
 import type { MensajeDirector } from "@/lib/mando/chat-director-tipos";
+import type { CanalId } from "@/lib/mando/chat-director-tipos";
 
-const M = (id: string, t: string, de: string, rol: "alex" | "director", tipo: string, texto: string, canal: string, fuente: string): MensajeDirector => ({
-    id, t, de, rol, tipo: tipo as any, texto, canal, fuente: fuente as any,
+type MensajeConFuente = MensajeDirector & { fuente: string };
+
+const M = (id: string, t: string, de: string, rol: "alex" | "director", tipo: string, texto: string, canal: CanalId, fuente: string): MensajeConFuente => ({
+    id, t, de, rol, tipo: tipo as any, texto, canal, fuente,
 });
 
 const ALEX = M("md-1-1000", "2026-11-13T10:00:00Z", "alex", "alex", "mensaje", "Hola", "mando", "direccion");
@@ -29,7 +32,8 @@ describe("hilo-unificado - funciones puras", () => {
     });
 
     it("ordenarPorTiempo ordena por epoch ascendente", () => {
-        const r = ordenarPorTiempo([AVISO, ALEX, PET, HERMES] as MensajeUnificado[]);
+        const unificados = [AVISO, ALEX, PET, HERMES].map(mensajeAUnificado);
+        const r = ordenarPorTiempo(unificados);
         expect(r.map((m) => m.id)).toEqual([ALEX.id, HERMES.id, PET.id, AVISO.id]);
     });
 
@@ -39,7 +43,7 @@ describe("hilo-unificado - funciones puras", () => {
         expect(filtrarPorFuente(t, "hermes-avisos")).toHaveLength(1);
         expect(filtrarPorFuente(t, "peticiones")).toHaveLength(1);
         expect(filtrarPorFuente(t, "avisos-directores")).toHaveLength(1);
-        expect(filtrarPorFuente(t, "x")).toHaveLength(0);
+        expect(filtrarPorFuente(t, "direccion")).toHaveLength(1);
     });
 
     it("mensajeAUnificado convierte y marca origen", () => {
