@@ -70,6 +70,20 @@ WORKFLOW = "enjambre-nube.yml"
 #: Reintentos y espera para el empuje a GitHub (nube-gh.py lanzar).
 REINTENTOS_GITHUB = 3
 ESPERA_REINTENTO_GITHUB_S = 30
+#: (CAP1119B) Nombres del contrato de reintentos del empuje; la espera base es la de siempre.
+MAX_REINTENTOS_DESPLEGAR = REINTENTOS_GITHUB
+ESPERA_BASE_REINTENTO_S = ESPERA_REINTENTO_GITHUB_S
+
+
+def _es_error_transitorio(salida: str) -> bool:
+    """PURA. ¿El fallo del empuje parece transitorio (red, GitHub ocupado, rate limit) y
+    merece otro intento? Un fallo definitivo (disco lleno, permisos) no se reintenta en balde."""
+    s = (salida or "").lower()
+    return any(p in s for p in (
+        "temporary", "transient", "timeout", "network", "connection",
+        "rate limit", "too many requests", "503", "502", "504",
+        "unavailable", "busy", "retry", "error", "fallo",
+    ))
 
 #: Jobs de GitHub Actions a la vez cuando no se sabe nada más (sin sondas ni salud): el de siempre.
 TOPE_RUNS_NUBE = 2
@@ -328,13 +342,15 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
 
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
               tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
-              motivo_tope="", notas=None, potenciado=False):
+              motivo_tope="", notas=None, potenciado=False, mac_guardada=False):
     """PURA. Qué hacer con la nube: {"lanzar": n, "reabrir": [ids], "trabajadores": w, "por_que": str}.
 
     - En pausa o con los jobs al tope: nada, diciendo por qué es ese el tope (`motivo_tope`).
     - Las elegibles van primero. Si no llenan el sitio libre, se reabren agotadas (las que
       `puede_reabrir`), pero nunca tantas que la Mac se quede sin trabajo para su tope:
       la nube suma, no le quita a la Mac lo que la Mac ya puede hacer.
+    - Con `mac_guardada` (guardia de disco o de memoria), la Mac no puede coger más trabajo:
+      no hay nada que reservarle y la nube puede reabrir todo lo que quepa.
     """
     nada = {"lanzar": 0, "reabrir": [], "trabajadores": 0}
     if pausa:
@@ -349,7 +365,10 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
     elegibles = list(elegibles or [])
     reabrir = []
     if len(elegibles) < sitio:
-        sobra_mac = max(0, int(listas_mac) - int(tope_mac))
+        if mac_guardada:
+            sobra_mac = sitio - len(elegibles)
+        else:
+            sobra_mac = max(0, int(listas_mac) - int(tope_mac))
         cupo = min(max_reabrir, sitio - len(elegibles), sobra_mac)
         candidatas = [t for t in (agotadas or [])
                       if (puede_reabrir_potenciada((reaperturas or {}).get(t), ahora) if potenciado
@@ -1267,11 +1286,15 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                               escritores_nube, vivos=vivos)
         if freno_frase:
             tope = (vivos, freno_frase)
+        # (CAP1119B) Con la Mac frenada por la guardia de disco o de memoria no hay trabajo que
+        # reservarle: lo que no cabe en la Mac va a la nube en vez de esperar.
+        motivo_mac = str(estado_mac.get("motivo_tope") or "").lower()
+        mac_guardada = any(p in motivo_mac for p in ("swap", "memoria", "ram", "disco"))
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
             tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
-            potenciado=pot_gh,
+            potenciado=pot_gh, mac_guardada=mac_guardada,
         )
         if not pot_gh:
             _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
@@ -1485,11 +1508,14 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                                   escritores_nube, vivos=vivos)
             if freno_frase:
                 tope = (vivos, freno_frase)
+            # (CAP1119B) Mac guardada: lo que no puede coger va a la nube, no se le reserva.
+            motivo_mac = str(estado_mac.get("motivo_tope") or "").lower()
+            mac_guardada = any(p in motivo_mac for p in ("swap", "memoria", "ram", "disco"))
             plan = plan_nube(
                 nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
                 reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
                 tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
-                potenciado=pot_gh,
+                potenciado=pot_gh, mac_guardada=mac_guardada,
             )
             if not pot_gh:
                 _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
@@ -1588,9 +1614,12 @@ def _lanzar_job_con_reintentos(trabajadores: int, max_reintentos: int = REINTENT
         lanzado = [l for l in salida.splitlines() if l.startswith("lanzado:")]
         if r.returncode == 0 and lanzado:
             return True, lanzado[-1]
-        # Si falló, esperar antes de reintentar (excepto en el último intento)
-        if intento < max_reintentos - 1:
+        # Si falló por algo transitorio, esperar antes de reintentar (excepto en el último intento).
+        # Un fallo definitivo no se reintenta: solo gasta tiempo y deja el job «en camino» de más.
+        if intento < max_reintentos - 1 and _es_error_transitorio(salida):
             time.sleep(ESPERA_REINTENTO_GITHUB_S)
+        elif intento < max_reintentos - 1:
+            break
     # Todos los reintentos fallaron
     fallo = (salida.splitlines() or ["?"])[-1][:200]
     return False, "job no salió tras %d intentos: %s" % (max_reintentos, fallo)

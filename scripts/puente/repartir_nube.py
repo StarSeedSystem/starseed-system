@@ -10,6 +10,7 @@ nunca se tocó: eso es justo lo que la nube puede hacer gratis con LLM7.
 """
 
 import json
+import math
 import os
 import re
 import time
@@ -51,6 +52,64 @@ MAX_ARCHIVOS_NUBE = 3
 #: saber que repetir no sirve: a partir de ahí van a «Bloqueadas», donde se ven y se
 #: pueden reintentar con un cambio.
 MAX_ENVIOS_NUBE = 3
+
+#: (CAP1119B) El A1 (Oracle Always Free) tiene 2 OCPU y 12 GB. Su enjambre no lo manda el
+#: gobernador de la Mac: sube agentes mientras tenga CPU y memoria libres, con su propio tope.
+A1_OCPU = 2
+A1_RAM_TOTAL_GB = 12
+A1_RAM_POR_TRABAJADOR_GB = 1.5
+A1_OCPU_POR_TRABAJADOR = 0.5
+A1_TOPE_HARDWARE = max(1, A1_OCPU - 1)
+CAPACIDAD_A1_OCPU = A1_OCPU
+CAPACIDAD_A1_GB = A1_RAM_TOTAL_GB
+MAX_AGENTES_A1 = 4
+MIN_AGENTES_A1 = 1
+
+
+def calcular_trabajadores_a1(cpu_libre_pct: float, mem_libre_gb: float,
+                             ocpu: int = A1_OCPU, ram_total_gb: int = A1_RAM_TOTAL_GB) -> int:
+    """PURA (CAP1119B). Agentes que caben en el A1 ahora mismo, por CPU y memoria libres.
+
+    Como el gobernador de la Mac: tope por hardware (`OCPU - 1`), CPU libre y RAM libre, y
+    mínimo 1 si hay recursos. `ram_total_gb` se acepta por compatibilidad con el contrato del
+    A1; el cálculo usa la memoria LIBRE que llega medida."""
+    if mem_libre_gb < 1.0:
+        return 0
+    tope_hardware = max(1, ocpu - 1)
+    por_cpu = int((cpu_libre_pct / 100.0) * ocpu / A1_OCPU_POR_TRABAJADOR)
+    por_ram = int(mem_libre_gb / A1_RAM_POR_TRABAJADOR_GB)
+    return max(0, min(tope_hardware, max(1, por_cpu), max(1, por_ram)))
+
+
+def a1_escalar_agentes(consumo, ahora=None, tope_max=MAX_AGENTES_A1, tope_min=MIN_AGENTES_A1):
+    """PURA (CAP1119B). Cuántos agentes puede correr el A1 según su consumo medido.
+
+    `consumo` es `~/.starseed/oracle-consumo.json` (lo escribe `medidor_oracle.py`). Con el
+    freno de gasto activo no se lanza ni uno: el A1 es gratis, pero solo mientras el gasto
+    del mes siga en cero."""
+    ahora = time.time() if ahora is None else ahora
+    if not isinstance(consumo, dict) or not consumo.get("leido"):
+        return {"agentes": tope_min, "capacidad": "A1 2 OCPU · 12 GB (sin medidor: tope mínimo)",
+                "motivo": "sin medidor de consumo: usa tope mínimo (%d)" % tope_min}
+    freno = consumo.get("freno") or {}
+    if freno.get("activo"):
+        return {"agentes": 0, "capacidad": "A1 2 OCPU · 12 GB",
+                "motivo": "freno: %s" % (freno.get("motivo") or "el gasto del mes pasó de 0")}
+    margen = consumo.get("margen") or {}
+    cpu_libre = margen.get("cpu_libre_pct")
+    mem_libre = margen.get("mem_libre_gb")
+    if cpu_libre is None or mem_libre is None:
+        return {"agentes": tope_min, "capacidad": "A1 2 OCPU · 12 GB (margen desconocido: tope mínimo)",
+                "motivo": "margen sin datos: usa tope mínimo (%d)" % tope_min}
+    ocpu_libres = max(0.0, CAPACIDAD_A1_OCPU * float(cpu_libre) / 100.0)
+    agentes_por_cpu = max(tope_min, int(math.ceil(ocpu_libres)))
+    agentes_por_mem = max(tope_min, int(float(mem_libre) / 3.0))
+    agentes = min(tope_max, agentes_por_cpu, agentes_por_mem)
+    if agentes < tope_min:
+        agentes = tope_min
+    cap_str = "A1 2 OCPU · 12 GB · libre ahora: %.1f %% CPU · %.1f GB" % (float(cpu_libre), float(mem_libre))
+    return {"agentes": agentes, "capacidad": cap_str,
+            "motivo": "%d agente(s) (CPU: %d, RAM: %d, tope %d)" % (agentes, agentes_por_cpu, agentes_por_mem, tope_max)}
 
 
 def ids_de_la_tanda_viva(args_procesos, olas):
