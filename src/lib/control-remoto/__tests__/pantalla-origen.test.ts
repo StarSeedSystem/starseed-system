@@ -197,7 +197,8 @@ describe("pantalla-iniciar", () => {
             return base(c, a);
         };
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(n("control_pantalla_iniciar").map((l) => l.args?.fuente).slice(0, 2)).toEqual(["proyeccion", "auto"]);
+        // RST06b: sin "auto", no se manda el campo fuente; undefined significa "no se pidió nada"
+        expect(n("control_pantalla_iniciar").map((l) => l.args?.fuente).slice(0, 2)).toEqual(["proyeccion", undefined]);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         expect(origen.enMarcha()).toBe(true);
         await origen.parar("fin");
