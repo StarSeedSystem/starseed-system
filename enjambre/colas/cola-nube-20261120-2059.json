@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261120",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-publicado",
+   "titulo": "Canal `params` de la orbe publicado por 1.58b",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe publicado por 1.58b. : emitir vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → consumible por Nexus/Exocortex para UI reactiva. (Ya en `tasks`: \"Publicar desde el 1.58b el vector visual…\"). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "area": "imaginacion",
+   "id": "IMG-agentes-reimaginada-agentes-referencias-d1",
+   "titulo": "Orbe binario en escenario fijo: transiciones de estado con reduced-motion, integradas en tokens y transiciones existentes (parte 1 de 3)",
+   "archivos": [
+    "src/lib/video/editorial-paper/transitions.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Orbe binario en escenario fijo: transiciones de estado con reduced-motion, integradas en tokens y transiciones existentes. # Orbe binario en escenario fijo: transiciones de estado con reduced-motion\n\n## Qué\nEspecificación de movimiento para el orbe binario de la Protomolécula: transiciones idle → activo → error dentro de un escenario fijo 16:9 escalado al visor, con opacidad y escala, sin layout shift, y fallback `prefers-reduced-motion` a solo fade.\n\n## Patrón de referencia\n**Frontend Slides** (https://github.com/zarazhangrui/frontend-slides): escenario fijo 16:9 escalado al visor, animación contenida. Se aplica al orbe: vive en un lienzo fijo que se escala; las transiciones son de opacidad y escala, no de layout Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## PARTE 1 DE 3 (la dirección dividió IMG-agentes-reimaginada-agentes-referencias: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/video/editorial-paper/transitions.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-agentes-referencias",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1118-175743.json": [
+   "IMG-diaria-canal-params-de-la-orbe-publicado"
+  ]
+ }
+}
