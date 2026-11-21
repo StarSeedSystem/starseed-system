@@ -642,6 +642,23 @@ export const FREE_CATALOG: CatalogSource[] = [
     ],
   },
   {
+    id: "aihubmix-free",
+    label: "AIHubMix (gratis)",
+    tier: "free-key",
+    providerId: "openai-compatible",
+    baseUrl: "https://aihubmix.com/v1",
+    requiresKey: true,
+    getKeyUrl: "https://aihubmix.com/token",
+    limits: "5 peticiones/24h en modelos gratuitos (GLM 5.3 coding, Gemini 3.7 Flash). Revisor principal entre proveedores gratuitos.",
+    why: "Revisor especializado en código (GLM 5.3) y contexto largo (Gemini 3.7 Flash 1M). Cupo muy limitado: úsalo como revisor puntual, no como escritor habitual.",
+    privacy: "cloud",
+    weight: 0.85,
+    models: [
+      { id: "aihubmix/coding-glm-5.3-free", label: "GLM 5.3 (coding, gratis)", strengths: ["code", "reasoning"], quality: 8, context: 128000, note: "Revisor de código principal · 128K ctx" },
+      { id: "aihubmix/gemini-3.7-flash-free", label: "Gemini 3.7 Flash (gratis)", strengths: ["long", "summary", "chat"], quality: 8, context: 1000000, note: "1M contexto · revisor de síntesis" },
+    ],
+  },
+  {
     id: "gemini-free",
     label: "Google Gemini (gratis)",
     tier: "free-key",

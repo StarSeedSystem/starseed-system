@@ -618,6 +618,59 @@ def clasificar_tokenrouter(estado: dict | None, ahora: float) -> dict:
     )
 
 
+def clasificar_aihubmix(estado: dict | None, ahora: float) -> dict:
+    """PURA. Estado de AIHubMix (modelos gratuitos vía API gateway).
+    - listo: clave válida y modelo gratuito responde (escribe tokens)
+    - usable: clave válida pero sin cupo (5 req/24h agotadas)
+    - requiere_alex: sin AIHUBMIX_API_KEY o clave inválida (401/403)
+    """
+    if not estado or not estado.get("hecho"):
+        return medio(
+            "aihubmix", "AIHubMix (gratis)", "requiere_alex",
+            "coding-glm-5.3-free · gemini-3.7-flash-free",
+            "sin sondeo reciente (falta AIHUBMIX_API_KEY o no se ejecutó renovador-pasarelas.py)",
+            "ejecutar: python3 scripts/puente/renovador-pasarelas.py",
+        )
+    http = estado.get("http")
+    estado_pasarela = estado.get("estado")
+    modelo = estado.get("modelo", "gpt-4o-mini")
+    tiene_clave = bool(estado.get("tiene_clave"))
+    if not tiene_clave:
+        return medio(
+            "aihubmix", "AIHubMix (gratis)", "requiere_alex",
+            modelo,
+            "sin AIHUBMIX_API_KEY en ~/.starseed/env ni ~/.hermes/.env",
+            "guardar-clave.sh AIHUBMIX_API_KEY",
+        )
+    if estado_pasarela == "escribe":
+        return medio(
+            "aihubmix", "AIHubMix (gratis)", "listo",
+            modelo,
+            "clave válida · modelo gratuito escribe tokens (5 req/24h)",
+            "",
+        )
+    if estado_pasarela == "sin_cupo":
+        return medio(
+            "aihubmix", "AIHubMix (gratis)", "usable",
+            modelo,
+            "cuota agotada (5 req/24h): se repone sola",
+            "esperar reinicio de cuota (24h)",
+        )
+    if estado_pasarela in ("sin_clave", "fichaje"):
+        return medio(
+            "aihubmix", "AIHubMix (gratis)", "requiere_alex",
+            modelo,
+            "clave inválida o pide acción manual: %s" % estado.get("mensaje", estado_pasarela),
+            "renovar AIHUBMIX_API_KEY en https://aihubmix.com/token",
+        )
+    return medio(
+        "aihubmix", "AIHubMix (gratis)", "no_disponible",
+        modelo,
+        "estado: %s · %s" % (estado_pasarela, estado.get("mensaje", "")),
+        "revisar informe de pasarelas: python3 scripts/puente/renovador-pasarelas.py",
+    )
+
+
 # ── sondas ───────────────────────────────────────────────────────────────────
 def sondear() -> dict:
     env = _env(); ahora = time.time(); medios = []
@@ -744,6 +797,15 @@ def sondear() -> dict:
     except (OSError, ValueError):
         tr_data = None
     medios.append(clasificar_tokenrouter(tr_data, ahora))
+
+    # AIHubMix (modelos gratuitos vía API gateway)
+    try:
+        with open(os.path.expanduser("~/.starseed/pasarelas-informe.json"), encoding="utf-8") as f:
+            pasarelas_informe = json.load(f)
+        ah_data = next((p for p in (pasarelas_informe.get("pasarelas") or []) if p.get("clave") == "aihubmix"), None)
+    except (OSError, ValueError):
+        ah_data = None
+    medios.append(clasificar_aihubmix(ah_data, ahora))
 
     return {"generado": time.strftime("%Y-%m-%dT%H:%M:%S"), "medios": medios}
 
