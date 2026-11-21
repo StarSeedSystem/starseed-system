@@ -3,11 +3,12 @@
 /**
  * TU18 (TRA1116-APP-F1) · Panel de conversación en dos mitades.
  * Presenta el estado de la máquina de turnos de `conversacion.ts`: una mitad por
- * persona, con idioma, micrófono, último turno (original y traducción) y las
- * latencias reales. No habla, no reconoce ni traduce: avisa por props. Sin
- * reconocimiento o sin voz, ese lado ofrece escribir el turno.
+ * persona, con idioma, botón de micrófono grande, texto original y traducido del turno,
+ * estado («escuchando», «traduciendo…», «hablando») y los milisegundos reales.
+ * No habla, no reconoce ni traduce: avisa por props. Sin reconocimiento o sin voz,
+ * ese lado ofrece escribir el turno.
  */
-import { Mic, MicOff } from "lucide-react";
+import { Keyboard, Mic, MicOff } from "lucide-react";
 import type { EstadoConversacion, Hablante, TurnoCompleto } from "@/lib/traductor/conversacion";
 
 export interface PanelConversacionProps {
@@ -25,46 +26,94 @@ export interface PanelConversacionProps {
     onEscribir: (quien: Hablante) => void;
 }
 
-const ETIQUETAS_HABLANTE: Record<Hablante, string> = {
-    A: "Persona A",
-    B: "Persona B",
-};
-
-const ETIQUETAS_LADO: Record<Hablante, string> = {
-    A: "Lado A",
-    B: "Lado B",
-};
-
-const IDIOMAS_HABLANTE: Record<Hablante, { codigo: string; nombre: string }> = {
-    A: { codigo: "es", nombre: "Español" },
-    B: { codigo: "en", nombre: "Inglés" },
-};
-
-const ETIQUETAS_ESTADO: Record<NonNullable<EstadoConversacion["fase"]>, string> = {
-    inactivo: "inactivo",
-    escuchando: "Escuchando",
-    traduciendo: "Traduciendo",
-    hablando: "Hablando",
-    esperandoTurno: "Esperando turno",
-};
-
-/** Latencia real en milisegundos; «—» cuando el dato no existe. */
+/** Latencia real en milisegundos; «—» cuando el dato no existe. Pura. */
 export function formatearMs(ms: number): string {
     if (!Number.isFinite(ms) || ms < 0) return "—";
     return `${Math.round(ms)} ms`;
 }
 
-/** Estado legible por lado: muestra la fase del hablante actual y su texto parcial si hay. */
+/** Estado legible de un lado según la fase activa de la máquina. Pura. */
 export function estadoDeLado(estado: EstadoConversacion, quien: Hablante): string {
     if (estado.fase === "inactivo") return "Listo";
-    if ("quien" in estado && estado.quien === quien) {
-        const fase = estado.fase;
-        const texto = fase === "escuchando" && "parcial" in estado && estado.parcial
-            ? ` (${estado.parcial})`
-            : "";
-        return `${ETIQUETAS_ESTADO[fase]}${texto}`;
+    if ("quien" in estado && estado.quien !== quien) return "En espera";
+    switch (estado.fase) {
+        case "escuchando":
+            return estado.parcial ? `Escuchando: ${estado.parcial}` : "Escuchando…";
+        case "traduciendo":
+            return "Traduciendo…";
+        case "hablando":
+            return "Hablando…";
+        case "esperandoTurno":
+            return `Esperando turno (${estado.cola.length})`;
     }
-    return "En espera";
+}
+
+interface MitadProps {
+    quien: Hablante;
+    idioma: string;
+    reconocimiento: boolean;
+    voz: boolean;
+    estado: EstadoConversacion;
+    turno: TurnoCompleto | null;
+    girar: boolean;
+    onPulsarHablar: (quien: Hablante) => void;
+    onEscribir: (quien: Hablante) => void;
+}
+
+function Mitad({ quien, idioma, reconocimiento, voz, estado, turno, girar, onPulsarHablar, onEscribir }: MitadProps) {
+    return (
+        <section
+            aria-label={`Lado ${quien} · ${idioma}`}
+            className={`flex flex-1 flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-5 ${girar ? "rotate-180" : ""}`}
+            role="region"
+        >
+            <div className="flex items-center justify-between gap-2">
+                <div>
+                    <p className="text-xs uppercase tracking-wide text-white/50">Persona {quien}</p>
+                    <p className="font-semibold text-white" translate="no">{idioma}</p>
+                </div>
+                <button
+                    type="button"
+                    disabled={!reconocimiento}
+                    onClick={() => onPulsarHablar(quien)}
+                    aria-label={reconocimiento ? `Hablar en ${idioma}` : `Micrófono no disponible en ${idioma}`}
+                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border text-white transition-colors ${
+                        reconocimiento
+                            ? "cursor-pointer border-cyan-300/40 bg-cyan-500/20 hover:bg-cyan-500/30"
+                            : "cursor-not-allowed border-white/10 bg-white/5 text-white/40"
+                    }`}
+                >
+                    {reconocimiento ? <Mic className="h-7 w-7" aria-hidden /> : <MicOff className="h-7 w-7" aria-hidden />}
+                </button>
+            </div>
+            <p role="status" className="text-sm text-cyan-200">{estadoDeLado(estado, quien)}</p>
+            {turno ? (
+                <div className="flex flex-col gap-1">
+                    <p className="text-sm text-white/70">{turno.texto}</p>
+                    <p className="text-base text-white">{turno.traduccion}</p>
+                    <p className="text-[11px] text-white/50">
+                        Reconocido {formatearMs(turno.msReconocer)} · Traducido {formatearMs(turno.msTraducir)} · Hablado {formatearMs(turno.msHablar)}
+                    </p>
+                </div>
+            ) : (
+                <p className="text-sm text-white/50">Aún no hay turnos en el lado {quien}.</p>
+            )}
+            {(!reconocimiento || !voz) && (
+                <div className="mt-auto flex flex-col gap-2">
+                    <p className="text-xs text-amber-200">
+                        {!reconocimiento ? "Sin reconocimiento de voz para este idioma." : "Sin voz de salida para este idioma."}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => onEscribir(quien)}
+                        className="flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white hover:bg-white/10"
+                    >
+                        <Keyboard className="h-4 w-4" aria-hidden /> Escribir el turno
+                    </button>
+                </div>
+            )}
+        </section>
+    );
 }
 
 export function PanelConversacion({
@@ -81,206 +130,38 @@ export function PanelConversacion({
     onPulsarHablar,
     onEscribir,
 }: PanelConversacionProps) {
-    const turnosA = turnos.filter((t) => t.quien === "A");
-    const turnoB = turnos.filter((t) => t.quien === "B");
-    const ultimoTurnoA = turnosA[0];
-    const ultimoTurnoB = turnoB[0];
+    const ultimoDe = (quien: Hablante): TurnoCompleto | null =>
+        turnos.filter((t) => t.quien === quien).slice(-1)[0] ?? null;
 
     return (
-        <section className="flex h-full min-h-[calc(100dvh-1rem)] w-full flex-col gap-4">
-            <header className="flex flex-col gap-2">
-                <h1 className="text-2xl font-semibold">Conversación traducida</h1>
-                <p className="text-xs text-white/60">Dos mitades, un micrófono por persona. Turnos alternados con latencias reales.</p>
-            </header>
-
-            <div className="flex-1 flex gap-4" role="region" aria-label="Área de conversación">
-                <MitadPanel
+        <div className="flex flex-col gap-3" data-testid="panel-conversacion">
+            <p role="note" className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+                La traducción en tiempo real no es simultánea: cada turno espera a que el otro lado termine.
+                {audioSaleDelAparato ? " El audio se sintetiza fuera de este aparato." : " El audio se sintetiza en este aparato."}
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+                <Mitad
                     quien="A"
-                    estado={estado}
-                    turnos={ultimoTurnoA ? [ultimoTurnoA] : []}
                     idioma={idiomaA}
-                    idiomaNombre="Español"
-                    idiomaDelOponente={idiomaB}
-                    reconocimientoOk={reconocimientoA}
-                    vozOk={vozA}
-                    onPulsarHablar={onPulsarHablar}
-                    onEscribir={onEscribir}
-                />
-                <MitadPanel
-                    quien="B"
+                    reconocimiento={reconocimientoA}
+                    voz={vozA}
                     estado={estado}
-                    turnos={ultimoTurnoB ? [ultimoTurnoB] : []}
-                    idioma={idiomaB}
-                    idiomaNombre="Inglés"
-                    idiomaDelOponente={idiomaA}
-                    reconocimientoOk={reconocimientoB}
-                    vozOk={vozB}
+                    turno={ultimoDe("A")}
+                    girar={false}
                     onPulsarHablar={onPulsarHablar}
                     onEscribir={onEscribir}
-                    girada={girarB}
                 />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-white/60" role="note">
-                <span className="flex items-center gap-1">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-white/10">⚠</span>
-                    La traducción en tiempo real no es simultánea.
-                </span>
-                <span className="flex items-center gap-1">
-                    {audioSaleDelAparato ? (
-                        <>
-                            <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-white/10">🔊</span>
-                            El audio sale del aparato.
-                        </>
-                    ) : (
-                        <>
-                            <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-white/10">🔇</span>
-                            El audio no sale del aparato.
-                        </>
-                    )}
-                </span>
-            </div>
-        </section>
-    );
-}
-
-interface MitadPanelProps {
-    quien: Hablante;
-    estado: EstadoConversacion;
-    turnos: TurnoCompleto[];
-    idioma: string;
-    idiomaNombre: string;
-    idiomaDelOponente: string;
-    reconocimientoOk: boolean;
-    vozOk: boolean;
-    onPulsarHablar: (quien: Hablante) => void;
-    onEscribir: (quien: Hablante) => void;
-    girada?: boolean;
-}
-
-function MitadPanel({
-    quien,
-    estado,
-    turnos,
-    idioma,
-    idiomaNombre,
-    idiomaDelOponente,
-    reconocimientoOk,
-    vozOk,
-    onPulsarHablar,
-    onEscribir,
-    girada = false,
-}: MitadPanelProps) {
-    const ultimoTurno = turnos[0];
-
-    return (
-        <div
-            data-testid={`mitad-${quien.toLowerCase()}`}
-            className={`flex-1 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4`}
-            style={{ transform: girada ? "rotate(180deg)" : undefined }}
-            role="region"
-            aria-label={ETIQUETAS_LADO[quien]}
-        >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-white/70 uppercase tracking-wide">
-                        {ETIQUETAS_HABLANTE[quien]}
-                    </span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-white/10 text-white/80">
-                        {idiomaNombre}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-                {ultimoTurno && (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm">
-                        <div className="flex items-center gap-2 text-xs text-white/60 mb-2">
-                            <span className="font-medium">{ETIQUETAS_HABLANTE[ultimoTurno.quien]}</span>
-                            <span>·</span>
-                            <span>Rec: {formatearMs(ultimoTurno.msReconocer)}</span>
-                            <span>·</span>
-                            <span>Trad: {formatearMs(ultimoTurno.msTraducir)}</span>
-                            <span>·</span>
-                            <span>Hablado {formatearMs(ultimoTurno.msHablar)}</span>
-                        </div>
-                        <div className="text-white/80 mb-1">{ultimoTurno.texto}</div>
-                        <div className="text-cyan-300">{ultimoTurno.traduccion}</div>
-                    </div>
-                )}
-
-                {!reconocimientoOk ? (
-                    <>
-                        <button
-                            type="button"
-                            data-testid={`boton-mic-${quien}`}
-                            role="button"
-                            aria-label={`Micrófono no disponible en ${idiomaNombre}`}
-                            disabled
-                            className="flex min-h-[120px] flex-1 cursor-not-allowed items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all opacity-50"
-                        >
-                            <div className="flex flex-col items-center gap-2">
-                                <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                                <span className="text-lg font-semibold text-white/80">
-                                    Micrófono no disponible
-                                </span>
-                                <span className="text-xs text-amber-300 text-center max-w-[200px]">
-                                    Sin reconocimiento de voz para este idioma
-                                </span>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
-                            data-testid={`boton-escribir-${quien}`}
-                            role="button"
-                            aria-label="Escribir el turno"
-                            onClick={() => onEscribir(quien)}
-                            className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
-                        >
-                            <div className="flex flex-col items-center gap-2">
-                                <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                                <span className="text-lg font-semibold text-white/80">
-                                    Escribe tu turno
-                                </span>
-                            </div>
-                        </button>
-                    </>
-                ) : !vozOk ? (
-                    <button
-                        type="button"
-                        data-testid={`boton-mic-${quien}`}
-                        role="button"
-                        aria-label="Escribir el turno"
-                        onClick={() => onEscribir(quien)}
-                        className="flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-white/10 bg-white/5 transition-all"
-                    >
-                        <div className="flex flex-col items-center gap-2">
-                            <MicOff className="h-16 w-16 text-white/60" aria-hidden />
-                            <span className="text-lg font-semibold text-white/80">
-                                Escribe tu turno
-                            </span>
-                            <span className="text-xs text-amber-300 text-center max-w-[200px]">
-                                Sin voz de salida para este idioma
-                            </span>
-                        </div>
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        data-testid={`boton-mic-${quien}`}
-                        role="button"
-                        aria-label={`Hablar en ${idiomaNombre}`}
-                        onClick={() => onPulsarHablar(quien)}
-                        className="relative flex min-h-[120px] flex-1 cursor-pointer items-center justify-center gap-4 rounded-2xl border-2 border-cyan-400/50 bg-cyan-400/10 hover:bg-cyan-400/20 transition-all"
-                    >
-                        <div className="flex flex-col items-center gap-2">
-                            <Mic className="h-16 w-16 text-cyan-300" aria-hidden />
-                            <span className="text-lg font-semibold text-white/80">
-                                Hablar en {idiomaNombre}
-                            </span>
-                        </div>
-                    </button>
-                )}
+                <Mitad
+                    quien="B"
+                    idioma={idiomaB}
+                    reconocimiento={reconocimientoB}
+                    voz={vozB}
+                    estado={estado}
+                    turno={ultimoDe("B")}
+                    girar={girarB}
+                    onPulsarHablar={onPulsarHablar}
+                    onEscribir={onEscribir}
+                />
             </div>
         </div>
     );

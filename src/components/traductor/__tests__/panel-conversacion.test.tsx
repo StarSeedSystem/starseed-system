@@ -44,7 +44,7 @@ describe("formatearMs y estadoDeLado", () => {
     it("describe la fase por lado", () => {
         expect(estadoDeLado({ fase: "inactivo" }, "A")).toBe("Listo");
         const estado = { fase: "escuchando", quien: "A", inicioMs: 0, parcial: "hola" } as const;
-        expect(estadoDeLado(estado, "A")).toBe("Escuchando (hola)");
+        expect(estadoDeLado(estado, "A")).toBe("Escuchando: hola");
         expect(estadoDeLado(estado, "B")).toBe("En espera");
     });
 });
@@ -56,11 +56,8 @@ describe("PanelConversacion", () => {
         expect(screen.getByText("Hi, how are you?")).toBeInTheDocument();
         expect(screen.getByText("Muy bien, gracias")).toBeInTheDocument();
         expect(screen.getByText("Very well, thanks")).toBeInTheDocument();
-        expect(screen.getByText(/Rec: 820 ms/)).toBeInTheDocument();
-        expect(screen.getByText(/Trad: 140 ms/)).toBeInTheDocument();
-        expect(screen.getByText(/Hablado 950 ms/)).toBeInTheDocument();
-        expect(screen.getByText(/Rec: 610 ms/)).toBeInTheDocument();
-        expect(screen.getByText(/Trad: 120 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Reconocido 820 ms · Traducido 140 ms · Hablado 950 ms/)).toBeInTheDocument();
+        expect(screen.getByText(/Reconocido 610 ms · Traducido 120 ms · Hablado 0 ms/)).toBeInTheDocument();
     });
 
     it("desactiva el micrófono sin reconocimiento y ofrece escribir en ese lado", async () => {
@@ -85,12 +82,12 @@ describe("PanelConversacion", () => {
         montar();
         const aviso = screen.getByRole("note");
         expect(aviso).toHaveTextContent(/no es simultánea/i);
-        expect(aviso).toHaveTextContent(/el audio no sale del aparato/i);
+        expect(aviso).toHaveTextContent(/se sintetiza en este aparato/i);
     });
 
     it("declara cuando el audio sale del aparato", () => {
         montar({ audioSaleDelAparato: true });
-        expect(screen.getByRole("note")).toHaveTextContent(/el audio sale del aparato/i);
+        expect(screen.getByRole("note")).toHaveTextContent(/se sintetiza fuera de este aparato/i);
     });
 
     it("pide el turno del lado que pulsa su micrófono disponible", async () => {
@@ -99,9 +96,55 @@ describe("PanelConversacion", () => {
         expect(props.onPulsarHablar).toHaveBeenCalledWith("B");
     });
 
-    it("mitad B girada 180° opcional", () => {
-        const props = montar({ girarB: true });
-        const mitadB = screen.getByTestId("mitad-b");
-        expect(mitadB).toHaveStyle({ transform: "rotate(180deg)" });
+    it("gira el lado B cuando girarB es true", () => {
+        montar({ girarB: true });
+        const ladoB = screen.getByRole("region", { name: /Lado B/ });
+        expect(ladoB).toHaveClass("rotate-180");
+    });
+
+    it("muestra 'Aún no hay turnos en el lado A/B' cuando no hay turnos para ese lado", () => {
+        montar({ turnos: [] });
+        expect(screen.getByText("Aún no hay turnos en el lado A.")).toBeInTheDocument();
+        expect(screen.getByText("Aún no hay turnos en el lado B.")).toBeInTheDocument();
+    });
+
+    describe("estadoDeLado cubre todas las fases", () => {
+        it("devuelve 'Traduciendo…' en fase traduciendo", () => {
+            const estado = {
+                fase: "traduciendo",
+                quien: "A" as const,
+                inicioMs: 0,
+                textoOriginal: "hola",
+                inicioTraduccionMs: 100,
+            } as const;
+            expect(estadoDeLado(estado, "A")).toBe("Traduciendo…");
+            expect(estadoDeLado(estado, "B")).toBe("En espera");
+        });
+
+        it("devuelve 'Hablando…' en fase hablando", () => {
+            const estado = {
+                fase: "hablando",
+                quien: "B" as const,
+                inicioMs: 0,
+                texto: "hola",
+                traduccion: "hello",
+                inicioTraduccionMs: 100,
+                inicioHablaMs: 200,
+            } as const;
+            expect(estadoDeLado(estado, "B")).toBe("Hablando…");
+            expect(estadoDeLado(estado, "A")).toBe("En espera");
+        });
+
+        it("devuelve 'Esperando turno (N)' en fase esperandoTurno", () => {
+            const estado = {
+                fase: "esperandoTurno" as const,
+                quien: "A" as const,
+                cola: [
+                    { quien: "B" as const, texto: "x", traduccion: "x" },
+                    { quien: "B" as const, texto: "y", traduccion: "y" },
+                ],
+            };
+            expect(estadoDeLado(estado, "A")).toBe("Esperando turno (2)");
+        });
     });
 });
