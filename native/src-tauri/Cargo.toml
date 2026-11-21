@@ -86,7 +86,13 @@ minisign-verify = "0.3"
 flate2 = "1"
 base64 = "0.22"
 # AND1115K: verificación ECDSA P-256 (r‖s) de las órdenes de control en Rust puro (sin C: compila en Android sin NDK extra).
-p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic", "pkcs8"] }
+# CTL1119E: Secret Service (Linux) para guardar la clave nativa del aparato en el llavero del sistema.
+secret-service = { version = "3", default-features = false, features = ["blocking"] }
+# CTL1119E: rand para generación de claves (ya viene con p256 pero lo hacemos explícito).
+rand = "0.9"
+# CTL1119E: base64 para encoding URL-safe (ya estaba pero aseguramos features).
+base64 = { version = "0.22", features = ["std"] }
 
 # ─── Plugins SOLO ESCRITORIO (no compilan / no aplican en Android · iOS) ───
 # Patrón oficial de la doc de Tauri 2: van bajo un target cfg que excluye móvil,
@@ -145,6 +151,8 @@ libc = "0.2"
 # crate 0.13 que ya usa enigo: aquí solo se enciende su feature `xinput`, que no añade ninguna dependencia nueva al lock).
 gtk = "0.18"
 x11rb = { version = "0.13", default-features = false, features = ["xinput", "shm"] }
+# CTL1119E: Secret Service para llavero del sistema en Linux (clave nativa del aparato).
+secret-service = { version = "3", default-features = false, features = ["blocking"] }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]

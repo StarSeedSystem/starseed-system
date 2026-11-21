@@ -334,6 +334,32 @@ export async function presentarmeA(para: string, nombre: string): Promise<Respue
     return r;
 }
 
+/** CTL1119E: Crea la clave del aparato (web o nativa) y pide control a la neurona destino.
+ * Si el motivo es "sin-aparato", crea la clave automáticamente y reintenta presentarse.
+ * Devuelve la respuesta final y un flag indicando si se creó la clave. */
+export async function crearClaveYPedirControl(
+    para: string,
+    nombre: string,
+    nombreAparato: string,
+    cuenta: string
+): Promise<{ respuesta: RespuestaOrden; claveCreada: boolean }> {
+    const { crearClaveAparato, spkiDelAparato } = await import("@/lib/chats-genesis/firma-aparato");
+    
+    // Crear la clave (web o nativa según soporte)
+    await crearClaveAparato(nombreAparato, cuenta);
+    
+    // Obtener el SPKI de la clave recién creada
+    const spki = await spkiDelAparato();
+    if (!spki) {
+        return { respuesta: { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" }, claveCreada: true };
+    }
+    
+    // Reintentar presentarse
+    const r = await mandarOrden(para, "presentarse", { spki, nombre, neurona: await neuronaPropia() });
+    registroGlobal.liberar(para);
+    return { respuesta: r, claveCreada: true };
+}
+
 /**
  * Una sesión hacia otra neurona: la abre si hace falta y la reabre una vez si caducó.
  * CTL1117A · S1/S2/S4: comparte la sesión con la ventana de control (`registroGlobal`): no manda una segunda

@@ -136,6 +136,7 @@ describe("§3.9 · clave perdida: se dice, nunca se rehace sola", () => {
         // El navegador borra la base (iOS, «borrar datos del sitio»), la marca de localStorage queda.
         const r2 = crearRespaldo();
         montar(r2, marca);
+        // Sin app nativa: el fallback nativo no debe activarse
         expect(await aparatoLocal()).toBeNull();
         const perdida = await claveAparatoPerdida();
         expect(perdida).toMatchObject({ huella, nombre: "iPhone de Alex", estado: "emparejado" });
@@ -306,7 +307,7 @@ describe("cuentaDeSesion y puedeOfrecer", () => {
 
 describe("soporteFirma", () => {
     it("dice por qué no se puede", async () => {
-        expect(await soporteFirma()).toEqual({ ok: true });
+        expect(await soporteFirma()).toEqual({ ok: true, via: "web" });
         configurarFirmaAparato({ seguro: false });
         expect(await soporteFirma()).toEqual({ ok: false, motivo: "contexto-inseguro" });
         configurarFirmaAparato({ seguro: true, subtle: null });

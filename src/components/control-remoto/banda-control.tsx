@@ -528,14 +528,49 @@ export function ControlEntreNeuronasPanel() {
         if (r.ok) {
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
+            setAviso(
+                `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
+            );
+            return;
         }
-        setAviso(
-            r.ok
-                ? `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
-                : r.motivo === "sin-aparato"
-                  ? "Este aparato no tiene clave propia: créala en Chats de Genesis (emparejar)."
-                  : `No se pudo pedir: ${r.motivo}.`,
-        );
+        
+        // CTL1119E: si el motivo es "sin-aparato", ofrecer crear la clave y reintentar
+        if (r.motivo === "sin-aparato") {
+            setAviso("Este aparato no tiene clave propia. Creando clave y pidiendo control…");
+            try {
+                const f = await import("@/lib/chats-genesis/firma-aparato");
+                const yo = await f.aparatoLocal().catch(() => null);
+                const nombreAparato = yo?.nombre ?? (typeof navigator !== "undefined" ? (navigator.platform || "Neurona") : "Neurona");
+                const cuenta = await (async () => {
+                    try {
+                        const { uidActual } = await import("@/lib/consumo/usuario");
+                        return await uidActual();
+                    } catch {
+                        return "";
+                    }
+                })();
+                if (!cuenta) {
+                    setAviso("No hay sesión activa: inicia sesión antes de crear la clave.");
+                    return;
+                }
+                const { crearClaveYPedirControl } = await import("@/lib/control-remoto/canal");
+                const resultado = await crearClaveYPedirControl(destino.trim().toLowerCase(), nombreDe(destino.trim()), nombreAparato, cuenta);
+                if (resultado.respuesta.ok) {
+                    setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000);
+                    setEsperando(destino.trim().toLowerCase());
+                    setAviso(
+                        `Clave creada y pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(resultado.respuesta.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
+                    );
+                } else {
+                    setAviso(`Clave creada pero no se pudo pedir: ${resultado.respuesta.motivo}.`);
+                }
+            } catch (e) {
+                setAviso(`Error al crear la clave: ${e instanceof Error ? e.message : String(e)}`);
+            }
+            return;
+        }
+        
+        setAviso(`No se pudo pedir: ${r.motivo}.`);
     }, [destino, miCodigo, nombreDe]);
 
     const armar = useCallback(async () => {
@@ -591,7 +626,7 @@ export function ControlEntreNeuronasPanel() {
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
             <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
-            <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (créala en Chats de Genesis)"}</p>
+            <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (se crea al pedir control)"}</p>
             {permiso.pendientes.map((x) => (
                 <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
                     <PuntoColor color={colorDe(x.neurona, x.color)} />

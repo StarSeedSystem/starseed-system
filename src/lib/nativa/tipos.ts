@@ -133,3 +133,15 @@ export type Resultado<T> = { ok: true; valor: T } | { ok: false; motivo: string 
 export const EVENTO_ANTENAS = "starseed://antenas";
 export const EVENTO_SERIE = "starseed://serie";
 export const EVENTO_SERIE_CERRADA = "starseed://serie-cerrada";
+
+/** CTL1119E: Estado de la clave nativa del aparato (ECDSA P-256 guardada en llavero del sistema o archivo 0600). */
+export interface ClaveAparatoNativaEstado {
+  existe: boolean;
+  huella: string | null;
+  spki_b64url: string | null;
+  nombre: string | null;
+  cuenta: string | null;
+  creado: string | null;
+  algoritmo: string;
+  almacen: string; // "secret-service" | "credential-manager" | "archivo-0600"
+}

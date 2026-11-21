@@ -442,31 +442,68 @@ function aLocal(r: RegistroClave, seq: number, visto?: string | null): AparatoLo
 // ── API pública (§8.4) ───────────────────────────────────────────────────────────────────────
 
 /** ¿Puede este navegador guardar una clave propia? (Ventana privada de algunos navegadores: no.) */
-export async function soporteFirma(): Promise<{ ok: true } | { ok: false; motivo: "sin-webcrypto" | "sin-indexeddb" | "contexto-inseguro" }> {
+export async function soporteFirma(): Promise<{ ok: true; via: "web" | "nativa" } | { ok: false; motivo: "sin-webcrypto" | "sin-indexeddb" | "contexto-inseguro" }> {
     const en = entorno();
     if (!en.seguro) return { ok: false, motivo: "contexto-inseguro" };
-    if (!en.subtle || typeof en.subtle.generateKey !== "function" || typeof en.subtle.sign !== "function") return { ok: false, motivo: "sin-webcrypto" };
-    if (!en.indexedDB) return { ok: false, motivo: "sin-indexeddb" };
+    if (!en.subtle || typeof en.subtle.generateKey !== "function" || typeof en.subtle.sign !== "function") {
+        // Sin WebCrypto: intentar nativo
+        const nativa = await soporteClaveNativa();
+        if (nativa) return { ok: true, via: "nativa" };
+        return { ok: false, motivo: "sin-webcrypto" };
+    }
+    if (!en.indexedDB) {
+        // Sin IndexedDB: intentar nativo
+        const nativa = await soporteClaveNativa();
+        if (nativa) return { ok: true, via: "nativa" };
+        return { ok: false, motivo: "sin-indexeddb" };
+    }
     try {
         const db = await abrirBD(en.indexedDB);
         db.close();
-        return { ok: true };
+        return { ok: true, via: "web" };
     } catch {
+        // IndexedDB falla: intentar nativo
+        const nativa = await soporteClaveNativa();
+        if (nativa) return { ok: true, via: "nativa" };
         return { ok: false, motivo: "sin-indexeddb" };
     }
 }
 
 /** El aparato guardado, o null si no hay clave (o se perdió: ver `claveAparatoPerdida`). Nunca lanza. */
 export async function aparatoLocal(): Promise<AparatoLocal | null> {
+    // Primero intentar clave web (IndexedDB)
     try {
         const { registro, seq } = await leerTodo();
         const r = registroValido(registro);
-        if (!r) return null;
-        escribirMarca(r);
-        return aLocal(r, seq, leerMarca()?.vistoPorUltima ?? null);
+        if (r) {
+            escribirMarca(r);
+            return aLocal(r, seq, leerMarca()?.vistoPorUltima ?? null);
+        }
     } catch {
-        return null;
+        /* ignorar, probar nativa */
     }
+    // Fallback: clave nativa (marca en localStorage)
+    const marca = leerMarca();
+    if (marca && marca.huella) {
+        const p = puenteNativo();
+        if (p.disponible) {
+            const r = await p.claveAparatoEstado();
+            if (r.ok && r.valor.existe && r.valor.huella === marca.huella) {
+                return {
+                    huella: marca.huella,
+                    codigo: await codigoDe(marca.huella, marca.cuenta),
+                    cuenta: marca.cuenta,
+                    nombre: marca.nombre,
+                    creado: marca.creado,
+                    seq: 0, // nativa no tiene seq persistente
+                    nivel: "texto",
+                    estado: marca.estado as AparatoLocal["estado"],
+                    vistoPorUltima: marca.vistoPorUltima ?? undefined,
+                };
+            }
+        }
+    }
+    return null;
 }
 
 /**
@@ -495,20 +532,28 @@ export async function claveAparatoPerdida(): Promise<{ huella: string; nombre: s
  * Crea la clave de este aparato (ECDSA P-256, `extractable: false`) y la guarda. Siempre empieza
  * «sin emparejar» y de nivel «texto». Si ya hay una clave EMPAREJADA, se niega (primero hay que
  * olvidarla): una clave nueva nunca ocupa en silencio el sitio de una emparejada.
+ * Si WebCrypto/IndexedDB no están disponibles, usa la clave nativa vía Tauri (CTL1119E).
  */
 export async function crearClaveAparato(nombre: string, cuenta: string): Promise<{ aparato: AparatoLocal; spki: string }> {
     const soporte = await soporteFirma();
-    if (!soporte.ok) throw new ErrorFirma(soporte.motivo, "Este navegador no puede guardar una clave propia (¿ventana privada?)");
     const n = [...String(nombre ?? "").replace(/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩‎‏]/g, "").trim()].slice(0, MAX_NOMBRE_APARATO).join("").trim();
     if (!n) throw new ErrorFirma("nombre", "Pon un nombre a este aparato (como mucho 60 caracteres)");
     const c = typeof cuenta === "string" ? cuenta.trim() : "";
     if (!c || c.length > 100) throw new ErrorFirma("sin-cuenta", "Inicia sesión antes de emparejar este aparato");
 
+    // Si hay una clave web emparejada, negar
     const previo = await leerTodo().then((x) => registroValido(x.registro)).catch(() => null);
     if (previo && previo.estado === "emparejado") {
         throw new ErrorFirma("ya-emparejado", "Este aparato ya está emparejado: olvídalo antes de crear otra clave");
     }
 
+    // Si el soporte es nativo, usar la clave nativa
+    if (soporte.ok && soporte.via === "nativa") {
+        return crearClaveAparatoNativa(n, c);
+    }
+
+    // Clave web (WebCrypto + IndexedDB)
+    if (!soporte.ok) throw new ErrorFirma(soporte.motivo, "Este navegador no puede guardar una clave propia (¿ventana privada?)");
     const subtle = entorno().subtle!;
     const par = (await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign"])) as CryptoKeyPair;
     if (par.privateKey.extractable) throw new ErrorFirma("exportable", "La clave salió exportable: no se guarda");
@@ -591,7 +636,14 @@ export async function firmarEntrada(
 
     const { registro } = await leerTodo();
     const reg = registroValido(registro);
-    if (!reg) throw new ErrorFirma(leerMarca() ? "clave-perdida" : "sin-aparato", leerMarca() ? "La clave de este aparato ya no está: empareja de nuevo" : "Este aparato no tiene clave");
+    if (!reg) {
+        // Sin clave web: solo fallback nativo si WebCrypto/IndexedDB no están disponibles
+        const soporte = await soporteFirma();
+        if (soporte.ok && soporte.via === "nativa") {
+            return firmarEntradaNativa(e, ctx);
+        }
+        throw new ErrorFirma(leerMarca() ? "clave-perdida" : "sin-aparato", leerMarca() ? "La clave de este aparato ya no está: empareja de nuevo" : "Este aparato no tiene clave");
+    }
     if (typeof ctx.cuenta !== "string" || ctx.cuenta.trim().toLowerCase() !== reg.cuenta.trim().toLowerCase()) {
         throw new ErrorFirma("otra-cuenta", "Este aparato se emparejó con otra cuenta");
     }
@@ -625,23 +677,33 @@ export async function firmarEntrada(
 export async function spkiDelAparato(): Promise<string | null> {
     try {
         const r = registroValido((await leerTodo()).registro);
-        return r ? r.spki : null;
+        if (r) return r.spki;
     } catch {
-        return null;
+        /* ignorar, probar nativa si procede */
     }
+    // Fallback: clave nativa solo si WebCrypto/IndexedDB no están disponibles
+    const soporte = await soporteFirma();
+    if (soporte.ok && soporte.via === "nativa") {
+        return spkiDelAparatoNativa();
+    }
+    return null;
 }
 
 /** Borra la clave de este aparato y su marca. (Para retirarlo en la Mac, antes se envía `revocarme`.) */
 export async function olvidarAparato(): Promise<void> {
+    // Borrar clave web si existe
     try {
         await enTransaccion<void>("readwrite", (st, fin) => {
             st.delete(CLAVE_REGISTRO);
             st.delete(CLAVE_SEQ);
             fin(undefined);
         });
-    } finally {
-        borrarMarca();
+    } catch {
+        /* ignorar */
     }
+    borrarMarca();
+    // Borrar clave nativa si existe
+    await olvidarAparatoNativa();
 }
 
 // ── ORD1114P · firmar una orden de «Control entre mis neuronas» con la clave de este aparato ──
@@ -654,9 +716,15 @@ export async function firmarOrdenControl(
     ctx: { cuenta: string },
 ): Promise<{ v: 1; carga: string; firma: string; spki: string }> {
     const subtle = entorno().subtle;
-    if (!subtle) throw new ErrorFirma("sin-webcrypto", "Este navegador no tiene WebCrypto");
     const reg = registroValido((await leerTodo()).registro);
-    if (!reg) throw new ErrorFirma(leerMarca() ? "clave-perdida" : "sin-aparato", "Este aparato no tiene clave: créala en Chats de Genesis");
+    if (!reg) {
+        // Sin clave web: solo fallback nativo si WebCrypto/IndexedDB no están disponibles
+        const soporte = await soporteFirma();
+        if (soporte.ok && soporte.via === "nativa") {
+            return firmarOrdenControlNativa(construir, ctx);
+        }
+        throw new ErrorFirma(leerMarca() ? "clave-perdida" : "sin-aparato", "Este aparato no tiene clave: créala en Chats de Genesis");
+    }
     if (typeof ctx.cuenta !== "string" || ctx.cuenta.trim().toLowerCase() !== reg.cuenta.trim().toLowerCase()) {
         throw new ErrorFirma("otra-cuenta", "Este aparato se emparejó con otra cuenta");
     }
@@ -665,8 +733,186 @@ export async function firmarOrdenControl(
     if (carga.aud !== "starseed.control-neuronas.v1" || carga.de !== reg.huella || carga.seq !== seq) throw new ErrorFirma("forma", "La orden no tiene la forma del control entre neuronas");
     const bytes = new TextEncoder().encode(JSON.stringify(carga));
     if (bytes.length > 4096) throw new ErrorFirma("grande", "La orden firmada pasa de 4 KB");
+    if (!subtle) {
+        // Sin WebCrypto: intentar nativa
+        return firmarOrdenControlNativa(construir, ctx);
+    }
     const firma = new Uint8Array(await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, reg.privada, bytes));
     if (firma.length !== 64) throw new ErrorFirma("firma", "La firma no salió con la forma r‖s");
     return { v: 1, carga: b64url(bytes), firma: b64url(firma), spki: reg.spki };
 }
 // ── fin ORD1114P ──
+
+// ── CTL1119E · Clave nativa del aparato (fallback para Linux WebKitGTK / Windows WebView2) ──
+// Si WebCrypto o IndexedDB no están disponibles o el contexto no es seguro, usa la clave nativa
+// vía Tauri (ECDSA P-256, misma interfaz: la privada NUNCA sale del aparato, guardada en
+// Secret Service / Credential Manager / archivo 0600).
+
+import { puenteNativo } from "@/lib/nativa/puente";
+import type { ClaveAparatoNativaEstado } from "@/lib/nativa/tipos";
+
+/** ¿Está disponible la clave nativa (app nativa corriendo y comando disponible)? */
+export async function soporteClaveNativa(): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+    const p = puenteNativo();
+    if (!p.disponible) return false;
+    try {
+        const r = await p.claveAparatoEstado();
+        return r.ok;
+    } catch {
+        return false;
+    }
+}
+
+/** Crea la clave nativa del aparato (llama a Tauri). */
+export async function crearClaveAparatoNativa(nombre: string, cuenta: string): Promise<{ aparato: AparatoLocal; spki: string }> {
+    const p = puenteNativo();
+    if (!p.disponible) throw new ErrorFirma("sin-app-nativa", "La app nativa no está disponible");
+    const r = await p.claveAparatoCrear(nombre, cuenta);
+    if (!r.ok) throw new ErrorFirma("nativa-fallo", r.motivo);
+    const estado = r.valor;
+    if (!estado.huella || !estado.spki_b64url || !estado.nombre || !estado.cuenta || !estado.creado) {
+        throw new ErrorFirma("nativa-incompleta", "La app nativa devolvió un estado incompleto");
+    }
+    const aparato: AparatoLocal = {
+        huella: estado.huella,
+        codigo: await codigoDe(estado.huella, estado.cuenta),
+        cuenta: estado.cuenta,
+        nombre: estado.nombre,
+        creado: estado.creado,
+        seq: 0,
+        nivel: "texto",
+        estado: "sin-emparejar",
+    };
+    // Escribir marca en localStorage para que `aparatoLocal()` la vea (la clave real está en la app nativa)
+    try {
+        const marca = { huella: estado.huella, nombre: estado.nombre, cuenta: estado.cuenta, creado: estado.creado, estado: "sin-emparejar" as const, vistoPorUltima: new Date().toISOString() };
+        window.localStorage.setItem(CLAVE_MARCA_APARATO, JSON.stringify(marca));
+    } catch {
+        /* ignorar */
+    }
+    return { aparato, spki: estado.spki_b64url };
+}
+
+/** Firma una entrada con la clave nativa (para `firmarEntrada` cuando no hay WebCrypto). */
+export async function firmarEntradaNativa(
+    e: EntradaChat,
+    ctx: { cuenta: string; destino: "mac" | "a1"; chat: string; chatNombre: string; ahora: number },
+): Promise<EntradaFirmada> {
+    const p = puenteNativo();
+    if (!p.disponible) throw new ErrorFirma("sin-app-nativa", "La app nativa no está disponible");
+    if (!e || typeof e !== "object" || e.v !== 1 || typeof e.nonce !== "string" || !RE_NONCE.test(e.nonce)) {
+        throw new ErrorFirma("forma", "La entrada no tiene la forma de GEN1113 (v:1 y nonce)");
+    }
+    if (!ctx || typeof ctx.chat !== "string" || !RE_ID_CHAT.test(ctx.chat)) throw new ErrorFirma("sin-chat", "Falta el id del chat");
+    const largoNombre = typeof ctx.chatNombre === "string" ? [...ctx.chatNombre].length : 0;
+    if (largoNombre < 1 || largoNombre > MAX_NOMBRE_CHAT || !ctx.chatNombre.trim()) throw new ErrorFirma("sin-chat", "Falta el nombre del chat que se ve");
+    if (ctx.destino !== destinoDeFuente(e.fuente as FuenteEntrada)) throw new ErrorFirma("destino", "El destino no corresponde a la fuente");
+    if (!Number.isFinite(ctx.ahora)) throw new ErrorFirma("forma", "Hora no válida");
+
+    // Leer estado local para obtener huella y cuenta (la marca en localStorage)
+    const marca = leerMarca();
+    if (!marca || !marca.huella) throw new ErrorFirma("sin-aparato", "Este aparato no tiene clave nativa");
+    if (typeof ctx.cuenta !== "string" || ctx.cuenta.trim().toLowerCase() !== marca.cuenta.trim().toLowerCase()) {
+        throw new ErrorFirma("otra-cuenta", "Este aparato se emparejó con otra cuenta");
+    }
+
+    // Reservar seq (usamos el mismo mecanismo que la clave web, pero en la app nativa no hay seq persistente)
+    // Como fallback, usamos un contador simple en localStorage
+    const seqKey = `starseed.genesis.seq.nativa.${marca.huella}`;
+    let seq = 0;
+    try {
+        const stored = window.localStorage.getItem(seqKey);
+        seq = stored ? parseInt(stored, 10) + 1 : 1;
+        window.localStorage.setItem(seqKey, String(seq));
+    } catch {
+        seq = Date.now(); // fallback
+    }
+
+    const plazo = riesgoDeEntrada(e) === "alto" ? LIMITE_ALTO_S : LIMITE_BAJO_S;
+    const carga: CargaFirmada = {
+        aud: AUD_FIRMA,
+        cuenta: marca.cuenta,
+        aparato: marca.huella,
+        seq,
+        t: new Date(ctx.ahora).toISOString(),
+        caduca: new Date(ctx.ahora + plazo * 1000).toISOString(),
+        destino: ctx.destino,
+        chat: ctx.chat,
+        chatNombre: ctx.chatNombre,
+        entrada: e,
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(carga));
+    if (bytes.length > MAX_CARGA_BYTES) throw new ErrorFirma("grande", "El mensaje firmado pasa de 32 KB");
+
+    // Firmar vía app nativa
+    const firma_b64url = await p.claveAparatoFirmar(b64url(bytes));
+    if (!firma_b64url.ok) throw new ErrorFirma("nativa-firma", firma_b64url.motivo);
+
+    // Obtener SPKI
+    const spki_r = await p.claveAparatoSpki();
+    if (!spki_r.ok) throw new ErrorFirma("nativa-spki", spki_r.motivo);
+
+    return { v: 2, carga: b64url(bytes), firma: firma_b64url.valor, aparato: marca.huella };
+}
+
+/** Firma una orden de control con la clave nativa (para `firmarOrdenControl` cuando no hay WebCrypto). */
+export async function firmarOrdenControlNativa(
+    construir: (base: { cuenta: string; de: string; seq: number }) => Record<string, unknown>,
+    ctx: { cuenta: string },
+): Promise<{ v: 1; carga: string; firma: string; spki: string }> {
+    const p = puenteNativo();
+    if (!p.disponible) throw new ErrorFirma("sin-app-nativa", "La app nativa no está disponible");
+
+    const marca = leerMarca();
+    if (!marca || !marca.huella) throw new ErrorFirma("sin-aparato", "Este aparato no tiene clave nativa");
+    if (typeof ctx.cuenta !== "string" || ctx.cuenta.trim().toLowerCase() !== marca.cuenta.trim().toLowerCase()) {
+        throw new ErrorFirma("otra-cuenta", "Este aparato se emparejó con otra cuenta");
+    }
+
+    const seqKey = `starseed.control.seq.nativa.${marca.huella}`;
+    let seq = 0;
+    try {
+        const stored = window.localStorage.getItem(seqKey);
+        seq = stored ? parseInt(stored, 10) + 1 : 1;
+        window.localStorage.setItem(seqKey, String(seq));
+    } catch {
+        seq = Date.now();
+    }
+
+    const carga = construir({ cuenta: marca.cuenta, de: marca.huella, seq });
+    if (carga.aud !== "starseed.control-neuronas.v1" || carga.de !== marca.huella || carga.seq !== seq) {
+        throw new ErrorFirma("forma", "La orden no tiene la forma del control entre neuronas");
+    }
+    const bytes = new TextEncoder().encode(JSON.stringify(carga));
+    if (bytes.length > 4096) throw new ErrorFirma("grande", "La orden firmada pasa de 4 KB");
+
+    const firma_b64url = await p.claveAparatoFirmar(b64url(bytes));
+    if (!firma_b64url.ok) throw new ErrorFirma("nativa-firma", firma_b64url.motivo);
+
+    const spki_r = await p.claveAparatoSpki();
+    if (!spki_r.ok) throw new ErrorFirma("nativa-spki", spki_r.motivo);
+
+    return { v: 1, carga: b64url(bytes), firma: firma_b64url.valor, spki: spki_r.valor };
+}
+
+/** Devuelve el SPKI de la clave nativa (para `spkiDelAparato` cuando no hay WebCrypto). */
+export async function spkiDelAparatoNativa(): Promise<string | null> {
+    const p = puenteNativo();
+    if (!p.disponible) return null;
+    const marca = leerMarca();
+    if (!marca || !marca.huella) return null;
+    const r = await p.claveAparatoSpki();
+    return r.ok ? r.valor : null;
+}
+
+/** Olvida la clave nativa (para `olvidarAparato` cuando se usa la nativa). */
+export async function olvidarAparatoNativa(): Promise<void> {
+    const p = puenteNativo();
+    if (p.disponible) {
+        try { await p.claveAparatoOlvidar(); } catch { /* ignorar */ }
+    }
+    borrarMarca();
+    try { window.localStorage.removeItem(CLAVE_MARCA_APARATO); } catch { /* ignorar */ }
+}
+// ── fin CTL1119E ──

@@ -19,6 +19,7 @@ import type {
   PeticionDescarga,
   Resultado,
   Verificacion,
+  ClaveAparatoNativaEstado,
 } from "./tipos";
 import { EVENTO_ANTENAS, EVENTO_SERIE, EVENTO_SERIE_CERRADA } from "./tipos";
 
@@ -74,6 +75,17 @@ export interface PuenteNativo {
   alCambiarAntenas(cb: (e: EstadoAntenas) => void): Promise<Desuscribir>;
   alRecibirSerie(cb: (datos: Uint8Array) => void): Promise<Desuscribir>;
   alCerrarSerie(cb: (ruta: string) => void): Promise<Desuscribir>;
+
+  // CTL1119E: Clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
+  claveAparatoCrear(nombre: string, cuenta: string): Promise<Resultado<ClaveAparatoNativaEstado>>;
+  /** Firma datos con la clave nativa (entrada y salida en base64url). */
+  claveAparatoFirmar(datos_b64url: string): Promise<Resultado<string>>;
+  /** SPKI de la clave nativa en base64url. */
+  claveAparatoSpki(): Promise<Resultado<string>>;
+  /** Estado de la clave nativa. */
+  claveAparatoEstado(): Promise<Resultado<ClaveAparatoNativaEstado>>;
+  /** Olvida la clave nativa. */
+  claveAparatoOlvidar(): Promise<Resultado<null>>;
 }
 
 /** Convierte lo que llega de `nas_leer` / `starseed://serie` en bytes. */
@@ -151,6 +163,13 @@ export function crearPuente(tauri: TauriMinimo | null | undefined): PuenteNativo
         if (b && b.length) cb(b);
       }),
     alCerrarSerie: (cb) => escuchar(EVENTO_SERIE_CERRADA, (p) => cb(typeof p === "string" ? p : "")),
+
+    // CTL1119E: Clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
+    claveAparatoCrear: (nombre, cuenta) => llamar("clave_aparato_crear", { nombre, cuenta }),
+    claveAparatoFirmar: (datos_b64url) => llamar("clave_aparato_firmar", { datos_b64url }),
+    claveAparatoSpki: () => llamar("clave_aparato_spki"),
+    claveAparatoEstado: () => llamar("clave_aparato_estado"),
+    claveAparatoOlvidar: () => nulo(llamar("clave_aparato_olvidar")),
   };
 }
 

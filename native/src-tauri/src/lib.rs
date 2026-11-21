@@ -106,6 +106,8 @@ mod llamada_nativa_logica;
 mod malla_local;
 mod malla_local_trama;
 mod nativa;
+// (CTL1119E) Clave nativa del aparato (ECDSA P-256) para Linux/Windows cuando WebCrypto no está disponible.
+mod clave_aparato_nativa;
 // (VER1107B) «Esta neurona»: versión instalada, sistema, aparato y búsqueda de actualización sin instalar.
 mod neurona_info;
 // (NOT1108A) Origen estable del servidor local (puerto principal en disco) y rescate entre puertos.
@@ -977,6 +979,12 @@ pub fn run() {
                 ubicacion::ubicacion_vigilar,
                 ubicacion::ubicacion_parar,
                 ubicacion::ubicacion_ultima,
+                // CTL1119E: clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
+                clave_aparato_nativa::clave_aparato_crear,
+                clave_aparato_nativa::clave_aparato_firmar,
+                clave_aparato_nativa::clave_aparato_spki,
+                clave_aparato_nativa::clave_aparato_estado,
+                clave_aparato_nativa::clave_aparato_olvidar,
                 $($solo_desktop,)*
             ]);
         };
