@@ -804,6 +804,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         potenciar,
         creditoClaude,
         limitesClaude,
+        antigravity,
         publicacion,
     ] = await Promise.all([
         midiendo("progreso", leerEntradas()),
@@ -849,6 +850,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         leerPotenciar().catch(() => null),
         leerCreditoClaude().catch(() => null),
         leerLimitesClaude().catch(() => null),
+        midiendo("antigravity", leerAntigravity().catch(() => null)),
         leerDiario().catch(() => null),
     ]);
 
@@ -1042,6 +1044,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         memoria,
         creditoClaude,
         limitesClaude,
+        antigravity,
         proveedores,
         tokens,
         commitsSinPublicar,
@@ -1163,13 +1166,12 @@ export async function GET(peticion: Request): Promise<Response> {
         if (necesitaReunion) {
             await Promise.race([semillaMedidores, new Promise((r) => setTimeout(r, 800))]);
         }
-        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno, antigravity] = await Promise.all([
+        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno] = await Promise.all([
             claves.includes("imaginacion") ? leerImaginacion(ambito) : Promise.resolve(null),
             claves.includes("credito-claude") ? leerLimitesClaude().catch(() => null) : Promise.resolve(null),
             claves.includes("creditos") ? leerCreditosPago().catch(() => null) : Promise.resolve(null),
             claves.includes("versiones") ? leerLanzamientosEstado().catch(() => null) : Promise.resolve(null),
             necesitaReunion ? reunion.obtener() : Promise.resolve(null),
-            leerAntigravity(),
         ]);
         const base = turno?.datos ?? {};
         const datosDe = turno && turno.t > 0 ? new Date(turno.t).toISOString() : null;
@@ -1184,7 +1186,7 @@ export async function GET(peticion: Request): Promise<Response> {
                     lista: [],
                 };
         }
-        const detalles: Partial<Record<ClaveMedidor | "antigravity", DetalleMedidor>> = {};
+        const detalles: Partial<Record<ClaveMedidor, DetalleMedidor>> = {};
         for (const c of claves) {
             if (c === "imaginacion") detalles[c] = detalleDeMedidor(c, { imaginacion });
             else if (c === "credito-claude") detalles[c] = detalleDeMedidor(c, { limitesClaude });
@@ -1193,11 +1195,10 @@ export async function GET(peticion: Request): Promise<Response> {
             else if (c === "pruebas") detalles[c] = detalleDeMedidor(c, {});
             else detalles[c] = detalleDeMedidor(c, datos);
         }
-        detalles.antigravity = detalleAntigravity(antigravity);
         return Response.json(
             {
                 detalles,
-                antigravity,
+                antigravity: datos.antigravity ?? null,
                 enMarcha: datos.enMarcha ?? null,
                 generadoEn: new Date().toISOString(),
                 datosDe,
@@ -1251,8 +1252,8 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // La clave «antigravity» la declarará el pulso en la parte 2; aquí ya se sirve sola.
-    if ((clave as string) === "antigravity") {
+    // GEM1119D: la ventana desplegable de la pastilla pide esta clave sola.
+    if (clave === "antigravity") {
         const antigravity = await leerAntigravity();
         return Response.json(
             { detalle: detalleAntigravity(antigravity), antigravity, generadoEn: new Date().toISOString() },
