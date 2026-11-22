@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Pruebas de cartero_director.py: que_hacer (pura) y estado en disco."""
 
+import json
 import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -393,6 +395,158 @@ class TestHermesPausadoEnElCartero(unittest.TestCase):
         self.assertEqual([], self.respuestas())
         self.assertEqual("fallo", self.ultima_entrega(self.alex["id"]))
         self.mock.patch.stopall()
+
+
+class TestRecargaSinReiniciar(unittest.TestCase):
+    """ACC1121 · el cartero recarga su código como director-nube.py, sin reiniciar a mano."""
+
+    def test_codigo_cambiado_detecta_modificado_y_borrado(self):
+        antes = {"/a.py": (1, 10), "/b.py": (2, 20)}
+        self.assertEqual([], C.codigo_cambiado(antes, dict(antes)))
+        ahora = {"/a.py": (1, 10), "/b.py": (3, 20)}
+        self.assertEqual(["/b.py"], C.codigo_cambiado(antes, ahora))
+        self.assertEqual(["/a.py"], C.codigo_cambiado(antes, {"/b.py": (2, 20)}))
+        self.assertEqual([], C.codigo_cambiado({}, antes))
+
+    def test_huellas_del_puente_incluye_los_modulos_cargados(self):
+        huellas = C.huellas_del_puente()
+        nombres = {os.path.basename(r) for r in huellas}
+        self.assertIn("cartero_director.py", nombres)
+        self.assertIn("motores_director.py", nombres)
+
+    def test_no_recarga_con_una_entrega_en_vuelo(self):
+        self.assertTrue(C.debe_recargar(["/a.py"], en_vuelo=False))
+        self.assertFalse(C.debe_recargar(["/a.py"], en_vuelo=True))
+        self.assertFalse(C.debe_recargar([], en_vuelo=False))
+
+
+class TestContextoConHora(unittest.TestCase):
+    """ACC1121 · cada dato del contexto lleva hora y lo vivo se comprueba al momento."""
+
+    AHORA = 1_700_000_000.0
+
+    def test_titulo_con_hora_y_edad(self):
+        t = C.titulo_contexto("RELEVO", self.AHORA - 600, self.AHORA)
+        self.assertIn("RELEVO", t)
+        self.assertIn("hace 10 min", t)
+        self.assertNotIn("VIEJO", t)
+
+    def test_mas_de_30_min_se_marca_viejo(self):
+        t = C.titulo_contexto("RELEVO", self.AHORA - 31 * 60, self.AHORA)
+        self.assertIn("VIEJO", t)
+        self.assertIn("hace 31 min", t)
+
+    def test_lo_vivo_se_marca_ahora(self):
+        self.assertIn("ahora", C.titulo_contexto("SESIÓN", None, self.AHORA))
+
+    def test_contexto_lee_sesion_cola_y_capacidad_al_momento(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctx = C._contexto(
+                raiz=d,
+                ahora=self.AHORA,
+                estado={"presidente": {"cola": {
+                    "md-1": {"proximo": self.AHORA + 30, "detalle": "esperando proveedor"}}}},
+            )
+        self.assertIn("SESIÓN DE DIRECCIÓN · ahora", ctx)
+        self.assertIn("COLA DEL PRESIDENTE · ahora", ctx)
+        self.assertIn("md-1", ctx)
+        self.assertIn("CAPACIDAD · ahora", ctx)
+
+    def test_contexto_marca_viejo_un_archivo_de_mas_de_30_min(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = Path(d) / "starseed_memory_root" / "relevo" / "relevo.md"
+            ruta.parent.mkdir(parents=True)
+            ruta.write_text("el CLI sigue sin sesión", encoding="utf-8")
+            viejo = self.AHORA - 3600
+            os.utime(ruta, (viejo, viejo))
+            ctx = C._contexto(raiz=d, ahora=self.AHORA)
+        self.assertIn("RELEVO", ctx)
+        self.assertIn("VIEJO", ctx)
+        self.assertIn("el CLI sigue sin sesión", ctx)
+
+
+class TestMismosPermisosEnTodosLosMotores(unittest.TestCase):
+    """ACC1121 · la misma puerta MCP y la lista cerrada en Claude, Hermes, agy y Codex."""
+
+    def test_ficha_lista_la_puerta_y_la_lista_cerrada(self):
+        ficha = C.motores_director.ficha_permisos()
+        self.assertIn("starseed-director", ficha)
+        for nombre in ("director_leer", "director_decir", "produccion_pausar"):
+            self.assertIn(nombre, ficha)
+        self.assertIn("publicar-canal", ficha)
+        self.assertIn("produccion_reanudar", ficha)
+        self.assertIn("Vetado", ficha)
+
+    def test_hermes_lleva_la_ficha_en_el_prompt(self):
+        orden = C.motores_director.orden_hermes("hola", con_permisos=True)
+        prompt = orden[orden.index("-z") + 1]
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("publicar-canal", prompt)
+        self.assertIn("hola", prompt)
+
+    def test_hermes_sin_la_bandera_conserva_su_orden(self):
+        self.assertEqual(["hermes", "-z", "hola"], C.motores_director.orden_hermes("hola"))
+
+    def test_agy_lleva_la_ficha_en_el_prompt(self):
+        orden = C.motores_director.orden_agy("pregunta")
+        prompt = orden[orden.index("-p") + 1]
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("publicar-canal", prompt)
+        self.assertIn("pregunta", prompt)
+
+    def test_claude_carga_solo_el_mcp_de_direccion(self):
+        orden = C.motores_director.orden_claude("hola")
+        self.assertIn("--strict-mcp-config", orden)
+        cfg = json.loads(orden[orden.index("--mcp-config") + 1])
+        self.assertEqual(["starseed-director"], list(cfg["mcpServers"]))
+        self.assertTrue(
+            cfg["mcpServers"]["starseed-director"]["args"][0].endswith("mcp_director.py")
+        )
+
+    def test_prompt_con_permisos_no_se_duplica(self):
+        una = C.motores_director.prompt_con_permisos("hola")
+        dos = C.motores_director.prompt_con_permisos(una)
+        self.assertEqual(una, dos)
+        self.assertEqual(1, una.count("Permisos de la dirección"))
+
+
+class TestEntregasConLosMismosPermisos(unittest.TestCase):
+    """ACC1121 · el cartero pasa la ficha a Hermes y a Codex, no solo a Claude."""
+
+    def setUp(self):
+        from unittest import mock
+        self.mock = mock
+        self.p1 = mock.patch.object(C.director_chat, "publicar", return_value={})
+        self.p2 = mock.patch.object(C.director_chat, "entrega", return_value={})
+        self.p3 = mock.patch.object(C.director_chat, "leer", return_value=[])
+        for p in (self.p1, self.p2, self.p3):
+            p.start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_chatgpt_recibe_la_ficha_en_la_entrada(self):
+        with self.mock.patch.object(
+            C.motores_director, "correr", return_value=(0, "ok")
+        ) as correr:
+            C._entregar_chatgpt(_msg("md-1-aaaa", ["chatgpt"]), "codex/gpt-5-codex")
+        entrada = correr.call_args.kwargs.get("entrada")
+        self.assertIn("starseed-director", entrada)
+        self.assertIn("publicar-canal", entrada)
+
+    def test_hermes_del_cartero_lleva_la_ficha(self):
+        estado = {"hermes_pasarela_hasta": 0.0, "hermes_ultimo_turno": {},
+                  "hermes_pausas": {}, "hermes_descartes": {}}
+        with self.mock.patch.object(
+            C.motores_director, "direccion_motor",
+            return_value={"motor": "hermes", "sesion": None},
+        ), self.mock.patch.object(
+            C.motores_director, "correr", return_value=(0, "respuesta")
+        ) as correr:
+            C._entregar_hermes(_msg("md-3-cccc", ["hermes"]), "hermes/predeterminado",
+                               estado=estado)
+        orden = correr.call_args[0][0]
+        prompt = orden[orden.index("-z") + 1]
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("publicar-canal", prompt)
 
 
 if __name__ == "__main__":
