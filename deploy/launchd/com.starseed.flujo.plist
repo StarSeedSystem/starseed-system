@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//1.0" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.starseed.flujo</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/alex/Documents/starseed-wt/AUT1121B/scripts/puente/director_flujo.py</string>
+    <string>--aplicar</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-wt/AUT1121B</string>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>300</integer>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>/tmp/starseed-flujo.launchd.log</string>
+  <key>StandardErrorPath</key><string>/tmp/starseed-flujo.launchd.log</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict></plist>
