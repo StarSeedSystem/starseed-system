@@ -74,6 +74,15 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
         expect(de("control_pantalla_parar")).toHaveLength(0);
     });
 
+    it("lo GUARDADO también es la fuente real: leer-aparato no la rebautiza con la pedida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+        respuestas.control_estado_aparato = { brillo: 0.5, bateria: 0.8 };
+        await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
+        const estado = (await origen.ejecutar("leer-aparato", {}, ctx())) as Record<string, unknown>;
+        expect(estado.fuente).toBe("accesibilidad");
+        expect(estado.fuente).not.toBe("proyeccion");
+    });
+
     it("si el aparato no ofrece proyeccion, la sesión sigue con la fuente disponible", async () => {
         montar(async (cmd, args) => {
             llamadas.push({ cmd, args });
