@@ -3,12 +3,18 @@
 
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
-historial, vetar, pausar y reanudar, y cuatro herramientas sqlite de solo
-lectura (estado, tablas, esquema y consulta) sobre una base permitida.
+historial, vetar, pausar y reanudar, cuatro herramientas sqlite de solo
+lectura (estado, tablas, esquema y consulta) sobre una base permitida y tres
+herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta.
 
 La base sqlite se elige con `STARSEED_SQLITE_RUTA` (por defecto
 `~/.starseed/mcp-sqlite/starseed.db`) y se confina al repo, a ese directorio
 o al directorio de la ruta fijada. Las consultas son SELECT/WITH parametrizadas.
+
+La conexión postgres se toma de la primera variable definida entre
+`STARSEED_SUPABASE_DB_URL`, `SUPABASE_DB_URL`, `DATABASE_URL`, `POSTGRES_URL` o
+`POSTGRES_PRISMA_URL`; su valor nunca se escribe en el repo, se pasa por argv ni
+se devuelve en un mensaje. Las consultas son SELECT/CTE con tope de filas.
 
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
@@ -19,11 +25,14 @@ STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 
 import json
 import os
+import re
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -35,8 +44,8 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
-    "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada y "
-    "consulta bases sqlite locales en solo lectura."
+    "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada, "
+    "consulta bases sqlite locales y postgres remoto en solo lectura sin revelar credenciales."
 )
 
 _SQLITE_DIR = os.path.join(os.path.expanduser("~"), ".starseed", "mcp-sqlite")
@@ -71,6 +80,7 @@ _P_SQLITE_PARAMETROS = _s("array", "Parámetros de la consulta en orden; nunca i
 _P_SQLITE_LIMITE = _s(
     "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
 )
+_P_SQL = _s("string", "Una sola consulta SELECT/CTE de solo lectura (sin ';' ni comentarios).")
 
 
 def _esquema(propiedades, requeridos):
@@ -163,6 +173,9 @@ ESQUEMAS = {
         },
         ["sql"],
     ),
+    "postgres_estado": _esquema({}, []),
+    "postgres_probar": _esquema({}, []),
+    "postgres_consultar": _esquema({"sql": _P_SQL, "limite": _P_SQLITE_LIMITE}, ["sql"]),
 }
 
 _HERR = [
@@ -184,6 +197,9 @@ _HERR = [
     ("sqlite_tablas", "Lista las tablas de la base sqlite permitida."),
     ("sqlite_esquema", "Devuelve el CREATE TABLE de una tabla sqlite."),
     ("sqlite_consulta", "Ejecuta un SELECT o WITH parametrizado sobre sqlite (solo lectura)."),
+    ("postgres_estado", "Informa si hay conexión postgres configurada, sin revelar credenciales."),
+    ("postgres_probar", "Comprueba la conexión postgres con SELECT 1, en modo solo lectura."),
+    ("postgres_consultar", "Consulta postgres en solo lectura (SELECT/CTE), con límite de filas."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -300,6 +316,129 @@ def _sqlite(nombre, args):
             "truncada": len(filas) > limite,
         }
         return json.dumps(datos, ensure_ascii=False, indent=2, default=str)
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
+
+# --- Postgres de solo lectura para tareas (CAP1119) ---
+# Un solo sitio define la conexión: el NOMBRE de la variable de entorno. El valor
+# nunca se escribe en el repo, se pasa por argv ni se devuelve en un mensaje.
+
+VARIABLES_DB = ("STARSEED_SUPABASE_DB_URL", "SUPABASE_DB_URL", "DATABASE_URL",
+                "POSTGRES_URL", "POSTGRES_PRISMA_URL")
+_SQL_LECTURA = re.compile(r"^\s*(select|with)\b", re.I)
+_SQL_ESCRITURA = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|call|execute)\b", re.I
+)
+_SQL_LIMIT = re.compile(r"\blimit\b", re.I)
+
+
+def _variable_db(entorno=None):
+    """PURA: nombre de la primera variable de conexión definida, nunca su valor."""
+    fuente = os.environ if entorno is None else entorno
+    for nombre in VARIABLES_DB:
+        if (fuente.get(nombre) or "").strip():
+            return nombre
+    return None
+
+
+def _sin_secreto(texto, secretos):
+    """PURA: tacha la URL y su contraseña antes de devolver salida o error."""
+    valores = secretos if isinstance(secretos, tuple) else (secretos,)
+    for valor in valores:
+        if valor:
+            texto = texto.replace(valor, "***")
+    return texto
+
+
+def _entorno_psql(valor, base):
+    """PURA: reparte la URL entre variables libpq; jamás va en argv ni en un log."""
+    env = dict(base)
+    partes = urlsplit(valor)
+    if partes.scheme in ("postgres", "postgresql") and partes.hostname:
+        try:
+            puerto = partes.port or 5432
+        except ValueError:
+            puerto = 5432
+        host = partes.hostname
+        # urlsplit devuelve el host IPv6 sin corchetes; libpq los necesita.
+        if ":" in host and not host.startswith("["):
+            host = "[%s]" % host
+        env["PGHOST"] = unquote(host)
+        env["PGPORT"] = str(puerto)
+        env["PGUSER"] = unquote(partes.username or "")
+        env["PGPASSWORD"] = unquote(partes.password or "")
+        env["PGDATABASE"] = unquote(partes.path.lstrip("/")) or "postgres"
+        opciones = parse_qs(partes.query)
+        if opciones.get("sslmode"):
+            env["PGSSLMODE"] = opciones["sslmode"][0]
+        elif host not in ("localhost", "127.0.0.1", "::1", "[::1]"):
+            env["PGSSLMODE"] = "require"
+    else:
+        env["PGDATABASE"] = valor
+    env["PGOPTIONS"] = "-c default_transaction_read_only=on -c statement_timeout=8000"
+    env["PGCONNECT_TIMEOUT"] = "5"
+    return env
+
+
+def _validar_sql(sql, limite=50):
+    """PURA: exige una sola consulta SELECT/CTE, sin comentarios, con tope de filas."""
+    consulta = str(sql or "").strip().rstrip(";").strip()
+    if not consulta or ";" in consulta:
+        raise ValueError("una sola consulta SELECT/CTE, sin ';'")
+    if "--" in consulta or "/*" in consulta or "*/" in consulta:
+        raise ValueError("sin comentarios SQL: escribe la consulta completa")
+    if not _SQL_LECTURA.match(consulta) or _SQL_ESCRITURA.search(consulta):
+        raise ValueError("solo lectura: usa SELECT o WITH; están prohibidas las escrituras")
+    try:
+        tope = 50 if limite is None else int(limite)
+    except (TypeError, ValueError):
+        raise ValueError("limite debe ser un número entero (1-200)")
+    if not 1 <= tope <= 200:
+        raise ValueError("limite fuera de rango (1-200)")
+    if not _SQL_LIMIT.search(consulta):
+        consulta += " LIMIT %d" % tope
+    return consulta, tope
+
+
+def _ejecutar_psql(consulta, variable, entorno=None, ejecutar=None):
+    """Ejecuta la consulta con `psql`; la URL viaja por entorno y la sesión es read-only."""
+    base = os.environ if entorno is None else entorno
+    valor = (base.get(variable) or "").strip()
+    env = _entorno_psql(valor, base)
+    secretos = (valor, env.get("PGPASSWORD", ""))
+    orden = ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", consulta]
+    corr = ejecutar or subprocess.run
+    try:
+        hecho = corr(orden, capture_output=True, text=True, timeout=15, env=env)
+    except (OSError, subprocess.TimeoutExpired) as fallo:
+        raise ValueError("psql no disponible o sin respuesta: %s" % type(fallo).__name__)
+    if getattr(hecho, "returncode", 1) != 0:
+        error = (getattr(hecho, "stderr", "") or "error de psql").strip()
+        raise ValueError(_sin_secreto(error, secretos))
+    salida = (getattr(hecho, "stdout", "") or "").strip()
+    return _sin_secreto(salida, secretos) or "(sin filas)"
+
+
+def _postgres(nombre, args):
+    """Despacha las herramientas postgres; la URL nunca aparece en la respuesta."""
+    if nombre == "postgres_estado":
+        variable = _variable_db()
+        return json.dumps({
+            "configurado": bool(variable),
+            "variable": variable,
+            "modo": "solo-lectura",
+            "controlador": "psql",
+            "variables_aceptadas": list(VARIABLES_DB),
+        }, ensure_ascii=False, indent=2, sort_keys=True)
+    variable = _variable_db()
+    if not variable:
+        raise ValueError("sin conexión: define una de %s" % ", ".join(VARIABLES_DB))
+    if nombre == "postgres_probar":
+        return "Conexión OK con %s (solo lectura): %s" % (
+            variable, _ejecutar_psql("SELECT 1 AS ok", variable))
+    if nombre == "postgres_consultar":
+        consulta, _tope = _validar_sql(args.get("sql"), args.get("limite"))
+        return _ejecutar_psql(consulta, variable)
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
@@ -479,6 +618,8 @@ def _llamar(nombre, args):
         return _produccion(nombre, args)
     if nombre.startswith("sqlite_"):
         return _sqlite(nombre, args)
+    if nombre.startswith("postgres_"):
+        return _postgres(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
