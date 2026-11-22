@@ -49,6 +49,63 @@ def _respuesta_http(abrir: Callable[[], Any]) -> dict[str, Any]:
 
 CATALOGO_TTL_S = 30 * 60  # 30 minutos
 
+# ─────────────────────────────── Catálogo vivo OpenRouter ───────────────────────────────
+
+CATALOGO_OPENROUTER_TTL_S = 6 * 60 * 60  # 6 horas
+CATALOGO_OPENROUTER_DEF = SALUD_DEF / "catalogo_openrouter.json"
+
+def _catalogo_openrouter_valido(catalogo: dict[str, Any], ahora: datetime) -> bool:
+    ts = catalogo.get("timestamp")
+    if not ts:
+        return False
+    try:
+        entonces = datetime.fromisoformat(ts)
+        return (ahora - entonces).total_seconds() < CATALOGO_OPENROUTER_TTL_S
+    except Exception:
+        return False
+
+
+def obtener_catalogo_openrouter(
+    http_get: HttpGetFn,
+    ahora_fn: AhoraFn,
+    log_fn: LogFn | None = None,
+) -> list[str]:
+    """Obtiene modelos :free de OpenRouter (/api/v1/models). Cache 6h."""
+    ahora = ahora_fn()
+    catalogo = _leer_json(CATALOGO_OPENROUTER_DEF, {})
+    if _catalogo_openrouter_valido(catalogo, ahora):
+        modelos = catalogo.get("modelos", [])
+        if log_fn:
+            log_fn(f"Catálogo OpenRouter en caché: {len(modelos)} modelos")
+        return modelos
+
+    url = "https://openrouter.ai/api/v1/models"
+    try:
+        resp = http_get(url)
+        data = resp.get("data", [])
+        # Filtrar: solo modelos que terminan en :free y tienen contexto (aceptan chat)
+        modelos = [
+            m["id"] for m in data
+            if isinstance(m, dict) and m.get("id", "").endswith(":free")
+            and m.get("context_length", 0) > 0
+        ]
+        _escribir_atomico(CATALOGO_OPENROUTER_DEF, {
+            "timestamp": ahora.isoformat(),
+            "modelos": modelos,
+        })
+        if log_fn:
+            log_fn(f"Catálogo OpenRouter actualizado: {len(modelos)} modelos")
+        return modelos
+    except Exception as e:
+        if log_fn:
+            log_fn(f"Error obteniendo catálogo OpenRouter: {e}")
+        # Devolver caché aunque esté caducado
+        modelos = catalogo.get("modelos", [])
+        if log_fn:
+            log_fn(f"Usando catálogo caducado: {len(modelos)} modelos")
+        return modelos
+
+
 def _leer_json(ruta: Path, defecto: Any = None) -> Any:
     try:
         with open(ruta, encoding="utf-8") as f:
@@ -176,6 +233,101 @@ def modelo_con_cuota_agotada(modelo: str) -> bool:
     return fallos.get(modelo, 0) >= 2
 
 
+# ─────────────────────────────── Salud de rutas (penalización 3 fallos = 30 min) ───────────────────────────────
+
+SALUD_RUTAS_KEY = "rutas_llm"
+PENALIZACION_FALLOS = 3
+PENALIZACION_DURACION_S = 30 * 60  # 30 minutos
+
+
+def _leer_salud_rutas() -> dict[str, Any]:
+    estado = _leer_salud()
+    return estado.get(SALUD_RUTAS_KEY, {})
+
+
+def _guardar_salud_rutas(rutas: dict[str, Any]) -> None:
+    estado = _leer_salud()
+    estado[SALUD_RUTAS_KEY] = rutas
+    _guardar_salud(estado)
+
+
+def registrar_exito_ruta(ruta: str, ahora_fn: AhoraFn) -> None:
+    """Registra un éxito de ruta: limpia fallos y guarda timestamp."""
+    rutas = _leer_salud_rutas()
+    ruta_estado = rutas.get(ruta, {})
+    ruta_estado["fallos_consecutivos"] = 0
+    ruta_estado["ultimo_exito"] = ahora_fn().isoformat()
+    ruta_estado["penalizado_hasta"] = None
+    rutas[ruta] = ruta_estado
+    _guardar_salud_rutas(rutas)
+
+
+def registrar_fallo_ruta(ruta: str, ahora_fn: AhoraFn) -> int:
+    """Registra un fallo de ruta y devuelve fallos consecutivos."""
+    rutas = _leer_salud_rutas()
+    ruta_estado = rutas.get(ruta, {})
+    fallos = ruta_estado.get("fallos_consecutivos", 0) + 1
+    ruta_estado["fallos_consecutivos"] = fallos
+    ruta_estado["ultimo_fallo"] = ahora_fn().isoformat()
+    if fallos >= PENALIZACION_FALLOS:
+        from datetime import timedelta
+        ruta_estado["penalizado_hasta"] = (ahora_fn() + timedelta(seconds=PENALIZACION_DURACION_S)).isoformat()
+    rutas[ruta] = ruta_estado
+    _guardar_salud_rutas(rutas)
+    return fallos
+
+
+def ruta_saltada(ruta: str, ahora_fn: AhoraFn) -> bool:
+    """Verifica si una ruta está penalizada (3+ fallos, dentro de 30 min)."""
+    rutas = _leer_salud_rutas()
+    ruta_estado = rutas.get(ruta, {})
+    penalizado_hasta = ruta_estado.get("penalizado_hasta")
+    if not penalizado_hasta:
+        return False
+    try:
+        hasta = datetime.fromisoformat(penalizado_hasta)
+        return ahora_fn() < hasta
+    except Exception:
+        return False
+
+
+def obtener_orden_rutas_por_salud(ahora_fn: AhoraFn) -> list[str]:
+    """Devuelve rutas ordenadas por salud reciente: éxito reciente primero, penalizadas al final."""
+    rutas = _leer_salud_rutas()
+    ahora = ahora_fn()
+
+    # Calcular puntuación por ruta
+    puntuaciones = []
+    for ruta in [RUTA_FREELLM, RUTA_NIM, RUTA_OPENROUTER, RUTA_HERMES]:
+        ruta_estado = rutas.get(ruta, {})
+        if ruta_saltada(ruta, ahora_fn):
+            # Penalizadas: puntuación muy baja
+            puntuaciones.append((ruta, -1000))
+            continue
+
+        # Puntuación base por último éxito (más reciente = mayor)
+        puntuacion = 0
+        ultimo_exito = ruta_estado.get("ultimo_exito")
+        if ultimo_exito:
+            try:
+                entonces = datetime.fromisoformat(ultimo_exito)
+                minutos_pasados = (ahora - entonces).total_seconds() / 60
+                # Exponencial decay: 100 puntos hace 0 min, ~37 a los 30 min, ~14 a los 60 min
+                puntuacion = 100 * (0.5 ** (minutos_pasados / 30))
+            except Exception:
+                pass
+
+        # Penalizar por fallos recientes (incluso si no llegan a 3)
+        fallos = ruta_estado.get("fallos_consecutivos", 0)
+        puntuacion -= fallos * 10
+
+        puntuaciones.append((ruta, puntuacion))
+
+    # Ordenar por puntuación descendente
+    puntuaciones.sort(key=lambda x: x[1], reverse=True)
+    return [r for r, _ in puntuaciones]
+
+
 # ─────────────────────────────── Rutas de modelos ───────────────────────────────
 
 RUTA_FREELLM = "freellmapi"
@@ -252,17 +404,18 @@ def _llamar_openrouter_free(
     mensajes: list[dict[str, str]],
     max_tokens: int,
     http_post: HttpPostFn,
+    http_get: HttpGetFn,
+    ahora_fn: AhoraFn,
     leer_clave: LeerClaveFn,
     log_fn: LogFn | None = None,
 ) -> tuple[str, str]:
     clave = leer_clave("OPENROUTER_KEY") or leer_clave("OPENROUTER_API_KEY") or ""
-    # Solo modelos :free
-    modelos_free = [
-        "meta-llama/llama-3.1-8b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "google/gemma-2-9b-it:free",
-        "qwen/qwen-2.5-7b-instruct:free",
-    ]
+    # Obtener modelos :free del catálogo vivo
+    modelos_free = obtener_catalogo_openrouter(http_get, ahora_fn, log_fn)
+    if not modelos_free:
+        if log_fn:
+            log_fn("OpenRouter: no hay modelos :free disponibles")
+        return "", ""
     for modelo in modelos_free:
         cuerpo = json.dumps({
             "model": modelo,
@@ -335,13 +488,10 @@ def llm(
     log_fn: LogFn | None = None,
 ) -> tuple[str, str]:
     """
-    Enrutador de modelos con catálogo vivo y salud compartida.
+    Enrutador de modelos con catálogo vivo, salud de rutas y ordenación por salud reciente.
 
-    Orden de rutas:
-    1. FreeLLMAPI (catálogo vivo /v1/models cada 30 min, modelos con nombre)
-    2. NIM directo (minimax-m3.1-flash, nemotron-3.5-lightning, max_tokens alto)
-    3. OpenRouter :free
-    4. Hermes (pasarela Mac 127.0.0.1:3011) si está viva
+    Orden de rutas: decidido por salud reciente (éxito reciente primero), penalizadas al final.
+    Rutas: FreeLLMAPI, NIM, OpenRouter :free, Hermes.
 
     Nunca "auto" ni modelos Claude.
     Espera tras cada fallo, último éxito primero.
@@ -375,41 +525,51 @@ def llm(
 
     ahora = ahora_fn()
 
-    # 1. Obtener catálogo vivo FreeLLMAPI
+    # 1. Obtener catálogos vivos
     modelos_freellmapi = obtener_catalogo_freellmapi(http_get, ahora_fn, log_fn)
 
-    # 2. Construir lista ordenada de intentos: último éxito primero, luego catálogo, luego NIM, OpenRouter, Hermes
+    # 2. Obtener orden de rutas por salud reciente
+    orden_rutas = obtener_orden_rutas_por_salud(ahora_fn)
+
+    # 3. Construir lista ordenada de intentos según salud de rutas
     intentos: list[tuple[str, str, Callable]] = []  # (modelo, ruta, funcion_llamada)
 
-    # Último éxito primero
+    # Último éxito global primero (si su ruta no está penalizada)
     ultimo = obtener_ultimo_exito()
     if ultimo:
         modelo_ultimo = ultimo["modelo"]
         ruta_ultimo = ultimo["ruta"]
-        # Verificar que el modelo del último éxito sigue disponible en su ruta
-        if ruta_ultimo == RUTA_FREELLM and modelo_ultimo in modelos_freellmapi:
-            intentos.append((modelo_ultimo, RUTA_FREELLM, _llamar_freellmapi))
-        elif ruta_ultimo == RUTA_NIM and modelo_ultimo in MODELOS_NIM:
-            intentos.append((modelo_ultimo, RUTA_NIM, _llamar_nim))
+        if not ruta_saltada(ruta_ultimo, ahora_fn):
+            if ruta_ultimo == RUTA_FREELLM and modelo_ultimo in modelos_freellmapi:
+                intentos.append((modelo_ultimo, RUTA_FREELLM, _llamar_freellmapi))
+            elif ruta_ultimo == RUTA_NIM and modelo_ultimo in MODELOS_NIM:
+                intentos.append((modelo_ultimo, RUTA_NIM, _llamar_nim))
 
-    # Resto de modelos FreeLLMAPI (excluyendo el último éxito si ya está)
-    for modelo in modelos_freellmapi:
-        if not intentos or intentos[0][0] != modelo:
-            intentos.append((modelo, RUTA_FREELLM, _llamar_freellmapi))
-
-    # Modelos NIM
-    for modelo in MODELOS_NIM:
-        if not modelo_con_cuota_agotada(modelo):
-            intentos.append((modelo, RUTA_NIM, _llamar_nim))
-
-    # OpenRouter :free
-    intentos.append(("openrouter_free", RUTA_OPENROUTER, _llamar_openrouter_free))
-
-    # Hermes
-    intentos.append(("hermes", RUTA_HERMES, _llamar_hermes))
+    # Añadir modelos por cada ruta en orden de salud
+    for ruta in orden_rutas:
+        if ruta == RUTA_FREELLM:
+            for modelo in modelos_freellmapi:
+                if not intentos or intentos[0][0] != modelo:
+                    intentos.append((modelo, RUTA_FREELLM, _llamar_freellmapi))
+        elif ruta == RUTA_NIM:
+            for modelo in MODELOS_NIM:
+                if not modelo_con_cuota_agotada(modelo):
+                    intentos.append((modelo, RUTA_NIM, _llamar_nim))
+        elif ruta == RUTA_OPENROUTER:
+            # OpenRouter usa catálogo vivo, se pasa http_get y ahora_fn
+            intentos.append(("openrouter_free", RUTA_OPENROUTER,
+                           lambda m, msgs, mt, hp, lc, lg, hg=http_get, af=ahora_fn: _llamar_openrouter_free(msgs, mt, hp, hg, af, lc, lg)))
+        elif ruta == RUTA_HERMES:
+            intentos.append(("hermes", RUTA_HERMES, _llamar_hermes))
 
     # Ejecutar intentos en orden
     for modelo, ruta, llamar in intentos:
+        # Saltar si la ruta está penalizada
+        if ruta_saltada(ruta, ahora_fn):
+            if log_fn:
+                log_fn(f"Saltando ruta {ruta}: penalizada 30 min")
+            continue
+
         # Saltar si el modelo tiene cuota agotada (2+ fallos consecutivos)
         if modelo_con_cuota_agotada(modelo):
             if log_fn:
@@ -425,7 +585,7 @@ def llm(
             elif ruta == RUTA_NIM:
                 texto, usado = llamar(modelo, mensajes, max_tokens, http_post, leer_clave, log_fn)
             elif ruta == RUTA_OPENROUTER:
-                texto, usado = llamar(mensajes, max_tokens, http_post, leer_clave, log_fn)
+                texto, usado = llamar(mensajes, max_tokens, http_post, http_get, ahora_fn, leer_clave, log_fn)
             else:  # HERMES
                 texto, usado = llamar(mensajes, max_tokens, http_post, log_fn)
         except Exception as e:
@@ -435,12 +595,14 @@ def llm(
 
         if texto.strip():
             registrar_exito(modelo, ruta, ahora_fn)
+            registrar_exito_ruta(ruta, ahora_fn)
             if log_fn:
                 log_fn(f"Éxito con {usado} vía {ruta}")
             return texto, usado
 
-        # Fallo: registrar y esperar
+        # Fallo: registrar a nivel modelo y ruta, y esperar
         registrar_fallo(modelo, ruta, ahora_fn)
+        registrar_fallo_ruta(ruta, ahora_fn)
         if log_fn:
             log_fn(f"Fallo {modelo} ({ruta}), esperando {ESPERA_DESPUES_FALLO_S}s...")
         time.sleep(ESPERA_DESPUES_FALLO_S)
@@ -510,6 +672,65 @@ def llm_con_fallback(
 
 # ─────────────────────────────── CLI para pruebas ───────────────────────────────
 
+def _mostrar_rutas_vivas(log_fn: LogFn | None = None) -> None:
+    """Muestra las rutas vivas y su estado para /estado."""
+    from datetime import datetime, timedelta
+    ahora = datetime.now()
+    rutas = _leer_salud_rutas()
+    orden = obtener_orden_rutas_por_salud(lambda: ahora)
+
+    print("Rutas vivas (ordenadas por salud reciente):")
+    for i, ruta in enumerate(orden, 1):
+        ruta_estado = rutas.get(ruta, {})
+        penalizada = ruta_saltada(ruta, lambda: ahora)
+        fallos = ruta_estado.get("fallos_consecutivos", 0)
+        ultimo_exito = ruta_estado.get("ultimo_exito")
+        penalizado_hasta = ruta_estado.get("penalizado_hasta")
+
+        estado_str = "PENALIZADA" if penalizada else "OK"
+        if penalizada and penalizado_hasta:
+            try:
+                hasta = datetime.fromisoformat(penalizado_hasta)
+                restante = max(0, int((hasta - ahora).total_seconds() / 60))
+                estado_str += f" ({restante} min)"
+            except Exception:
+                pass
+
+        exito_str = ""
+        if ultimo_exito:
+            try:
+                entonces = datetime.fromisoformat(ultimo_exito)
+                mins = int((ahora - entonces).total_seconds() / 60)
+                exito_str = f" · último éxito: hace {mins} min"
+            except Exception:
+                exito_str = f" · último éxito: {ultimo_exito}"
+
+        print(f"  {i}. {ruta}: {estado_str} (fallos: {fallos}){exito_str}")
+
+    # Mostrar catálogos
+    catalogo_fl = _leer_json(CATALOGO_DEF, {})
+    modelos_fl = catalogo_fl.get("modelos", [])
+    ts_fl = catalogo_fl.get("timestamp")
+    if ts_fl:
+        try:
+            entonces = datetime.fromisoformat(ts_fl)
+            mins = int((ahora - entonces).total_seconds() / 60)
+            print(f"\nFreeLLMAPI: {len(modelos_fl)} modelos (caché hace {mins} min)")
+        except Exception:
+            print(f"\nFreeLLMAPI: {len(modelos_fl)} modelos")
+
+    catalogo_or = _leer_json(CATALOGO_OPENROUTER_DEF, {})
+    modelos_or = catalogo_or.get("modelos", [])
+    ts_or = catalogo_or.get("timestamp")
+    if ts_or:
+        try:
+            entonces = datetime.fromisoformat(ts_or)
+            mins = int((ahora - entonces).total_seconds() / 60)
+            print(f"OpenRouter: {len(modelos_or)} modelos :free (caché hace {mins} min)")
+        except Exception:
+            print(f"OpenRouter: {len(modelos_or)} modelos :free")
+
+
 def main(argv: list[str] | None = None) -> int:
     import sys
     argv = list(argv) if argv is not None else sys.argv[1:]
@@ -517,7 +738,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Uso: python3 peticiones_llm.py <comando> [args]")
         print("Comandos:")
         print("  catalogo           Muestra catálogo FreeLLMAPI actual")
+        print("  catalogo-or        Muestra catálogo OpenRouter :free actual")
         print("  salud              Muestra salud de modelos")
+        print("  rutas              Muestra rutas vivas y su estado (para /estado)")
         print("  probar <mensaje>   Prueba el enrutador con un mensaje")
         return 0
 
@@ -532,10 +755,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {m}")
         return 0
 
+    if cmd == "catalogo-or":
+        def http_get(url: str) -> dict[str, Any]:
+            return _respuesta_http(lambda: urllib.request.urlopen(url, timeout=30))
+        modelos = obtener_catalogo_openrouter(http_get, datetime.now, print)
+        print(f"Modelos OpenRouter :free ({len(modelos)}):")
+        for m in modelos:
+            print(f"  - {m}")
+        return 0
+
     if cmd == "salud":
         estado = _leer_salud()
         salud = estado.get(SALUD_KEY, {})
         print(json.dumps(salud, ensure_ascii=False, indent=1))
+        return 0
+
+    if cmd == "rutas":
+        _mostrar_rutas_vivas(print)
         return 0
 
     if cmd == "probar":
