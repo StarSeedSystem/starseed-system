@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "MGP1122-469CC1",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: CI en rojo",
+   "archivos": [
+    "src/lib/nativa/__tests__/contrato-rust.test.ts"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "sha_rojo": "354aa0db2507",
+   "prompt": "NOTA DE METAGENESIS (2026-11-22 07:02): la autopublicación lleva más de 60 min frenada en 354aa0db por «CI en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\nna\",\n    \"llamada_nativa_capacidades\",\n    \"llamada_nativa_estado\",\n    \"llamada_nativa_ignorar\",\n    \"llamada_nativa_iniciar\",\n    \"llamada_nativa_permiso\",\n    \"llamada_nativa_proximidad\",\n    \"llamada_nativa_recientes\",\n    \"llamada_nativa_ruta_audio\",\n    \"llamada_silencios_sincronizar\",\n    \"llamada_timbre_firmar\",\n    \"malla_local_enviar\",\n    \"malla_local_estado\",\n    \"malla_local_recibidos\",\n    \"medios_abrir_ajustes\",\n    \"medios_estado\",\n    \"migracion_origen_confirmar\",\n    \"migracion_origen_datos\",\n    \"migracion_origen_estado\",\n    \"migracion_origen_exportar\",\n    \"nas_leer\",\n    \"nas_listar\",\n    \"ollama_instalador_abrir\",\n    \"ollama_instalador_cancelar\",\n    \"ollama_instalador_descargar\",\n    \"origen_local_estado\",\n    \"permisos_inicio_estado\",\n    \"permisos_inicio_pedir\",\n    \"permisos_sistema_abrir\",\n    \"permisos_sistema_estado\",\n    \"permisos_sistema_pedir\",\n    \"pista_neurona\",\n    \"pista_neurona_leer\",\n    \"prestamo_ventana_estado\",\n    \"prestamo_ventana_iniciar\",\n    \"prestamo_ventana_parar\",\n    \"puerta_proxy_estado\",\n    \"puerta_proxy_local\",\n    \"recursos_ia_detectar\",\n    \"reiniciar_para_actualizar\",\n    \"rescate_origen_confirmar\",\n    \"rescate_origen_datos\",\n    \"rescate_origen_estado\",\n    \"rescate_origen_exportar\",\n    \"run_terminal\",\n    \"serie_abrir\",\n    \"serie_cerrar\",\n    \"serie_escribir\",\n    \"serie_puertos\",\n    \"servidor_local_actualizar\",\n    \"servidor_local_buscar\",\n    \"servidor_local_estado\",\n    \"ubicacion_ahora\",\n    \"ubicacion_estado\",\n    \"ubicacion_parar\",\n    \"ubicacion_ultima\",\n    \"ubicacion_vigilar\",\n    \"ventana_pantalla_completa\",\n    \"ventanas_prestables\",\n    \"webrtc_linux_estado\",\n  ]\n\n ❯ src/lib/nativa/__tests__/contrato-rust.test.ts:68:36\n\n\n2026-11-22T12:01:42.1516220Z ##[error]Process completed with exit code 1.\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `npx vitest run src/lib/nativa/__tests__/contrato-rust.test.ts`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "MGP1122-469CC1"
+  ]
+ }
+}
