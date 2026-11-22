@@ -172,10 +172,11 @@ SONDA = (
     "uname -m; "
     "if command -v agy >/dev/null 2>&1; then echo AGY=si; "
     "agy --version 2>/dev/null | head -1 | sed 's/^/VERSION=/'; else echo AGY=no; fi; "
-    "if find \"$HOME/.config/agy\" \"$HOME/.config/Antigravity\" \"$HOME/.local/share/agy\" "
-    "\"$HOME/.antigravity\" -maxdepth 3 -type f \\( -iname '*cred*' -o -iname '*token*' "
-    "-o -iname '*auth*' -o -iname '*session*' -o -iname '*oauth*' \\) 2>/dev/null "
-    "| head -1 | grep -q .; then echo SESION=si; else echo SESION=no; fi; "
+    # DIR1121G (2026-11-21, medido): la sesión se comprueba USANDO agy (¿lista modelos?), no buscando archivos con nombre
+    # de credencial: en macOS la sesión vive en el llavero y la búsqueda decía «sin sesión» con la sesión activa.
+    "if perl -e 'alarm 60; exec @ARGV' agy models </dev/null 2>/dev/null "
+    "| grep -Eq '^[a-z0-9][a-z0-9.-]*-(low|medium|high|xhigh)([[:space:]]|$)'; "
+    "then echo SESION=si; else echo SESION=no; fi; "
     "if agy remote-control --help >/dev/null 2>&1; then echo REMOTE=si; else echo REMOTE=no; fi"
 )
 
