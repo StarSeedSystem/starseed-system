@@ -822,16 +822,14 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
                     es_arquitectura=es_arq, es_diseño=es_disp)
 
                 if motor is None:
-                    # Todos los motores agotados: pregunta a Alex con resumen de opciones.
+                    # Tercera vez: escalar a Codex (pedir_a_alex).
                     acciones.append(_accion(
                         tid, "pedir_a_alex",
-                        "rechazo mecánico de las puertas (%dª vez): todos los motores agotados" % (cuenta + 1),
+                        "rechazo mecánico de las puertas (%dª vez): se escala a Codex" % (cuenta + 1),
                         "tarea:alcance",
-                        pregunta="%s lleva %d reescrituras por rechazo mecánico y todos los motores están agotados. Opciones: "
-                                 "1) Intentar con un modelo gratuito alternativo (si consigue cupo). "
-                                 "2) Esperar a que se libere cupo en agy o Claude. "
-                                 "3) DescARTAR con la rama guardada." % (tid, cuenta),
-                        opciones=["rehacer", "descartar"]))
+                        pregunta="%s lleva %d reescrituras por rechazo mecánico y sigue sin salir. ¿La escalamos a Codex?"
+                        % (tid, cuenta),
+                        opciones=["escalar_a_codex", "descartar"]))
                 else:
                     # Pasar la tarea al siguiente motor con contexto.
                     acciones.append(_accion(

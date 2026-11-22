@@ -29,6 +29,7 @@ DEFAULT_TIende_DIARIO = {
     "claude_mac_opus": 1,
     "claude_mac_sonnet": 5,
     "codex": 0.2,
+    "a1": 1,
 }
 
 
@@ -210,13 +211,12 @@ def siguiente_motor(
     if not disponibilidad:
         disponibilidad = {}
 
-    if not presupuesto:
-        presupuesto = {}
-
-    escalera = escalera_motores(tarea, es_arquitectura, es_diseño)
+    if disponibilidad == {}:
+        return None
 
     hoy = presupuesto.get("fecha", time.strftime("%Y-%m-%d"))
-    if presupuesto.get("fecha") != hoy:
+
+    if not presupuesto:
         presupuesto = {
             "fecha": hoy,
             "agy_mecanicos": 0,
@@ -224,7 +224,10 @@ def siguiente_motor(
             "claude_mac_opus": 0,
             "claude_mac_sonnet": 0,
             "codex": 0.0,
+            "a1": 0,
         }
+
+    escalera = escalera_motores(tarea, es_arquitectura, es_diseño)
 
     modelo_actual = (tarea.get("modelo") or "").lower()
     salud = disponibilidad.get("salud_proveedores", {})
@@ -333,6 +336,11 @@ def siguiente_motor(
             }
 
         elif tipo == "a1":
+            tope_a1 = peldaño.get("tope_diario", 1)
+            usados_a1 = presupuesto.get("a1", 0)
+            if usados_a1 >= tope_a1:
+                return None  # A1 also exhausted: all motors drained
+            presupuesto["a1"] = usados_a1 + 1
             return {
                 "tipo": "a1",
                 "modelo": None,
