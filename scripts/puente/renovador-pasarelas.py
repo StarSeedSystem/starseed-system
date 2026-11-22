@@ -218,20 +218,24 @@ def _sondear_local(nombre, modelo, segundos):
     import time as _time
 
     if nombre == "antigravity":
-        # antigravity usa CLI agy; estado viene de medios_disponibles.clasificar_agy
-        # Aquí solo verificamos que el binario existe
+        # DIR1121I (2026-11-22, medido): desde el 21-11 12:22 esta sonda contestaba «UnboundLocalError: cannot access
+        # local variable 'os'» (26 pruebas seguidas): nunca ejecutó agy, y «te toca a ti» pedía «Antigravity: mira su
+        # panel» con agy sano (23 modelos en 3 s). Además la ruta de reserva era la de un Linux (/home/alex) y cualquier
+        # salida —también «Fetching available models...» sin sesión— contaba como viva.
         try:
+            import re as _re
             import shutil
-            binario = shutil.which("agy") or "/home/alex/.local/bin/agy"
+            binario = shutil.which("agy") or os.path.expanduser("~/.local/bin/agy")
             if not os.path.exists(binario):
                 return 404, "agy no encontrado", False
-            # Ejecutar agy models para ver si responde
-            resultado = subprocess.run(
-                ["agy", "models"], capture_output=True, text=True, timeout=segundos, stdin=subprocess.DEVNULL
-            )
-            if resultado.returncode == 0 and resultado.stdout.strip():
-                return 200, "agy responde", True
-            return 503, "agy sin modelos", False
+            resultado = subprocess.run([binario, "models"], capture_output=True, text=True,
+                                       timeout=max(int(segundos or 0), 60), stdin=subprocess.DEVNULL)
+            lista = _re.findall(r"(?m)^[a-z0-9][a-z0-9.\-]*-(?:low|medium|high|xhigh)(?=\s|$)", resultado.stdout or "")
+            if resultado.returncode == 0 and lista:
+                return 200, "agy responde y lista modelos", True
+            if resultado.returncode == 0:
+                return 401, "agy sin sesión: no lista modelos (la sesión de Google la inicia Alex con agy)", False
+            return 503, "agy falló al listar modelos (rc=%s)" % resultado.returncode, False
         except subprocess.TimeoutExpired:
             return 0, "TimeoutError: timed out", False
         except Exception as e:
@@ -266,7 +270,8 @@ def _sondear_local(nombre, modelo, segundos):
         # OpenCode Zen: modelos gratuitos sin clave, siempre disponibles si opencode está configurado
         # Verificar que opencode.json tiene los modelos zen
         try:
-            import os
+            # DIR1121I: aquí se volvía a importar `os` DENTRO de la función; eso lo hacía variable local de toda
+            # ella y la rama de antigravity, que lo usa antes, reventaba con UnboundLocalError. Basta el del módulo.
             config_path = os.path.expanduser("~/.config/opencode/opencode.json")
             if os.path.exists(config_path):
                 with open(config_path, encoding="utf-8") as f:
@@ -296,7 +301,8 @@ def pasada(segundos=25):
             "clave": nombre,
             "modelo": modelo,
             "variable": var,                       # el NOMBRE, nunca el valor
-            "tiene_clave": bool(entorno.get(var)),
+            # DIR1121I: una pasarela SIN variable de clave (Ollama, agy, codex…) no «carece de clave»: no la usa.
+            "tiene_clave": True if var is None else bool(entorno.get(var)),
             "http": http,
             "estado": P.clasificar(http, cuerpo, tokens, _consejero_jev()),
             "segundos": round(time.time() - t0, 1),

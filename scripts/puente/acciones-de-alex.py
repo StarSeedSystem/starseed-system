@@ -726,7 +726,10 @@ def resondear(clave, segundos=20):
     _nombre, url, variable, modelo = sonda
     entorno = renovador.entorno_con_claves()
     t0 = _t.time()
-    http, cuerpo, tokens = renovador.sondear(url, entorno.get(variable) if variable else None, modelo, segundos)
+    # DIR1121I: con el NOMBRE. Sin él, «Ya lo hice» medía Experiential Labs con un chat (400 → «caída») y ninguna
+    # pasarela local (agy, Ollama del A1, codex) se podía volver a medir: «sigue pendiente» para siempre.
+    http, cuerpo, tokens = renovador.sondear(url, entorno.get(variable) if variable else None, modelo, segundos,
+                                             nombre=clave)
     medida = {
         "modelo": modelo,
         "variable": variable,

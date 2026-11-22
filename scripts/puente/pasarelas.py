@@ -277,12 +277,30 @@ def hay_que_renovar(estado):
     return estado in (SIN_CLAVE, FICHAJE)
 
 
-def accion_de(clave, estado):
+#: (DIR1121I, medido el 2026-11-22) Frases con las que una pasarela dice «paga para seguir». Con ellas el estado sigue
+#: siendo «sin cupo» (fuera de la rotación), pero NO es verdad que «se repone sola»: apinex («Make a single top-up of
+#: $5 or more…»), AIHubMix («Please recharge your account»), DeepSeek («Insufficient Balance»), Hugging Face
+#: («Purchase pre-paid credits») y xAI («used all available credits») llevaban días anunciándose así.
+PISTAS_RECARGA = ("top-up", "top up", "topup", "recharge", "insufficient balance", "balance is insufficient",
+                  "pre-paid credits", "purchase credits", "buy credits", "add credits", "used all available credits")
+
+
+def pide_recarga(mensaje):
+    """PURA. ¿El «sin cupo» de esta pasarela es en realidad un «recarga saldo para seguir»?"""
+    texto = str(mensaje or "").lower()
+    return any(p in texto for p in PISTAS_RECARGA)
+
+
+def accion_de(clave, estado, mensaje=""):
     """Qué hacer con esta pasarela, en una frase, con enlace si toca."""
     ficha = CATALOGO.get(clave, {"nombre": clave, "enlace": "", "nota": ""})
     if estado == ESCRIBE:
         return {"texto": "escribe: déjala en la rotación", "enlace": "", "humano": False}
     if estado == SIN_CUPO:
+        if pide_recarga(mensaje):
+            return {"texto": "sin saldo: su API pide una recarga de pago y NO se repone sola. Fuera de la rotación "
+                             "hasta que Alex decida recargarla o retirarla",
+                    "enlace": ficha["enlace"], "humano": False}
         return {"texto": "sin cupo hoy: se repone sola, apártala hasta mañana",
                 "enlace": ficha["enlace"], "humano": False}
     if estado == FICHAJE:
@@ -318,7 +336,7 @@ def informe(resultados):
              SIN_CANAL: 5, MODELO_FUERA: 6, SIN_CLAVE: 7, CAIDA: 8}
     for r in sorted(resultados, key=lambda x: orden.get(x.get("estado"), 9)):
         ficha = CATALOGO.get(r.get("clave"), {})
-        a = accion_de(r.get("clave"), r.get("estado"))
+        a = accion_de(r.get("clave"), r.get("estado"), r.get("mensaje") or "")
         marca = "OK " if r.get("estado") == ESCRIBE else "— "
         lineas.append("%s*%s* (%s): %s" % (marca, ficha.get("nombre", r.get("clave")),
                                            r.get("modelo", "?"), a["texto"]))
