@@ -106,6 +106,9 @@ class PruebasAtender(unittest.TestCase):
                 "produccion_vetar",
                 "produccion_pausar",
                 "produccion_reanudar",
+                "canal_leer",
+                "canal_decir",
+                "metagenesis_estado",
             ],
         )
 

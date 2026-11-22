@@ -107,6 +107,14 @@ ESQUEMAS = {
     "produccion_reanudar": _esquema(
         {"quien": _P_QUIEN, "motivo": _P_MOTIVO}, ["quien", "motivo"]
     ),
+    "canal_leer": _esquema(
+        {"canal": _s("string", "Canal a leer (principal, general, audiovisual).", enum=["principal", "general", "audiovisual"]), "limite": _P_LIMITE},
+        ["canal"],
+    ),
+    "canal_decir": _esquema(
+        {"canal": _s("string", "Canal donde publicar (principal, general, audiovisual).", enum=["principal", "general", "audiovisual"]), "texto": _P_TEXTO, "de": _P_DE}, ["canal", "texto", "de"]
+    ),
+    "metagenesis_estado": _esquema({}, []),
 }
 
 _HERR = [
@@ -118,8 +126,11 @@ _HERR = [
     ("produccion_candidatos", "Candidatas a publicar y su elegibilidad (puerta 1)."),
     ("produccion_historial", "Últimas entradas del historial de producción."),
     ("produccion_vetar", "Veta un sha o una tarea con motivo."),
-    ("produccion_pausar", "Pausa la publicación (las puertas siguen corriendo)."),
+    ("produccion_pausar", "Pausa la producción (las puertas siguen corriendo)."),
     ("produccion_reanudar", "Quita la pausa de producción."),
+    ("canal_leer", "Lee los últimos mensajes de un canal especializado (principal, general, audiovisual)."),
+    ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
+    ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -351,6 +362,94 @@ def _llamar(nombre, args):
         )
         director_chat.entrega(args["id"], canal, "respondido")
         return "Respondido a %s como %s" % (args["id"], m["id"])
+    if nombre == "canal_leer":
+        canal = args["canal"]
+        if canal not in ("principal", "general", "audiovisual"):
+            raise ValueError("canal no válido: %s" % canal)
+        limite = args.get("limite")
+        limite = 20 if limite is None else int(limite)
+        if not 1 <= limite <= 200:
+            raise ValueError("limite fuera de rango (1-200): %d" % limite)
+        from scripts.puente.sincronizador_direccion import _leer_jsonl_canal
+        if canal == "principal":
+            registros = director_chat.leer(desde=args.get("desde"), limite=limite)
+        elif canal == "general":
+            import pathlib
+            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("general")))
+        else:
+            import pathlib
+            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("audiovisual")))
+        return _listar(registros, "Todavía no hay mensajes.")
+    if nombre == "canal_decir":
+        canal = args["canal"]
+        if canal not in ("principal", "general", "audiovisual"):
+            raise ValueError("canal no válido: %s" % canal)
+        from scripts.puente.sincronizador_direccion import publicar_en_canal_especializado
+        texto = args["texto"]
+        de = args["de"]
+        reg = publicar_en_canal_especializado(canal, texto, de=de)
+        if reg.get("ok"):
+            return "Publicado en %s: %s" % (canal, reg.get("id"))
+        return "Error al publicar en %s: %s" % (canal, reg.get("detalle"))
+    if nombre == "metagenesis_estado":
+        import json
+        from datetime import datetime, timezone, timedelta
+        ahora = datetime.now(timezone.utc)
+        hace_dos_min = ahora - timedelta(minutes=2)
+        # Estado de producción
+        try:
+            with open(_ruta_estado(), encoding="utf-8") as f:
+                prod_estado = json.load(f)
+        except Exception:
+            prod_estado = _ESTADO_VACIO
+        # Verificar frescura
+        try:
+            fecha_estado = datetime.fromisoformat(prod_estado.get("cuando", "") or "")
+            if fecha_estado < hace_dos_min:
+                pass  # Usamos lo que haya
+        except Exception:
+            pass
+        # Candidatos elegibles
+        try:
+            vetos = pc.cargar_vetos(_ruta_vetos())
+            candidatas = _candidatas()
+            elegibles = sum(1 for c in candidatas if pc.elegible(c, vetos=vetos)[0])
+        except Exception:
+            elegibles = 0
+        # Sesiones de motores (intentamos varias fuentes)
+        sesiones = 0
+        try:
+            from scripts.puente import director_presidente
+            if hasattr(director_presidente, 'listar_sesiones'):
+                sesiones = len(director_presidente.listar_sesiones())
+        except Exception:
+            pass
+        # Capacidad libre (usando available memory approx)
+        try:
+            import os
+            memoria_total = os.sysconf("SC_AVPHYSICALPAGES") * os.sysconf("SC_PAGESIZE") / (1024 * 1024) if hasattr(os, "sysconf") else 0
+            memoria_libre = os.sysinfo()[1] / (1024 * 1024) if hasattr(os, "sysinfo") else 0
+            capacidad = {
+                "Memoria total (MB)": round(memoria_total, 1),
+                "Memoria libre (MB)": round(memoria_libre, 1),
+            }
+        except Exception:
+            capacidad = {}
+        # Última publicación CI
+        try:
+            ultimo_ci = prod_estado.get("lote", {}).get("sha", "")[:8] if prod_estado.get("lote") else ""
+        except Exception:
+            ultimo_ci = ""
+        # Construir respuesta
+        resultado = {
+            "cuando": ahora.isoformat(),
+            "produccion": prod_estado,
+            "elegibles": elegibles,
+            "sesiones": sesiones,
+            "capacidad": capacidad,
+            "ultimo_ci": ultimo_ci,
+        }
+        return json.dumps(resultado, ensure_ascii=False, indent=2, sort_keys=True)
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
