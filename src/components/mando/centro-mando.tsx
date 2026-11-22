@@ -26,6 +26,7 @@ import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
 import type { RespuestaPruebas } from "@/lib/mando/lanzamientos-pruebas-tipos"; // PRB1111V
 import { detalleDePastilla, tonoDePruebas, versionEnFoco } from "@/lib/mando/pruebas-vivas"; // PRB1111V
 import { flotaConocida } from "@/lib/mando/flota";
+import { NOMBRES_CANALES_POR_DEFECTO } from "@/lib/mando/canales-nombres";
 import "@/components/mando/mando-cristal.css";
 // (2026-10-29 · UIG1029D) Ventanas plegables: cada panel de cada pestaña se pliega
 // (SeccionPlegable) y la barra de pestañas manda «Plegar todo / Desplegar todo».
@@ -92,7 +93,7 @@ const ChatDirector = dynamic(
 );
 const PanelChatEspecializado = dynamic(
     () => import("@/components/mando/panel-chat-especializado").then((m) => m.PanelChatEspecializado),
-    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando producción audiovisual y diseño…</p> },
+    { ssr: false, loading: () => <p className="text-xs text-white/40">Cargando {NOMBRES_CANALES_POR_DEFECTO.audiovisual}…</p> },
 );
 const OficinaMando = dynamic(
     () => import("@/components/mando/oficina-mando").then((m) => m.OficinaMando),
@@ -341,7 +342,7 @@ const PESTANAS = [
     { id: "novedades-modelos", etiqueta: "Novedades de modelos", grupo: "Medios" },
     { id: "neurona", etiqueta: "Neurona", grupo: "Medios" },
     { id: "servidor", etiqueta: "Servidor 1.58", grupo: "Medios" },
-    { id: "produccion-audiovisual", etiqueta: "Producción audiovisual y diseño", grupo: "Medios" },
+    { id: "produccion-audiovisual", etiqueta: NOMBRES_CANALES_POR_DEFECTO.audiovisual, grupo: "Medios" },
     { id: "voces", etiqueta: "Voces", grupo: "Medios" },
     { id: "aprendizaje", etiqueta: "Aprendizaje", grupo: "Medios" },
     // Cómo piensan y qué saben los agentes.
@@ -2261,7 +2262,7 @@ export function CentroMando() {
                     <VentanaPestana
                         pestana="produccion-audiovisual"
                         panel="produccion-audiovisual"
-                        titulo="Producción audiovisual, diseño y promoción"
+                        titulo={NOMBRES_CANALES_POR_DEFECTO.audiovisual}
                     >
                         {pestana === "produccion-audiovisual" ? (
                             <PanelChatEspecializado canal="audiovisual" modo="completo" />
