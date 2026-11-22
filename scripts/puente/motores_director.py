@@ -125,6 +125,33 @@ def permisos_del_presidente() -> tuple:
     return permitidas, vetadas
 
 
+def ficha_permisos_direccion() -> str:
+    """PURA. Ficha de permisos unificada para TODOS los motores de la dirección (Claude, Hermes, Antigravity, Codex).
+    
+    Incluye: puerta MCP starseed-director (herramientas), lista cerrada de órdenes MetaGenesis,
+    y lo que queda reservado. Igual para los 3 canales: Principal, General, Audiovisual.
+    """
+    lineas = [
+        "FICHA DE PERMISOS DE LA DIRECCIÓN (MetaGenesis) — igual para todos los motores y canales",
+        "",
+        "✅ PUERTA MCP: starseed-director (10 herramientas)",
+        *[f"  • {n}" for n in MCP_DIRECTOR_PERMITIDAS],
+        "",
+        "✅ ÓRDENES METAGENESIS (lista CERRADA, prefijos exactos):",
+        *[f"  • {o}" for o in ORDENES_METAGENESIS],
+        "",
+        "🚫 RESERVADO (nunca, ni aunque otra regla lo abriera):",
+        "  • Publicar o reescribir main, borrar, claves y cuentas",
+        "  • El A1 con privilegios, aceptar/conceder a nombre de Alex, cerrar sus apps",
+        "  • Quitar una pausa de publicación, publicar fuera de las puertas",
+        *[f"  • {o}" for o in ORDENES_VETADAS],
+        "",
+        "📋 CANALES CUBIERTOS: Principal (@starseed_neurocortex_bot), General (@starseed_puente_bot), Audiovisual (@StarSeed_Design_bot)",
+        "📋 MOTORES CUBIERTOS: Claude (Mac/Cowork), Hermes, Antigravity (agy), Codex (ChatGPT)",
+    ]
+    return "\n".join(lineas)
+
+
 def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> list:
     permitidas, vetadas = permisos_del_presidente()
     orden = [
@@ -601,6 +628,7 @@ def prompt_director(pregunta: str, historial: list, contexto: str) -> str:
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); "
         "propones olas, verificas puertas y decides rumbo; termina siempre "
         "con un informe de uso corto.",
+        ficha_permisos_direccion(),
     ]
     if contexto:
         partes.append("Contexto:\n" + contexto[:12000])

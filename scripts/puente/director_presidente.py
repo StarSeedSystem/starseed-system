@@ -147,7 +147,7 @@ def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
         "los demás directores cuando venga al caso.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); propones olas, "
         "verificas puertas y decides rumbo. Si no sabes algo, dilo.",
-        PUEDES_ACTUAR,
+        motores_director.ficha_permisos_direccion(),
     ]
     if contexto:
         partes.append("Contexto del proyecto:\n" + contexto[:TOPE_CONTEXTO_PRESIDENTE])

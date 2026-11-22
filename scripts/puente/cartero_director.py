@@ -34,6 +34,30 @@ import motores_director
 import presidente_config
 import sincronizador_direccion
 
+# Auto-reload: huellas de archivos ya cargados (como director-nube.py)
+CONTEXTO_MAX_EDAD_SEG = 30 * 60  # 30 minutos
+
+
+def huellas_del_puente(modulos=None, directorio=None) -> dict:
+    """{archivo: (mtime, tamaño)} de los módulos de `scripts/puente/` que este proceso ya cargó."""
+    directorio = directorio or os.path.dirname(os.path.abspath(__file__))
+    salida = {}
+    for m in list((modulos if modulos is not None else sys.modules).values()):
+        ruta = getattr(m, "__file__", None) or ""
+        if not ruta.endswith(".py") or os.path.dirname(os.path.abspath(ruta)) != directorio:
+            continue
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            continue
+        salida[os.path.abspath(ruta)] = (int(st.st_mtime), st.st_size)
+    return salida
+
+
+def codigo_cambiado(antes: dict, ahora: dict) -> list:
+    """PURA. Los archivos ya cargados cuyo contenido cambió en disco (o desaparecieron)."""
+    return sorted(r for r, h in (antes or {}).items() if (ahora or {}).get(r) != h)
+
 RAIZ = Path(__file__).resolve().parent.parent.parent
 CANALES_ACTIVOS = ("claude-mac", "claude-cowork", "hermes", "chatgpt", "telegram",
                    "director-presidente")  # DIR1111G
@@ -188,14 +212,62 @@ def armar_contexto(partes, tope):
 def _contexto():
     """Arma el contexto completo para el Director presidente por prioridad."""
     partes = [
-        ("RELEVO", _leer_archivo("starseed_memory_root/relevo/relevo.md"), 4000),
-        ("PLAN ACTIVO", _leer_archivo("starseed_memory_root/pruebas/plan-activo.md"), 4000),
-        ("REGISTRO PRUEBAS", _leer_archivo_final("starseed_memory_root/pruebas/registro-pruebas.md", 4000), 4000),
-        ("ÚLTIMAS 20 LÍNEAS REGISTRO", _ultimas_lineas_registro(), 2000),
-        ("PUENTE DE MANDO", _leer_archivo("PUENTE-DE-MANDO.md"), 4000),
-        ("ORQUESTACIÓN ECONÓMICA", _leer_archivo("memory/orquestacion-economica.md"), 4000),
+        ("RELEVO", _leer_archivo_con_edad("starseed_memory_root/relevo/relevo.md"), 4000),
+        ("PLAN ACTIVO", _leer_archivo_con_edad("starseed_memory_root/pruebas/plan-activo.md"), 4000),
+        ("REGISTRO PRUEBAS", _leer_archivo_final_con_edad("starseed_memory_root/pruebas/registro-pruebas.md", 4000), 4000),
+        ("ÚLTIMAS 20 LÍNEAS REGISTRO", _ultimas_lineas_registro_con_edad(), 2000),
+        ("PUENTE DE MANDO", _leer_archivo_con_edad("PUENTE-DE-MANDO.md"), 4000),
+        ("ORQUESTACIÓN ECONÓMICA", _leer_archivo_con_edad("memory/orquestacion-economica.md"), 4000),
     ]
     return armar_contexto(partes, TOPE_CONTEXTO_PRESIDENTE)
+
+
+def _leer_archivo_con_edad(ruta_rel):
+    """Lee un archivo y añade marca de edad si supera 30 min; devuelve '' si no existe."""
+    try:
+        ruta = RAIZ / ruta_rel
+        texto = ruta.read_text(encoding="utf-8")
+        mtime = ruta.stat().st_mtime
+        edad_seg = time.time() - mtime
+        if edad_seg > CONTEXTO_MAX_EDAD_SEG:
+            edad_min = int(edad_seg / 60)
+            texto = f"[DATO CON {edad_min} MIN DE EDAD]\n{texto}"
+        return texto
+    except OSError:
+        return ""
+
+
+def _leer_archivo_final_con_edad(ruta_rel, tope_parte):
+    """Lee un archivo y si es más largo que tope_parte devuelve su final; añade marca de edad."""
+    try:
+        ruta = RAIZ / ruta_rel
+        texto = ruta.read_text(encoding="utf-8")
+        mtime = ruta.stat().st_mtime
+        edad_seg = time.time() - mtime
+        if len(texto) > tope_parte:
+            texto = texto[-tope_parte:]
+        if edad_seg > CONTEXTO_MAX_EDAD_SEG:
+            edad_min = int(edad_seg / 60)
+            texto = f"[DATO CON {edad_min} MIN DE EDAD]\n{texto}"
+        return texto
+    except OSError:
+        return ""
+
+
+def _ultimas_lineas_registro_con_edad():
+    """Devuelve las últimas 20 líneas de registro.jsonl con marca de edad si procede."""
+    try:
+        ruta = RAIZ / "starseed_memory_root/pruebas/registro.jsonl"
+        lineas = ruta.read_text(encoding="utf-8").splitlines()
+        mtime = ruta.stat().st_mtime
+        edad_seg = time.time() - mtime
+        texto = "\n".join(lineas[-20:])
+        if edad_seg > CONTEXTO_MAX_EDAD_SEG:
+            edad_min = int(edad_seg / 60)
+            texto = f"[DATO CON {edad_min} MIN DE EDAD]\n{texto}"
+        return texto
+    except OSError:
+        return ""
 
 
 def _leer_archivo(ruta_rel):
@@ -444,10 +516,18 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
 
 def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
     modelo = modelo_pedido.split("/", 1)[-1] or "gpt-5-codex"
+    historial = [
+        r
+        for r in director_chat.leer(limite=50, raiz=raiz)
+        if isinstance(r.get("rol"), str)
+    ]
+    prompt = motores_director.prompt_director(
+        mensaje.get("texto", ""), historial, _contexto()
+    )
     inicio = time.time()
     rc, salida = motores_director.correr(
         motores_director.orden_codex(modelo, str(RAIZ)),
-        entrada=mensaje.get("texto", ""),
+        entrada=prompt,
         segundos=600,
     )
     if rc != 0 and not salida.strip():
@@ -832,8 +912,17 @@ def main(argv=None):
         pasada(estado)
         return 0
     despachador = Despachador()
+    huellas = {}
+    print(f"Cartero Director · cada {PAUSA_SEGUNDOS}s · auto-reload activado", flush=True)
     while True:
         pasada(estado, despachador=despachador)
+        # Auto-reload: si cambió código en scripts/puente/, reiniciar (como director-nube.py)
+        ahora = huellas_del_puente()
+        cambiados = codigo_cambiado(huellas, ahora) if huellas else []
+        if cambiados:
+            print(f"[cartero] código nuevo en {', '.join(os.path.basename(c) for c in cambiados[:6])}: me recargo", flush=True)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        huellas = {**ahora, **{r: h for r, h in huellas.items() if r not in ahora}}
         time.sleep(PAUSA_SEGUNDOS)
 
 

@@ -4,7 +4,9 @@
 import os
 import sys
 import tempfile
+import time
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -393,6 +395,171 @@ class TestHermesPausadoEnElCartero(unittest.TestCase):
         self.assertEqual([], self.respuestas())
         self.assertEqual("fallo", self.ultima_entrega(self.alex["id"]))
         self.mock.patch.stopall()
+
+
+class TestAutoReload(unittest.TestCase):
+    """Pruebas del mecanismo de auto-reload (como director-nube.py)."""
+
+    def test_huellas_del_puente_vacio(self):
+        huellas = C.huellas_del_puente(modulos={})
+        self.assertEqual({}, huellas)
+
+    def test_huellas_del_puente_solo_puente(self):
+        class FakeModule:
+            __file__ = "/home/runner/work/_temp/starseed-wt/ACC1121C/scripts/puente/cartero_director.py"
+        modulos = {"cartero_director": FakeModule()}
+        huellas = C.huellas_del_puente(modulos=modulos)
+        self.assertIn(os.path.abspath(FakeModule.__file__), huellas)
+
+    def test_huellas_del_puente_ignora_otros_directorios(self):
+        class FakeModule:
+            __file__ = "/home/runner/work/_temp/starseed-wt/ACC1121C/scripts/otro/algo.py"
+        modulos = {"otro": FakeModule()}
+        huellas = C.huellas_del_puente(modulos=modulos)
+        self.assertEqual({}, huellas)
+
+    def test_codigo_cambiado_detecta_cambio(self):
+        antes = {"/a/b.py": (1000, 500)}
+        ahora = {"/a/b.py": (1001, 500)}
+        self.assertEqual(["/a/b.py"], C.codigo_cambiado(antes, ahora))
+
+    def test_codigo_cambiado_detecta_nuevo(self):
+        # codigo_cambiado solo detecta cambios en archivos ya cargados (en 'antes')
+        # archivos nuevos en 'ahora' que no estaban en 'antes' no se reportan
+        antes = {"/a/b.py": (1000, 500)}
+        ahora = {"/a/b.py": (1000, 500), "/a/c.py": (1002, 600)}
+        self.assertEqual([], C.codigo_cambiado(antes, ahora))
+
+    def test_codigo_cambiado_detecta_borrado(self):
+        antes = {"/a/b.py": (1000, 500), "/a/c.py": (1002, 600)}
+        ahora = {"/a/b.py": (1000, 500)}
+        self.assertEqual(["/a/c.py"], C.codigo_cambiado(antes, ahora))
+
+    def test_codigo_cambiado_sin_cambios(self):
+        antes = {"/a/b.py": (1000, 500)}
+        ahora = {"/a/b.py": (1000, 500)}
+        self.assertEqual([], C.codigo_cambiado(antes, ahora))
+
+
+class TestContextoConEdad(unittest.TestCase):
+    """Pruebas de marca de datos antiguos (>30 min) en el contexto."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.raiz_original = C.RAIZ
+        C.RAIZ = Path(self.tmp.name)
+
+    def tearDown(self):
+        C.RAIZ = self.raiz_original
+        self.tmp.cleanup()
+
+    def _escribir(self, ruta_rel, contenido, mtime=None):
+        ruta = C.RAIZ / ruta_rel
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        ruta.write_text(contenido, encoding="utf-8")
+        if mtime is not None:
+            os.utime(ruta, (mtime, mtime))
+
+    def test_leer_archivo_con_edad_reciente(self):
+        ahora = time.time()
+        self._escribir("test.txt", "contenido reciente", mtime=ahora)
+        texto = C._leer_archivo_con_edad("test.txt")
+        self.assertEqual("contenido reciente", texto)
+        self.assertNotIn("DATO CON", texto)
+
+    def test_leer_archivo_con_edad_antiguo(self):
+        hace_40_min = time.time() - 40 * 60
+        self._escribir("test.txt", "contenido antiguo", mtime=hace_40_min)
+        texto = C._leer_archivo_con_edad("test.txt")
+        self.assertIn("DATO CON 40 MIN DE EDAD", texto)
+        self.assertIn("contenido antiguo", texto)
+
+    def test_leer_archivo_con_edad_no_existe(self):
+        texto = C._leer_archivo_con_edad("no_existe.txt")
+        self.assertEqual("", texto)
+
+    def test_leer_archivo_final_con_edad_reciente(self):
+        ahora = time.time()
+        self._escribir("test.txt", "x" * 5000, mtime=ahora)
+        texto = C._leer_archivo_final_con_edad("test.txt", 1000)
+        self.assertEqual(1000, len(texto))
+        self.assertNotIn("DATO CON", texto)
+
+    def test_leer_archivo_final_con_edad_antiguo(self):
+        hace_40_min = time.time() - 40 * 60
+        self._escribir("test.txt", "x" * 5000, mtime=hace_40_min)
+        texto = C._leer_archivo_final_con_edad("test.txt", 1000)
+        # La marca de edad añade ~26 chars: "[DATO CON 40 MIN DE EDAD]\n"
+        self.assertGreaterEqual(len(texto), 1000)
+        self.assertIn("DATO CON 40 MIN DE EDAD", texto)
+
+    def test_ultimas_lineas_registro_con_edad_reciente(self):
+        ahora = time.time()
+        self._escribir("starseed_memory_root/pruebas/registro.jsonl", "linea1\nlinea2\nlinea3\n", mtime=ahora)
+        texto = C._ultimas_lineas_registro_con_edad()
+        self.assertIn("linea3", texto)
+        self.assertNotIn("DATO CON", texto)
+
+    def test_ultimas_lineas_registro_con_edad_antiguo(self):
+        hace_40_min = time.time() - 40 * 60
+        self._escribir("starseed_memory_root/pruebas/registro.jsonl", "linea1\nlinea2\n", mtime=hace_40_min)
+        texto = C._ultimas_lineas_registro_con_edad()
+        self.assertIn("DATO CON 40 MIN DE EDAD", texto)
+
+
+class TestFichaPermisosUnificada(unittest.TestCase):
+    """Pruebas de la ficha de permisos unificada para todos los motores."""
+
+    def test_ficha_permisos_contiene_mcp(self):
+        ficha = C.motores_director.ficha_permisos_direccion()
+        self.assertIn("starseed-director", ficha)
+        self.assertIn("director_leer", ficha)
+        self.assertIn("director_decir", ficha)
+
+    def test_ficha_permisos_contiene_ordenes_metagenesis(self):
+        ficha = C.motores_director.ficha_permisos_direccion()
+        self.assertIn("director_chat.py", ficha)
+        self.assertIn("sincronizador_direccion.py", ficha)
+        self.assertIn("buscar_capacidad.py", ficha)
+        self.assertIn("starseed-enjambre.py", ficha)
+        self.assertIn("git status", ficha)
+
+    def test_ficha_permisos_contiene_reservado(self):
+        ficha = C.motores_director.ficha_permisos_direccion()
+        self.assertIn("RESERVADO", ficha)
+        self.assertIn("Publicar o reescribir main", ficha)
+        self.assertIn("claves y cuentas", ficha)
+        self.assertIn("A1 con privilegios", ficha)
+
+    def test_ficha_permisos_contiene_canales(self):
+        ficha = C.motores_director.ficha_permisos_direccion()
+        self.assertIn("Principal", ficha)
+        self.assertIn("General", ficha)
+        self.assertIn("Audiovisual", ficha)
+
+    def test_ficha_permisos_contiene_motores(self):
+        ficha = C.motores_director.ficha_permisos_direccion()
+        self.assertIn("Claude", ficha)
+        self.assertIn("Hermes", ficha)
+        self.assertIn("Antigravity", ficha)
+        self.assertIn("Codex", ficha)
+
+    def test_prompt_director_incluye_ficha(self):
+        prompt = C.motores_director.prompt_director("pregunta", [], "contexto")
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("director_leer", prompt)
+
+    def test_prompt_presidente_incluye_ficha(self):
+        import director_presidente as DP
+        prompt = DP.prompt_presidente("pregunta", [], "contexto")
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("director_leer", prompt)
+
+    def test_prompt_sesion_fresca_incluye_ficha(self):
+        import director_presidente as DP
+        prompt = DP.prompt_sesion_fresca("pregunta", [], "contexto")
+        self.assertIn("starseed-director", prompt)
+        self.assertIn("director_leer", prompt)
 
 
 if __name__ == "__main__":
