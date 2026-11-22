@@ -464,6 +464,10 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             continue
         clave = str(p.get("clave") or "")
         info = catalogo.get(clave) or {}
+        # DIR1121H: una pasarela que el catálogo marca `humano: False` (Ollama del A1, OpenCode Zen) no tiene nada que una
+        # persona pueda renovar: su fallo es del sistema y lo arregla el sistema, no es una acción de Alex.
+        if info.get("humano") is False:
+            continue
         # CAIDA necesita racha
         if estado == _pas.CAIDA:
             caidas = int(p.get("caidas_seguidas") or 0)

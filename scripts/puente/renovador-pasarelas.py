@@ -76,7 +76,7 @@ SONDAS = [
     # Se sonda via medios_disponibles.clasificar_agy, no por HTTP directo.
     ("antigravity", "local", None, "gemini-3.8-flash-medium"),
     # Ollama del A1: modelo privado qwen 4B en Oracle A1, sin clave, red local
-    ("ollama-a1", "http://10.0.0.1:11434/v1", None, "qwen2.5:4b"),
+    ("ollama-a1", "local", None, "qwen2.5:4b"),
     # Codex: suscripción ChatGPT, se gestiona vía cupo_codex.py (marca agotado 3 h)
     ("codex", "local", None, "gpt-4o"),
     # OpenCode Zen: modelos gratuitos vía opencode (glm-5.3-flash, deepseek-v4.1-flash, minimax-m3.1-flash, big-pickle)
@@ -119,6 +119,38 @@ def entorno_con_claves():
     return fuera
 
 
+def _medio_ollama_a1():
+    """E/S mínima (DIR1121H): el estado del Ollama del A1 según medios_disponibles, leído de ~/.starseed/oracle.json."""
+    import medios_disponibles as _md
+    with open(os.path.expanduser("~/.starseed/oracle.json"), encoding="utf-8") as f:
+        return _md.clasificar_ollama_a1(json.load(f), time.time())
+
+
+def _sondear_explabs(url, clave, modelo, segundos=25):
+    """DIR1121H (2026-11-22, medido). Experiential Labs se usa para DECISIONES (Jev): `jev-latest` contesta 400 a un chat
+    («This model supports native decisions, not chat. POST /v1/systemone…»), eso se clasificaba como «caída» y le pedía a
+    Alex «mira su panel» con la pasarela viva. Se sonda por su contrato real: una decisión mínima (coste 0)."""
+    if not clave:
+        return 401, "no hay clave en el entorno para esta pasarela", False
+    cuerpo = json.dumps({"model": modelo, "state": "Sonda de salud de la pasarela.",
+                         "questions": {"viva": {"type": "noul", "instructions": "¿Recibes esta sonda? Responde sí."}}}).encode("utf-8")
+    peticion = urllib.request.Request(url.rstrip("/") + "/systemone", data=cuerpo, headers={
+        "Authorization": "Bearer %s" % clave, "Content-Type": "application/json",
+        "Accept": "application/json", "User-Agent": "starseed-renovador/1.0"})
+    try:
+        with urllib.request.urlopen(peticion, timeout=segundos) as r:
+            texto = r.read().decode("utf-8", "replace")
+            try:
+                viva = isinstance(json.loads(texto).get("answers"), dict)
+            except Exception:
+                viva = False
+            return r.status, texto[:400], viva
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")[:400], False
+    except Exception as e:
+        return 0, "%s: %s" % (type(e).__name__, e), False
+
+
 def sondear(url, clave, modelo, segundos=25, nombre=None):
     """Ocho tokens. Devuelve (http, cuerpo_recortado, hubo_tokens).
 
@@ -132,6 +164,8 @@ def sondear(url, clave, modelo, segundos=25, nombre=None):
     # Proveedores sin sonda HTTP estándar
     if url == "local":
         return _sondear_local(nombre, modelo, segundos)
+    if nombre == "explabs":
+        return _sondear_explabs(url, clave, modelo, segundos)
 
     if not clave and not url.startswith("http://127.0.0.1"):
         # Sin llave no es «lenta»: es exactamente el caso que hay que renovar.
@@ -204,23 +238,15 @@ def _sondear_local(nombre, modelo, segundos):
             return 0, "%s: %s" % (type(e).__name__, e), False
 
     if nombre == "ollama-a1":
-        # Ollama en A1: endpoint remoto sin clave
+        # DIR1121H (2026-11-22, medido): 10.0.0.1 es la red privada del A1; desde la Mac (192.168.0.x) no es el A1. Y como
+        # la pasarela no lleva clave ni es localhost, `sondear` devolvía un 401 inventado → «renovar la clave», una acción
+        # para Alex que no existe. El estado real lo da el A1 (medios_disponibles.clasificar_ollama_a1).
         try:
-            import urllib.request
-            req = urllib.request.Request(
-                "http://10.0.0.1:11434/v1/chat/completions",
-                data=json.dumps({"model": modelo, "messages": [{"role": "user", "content": "di ok"}], "max_tokens": 16}).encode("utf-8"),
-                headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "starseed-renovador/1.0"}
-            )
-            with urllib.request.urlopen(req, timeout=segundos) as r:
-                texto = r.read().decode("utf-8", "replace")
-                try:
-                    d = json.loads(texto)
-                    opciones = d.get("choices") or []
-                    viva = bool(opciones) and not d.get("error")
-                except Exception:
-                    viva = False
-                return r.status, texto[:400], viva
+            m = _medio_ollama_a1() or {}
+            estado_a1, detalle = str(m.get("estado") or ""), str(m.get("detalle") or "")
+            if estado_a1 in ("listo", "usable"):
+                return 200, "A1: %s" % (detalle or estado_a1), estado_a1 == "listo"
+            return 503, "A1: %s" % (detalle or estado_a1 or "sin datos"), False
         except Exception as e:
             return 0, "%s: %s" % (type(e).__name__, e), False
 

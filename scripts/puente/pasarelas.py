@@ -44,7 +44,7 @@ CATALOGO = {
     "aihubmix":   {"nombre": "AIHubMix", "enlace": "https://aihubmix.com/token",
                    "humano": True, "nota": "Pide recarga para seguir usando los recursos gratuitos."},
     "apinex":     {"nombre": "apinex", "enlace": "https://apinex.bond/airdrop?tab=quests",
-                   "humano": True, "nota": "Sus ocho modelos gratis exigen UN FICHAJE DIARIO en /airdrop?tab=quests. Sin él, cada tarea que caiga ahí vuelve sin cambios."},
+                   "humano": True, "nota": "(DIR1121H, medido el 2026-11-22) Su API ya no pide el FICHAJE DIARIO: responde 402 «Make a single top-up of $5 or more to unlock 25M free tokens daily for life». Fichar en /airdrop?tab=quests ya no desbloquea lo gratis; queda sin cupo hasta que Alex decida si hace esa recarga única o se retira la pasarela."},
     "deepseek":   {"nombre": "DeepSeek", "enlace": "https://platform.deepseek.com/api_keys",
                    "humano": True, "nota": "Clave de pago con saldo; 401 significa clave caducada o revocada."},
     "xai":        {"nombre": "xAI (Grok)", "enlace": "https://console.x.ai/team/billing",
