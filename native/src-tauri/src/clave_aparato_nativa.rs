@@ -7,11 +7,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 use crate::nativa::es_starseed_os;
-use p256::ecdsa::{SigningKey, VerifyingKey, signature::Signer};
-use p256::pkcs8::EncodePublicKey;
+use base64::Engine;
+use p256::NistP256;
+use p256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer};
+use p256::elliptic_curve::{PublicKey, SecretKey, rand_core::OsRng};
+use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 
@@ -67,34 +69,34 @@ fn ruta_archivo_metadatos(app: &AppHandle) -> Option<PathBuf> {
 /// Devuelve `Ok(almacen_usado)` si tuvo éxito, `Err(motivo)` si falló.
 #[cfg(target_os = "linux")]
 fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosClave) -> Result<String, String> {
-    use secret_service::{SecretService, Schema, SchemaType, ItemAttributes};
+    use secret_service::blocking::{EncryptionType, SecretService};
     use std::collections::HashMap;
 
-    let ss = SecretService::new(tauri::async_runtime::block_on(async { 
-        secret_service::SecretService::new().await 
-    }).map_err(|e| format!("Secret Service no disponible: {e}"))?);
+    let ss = SecretService::connect(EncryptionType::Dh)
+        .map_err(|e| format!("Secret Service no disponible: {e}"))?;
+    let collection = ss
+        .get_default_collection()
+        .map_err(|e| format!("Colección por defecto: {e}"))?;
+    collection
+        .unlock()
+        .map_err(|e| format!("Desbloquear colección: {e}"))?;
 
-    let schema = Schema::new("starseed.clave.aparato", SchemaType::Generic, &[
+    let attrs = HashMap::from([
         ("app", "starseed-os"),
         ("kind", "clave-aparato"),
-    ]).map_err(|e| format!("Schema inválido: {e}"))?;
+        ("nombre", metadatos.nombre.as_str()),
+        ("cuenta", metadatos.cuenta.as_str()),
+    ]);
 
-    let mut attrs = ItemAttributes::new();
-    attrs.insert("app".into(), "starseed-os".into());
-    attrs.insert("kind".into(), "clave-aparato".into());
-    attrs.insert("nombre".into(), metadatos.nombre.clone());
-    attrs.insert("cuenta".into(), metadatos.cuenta.clone());
-
-    let collection = ss.get_default_collection().map_err(|e| format!("Colección por defecto: {e}"))?;
-    collection.unlock().map_err(|e| format!("Desbloquear colección: {e}"))?;
-
-    let _ = collection.create_item(
-        &format!("StarSeed OS · Clave de aparato ({})", metadatos.nombre),
-        &attrs,
-        clave_der,
-        true, // replace
-        &schema,
-    ).map_err(|e| format!("Crear item en Secret Service: {e}"))?;
+    let _ = collection
+        .create_item(
+            &format!("StarSeed OS · Clave de aparato ({})", metadatos.nombre),
+            attrs,
+            clave_der,
+            true,
+            "application/octet-stream",
+        )
+        .map_err(|e| format!("Crear item en Secret Service: {e}"))?;
 
     // Guardar metadatos en archivo (no secretos)
     if let Some(ruta_meta) = ruta_archivo_metadatos(app) {
@@ -109,8 +111,7 @@ fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
 
 #[cfg(target_os = "windows")]
 fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosClave) -> Result<String, String> {
-    use windows::Security::Credentials::PasswordVault;
-    use windows::Foundation::Collections::PropertySet;
+    use windows::Security::Credentials::{PasswordCredential, PasswordVault};
     use windows::core::HSTRING;
 
     let vault = PasswordVault::new().map_err(|e| format!("Credential Manager no disponible: {e}"))?;
@@ -119,11 +120,10 @@ fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
 
     // Credential Manager espera contraseña como string; guardamos la clave DER en base64
     let clave_b64 = base64::engine::general_purpose::STANDARD.encode(clave_der);
-    let cred = windows::Security::Credentials::PasswordCredential::new(
-        &recurso,
-        &usuario,
-        &HSTRING::from(clave_b64),
-    ).map_err(|e| format!("Crear credencial: {e}"))?;
+    let cred = PasswordCredential::new().map_err(|e| format!("Crear credencial: {e}"))?;
+    cred.SetResource(&recurso).map_err(|e| format!("Recurso: {e}"))?;
+    cred.SetUserName(&usuario).map_err(|e| format!("Usuario: {e}"))?;
+    cred.SetPassword(&HSTRING::from(clave_b64)).map_err(|e| format!("Contraseña: {e}"))?;
 
     vault.Add(&cred).map_err(|e| format!("Añadir a Credential Manager: {e}"))?;
 
@@ -132,7 +132,7 @@ fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
         if let Some(parent) = ruta_meta.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        std::fs::write(&ruta_meta, serde_json::to_vec(metadatos).unwrap_or_default()).ok;
+        std::fs::write(&ruta_meta, serde_json::to_vec(metadatos).unwrap_or_default()).ok();
     }
 
     Ok("credential-manager".into())
@@ -175,31 +175,27 @@ fn guardar_en_archivo(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
 /// Carga la clave privada desde el llavero del sistema.
 #[cfg(target_os = "linux")]
 fn cargar_desde_llavero(app: &AppHandle) -> Result<(SigningKey, MetadatosClave), String> {
-    use secret_service::{SecretService, Schema, SchemaType, ItemAttributes};
+    use secret_service::blocking::{EncryptionType, SecretService};
+    use std::collections::HashMap;
 
-    let ss = SecretService::new(tauri::async_runtime::block_on(async { 
-        secret_service::SecretService::new().await 
-    }).map_err(|e| format!("Secret Service no disponible: {e}"))?);
+    let ss = SecretService::connect(EncryptionType::Dh)
+        .map_err(|e| format!("Secret Service no disponible: {e}"))?;
+    let collection = ss
+        .get_default_collection()
+        .map_err(|e| format!("Colección por defecto: {e}"))?;
+    collection
+        .unlock()
+        .map_err(|e| format!("Desbloquear colección: {e}"))?;
 
-    let schema = Schema::new("starseed.clave.aparato", SchemaType::Generic, &[
-        ("app", "starseed-os"),
-        ("kind", "clave-aparato"),
-    ]).map_err(|e| format!("Schema inválido: {e}"))?;
-
-    let mut attrs = ItemAttributes::new();
-    attrs.insert("app".into(), "starseed-os".into());
-    attrs.insert("kind".into(), "clave-aparato".into());
-
-    let collection = ss.get_default_collection().map_err(|e| format!("Colección por defecto: {e}"))?;
-    collection.unlock().map_err(|e| format!("Desbloquear colección: {e}"))?;
-
-    let items = collection.search_items(&attrs, &schema).map_err(|e| format!("Buscar items: {e}"))?;
+    let items = collection
+        .search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")]))
+        .map_err(|e| format!("Buscar items: {e}"))?;
     let item = items.into_iter().next().ok_or("Clave no encontrada en Secret Service")?;
+    let _ = item.unlock();
 
-    let secreto = item.get_secret().map_err(|e| format!("Leer secreto: {e}"))?;
-    let clave_der = secreto.as_slice();
-
-    let signing_key = SigningKey::from_pkcs8_der(clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let clave_der = item.get_secret().map_err(|e| format!("Leer secreto: {e}"))?;
+    let secret_key = SecretKey::<NistP256>::from_pkcs8_der(&clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let signing_key = SigningKey::from(secret_key);
 
     // Cargar metadatos
     let Some(ruta_meta) = ruta_archivo_metadatos(app) else { return Err("sin-metadatos".into()); };
@@ -219,16 +215,18 @@ fn cargar_desde_llavero(app: &AppHandle) -> Result<(SigningKey, MetadatosClave),
     let creds = vault.RetrieveAll().map_err(|e| format!("Listar credenciales: {e}"))?;
     let mut encontrado = None;
     for cred in creds {
-        if cred.Resource() == recurso {
+        if cred.Resource().ok().as_ref() == Some(&recurso) {
             encontrado = Some(cred);
             break;
         }
     }
     let cred = encontrado.ok_or("Clave no encontrada en Credential Manager")?;
+    cred.RetrievePassword().map_err(|e| format!("Recuperar contraseña: {e}"))?;
     let clave_b64 = cred.Password().map_err(|e| format!("Leer contraseña: {e}"))?.to_string();
     let clave_der = base64::engine::general_purpose::STANDARD.decode(clave_b64).map_err(|e| format!("Base64 inválido: {e}"))?;
 
-    let signing_key = SigningKey::from_pkcs8_der(&clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let secret_key = SecretKey::<NistP256>::from_pkcs8_der(&clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let signing_key = SigningKey::from(secret_key);
 
     let Some(ruta_meta) = ruta_archivo_metadatos(app) else { return Err("sin-metadatos".into()); };
     let meta_bytes = std::fs::read(&ruta_meta).map_err(|e| format!("Leer metadatos: {e}"))?;
@@ -248,7 +246,8 @@ fn cargar_desde_archivo(app: &AppHandle) -> Result<(SigningKey, MetadatosClave),
     let Some(ruta_meta) = ruta_archivo_metadatos(app) else { return Err("sin-ruta-meta".into()); };
 
     let clave_der = std::fs::read(&ruta_clave).map_err(|e| format!("Leer clave: {e}"))?;
-    let signing_key = SigningKey::from_pkcs8_der(&clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let secret_key = SecretKey::<NistP256>::from_pkcs8_der(&clave_der).map_err(|e| format!("PKCS8 inválido: {e}"))?;
+    let signing_key = SigningKey::from(secret_key);
 
     let meta_bytes = std::fs::read(&ruta_meta).map_err(|e| format!("Leer metadatos: {e}"))?;
     let metadatos: MetadatosClave = serde_json::from_slice(&meta_bytes).map_err(|e| format!("Metadatos inválidos: {e}"))?;
@@ -261,15 +260,16 @@ fn borrar_clave(app: &AppHandle) -> Result<(), String> {
     // Intentar borrar del llavero
     #[cfg(target_os = "linux")]
     {
-        use secret_service::{SecretService, Schema, SchemaType, ItemAttributes};
-        if let Ok(ss) = SecretService::new(tauri::async_runtime::block_on(async { SecretService::new().await })) {
-            if let Ok(schema) = Schema::new("starseed.clave.aparato", SchemaType::Generic, &[("app", "starseed-os"), ("kind", "clave-aparato")]) {
-                let mut attrs = ItemAttributes::new();
-                attrs.insert("app".into(), "starseed-os".into());
-                attrs.insert("kind".into(), "clave-aparato".into());
-                if let Ok(collection) = ss.get_default_collection() {
-                    let _ = collection.unlock();
-                    let _ = collection.delete_items(&attrs, &schema);
+        use secret_service::blocking::{EncryptionType, SecretService};
+        use std::collections::HashMap;
+        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
+            if let Ok(collection) = ss.get_default_collection() {
+                let _ = collection.unlock();
+                if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {
+                    for item in items {
+                        let _ = item.unlock();
+                        let _ = item.delete();
+                    }
                 }
             }
         }
@@ -281,7 +281,7 @@ fn borrar_clave(app: &AppHandle) -> Result<(), String> {
             let recurso = windows::core::HSTRING::from("starseed-os/clave-aparato");
             if let Ok(creds) = vault.RetrieveAll() {
                 for cred in creds {
-                    if cred.Resource() == recurso {
+                    if cred.Resource().ok().as_ref() == Some(&recurso) {
                         let _ = vault.Remove(&cred);
                     }
                 }
@@ -302,14 +302,13 @@ fn borrar_clave(app: &AppHandle) -> Result<(), String> {
 /// Genera SPKI DER de la clave pública y lo codifica en base64url.
 fn spki_b64url(signing_key: &SigningKey) -> String {
     let verifying_key = VerifyingKey::from(signing_key);
-    let spki_der = verifying_key.to_public_key_der().expect("SPKI DER");
-    base64_url_encode(&spki_der)
+    let spki_der = PublicKey::<NistP256>::from(&verifying_key).to_public_key_der().expect("SPKI DER");
+    base64_url_encode(spki_der.as_bytes())
 }
 
 /// Calcula la huella SHA-256 del SPKI (hex lowercase, 64 chars).
 fn huella_de_spki(spki_der: &[u8]) -> String {
-    let hash = Sha256::digest(spki_der);
-    hex::encode(hash)
+    crate::sha256::hex(&crate::sha256::sha256(spki_der))
 }
 
 /// Base64 URL-safe sin padding.
@@ -345,14 +344,14 @@ pub async fn crear_clave_aparato_nativa(app: AppHandle, nombre: String, cuenta: 
     }
 
     // Generar par de claves ECDSA P-256
-    let signing_key = SigningKey::random(&mut rand::rngs::OsRng);
+    let signing_key = SigningKey::random(&mut OsRng);
     let verifying_key = VerifyingKey::from(&signing_key);
-    let spki_der = verifying_key.to_public_key_der().expect("SPKI DER");
+    let spki_der = PublicKey::<NistP256>::from(&verifying_key).to_public_key_der().expect("SPKI DER");
     let spki_b64url = base64_url_encode(spki_der.as_bytes());
     let huella = huella_de_spki(spki_der.as_bytes());
 
     // Clave privada en PKCS#8 DER para guardar
-    let pkcs8_der = signing_key.to_pkcs8_der().expect("PKCS8 DER").as_bytes().to_vec();
+    let pkcs8_der = SecretKey::<NistP256>::from(signing_key.clone()).to_pkcs8_der().expect("PKCS8 DER").as_bytes().to_vec();
 
     let ahora = chrono::Utc::now().to_rfc3339();
     let metadatos = MetadatosClave {
@@ -410,8 +409,8 @@ pub async fn firmar_con_clave_nativa(app: AppHandle, datos_b64url: String) -> Re
     let clave_guardada = clave_memoria().lock().unwrap().as_ref().ok_or("Clave no cargada")?.signing_key.clone();
     let datos = base64_url_decode(&datos_b64url)?;
 
-    let firma = clave_guardada.sign(&datos);
-    Ok(base64_url_encode(firma.to_bytes().as_slice()))
+    let firma: Signature = clave_guardada.sign(&datos);
+    Ok(base64_url_encode(firma.to_bytes().as_ref()))
 }
 
 /// Devuelve el SPKI base64url de la clave nativa.
@@ -452,7 +451,7 @@ pub async fn estado_clave_nativa(app: AppHandle) -> Result<ClaveAparatoEstado, S
     let mem = guard.as_ref().ok_or("Clave no cargada")?;
 
     let verifying_key = VerifyingKey::from(&mem.signing_key);
-    let spki_der = verifying_key.to_public_key_der().expect("SPKI DER");
+    let spki_der = PublicKey::<NistP256>::from(&verifying_key).to_public_key_der().expect("SPKI DER");
     let spki_b64url = base64_url_encode(spki_der.as_bytes());
     let huella = huella_de_spki(spki_der.as_bytes());
 
@@ -481,19 +480,14 @@ fn clave_existe(app: &AppHandle) -> bool {
     // Primero comprobar llavero
     #[cfg(target_os = "linux")]
     {
-        use secret_service::{SecretService, Schema, SchemaType, ItemAttributes};
-        if let Ok(ss) = SecretService::new(tauri::async_runtime::block_on(async { SecretService::new().await })) {
-            if let Ok(schema) = Schema::new("starseed.clave.aparato", SchemaType::Generic, &[("app", "starseed-os"), ("kind", "clave-aparato")]) {
-                let mut attrs = ItemAttributes::new();
-                attrs.insert("app".into(), "starseed-os".into());
-                attrs.insert("kind".into(), "clave-aparato".into());
-                if let Ok(collection) = ss.get_default_collection() {
-                    if collection.unlock().is_ok() {
-                        if let Ok(items) = collection.search_items(&attrs, &schema) {
-                            if !items.is_empty() {
-                                return true;
-                            }
-                        }
+        use secret_service::blocking::{EncryptionType, SecretService};
+        use std::collections::HashMap;
+        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
+            if let Ok(collection) = ss.get_default_collection() {
+                let _ = collection.unlock();
+                if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {
+                    if !items.is_empty() {
+                        return true;
                     }
                 }
             }
@@ -506,7 +500,7 @@ fn clave_existe(app: &AppHandle) -> bool {
             let recurso = windows::core::HSTRING::from("starseed-os/clave-aparato");
             if let Ok(creds) = vault.RetrieveAll() {
                 for cred in creds {
-                    if cred.Resource() == recurso {
+                    if cred.Resource().ok().as_ref() == Some(&recurso) {
                         return true;
                     }
                 }
@@ -563,4 +557,35 @@ pub async fn clave_aparato_estado(app: AppHandle) -> Result<ClaveAparatoEstado, 
 #[tauri::command]
 pub async fn clave_aparato_olvidar(app: AppHandle) -> Result<(), String> {
     olvidar_clave_nativa(app).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use p256::ecdsa::signature::Verifier;
+
+    #[test]
+    fn par_p256_pkcs8_spki_y_firma_ecdsa() {
+        let sk = SigningKey::random(&mut OsRng);
+        let pkcs8_der = SecretKey::<NistP256>::from(sk.clone()).to_pkcs8_der().expect("PKCS8 DER");
+        let recuperada = SigningKey::from(
+            SecretKey::<NistP256>::from_pkcs8_der(pkcs8_der.as_bytes()).expect("recargar PKCS8 DER"),
+        );
+
+        let spki_a = spki_b64url(&sk);
+        let spki_b = spki_b64url(&recuperada);
+        assert!(!spki_a.is_empty());
+        assert_eq!(spki_a, spki_b);
+
+        let spki_bytes = base64_url_decode(&spki_a).expect("decodificar SPKI base64url");
+        let huella = huella_de_spki(&spki_bytes);
+        assert_eq!(huella.len(), 64);
+        assert!(huella.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')));
+
+        let mensaje = b"orden-de-control-starseed";
+        let firma: Signature = recuperada.sign(mensaje);
+        let vk = VerifyingKey::from(&sk);
+        assert!(vk.verify(mensaje, &firma).is_ok());
+        assert!(vk.verify(b"otro-mensaje", &firma).is_err());
+    }
 }

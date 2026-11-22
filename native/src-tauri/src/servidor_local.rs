@@ -258,15 +258,16 @@ fn arrancar(app: AppHandle) {
             Ok(puerto) => {
                 crate::servidor_capas::tras_lista(&eleccion);
                 // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
-                let cambio_origen = crate::origen_local::tras_servir(&app, puerto);
+                let _cambio_origen = crate::origen_local::tras_servir(&app, puerto);
                 let origen = l::origen_local(puerto);
                 let principal = crate::origen_local::leer(&app).principal;
                 let volvio_al_principal = principal.is_some_and(|p| p == puerto) && puerto_previo.is_some_and(|pp| pp != puerto);
                 let mut mensaje_migracion: Option<String> = None;
                 if volvio_al_principal && rescatar {
                     if let Some(resumen) = crate::origen_local::rescatar(&app, puerto, |m| avisar(&app, "arrancando", m)) {
+                        let migrado = if resumen.contains("traído") { "si" } else { "no" };
                         mensaje_migracion = Some(resumen);
-                        escribir_registro(registro.as_ref(), &format!("[servidor-local] origen cambio de={} a={} causa=rescate migrado={}", puerto_previo.unwrap_or(0), puerto, if resumen.contains("traído") { "si" } else { "no" }));
+                        escribir_registro(registro.as_ref(), &format!("[servidor-local] origen cambio de={} a={} causa=rescate migrado={}", puerto_previo.unwrap_or(0), puerto, migrado));
                     }
                 }
                 con_estado(|e| {

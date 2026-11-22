@@ -65,7 +65,7 @@ pub fn ventana_protegida_macos(app: &str, titulo: &str) -> bool {
     }
 
     // Títulos protegidos (ventanas con estos títulos, sea cual sea la app)
-    const TITULOS_PROTEGIDOS: [&str; 12] = [
+    const TITULOS_PROTEGIDOS: [&str; 13] = [
         "privacidad",
         "privacy",
         "seguridad y privacidad",
@@ -162,7 +162,7 @@ mod pruebas {
             vec!["monitorizacion-entrada"]
         );
         // 111: todos
-        assert_eq!(faltan_permisos_macos(true, true, true), vec![]);
+        assert_eq!(faltan_permisos_macos(true, true, true), Vec::<&str>::new());
     }
 
     #[test]

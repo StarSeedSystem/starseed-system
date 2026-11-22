@@ -97,6 +97,8 @@ mod enlace_wifi_linux_logica;
 mod enlace_wifi_linux;
 #[cfg(target_os = "macos")]
 mod enlace_wifi_macos;
+// (LNX1118WA) Limpieza de entorno para procesos hijos lanzados desde AppImage en Linux.
+mod entorno_hijos;
 mod faro;
 // (LLA1108D) Las llamadas como llamadas del teléfono: Telecom, aviso CallStyle, audio y proximidad (Android).
 mod llamada_entrante;
