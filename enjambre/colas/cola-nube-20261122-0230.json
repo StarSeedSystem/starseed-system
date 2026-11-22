@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "ola": "DIR1121",
+   "id": "CAN1121A-d2",
+   "titulo": "Los tres canales con el MISMO nombre en todos los medios, leídos de una sola fuente (parte 2 de 3)",
+   "archivos": [
+    "src/components/mando/panel-chat-especializado.tsx",
+    "src/components/mando/centro-mando.tsx",
+    "scripts/puente/antigravity_flota.py"
+   ],
+   "depende": [],
+   "prompt": "Alex: «aún falta asignar los mismos nombres a los 3 chats de los canales de dirección en todos los medios». Ya hecho por la dirección\nel 21-11: registro ~/.starseed/canales-direccion.json (nombre + telegram_bot), nombre visible de los tres bots de Telegram y título de las\nsesiones de Hermes («Principal», «General», «Audiovisual y diseño»; los anteriores están en ~/.starseed/canales-nombres-anteriores.json).\nFALTA en el repositorio: a) quitar todo nombre escrito a mano («Dirección principal», «Dirección general», «Dirección MetaGenesis»,\n«Producción audiovisual, diseño y promoción», «Maggacortex», «Puente de Mando», «Síntesis de producción», «GENESIS · StarSeed OS» como\nnombre de canal) de chats.json, sincronizador_direccion.py, la ruta canales-direccion, panel-chat-especializado.tsx, centro-mando.tsx,\nantigravity_flota.py y las pestañas de Genesis en Astraura: todos leen `nombre` del registro (con los tres nombres canónicos como valor\npor defecto en UN solo módulo); b) chats.json: cada entorno (claude, codex, hermes, antigravity, telegram) declara los TRES canales con\nsu id de chat/sesión, y el título del chat en Antigravity, Codex y Claude se llama igual (deja la orden o el paso exacto donde el título\nsolo lo pueda cambiar una persona); c) una prueba que recorra el repositorio y falle si aparece un nombre viejo de canal fuera de la\nlista de alias históricos; d) `sincronizador_direccion.py nombres` que muestre, por medio, el nombre que ve la persona y marque el que\nno coincide. No cambies el @usuario de ningún bot ni las claves de canal.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.\n\nHERMES (21-11, hecho por la dirección): un solo chat fijado por canal con el nombre canónico. General = la sesión de la pasarela de Telegram 20260828_130104_dc6d43f0 (la de terminal 20260909_210504_867626, histórica, quedó como «Archivo · Puente de mando»); Audiovisual y diseño = sesión nueva local-2409461f5f521f3b8fc237f961b3e91519df2274380fabfcba6472c5dfbd940e (la anterior nació `oneshot` con `hermes -z` y la app de Hermes no la enseña). Quita el id escrito a mano 20260909_210504_867626 de sincronizador_direccion.py (sincronizar_todos_los_canales) y de chats.json, y haz que una sesión de canal nunca nazca con `hermes -z` sin `--resume`: se crea con `hermes chat -q`, se titula y se fija. Añade al comando `nombres` la comprobación de que en Hermes hay exactamente una sesión fijada por canal.\n\n## PARTE 2 DE 3 (la dirección dividió CAN1121A: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/components/mando/panel-chat-especializado.tsx, src/components/mando/centro-mando.tsx, scripts/puente/antigravity_flota.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAN1121A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "CAN1121A-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CAN1121A-d2"
+  ]
+ }
+}
