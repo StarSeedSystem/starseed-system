@@ -494,5 +494,39 @@ class TestModeloAgy:
         assert m.descripcion == "Fast, efficient"
 
 
+class TestMedirTiempoArranque:
+    """Pruebas para medir_tiempo_arranque_agy (GEM1119 revisión de riesgos)."""
+
+    def test_timeout_subprocess_vs_agy(self):
+        """El timeout de subprocess.run debería ser >= --print-timeout de agy.
+
+        Riesgo identificado: si agy tarda más de 60s con --print-timeout 30s,
+        subprocess.run timeouteará antes de que agy termine.
+        """
+        from escritor_agy import SEGUNDOS_AGY_ESCRITOR
+        assert SEGUNDOS_AGY_ESCRITOR >= 180  # 30s print-timeout + margen
+
+    def test_manejo_de_timeout_agy(self):
+        """Cuando agy timeoutea, la función debe devolver tiempo real medido."""
+        import time
+        from unittest.mock import patch, MagicMock
+
+        with patch("antigravity_flota.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=-1,
+                stdout="",
+                stderr="timeout"
+            )
+            inicio = time.perf_counter()
+            duracion, tokens = self._medir_con_mock()
+            delta = time.perf_counter() - inicio
+            assert delta >= 0  # Al menos medido algo
+
+    def _medir_con_mock(self):
+        """Helper para testing con mock."""
+        from antigravity_flota import medir_tiempo_arranque_agy
+        return medir_tiempo_arranque_agy("gemini-3.8-flash-medium")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -564,3 +564,55 @@ Estos son generados artificialmente para tests y no son tokens reales.
 python3 -c "from scripts.puente.verificar_tokens_sin_exponer import verificar_repositorio_sin_tokens_reales; print(Tokens reales:, verificar_repositorio_sin_tokens_reales(.))"
 \`\`\`
 
+## Adenda GEST1121B — Guardia de recursos y configuración MCP mínima
+**Fecha:** 2026-11-22
+
+### Problemas identificados
+
+1. **MCP gke-oss**: en cada llamada de `agy` se compila `go run github.com/GoogleCloudPlatform/gke-mcp@latest` (~1 GB en carpeta temporal) y quedan `go-build*` si se corta por timeout. Además se cargan 10 servidores MCP no usados que inflan tokens de entrada a ~24,000.
+
+2. **Intercambio elevado**: con Mac 8GB, Antigravity IDE, Claude, Chrome, Cloudroom y 12 agentes, el intercambio subió de 9 a 13 GB en media hora.
+
+3. **starseed_memory_root/.tmp.driveupload**: acumuló 2,191 trozos (2,6 GB) subiendo archivos que cambian cada minuto.
+
+4. **Java en worktrees**: 5 procesos Java de ~0,6 GB cada uno arrancados desde `~/.antigravity-ide/extensions/.../bin/java` en un proyecto TypeScript/Rust.
+
+### Soluciones implementadas
+
+1. **`scripts/puente/guardia_recursos.py`** (nuevo, 425 líneas):
+   - Clase `LeerRecursos` para leer memoria libre, intercambio y disco
+   - Clase `CalcularAjuste` con lógica pura para determinar ajuste de agentes
+   - Umbrales por defecto: intercambio > 10 GB o disco < 10 GB → máximo 2 agentes locales pesados
+   - Función `ajustar_agentes()` como punto de entrada principal
+   - Clase `DetectarJavaWorktree` para detectar procesos Java en worktrees
+   - CLI con comandos: `estado`, `ajustar`, `java`
+
+2. **`scripts/puente/test_guardia_recursos.py`** (nuevo, 189 líneas):
+   - Tests para todos los componentes puros
+   - Pruebas de ajuste según umbrales
+   - Mock de lectura de recursos
+
+3. **`scripts/puente/MCP_CONFIG_MINIMA.md`** (nuevo, documentación):
+   - Configuración MCP mínima para llamadas de Antigravity
+   - Archivo de ejemplo para `~/.starseed/antigravity-config.json`
+   - Instrucciones para Alex sobre cómo limpiar configuraciones MCP
+
+### Archivos modificados
+
+- `scripts/puente/antigravity_flota.py`: agregado test para `medir_tiempo_arranque_agy`
+- `scripts/puente/test_antigravity_flota.py`: agregado `TestMedirTiempoArranque`
+
+### Pendiente (acción para Alex)
+
+1. Editar `~/.gemini/antigravity/mcp_config.json` y quitar servidores no necesarios (gke-oss, alloydb, firebase, genkit, dart)
+2. Habilitar limpieza automática de `go-build*` en `escritor_agy.py`
+3. Verificar que las carpetas de worktrees tengan `.metadata_never_index` para Spotlight
+
+### Comandos útiles
+
+\`\`\`bash
+python3 scripts/puente/guardia_recursos.py estado
+python3 scripts/puente/guardia_recursos.py ajustar
+python3 scripts/puente/guardia_recursos.py java
+\`\`\`
+
