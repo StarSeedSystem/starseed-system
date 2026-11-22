@@ -715,7 +715,7 @@ def sincronizar_todos_los_canales(
     """Ejecuta una pasada de sincronización para `principal`, `general` y `audiovisual`."""
     mapa = canales_cfg if canales_cfg is not None else cargar_canales_direccion()
     ses_principal = (mapa.get("principal") or {}).get("hermes_sesion")
-    ses_general = (mapa.get("general") or {}).get("hermes_sesion") or "20260909_210504_867626"
+    ses_general = (mapa.get("general") or {}).get("hermes_sesion") or "20260828_130104_dc6d43f0"
     ses_audiovisual = (mapa.get("audiovisual") or {}).get("hermes_sesion")
 
     # Canal 1 (`principal`): Hermes `Dirección MetaGenesis` + Maggacortex (polling exclusivo).
