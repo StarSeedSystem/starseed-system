@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-como-tele",
+   "titulo": "Canal `params` de la orbe como telemetría visual",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe como telemetría visual. : publicar el vector 1.58b (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en tiempo real vía Supabase Realtime `orb_params` → cualquier neurona/Exocortex puede reaccionar (color, pulso, forma) sin polling. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-quantumor",
+   "titulo": "Canal `params` de la orbe → `QuantumOrbAvatar`",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe → `QuantumOrbAvatar`. : publicar vector visual 1.58b (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en cada tick del bus; el avatar reacciona en tiempo real sin polling. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-bitnet-2-4-sparse-spbitnet-en-neu",
+   "titulo": "BitNet 2:4 sparse + spbitnet en neurona NVIDIA",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: BitNet 2:4 sparse + spbitnet en neurona NVIDIA. : tarea en `tasks` → evaluar ganancia de throughput vs perplejidad (actual 5.38) antes de invertir en GPU cloud. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-watchdog-de-proveedores-gratis-en",
+   "titulo": "Watchdog de proveedores gratis en Dream",
+   "area": "imaginacion",
+   "archivos": [
+    "modelos-gratuitos.md",
+    "metodologia-ia.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Watchdog de proveedores gratis en Dream. : job cron cada 6h que haga `hermes model --refresh` + health-check 1-request a cada `:free`; si falla >2 veces, marcar `deprecated: true` en `modelos-gratuitos.md` y rotar al siguiente en `metodologia-ia.md` §2. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "IMG-diaria-bitnet-2-4-sparse-spbitnet-en-neu",
+   "IMG-diaria-canal-params-de-la-orbe-como-tele",
+   "IMG-diaria-canal-params-de-la-orbe-quantumor",
+   "IMG-diaria-watchdog-de-proveedores-gratis-en"
+  ]
+ }
+}
