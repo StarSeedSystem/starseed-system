@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "ACC1121C",
+   "ola": "ACC1121",
+   "titulo": "Los mismos permisos y un contexto al día en todos los motores de la dirección, y sin reiniciar nada a mano",
+   "archivos": [
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/test_cartero_director.py"
+   ],
+   "depende": [],
+   "importancia": "capacidad",
+   "prompt": "Medido el 21-11: a) el cartero es un servicio que no se recarga cuando cambia su código (el director de la nube sí): los permisos\nnuevos del presidente no valen hasta que alguien lo reinicia; que se recargue solo como `director-nube.py`. b) El presidente afirmó «el\nCLI de Claude sigue sin sesión, lo dice el relevo de las 15:44» mientras respondía CON Claude: su contexto llevaba un dato caducado; cada\ndato del contexto lleva hora, lo vivo (sesiones, colas, capacidad) se comprueba en el momento y lo que tenga más de 30 min se marca como\nviejo. c) `orden_hermes`, `orden_agy` y Codex deben dar a la dirección lo mismo que `permisos_del_presidente()`: la puerta MCP y la lista\ncerrada, y la misma ficha de permisos en el prompt; hoy cada motor tiene lo que le tocó. d) Coste: una llamada de prueba del presidente\ncon `claude -p` gastó 431 000 tokens de entrada en 5 turnos (≈ 86 000 de contexto por turno, con Opus): usa Sonnet para los turnos de\nrutina y Opus solo para decisiones, carga solo el MCP de dirección (`--strict-mcp-config`) y deja fuera lo que no usa. Meta: menos de\n25 000 tokens por turno de rutina.\n\nCONTEXTO (Alex, 21-11): «todos los canales y medios de chats de dirección (los 3 canales) deben tener todos los permisos y accesos completos de MetaGenesis en tiempo real a través de cualquier medio donde se utilice». Canales: Principal (@starseed_neurocortex_bot, presidente), General (@starseed_puente_bot, pasarela de Hermes) y Audiovisual y diseño (@StarSeed_Design_bot, A1). La puerta común YA existe y está configurada en Claude, Hermes, Antigravity y Codex: el servidor MCP `starseed-director` (scripts/puente/mcp_director.py), pero solo tiene 10 herramientas (chat del canal Principal y producción). La dirección ya abrió al presidente esa puerta y una lista cerrada de órdenes (DIR1121E, 70f48b3c2: `permisos_del_presidente()` en motores_director.py; comprobado con una llamada real: MCP, git y flota sin denegaciones). «Completo» quiere decir TODAS las operaciones de MetaGenesis; no quiere decir consola libre. Siguen reservados: publicar fuera de las puertas, quitar una pausa de publicación, claves y cuentas, el A1 con privilegios, aceptar o conceder algo a nombre de Alex y cerrar sus apps. Como mucho 3 archivos por tarea. Pruebas que fallen sin tu cambio; en el informe, qué comprobaste de verdad desde cada medio."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "ACC1121C"
+  ]
+ }
+}
