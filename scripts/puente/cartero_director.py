@@ -77,6 +77,41 @@ def guardar_estado(estado, raiz=None):
     ruta.write_text(json.dumps(estado, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# ── ACC1121 · recarga sola, como `director-nube.py` ────────────────────────────────
+# El cartero vive horas en el mismo proceso y Python guarda cada `import` para siempre: los
+# permisos nuevos del presidente no valían hasta reiniciarlo a mano. Entre pasadas mira si
+# cambió el código que ya cargó y, si cambió y no hay una entrega lenta en vuelo, se vuelve a
+# ejecutar (mismo PID para launchd, mismo python con su permiso de disco).
+def huellas_del_puente(modulos=None, directorio=None) -> dict:
+    """{archivo: (mtime, tamaño)} de los módulos de `scripts/puente/` que este proceso ya cargó."""
+    directorio = directorio or os.path.dirname(os.path.abspath(__file__))
+    salida = {}
+    for m in list((modulos if modulos is not None else sys.modules).values()):
+        ruta = getattr(m, "__file__", None) or ""
+        if not ruta.endswith(".py") or os.path.dirname(os.path.abspath(ruta)) != directorio:
+            continue
+        try:
+            st = os.stat(ruta)
+        except OSError:
+            continue
+        salida[os.path.abspath(ruta)] = (int(st.st_mtime), st.st_size)
+    return salida
+
+
+def codigo_cambiado(antes: dict, ahora: dict) -> list:
+    """PURA. Los archivos ya cargados cuyo contenido cambió en disco (o desaparecieron)."""
+    return sorted(r for r, h in (antes or {}).items() if (ahora or {}).get(r) != h)
+
+
+def debe_recargar(cambiados, en_vuelo=False) -> bool:
+    """PURA. Recarga solo si cambió el código y no hay una entrega lenta en vuelo.
+
+    Recargar con un proveedor a mitad de turno mataría la respuesta; se espera a que el carril
+    quede vacío y se reintenta en la pasada siguiente (las huellas viejas se conservan).
+    """
+    return bool(cambiados) and not en_vuelo
+
+
 def que_hacer(registros, estado):
     """Decide qué entregas atender: [(id_mensaje, canal), ...] (pura).
 
@@ -185,45 +220,133 @@ def armar_contexto(partes, tope):
     return separador.join(resultado)
 
 
-def _contexto():
-    """Arma el contexto completo para el Director presidente por prioridad."""
-    partes = [
-        ("RELEVO", _leer_archivo("starseed_memory_root/relevo/relevo.md"), 4000),
-        ("PLAN ACTIVO", _leer_archivo("starseed_memory_root/pruebas/plan-activo.md"), 4000),
-        ("REGISTRO PRUEBAS", _leer_archivo_final("starseed_memory_root/pruebas/registro-pruebas.md", 4000), 4000),
-        ("ÚLTIMAS 20 LÍNEAS REGISTRO", _ultimas_lineas_registro(), 2000),
-        ("PUENTE DE MANDO", _leer_archivo("PUENTE-DE-MANDO.md"), 4000),
-        ("ORQUESTACIÓN ECONÓMICA", _leer_archivo("memory/orquestacion-economica.md"), 4000),
-    ]
+#: ACC1121 · a partir de aquí un dato del contexto es VIEJO y se dice en su cabecera.
+TOPE_VIEJO_MIN = 30
+
+
+def edad_min(escrito_en, ahora=None) -> int:
+    """PURA. Minutos transcurridos desde `escrito_en` (nunca negativos)."""
+    ahora = time.time() if ahora is None else float(ahora)
+    return max(0, int((ahora - float(escrito_en)) // 60))
+
+
+def titulo_contexto(titulo, escrito_en=None, ahora=None, tope_viejo_min=TOPE_VIEJO_MIN) -> str:
+    """PURA (ACC1121). Cabecera de una parte del contexto con su hora y su edad.
+
+    `escrito_en=None` es un dato VIVO: se comprobó en el momento. Un dato de más de
+    `tope_viejo_min` minutos se marca VIEJO para que la dirección no lo cite como actual.
+    """
+    if escrito_en is None:
+        return "%s · ahora" % titulo
+    mins = edad_min(escrito_en, ahora)
+    hora = datetime.fromtimestamp(float(escrito_en)).astimezone().strftime("%Y-%m-%d %H:%M")
+    if mins > tope_viejo_min:
+        return "%s · %s (VIEJO: hace %d min)" % (titulo, hora, mins)
+    return "%s · %s (hace %d min)" % (titulo, hora, mins)
+
+
+def _contexto(raiz=None, ahora=None, estado=None):
+    """Contexto del Director presidente: cada dato con su hora y lo vivo comprobado ahora.
+
+    (ACC1121) Antes el presidente afirmó «el CLI de Claude sigue sin sesión, lo dice el relevo
+    de las 15:44» mientras respondía CON Claude: el relevo viajaba sin hora. Ahora cada parte
+    lleva la hora de su archivo, lo de más de 30 min se marca VIEJO, y sesión, cola y capacidad
+    se leen en el momento (nunca de un archivo que pueda estar caducado).
+    """
+    ahora = time.time() if ahora is None else float(ahora)
+    partes = []
+
+    def añadir(titulo, ruta_rel, tope_parte, desde_el_final=False, ultimas_lineas=0):
+        texto, escrito_en = _leer_archivo_con_fecha(ruta_rel, raiz)
+        if not texto:
+            return
+        marca = titulo_contexto(titulo, escrito_en, ahora)
+        presupuesto = max(0, tope_parte - len(marca) - 1)
+        if desde_el_final and len(texto) > presupuesto:
+            texto = texto[-presupuesto:]
+        if ultimas_lineas:
+            texto = "\n".join(texto.splitlines()[-ultimas_lineas:])
+        partes.append((titulo, marca + "\n" + texto, tope_parte))
+
+    añadir("RELEVO", "starseed_memory_root/relevo/relevo.md", 4000)
+    añadir("PLAN ACTIVO", "starseed_memory_root/pruebas/plan-activo.md", 4000)
+    añadir("REGISTRO PRUEBAS", "starseed_memory_root/pruebas/registro-pruebas.md", 4000,
+           desde_el_final=True)
+    añadir("ÚLTIMAS 20 LÍNEAS REGISTRO", "starseed_memory_root/pruebas/registro.jsonl", 2000,
+           ultimas_lineas=20)
+    añadir("PUENTE DE MANDO", "PUENTE-DE-MANDO.md", 4000)
+    añadir("ORQUESTACIÓN ECONÓMICA", "memory/orquestacion-economica.md", 4000)
+    # Lo VIVO no se lee de un archivo del proyecto: se comprueba ahora.
+    partes.append(("SESIÓN DE DIRECCIÓN",
+                   titulo_contexto("SESIÓN DE DIRECCIÓN", None, ahora) + "\n" + _sesion_viva(), 600))
+    partes.append(("COLA DEL PRESIDENTE",
+                   titulo_contexto("COLA DEL PRESIDENTE", None, ahora) + "\n" + _cola_viva(estado), 800))
+    partes.append(("CAPACIDAD",
+                   titulo_contexto("CAPACIDAD", None, ahora) + "\n" + _capacidad_viva(), 600))
     return armar_contexto(partes, TOPE_CONTEXTO_PRESIDENTE)
 
 
-def _leer_archivo(ruta_rel):
+def _leer_archivo_con_fecha(ruta_rel, raiz=None):
+    """Lee un archivo y devuelve (texto, mtime) o ('', None) si no existe."""
+    base = Path(raiz) if raiz else RAIZ
+    ruta = base / ruta_rel
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+        return texto, ruta.stat().st_mtime
+    except OSError:
+        return "", None
+
+
+def _leer_archivo(ruta_rel, raiz=None):
     """Lee un archivo completo; devuelve '' si no existe."""
-    try:
-        return (RAIZ / ruta_rel).read_text(encoding="utf-8")
-    except OSError:
-        return ""
+    texto, _ = _leer_archivo_con_fecha(ruta_rel, raiz)
+    return texto
 
 
-def _leer_archivo_final(ruta_rel, tope_parte):
+def _leer_archivo_final(ruta_rel, tope_parte, raiz=None):
     """Lee un archivo y si es más largo que tope_parte devuelve su final (últimos tope_parte chars)."""
-    try:
-        texto = (RAIZ / ruta_rel).read_text(encoding="utf-8")
-        if len(texto) > tope_parte:
-            return texto[-tope_parte:]
-        return texto
-    except OSError:
-        return ""
+    texto = _leer_archivo(ruta_rel, raiz)
+    return texto[-tope_parte:] if len(texto) > tope_parte else texto
 
 
-def _ultimas_lineas_registro():
+def _ultimas_lineas_registro(raiz=None):
     """Devuelve las últimas 20 líneas de registro.jsonl o '' si no existe."""
+    texto = _leer_archivo("starseed_memory_root/pruebas/registro.jsonl", raiz)
+    return "\n".join(texto.splitlines()[-20:]) if texto else ""
+
+
+def _sesion_viva() -> str:
+    """La sesión de dirección tal como está AHORA (motor y sesión), no lo que diga un relevo."""
     try:
-        lineas = (RAIZ / "starseed_memory_root/pruebas/registro.jsonl").read_text(encoding="utf-8").splitlines()
-        return "\n".join(lineas[-20:])
-    except OSError:
-        return ""
+        datos = motores_director.direccion_motor()
+        return "Motor: %s · sesión: %s" % (
+            datos.get("motor") or "claude", datos.get("sesion") or "ninguna (se abrirá una)")
+    except Exception:  # noqa: BLE001 — el contexto nunca rompe una entrega
+        return "Motor: sin datos"
+
+
+def _cola_viva(estado) -> str:
+    """La cola del presidente tal como está AHORA en el estado del cartero."""
+    cola = ((estado or {}).get("presidente") or {}).get("cola") or {}
+    if not cola:
+        return "Cola del presidente: vacía"
+    ahora = time.time()
+    lineas = []
+    for idm, dato in list(cola.items())[:8]:
+        proximo = float((dato or {}).get("proximo") or 0)
+        lineas.append("%s · reintento en %ds · %s" % (
+            idm, max(0, int(proximo - ahora)), (dato or {}).get("detalle") or "en cola"))
+    return "Cola del presidente: %d pendiente(s)\n%s" % (len(cola), "\n".join(lineas))
+
+
+def _capacidad_viva() -> str:
+    """La capacidad medida AHORA por el gobernador (trabajadores y RAM libre)."""
+    datos = _cargar_json("~/.starseed/gobernador.json")
+    if not datos:
+        return "Capacidad: sin lectura del gobernador"
+    partes = ["%s=%s" % (c, datos[c]) for c in
+              ("tope_trabajadores", "maximo_hardware", "ram_libre_mb", "actualizado") if c in datos]
+    return "Capacidad: " + (", ".join(partes) or "sin datos")
 
 
 def _fallo(mensaje, canal, detalle, raiz=None):
@@ -295,7 +418,7 @@ def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None, canal="claud
         if isinstance(r.get("rol"), str)
     ]
     prompt = motores_director.prompt_director(
-        mensaje.get("texto", ""), historial, _contexto()
+        mensaje.get("texto", ""), historial, _contexto(estado=estado)
     )
     inicio = time.time()
     rc, salida = motores_director.correr(
@@ -346,7 +469,7 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
         segundos = motores_director.SEGUNDOS_SESION_FRESCA if (ses is None and sesion) else 600
         try:
             rc, salida = motores_director.correr(
-                motores_director.orden_hermes(prompt, modelo, archivo_uso, ses),
+                motores_director.orden_hermes(prompt, modelo, archivo_uso, ses, con_permisos=True),
                 segundos=segundos,
             )
             try:
@@ -372,7 +495,7 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
         return director_presidente.prompt_sesion_fresca(
             mensaje.get("texto", ""),
             director_presidente.hilo_direccion(registros, mensaje.get("id")),
-            _contexto(),
+            _contexto(estado=estado),
             rol_texto="Eres Hermes, una de las direcciones de Genesis (StarSeed OS). Responde en "
                       "español, claro y breve.",
         )
@@ -447,7 +570,7 @@ def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
     inicio = time.time()
     rc, salida = motores_director.correr(
         motores_director.orden_codex(modelo, str(RAIZ)),
-        entrada=mensaje.get("texto", ""),
+        entrada=motores_director.prompt_con_permisos(mensaje.get("texto", "")),
         segundos=600,
     )
     if rc != 0 and not salida.strip():
@@ -507,7 +630,7 @@ def atender(mensaje, canal, estado, raiz=None):
                         list(presidente_config.DEFAULTS["orden_proveedores"]):
                     cfg_pres["orden_proveedores"] = motores_director.orden_proveedores_presidente()
             r = director_presidente.atender(
-                mensaje, estado, raiz=raiz, contexto=_contexto(), tope_opus=TOPE_OPUS,
+                mensaje, estado, raiz=raiz, contexto=_contexto(estado=estado), tope_opus=TOPE_OPUS,
                 sesion_hermes=motores_director.direccion_motor().get("sesion"),
                 config=cfg_pres,
             )
@@ -832,8 +955,17 @@ def main(argv=None):
         pasada(estado)
         return 0
     despachador = Despachador()
+    huellas = {}
     while True:
         pasada(estado, despachador=despachador)
+        ahora = huellas_del_puente()
+        cambiados = codigo_cambiado(huellas, ahora) if huellas else []
+        if debe_recargar(cambiados, bool(despachador.en_vuelo)):
+            print("[cartero] código nuevo en %s: me recargo" % ", ".join(
+                os.path.basename(c) for c in cambiados[:6]), flush=True)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        if not cambiados:
+            huellas = {**ahora, **{r: h for r, h in huellas.items() if r not in ahora}}
         time.sleep(PAUSA_SEGUNDOS)
 
 

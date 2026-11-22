@@ -125,6 +125,52 @@ def permisos_del_presidente() -> tuple:
     return permitidas, vetadas
 
 
+#: (ACC1121, 2026-11-22) El ÚNICO servidor MCP de la dirección. `claude -p` carga solo este
+#: (`--strict-mcp-config`): con todos los MCP del usuario, un turno de rutina gastaba ~86 000
+#: tokens de entrada por turno. Meta: menos de 25 000.
+MCP_DIRECTOR = "starseed-director"
+_MARCA_FICHA_PERMISOS = "Permisos de la dirección (idénticos en todos los motores):"
+
+
+def ficha_permisos() -> str:
+    """PURA (ACC1121). La misma ficha de permisos para todos los motores de la dirección.
+
+    Claude la aplica además con `--allowedTools`/`--disallowedTools`; Hermes, `agy` y Codex no
+    tienen esas banderas, así que la reciben escrita en el prompt. La puerta MCP y la lista
+    cerrada son las mismas en los cuatro: no es consola libre, es MetaGenesis completo con sus
+    puertas, y sigue vetado publicar fuera de ellas, las claves, el A1 y quitar una pausa.
+    """
+    return (
+        _MARCA_FICHA_PERMISOS + "\n"
+        "· Puerta MCP `%s` (solo esa): %s.\n"
+        "· Órdenes de MetaGenesis permitidas (lista cerrada): %s.\n"
+        "· Vetado: editar archivos, publicar o reescribir main, borrar, claves, el A1 y parar "
+        "servicios; tampoco se quita una pausa de publicación (`produccion_reanudar`).\n"
+    ) % (MCP_DIRECTOR, ", ".join(MCP_DIRECTOR_PERMITIDAS), ", ".join(ORDENES_METAGENESIS))
+
+
+def prompt_con_permisos(prompt: str) -> str:
+    """PURA (ACC1121). Antepone la ficha de permisos al prompt, sin duplicarla si ya la lleva."""
+    if not prompt:
+        return ficha_permisos()
+    if _MARCA_FICHA_PERMISOS in prompt[:200]:
+        return prompt
+    return ficha_permisos() + "\n" + prompt
+
+
+def mcp_config_director(raiz=None) -> dict:
+    """PURA (ACC1121). Config MCP con la ÚNICA puerta de la dirección: `starseed-director`."""
+    base = Path(raiz) if raiz else Path(__file__).resolve().parent
+    return {
+        "mcpServers": {
+            MCP_DIRECTOR: {
+                "command": sys.executable or "python3",
+                "args": [str(base / "mcp_director.py")],
+            }
+        }
+    }
+
+
 def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> list:
     permitidas, vetadas = permisos_del_presidente()
     orden = [
@@ -137,6 +183,13 @@ def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> lis
         "json",
         "--max-turns",
         "12",
+        "--strict-mcp-config",
+        "--mcp-config",
+        json.dumps(mcp_config_director(), ensure_ascii=False),
+        # (ACC1121) La misma ficha que reciben Hermes, `agy` y Codex, aquí en el prompt de
+        # sistema: no se duplica en el mensaje del usuario y el mensaje queda tal cual.
+        "--append-system-prompt",
+        ficha_permisos(),
         "--allowedTools",
         *permitidas,
         "--disallowedTools",
@@ -186,8 +239,13 @@ def direccion_motor(ruta=None) -> dict:
             "sesion": d.get("sesion") or None}
 
 
-def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None) -> list:
+def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None,
+                 con_permisos=False) -> list:
     # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Dirección MetaGenesis»).
+    # (ACC1121) `con_permisos=True` le da la MISMA ficha que a Claude: Hermes no tiene
+    # `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
+    if con_permisos:
+        prompt = prompt_con_permisos(prompt)
     orden = ["hermes"] + (["--resume", sesion] if sesion else []) + ["-z", prompt]
     if modelo and modelo != "predeterminado":
         orden += ["-m", modelo]
@@ -647,11 +705,15 @@ _AGY_PERMISOS = (
 _AGY_TOPE_FALLO = 600
 
 
-def orden_agy(prompt: str, modelo=None, segundos=None) -> list:
+def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True) -> list:
     """La orden de `agy` con la sesión de Google de Alex (100 % headless sin GUI).
 
     `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
+    (ACC1121) `con_permisos` (encendido) le da la MISMA ficha que a Claude: `agy` no tiene
+    `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
     """
+    if con_permisos:
+        prompt = prompt_con_permisos(prompt)
     segundos = int(segundos or SEGUNDOS_AGY)
     return [
         "agy",
