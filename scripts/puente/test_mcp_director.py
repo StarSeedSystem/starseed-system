@@ -110,6 +110,7 @@ class PruebasAtender(unittest.TestCase):
                 "canal_decir",
                 "metagenesis_estado",
                 "metagenesis_orden",
+                "brave_buscar",
             ],
         )
 
@@ -342,6 +343,124 @@ class PruebasProduccion(unittest.TestCase):
     def test_candidatos_sin_repo_devuelve_mensaje(self):
         texto = self._texto("produccion_candidatos", {})
         self.assertIn("No hay candidatos", texto)
+
+
+class PruebasBrave(unittest.TestCase):
+    """Herramienta `brave_buscar` (MCP brave-search): clave, validación y formato."""
+
+    _VARS = ("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self._VARS}
+        for v in self._VARS:
+            os.environ.pop(v, None)
+        self._clave_orig = mcp_director._brave_clave
+        self._http_orig = mcp_director._brave_http_json
+
+    def tearDown(self):
+        for v, valor in self._guardadas.items():
+            if valor is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = valor
+        mcp_director._brave_clave = self._clave_orig
+        mcp_director._brave_http_json = self._http_orig
+
+    def _p(self, metodo, params=None, ident=1):
+        peticion = {"jsonrpc": "2.0", "id": ident, "method": metodo}
+        if params is not None:
+            peticion["params"] = params
+        return peticion
+
+    def _call(self, nombre, argumentos):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": nombre, "arguments": argumentos})
+        )
+        assert "error" not in r, r.get("error")
+        return r["result"]
+
+    def _texto(self, nombre, argumentos):
+        r = self._call(nombre, argumentos)
+        self.assertNotIn("isError", r, r)
+        return r["content"][0]["text"]
+
+    def _error(self, nombre, argumentos):
+        r = self._call(nombre, argumentos)
+        self.assertTrue(r.get("isError"), r)
+        return r["content"][0]["text"]
+
+    def test_sin_clave_es_error_claro(self):
+        texto = self._error("brave_buscar", {"consulta": "starseed"})
+        self.assertIn("BRAVE_SEARCH_API_KEY", texto)
+
+    def test_consulta_vacia_es_error(self):
+        mcp_director._brave_clave = lambda: "clave"
+        self.assertIn(
+            "consulta es obligatoria",
+            self._error("brave_buscar", {"consulta": "   "}),
+        )
+
+    def test_limite_fuera_de_rango_es_error(self):
+        mcp_director._brave_clave = lambda: "clave"
+        self.assertIn(
+            "limite fuera de rango",
+            self._error("brave_buscar", {"consulta": "x", "limite": 50}),
+        )
+
+    def test_formatear_resultados(self):
+        datos = {
+            "web": {
+                "results": [
+                    {
+                        "title": "StarSeed OS",
+                        "url": "https://starseed-os.vercel.app",
+                        "description": "  Sistema   operativo\nsocial  ",
+                        "age": "2 days ago",
+                    },
+                    {"title": "Otro", "url": "https://otro.example", "description": ""},
+                ]
+            }
+        }
+        texto = mcp_director._brave_formatear(datos)
+        self.assertIn("1. StarSeed OS", texto)
+        self.assertIn("https://starseed-os.vercel.app", texto)
+        self.assertIn("Sistema operativo social", texto)
+        self.assertIn("2 days ago", texto)
+        self.assertIn("2. Otro", texto)
+
+    def test_formatear_sin_resultados(self):
+        self.assertIn("no devolvió resultados", mcp_director._brave_formatear({}))
+
+    def test_buscar_llama_a_http_y_formatea(self):
+        capturado = {}
+
+        def conseguir(url, cabeceras):
+            capturado["url"] = url
+            capturado["cabeceras"] = cabeceras
+            return {"web": {"results": [{"title": "Resultado", "url": "https://r"}]}}
+
+        mcp_director._brave_clave = lambda: "clave"
+        mcp_director._brave_http_json = conseguir
+        texto = self._texto(
+            "brave_buscar",
+            {"consulta": "starseed", "limite": 3, "pais": "ES", "frescor": "pw"},
+        )
+        self.assertIn("Resultado", texto)
+        self.assertIn("q=starseed", capturado["url"])
+        self.assertIn("count=3", capturado["url"])
+        self.assertIn("country=ES", capturado["url"])
+        self.assertIn("freshness=pw", capturado["url"])
+        self.assertEqual(capturado["cabeceras"]["X-Subscription-Token"], "clave")
+
+    def test_error_de_red_se_reporta_en_claro(self):
+        def conseguir(url, cabeceras):
+            raise OSError("sin conexión")
+
+        mcp_director._brave_clave = lambda: "clave"
+        mcp_director._brave_http_json = conseguir
+        texto = self._error("brave_buscar", {"consulta": "x"})
+        self.assertIn("falló la búsqueda en Brave", texto)
+        self.assertIn("sin conexión", texto)
 
 
 #: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).

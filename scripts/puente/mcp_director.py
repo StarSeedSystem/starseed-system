@@ -55,6 +55,12 @@ _P_ORDEN = _s(
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
 
+# --- Brave Search (MCP `brave-search`) ---
+# La clave solo se lee del entorno; nunca se escribe en el repo ni en el bus.
+BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_CLAVE_VARS = ("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")
+BRAVE_FRESCO = ("pd", "pw", "pm", "py")
+
 
 def _esquema(propiedades, requeridos):
     return {
@@ -132,6 +138,26 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "brave_buscar": _esquema(
+        {
+            "consulta": _s("string", "Texto que se busca en la web."),
+            "limite": _s(
+                "integer", "Número de resultados (1-20, por defecto 10).",
+                minimum=1, maximum=20,
+            ),
+            "desde": _s(
+                "integer", "Desplazamiento del primer resultado (0-9, por defecto 0).",
+                minimum=0, maximum=9,
+            ),
+            "pais": _s("string", "Código de país ISO de la búsqueda (p. ej. ES, US)."),
+            "idioma": _s("string", "Código de idioma de la búsqueda (p. ej. es, en)."),
+            "frescor": _s(
+                "string", "Rango temporal de los resultados.",
+                enum=list(BRAVE_FRESCO),
+            ),
+        },
+        ["consulta"],
+    ),
 }
 
 _HERR = [
@@ -149,6 +175,7 @@ _HERR = [
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
     ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
+    ("brave_buscar", "Busca en la web con Brave Search (requiere BRAVE_SEARCH_API_KEY en el entorno)."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -347,6 +374,101 @@ def _produccion(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+# --- Brave Search: clave del entorno, llamada HTTP y formato (§9, fila MCP) ---
+
+def _brave_clave():
+    """Clave de Brave del entorno; cadena vacía si no hay ninguna definida."""
+    for nombre in BRAVE_CLAVE_VARS:
+        valor = os.environ.get(nombre)
+        if valor and valor.strip():
+            return valor.strip()
+    return ""
+
+
+def _brave_http_json(url, cabeceras):
+    """GET con la cabecera de suscripción; separado para poder probarlo sin red."""
+    import urllib.request
+
+    peticion = urllib.request.Request(url, headers=cabeceras)
+    with urllib.request.urlopen(peticion, timeout=12) as respuesta:
+        cuerpo = respuesta.read().decode("utf-8")
+    return json.loads(cuerpo)
+
+
+def _brave_parametros(args):
+    """Valida los argumentos y devuelve los parámetros de la consulta Brave."""
+    consulta = str(args.get("consulta") or "").strip()
+    if not consulta:
+        raise ValueError("consulta es obligatoria")
+    limite = args.get("limite")
+    limite = 10 if limite is None else int(limite)
+    if not 1 <= limite <= 20:
+        raise ValueError("limite fuera de rango (1-20): %d" % limite)
+    desde = int(args.get("desde") or 0)
+    if not 0 <= desde <= 9:
+        raise ValueError("desde fuera de rango (0-9): %d" % desde)
+    parametros = {"q": consulta, "count": str(limite), "offset": str(desde)}
+    pais = str(args.get("pais") or "").strip()
+    if pais:
+        parametros["country"] = pais
+    idioma = str(args.get("idioma") or "").strip()
+    if idioma:
+        parametros["search_lang"] = idioma
+    frescor = str(args.get("frescor") or "").strip()
+    if frescor:
+        if frescor not in BRAVE_FRESCO:
+            raise ValueError("frescor no válido: %s" % frescor)
+        parametros["freshness"] = frescor
+    return parametros
+
+
+def _brave_formatear(datos):
+    """Convierte la respuesta JSON de Brave en texto numerado y recortado."""
+    web = (datos or {}).get("web") or {}
+    resultados = [r for r in (web.get("results") or []) if isinstance(r, dict)]
+    if not resultados:
+        return "Brave no devolvió resultados."
+    lineas = []
+    for indice, resultado in enumerate(resultados, 1):
+        titulo = str(resultado.get("title") or "").strip() or "(sin título)"
+        url = str(resultado.get("url") or "").strip()
+        descripcion = " ".join(str(resultado.get("description") or "").split())[:300]
+        edad = str(resultado.get("age") or "").strip()
+        partes = ["%d. %s" % (indice, titulo)]
+        if url:
+            partes.append(url)
+        if descripcion:
+            partes.append(descripcion)
+        if edad:
+            partes.append("(%s)" % edad)
+        lineas.append(" — ".join(partes))
+    return "\n".join(lineas)
+
+
+def _brave_buscar(args, clave=None, conseguir=None):
+    """Busca en Brave y devuelve el texto; `clave` y `conseguir` se inyectan en pruebas."""
+    clave = _brave_clave() if clave is None else clave
+    if not clave:
+        raise ValueError(
+            "falta %s en el entorno; se lee del entorno, nunca del repo" % BRAVE_CLAVE_VARS[0]
+        )
+    parametros = _brave_parametros(args)
+    from urllib.parse import urlencode
+
+    url = "%s?%s" % (BRAVE_URL, urlencode(parametros))
+    cabeceras = {
+        "Accept": "application/json",
+        "Accept-Encoding": "utf-8",
+        "X-Subscription-Token": clave,
+    }
+    conseguir = _brave_http_json if conseguir is None else conseguir
+    try:
+        datos = conseguir(url, cabeceras)
+    except Exception as e:  # la red falla de mil formas; se reporta en claro
+        raise ValueError("falló la búsqueda en Brave: %s" % e)
+    return _brave_formatear(datos)
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
@@ -473,6 +595,8 @@ def _llamar(nombre, args):
             "ultimo_ci": ultimo_ci,
         }
         return json.dumps(resultado, ensure_ascii=False, indent=2, sort_keys=True)
+    if nombre == "brave_buscar":
+        return _brave_buscar(args)
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
