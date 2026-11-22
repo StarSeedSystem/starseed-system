@@ -296,18 +296,33 @@ def pasada(segundos=25):
     fuera = []
     for nombre, url, var, modelo in SONDAS:
         t0 = time.time()
-        http, cuerpo, tokens = sondear(url, entorno.get(var), modelo, segundos, nombre=nombre)
-        fuera.append({
+        clave = entorno.get(var)
+        http, cuerpo, tokens = sondear(url, clave, modelo, segundos, nombre=nombre)
+        fila = {
             "clave": nombre,
             "modelo": modelo,
             "variable": var,                       # el NOMBRE, nunca el valor
             # DIR1121I: una pasarela SIN variable de clave (Ollama, agy, codex…) no «carece de clave»: no la usa.
-            "tiene_clave": True if var is None else bool(entorno.get(var)),
+            "tiene_clave": True if var is None else bool(clave),
             "http": http,
             "estado": P.clasificar(http, cuerpo, tokens, _consejero_jev()),
             "segundos": round(time.time() - t0, 1),
             "mensaje": "" if tokens else P.extraer_mensaje_error(cuerpo),
-        })
+        }
+        # (SES1122A, medido el 22-11) Un id retirado no condena a la pasarela: se pide su
+        # catálogo y se repite UNA vez con un gratuito vigente. Si no hay candidato, la
+        # medida original se queda tal cual; nunca se inventa un modelo.
+        if fila["estado"] == P.MODELO_FUERA:
+            vigente = _modelo_vigente(nombre, url, clave, modelo, segundos)
+            if vigente:
+                http, cuerpo, tokens = sondear(url, clave, vigente, segundos, nombre=nombre)
+                fila["modelo_anterior"] = modelo
+                fila["modelo"] = vigente
+                fila["http"] = http
+                fila["estado"] = P.clasificar(http, cuerpo, tokens, _consejero_jev())
+                fila["segundos"] = round(time.time() - t0, 1)
+                fila["mensaje"] = "" if tokens else P.extraer_mensaje_error(cuerpo)
+        fuera.append(fila)
         if nombre == "openrouter" and fuera[-1]["estado"] in P.UTILIZABLES:
             ids = openrouter_gratuitos(_catalogo_openrouter())
             if ids:
@@ -355,6 +370,44 @@ def _catalogo_openrouter(segundos=20):
             return json.load(r)
     except Exception:
         return None
+
+
+def _catalogo_pasarela(url, clave, segundos=20):
+    """GET <url>/models con la clave de ESA pasarela. Devuelve el JSON o None.
+
+    (SES1122A) Sirve para saber qué ids existen hoy cuando la sonda choca con uno retirado.
+    La clave viaja en la cabecera, nunca se imprime ni se guarda."""
+    cabeceras = {"Accept": "application/json", "User-Agent": "starseed-renovador/1.0"}
+    if clave:
+        cabeceras["Authorization"] = "Bearer %s" % clave
+    try:
+        import openrouter as _orr
+        cabeceras = _orr.cabeceras(url, cabeceras)
+    except Exception:
+        pass
+    peticion = urllib.request.Request(url.rstrip("/") + "/models", headers=cabeceras)
+    try:
+        with urllib.request.urlopen(peticion, timeout=segundos) as r:
+            return json.load(r)
+    except Exception:
+        return None
+
+
+def _modelo_vigente(nombre, url, clave, anterior, segundos=20):
+    """El sustituto gratuito del modelo retirado, o "" si la pasarela no da catálogo.
+
+    OpenRouter ya tiene su lector propio (`openrouter_gratuitos`); el resto usa la regla
+    pura de `pasarelas.elegir_modelo_gratuito`. Las pasarelas locales no tienen catálogo
+    HTTP que pedir y se quedan como están."""
+    if not url or url == "local" or not str(url).startswith("http"):
+        return ""
+    datos = _catalogo_pasarela(url, clave, segundos)
+    if datos is None:
+        return ""
+    if nombre == "openrouter":
+        return (next((m for m in openrouter_gratuitos(datos) if m != anterior), "")
+                or P.elegir_modelo_gratuito(datos, anterior))
+    return P.elegir_modelo_gratuito(datos, anterior)
 
 
 def _consejero_jev():

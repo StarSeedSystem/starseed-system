@@ -430,6 +430,48 @@ def modelos_utiles(modelos, informe, siempre=SIEMPRE):
     return utiles, apartados
 
 
+def _modelo_es_gratuito(fila, mid):
+    """PURA: ¿este id del catálogo se puede sondear sin gastar? Precio 0, `free` o su nombre."""
+    p = fila.get("pricing") or {}
+    try:
+        if p and float(p.get("prompt") or 1) == 0 and float(p.get("completion") or 1) == 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    if fila.get("free") is True:
+        return True
+    # El id lo dice con separadores muy distintos: `:free`, `-free`, `free/`, `free-model`.
+    piezas = mid.lower().replace(":", "/").replace("-", "/").replace("_", "/").split("/")
+    return "free" in piezas
+
+
+def elegir_modelo_gratuito(datos, anterior=""):
+    """PURA: el gratuito VIGENTE del catálogo `/models` que más contexto ofrece, sin el retirado.
+
+    (SES1122A, medido el 22-11) La sonda usaba un id fijo y, cuando la pasarela lo retira,
+    el 404 se leía como «esta pasarela no sirve» aunque estuviera viva. El catálogo dice
+    qué ids existen HOY. Gratuito es precio 0 declarado (OpenRouter), `free: true` o un id
+    que lo lleva (`:free`, `-free`, `/free`). Si el catálogo no distingue, devuelve "" y no
+    se inventa nada: mejor seguir con la medida original que sondear a ciegas.
+    """
+    filas = datos if isinstance(datos, list) else (
+        (datos or {}).get("data") or (datos or {}).get("models") or [])
+    fuera = []
+    for m in filas:
+        if not isinstance(m, dict):
+            continue
+        mid = str(m.get("id") or m.get("model") or m.get("name") or "").strip()
+        if not mid or mid == anterior or not _modelo_es_gratuito(m, mid):
+            continue
+        try:
+            contexto = int(m.get("context_length") or 0)
+        except (TypeError, ValueError):
+            contexto = 0
+        fuera.append((contexto, mid))
+    fuera.sort(key=lambda t: t[0], reverse=True)
+    return fuera[0][1] if fuera else ""
+
+
 def sello(informe):
     """La marca de tiempo del informe, para saber si hay uno nuevo que leer."""
     return ((informe or {}).get("t") or "").strip()
