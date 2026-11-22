@@ -30,22 +30,37 @@ class PeticionesLLMTest(unittest.TestCase):
         self.logs = []
 
         # Patch module constants to use test paths
-        self._original_estado_def = PL.ESTADO_DEF
-        self._original_catalogo_def = PL.CATALOGO_DEF
+        self._originales = {}
+        for nombre in (
+            "ESTADO_DEF", "CATALOGO_DEF", "CATALOGO_OPENROUTER_DEF",
+            "ULTIMO_BUENO_FREELLM_DEF", "ULTIMO_BUENO_OPENROUTER_DEF",
+        ):
+            self._originales[nombre] = getattr(PL, nombre)
         PL.ESTADO_DEF = self.estado_file
         PL.CATALOGO_DEF = self.catalogo_file
+        PL.CATALOGO_OPENROUTER_DEF = self.salud_dir / "catalogo_openrouter_free.json"
+        PL.ULTIMO_BUENO_FREELLM_DEF = self.salud_dir / "catalogo_freellmapi_ultimo_bueno.json"
+        PL.ULTIMO_BUENO_OPENROUTER_DEF = self.salud_dir / "catalogo_openrouter_ultimo_bueno.json"
+        dormir = patch("peticiones_llm.time.sleep")
+        dormir.start()
+        self.addCleanup(dormir.stop)
 
     def tearDown(self):
-        # Restore module constants
-        PL.ESTADO_DEF = self._original_estado_def
-        PL.CATALOGO_DEF = self._original_catalogo_def
+        for nombre, valor in self._originales.items():
+            setattr(PL, nombre, valor)
         self.t.cleanup()
 
     def _log_fn(self, msg: str):
         self.logs.append(msg)
 
-    def _http_get_ok(self, data: dict):
+    def _http_get_ok(self, data: dict, openrouter: list | None = None):
+        modelos_or = openrouter if openrouter is not None else [
+            {"id": "meta-llama/llama-3.1-8b-instruct:free", "supported_endpoints": ["/v1/chat/completions"]}
+        ]
+
         def fn(url: str):
+            if "openrouter.ai" in url:
+                return {"data": modelos_or}
             return data
         return fn
 
@@ -188,10 +203,13 @@ class PeticionesLLMTest(unittest.TestCase):
         """obtener_ultimo_exito devuelve None si no hay éxitos previos."""
         self.assertIsNone(PL.obtener_ultimo_exito())
 
-    def test_modelo_con_cuota_agotada_despues_de_dos_fallos(self):
-        """modelo_con_cuota_agotada retorna True tras 2 fallos consecutivos."""
+    def test_modelo_con_cuota_agotada_despues_de_tres_fallos(self):
+        """modelo_con_cuota_agotada retorna True tras 3 fallos consecutivos."""
         ahora = datetime(2026, 11, 17, 12, 0, 0)
 
+        self.assertFalse(PL.modelo_con_cuota_agotada("gemini-flash"))
+
+        PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         self.assertFalse(PL.modelo_con_cuota_agotada("gemini-flash"))
 
         PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
@@ -204,6 +222,7 @@ class PeticionesLLMTest(unittest.TestCase):
         """Un éxito limpia los fallos consecutivos de ese modelo."""
         ahora = datetime(2026, 11, 17, 12, 0, 0)
 
+        PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         self.assertTrue(PL.modelo_con_cuota_agotada("gemini-flash"))
@@ -241,10 +260,10 @@ class PeticionesLLMTest(unittest.TestCase):
         self.assertIn("qwen3.8-max", str(self.logs))
 
     def test_llm_salta_modelo_con_cuota_agotada(self):
-        """El enrutador salta modelos con cuota agotada (2+ fallos)."""
+        """El enrutador salta modelos con cuota agotada (3 fallos seguidos)."""
         ahora = datetime(2026, 11, 17, 12, 0, 0)
 
-        # Marcar gemini-flash como cuota agotada
+        PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
         PL.registrar_fallo("gemini-flash", PL.RUTA_FREELLM, self._ahora_fijo(ahora))
 
@@ -533,8 +552,180 @@ class PeticionesLLMTest(unittest.TestCase):
         )
 
         self.assertEqual(texto, "Injected OK")
-        self.assertEqual(len(http_get_called), 1)
+        self.assertEqual(len(http_get_called), 2)
+        self.assertTrue(any("127.0.0.1:3001" in u for u in http_get_called))
+        self.assertTrue(any("openrouter.ai" in u for u in http_get_called))
         self.assertEqual(len(http_post_called), 1)
+
+    # ─────────────────────────── PET1121B · catálogo vivo y salud de rutas ───────────────────────────
+
+    def test_catalogo_openrouter_sale_del_catalogo_vivo_y_acepta_solo_chat_gratis(self):
+        """El catálogo de OpenRouter sale de /api/v1/models: :free y con chat, nunca escrito a mano."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        modelos = PL.obtener_catalogo_openrouter_free(
+            self._http_get_ok({"data": []}, openrouter=[
+                {"id": "openai/gpt-oss-120b:free", "supported_endpoints": ["/v1/chat/completions"]},
+                {"id": "google/gemma-4-27b:free", "supported_endpoints": ["/v1/chat/completions"]},
+                {"id": "algo/pago", "supported_endpoints": ["/v1/chat/completions"]},
+                {"id": "otro/solo-completions:free", "supported_endpoints": ["/v1/completions"]},
+                {"id": "anthropic/claude-3-opus:free", "supported_endpoints": ["/v1/chat/completions"]},
+            ]),
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        self.assertEqual(modelos, ["openai/gpt-oss-120b:free", "google/gemma-4-27b:free"])
+        self.assertNotIn("meta-llama/llama-3.1-8b-instruct:free", modelos)
+        guardado = PL._leer_json(PL.CATALOGO_OPENROUTER_DEF)
+        self.assertEqual(guardado["modelos"], modelos)
+
+    def test_catalogo_openrouter_cache_seis_horas_y_ultima_lista_buena(self):
+        """Cache de 6 h; con la red caída o lista vacía se usa la última buena, nunca una lista fija."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        buenos = ["openai/gpt-oss-120b:free"]
+        PL._escribir_atomico(PL.CATALOGO_OPENROUTER_DEF, {
+            "timestamp": (ahora - timedelta(hours=5)).isoformat(), "modelos": buenos,
+        })
+        PL._escribir_atomico(PL.ULTIMO_BUENO_OPENROUTER_DEF, {
+            "timestamp": (ahora - timedelta(days=1)).isoformat(), "modelos": buenos,
+        })
+
+        sin_llamadas = self._http_get_ok({"data": []}, openrouter=[])
+        self.assertEqual(
+            PL.obtener_catalogo_openrouter_free(sin_llamadas, self._ahora_fijo(ahora), self._log_fn),
+            buenos,
+        )
+
+        def caido(url: str):
+            raise OSError("sin red")
+
+        viejo = ahora + timedelta(hours=7)
+        self.assertEqual(
+            PL.obtener_catalogo_openrouter_free(caido, self._ahora_fijo(viejo), self._log_fn),
+            buenos,
+        )
+        self.assertEqual(PL._leer_json(PL.CATALOGO_OPENROUTER_DEF)["modelos"], buenos)
+
+    def test_catalogo_freellmapi_vacio_no_sustituye_a_la_ultima_lista_buena(self):
+        """Un catálogo FreeLLMAPI con 0 modelos no se guarda como bueno: se conserva el anterior."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        buenos = ["gemini-flash-lite", "qwen3.8-max"]
+        PL._escribir_atomico(PL.CATALOGO_DEF, {
+            "timestamp": (ahora - timedelta(hours=2)).isoformat(), "modelos": [],
+        })
+        PL._escribir_atomico(PL.ULTIMO_BUENO_FREELLM_DEF, {
+            "timestamp": (ahora - timedelta(days=1)).isoformat(), "modelos": buenos,
+        })
+
+        modelos = PL.obtener_catalogo_freellmapi(
+            self._http_get_ok({"data": []}), self._ahora_fijo(ahora), self._log_fn,
+        )
+        self.assertEqual(modelos, buenos)
+        self.assertEqual(PL._leer_json(PL.CATALOGO_DEF)["modelos"], buenos)
+
+    def test_ordenar_intentos_pone_primera_la_ruta_que_respondio_antes(self):
+        """El orden lo decide la salud reciente: la última ruta que respondió va primero."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        intentos = [
+            ("gemini-flash-lite", PL.RUTA_FREELLM, None),
+            ("minimax-m3.1-flash", PL.RUTA_NIM, None),
+            ("openrouter", PL.RUTA_OPENROUTER, None),
+            ("hermes", PL.RUTA_HERMES, None),
+        ]
+        salud = {PL.SALUD_KEY: {"rutas": {
+            PL.RUTA_NIM: {"ultimo_exito": (ahora - timedelta(minutes=1)).isoformat()},
+            PL.RUTA_FREELLM: {"ultimo_exito": (ahora - timedelta(minutes=20)).isoformat()},
+        }}}
+
+        orden = PL.ordenar_intentos(intentos, salud, ahora)
+        self.assertEqual([i[1] for i in orden], [
+            PL.RUTA_NIM, PL.RUTA_FREELLM, PL.RUTA_OPENROUTER, PL.RUTA_HERMES,
+        ])
+
+    def test_ordenar_intentos_salta_tres_fallos_durante_30_minutos(self):
+        """Tras 3 fallos la ruta se salta 30 min y vuelve sola cuando expira el plazo."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        intentos = [
+            ("minimax-m3.1-flash", PL.RUTA_NIM, None),
+            ("gemini-flash-lite", PL.RUTA_FREELLM, None),
+        ]
+        salud = {PL.SALUD_KEY: {"rutas": {
+            PL.RUTA_NIM: {"hasta": (ahora + timedelta(minutes=10)).isoformat()},
+        }}}
+        self.assertEqual([i[1] for i in PL.ordenar_intentos(intentos, salud, ahora)], [PL.RUTA_FREELLM])
+
+        salud[PL.SALUD_KEY]["rutas"][PL.RUTA_NIM]["hasta"] = (ahora - timedelta(minutes=1)).isoformat()
+        self.assertEqual([i[1] for i in PL.ordenar_intentos(intentos, salud, ahora)], [
+            PL.RUTA_NIM, PL.RUTA_FREELLM,
+        ])
+
+    def test_registrar_tres_fallos_pausa_la_ruta_y_la_estado_lo_cuenta(self):
+        """Tres fallos consecutivos congelan la ruta 30 min y /estado puede mostrarla."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        for modelo in ("minimax-m3.1-flash", "nemotron-3.5-lightning", "nim-otro"):
+            n = PL.registrar_fallo(modelo, PL.RUTA_NIM, self._ahora_fijo(ahora))
+        self.assertEqual(n, 1)
+        estado = PL._leer_json(self.estado_file)
+        rutas = estado[PL.SALUD_KEY]["rutas"][PL.RUTA_NIM]
+        self.assertEqual(rutas["fallos"], 3)
+        self.assertEqual(
+            datetime.fromisoformat(rutas["hasta"]), ahora + timedelta(minutes=30),
+        )
+        self.assertIn(PL.RUTA_NIM, estado["detalle"]["rutas LLM"]["detalle"])
+
+        PL.registrar_exito("minimax-m3.1-flash", PL.RUTA_NIM, self._ahora_fijo(ahora))
+        self.assertNotIn("hasta", PL._leer_json(self.estado_file)[PL.SALUD_KEY]["rutas"][PL.RUTA_NIM])
+
+    def test_llm_toma_el_modelo_openrouter_del_catalogo_vivo(self):
+        """El enrutador usa el id :free que trae el catálogo vivo, no una lista antigua."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        http_post = self._http_post_sequence([
+            {"error": {"message": "sin modelo"}},
+            {"error": {"message": "NIM 1 caído"}},
+            {"error": {"message": "NIM 2 caído"}},
+            {"choices": [{"message": {"content": "Respuesta viva"}}], "model": "nuevo/modelo-2026:free"},
+        ])
+        texto, modelo = PL.llm(
+            [{"role": "user", "content": "Hola"}],
+            http_get=self._http_get_ok(
+                {"data": []},
+                openrouter=[{"id": "nuevo/modelo-2026:free", "supported_endpoints": ["/v1/chat/completions"]}],
+            ),
+            http_post=http_post,
+            ahora_fn=self._ahora_fijo(ahora),
+            leer_clave=self._leer_clave_mock({"FREELLMAPI_KEY": "test", "NIM_KEY": "test", "OPENROUTER_KEY": "test"}),
+            log_fn=self._log_fn,
+        )
+        self.assertEqual((texto, modelo), ("Respuesta viva", "nuevo/modelo-2026:free"))
+
+    def test_llm_lee_clave_nim_de_hermes_env_cuando_el_inyector_no_la_ve(self):
+        """El bot ve claves de ~/.hermes/.env aunque su inyector solo lea ~/.starseed/env."""
+        ahora = datetime(2026, 11, 21, 1, 11, 0)
+        env_hermes = self.home / ".hermes" / ".env"
+        env_hermes.parent.mkdir(parents=True, exist_ok=True)
+        env_hermes.write_text("export NVIDIA_API_KEY=nim-desde-hermes\n", encoding="utf-8")
+        capturas = []
+
+        def http_post(url: str, cuerpo: bytes, headers: dict):
+            capturas.append((url, headers))
+            if len(capturas) == 1:
+                return {"error": {"message": "NIM caído"}}
+            return {"choices": [{"message": {"content": "Ok"}}], "model": "nim-2026"}
+
+        with patch("pathlib.Path.home", return_value=self.home), \
+             patch("entorno.leer_clave", return_value=""), \
+             patch("entorno._CACHE", None), patch("entorno._CACHE_RUTA", None):
+            PL.llm(
+                [{"role": "user", "content": "Hola"}],
+                http_get=self._http_get_ok({"data": []}),
+                http_post=http_post,
+                ahora_fn=self._ahora_fijo(ahora),
+                leer_clave=lambda _: None,
+                log_fn=self._log_fn,
+            )
+
+        llamada_nim = next(c for c in capturas if "nvidia" in c[0])
+        self.assertEqual(llamada_nim[1]["Authorization"], "Bearer nim-desde-hermes")
 
     # ─────────────────────────────── CLI ───────────────────────────────
 
