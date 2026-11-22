@@ -1,0 +1,78 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "titulo": "Publicar vector visual 1.58b por cláusula",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar vector visual 1.58b por cláusula. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en canal `params` del bus de la orbe — ya está en tasks abiertas, permitiría sincronizar avatar cuántico con estado cognitivo real. `tasks abiertas` línea \"Publicar desde el 1.58b el vector visual…\" Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-publicado",
+   "titulo": "Canal `params` de la orbe publicado por BitNet 1.58b",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe publicado por BitNet 1.58b. vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → permite que Nexus/Exocortex/agentes reaccionen al estado interno del modelo en tiempo real (tasks abiertas: \"Publicar vector visual por cláusula\"). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "DR1121-2",
+   "ola": "Ola Imaginación 2026-11-21 · lo que el análisis nocturno encontró",
+   "titulo": "Des-simular Director + Imaginación",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-21.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Des-simular Director + Imaginación — : `formulate_next_intelligent_task` (random.choice de blueprints) → formular con motor real o `starseed-sub`; recomendador de imaginación si queda plantilla (tasks abiertas).\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "id": "CAP-opencode-zen-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar OpenCode Zen",
+   "archivos": [
+    "scripts/puente/opencode-zen_config.py"
+   ],
+   "depende": [],
+   "prompt": "configurar proveedor zen. Crear script de configuración y prueba de OpenCode Zen."
+  },
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "id": "CAP-mcp-brave-search-conectar",
+   "ola": "CAP1119",
+   "titulo": "Conectar servidor MCP brave-search",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    ".agent/skills/mcp-brave-search/"
+   ],
+   "depende": [],
+   "prompt": "Configurar y probar conexión MCP brave-search para uso en tareas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "PRU1118A-d3",
+   "CAP-opencode-zen-config",
+   "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "CAP-mcp-brave-search-conectar",
+   "DR1121-2",
+   "IMG-diaria-canal-params-de-la-orbe-publicado"
+  ]
+ }
+}
