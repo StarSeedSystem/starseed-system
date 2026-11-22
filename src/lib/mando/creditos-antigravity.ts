@@ -53,6 +53,7 @@ export interface TotalesAntigravity {
 export interface ResumenAntigravity {
     sinMedir: boolean;
     sinSesion: boolean;
+    catalogoVacio: boolean;
     estado: EstadoAntigravity;
     resumen: string;
     aviso: string | null;
@@ -215,10 +216,17 @@ export function resumirAntigravity(modelosCrudo: unknown, usoCrudo: unknown, aho
     const catalogo = normalizarCatalogo(modelosCrudo);
     const uso = normalizarUso(usoCrudo);
     const vacio: TotalesAntigravity = { llamadasHoy: 0, tokensHoy: 0, cuotaDiaria: 0, reserva: 0, queda: 0 };
+
+    // Caso 1: nunca se midió (archivo no existe o no se pudo leer)
     if (modelosCrudo === null && usoCrudo === null) {
-        return { sinMedir: true, sinSesion: false, estado: "verde", resumen: "sin medir aún", aviso: null, modelos: [], total: vacio };
+        return { sinMedir: true, sinSesion: false, catalogoVacio: false, estado: "verde", resumen: "sin medir aún", aviso: null, modelos: [], total: vacio };
     }
-    const sinSesion = Array.isArray(modelosCrudo) && modelosCrudo.length === 0;
+
+    // Caso 2: catálogo existe pero está vacío (agy models corrió y devolvió 0 modelos = sin sesión de Google)
+    const catalogoVacio = Array.isArray(modelosCrudo) && modelosCrudo.length === 0;
+    const sinSesion = catalogoVacio;
+
+    // Caso 3: catálogo tiene modelos (normal)
     const hoy = fechaLocal(ahoraMs);
     const nombres = [...new Set([...catalogo.map((m) => m.nombre), ...uso.keys()])];
     const modelos: ModeloAntigravityMedido[] = nombres.map((nombre) => {
@@ -268,10 +276,12 @@ export function resumirAntigravity(modelosCrudo: unknown, usoCrudo: unknown, aho
             : null;
     const resumen = sinSesion
         ? "sin sesión de Google: inicia sesión con `agy`"
-        : `${modelos.length} modelo${modelos.length === 1 ? "" : "s"} · ${total.llamadasHoy} llamada${
+        : catalogoVacio
+          ? "catálogo vacío: ejecuta `agy models` para refrescar"
+          : `${modelos.length} modelo${modelos.length === 1 ? "" : "s"} · ${total.llamadasHoy} llamada${
               total.llamadasHoy === 1 ? "" : "s"
           } hoy · quedan ${total.queda}`;
-    return { sinMedir: false, sinSesion, estado, resumen, aviso, modelos, total };
+    return { sinMedir: false, sinSesion, catalogoVacio, estado, resumen, aviso, modelos, total };
 }
 
 function formatoTokens(n: number): string {
@@ -321,6 +331,8 @@ export function detalleAntigravity(resumen: ResumenAntigravity): DetalleMedidor 
             ? "sin medir aún"
             : resumen.sinSesion
               ? "sin sesión de Google: inicia sesión con `agy`"
-              : "sin modelos medidos todavía",
+              : resumen.catalogoVacio
+                ? "catálogo vacío: ejecuta `agy models` para refrescar"
+                : "sin modelos medidos todavía",
     };
 }
