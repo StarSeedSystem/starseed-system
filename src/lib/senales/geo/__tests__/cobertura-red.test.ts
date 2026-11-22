@@ -88,4 +88,26 @@ describe("zonas de red: el mapa dibuja celdas, nunca puntos exactos", () => {
     expect(camposDeCapa(CAPA_POR_ID["red-publica"], marcasCon([]), AHORA, senales).map((c) => c.marcaId)).toEqual(["senal:p"]);
     expect(camposDeCapa(CAPA_POR_ID["red-comunidad"], marcasCon([]), AHORA, senales).map((c) => c.marcaId)).toEqual(["senal:c"]);
   });
+
+  it("cuenta aparte las que no traen zona legible y no dibuja ninguna", () => {
+    const senales = [
+      publicada({ id: "ok" }),
+      publicada({ id: "sin", zona: null }),
+      publicada({ id: "corta", zona: "A1" }),
+      publicada({ id: "larga", zona: "9g3q12" }),
+    ];
+    const campos = camposDeCapa(CAPA_POR_ID["red-publica"], marcasCon([]), AHORA, senales);
+    expect(campos.map((c) => c.marcaId)).toEqual(["senal:ok"]);
+    expect(contarSenalesSinZona(CAPA_POR_ID["red-publica"], marcasCon([]), senales)).toBe(3);
+  });
+
+  it("una neurona ajena con posición exacta no produce un marcador puntual", () => {
+    // Las marcas traen la posición exacta en vivo de «neu-1» (Madrid); sin señal publicada no hay campo.
+    expect(camposDeCapa(CAPA_POR_ID["red-publica"], marcasCon([]), AHORA)).toHaveLength(0);
+    // Aunque publique, el campo es la celda de su zona, jamás su punto exacto.
+    const campos = camposDeCapa(CAPA_POR_ID["red-publica"], marcasCon([publicada({ origen: "estimada" })]), AHORA);
+    expect(campos).toHaveLength(1);
+    expect(campos[0].lat).not.toBeCloseTo(40.4168, 2);
+    expect(campos[0].lon).not.toBeCloseTo(-3.7038, 2);
+  });
 });
