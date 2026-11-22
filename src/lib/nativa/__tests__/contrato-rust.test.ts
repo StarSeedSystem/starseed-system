@@ -65,6 +65,10 @@ describe("contrato web ↔ app nativa", () => {
     expect(escritorio).toContain("servidor_local_estado");
     const build = readFileSync(join(process.cwd(), "native/src-tauri/build.rs"), "utf8");
     const manifiesto = [...build.match(/const COMANDOS_APP: &\[&str\] = &\[([\s\S]*?)\];/)![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    // (MGP1122) Una fusión que repite un comando aquí rompe el contrato con un diff enorme y la causa
+    // no se ve. Se dice antes y por su nombre: cada comando va una sola vez en COMANDOS_APP.
+    const repetidos = manifiesto.filter((c, i) => manifiesto.indexOf(c) !== i);
+    expect(repetidos, "COMANDOS_APP repite un comando").toEqual([]);
     expect([...manifiesto].sort()).toEqual([...comunes, ...escritorio].sort());
     const cap = (f: string) => JSON.parse(readFileSync(join(process.cwd(), "native/src-tauri/capabilities", f), "utf8"));
     const permisos = (c: { permissions: unknown[] }) => c.permissions.filter((p): p is string => typeof p === "string");
