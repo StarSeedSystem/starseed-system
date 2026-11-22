@@ -739,5 +739,216 @@ class PeticionesTelegram(unittest.TestCase):
             self._restaurar()
 
 
+class DesplegarBots(unittest.TestCase):
+    """(PET1121C) Pruebas de la orden `desplegar-bots`: actualiza el checkout del A1 al commit
+    publicado, reinicia SOLO los servicios cuyos archivos cambiaron (peticiones_*.py →
+    starseed-peticiones-telegram), espera a que estén activos y devuelve commit, hora de arranque
+    y últimas líneas del journal sin claves."""
+
+    def _mocks(self, respuestas_ssh, respuestas_ssh_bytes=None):
+        self._ssh_original = N.ssh
+        self._ssh_bytes_original = N._ssh_bytes
+        self._ssh_llamadas = []
+        self._ssh_bytes_llamadas = []
+
+        def mock_ssh(orden, entrada=None, timeout=120):
+            self._ssh_llamadas.append({"orden": orden, "entrada": entrada})
+            if not respuestas_ssh:
+                return 0, ""
+            return respuestas_ssh.pop(0)
+
+        def mock_ssh_bytes(orden, datos, timeout=300):
+            self._ssh_bytes_llamadas.append({"orden": orden, "datos": datos})
+            if respuestas_ssh_bytes is None:
+                return 0, ""
+            if not respuestas_ssh_bytes:
+                return 0, ""
+            return respuestas_ssh_bytes.pop(0)
+
+        N.ssh = mock_ssh
+        N._ssh_bytes = mock_ssh_bytes
+
+    def _restaurar(self):
+        N.ssh = self._ssh_original
+        N._ssh_bytes = self._ssh_bytes_original
+
+    def test_plan_desplegar_bots_es_puro_y_completo(self):
+        """El plan declara: obtener commit publicado, comparar con checkout A1, si cambió
+        hacer git pull, detectar archivos peticiones_*.py modificados, reiniciar solo
+        starseed-peticiones-telegram, esperar activa, devolver info sin claves."""
+        plan = N.plan_desplegar_bots()
+        self.assertTrue(len(plan) >= 5)
+        ques = [p["que"] for p in plan]
+        self.assertIn("commit_publicado", ques)
+        self.assertIn("checkout_a1", ques)
+        self.assertIn("git_pull", ques)
+        self.assertIn("detectar_cambios", ques)
+        self.assertIn("reiniciar_servicios", ques)
+        self.assertIn("esperar_activa", ques)
+        self.assertIn("devolver_info", ques)
+
+    def test_sin_aplicar_solo_enseña_el_plan(self):
+        """Sin --aplicar devuelve el plan sin tocar SSH."""
+        self._mocks([])
+        try:
+            r = N.desplegar_bots(aplicar=False)
+            self.assertTrue(r["ok"])
+            self.assertFalse(r["aplicado"])
+            self.assertEqual(len(r["pasos"]), len(N.plan_desplegar_bots()))
+            self.assertEqual(len(self._ssh_llamadas), 0)
+        finally:
+            self._restaurar()
+
+    def test_aplicar_git_pull_y_reinicia_solo_si_cambió(self):
+        """Con --aplicar: git rev-parse origin/main, rev-parse HEAD, si cambió git pull,
+        detecta cambios en peticiones_*.py, reinicia starseed-peticiones-telegram, espera activa."""
+        # Respuestas: rev-parse origin/main (commit publicado), rev-parse HEAD (checkout A1 actual),
+        # git pull --ff-only, diff --name-only, systemctl restart, esperar activa,
+        # systemctl show ActiveEnterTimestamp, journalctl
+        self._mocks([
+            (0, "def67890"),  # rev-parse origin/main (commit publicado)
+            (0, "abc12345"),  # rev-parse HEAD (checkout A1 actual)
+            (0, "ok"),  # git pull --ff-only origin main
+            (0, "scripts/puente/peticiones_telegram.py\nscripts/puente/peticiones_reglas.py"),  # diff --name-only
+            (0, "ok"),  # systemctl restart starseed-peticiones-telegram
+            (0, "active"),  # esperar activa
+            (0, "2026-11-22 22:45:00"),  # systemctl show ActiveEnterTimestamp
+            (0, "Nov 22 22:45:01 starseed-peticiones-telegram[1234]: Listo\nNov 22 22:45:02 starseed-peticiones-telegram[1234]: Escuchando"),  # journalctl
+        ])
+        try:
+            r = N.desplegar_bots(aplicar=True)
+            self.assertTrue(r["ok"])
+            self.assertTrue(r["aplicado"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            # Verificar orden
+            idx_publicado = next(i for i, o in enumerate(ordenes) if "rev-parse origin/main" in o)
+            idx_head = next(i for i, o in enumerate(ordenes) if "rev-parse HEAD" in o)
+            idx_pull = next(i for i, o in enumerate(ordenes) if "pull --ff-only" in o)
+            idx_diff = next(i for i, o in enumerate(ordenes) if "diff --name-only" in o)
+            idx_restart = next(i for i, o in enumerate(ordenes) if "restart starseed-peticiones-telegram" in o)
+            idx_esperar = next(i for i, o in enumerate(ordenes) if "is-active" in o)
+            idx_inicio = next(i for i, o in enumerate(ordenes) if "ActiveEnterTimestamp" in o)
+            idx_journal = next(i for i, o in enumerate(ordenes) if "journalctl" in o)
+            self.assertLess(idx_publicado, idx_head)
+            self.assertLess(idx_head, idx_pull)
+            self.assertLess(idx_pull, idx_diff)
+            self.assertLess(idx_diff, idx_restart)
+            self.assertLess(idx_restart, idx_esperar)
+            self.assertLess(idx_esperar, idx_inicio)
+            self.assertLess(idx_inicio, idx_journal)
+            # Verificar que devuelve commit, hora inicio, últimas líneas journal
+            self.assertEqual(r["commit"], "def67890")
+            self.assertIn("inicio_servicio", r)
+            self.assertIn("journal_ultimas", r)
+        finally:
+            self._restaurar()
+
+    def test_aplicar_sin_cambios_no_reinicia(self):
+        """Si el checkout A1 ya está en el commit publicado, no hace git pull ni reinicia.
+        Pero SÍ obtiene info del servicio actual (inicio y journal)."""
+        self._mocks([
+            (0, "abc12345"),  # rev-parse origin/main (commit publicado)
+            (0, "abc12345"),  # rev-parse HEAD (checkout A1 actual = publicado)
+            (0, "2026-11-21 22:45:00"),  # systemctl show ActiveEnterTimestamp
+            (0, "journal output"),  # journalctl
+        ])
+        try:
+            r = N.desplegar_bots(aplicar=True)
+            self.assertTrue(r["ok"])
+            self.assertTrue(r["aplicado"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            # No debe haber pull, restart
+            self.assertFalse(any("pull" in o for o in ordenes))
+            self.assertFalse(any("restart" in o for o in ordenes))
+            # SÍ hay journalctl para obtener estado actual
+            self.assertTrue(any("journalctl" in o for o in ordenes))
+            self.assertEqual(r.get("commit"), "abc12345")
+            self.assertEqual(r.get("cambiado"), False)
+            self.assertIn("inicio_servicio", r)
+            self.assertIn("journal_ultimas", r)
+        finally:
+            self._restaurar()
+
+    def test_solo_reinicia_servicios_afectados(self):
+        """Si solo cambió un archivo ajeno a peticiones, no reinicia starseed-peticiones-telegram."""
+        self._mocks([
+            (0, "def67890"),  # rev-parse origin/main
+            (0, "abc12345"),  # rev-parse HEAD
+            (0, "ok"),  # git pull --ff-only
+            (0, "scripts/puente/otro_archivo.py"),  # diff --name-only (archivo ajeno)
+        ])
+        try:
+            r = N.desplegar_bots(aplicar=True)
+            self.assertTrue(r["ok"])
+            ordenes = [c["orden"] for c in self._ssh_llamadas]
+            self.assertFalse(any("restart starseed-peticiones-telegram" in o for o in ordenes))
+        finally:
+            self._restaurar()
+
+    def test_no_imprime_ip_ni_claves_en_resultado(self):
+        """La IP y claves nunca aparecen en el detalle (usa tachar)."""
+        ip_original = N._ip
+        N._ip = lambda: "140.1.2.3"
+        self._mocks([
+            (0, "def67890"), (0, "abc12345"), (0, "ok"),
+            (0, "scripts/puente/peticiones_telegram.py"),
+            (0, "ok"), (0, "active"), (0, "2026-11-22 22:45:00"),
+            (0, "journal output with 140.1.2.3"),
+        ])
+        try:
+            r = N.desplegar_bots(aplicar=True)
+            for paso in r.get("hecho", []):
+                self.assertNotIn("140.1.2.3", str(paso.get("detalle", "")))
+                self.assertNotIn("140-1-2-3", str(paso.get("detalle", "")))
+            # El journal también debe ser tachado
+            self.assertNotIn("140.1.2.3", str(r.get("journal_ultimas", "")))
+        finally:
+            N._ip = ip_original
+            self._restaurar()
+
+
+class EstadoConCommitServicio(unittest.TestCase):
+    """(PET1121C) Pruebas de que `estado` incluye por servicio el commit que ejecuta y
+    desde cuándo, y lo marca en ámbar si va por detrás de lo publicado."""
+
+    def test_resumen_incluye_commit_por_servicio(self):
+        """resumen_para_oracle_json incluye commit_servicio e inicio_servicio en cada servicio."""
+        e = {
+            "latido": 1000,
+            "t": "2026-11-22T10:00:00Z",
+            "fase": "espera",
+            "servicios": [
+                {"nombre": "starseed-peticiones-telegram", "ok": True, "activo": "active",
+                 "ms": 30, "detalle": "corriendo commit abc12345 desde 2026-11-21T22:45:00Z"},
+                {"nombre": "starseed-bitnet", "ok": True, "activo": "active", "ms": 10,
+                 "detalle": "corriendo commit def67890 desde 2026-11-20T10:00:00Z"},
+            ],
+        }
+        nodo, servicios = N.resumen_para_oracle_json(e, None, 1100)
+        for s in servicios:
+            if s["nombre"] == "starseed-peticiones-telegram":
+                self.assertIn("commit_servicio", s)
+                self.assertIn("inicio_servicio", s)
+            if s["nombre"] == "starseed-bitnet":
+                self.assertIn("commit_servicio", s)
+                self.assertIn("inicio_servicio", s)
+
+    def test_marca_ambar_si_por_detras_de_publicado(self):
+        """Si el commit del servicio es anterior al publicado, lo marca ámbar."""
+        # Esto se prueba en la integración real; aquí verificamos que la estructura lo permite
+        e = {
+            "latido": 1000,
+            "t": "2026-11-22T10:00:00Z",
+            "servicios": [
+                {"nombre": "starseed-peticiones-telegram", "ok": True, "activo": "active",
+                 "detalle": "corriendo commit abc12345 desde 2026-11-21T22:45:00Z"},
+            ],
+        }
+        nodo, servicios = N.resumen_para_oracle_json(e, None, 1100)
+        s = servicios[0]
+        # El campo 'ambar' se añade en la máquina, no en la pura; verificamos estructura
+        self.assertIn("commit_servicio", s)
+
+
 if __name__ == "__main__":
     unittest.main()

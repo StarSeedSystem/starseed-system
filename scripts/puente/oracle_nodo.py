@@ -373,23 +373,47 @@ def devolver_de_oracle(progreso, lanzamientos, colas_a1, nodo_late, ahora, graci
                   and (progreso[tid].get("medio") or "") == "oracle")
 
 
+def _extraer_commit_inicio(detalle):
+    """PURA. Extrae commit_servicio e inicio_servicio del detalle del servicio.
+    Formato esperado: 'corriendo commit abc12345 desde 2026-11-21T22:45:00Z'"""
+    if not detalle:
+        return None, None
+    import re
+    m = re.search(r"corriendo commit ([a-f0-9]{7,40}) desde ([\d\-T:Z]+)", detalle)
+    if m:
+        return m.group(1), m.group(2)
+    return None, None
+
+
 def resumen_para_oracle_json(estado_a1, publico, ahora):
     """PURA. Lo que se guarda en ~/.starseed/oracle.json: `nodo` (latido, fase, orquestador,
-    guardián, carga) y `servicios` [{nombre, ok, ms, t, detalle}] — sin URLs, IPs ni claves.
-    `publico`: {ok, ms, codigo} de la sonda HTTPS desde esta neurona (o None)."""
+    guardián, carga) y `servicios` [{nombre, ok, ms, t, detalle, commit_servicio,
+    inicio_servicio, ambar}] — sin URLs, IPs ni claves.
+    `publico`: {ok, ms, codigo} de la sonda HTTPS desde esta neurona (o None).
+    `ambar`: true si el commit del servicio es anterior al commit publicado (origin/main)."""
     e = estado_a1 or {}
     servicios = []
     t = e.get("t") or ""
+    # Commit publicado (lo que está en origin/main en el A1)
+    commit_publicado = (e.get("commit_publicado") or "").strip()
     for s in e.get("servicios") or []:
         if isinstance(s, dict):
+            detalle = s.get("detalle") or ""
+            commit_servicio, inicio_servicio = _extraer_commit_inicio(detalle)
+            ambar = False
+            if commit_servicio and commit_publicado and commit_servicio != commit_publicado:
+                ambar = True
             servicios.append({"nombre": s.get("nombre"), "titulo": s.get("titulo") or s.get("nombre"),
                               "ok": bool(s.get("ok")), "activo": s.get("activo"), "ms": s.get("ms"), "t": t,
-                              "detalle": tachar(s.get("detalle") or "")})
+                              "detalle": tachar(detalle),
+                              "commit_servicio": commit_servicio, "inicio_servicio": inicio_servicio,
+                              "ambar": ambar})
     if publico is not None:
         servicios.append({"nombre": "bitnet-publico", "titulo": "BitNet desde fuera (HTTPS + clave)",
                           "ok": bool(publico.get("ok")), "activo": "active" if publico.get("ok") else "inactive",
                           "ms": publico.get("ms"), "t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ahora)),
-                          "detalle": "salud %s desde esta neurona" % publico.get("codigo")})
+                          "detalle": "salud %s desde esta neurona" % publico.get("codigo"),
+                          "commit_servicio": None, "inicio_servicio": None, "ambar": False})
     carga = e.get("carga") or {}
     guardian = e.get("guardian") or None
     nodo = {
@@ -2162,8 +2186,40 @@ def plan_peticiones():
          "porque": "deshabilitar la vieja si existía como unidad"},
         {"que": "limpiar vieja", "orden": "rm -rf " + HERRAMIENTA_VIEJA,
          "porque": "borrar la carpeta de la herramienta vieja (/home/starseed/herramientas/peticiones-telegram)"},
-        {"que": "conservar offset", "orden": "",
-         "porque": "~/.starseed/peticiones/estado.json (el offset) NO se toca: la nueva lo lee igual"},
+{"que": "conservar offset", "orden": "",
+          "porque": "~/.starseed/peticiones/estado.json (el offset) NO se toca: la nueva lo lee igual"},
+    ]
+
+
+# ── desplegar-bots (PET1121C) ──
+
+REPO_A1 = "/home/starseed/starseed-system"
+SERVICIO_PETICIONES = "starseed-peticiones-telegram"
+ARCHIVOS_PETICIONES = ("peticiones_telegram.py", "peticiones_reglas.py", "peticiones_encargos.py",
+                       "peticiones_productor.py", "peticiones_notebooklm.py", "peticiones_llm.py",
+                       "peticiones_clientes.py", "peticiones_alcance.py", "peticiones_sintesis_respaldo.py")
+
+
+def plan_desplegar_bots():
+    """PURA (PET1121C). El plan de `desplegar-bots`: obtiene el commit publicado (origin/main),
+    lo compara con el checkout del A1, si cambió hace git pull, detecta qué archivos de
+    peticiones_*.py cambiaron, reinicia SOLO starseed-peticiones-telegram si aplica,
+    espera a que esté activa y devuelve commit, hora de arranque y últimas líneas del journal."""
+    return [
+        {"que": "commit_publicado", "orden": "git -C %s rev-parse origin/main" % REPO_A1,
+         "porque": "commit publicado en origin/main (lo que está en producción)"},
+        {"que": "checkout_a1", "orden": "git -C %s rev-parse HEAD" % REPO_A1,
+         "porque": "commit actual en el checkout del A1"},
+        {"que": "git_pull", "orden": "git -C %s pull --ff-only origin main" % REPO_A1,
+         "porque": "actualiza el checkout del A1 al commit publicado (solo fast-forward)"},
+        {"que": "detectar_cambios", "orden": "git -C %s diff --name-only HEAD@{1} HEAD" % REPO_A1,
+         "porque": "qué archivos cambiaron en el pull; filtra peticiones_*.py"},
+        {"que": "reiniciar_servicios", "orden": "systemctl restart %s" % SERVICIO_PETICIONES,
+         "porque": "reinicia SOLO starseed-peticiones-telegram si cambiaron sus archivos"},
+        {"que": "esperar_activa", "orden": "for _ in 1 2 3 4 5; do systemctl is-active --quiet %s && exit 0; sleep 2; done; exit 1" % SERVICIO_PETICIONES,
+         "porque": "espera a que el servicio esté activo (máx 10 s)"},
+        {"que": "devolver_info", "orden": "journalctl -u %s --no-pager -n 20" % SERVICIO_PETICIONES,
+         "porque": "últimas 20 líneas del journal (sin claves, tachadas)"},
     ]
 
 
@@ -2238,6 +2294,108 @@ def peticiones(aplicar=False):
     return res
 
 
+def _archivos_peticiones_cambiaron(archivos_cambiados):
+    """PURA. True si alguno de los archivos cambiados afecta a peticiones_*.py."""
+    for a in archivos_cambiados:
+        a = a.strip()
+        if not a:
+            continue
+        base = os.path.basename(a)
+        if base.startswith("peticiones_") and base.endswith(".py"):
+            return True
+    return False
+
+
+def desplegar_bots(aplicar=False):
+    """`desplegar-bots [--aplicar]`: actualiza el checkout del A1 al commit publicado
+    (origin/main), reinicia SOLO los servicios cuyos archivos cambiaron
+    (peticiones_*.py → starseed-peticiones-telegram), espera a que estén activos y
+    devuelve commit, hora de arranque y últimas líneas del journal sin claves."""
+    if not aplicar:
+        return {"ok": True, "aplicado": False, "pasos": [{"que": p["que"], "porque": p["porque"]} for p in plan_desplegar_bots()]}
+    res = {"ok": True, "aplicado": True, "hecho": []}
+
+    def apuntar(que, rc, salida):
+        res["ok"] = res["ok"] and rc == 0
+        res["hecho"].append({"que": que, "ok": rc == 0,
+                             "detalle": "" if rc == 0 else tachar(salida.strip()[-160:], _ip())})
+
+    # 1) Commit publicado en origin/main
+    rc, commit_publicado = ssh("git -C %s rev-parse origin/main" % REPO_A1, timeout=30)
+    if rc != 0 or not commit_publicado.strip():
+        res["ok"] = False
+        res["motivo"] = "no se pudo leer commit publicado: %s" % tachar(commit_publicado.strip()[-160:], _ip())
+        return res
+    commit_publicado = commit_publicado.strip()
+
+    # 2) Commit actual en checkout A1
+    rc, commit_a1 = ssh("git -C %s rev-parse HEAD" % REPO_A1, timeout=30)
+    if rc != 0 or not commit_a1.strip():
+        res["ok"] = False
+        res["motivo"] = "no se pudo leer commit A1: %s" % tachar(commit_a1.strip()[-160:], _ip())
+        return res
+    commit_a1 = commit_a1.strip()
+
+    res["commit_publicado"] = commit_publicado
+    res["commit_a1_antes"] = commit_a1
+
+    if commit_a1 == commit_publicado:
+        res["cambiado"] = False
+        res["commit"] = commit_publicado
+        res["nota"] = "El checkout del A1 ya está en el commit publicado (%s)." % commit_publicado[:8]
+        # Aun así, obtener info del servicio actual
+        rc, salida = ssh("systemctl show %s --property=ActiveEnterTimestamp --value" % SERVICIO_PETICIONES, timeout=20)
+        inicio = salida.strip() if rc == 0 else "desconocido"
+        rc, journal = ssh("journalctl -u %s --no-pager -n 20" % SERVICIO_PETICIONES, timeout=20)
+        journal_tachado = tachar(journal.strip(), _ip()) if rc == 0 else ""
+        res["inicio_servicio"] = inicio
+        res["journal_ultimas"] = journal_tachado
+        return res
+
+    # 3) Git pull --ff-only
+    rc, salida = ssh("git -C %s pull --ff-only origin main" % REPO_A1, timeout=60)
+    apuntar("git pull --ff-only", rc, salida)
+    if not res["ok"]:
+        return res
+
+    # 4) Detectar qué archivos cambiaron
+    rc, archivos_cambiados = ssh("git -C %s diff --name-only HEAD@{1} HEAD" % REPO_A1, timeout=30)
+    apuntar("detectar cambios", rc, salida if rc == 0 else archivos_cambiados)
+    if not res["ok"]:
+        return res
+    lista_cambiados = [a.strip() for a in (archivos_cambiados or "").splitlines() if a.strip()]
+    res["archivos_cambiados"] = lista_cambiados
+
+    # 5) Si cambiaron archivos de peticiones, reiniciar servicio
+    if _archivos_peticiones_cambiaron(lista_cambiados):
+        rc, salida = ssh("sudo systemctl restart %s" % SERVICIO_PETICIONES, timeout=30)
+        apuntar("restart %s" % SERVICIO_PETICIONES, rc, salida)
+        if not res["ok"]:
+            return res
+
+        # 6) Esperar a que esté activo
+        rc, salida = ssh(
+            "for _ in 1 2 3 4 5; do systemctl is-active --quiet %s && exit 0; sleep 2; done; exit 1" % SERVICIO_PETICIONES,
+            timeout=30)
+        apuntar("esperar activa %s" % SERVICIO_PETICIONES, rc, salida)
+        if not res["ok"]:
+            return res
+
+        # 7) Obtener hora de arranque y journal
+        rc, salida = ssh("systemctl show %s --property=ActiveEnterTimestamp --value" % SERVICIO_PETICIONES, timeout=20)
+        inicio = salida.strip() if rc == 0 else "desconocido"
+        rc, journal = ssh("journalctl -u %s --no-pager -n 20" % SERVICIO_PETICIONES, timeout=20)
+        journal_tachado = tachar(journal.strip(), _ip()) if rc == 0 else ""
+        res["inicio_servicio"] = inicio
+        res["journal_ultimas"] = journal_tachado
+    else:
+        res["nota"] = "No cambiaron archivos de peticiones_*.py; no se reinició %s." % SERVICIO_PETICIONES
+
+    res["commit"] = commit_publicado
+    res["cambiado"] = True
+    return res
+
+
 def main(argv):
     orden = argv[1] if len(argv) > 1 else "estado"
     tope = int(argv[argv.index("--tope") + 1]) if "--tope" in argv else TOPE_DEFECTO
@@ -2283,6 +2441,8 @@ def main(argv):
         r = freellmapi()
     elif orden == "peticiones":
         r = peticiones(aplicar="--aplicar" in argv)
+    elif orden == "desplegar-bots":
+        r = desplegar_bots(aplicar="--aplicar" in argv)
     elif orden == "probar-bitnet":
         r = probar_bitnet()
     elif orden == "bitnet-pesos":
