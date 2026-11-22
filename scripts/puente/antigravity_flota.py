@@ -7,6 +7,7 @@ Módulo puro salvo `main`: sin E/S de red ni disco en las funciones puras.
 
 import json
 import os
+import re as _re_dir1121f
 import subprocess
 import sys
 import time
@@ -142,8 +143,9 @@ def obtener_modelos_agy() -> list[ModeloAgy]:
             ["agy", "models"],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
             cwd=Path.cwd(),
+            stdin=subprocess.DEVNULL,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         raise RuntimeError(f"No se pudo ejecutar 'agy models': {e}") from e
@@ -156,20 +158,30 @@ def obtener_modelos_agy() -> list[ModeloAgy]:
         linea = linea.strip()
         if not linea or linea.startswith("#"):
             continue
-        # Formato esperado: "gemini-4-hydrogen-high  |  Google  |  High context, reasoning"
-        partes = [p.strip() for p in linea.split("|")]
-        if len(partes) >= 2:
+        # DIR1121F (2026-11-21, medido): la salida real de `agy models` es «id<TAB>Nombre visible», precedida de la línea
+        # «Fetching available models...». El formato con barras «id | Google | descripción» era una suposición: con él se
+        # leían 0 modelos y el medidor decía «sin sesión de Google» con la sesión activa. Se aceptan los dos.
+        if "|" in linea:
+            partes = [p.strip() for p in linea.split("|")]
+            if len(partes) < 2:
+                continue
             nombre = partes[0]
             descripcion = partes[2] if len(partes) > 2 else ""
-            # Parsear familia y nivel del nombre
-            # Ej: gemini-4-hydrogen-high, gemini-3.8-flash-medium, claude-opus-5-5-high
-            familia_nivel = _parsear_familia_nivel(nombre)
-            modelos.append(ModeloAgy(
-                nombre=nombre,
-                familia=familia_nivel[0],
-                nivel=familia_nivel[1],
-                descripcion=descripcion,
-            ))
+        else:
+            trozos = _re_dir1121f.split(r"\t+|\s{2,}", linea, maxsplit=1)
+            nombre = trozos[0].strip()
+            descripcion = trozos[1].strip() if len(trozos) > 1 else ""
+        if not _re_dir1121f.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._\-]*", nombre):
+            continue  # avisos como «Fetching available models...»: no son un id de modelo
+        # Parsear familia y nivel del nombre
+        # Ej: gemini-4-hydrogen-high, gemini-3.8-flash-medium, claude-opus-5-5-high
+        familia_nivel = _parsear_familia_nivel(nombre)
+        modelos.append(ModeloAgy(
+            nombre=nombre,
+            familia=familia_nivel[0],
+            nivel=familia_nivel[1],
+            descripcion=descripcion,
+        ))
     return modelos
 
 
