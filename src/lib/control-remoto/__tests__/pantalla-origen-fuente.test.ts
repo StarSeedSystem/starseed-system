@@ -99,6 +99,13 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
         expect(r.fuente).not.toBe("accesibilidad");
     });
 
+    it("si lo nativo no dice la fuente, se dice accesibilidad: nunca se da por fluida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, ancho: 800, alto: 1280, giro: 0 };
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        expect(origen.enMarcha()).toBe(true);
+    });
+
     it("sin pedir nada, el resultado no se inventa una petición", async () => {
         const r = (await origen.ejecutar("pantalla-iniciar", {}, ctx())) as Record<string, unknown>;
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad" });
