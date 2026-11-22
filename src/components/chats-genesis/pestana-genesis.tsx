@@ -29,6 +29,13 @@ import { aparatoLocal, type AparatoLocal } from "@/lib/chats-genesis/firma-apara
 import type { PrefsChatsGenesis, PuenteTelegram, VinculoChat } from "@/lib/chats-genesis/tipos";
 import { conMetaGenesisInicial, guardarPrefsChatsGenesis, leerCopiaLocalChatsGenesis, leerPrefsChatsGenesis } from "@/lib/chats-genesis/vinculos";
 import { estadoAgenteGenesis } from "@/components/messaging/conexiones-genesis";
+import {
+    claveDeFuente,
+    fuentesLegibles,
+    fusionarMensajes,
+    type FuenteCrossMedia,
+    type MensajeUnificado,
+} from "@/lib/chats-genesis/hilo-unificado";
 import { canalesEspecializadosOrdenados } from "@/lib/mando/canales-especializados";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +127,78 @@ function useAparato(miembro: boolean, clienteAparatos?: ClienteAparatos) {
     return [aparato, setAparato] as const;
 }
 
+/** Nombre corto de cada fuente en el hilo único (el mismo en las tres superficies). */
+const ETIQUETA_FUENTE: Record<FuenteCrossMedia, string> = {
+    direccion: "Dirección",
+    "hermes-avisos": "Hermes",
+    peticiones: "Peticiones",
+    "avisos-directores": "Avisos",
+};
+
+/**
+ * El hilo único cross-media (GEN1113 §10): lee de una vez las cuatro fuentes del espejo de la
+ * puerta y las funde por `id` y hora. Los puentes A y B son solo de un dueño (§4.2), así que un
+ * desarrollador ve únicamente Dirección y Avisos. No escribe: para eso está el hilo de cada
+ * fuente, con su chat firmado.
+ */
+function HiloUnificadoPanel({ cliente, esDueno }: { cliente: ClienteChatsGenesis; esDueno: boolean }) {
+    const [mensajes, setMensajes] = useState<MensajeUnificado[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [fallo, setFallo] = useState<string | null>(null);
+    const [filtro, setFiltro] = useState<FuenteCrossMedia | "todas">("todas");
+
+    const cargar = useCallback(async () => {
+        setCargando(true);
+        const respuestas = await Promise.all(fuentesLegibles(esDueno).map((f) => cliente.feed({ fuente: claveDeFuente(f) })));
+        const listas = respuestas.flatMap((r) => (r.ok ? [r.registros] : []));
+        setMensajes(fusionarMensajes(listas));
+        setFallo(listas.length === 0 ? "La puerta de datos del A1 no responde: no hay copia que mostrar." : null);
+        setCargando(false);
+    }, [cliente, esDueno]);
+
+    useEffect(() => { void cargar(); }, [cargar]);
+
+    const visibles = useMemo(
+        () => (filtro === "todas" ? mensajes : mensajes.filter((m) => m.fuente === filtro)),
+        [mensajes, filtro],
+    );
+
+    return (
+        <section aria-label="Hilo único de dirección" data-testid="hilo-unico" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px]">
+                <span className="font-medium text-white/60">Fuente:</span>
+                <button type="button" aria-pressed={filtro === "todas"} onClick={() => setFiltro("todas")} className={cn("cursor-pointer rounded-md border px-2 py-0.5 transition-colors", filtro === "todas" ? "border-emerald-400/60 bg-emerald-500/20 text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white")}>Todas</button>
+                {fuentesLegibles(esDueno).map((f) => (
+                    <button key={f} type="button" aria-pressed={filtro === f} onClick={() => setFiltro(f)} className={cn("cursor-pointer rounded-md border px-2 py-0.5 transition-colors", filtro === f ? "border-emerald-400/60 bg-emerald-500/20 text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white")}>{ETIQUETA_FUENTE[f]}</button>
+                ))}
+                <button type="button" onClick={() => void cargar()} disabled={cargando} className="ml-auto cursor-pointer rounded-md border border-white/15 px-2 py-0.5 text-white/70 hover:bg-white/10 disabled:opacity-40">Actualizar</button>
+            </div>
+            {fallo ? <p role="status" data-testid="hilo-unico-fallo" className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-snug text-amber-100">{fallo}</p> : null}
+            <div role="log" aria-label="Mensajes del hilo único" className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-xl border border-white/5 bg-black/20 p-2">
+                {cargando ? (
+                    <p role="status" className="p-2 text-[12px] text-white/50">Leyendo la copia de las cuatro fuentes…</p>
+                ) : visibles.length === 0 ? (
+                    <p data-testid="hilo-unico-vacio" className="p-2 text-[12px] text-white/50">Sin mensajes en esta fuente.</p>
+                ) : (
+                    <div className="mt-auto flex flex-col gap-2">
+                        {visibles.map((m) => (
+                            <article key={m.id} data-testid="mensaje-unificado" className={cn("rounded-xl border p-3 text-xs", m.esDeAlex ? "ml-auto max-w-[92%] border-cyan-400/30 bg-cyan-500/10 sm:max-w-[85%]" : "mr-auto max-w-[92%] border-violet-500/20 bg-zinc-900/70 sm:max-w-[85%]")}>
+                                <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className={cn("font-semibold", m.esDeAlex ? "text-cyan-200" : "text-violet-200")}>{m.esDeAlex ? "Tú" : m.origen}</span>
+                                    <span data-testid="fuente-badge" className="rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-white/70">{ETIQUETA_FUENTE[m.fuente]}</span>
+                                    {m.tipoUnificado !== "mensaje" ? <span className="rounded border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-100">{m.tipoUnificado}</span> : null}
+                                    <span className="ml-auto text-[10px] text-white/40">{momentoTexto(Date.parse(m.t), Date.now())}</span>
+                                </header>
+                                <p className="mt-2 whitespace-pre-line break-words text-white/90 [overflow-wrap:anywhere]">{m.texto}</p>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+}
+
 export function PestanaGenesis({ cliente, clienteCanon, clienteAparatos }: PestanaGenesisProps) {
     const puerta = useMemo(() => cliente ?? crearClienteChatsGenesis(), [cliente]);
     const [acceso, setAcceso] = useState<AccesoMeta | null>(null);
@@ -129,6 +208,8 @@ export function PestanaGenesis({ cliente, clienteCanon, clienteAparatos }: Pesta
     const [prefs, setPrefs] = useState<PrefsChatsGenesis>(() => leerCopiaLocalChatsGenesis());
     const [prefsLeidas, setPrefsLeidas] = useState(false);
     const [elegida, setElegida] = useState<string | null>(leerSeleccion);
+    // GEN1113 §10 · el hilo único: una vista que funde las cuatro fuentes; apagada por defecto.
+    const [unificado, setUnificado] = useState(false);
     const primeraEscritura = useRef(false);
     const [avisoPrefs, setAvisoPrefs] = useState<string | null>(null);
 
@@ -228,12 +309,30 @@ export function PestanaGenesis({ cliente, clienteCanon, clienteAparatos }: Pesta
                                 </button>
                             );
                         })}
+                        <button
+                            type="button"
+                            aria-pressed={unificado}
+                            data-testid="boton-hilo-unico"
+                            onClick={() => setUnificado((v) => !v)}
+                            className={cn(
+                                "cursor-pointer rounded-md border px-2 py-0.5 transition-colors",
+                                unificado
+                                    ? "border-emerald-400/60 bg-emerald-500/20 text-white"
+                                    : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white",
+                            )}
+                        >
+                            Hilo único
+                        </button>
                     </div>
                 ) : null}
                 {avisoPrefs ? (
                     <p role="status" data-testid="aviso-prefs" className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-snug text-amber-100">{avisoPrefs}</p>
                 ) : null}
-                <Panel valor={valor} cliente={puerta} acceso={acceso} comprobando={comprobando} prefs={prefs} prefsLeidas={prefsLeidas} entidades={entidades} onElegir={elegir} catalogo={catalogo} aparato={aparato} onAparato={setAparato} />
+                {unificado && acceso?.miembro ? (
+                    <HiloUnificadoPanel cliente={puerta} esDueno={acceso.dueno} />
+                ) : (
+                    <Panel valor={valor} cliente={puerta} acceso={acceso} comprobando={comprobando} prefs={prefs} prefsLeidas={prefsLeidas} entidades={entidades} onElegir={elegir} catalogo={catalogo} aparato={aparato} onAparato={setAparato} />
+                )}
             </div>
         </div>
     );
