@@ -27,18 +27,22 @@ class PeticionesLLMTest(unittest.TestCase):
         self.salud_dir.mkdir(parents=True)
         self.estado_file = self.salud_dir / "estado.json"
         self.catalogo_file = self.salud_dir / "catalogo_freellmapi.json"
+        self.catalogo_or_file = self.salud_dir / "catalogo_openrouter.json"
         self.logs = []
 
         # Patch module constants to use test paths
         self._original_estado_def = PL.ESTADO_DEF
         self._original_catalogo_def = PL.CATALOGO_DEF
+        self._original_catalogo_or_def = PL.CATALOGO_OPENROUTER_DEF
         PL.ESTADO_DEF = self.estado_file
         PL.CATALOGO_DEF = self.catalogo_file
+        PL.CATALOGO_OPENROUTER_DEF = self.catalogo_or_file
 
     def tearDown(self):
         # Restore module constants
         PL.ESTADO_DEF = self._original_estado_def
         PL.CATALOGO_DEF = self._original_catalogo_def
+        PL.CATALOGO_OPENROUTER_DEF = self._original_catalogo_or_def
         self.t.cleanup()
 
     def _log_fn(self, msg: str):
@@ -506,6 +510,192 @@ class PeticionesLLMTest(unittest.TestCase):
         )
 
         self.assertEqual(modelo, "hermes")
+
+    # ─────────────────────────────── OpenRouter catálogo vivo ───────────────────────────────
+
+    def test_catalogo_openrouter_cache_valido(self):
+        """Catálogo OpenRouter en caché válido se devuelve sin llamar a la API."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+        catalogo = {
+            "timestamp": (ahora - timedelta(hours=2)).isoformat(),
+            "modelos": ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free"],
+        }
+        PL._escribir_atomico(PL.CATALOGO_OPENROUTER_DEF, catalogo)
+
+        modelos = PL.obtener_catalogo_openrouter(
+            self._http_get_ok({"data": [{"id": "nuevo-modelo:free"}]}),
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        self.assertEqual(modelos, ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free"])
+        self.assertIn("en caché", self.logs[-1])
+
+    def test_catalogo_openrouter_cache_caducado_actualiza(self):
+        """Catálogo OpenRouter caducado llama a la API y actualiza."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+        catalogo = {
+            "timestamp": (ahora - timedelta(hours=10)).isoformat(),
+            "modelos": ["viejo-modelo:free"],
+        }
+        PL._escribir_atomico(PL.CATALOGO_OPENROUTER_DEF, catalogo)
+
+        modelos = PL.obtener_catalogo_openrouter(
+            self._http_get_ok({"data": [
+                {"id": "meta-llama/llama-3.1-8b-instruct:free", "context_length": 8192},
+                {"id": "google/gemma-2-9b-it:free", "context_length": 8192},
+                {"id": "modelo-de-pago", "context_length": 4096},
+            ]}),
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        self.assertEqual(modelos, ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free"])
+        self.assertIn("actualizado", self.logs[-1])
+
+        guardado = PL._leer_json(PL.CATALOGO_OPENROUTER_DEF)
+        self.assertEqual(guardado["modelos"], ["meta-llama/llama-3.1-8b-instruct:free", "google/gemma-2-9b-it:free"])
+
+    def test_catalogo_openrouter_filtra_solo_free_y_chat(self):
+        """El catálogo OpenRouter filtra solo modelos :free que aceptan chat."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        modelos = PL.obtener_catalogo_openrouter(
+            self._http_get_ok({"data": [
+                {"id": "meta-llama/llama-3.1-8b-instruct:free", "context_length": 8192},
+                {"id": "google/gemma-2-9b-it:free", "context_length": 8192},
+                {"id": "modelo-de-pago", "context_length": 4096},
+                {"id": "otro-free:free", "context_length": 2048},
+                {"id": "solo-embedding:free", "context_length": 512},  # sin chat
+            ]}),
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        # Solo modelos :free
+        for m in modelos:
+            self.assertTrue(m.endswith(":free"))
+        self.assertIn("meta-llama/llama-3.1-8b-instruct:free", modelos)
+        self.assertIn("google/gemma-2-9b-it:free", modelos)
+        self.assertIn("otro-free:free", modelos)
+        self.assertNotIn("modelo-de-pago", modelos)
+
+    def test_catalogo_openrouter_fallo_red_usa_cache_caducado(self):
+        """Si falla la red, usa caché aunque esté caducado."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+        catalogo = {
+            "timestamp": (ahora - timedelta(hours=10)).isoformat(),
+            "modelos": ["modelo-cache:free"],
+        }
+        PL._escribir_atomico(PL.CATALOGO_OPENROUTER_DEF, catalogo)
+
+        def http_get_falla(url: str):
+            raise urllib.error.URLError("Connection refused")
+
+        modelos = PL.obtener_catalogo_openrouter(
+            http_get_falla,
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        self.assertEqual(modelos, ["modelo-cache:free"])
+        self.assertIn("caducado", self.logs[-1])
+
+    def test_catalogo_openrouter_sin_cache_ni_red_devuelve_vacio(self):
+        """Sin caché y sin red, devuelve lista vacía."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        def http_get_falla(url: str):
+            raise urllib.error.URLError("Connection refused")
+
+        modelos = PL.obtener_catalogo_openrouter(
+            http_get_falla,
+            self._ahora_fijo(ahora),
+            self._log_fn,
+        )
+
+        self.assertEqual(modelos, [])
+
+    # ─────────────────────────────── Salud de rutas (3 fallos = 30 min) ───────────────────────────────
+
+    def test_ruta_tres_fallos_salta_30_min(self):
+        """Una ruta con 3 fallos consecutivos se salta 30 minutos."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        # Registrar 3 fallos para OpenRouter
+        for _ in range(3):
+            PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+
+        # Debe estar saltada
+        self.assertTrue(PL.ruta_saltada(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora)))
+
+        # Después de 31 minutos, ya no está saltada
+        despues = datetime(2026, 11, 17, 12, 31, 0)
+        self.assertFalse(PL.ruta_saltada(PL.RUTA_OPENROUTER, self._ahora_fijo(despues)))
+
+    def test_ruta_dos_fallos_no_salta(self):
+        """Una ruta con 2 fallos NO se salta."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+        PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+
+        self.assertFalse(PL.ruta_saltada(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora)))
+
+    def test_exito_ruta_limpia_fallos(self):
+        """Un éxito en una ruta limpia sus fallos consecutivos."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+        PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+        PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+        self.assertTrue(PL.ruta_saltada(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora)))
+
+        PL.registrar_exito_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+        self.assertFalse(PL.ruta_saltada(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora)))
+
+    # ─────────────────────────────── Ordenación por salud reciente ───────────────────────────────
+
+    def test_orden_rutas_por_salud_reciente(self):
+        """Las rutas se ordenan por salud reciente: la que respondió va primero."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        # Registrar éxito reciente en NIM
+        PL.registrar_exito_ruta(PL.RUTA_NIM, self._ahora_fijo(ahora - timedelta(minutes=5)))
+
+        # Registrar éxito más antiguo en FreeLLMAPI
+        PL.registrar_exito_ruta(PL.RUTA_FREELLM, self._ahora_fijo(ahora - timedelta(minutes=30)))
+
+        orden = PL.obtener_orden_rutas_por_salud(self._ahora_fijo(ahora))
+
+        # NIM debe ir antes que FreeLLMAPI
+        idx_nim = orden.index(PL.RUTA_NIM)
+        idx_freellm = orden.index(PL.RUTA_FREELLM)
+        self.assertLess(idx_nim, idx_freellm)
+
+    def test_orden_rutas_sin_salud_usando_orden_defecto(self):
+        """Sin salud previa, usa orden por defecto: FreeLLMAPI, NIM, OpenRouter, Hermes."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        orden = PL.obtener_orden_rutas_por_salud(self._ahora_fijo(ahora))
+
+        self.assertEqual(orden[0], PL.RUTA_FREELLM)
+        self.assertEqual(orden[1], PL.RUTA_NIM)
+        self.assertEqual(orden[2], PL.RUTA_OPENROUTER)
+        self.assertEqual(orden[3], PL.RUTA_HERMES)
+
+    def test_orden_rutas_salta_rutas_con_penalizacion(self):
+        """Rutas con penalización (3 fallos) van al final."""
+        ahora = datetime(2026, 11, 17, 12, 0, 0)
+
+        # Penalizar OpenRouter
+        for _ in range(3):
+            PL.registrar_fallo_ruta(PL.RUTA_OPENROUTER, self._ahora_fijo(ahora))
+
+        orden = PL.obtener_orden_rutas_por_salud(self._ahora_fijo(ahora))
+
+        # OpenRouter debe ir al final
+        self.assertEqual(orden[-1], PL.RUTA_OPENROUTER)
 
     # ─────────────────────────────── Inyectabilidad de E/S ───────────────────────────────
 
