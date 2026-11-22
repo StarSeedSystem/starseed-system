@@ -22,13 +22,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import director_chat
+import mcp_director_ordenes as ordenes
 import produccion_candidatos as pc
 
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
-    "Lee y escribe en el Chat Director de Genesis de StarSeed, "
-    "y consulta, veta, pausa o reanuda la producción."
+    "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
+    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada."
 )
 
 
@@ -48,6 +49,11 @@ _P_CANAL = _s(
 _P_MODELO = _s("string", "Motor/modelo que firma el mensaje («motor/modelo»).")
 _P_QUIEN = _s("string", "Quién firma la acción (director o persona). Obligatorio.")
 _P_MOTIVO = _s("string", "Motivo de la acción; queda registrado. Obligatorio.")
+_P_ORDEN = _s(
+    "string", "Orden de MetaGenesis (lista cerrada).",
+    enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
+)
+_P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
 
 
 def _esquema(propiedades, requeridos):
@@ -115,6 +121,17 @@ ESQUEMAS = {
         {"canal": _s("string", "Canal donde publicar (principal, general, audiovisual).", enum=["principal", "general", "audiovisual"]), "texto": _P_TEXTO, "de": _P_DE}, ["canal", "texto", "de"]
     ),
     "metagenesis_estado": _esquema({}, []),
+    "metagenesis_orden": _esquema(
+        {
+            "orden": _P_ORDEN,
+            "argumentos": _P_ARGUMENTOS,
+            "quien": _P_QUIEN,
+            "motivo": _P_MOTIVO,
+            "canal": _s("string", "Canal de dirección (principal, general, audiovisual, mando…)."),
+            "medio": _s("string", "Medio desde el que se usa la puerta (mcp, telegram, ide…)."),
+        },
+        ["orden", "argumentos", "quien", "motivo"],
+    ),
 }
 
 _HERR = [
@@ -131,6 +148,7 @@ _HERR = [
     ("canal_leer", "Lee los últimos mensajes de un canal especializado (principal, general, audiovisual)."),
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
+    ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -391,6 +409,11 @@ def _llamar(nombre, args):
         if reg.get("ok"):
             return "Publicado en %s: %s" % (canal, reg.get("id"))
         return "Error al publicar en %s: %s" % (canal, reg.get("detalle"))
+    if nombre == "metagenesis_orden":
+        return ordenes.ejecutar(
+            args.get("orden"), args.get("argumentos"), args.get("quien"), args.get("motivo"),
+            canal=args.get("canal") or "mando", medio=args.get("medio") or "mcp",
+        )
     if nombre == "metagenesis_estado":
         import json
         from datetime import datetime, timezone, timedelta

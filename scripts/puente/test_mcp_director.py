@@ -109,6 +109,7 @@ class PruebasAtender(unittest.TestCase):
                 "canal_leer",
                 "canal_decir",
                 "metagenesis_estado",
+                "metagenesis_orden",
             ],
         )
 

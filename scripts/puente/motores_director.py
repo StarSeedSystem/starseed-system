@@ -82,7 +82,7 @@ def entorno_sin_claves_api(env: dict) -> dict:
 MCP_DIRECTOR_PERMITIDAS = (
     "director_leer", "director_decir", "director_bandeja", "director_responder",
     "produccion_estado", "produccion_candidatos", "produccion_historial",
-    "produccion_vetar", "produccion_pausar",
+    "produccion_vetar", "produccion_pausar", "metagenesis_orden",
 )
 
 #: Órdenes de MetaGenesis que la dirección puede ejecutar (prefijos exactos; lista CERRADA). Son las herramientas
