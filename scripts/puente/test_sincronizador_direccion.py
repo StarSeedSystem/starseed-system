@@ -320,5 +320,144 @@ class TestTresCanalesEspecializados(unittest.TestCase):
                 con.close()
 
 
+class TestNombresCanales(unittest.TestCase):
+    def test_nombre_de_canal_lee_registro_y_cae_en_canonicos(self):
+        self.assertEqual(SD.nombre_de_canal("principal", {}), "Principal")
+        self.assertEqual(SD.nombre_de_canal("general", {"general": {"nombre": "  "}}), "General")
+        self.assertEqual(
+            SD.nombre_de_canal("audiovisual", {"audiovisual": {"nombre": "  Estudio "}}),
+            "Estudio",
+        )
+
+    def test_evaluar_nombres_marca_el_que_no_coincide(self):
+        cfg = {
+            "principal": {"nombre": "Principal"},
+            "general": {"nombre": "General"},
+            "audiovisual": {"nombre": "Audiovisual y diseño"},
+        }
+        medios = {
+            "registro": {
+                "principal": "Principal",
+                "general": "General",
+                "audiovisual": "Audiovisual y diseño",
+            },
+            "telegram": {
+                "principal": "Maggacortex",
+                "general": "General",
+                "audiovisual": "Audiovisual y diseño",
+            },
+            "hermes": {"principal": "Principal"},
+        }
+        filas = SD.evaluar_nombres(cfg, medios)
+        por = {(f["canal"], f["medio"]): f for f in filas}
+        self.assertEqual(por[("principal", "registro")]["estado"], "igual")
+        self.assertEqual(por[("principal", "telegram")]["estado"], "distinto")
+        self.assertEqual(por[("general", "hermes")]["estado"], "sin-comprobar")
+        self.assertEqual(por[("audiovisual", "mac")]["estado"], "sin-comprobar")
+        self.assertEqual(len(filas), 3 * len(SD.MEDIOS_NOMBRES))
+        # `_nombres_por_medio` es quien rellena la Mac con los canónicos y Hermes con el título real.
+        completos = SD._nombres_por_medio(
+            cfg,
+            {},
+            [{"id": "s1", "title": "Principal", "source": "local", "fijada": True}],
+        )
+        self.assertEqual(completos["mac"]["audiovisual"], "Audiovisual y diseño")
+        self.assertEqual(completos["registro"]["principal"], "Principal")
+
+    def test_nombres_por_medio_desde_canon_extrae_solo_medios_con_nombre(self):
+        canon = {
+            "chats": [
+                {"id": "genesis", "nombre": "Principal"},
+                {
+                    "id": "genesis.canal.general",
+                    "medios": [
+                        {"medio": "telegram", "nombreEnMedio": "General"},
+                        {"medio": "hermes", "nombreEnMedio": "  General "},
+                        {"medio": "telegram", "nombreEnMedio": ""},
+                    ],
+                },
+            ]
+        }
+        self.assertEqual(
+            SD.nombres_por_medio_desde_canon(canon, "general"),
+            {"telegram": "General", "hermes": "General"},
+        )
+        self.assertEqual(SD.nombres_por_medio_desde_canon(canon, "audiovisual"), {})
+
+    def test_comprobar_sesiones_fijadas_detecta_oneshot_y_faltantes(self):
+        cfg = {
+            "principal": {"hermes_sesion": "s-principal"},
+            "general": {"hermes_sesion": "s-general"},
+            "audiovisual": {"hermes_sesion": "s-av"},
+        }
+        sesiones = [
+            {"id": "s-principal", "title": "Principal", "source": "local", "fijada": True},
+            {"id": "s-general", "title": "General", "source": "telegram", "fijada": True},
+            {"id": "s-av", "title": "Audiovisual y diseño", "source": "oneshot", "fijada": True},
+            {"id": "vieja", "title": "Archivo", "source": "local", "fijada": True},
+        ]
+        por, resumen = SD.comprobar_sesiones_fijadas(cfg, sesiones)
+        self.assertTrue(por["principal"]["ok"])
+        self.assertTrue(por["general"]["ok"])
+        self.assertFalse(por["audiovisual"]["ok"])
+        self.assertIn("hermes -z", " ".join(por["audiovisual"]["problemas"]))
+        self.assertEqual(resumen["fijadas"], 4)
+        self.assertEqual(resumen["canales"], 3)
+        self.assertFalse(resumen["ok"])
+
+        por2, res2 = SD.comprobar_sesiones_fijadas({"principal": {}}, [])
+        self.assertFalse(por2["principal"]["ok"])
+        self.assertEqual(res2["canales"], 0)
+        self.assertFalse(res2["ok"])
+
+    def test_leer_sesiones_hermes_lee_la_marca_de_fijada(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = Path(tmp) / "state.db"
+            con = sqlite3.connect(str(ruta))
+            con.execute(
+                "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, source TEXT, pinned INTEGER)"
+            )
+            con.execute("INSERT INTO sessions VALUES ('s1', 'Principal', 'local', 1)")
+            con.execute("INSERT INTO sessions VALUES ('s2', 'Otra', 'local', 0)")
+            con.commit()
+            con.close()
+            sesiones = SD.leer_sesiones_hermes(str(ruta))
+            self.assertEqual(
+                [(s["id"], s["fijada"]) for s in sesiones],
+                [("s1", True), ("s2", False)],
+            )
+            self.assertEqual(SD.leer_sesiones_hermes(str(Path(tmp) / "no-existe.db")), [])
+
+    def test_chats_y_sincronizador_sin_nombres_viejos_ni_id_a_mano(self):
+        aqui = Path(AQUI)
+        chats = (aqui / "chats.json").read_text(encoding="utf-8")
+        sincro = (aqui / "sincronizador_direccion.py").read_text(encoding="utf-8")
+        viejos = [
+            "Dirección principal",
+            "Dirección general",
+            "Dirección MetaGenesis",
+            "Producción audiovisual, diseño y promoción",
+            "Síntesis de producción",
+            "Puente de Mando",
+            "GENESIS · StarSeed OS",
+        ]
+        for texto in (chats, sincro):
+            for viejo in viejos:
+                self.assertNotIn(viejo, texto)
+        self.assertNotIn("20260909_210504_867626", chats)
+        self.assertNotIn("20260909_210504_867626", sincro)
+        self.assertIn("20260828_130104_dc6d43f0", chats)
+
+    def test_chats_declara_los_tres_canales_en_cada_entorno(self):
+        d = json.loads((Path(AQUI) / "chats.json").read_text(encoding="utf-8"))
+        for entorno in ("claude", "codex", "hermes", "antigravity", "telegram"):
+            canales = d["entornos"][entorno]["canales"]
+            self.assertEqual(set(canales), {"principal", "general", "audiovisual"})
+        self.assertEqual(
+            d["entornos"]["hermes"]["canales"]["general"]["hermes_sesion"],
+            "20260828_130104_dc6d43f0",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

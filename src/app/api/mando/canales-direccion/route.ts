@@ -1,14 +1,31 @@
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
 import {
     enviarMensajeCanalEspecializado,
     esIdCanalEspecializado,
     obtenerEstadoCanalEspecializado,
 } from "@/lib/mando/canales-direccion-servidor";
+import {
+    nombreDeCanal,
+    type RegistroNombresCanales,
+} from "@/lib/mando/canales-nombres";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SIN_CACHE = { "Cache-Control": "no-store" };
+
+function leerNombresDelRegistro(): RegistroNombresCanales {
+    try {
+        const ruta = path.join(os.homedir(), ".starseed", "canales-direccion.json");
+        const crudo = JSON.parse(readFileSync(ruta, "utf-8")) as unknown;
+        return crudo && typeof crudo === "object" ? (crudo as RegistroNombresCanales) : {};
+    } catch {
+        return {};
+    }
+}
 
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
@@ -24,7 +41,21 @@ export async function GET(peticion: Request): Promise<Response> {
 
     try {
         const estado = await obtenerEstadoCanalEspecializado(canalRaw);
-        return Response.json(estado, { headers: SIN_CACHE });
+        const nombre = nombreDeCanal(canalRaw, leerNombresDelRegistro());
+        return Response.json(
+            {
+                ...estado,
+                nombre,
+                perfil: {
+                    ...estado.perfil,
+                    nombre,
+                    botNombre: nombre,
+                    sesionHermesTitulo: nombre,
+                },
+                vinculo: { ...estado.vinculo, hermesTitulo: nombre },
+            },
+            { headers: SIN_CACHE },
+        );
     } catch (err) {
         const detalle = err instanceof Error ? err.message : String(err);
         return Response.json({ ok: false, error: detalle }, { status: 500, headers: SIN_CACHE });
