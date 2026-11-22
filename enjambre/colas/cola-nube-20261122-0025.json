@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "SES1122C",
+   "ola": "pasarelas-1122",
+   "titulo": "«Te toca a ti»: aprobaciones de Higgsfield sin duplicar cada día",
+   "archivos": [
+    "scripts/puente/acciones-de-alex.py",
+    "scripts/puente/test_acciones_higgsfield_ses1122c.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 22-11: «te toca a ti» tiene 10 acciones y las 10 son aprobaciones de Higgsfield: las MISMAS dos piezas («sistema-diseno: referencia de marca animada» y «recorrido-os: walkthrough de Nexus») propuestas de nuevo cada día desde el 17-11 (HGF2026111700{1,2} … HGF2026112100{1,2}). Alex no las ha aprobado y la lista crece dos por día. Localiza quién genera esas propuestas (busca HGF y higgsfield en scripts/puente) y arregla la causa: no se vuelve a proponer una pieza que ya tiene una aprobación pendiente (misma pieza+modelo+prompt); en la lista de acciones se muestran agrupadas (una por pieza, con «propuesta N veces desde <fecha>»), conservando todos los IDs para que aprobar siga funcionando. No apruebes, no gastes créditos ni borres propuestas: solo deja de duplicar y agrupa. Función pura + pruebas pytest; test_acciones_de_alex.py en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "SES1122C"
+  ]
+ }
+}
