@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _CARPETA = Path(__file__).resolve().parent
 sys.path.insert(0, str(_CARPETA))
@@ -115,6 +116,9 @@ class PruebasAtender(unittest.TestCase):
                 "sqlite_tablas",
                 "sqlite_esquema",
                 "sqlite_consulta",
+                "postgres_estado",
+                "postgres_probar",
+                "postgres_consultar",
             ],
         )
 
@@ -457,6 +461,165 @@ class PruebasSqlite(unittest.TestCase):
                     canal.close()
             proc.kill()
             proc.wait()
+
+
+class PruebasPostgres(unittest.TestCase):
+    """Conexión postgres de solo lectura: ni la URL ni su valor salen del entorno."""
+
+    URL = "postgresql://usuario:secreto@base.invalida:5432/os"
+    VARS = mcp_director.VARIABLES_DB
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self.VARS}
+        for v in self.VARS:
+            os.environ.pop(v, None)
+
+    def tearDown(self):
+        for v in self.VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+
+    def _peticion(self, nombre, argumentos=None, ident=1):
+        return {
+            "jsonrpc": "2.0", "id": ident, "method": "tools/call",
+            "params": {"name": nombre, "arguments": argumentos or {}},
+        }
+
+    def _texto(self, nombre, argumentos=None):
+        r = mcp_director.atender(self._peticion(nombre, argumentos))
+        self.assertNotIn("error", r, r)
+        self.assertNotIn("isError", r["result"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def _error(self, nombre, argumentos=None):
+        r = mcp_director.atender(self._peticion(nombre, argumentos))
+        self.assertNotIn("error", r, r)
+        self.assertTrue(r["result"].get("isError"), r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def test_estado_sin_variable_dice_cual_definir(self):
+        datos = json.loads(self._texto("postgres_estado"))
+        self.assertFalse(datos["configurado"])
+        self.assertIsNone(datos["variable"])
+        self.assertEqual(datos["variables_aceptadas"], list(self.VARS))
+        self.assertEqual(datos["modo"], "solo-lectura")
+
+    def test_estado_devuelve_nombre_no_valor(self):
+        os.environ["STARSEED_SUPABASE_DB_URL"] = self.URL
+        datos = json.loads(self._texto("postgres_estado"))
+        self.assertTrue(datos["configurado"])
+        self.assertEqual(datos["variable"], "STARSEED_SUPABASE_DB_URL")
+        self.assertNotIn("secreto", json.dumps(datos))
+
+    def test_variable_db_es_pura_y_respeta_precedencia(self):
+        self.assertIsNone(mcp_director._variable_db({}))
+        self.assertEqual(mcp_director._variable_db({"DATABASE_URL": self.URL}), "DATABASE_URL")
+        dos = {"DATABASE_URL": self.URL, "STARSEED_SUPABASE_DB_URL": self.URL}
+        self.assertEqual(mcp_director._variable_db(dos), "STARSEED_SUPABASE_DB_URL")
+
+    def test_validar_sql_rechaza_escrituras_y_multiples(self):
+        malas = (
+            "", "DELETE FROM os_pages", "WITH x AS (UPDATE os_pages SET name='x' SELECT 1)",
+            "SELECT 1; SELECT 2", "SELECT 1 --comment", "SELECT 1 /* comentario */",
+            "DROP TABLE os_pages", "COPY os_pages FROM STDIN",
+        )
+        for sql in malas:
+            with self.subTest(sql=sql), self.assertRaises(ValueError):
+                mcp_director._validar_sql(sql)
+
+    def test_validar_sql_anade_tope_y_respeta_el_existente(self):
+        consulta, tope = mcp_director._validar_sql(
+            "SELECT slug FROM os_pages ORDER BY name", 20
+        )
+        self.assertTrue(consulta.endswith(" LIMIT 20"))
+        self.assertEqual(tope, 20)
+        # Un LIMIT ya presente (con o sin OFFSET) no se duplica.
+        con_offset, _ = mcp_director._validar_sql(
+            "SELECT * FROM t LIMIT 10 OFFSET 5", 50
+        )
+        self.assertEqual(con_offset.count("LIMIT"), 1)
+        self.assertTrue(con_offset.endswith("OFFSET 5"))
+        with self.assertRaises(ValueError):
+            mcp_director._validar_sql("SELECT 1", 500)
+
+    def test_validar_sql_limite_no_numerico_da_error_claro(self):
+        with self.assertRaises(ValueError) as ctx:
+            mcp_director._validar_sql("SELECT 1", "abc")
+        self.assertIn("limite", str(ctx.exception))
+
+    def test_probar_sin_conexion_nombra_la_variable(self):
+        texto = self._error("postgres_probar")
+        self.assertIn("sin conexión", texto)
+        self.assertIn("STARSEED_SUPABASE_DB_URL", texto)
+
+    def test_probar_con_psql_falso_devuelve_ok(self):
+        os.environ["STARSEED_SUPABASE_DB_URL"] = self.URL
+        with mock.patch.object(mcp_director, "_ejecutar_psql", return_value="1"):
+            texto = self._texto("postgres_probar")
+        self.assertIn("Conexión OK con STARSEED_SUPABASE_DB_URL", texto)
+        self.assertIn("solo lectura", texto)
+
+    def test_consultar_pasa_url_por_entorno_y_no_por_argv(self):
+        os.environ["STARSEED_SUPABASE_DB_URL"] = self.URL
+        vistos = {}
+
+        def falso(orden, **kwargs):
+            vistos["orden"] = orden
+            vistos["env"] = kwargs["env"]
+            return subprocess.CompletedProcess(orden, 0, " slug \n", "")
+
+        with mock.patch.object(mcp_director.subprocess, "run", side_effect=falso):
+            texto = self._texto("postgres_consultar", {"sql": "SELECT slug FROM os_pages"})
+        self.assertEqual(texto, "slug")
+        self.assertNotIn(self.URL, " ".join(vistos["orden"]))
+        self.assertEqual(vistos["env"]["PGHOST"], "base.invalida")
+        self.assertEqual(vistos["env"]["PGPORT"], "5432")
+        self.assertEqual(vistos["env"]["PGUSER"], "usuario")
+        self.assertEqual(vistos["env"]["PGDATABASE"], "os")
+        self.assertEqual(vistos["env"]["PGSSLMODE"], "require")
+        self.assertIn("default_transaction_read_only=on", vistos["env"]["PGOPTIONS"])
+        self.assertIn("SELECT slug FROM os_pages LIMIT 50", vistos["orden"])
+        self.assertNotIn("secreto", texto)
+
+    def test_entorno_psql_reparte_url_y_respeta_sslmode(self):
+        url = "postgresql://u:p@127.0.0.1:55432/os?sslmode=disable"
+        env = mcp_director._entorno_psql(url, {})
+        self.assertEqual(env["PGHOST"], "127.0.0.1")
+        self.assertEqual(env["PGPORT"], "55432")
+        self.assertEqual(env["PGUSER"], "u")
+        self.assertEqual(env["PGPASSWORD"], "p")
+        self.assertEqual(env["PGDATABASE"], "os")
+        self.assertEqual(env["PGSSLMODE"], "disable")
+        self.assertEqual(mcp_director._entorno_psql("os", {})["PGDATABASE"], "os")
+
+    def test_entorno_psql_host_ipv6_conserva_corchetes(self):
+        env = mcp_director._entorno_psql("postgresql://u:p@[2001:db8::1]:5432/os", {})
+        self.assertEqual(env["PGHOST"], "[2001:db8::1]")
+        self.assertEqual(env["PGPORT"], "5432")
+        self.assertEqual(env["PGSSLMODE"], "require")
+
+    def test_error_de_psql_tacha_la_url(self):
+        os.environ["DATABASE_URL"] = self.URL
+        salida = subprocess.CompletedProcess([], 1, "", "falló con " + self.URL)
+
+        with mock.patch.object(mcp_director.subprocess, "run", return_value=salida):
+            texto = self._error("postgres_consultar", {"sql": "SELECT 1"})
+        self.assertIn("falló con", texto)
+        self.assertIn("***", texto)
+        self.assertNotIn("secreto", texto)
+
+    def test_psql_ausente_da_error_claro_no_trace(self):
+        os.environ["DATABASE_URL"] = self.URL
+
+        def ausente(*_args, **_kwargs):
+            raise OSError("no hay psql")
+
+        with mock.patch.object(mcp_director.subprocess, "run", side_effect=ausente):
+            texto = self._error("postgres_probar")
+        self.assertIn("psql no disponible", texto)
+        self.assertNotIn("secreto", texto)
 
 
 class PruebaProcesoReal(unittest.TestCase):
