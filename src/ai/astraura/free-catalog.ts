@@ -991,6 +991,8 @@ export const FREE_CATALOG: CatalogSource[] = [
   {
     // VERIFICADO 2026-07-13: POST https://api.llm7.io/v1/chat/completions SIN clave
     // → HTTP 200 en ~1,5 s con `gemma3:27b` y `codestral-latest`. CORS: `*`.
+    // VERIFICADO 2026-10 (enjambre): `minimax-m2.7` escribe SIN CLAVE y sirve de
+    // escritor/revisor principal en la rotación del enjambre.
     // Los modelos propietarios del catálogo de LLM7 (gpt-5.x, claude-*, grok-*)
     // devuelven 401 sin token → NO los declaramos: solo los que funcionan libres.
     // Token gratuito opcional en https://token.llm7.io (30 → 120 req/min).
@@ -1011,6 +1013,7 @@ export const FREE_CATALOG: CatalogSource[] = [
     models: [
       { id: "gemma3:27b", label: "Gemma 3 27B", strengths: ["chat", "translate", "summary", "creative"], quality: 7, context: 131072 },
       { id: "codestral-latest", label: "Codestral", strengths: ["code"], quality: 7 },
+      { id: "minimax-m2.7", label: "Minimax M2.7", strengths: ["chat", "reasoning", "creative", "summary"], quality: 8, context: 131072, note: "Escritor y revisor · 128K ctx" },
     ],
   },
   {
