@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "AUT1121As",
+   "ola": "AUT1121",
+   "titulo": "Escalada automática al mejor motor disponible: que una tarea rechazada tres veces no se quede esperando a Alex ni a un Codex agotado · lo que faltó: scripts/puente/test_revisor_bloqueadas_logica.py",
+   "archivos": [
+    "scripts/puente/test_revisor_bloqueadas_logica.py"
+   ],
+   "depende": [],
+   "importancia": "capacidad",
+   "prompt": "SEGUIMIENTO de AUT1121A, que ya está integrada (sha 2de87d7b30b0). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_revisor_bloqueadas_logica.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Escalada automática al mejor motor disponible: que una tarea rechazada tres veces no se quede esperando a Alex ni a un Codex agotado\n\n--- encargo original, como contexto ---\nCAUSA: en `revisor_bloqueadas_logica.py` (≈ línea 790) el tercer rechazo mecánico genera la acción `pedir_a_alex` con la pregunta «¿La\nescalamos a Codex?» y la tarea se queda parada hasta que Alex pulse. El 21-11 había 9 así (cuatro «URGENTE · Desbloquear la publicación») y\nCodex estaba agotado. Alex: «aún te tengo que pedir a ti o a algún director que arregle algo tan evidente». Haz `escalada_motores.py` con\nuna función PURA `siguiente_motor(tarea, intentos, disponibilidad, presupuesto)` que recorra una ESCALERA por disponibilidad viva y coste:\nescritores gratuitos (ya probados) → Antigravity CLI (`agy`: gemini-4 y claude-sonnet-5-5 con créditos; opus solo para diseño o arquitectura)\n→ CLI de Claude del Mac (presupuesto «Opus de los directores», hoy 0 de 40) → Codex si tiene cuota → A1. La escalada es AUTOMÁTICA dentro\nde un tope diario por motor (valores por defecto prudentes, visibles y ajustables en Genesis; nunca agota un motor: deja reserva del 20 %),\nlleva al motor fuerte el registro del fallo y las reescrituras anteriores, y solo pasa a `pedir_a_alex` cuando TODOS los motores están\nagotados o la tarea toca algo reservado a Alex. Además: a) las tareas «Desbloquear la publicación (<sha>)» se cierran solas cuando una\npublicación posterior pasa (había cuatro de shas ya superados); b) lo que de verdad necesita a Alex le llega en UN resumen al canal General\ncon sus opciones, no una pregunta por tarea; c) aplica ya la escalera a las 9 paradas y di en el informe cuántas salieron.\n\nMEDIDO POR LA DIRECCIÓN EL 21-11 (eventos.jsonl, medidores y registros; Mac de 8 GB de RAM): 137 inicios de 83 tareas → 27 commits. 54 fallos (37 = «tsc/vitest sigue fallando»). 60 estancados (nemotron-3-ultra 30, minimax-m3.1-flash 8, freellmapi/auto 7). 110 reenrutados (gemma gratis de OpenRouter saturado 28). 45 veces «poco disco → no arranca ninguna tarea nueva». Nube: 0 ejecuciones con 28 agentes libres en GitHub Actions; A1 «en espera, guardián de main ROJO». Tanda viva de la Mac: 12",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "AUT1121As"
+  ]
+ }
+}
