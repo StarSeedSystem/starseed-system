@@ -34,7 +34,6 @@ function montar(invocar?: (cmd: string, args?: Record<string, unknown>) => Promi
         crearPintor: () => pintor,
         sesionViva: () => ({ ...SESION }),
         recibirSobre: async (): Promise<RespuestaOrden> => ({ tipo: "respuesta", nonce: "", ok: false, motivo: "sin-puerta" }),
-        // Sin avanzar el reloj: el bucle no se para por «sin oferta» y la búsqueda de la fluida la corta `parar`.
         esperar: () => new Promise<void>((r) => setTimeout(r, 1)),
         ahora: () => 1_000_000,
         anotar: () => undefined,
