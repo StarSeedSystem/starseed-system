@@ -151,7 +151,7 @@ libc = "0.2"
 gtk = "0.18"
 x11rb = { version = "0.13", default-features = false, features = ["xinput", "shm"] }
 # CTL1119E: Secret Service para llavero del sistema en Linux (clave nativa del aparato).
-secret-service = { version = "3", default-features = false, features = ["blocking"] }
+secret-service = { version = "3", default-features = false }
 
 # WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
 [target.'cfg(target_os = "macos")'.dependencies]
