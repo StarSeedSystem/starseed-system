@@ -172,7 +172,6 @@ const COMANDOS_APP: &[&str] = &[
     "control_pantalla_iniciar",
     "control_pantalla_cuadro",
     "control_pantalla_parar",
-    "banco_latido_activar", // PENA1
     // (PTA1108B) Proxy de la puerta de internet para el webview y las descargas de Rust.
     "puerta_proxy_local",
     "puerta_proxy_estado",
