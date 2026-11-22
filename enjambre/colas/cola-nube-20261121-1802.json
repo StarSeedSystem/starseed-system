@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "CAP-prov-llm7-rotacions",
+   "ola": "CAP1119",
+   "titulo": "Añadir llm7 a rotación de escritores/revisores · lo que faltó: src/ai/astraura/free-catalog.ts",
+   "archivos": [
+    "src/ai/astraura/free-catalog.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de CAP-prov-llm7-rotacion, que ya está integrada (sha aab85a7ef609). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/ai/astraura/free-catalog.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Añadir llm7 a rotación de escritores/revisores\n\n--- encargo original, como contexto ---\nIncluir llm7 en el catálogo gratuito y en la rotación del enjambre. llm7 disponible y no se usó en 24h",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-173938.json": [
+   "CAP-prov-llm7-rotacions"
+  ]
+ }
+}
