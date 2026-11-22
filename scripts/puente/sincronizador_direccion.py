@@ -26,9 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -440,6 +442,138 @@ def _cortar_trozos(texto: str, tope: int = 3800) -> List[str]:
     return trozos
 
 
+# ─── ACC1121D · una sola puerta para los tres canales ──────────────────────────────────
+
+AYUDA_ORDENES = (
+    "Órdenes que entiendo: «estado», «busca más capacidad», «pausa el enjambre», "
+    "«reanuda el enjambre», «lanza la cola <nombre>», «prioriza <tarea> a <n>», "
+    "«reabre <tarea>», «escala <tarea> a <motor>», «archiva los worktrees», "
+    "«compila», «apunta: <texto>». Lo reservado a Alex (publicar, claves, aceptar en su "
+    "nombre, cerrar apps) no se ejecuta desde un canal."
+)
+
+
+def _plano(texto: str) -> str:
+    sin = unicodedata.normalize("NFD", str(texto or "").lower())
+    limpio = " ".join("".join(c for c in sin if unicodedata.category(c) != "Mn").split())
+    return limpio.strip("¿?¡!.,;")
+
+
+#: Lo que nunca se ejecuta desde un canal, dicho en lenguaje llano (clave de `RESERVADAS`).
+_RESERVADAS_LLANO = (
+    ("quitar_pausa_publicacion", r"\b(quita|quitar|levanta|levantar)\b.*\bpausa\b.*\bpublicacion\b"),
+    ("publicar_fuera_de_puertas", r"\bpublica(?:r)?\b.*\bfuera\b.*\bpuertas\b"),
+    ("claves_y_cuentas", r"\b(claves|contrasenas|cuentas|tokens)\b"),
+    ("a1_con_privilegios", r"\b(privilegios|root|sudo)\b.*\ba1\b|\ba1\b.*\b(privilegios|root|sudo)\b"),
+    ("aceptar_a_nombre_de_alex", r"\b(acepta|aceptar|concede|conceder)\b.*\bnombre de alex\b"),
+    ("cerrar_apps", r"\b(cierra|cerrar)\b.*\b(apps|aplicaciones)\b"),
+)
+
+
+def _id_tarea(texto: str) -> str:
+    m = re.search(r"\b([A-Z]{2,4}\d{4}[A-Z0-9-]*)\b", str(texto or "").upper())
+    return m.group(1) if m else ""
+
+
+def interpretar_orden_director(texto: str) -> Dict[str, Any]:
+    """Traduce lenguaje llano a la lista cerrada de `mcp_director_ordenes.ORDENES`."""
+    original = str(texto or "").strip()
+    t = _plano(original)
+    if not t:
+        return {"tipo": "desconocida"}
+    if t in ("estado", "como va", "como va todo", "que tal", "situacion", "resumen", "que pasa"):
+        return {"tipo": "estado"}
+    if t in ("ayuda", "help", "que puedes hacer", "ordenes"):
+        return {"tipo": "ayuda"}
+    for clave, patron in _RESERVADAS_LLANO:
+        if re.search(patron, t):
+            try:
+                import mcp_director_ordenes as O
+                motivo = O.RESERVADAS.get(clave, "es de Alex")
+            except Exception:  # noqa: BLE001
+                motivo = "es de Alex"
+            return {"tipo": "reservada", "orden": clave, "motivo": motivo}
+    if re.search(r"\b(busca|buscar|consigue|trae|necesito)\b.*\bcapacidad\b", t) or "mas agentes" in t:
+        return {"tipo": "orden", "orden": "buscar_capacidad", "argumentos": {"aplicar": False}}
+    if re.search(r"\b(pausa|pausar|para|deten)\b.*\benjambre\b", t) or t in ("pausa", "pausar"):
+        return {"tipo": "orden", "orden": "pausar_enjambre", "argumentos": {}}
+    if re.search(r"\b(reanuda|reanudar|sigue|continua)\b", t):
+        return {"tipo": "orden", "orden": "reanudar_enjambre", "argumentos": {}}
+    if "nube" in t and re.search(r"\b(lanza|manda|cede|autorizo)\b", t):
+        return {"tipo": "orden", "orden": "lanzar_nube",
+                "argumentos": {"cesion": True, "runs": 1, "trabajadores": 3}}
+    m = re.search(r"\b(?:lanza|arranca|abre)\b.*\bcola[- ]([a-z0-9][a-z0-9._-]{0,79})", t)
+    if m:
+        return {"tipo": "orden", "orden": "lanzar_cola",
+                "argumentos": {"cola": m.group(1), "trabajadores": 2}}
+    m = re.search(r"\bprioriza(?:r)?\s+([a-z]{2,4}\d{4}[a-z0-9-]*)\s+(?:a|con|en)\s+(-?\d+)", t)
+    if m:
+        return {"tipo": "orden", "orden": "priorizar_tarea",
+                "argumentos": {"tarea": _id_tarea(original) or m.group(1).upper(),
+                               "prioridad": int(m.group(2))}}
+    m = re.search(r"\breabre(?:r)?\s+([a-z]{2,4}\d{4}[a-z0-9-]*)", t)
+    if m:
+        return {"tipo": "orden", "orden": "reabrir_tarea",
+                "argumentos": {"tarea": _id_tarea(original) or m.group(1).upper()}}
+    m = re.search(r"\bescala(?:r)?\s+([a-z]{2,4}\d{4}[a-z0-9-]*)\s+(?:a|al|en)\s+([a-z0-9._-]+)", t)
+    if m:
+        return {"tipo": "orden", "orden": "escalar_tarea",
+                "argumentos": {"tarea": _id_tarea(original) or m.group(1).upper(),
+                               "motor": m.group(2)}}
+    if re.search(r"\barchiva(?:r)?\b.*\bworktrees\b", t):
+        return {"tipo": "orden", "orden": "archivar_worktrees", "argumentos": {"aplicar": False}}
+    if (re.search(r"\b(compila|compilar)\b.*\b(repo|proyecto|pruebas|tests|main)\b", t)
+            or re.search(r"\bpasa (las pruebas|los tests)\b", t)):
+        return {"tipo": "orden", "orden": "compilar_prueba", "argumentos": {"nota": original[:200]}}
+    m = re.search(r"^apunta(?:r)?\s+(?:en\s+([a-z]+)\s+)?:?\s*(.+)$", t)
+    if m and len(m.group(2).strip()) >= 3:
+        canal = m.group(1) if m.group(1) in ("principal", "general", "audiovisual", "mando") else "mando"
+        return {"tipo": "orden", "orden": "apuntar_nota",
+                "argumentos": {"texto": m.group(2).strip(), "canal": canal}}
+    return {"tipo": "desconocida"}
+
+
+def _estado_por_defecto() -> str:
+    try:
+        import mcp_director_metagenesis as M
+        return str(M._metagenesis_estado())
+    except Exception as e:  # noqa: BLE001
+        return "No pude leer el estado: %s" % e
+
+
+def atender_orden_director(
+    texto: str,
+    canal: str = "mando",
+    medio: str = "telegram",
+    quien: str = "alex",
+    ejecutar_fn: Optional[Callable[..., Any]] = None,
+    estado_fn: Optional[Callable[[], Any]] = None,
+) -> Optional[str]:
+    """Atiende una orden/estado en lenguaje llano. `None` si el texto no es orden."""
+    plan = interpretar_orden_director(texto)
+    tipo = plan.get("tipo")
+    if tipo == "desconocida":
+        return None
+    if tipo == "ayuda":
+        return AYUDA_ORDENES
+    if tipo == "reservada":
+        return "esto es de Alex: %s" % plan.get("motivo")
+    if tipo == "estado":
+        try:
+            return str((estado_fn or _estado_por_defecto)())
+        except Exception as e:  # noqa: BLE001
+            return "No pude leer el estado: %s" % e
+    if ejecutar_fn is None:
+        import mcp_director_ordenes as O
+        ejecutar_fn = O.ejecutar
+    try:
+        return str(ejecutar_fn(plan["orden"], plan.get("argumentos") or {}, quien,
+                               "orden de Alex por %s/%s" % (canal, medio),
+                               canal=canal, medio=medio))
+    except Exception as e:  # noqa: BLE001
+        return "No pude ejecutar «%s»: %s" % (plan.get("orden"), e)
+
+
 def enviar_telegram_canal(
     canal_clave: str,
     texto: str,
@@ -520,6 +654,8 @@ def recoger_maggacortex_telegram(
     raiz: Optional[Path] = None,
     chat_id_autorizado: Optional[str] = None,
     archivos: Iterable[str] = ARCHIVOS_ENV_DEFECTO,
+    orden_fn: Optional[Callable[..., Optional[str]]] = None,
+    responder_fn: Optional[Callable[[str], Any]] = None,
 ) -> int:
     """Recoge mensajes entrantes del bot del canal `principal` (`@starseed_neurocortex_bot`).
 
@@ -626,6 +762,13 @@ def recoger_maggacortex_telegram(
         )
         huellas_recientes.add(("alex", _norm_dedupe(texto)))
         importados += 1
+        atender = orden_fn or atender_orden_director
+        respuesta = atender(texto, canal="principal", medio="telegram")
+        if respuesta:
+            if responder_fn is not None:
+                responder_fn(respuesta)
+            else:
+                enviar_telegram_canal("principal", respuesta, prefijo="Director")
     return importados
 
 
@@ -791,6 +934,7 @@ def sincronizar_canal_secundario_hermes(
     raiz: Optional[Path] = None,
     enviar_tg: bool = False,
     enviar_fn: Optional[Callable[[str, str, str], Tuple[bool, str]]] = None,
+    orden_fn: Optional[Callable[..., Optional[str]]] = None,
 ) -> int:
     """Sincroniza la sesión Hermes de `general` o `audiovisual` hacia `director/<canal>.jsonl`."""
     if canal_clave not in ("general", "audiovisual"):
@@ -892,6 +1036,13 @@ def sincronizar_canal_secundario_hermes(
         _escribir_jsonl_canal(canal_clave, registro, raiz=raiz)
         huellas.add((rol, _norm_dedupe(contenido)))
         importados += 1
+
+        if es_user and origen == "telegram":
+            atender = orden_fn or atender_orden_director
+            respuesta = atender(contenido, canal=canal_clave, medio="telegram")
+            if respuesta:
+                pref = f"{nombre_de_canal(canal_clave, cargar_canales_direccion())} · Director"
+                enviar_telegram_canal(canal_clave, respuesta, prefijo=pref, enviar_fn=enviar_fn)
 
         if enviar_tg and not es_user and sync_cfg.get("telegram", True):
             pref = f"{nombre_de_canal(canal_clave, cargar_canales_direccion())} · Hermes"

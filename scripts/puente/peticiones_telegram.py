@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from peticiones_reglas import (
     TIPOS,
@@ -71,6 +71,7 @@ CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
 ESTADO = os.path.join(DIR, "estado.json")
 COLA = os.path.join(DIR, "cola.json")
+ORDENES_MAC = os.path.join(DIR, "ordenes-mac.json")
 SALIDAS = NB_SALIDAS
 
 # Rutas del sanador de sesiones (SES1113C)
@@ -971,6 +972,10 @@ def mantener_sesion() -> None:
     
     while True:
         try:
+            drenar_ordenes_mac()
+        except Exception:  # noqa: BLE001 — la cola nunca tumba el keepalive
+            pass
+        try:
             # Usar --verify para confirmar que la sesión sigue válida
             rc, out, err = nb(["auth", "refresh", "--verify"], 180, bloquear=False)
             ok = rc == 0
@@ -1375,6 +1380,139 @@ def _registrar_mensaje_recibido(texto: str) -> None:
         pass
 
 
+# ─── ACC1121D · órdenes del director desde el bot del A1 ─────────────────────────────
+
+
+def ordenes_mac_pendientes() -> list[dict[str, Any]]:
+    datos = leer_json(ORDENES_MAC, [])
+    return [x for x in datos if isinstance(x, dict)] if isinstance(datos, list) else []
+
+
+def encolar_orden_mac(payload: dict[str, Any]) -> int:
+    with bloqueo:
+        cola = ordenes_mac_pendientes()
+        cola.append(dict(payload))
+        escribir_json(ORDENES_MAC, cola[-50:])
+        return len(cola[-50:])
+
+
+def _llave_de_nodo() -> str:
+    base = Path(os.environ.get("STARSEED_NODO_DIR")
+                or os.path.expanduser("~/.starseed/nodo-metagenesis"))
+    try:
+        return (base / "llave").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _nodo_del_a1() -> str:
+    try:
+        import nodo_metagenesis_logica as L
+        import nodo_metagenesis_medio as M
+        return str(L.id_de_nodo(M.detectar_medio(), M.huella_maquina()))
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+_MAPA_NODO = {
+    "buscar_capacidad": ("buscar_capacidad", lambda a: {"aplicar": bool(a.get("aplicar"))}),
+    "lanzar_cola": ("lanzar_cola",
+                    lambda a: {"cola": a.get("cola"), "trabajadores": a.get("trabajadores", 2)}),
+    "pausar_enjambre": ("pausar", lambda a: {}),
+    "reanudar_enjambre": ("reanudar", lambda a: {}),
+}
+
+
+def _enviar_orden_por_la_puerta(payload: dict[str, Any]) -> dict[str, Any]:
+    orden = str(payload.get("orden") or "")
+    if orden not in _MAPA_NODO:
+        return {"ok": False, "motivo": "esta orden necesita la Mac (sin ruta de nodo)"}
+    accion, args_fn = _MAPA_NODO[orden]
+    try:
+        llave, nodo = _llave_de_nodo(), _nodo_del_a1()
+        if not llave or not nodo:
+            return {"ok": False, "motivo": "sin llave de nodo en el A1"}
+        import puerta_datos_cliente as P
+        puerta = P.Puerta.desde_entorno(rol="enjambre")
+        if not puerta.url:
+            return {"ok": False, "motivo": "sin PUERTA_DATOS_URL"}
+        estado, _ = puerta._pedir("POST", "/v1/metagenesis/ordenes", {
+            "nodo": nodo, "llave": llave, "accion": accion,
+            "args": args_fn(payload.get("argumentos") or {}), "para": "mac"})
+        if estado and 200 <= int(estado) < 300:
+            return {"ok": True, "detalle": "pedida a la Mac"}
+        return {"ok": False, "motivo": "la puerta contestó %s" % estado}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "motivo": type(e).__name__}
+
+
+def enviar_orden_a_mac(payload: dict[str, Any], enviar_fn=None) -> dict[str, Any]:
+    if enviar_fn is not None:
+        return enviar_fn(payload)
+    return _enviar_orden_por_la_puerta(payload)
+
+
+def drenar_ordenes_mac(enviar_fn=None) -> int:
+    pendientes = ordenes_mac_pendientes()
+    if not pendientes:
+        return 0
+    quedan: list[dict[str, Any]] = []
+    hechas = 0
+    for payload in pendientes:
+        if enviar_orden_a_mac(payload, enviar_fn=enviar_fn).get("ok"):
+            hechas += 1
+        else:
+            quedan.append(payload)
+    with bloqueo:
+        escribir_json(ORDENES_MAC, quedan)
+    if hechas:
+        decir("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
+              % (hechas, len(quedan)))
+    return hechas
+
+
+def _estado_de_la_mac() -> str:
+    try:
+        import puerta_datos_cliente as P
+        puerta = P.Puerta.desde_entorno(rol="enjambre")
+        filas = puerta.leer_eventos(tipos=["mg_foto"], limite=5)
+        for fila in reversed(filas or []):
+            datos = fila.get("datos") if isinstance(fila, dict) else None
+            if isinstance(datos, dict) and datos:
+                return json.dumps(datos, ensure_ascii=False)[:3500]
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _atender_orden_director_a1(texto: str, enviar_fn=None, estado_fn=None) -> Optional[str]:
+    """Atiende estado/órdenes desde el bot del A1; `None` si el texto no es una orden."""
+    import sincronizador_direccion as S
+    plan = S.interpretar_orden_director(texto)
+    tipo = plan.get("tipo")
+    if tipo == "desconocida":
+        return None
+    if tipo == "ayuda":
+        return S.AYUDA_ORDENES
+    if tipo == "reservada":
+        return "esto es de Alex: %s" % plan.get("motivo")
+    if tipo == "estado":
+        estado = (estado_fn or _estado_de_la_mac)()
+        if estado:
+            return "Mac · " + estado
+        local = texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {}))
+        return local + "\n\nLa Mac no responde; este es el estado del A1."
+    payload = {"orden": plan["orden"], "argumentos": plan.get("argumentos") or {},
+               "quien": "alex", "motivo": "orden de Alex por audiovisual/a1",
+               "canal": "audiovisual", "medio": "a1"}
+    r = enviar_orden_a_mac(payload, enviar_fn=enviar_fn)
+    if r.get("ok"):
+        return "Pedida a la Mac: %s. %s" % (plan["orden"], r.get("detalle") or "")
+    n = encolar_orden_mac(payload)
+    return ("La Mac no responde (%s). Dejo la orden en cola (%d pendiente(s)); "
+            "la ejecuto en cuanto vuelva." % (r.get("motivo") or "sin respuesta", n))
+
+
 def recibir(upd: dict[str, Any]) -> None:
     m = upd.get("message") or {}
     if str((m.get("chat") or {}).get("id")) != CHAT:
@@ -1476,6 +1614,11 @@ def recibir(upd: dict[str, Any]) -> None:
         _comando_recomendacion(texto)
         return
     
+    respuesta_orden = _atender_orden_director_a1(texto)
+    if respuesta_orden:
+        decir(respuesta_orden)
+        return
+
     # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
