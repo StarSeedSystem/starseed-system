@@ -62,7 +62,56 @@ def entorno_sin_claves_api(env: dict) -> dict:
     return limpio
 
 
+#: (DIR1121E, 2026-11-21) Herramientas del servidor MCP `starseed-director` que la dirección puede usar: leer y
+#: escribir el Chat Director y poner frenos a la publicación. `produccion_reanudar` NO: quitar un freno es de Alex.
+MCP_DIRECTOR_PERMITIDAS = (
+    "director_leer", "director_decir", "director_bandeja", "director_responder",
+    "produccion_estado", "produccion_candidatos", "produccion_historial",
+    "produccion_vetar", "produccion_pausar",
+)
+
+#: Órdenes de MetaGenesis que la dirección puede ejecutar (prefijos exactos; lista CERRADA). Son las herramientas
+#: propias del proyecto, con sus puertas y cerrojos dentro: canales, capacidad, nube, pruebas, relevo y lectura de git.
+ORDENES_METAGENESIS = (
+    "python3 scripts/puente/director_chat.py",
+    "python3 scripts/puente/sincronizador_direccion.py publicar-canal",
+    "python3 scripts/puente/buscar_capacidad.py",
+    "python3 scripts/puente/repartir-a-nube.py",
+    "python3 scripts/puente/nube-gh.py lanzar",
+    "python3 scripts/puente/director_pruebas.py",
+    "python3 scripts/puente/antigravity_flota.py modelos",
+    "python3 scripts/puente/antigravity_flota.py uso",
+    "python3 scripts/puente/antigravity_flota.py papel",
+    "python3 scripts/puente/archivar_worktrees.py",
+    "starseed-relevo",
+    "starseed-enjambre.py",
+    "git status", "git log", "git diff", "git show", "git worktree list",
+    "launchctl list",
+)
+
+#: Nunca, ni aunque otra regla lo abriera: publicar o reescribir main, borrar, claves, el A1, parar servicios.
+ORDENES_VETADAS = (
+    "git push", "git reset", "git checkout", "git commit", "rm", "sudo", "curl", "ssh", "kill", "pkill",
+    "launchctl kickstart", "launchctl bootout", "launchctl unload",
+    "python3 scripts/puente/commit-seguro.py", "python3 scripts/puente/autopublicar.py",
+    "python3 scripts/puente/oracle_nodo.py", "python3 scripts/puente/nube-gh.py secretos",
+)
+
+
+def permisos_del_presidente() -> tuple:
+    """PURA (DIR1121E). (permitidas, vetadas) para `claude -p`. Antes solo leía (Read, Glob, Grep) y contestaba «no tengo
+    terminal ni permiso de escritura en el Chat Director; se me denegó director_leer». En modo `-p` lo que no está
+    permitido se deniega solo; las vetadas van además escritas por si un ajuste del usuario abriera más."""
+    permitidas = ["Read,Glob,Grep"]
+    permitidas += ["mcp__starseed-director__%s" % n for n in MCP_DIRECTOR_PERMITIDAS]
+    permitidas += ["Bash(%s:*)" % o for o in ORDENES_METAGENESIS]
+    vetadas = ["Edit,Write,NotebookEdit,WebFetch,WebSearch,Task", "mcp__starseed-director__produccion_reanudar"]
+    vetadas += ["Bash(%s:*)" % o for o in ORDENES_VETADAS]
+    return permitidas, vetadas
+
+
 def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> list:
+    permitidas, vetadas = permisos_del_presidente()
     orden = [
         "claude",
         "-p",
@@ -72,11 +121,11 @@ def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> lis
         "--output-format",
         "json",
         "--max-turns",
-        "6",
+        "12",
         "--allowedTools",
-        "Read,Glob,Grep",
+        *permitidas,
         "--disallowedTools",
-        "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task",
+        *vetadas,
     ]
     if sesion:
         orden += ["--resume", sesion]

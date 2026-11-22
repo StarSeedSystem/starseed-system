@@ -125,6 +125,20 @@ def hilo_direccion(registros, excluir_id=None, maximo=20):
     return hilo[-maximo:]
 
 
+#: (DIR1121E) Lo que la dirección puede HACER, dicho en su propio prompt: antes contestaba «no tengo terminal».
+PUEDES_ACTUAR = (
+    "Puedes actuar, no solo leer: con las herramientas `starseed-director` lees y escribes el Chat Director y vetas o "
+    "pausas la publicación; y en la terminal puedes ejecutar las órdenes de MetaGenesis: "
+    "`python3 scripts/puente/director_chat.py`, `sincronizador_direccion.py publicar-canal` (los tres canales), "
+    "`buscar_capacidad.py`, `repartir-a-nube.py`, `nube-gh.py lanzar`, `director_pruebas.py`, "
+    "`antigravity_flota.py modelos|uso|papel`, `archivar_worktrees.py`, `starseed-relevo`, `starseed-enjambre.py --cola`, "
+    "`git status|log|diff|show` y `launchctl list`. Comprueba antes de afirmar (por ejemplo `claude auth status` no hace "
+    "falta: si estás respondiendo con Claude, hay sesión). No editas archivos, no publicas fuera de las puertas, no "
+    "tocas claves ni el A1 y no quitas una pausa de publicación. Si en este motor falta una herramienta, dilo en una "
+    "línea y sigue con las que tengas."
+)
+
+
 def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
     """PURA. El prompt del presidente: reglas, contexto del proyecto y el hilo de dirección."""
     partes = [
@@ -133,6 +147,7 @@ def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
         "los demás directores cuando venga al caso.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); propones olas, "
         "verificas puertas y decides rumbo. Si no sabes algo, dilo.",
+        PUEDES_ACTUAR,
     ]
     if contexto:
         partes.append("Contexto del proyecto:\n" + contexto[:TOPE_CONTEXTO_PRESIDENTE])

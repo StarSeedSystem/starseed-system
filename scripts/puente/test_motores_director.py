@@ -45,7 +45,7 @@ class TestOrdenClaude(unittest.TestCase):
         self.assertIn("--output-format", orden)
         self.assertIn("json", orden)
         self.assertIn("--max-turns", orden)
-        self.assertIn("6", orden)
+        self.assertIn("12", orden)
         self.assertIn("--allowedTools", orden)
         self.assertIn("Read,Glob,Grep", orden)
         self.assertNotIn("--resume", orden)
@@ -60,7 +60,6 @@ class TestOrdenClaude(unittest.TestCase):
         i = orden.index("--disallowedTools")
         prohibidas = orden[i + 1]
         for nombre in (
-            "Bash",
             "Edit",
             "Write",
             "NotebookEdit",
