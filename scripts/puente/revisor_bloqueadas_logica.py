@@ -704,6 +704,13 @@ def partes_de(tarea: Dict[str, Any], motivo: str, max_archivos: int = MAX_ARCHIV
     return partes
 
 
+def _sha_publicacion(titulo: str) -> str:
+    """Extrae el SHA de una tarea 'Desbloquear la publicación <sha>'."""
+    import re
+    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', str(titulo).lower())
+    return match.group(1) if match else ""
+
+
 def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
     """La decisión entera, sin tocar nada.
 
@@ -792,14 +799,51 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         if est == "rechazada" and es_rechazo_mecanico(nota):
             cuenta = rechazos_mecanicos_en_cadena(memoria, tid)
             if cuenta >= TOPE_RECHAZO_MECANICO:
-                # Tercera vez: escalar a Codex (acción "pedir_a_alex" con opción de escalar).
-                acciones.append(_accion(
-                    tid, "pedir_a_alex",
-                    "rechazo mecánico de las puertas (%dª vez): se escala a Codex" % (cuenta + 1),
-                    "tarea:alcance",
-                    pregunta="%s lleva %d reescrituras por rechazo mecánico y sigue sin salir. ¿La escalamos a Codex?"
-                    % (tid, cuenta),
-                    opciones=["escalar_a_codex", "descartar"]))
+                # Tercera vez: usar escalada automática al mejor motor disponible.
+                from escalada_motores import siguiente_motor, es_tarea_publicacion
+
+                # Si es una tarea de desbloquear publicación y el sha está en main, se cierra sola.
+                if es_tarea_publicacion(t, asuntos):
+                    acciones.append(_accion(
+                        tid, "ya_hecha",
+                        "rechazo mecánico de las puertas (%dª vez): la publicación %s ya está en main, se cierra sola" % (cuenta + 1, _sha_publicacion(t.get("titulo", ""))),
+                        "tarea:alcance"))
+                    tocadas.add(tid)
+                    continue
+
+                # Usar escalada automática para determinar el siguiente motor.
+                disponibilidad = foto.get("disponibilidad", {})
+                presupuesto = foto.get("presupuesto", {})
+                es_arq = any(kw in str(t.get("titulo", "")).lower() for kw in ["arquitectura", "diseñar", "api", "endpoint", "motor", "sistema"])
+                es_disp = any(kw in str(t.get("titulo", "")).lower() for kw in ["diseño", "interfaz", "ui", "ux"])
+
+                motor = siguiente_motor(
+                    t, cuenta + 1, disponibilidad, presupuesto,
+                    es_arquitectura=es_arq, es_diseño=es_disp)
+
+                if motor is None:
+                    # Todos los motores agotados: pregunta a Alex con resumen de opciones.
+                    acciones.append(_accion(
+                        tid, "pedir_a_alex",
+                        "rechazo mecánico de las puertas (%dª vez): todos los motores agotados" % (cuenta + 1),
+                        "tarea:alcance",
+                        pregunta="%s lleva %d reescrituras por rechazo mecánico y todos los motores están agotados. Opciones: "
+                                 "1) Intentar con un modelo gratuito alternativo (si consigue cupo). "
+                                 "2) Esperar a que se libere cupo en agy o Claude. "
+                                 "3) DescARTAR con la rama guardada." % (tid, cuenta),
+                        opciones=["rehacer", "descartar"]))
+                else:
+                    # Pasar la tarea al siguiente motor con contexto.
+                    acciones.append(_accion(
+                        tid, "reasignar",
+                        "rechazo mecánico de las puertas (%dª vez): se escala automáticamente a %s (%s)" % (cuenta + 1, motor["cuenta"], motor["modelo"] or "Claude Mac Opus"),
+                        "tarea:alcance",
+                        modelo_siguiente=motor["modelo"],
+                        mensaje=_mensaje_contexto(tid, "tarea:alcance", nota, foto) +
+                                "\n\n⚠️  Reescritura automática por rechazo mecánico (%dª vez). "
+                                "Contexto del fallo: el reparador no tocó ninguno de sus %d archivo(s)." % (
+                                    cuenta + 1, len(_archivos(t))),
+                        no_cuenta=True))
                 tocadas.add(tid)
                 continue
             # Construir el mensaje con los dos avisos requeridos.
