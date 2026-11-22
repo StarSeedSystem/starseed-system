@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "SES1121B",
+   "ola": "SES1121",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "La pasarela de Hermes se reinicia sola 16 veces al día y deja en pausa el chat Principal",
+   "archivos": [
+    "scripts/puente/motores_director.py",
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/test_motores_director.py"
+   ],
+   "prompt": "Medido el 21-11 en ~/.hermes/logs/gateway.log: «Gateway event loop missed 3 consecutive liveness probes… exiting with code 75»\n(23:20 y 23:50) y 16 arranques en el día (5 entre las 19 y las 20 h). La Mac de 8 GB está tan cargada que la pasarela no contesta a su\npropio vigilante, se reinicia, corta el turno en curso y la sesión «Principal» queda EN PAUSA; `hermes sessions discard` falla con\n«Gateway connection/read failed» mientras arranca. Resultado: el presidente contesta a ratos con Claude (≈ 86 000 tokens por turno), a\nratos con una sesión nueva de Hermes y un modelo menor que no usa herramientas. Haz: 1) el cartero detecta «pasarela reiniciándose» y espera\ncon reintentos cortos en vez de abrir una sesión nueva sin contexto; 2) orden de motores del presidente por capacidad y coste, explícito y\nvisible: Hermes con sesión y herramientas → Claude Sonnet con los permisos de `permisos_del_presidente()` → Opus solo para decisiones;\n3) cuando una pausa viene de un reinicio de la pasarela y el turno perdido era de solo lectura (un resumen periódico), el sistema la\ndescarta solo y lo apunta; si el turno podía haber escrito algo, se le pide a Alex en una acción; 4) deja en el informe qué carga quitarle\na la Mac para que la pasarela deje de reiniciarse (coordina con AUT1121E y ALM1121B).\n\nREGLAS: una sesión se comprueba USÁNDOLA (una llamada inocua), nunca buscando archivos ni leyendo credenciales; jamás se imprime un token, una clave ni la dirección del A1; los códigos de inicio de sesión solo los pega Alex. Como mucho 3 archivos. Pruebas que fallen sin tu cambio y, en el informe, la tabla real medio × sesión."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "SES1121B"
+  ]
+ }
+}
