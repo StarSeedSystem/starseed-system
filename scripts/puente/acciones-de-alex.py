@@ -323,6 +323,76 @@ def accion_codex_cuenta(ahora=None):
     }
 
 
+def prompt_de_propuesta(propuesta):
+    """PURA: el prompt real de una propuesta (`--prompt …`), venga en lista o en cadena."""
+    comando = (propuesta or {}).get("comando") or []
+    partes = comando if isinstance(comando, (list, tuple)) else str(comando).split()
+    for i, token in enumerate(partes):
+        if str(token) == "--prompt" and i + 1 < len(partes):
+            return " ".join(str(partes[i + 1]).split())
+    return ""
+
+
+def clave_higgsfield(propuesta):
+    """PURA: la identidad de una pieza es `pieza + modelo + prompt`.
+
+    (SES1122C) El 22-11 había diez acciones y las diez eran las mismas dos piezas
+    propuestas otra vez cada día desde el 17-11. Cambiar la fecha o el id no cambia
+    la pieza; cambiar la terna sí.
+    """
+    p = propuesta or {}
+    return (
+        " ".join(str(p.get("pieza") or "pieza visual").split()),
+        " ".join(str(p.get("modelo") or "seedance-2.0").split()),
+        prompt_de_propuesta(p),
+    )
+
+
+def agrupar_propuestas_higgsfield(propuestas):
+    """PURA: una entrada por pieza, con todos sus IDs y «N veces desde <fecha>».
+
+    Conserva el orden cronológico y elige como representante la propuesta más
+    antigua: su id es el que sigue abriendo la aprobación de siempre.
+    """
+    grupos, orden = {}, []
+    for p in propuestas or []:
+        if not isinstance(p, dict) or not p.get("id"):
+            continue
+        clave = clave_higgsfield(p)
+        if clave not in grupos:
+            grupos[clave] = []
+            orden.append(clave)
+        grupos[clave].append(p)
+    fuera = []
+    for clave in orden:
+        miembros = sorted(
+            grupos[clave],
+            key=lambda p: (str(p.get("fecha") or "9999-99-99"), str(p.get("id") or "")),
+        )
+        fechas = [str(p.get("fecha")) for p in miembros if p.get("fecha")]
+        fuera.append({
+            "pieza": clave[0],
+            "modelo": clave[1],
+            "prompt": clave[2],
+            "propuesta_ids": [str(p.get("id")) for p in miembros],
+            "desde": min(fechas) if fechas else "",
+            "veces": len(miembros),
+            "representante": miembros[0],
+        })
+    fuera.sort(key=lambda g: (g["desde"] or "9999-99-99", str(g["representante"].get("id") or "")))
+    return fuera
+
+
+def ids_del_mismo_grupo(propuestas, pid):
+    """PURA: todos los ids que comparten pieza+modelo+prompt con `pid` (o solo `pid`)."""
+    objetivo = next((p for p in propuestas or [] if str(p.get("id") or "") == str(pid)), None)
+    if objetivo is None:
+        return [str(pid)]
+    clave = clave_higgsfield(objetivo)
+    return [str(p.get("id")) for p in propuestas or []
+            if p.get("id") and clave_higgsfield(p) == clave]
+
+
 def _cuentas_google(dir_cuentas=None, sondear=False):
     """Lee las fichas `~/.starseed/cuentas/*.json` sin imprimir tokens ni secretos."""
     base = dir_cuentas or os.path.expanduser("~/.starseed/cuentas")
@@ -517,68 +587,79 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
                 p.get("http"), p.get("modelo"), (" · %s" % mensaje_srv) if mensaje_srv else ""),
         })
 
-    # Higgsfield (HGF1113B): propuestas pendientes de aprobación (con contexto completo, cómo hacerlo y rechazo)
+    # Higgsfield (HGF1113B, SES1122C): propuestas pendientes agrupadas por pieza.
+    # Misma pieza+modelo+prompt es la misma pieza: una tarjeta, con todos sus IDs
+    # dentro para que aprobar o rechazar siga funcionando.
     if _hfa is not None:
         try:
             propuestas = _hfa._leer(_hfa.DIR, "propuestas.json", [])
             if isinstance(propuestas, dict):
                 propuestas = propuestas.get("propuestas") or []
             aprobaciones = _hfa._leer(_hfa.DIR, "aprobaciones.json", {})
-            for p in propuestas:
+            pendientes = [p for p in propuestas
+                          if str(p.get("id") or "") and str(p.get("id")) not in aprobaciones]
+            for grupo in agrupar_propuestas_higgsfield(pendientes):
+                p = grupo["representante"]
                 pid = str(p.get("id") or "")
-                if pid and pid not in aprobaciones:
-                    proyecto = str(p.get("proyecto") or "starseed")
-                    pieza = str(p.get("pieza") or "pieza visual")
-                    modelo = str(p.get("modelo") or "seedance-2.0")
-                    motivo_hf = str(p.get("motivo") or "Propuesta audiovisual de StarSeed OS")
-                    tomas = int(p.get("tomas") or 1)
-                    fecha_hf = str(p.get("fecha") or "")
-                    est = float(p.get("creditos_estimados") or 0)
-                    cmd_raw = p.get("comando") or []
-                    prompt_hf = ""
-                    if isinstance(cmd_raw, list):
-                        for i, tok in enumerate(cmd_raw):
-                            if tok == "--prompt" and i + 1 < len(cmd_raw):
-                                prompt_hf = str(cmd_raw[i + 1])
-                                break
-                        cmd_preview = " ".join(str(x) for x in cmd_raw)
-                    else:
-                        cmd_preview = str(cmd_raw)
-                    acciones.append({
-                        "id": "higgsfield-%s" % pid,
-                        "categoria": "higgsfield",
-                        "propuesta_id": pid,
-                        "proyecto": proyecto,
-                        "pieza": pieza,
-                        "modelo": modelo,
-                        "tomas": tomas,
-                        "fecha": fecha_hf,
-                        "creditos_estimados": est,
-                        "motivo": motivo_hf,
-                        "prompt": prompt_hf,
-                        "aprobable": True,
-                        "rechazable": True,
-                        "titulo": "Higgsfield · %s: %s (%s)" % (proyecto, pieza, modelo),
-                        "por_que": "%s · Modelo %s · %d toma(s) · est. %.1f créditos" % (motivo_hf, modelo, tomas, est),
-                        "urgencia": "media",
-                        "como_hacerlo": (
-                            "1. Revisa el proyecto, modelo, coste (%.1f créditos) y el prompt que se enviará. "
-                            "2. Pulsa «Aprobar» si autorizas ejecutar esta generación (también vale `/higgsfield aprobar %s` en Telegram). "
-                            "3. Pulsa «Rechazar» si no quieres gastar créditos ni ver esta propuesta."
-                        ) % (est, pid),
-                        "comando": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --aprobar higgsfield-%s" % pid,
-                        "comando_rechazar": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --rechazar higgsfield-%s" % pid,
-                        "comando_higgsfield": cmd_preview,
-                        "comando_telegram": "/higgsfield aprobar %s" % pid,
-                        "enlace": "https://higgsfield.ai",
-                        "por_que_no_lo_hago_yo": "solo Alex puede aprobar o rechazar gastos de Higgsfield",
-                        "detalle": "ID %s%s · Comando real: %s%s" % (
-                            pid,
-                            " (%s)" % fecha_hf if fecha_hf else "",
-                            cmd_preview,
-                            (" · Prompt: %s" % prompt_hf) if prompt_hf else "",
-                        ),
-                    })
+                ids = grupo["propuesta_ids"]
+                veces = grupo["veces"]
+                desde = grupo["desde"]
+                proyecto = str(p.get("proyecto") or "starseed")
+                pieza = str(p.get("pieza") or "pieza visual")
+                modelo = str(p.get("modelo") or "seedance-2.0")
+                motivo_hf = str(p.get("motivo") or "Propuesta audiovisual de StarSeed OS")
+                tomas = int(p.get("tomas") or 1)
+                fecha_hf = str(p.get("fecha") or "")
+                est = float(p.get("creditos_estimados") or 0)
+                cmd_raw = p.get("comando") or []
+                prompt_hf = prompt_de_propuesta(p)
+                cmd_preview = (" ".join(str(x) for x in cmd_raw)
+                               if isinstance(cmd_raw, list) else str(cmd_raw))
+                repeticion = ""
+                if veces > 1:
+                    repeticion = " · propuesta %d veces%s" % (
+                        veces, (" desde %s" % desde) if desde else "")
+                acciones.append({
+                    "id": "higgsfield-%s" % pid,
+                    "categoria": "higgsfield",
+                    "propuesta_id": pid,
+                    "propuesta_ids": ids,
+                    "ids_acciones": ["higgsfield-%s" % x for x in ids],
+                    "veces": veces,
+                    "desde": desde,
+                    "proyecto": proyecto,
+                    "pieza": pieza,
+                    "modelo": modelo,
+                    "tomas": tomas,
+                    "fecha": fecha_hf,
+                    "creditos_estimados": est,
+                    "motivo": motivo_hf,
+                    "prompt": prompt_hf,
+                    "aprobable": True,
+                    "rechazable": True,
+                    "titulo": "Higgsfield · %s: %s (%s)" % (proyecto, pieza, modelo),
+                    "por_que": "%s · Modelo %s · %d toma(s) · est. %.1f créditos%s" % (
+                        motivo_hf, modelo, tomas, est, repeticion),
+                    "urgencia": "media",
+                    "como_hacerlo": (
+                        "1. Revisa el proyecto, modelo, coste (%.1f créditos) y el prompt que se enviará. "
+                        "2. Pulsa «Aprobar» si autorizas ejecutar esta generación (también vale `/higgsfield aprobar %s` en Telegram). "
+                        "3. Pulsa «Rechazar» si no quieres gastar créditos ni ver esta propuesta."
+                    ) % (est, pid),
+                    "comando": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --aprobar higgsfield-%s" % pid,
+                    "comando_rechazar": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --rechazar higgsfield-%s" % pid,
+                    "comando_higgsfield": cmd_preview,
+                    "comando_telegram": "/higgsfield aprobar %s" % pid,
+                    "enlace": "https://higgsfield.ai",
+                    "por_que_no_lo_hago_yo": "solo Alex puede aprobar o rechazar gastos de Higgsfield",
+                    "detalle": "ID %s%s · Comando real: %s%s%s" % (
+                        pid,
+                        " (%s)" % fecha_hf if fecha_hf else "",
+                        cmd_preview,
+                        (" · Prompt: %s" % prompt_hf) if prompt_hf else "",
+                        repeticion,
+                    ),
+                })
         except Exception:
             pass
 
@@ -891,8 +972,24 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
     propuesta = next((p for p in propuestas if str(p.get("id") or "") == pid), None)
     if propuesta is None:
         return {"ok": False, "error": "No existe la propuesta %s" % pid}
-    registro = _hfa.aprobar(propuesta, por=por, aprobada=aprobada, motivo=motivo)
-    _hfa.guardar_aprobacion(registro, base=base)
+    # (SES1122C) Una tarjeta agrupada representa toda la pieza: aprobar o rechazar
+    # resuelve también las copias pendientes con la misma pieza+modelo+prompt.
+    aprobaciones = _hfa._leer(base, "aprobaciones.json", {})
+    pendientes_ids = {str(p.get("id")) for p in propuestas
+                      if p.get("id") and str(p.get("id")) not in aprobaciones}
+    ids = [x for x in ids_del_mismo_grupo(propuestas, pid)
+           if x == pid or x in pendientes_ids]
+    registros = []
+    for p in propuestas:
+        if str(p.get("id") or "") in ids:
+            r = _hfa.aprobar(p, por=por, aprobada=aprobada, motivo=motivo)
+            _hfa.guardar_aprobacion(r, base=base)
+            registros.append(r)
+    if not registros:
+        registro = _hfa.aprobar(propuesta, por=por, aprobada=aprobada, motivo=motivo)
+        _hfa.guardar_aprobacion(registro, base=base)
+        registros = [registro]
+    registro = next((r for r in registros if r["id"] == pid), registros[0])
     quedan = None
     if regenerar:
         vivas = registrar_pedido_diario(
@@ -904,6 +1001,7 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
         "ok": True,
         "id": "higgsfield-%s" % pid,
         "propuesta_id": pid,
+        "propuesta_ids": ids,
         "estado": registro["estado"],
         "por": registro["por"],
         "cuando": registro["cuando"],

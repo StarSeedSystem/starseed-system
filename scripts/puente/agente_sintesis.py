@@ -273,6 +273,36 @@ def _leer_propuestas_higgsfield(raiz: str) -> list:
         return []
 
 
+def _prompt_de_propuesta_higgsfield(propuesta: dict) -> str:
+    """PURA: el prompt real (`--prompt …`), venga el comando en lista o en cadena."""
+    comando = (propuesta or {}).get("comando") or []
+    partes = comando if isinstance(comando, (list, tuple)) else str(comando).split()
+    for i, token in enumerate(partes):
+        if str(token) == "--prompt" and i + 1 < len(partes):
+            return " ".join(str(partes[i + 1]).split())
+    return ""
+
+
+def _clave_pieza_higgsfield(propuesta: dict) -> tuple:
+    """PURA (SES1122C): misma pieza+modelo+prompt = la misma pieza, no una nueva."""
+    p = propuesta or {}
+    return (
+        " ".join(str(p.get("pieza") or "pieza visual").split()),
+        " ".join(str(p.get("modelo") or "seedance-2.0").split()),
+        _prompt_de_propuesta_higgsfield(p),
+    )
+
+
+def _leer_aprobaciones_higgsfield(raiz: str) -> dict:
+    ruta = os.path.join(raiz, HGF_DIR, "aprobaciones.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def _guardar_propuestas_higgsfield(raiz: str, propuestas: list):
     ruta = os.path.join(raiz, HGF_DIR, "propuestas.json")
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
@@ -295,6 +325,11 @@ def _generar_propuestas_higgsfield(raiz: str, fecha: str, ahora=None) -> list:
 
     existentes = _leer_propuestas_higgsfield(raiz)
     ids_existentes = {str(p.get("id")) for p in existentes}
+    # (SES1122C) Una pieza que ya espera aprobación no se vuelve a proponer: la
+    # lista de Alex no crece con la misma pieza cada día.
+    aprobaciones = _leer_aprobaciones_higgsfield(raiz)
+    pendientes = {_clave_pieza_higgsfield(p) for p in existentes
+                  if str(p.get("id")) not in aprobaciones}
 
     plantillas = [
         {
@@ -369,6 +404,9 @@ def _generar_propuestas_higgsfield(raiz: str, fecha: str, ahora=None) -> list:
             break
         pid = _generar_id_higgsfield(fecha, n)
         if pid in ids_existentes:
+            n += 1
+            continue
+        if _clave_pieza_higgsfield(plantilla) in pendientes:
             n += 1
             continue
         propuesta = dict(plantilla)
