@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import select
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -110,6 +111,10 @@ class PruebasAtender(unittest.TestCase):
                 "canal_decir",
                 "metagenesis_estado",
                 "metagenesis_orden",
+                "sqlite_estado",
+                "sqlite_tablas",
+                "sqlite_esquema",
+                "sqlite_consulta",
             ],
         )
 
@@ -346,6 +351,112 @@ class PruebasProduccion(unittest.TestCase):
 
 #: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).
 PLAZO_PROCESO_REAL_S = 30
+
+
+class PruebasSqlite(unittest.TestCase):
+    """Herramientas sqlite del MCP: base temporal, solo lectura y rutas confinadas."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = os.path.join(self.tmp.name, "prueba.sqlite")
+        con = sqlite3.connect(self.base)
+        con.execute("CREATE TABLE tarea (id INTEGER PRIMARY KEY, titulo TEXT)")
+        con.executemany("INSERT INTO tarea (titulo) VALUES (?)", [("una",), ("dos",), ("tres",)])
+        con.commit()
+        con.close()
+        self._guardada = os.environ.get("STARSEED_SQLITE_RUTA")
+        os.environ["STARSEED_SQLITE_RUTA"] = self.base
+
+    def tearDown(self):
+        if self._guardada is None:
+            os.environ.pop("STARSEED_SQLITE_RUTA", None)
+        else:
+            os.environ["STARSEED_SQLITE_RUTA"] = self._guardada
+        self.tmp.cleanup()
+
+    def _p(self, nombre, argumentos, ident=1):
+        return {
+            "jsonrpc": "2.0", "id": ident, "method": "tools/call",
+            "params": {"name": nombre, "arguments": argumentos},
+        }
+
+    def _texto(self, nombre, argumentos):
+        r = mcp_director.atender(self._p(nombre, argumentos))
+        self.assertNotIn("error", r, r.get("error"))
+        self.assertNotIn("isError", r["result"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def _fallo(self, nombre, argumentos):
+        r = mcp_director.atender(self._p(nombre, argumentos))
+        self.assertNotIn("error", r, r.get("error"))
+        self.assertTrue(r["result"]["isError"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def test_estado_conecta_y_cuenta_tablas(self):
+        datos = json.loads(self._texto("sqlite_estado", {}))
+        self.assertTrue(datos["configurada"])
+        self.assertTrue(datos["conectada"])
+        self.assertEqual(datos["tablas"], 1)
+
+    def test_estado_sin_base_lo_dice_sin_romper(self):
+        os.environ["STARSEED_SQLITE_RUTA"] = os.path.join(self.tmp.name, "sin-base.sqlite")
+        datos = json.loads(self._texto("sqlite_estado", {}))
+        self.assertFalse(datos["configurada"])
+        self.assertIn("no existe la base", datos["detalle"])
+
+    def test_tablas_y_esquema(self):
+        self.assertEqual(json.loads(self._texto("sqlite_tablas", {})), ["tarea"])
+        self.assertIn("CREATE TABLE tarea", self._texto("sqlite_esquema", {"tabla": "tarea"}))
+        self.assertIn("no existe la tabla", self._fallo("sqlite_esquema", {"tabla": "otra"}))
+
+    def test_consulta_parametrizada_y_tope(self):
+        datos = json.loads(self._texto("sqlite_consulta", {
+            "sql": "SELECT id, titulo FROM tarea WHERE id > ? ORDER BY id",
+            "parametros": [0],
+            "limite": 2,
+        }))
+        self.assertEqual(datos["columnas"], ["id", "titulo"])
+        self.assertEqual(len(datos["filas"]), 2)
+        self.assertTrue(datos["truncada"])
+        self.assertEqual(datos["filas"][0]["titulo"], "una")
+
+    def test_rechaza_escritura_ruta_fuera_y_parametros_no_lista(self):
+        self.assertIn(
+            "solo se permiten SELECT",
+            self._fallo("sqlite_consulta", {"sql": "DELETE FROM tarea"}),
+        )
+        self.assertIn("fuera de las raíces", self._fallo("sqlite_tablas", {"ruta": "/etc/passwd"}))
+        self.assertIn(
+            "parametros debe ser una lista",
+            self._fallo("sqlite_consulta", {"sql": "SELECT 1", "parametros": "1"}),
+        )
+        con = sqlite3.connect(self.base)
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM tarea").fetchone()[0], 3)
+        con.close()
+
+    def test_conexion_por_stdio_del_proceso_real(self):
+        entorno = dict(os.environ, STARSEED_SQLITE_RUTA=self.base)
+        proc = subprocess.Popen(
+            [sys.executable, str(_CARPETA / "mcp_director.py")],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=entorno, text=True,
+        )
+        try:
+            proc.stdin.write(json.dumps(self._p("sqlite_tablas", {}, ident=7)) + "\n")
+            proc.stdin.flush()
+            listo, _, _ = select.select([proc.stdout], [], [], PLAZO_PROCESO_REAL_S)
+            self.assertTrue(listo, "el MCP no respondió a sqlite_tablas")
+            respuesta = json.loads(proc.stdout.readline())
+            self.assertEqual(respuesta["id"], 7)
+            self.assertEqual(
+                json.loads(respuesta["result"]["content"][0]["text"]), ["tarea"]
+            )
+        finally:
+            for canal in (proc.stdin, proc.stdout, proc.stderr):
+                if canal is not None:
+                    canal.close()
+            proc.kill()
+            proc.wait()
 
 
 class PruebaProcesoReal(unittest.TestCase):

@@ -3,7 +3,12 @@
 
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
-historial, vetar, pausar y reanudar.
+historial, vetar, pausar y reanudar, y cuatro herramientas sqlite de solo
+lectura (estado, tablas, esquema y consulta) sobre una base permitida.
+
+La base sqlite se elige con `STARSEED_SQLITE_RUTA` (por defecto
+`~/.starseed/mcp-sqlite/starseed.db`) y se confina al repo, a ese directorio
+o al directorio de la ruta fijada. Las consultas son SELECT/WITH parametrizadas.
 
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
@@ -14,6 +19,7 @@ STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 from datetime import datetime
@@ -29,8 +35,12 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
-    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada."
+    "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada y "
+    "consulta bases sqlite locales en solo lectura."
 )
+
+_SQLITE_DIR = os.path.join(os.path.expanduser("~"), ".starseed", "mcp-sqlite")
+_SQLITE_DEFECTO = os.path.join(_SQLITE_DIR, "starseed.db")
 
 
 def _s(tipo, descripcion, **extra):
@@ -54,6 +64,13 @@ _P_ORDEN = _s(
     enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
+_P_SQLITE_RUTA = _s("string", "Ruta de la base sqlite (por defecto STARSEED_SQLITE_RUTA).")
+_P_SQLITE_TABLA = _s("string", "Nombre de una tabla listada por sqlite_tablas.")
+_P_SQLITE_SQL = _s("string", "Consulta SELECT o WITH; la conexión es de solo lectura.")
+_P_SQLITE_PARAMETROS = _s("array", "Parámetros de la consulta en orden; nunca interpolados en el SQL.")
+_P_SQLITE_LIMITE = _s(
+    "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -132,6 +149,20 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "sqlite_estado": _esquema({}, []),
+    "sqlite_tablas": _esquema({"ruta": _P_SQLITE_RUTA}, []),
+    "sqlite_esquema": _esquema(
+        {"tabla": _P_SQLITE_TABLA, "ruta": _P_SQLITE_RUTA}, ["tabla"]
+    ),
+    "sqlite_consulta": _esquema(
+        {
+            "sql": _P_SQLITE_SQL,
+            "parametros": _P_SQLITE_PARAMETROS,
+            "limite": _P_SQLITE_LIMITE,
+            "ruta": _P_SQLITE_RUTA,
+        },
+        ["sql"],
+    ),
 }
 
 _HERR = [
@@ -149,6 +180,10 @@ _HERR = [
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
     ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
+    ("sqlite_estado", "Comprueba la conexión sqlite: base configurada, abierta y número de tablas."),
+    ("sqlite_tablas", "Lista las tablas de la base sqlite permitida."),
+    ("sqlite_esquema", "Devuelve el CREATE TABLE de una tabla sqlite."),
+    ("sqlite_consulta", "Ejecuta un SELECT o WITH parametrizado sobre sqlite (solo lectura)."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -176,6 +211,96 @@ def _publicar(texto, de, tipo, canal, modelo, responde_a=None):
 def _listar(registros, vacio):
     lineas = [director_chat._formatear(r) for r in registros]
     return "\n".join(lineas) if lineas else vacio
+
+
+# --- SQLite: conexión de solo lectura a bases permitidas ---
+
+def _sqlite_ruta(args=None):
+    """Resuelve la base y la confina al repo, a ~/.starseed/mcp-sqlite o a la ruta fijada."""
+    args = args or {}
+    indicada = args.get("ruta") or os.environ.get("STARSEED_SQLITE_RUTA") or _SQLITE_DEFECTO
+    real = os.path.realpath(os.path.expanduser(str(indicada)))
+    raices = [os.path.realpath(_raiz_repo()), os.path.realpath(_SQLITE_DIR)]
+    fija = os.environ.get("STARSEED_SQLITE_RUTA")
+    if fija:
+        raices.append(os.path.dirname(os.path.realpath(os.path.expanduser(fija))))
+    if not any(real == r or real.startswith(r + os.sep) for r in raices):
+        raise ValueError("base sqlite fuera de las raíces permitidas")
+    if not os.path.isfile(real):
+        raise ValueError("no existe la base sqlite: %s" % real)
+    return real
+
+
+def _sqlite_conectar(ruta):
+    """Abre con `mode=ro`: un DELETE o DROP no puede escribir aunque se filtre."""
+    return sqlite3.connect(Path(ruta).as_uri() + "?mode=ro", uri=True)
+
+
+def _sqlite_objetos(ruta, tipo, nombre=None):
+    sql = "SELECT name, sql FROM sqlite_master WHERE type = ?"
+    parametros = [tipo]
+    if nombre is not None:
+        sql += " AND name = ?"
+        parametros.append(nombre)
+    con = _sqlite_conectar(ruta)
+    try:
+        return con.execute(sql + " ORDER BY name", parametros).fetchall()
+    finally:
+        con.close()
+
+
+def _sqlite(nombre, args):
+    if nombre == "sqlite_estado":
+        try:
+            ruta = _sqlite_ruta()
+        except ValueError as e:
+            return json.dumps({"configurada": False, "detalle": str(e)}, ensure_ascii=False, indent=2)
+        try:
+            con = _sqlite_conectar(ruta)
+            try:
+                con.execute("SELECT 1").fetchone()
+            finally:
+                con.close()
+            tablas = len(_sqlite_objetos(ruta, "table"))
+            datos = {"configurada": True, "ruta": ruta, "conectada": True, "tablas": tablas}
+        except sqlite3.Error as e:
+            datos = {"configurada": True, "ruta": ruta, "conectada": False, "detalle": str(e)}
+        return json.dumps(datos, ensure_ascii=False, indent=2)
+    ruta = _sqlite_ruta(args)
+    if nombre == "sqlite_tablas":
+        nombres = [f[0] for f in _sqlite_objetos(ruta, "table") if not f[0].startswith("sqlite_")]
+        return json.dumps(nombres, ensure_ascii=False, indent=2)
+    if nombre == "sqlite_esquema":
+        tabla = str(args.get("tabla") or "").strip()
+        if not tabla:
+            raise ValueError("tabla es obligatoria")
+        filas = _sqlite_objetos(ruta, "table", tabla)
+        if not filas:
+            raise ValueError("no existe la tabla: %s" % tabla)
+        return str(filas[0][1] or "")
+    if nombre == "sqlite_consulta":
+        sql = str(args.get("sql") or "").strip()
+        primera = sql.split(None, 1)[0].upper() if sql else ""
+        if primera not in ("SELECT", "WITH"):
+            raise ValueError("solo se permiten SELECT o WITH: sqlite es de solo lectura")
+        parametros = args.get("parametros") or []
+        if not isinstance(parametros, list):
+            raise ValueError("parametros debe ser una lista")
+        limite = _limite(args, defecto=50)
+        con = _sqlite_conectar(ruta)
+        try:
+            cur = con.execute(sql, parametros)
+            columnas = [d[0] for d in cur.description] if cur.description else []
+            filas = [dict(zip(columnas, fila)) for fila in cur.fetchmany(limite + 1)]
+        finally:
+            con.close()
+        datos = {
+            "columnas": columnas,
+            "filas": filas[:limite],
+            "truncada": len(filas) > limite,
+        }
+        return json.dumps(datos, ensure_ascii=False, indent=2, default=str)
+    raise ValueError("herramienta desconocida: %s" % nombre)
 
 
 # --- Producción: rutas inyectables y helpers (§9, fila MCP) ---
@@ -352,6 +477,8 @@ def _llamar(nombre, args):
     args = args or {}
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
+    if nombre.startswith("sqlite_"):
+        return _sqlite(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
