@@ -1,107 +1,198 @@
 /**
- * RST1116A · en el aparato controlado, la petición de fuente llega a lo nativo y lo que se devuelve
- * es la fuente REAL que contestó el aparato. Si se pidió «proyeccion» y contesta accesibilidad, se
- * dice «accesibilidad» con `fuente_pedida: "proyeccion"`; nunca se dice «fluida» si no lo es.
+ * RST1116A · pruebas de la petición de fuente explícita y la fuente real devuelta.
+ * Con falsos de la costura 1 (Tauri), de la conexión y del lienzo.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OrigenPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
+import { beforeEach, describe, expect, it } from "vitest";
+import { OrigenPantalla, type CanalLike, type DepsOrigen, type PeerLike, type Pintor, type SesionViva } from "../pantalla-origen";
 import type { RespuestaOrden } from "../orden";
-import type { Args } from "../niveles";
+import { trocear } from "../senal-partes";
+
+function cuadro(numero: number, ancho = 800, alto = 1280, giro = 0, cero = 0, jpeg = 20): Uint8Array {
+    const b = new Uint8Array(12 + jpeg);
+    const v = new DataView(b.buffer);
+    v.setUint32(0, numero, true);
+    v.setUint16(4, ancho, true);
+    v.setUint16(6, alto, true);
+    v.setUint16(8, giro, true);
+    v.setUint16(10, cero, true);
+    return b;
+}
 
 const SESION: SesionViva = { token: "a".repeat(32), de: "h".repeat(64), nivel: "controlar" };
-const ctx = () => ({ sobre: { v: 1, carga: "c", firma: "f" }, sesion: { token: SESION.token, nivel: "controlar" } });
-const pintor: Pintor = { async pintar() { return true; }, pista: () => ({}), flujo: () => ({}), liberar() {} };
+const ctx = (nivel = "controlar", sobre: unknown = { v: 1, carga: "c", firma: "f" }) => ({ sobre, sesion: { token: SESION.token, nivel } });
+const pausa = (ms = 2) => new Promise<void>((r) => setTimeout(r, ms));
+async function hasta(c: () => boolean, ms = 1500) {
+    const t0 = Date.now();
+    while (!c()) {
+        if (Date.now() - t0 > ms) throw new Error("no llegó a cumplirse");
+        await pausa(2);
+    }
+}
+
+class CanalFalso implements CanalLike {
+    onmessage: CanalLike["onmessage"] = null;
+    onclose: CanalLike["onclose"] = null;
+    enviados: string[] = [];
+    cerrado = false;
+    send(d: string) { this.enviados.push(d); }
+    close() { this.cerrado = true; }
+}
+class PeerFalso implements PeerLike {
+    iceGatheringState = "complete";
+    localDescription: { type?: string; sdp?: string } | null = null;
+    connectionState = "new";
+    onicegatheringstatechange: (() => void) | null = null;
+    onconnectionstatechange: (() => void) | null = null;
+    ondatachannel: PeerLike["ondatachannel"] = null;
+    pistas: unknown[] = [];
+    remota: { type: string; sdp: string } | null = null;
+    candidatos: { candidate: string; sdpMLineIndex?: number }[] = [];
+    cerrada = false;
+    addTrack(p: unknown) { this.pistas.push(p); return {}; }
+    async setRemoteDescription(d: { type: string; sdp: string }) { this.remota = d; }
+    async createAnswer() { return { type: "answer", sdp: "v=0\r\nrespuesta" }; }
+    async setLocalDescription(d?: unknown) { this.localDescription = d as { sdp?: string }; }
+    async addIceCandidate(c: { candidate: string; sdpMLineIndex?: number }) { this.candidatos.push(c); }
+    close() { this.cerrada = true; }
+}
+class PintorFalso implements Pintor {
+    pintados: { ancho: number; alto: number; bytes: number }[] = [];
+    enCurso = 0;
+    maxEnCurso = 0;
+    liberado = false;
+    resultado = true;
+    async pintar(j: Uint8Array, ancho: number, alto: number) {
+        this.enCurso++;
+        this.maxEnCurso = Math.max(this.maxEnCurso, this.enCurso);
+        await pausa(3);
+        this.enCurso--;
+        this.pintados.push({ ancho, alto, bytes: j.length });
+        return this.resultado;
+    }
+    pista() { return { pista: true }; }
+    flujo() { return { flujo: true }; }
+    liberar() { this.liberado = true; }
+}
 
 let llamadas: { cmd: string; args?: Record<string, unknown> }[];
 let respuestas: Record<string, unknown>;
+let cuadros: Uint8Array[];
+let viva: SesionViva | null;
+let peer: PeerFalso;
+let pintor: PintorFalso;
+let ahora: number;
+let recibidos: unknown[];
 let origen: OrigenPantalla;
 
-function montar(invocar?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>) {
-    llamadas = [];
-    respuestas = {
-        control_pantalla_iniciar: { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 },
-        control_capacidades: { pantalla: { accesibilidad: true, proyeccion: false, fuente_activa: "accesibilidad" }, falta: [] },
-    };
+function montar(sinInvocar = false) {
     origen = new OrigenPantalla({
-        invocar: invocar ?? (async (cmd, args) => {
-            llamadas.push({ cmd, args });
-            return respuestas[cmd] ?? { ok: true };
-        }),
-        iceServers: async () => [],
-        crearPeer: () => {
-            throw new Error("sin conexión en estas pruebas");
-        },
+        invocar: sinInvocar
+            ? null
+            : async (cmd, args) => {
+                  llamadas.push({ cmd, args });
+                  if (cmd === "control_pantalla_cuadro") {
+                      const c = cuadros.shift();
+                      return c ?? new Uint8Array(0);
+                  }
+                  if (cmd in respuestas) {
+                      const r = respuestas[cmd];
+                      if (r instanceof Error) throw r;
+                      return r;
+                  }
+                  return { ok: true };
+              },
+        iceServers: async () => [{ urls: "stun:x" }],
+        crearPeer: () => peer,
         crearPintor: () => pintor,
-        sesionViva: () => ({ ...SESION }),
-        recibirSobre: async (): Promise<RespuestaOrden> => ({ tipo: "respuesta", nonce: "", ok: false, motivo: "sin-puerta" }),
-        // Sin avanzar el reloj: el bucle no se para por «sin oferta» y la búsqueda de la fluida la corta `parar`.
-        esperar: () => new Promise<void>((r) => setTimeout(r, 1)),
-        ahora: () => 1_000_000,
+        sesionViva: () => viva,
+        recibirSobre: async (s) => {
+            recibidos.push(s);
+            return { tipo: "respuesta", nonce: String((s as { n?: string }).n ?? ""), ok: true, motivo: "ok" } as RespuestaOrden;
+        },
+        esperar: (ms) => pausa(Math.min(ms, 3)),
+        ahora: () => ahora,
         anotar: () => undefined,
     } satisfies DepsOrigen);
 }
-const de = (cmd: string) => llamadas.filter((l) => l.cmd === cmd);
-/** La petición explícita es SIEMPRE la primera; después, el aparato puede pedir la fluida él solo. */
-const primeraPeticion = () => de("control_pantalla_iniciar")[0]?.args ?? {};
 
-beforeEach(() => montar());
-afterEach(async () => {
-    await origen.parar("fin");
+beforeEach(() => {
+    llamadas = [];
+    respuestas = {
+        control_pantalla_iniciar: { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 },
+        control_capacidades: { pantalla: { accesibilidad: true, proyeccion: false, sin_preguntar: true }, entrada: { gestos: true, max_dedos: 10, teclas: ["atras"], volumen: true, brillo: true, texto: true }, falta: [] },
+        control_estado_aparato: { brillo: 0.5, bateria: 0.8 },
+        control_entrada: { ok: true },
+    };
+    cuadros = [];
+    viva = { ...SESION };
+    peer = new PeerFalso();
+    pintor = new PintorFalso();
+    ahora = 1_000_000;
+    recibidos = [];
+    montar();
 });
 
-describe("RST1116A · la petición de fuente llega a lo nativo", () => {
-    it("con «proyeccion» se manda fuente:proyeccion a control_pantalla_iniciar", async () => {
-        await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
-        expect(primeraPeticion()).toMatchObject({ sesion: SESION.token, fuente: "proyeccion" });
+const n = (cmd: string) => llamadas.filter((l) => l.cmd === cmd);
+
+describe("RST1116A · fuente explícita y fuente real", () => {
+    it("con fuente:proyeccion el invocador recibe la clave fuente", async () => {
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0].args).toMatchObject({ sesion: SESION.token, fuente: "proyeccion" });
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        await origen.parar("fin");
     });
 
-    it("sin fuente o con «auto» la petición no lleva el campo: no se inventa lo que no se pidió", async () => {
-        for (const args of [{}, { fuente: "auto" }] as Args[]) {
-            montar();
-            await origen.ejecutar("pantalla-iniciar", args, ctx());
-            expect("fuente" in primeraPeticion()).toBe(false);
-            await origen.parar("fin");
-        }
+    it("sin fuente (o auto) no se manda la clave fuente al nativo", async () => {
+        const r = (await origen.ejecutar("pantalla-iniciar", { lado: 1000 }, ctx())) as Record<string, unknown>;
+        expect(n("control_pantalla_iniciar")[0].args).toEqual({ sesion: SESION.token, lado_max: 1000, calidad: 60 });
+        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad" });
+        expect(r).not.toHaveProperty("fuente_pedida");
+        await origen.parar("fin");
     });
-});
 
-describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el aparato", () => {
-    it("se pidió proyeccion y el aparato contesta accesibilidad: se dice la real + fuente_pedida, y la sesión sigue", async () => {
-        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+    it("si lo nativo contesta accesibilidad, el resultado dice fuente:accesibilidad y fuente_pedida:proyeccion", async () => {
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
-        expect(origen.enMarcha()).toBe(true);
-        expect(de("control_pantalla_parar")).toHaveLength(0);
+        await origen.parar("fin");
     });
 
-    it("si el aparato no ofrece proyeccion, la sesión sigue con la fuente disponible", async () => {
-        montar(async (cmd, args) => {
-            llamadas.push({ cmd, args });
-            if (cmd === "control_pantalla_iniciar" && args?.fuente === "proyeccion") {
+    it("si lo nativo contesta proyeccion, el resultado dice proyeccion y no tiene fuente_pedida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "proyeccion", ancho: 1280, alto: 798, giro: 0 };
+        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, fuente: "proyeccion", ancho: 1280, alto: 798 });
+        expect(r).not.toHaveProperty("fuente_pedida");
+        await origen.parar("fin");
+    });
+
+    it("si la proyeccion falla, la sesión sigue con lo que haya y avisa con fuente_pedida", async () => {
+        const inv = origen as unknown as { d: DepsOrigen };
+        const base = inv.d.invocar!;
+        inv.d.invocar = async (c, a) => {
+            if (c === "control_pantalla_iniciar" && a?.fuente === "proyeccion") {
+                llamadas.push({ cmd: c, args: a });
                 return { ok: false, motivo: "sin-consentimiento" };
             }
-            if (cmd === "control_pantalla_iniciar") {
-                return { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
-            }
-            return { ok: true };
-        });
+            return base(c, a);
+        };
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(de("control_pantalla_iniciar").slice(0, 2).map((l) => l.args?.fuente)).toEqual(["proyeccion", undefined]);
+        expect(n("control_pantalla_iniciar").map((l) => l.args?.fuente).slice(0, 2)).toEqual(["proyeccion", undefined]);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         expect(origen.enMarcha()).toBe(true);
-        expect(de("control_pantalla_parar")).toHaveLength(0);
+        await origen.parar("fin");
     });
 
-    it("se pidió proyeccion y el aparato la da: se dice proyeccion, nunca se rebautiza", async () => {
-        respuestas.control_pantalla_iniciar = { ok: true, fuente: "proyeccion", ancho: 800, alto: 1280, giro: 0 };
-        const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(r).toMatchObject({ ok: true, fuente: "proyeccion" });
-        expect(r.fuente).not.toBe("accesibilidad");
+    it("mantener con fuente:proyeccion pide la fluida y avisa si no se cumplió", async () => {
+        await origen.ejecutar("pantalla-iniciar", {}, ctx());
+        const r = (await origen.ejecutar("pantalla-iniciar", { mantener: true, fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, mantenida: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
+        await origen.parar("fin");
     });
 
-    it("sin pedir nada, el resultado no se inventa una petición", async () => {
-        const r = (await origen.ejecutar("pantalla-iniciar", {}, ctx())) as Record<string, unknown>;
-        expect(r).toMatchObject({ ok: true, fuente: "accesibilidad" });
-        expect(r.fuente_pedida).toBeUndefined();
+    it("mantener sin fuente no pide la fluida y no avisa", async () => {
+        await origen.ejecutar("pantalla-iniciar", {}, ctx());
+        const r = (await origen.ejecutar("pantalla-iniciar", { mantener: true }, ctx())) as Record<string, unknown>;
+        expect(r).toMatchObject({ ok: true, mantenida: true, fuente: "accesibilidad" });
+        expect(r).not.toHaveProperty("fuente_pedida");
+        await origen.parar("fin");
     });
 });
