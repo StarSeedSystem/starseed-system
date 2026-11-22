@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "ACC1121B",
+   "ola": "ACC1121",
+   "titulo": "Puerta común de la dirección, parte 2: órdenes de MetaGenesis con lista cerrada y libro de órdenes",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    "scripts/puente/mcp_director_ordenes.py",
+    "scripts/puente/test_mcp_director_ordenes.py"
+   ],
+   "depende": [],
+   "importancia": "capacidad",
+   "prompt": "Añade `metagenesis_orden(orden, argumentos, quien, motivo)` con una lista CERRADA que cubre todo lo que hoy solo puede hacer una\npersona con terminal: priorizar y reabrir tareas, encargar una tarea nueva (crea la cola validando id, ≤ 3 archivos y prompt), lanzar\nuna cola, pausar y reanudar el ENJAMBRE (no la publicación), buscar capacidad y aplicarla, lanzar la nube con cesión, pedir una\ncompilación de prueba, escalar una tarea a un motor (cuando exista la escalera de AUT1121A), archivar worktrees terminados, apuntar una\nnota o un relevo. Cada orden llama a la herramienta YA existente con argumentos validados (nunca una cadena de consola), se apunta en\n`mando/ordenes-direccion.jsonl` (quién, canal, medio, orden, resultado) y devuelve el resultado en claro. Lo reservado devuelve «esto\nes de Alex» con el motivo. Prueba una por una con dobles y una prueba real inocua (`buscar capacidad` en seco).\n\nCONTEXTO (Alex, 21-11): «todos los canales y medios de chats de dirección (los 3 canales) deben tener todos los permisos y accesos completos de MetaGenesis en tiempo real a través de cualquier medio donde se utilice». Canales: Principal (@starseed_neurocortex_bot, presidente), General (@starseed_puente_bot, pasarela de Hermes) y Audiovisual y diseño (@StarSeed_Design_bot, A1). La puerta común YA existe y está configurada en Claude, Hermes, Antigravity y Codex: el servidor MCP `starseed-director` (scripts/puente/mcp_director.py), pero solo tiene 10 herramientas (chat del canal Principal y producción). La dirección ya abrió al presidente esa puerta y una lista cerrada de órdenes (DIR1121E, 70f48b3c2: `permisos_del_presidente()` en motores_director.py; comprobado con una llamada real: MCP, git y flota sin denegaciones). «Completo» quiere decir TODAS las operaciones de MetaGenesis; no quiere decir consola libre. Siguen reservados: publicar fuera de las puertas, quitar una pausa de publicación, claves y cuentas, el A1 con privilegios, aceptar o conceder algo a nombre de Alex y cerrar sus apps. Como mucho 3 archivos por tarea. Pruebas que fallen sin tu cambio; en el informe, qué comprobaste de verdad desde cada medio.",
+   "dependencias_ya_en_main": [
+    "ACC1121A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "ACC1121B"
+  ]
+ }
+}
