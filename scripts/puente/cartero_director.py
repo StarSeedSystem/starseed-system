@@ -64,6 +64,9 @@ def cargar_estado(raiz=None):
     estado.setdefault("opus_fecha", "")
     estado.setdefault("opus_hoy", 0)
     estado.setdefault("hermes_pausas", {})  # HER1111K: sesiones de Hermes en pausa ya avisadas
+    estado.setdefault("hermes_descartes", {})  # SES1121B: turnos perdidos descartados solos
+    estado.setdefault("hermes_pasarela_hasta", 0.0)  # SES1121B: no insistir a la pasarela antes de
+    estado.setdefault("hermes_ultimo_turno", {})  # SES1121B: qué turno se entregó por última vez
     return estado
 
 
@@ -250,6 +253,32 @@ def _publicar_respuesta(mensaje, canal, texto, modelo, uso, raiz=None):
     director_chat.entrega(mensaje["id"], canal, "respondido", raiz=raiz)
 
 
+def _pasarela_en_espera(estado):
+    """SES1121B. ¿Toca esperar antes de volver a llamar a Hermes tras agotar los reintentos cortos?"""
+    return time.time() < float((estado or {}).get("hermes_pasarela_hasta") or 0)
+
+
+def _anotar_descarte(estado, sesion, raiz=None):
+    """SES1121B. Deja dicho UNA vez que se descartó solo un turno perdido de solo lectura."""
+    if not sesion:
+        return False
+    vistos = (estado or {}).setdefault("hermes_descartes", {})
+    if vistos.get(sesion):
+        return False
+    vistos[sesion] = time.time()
+    director_chat.publicar(
+        "Turno perdido de la sesión de Hermes (%s) descartado solo: era de solo lectura "
+        "(un resumen periódico) y la pausa vino de un reinicio de la pasarela. La sesión "
+        "sigue con su contexto; no se le pide nada a Alex." % sesion,
+        de="cartero",
+        rol="sistema",
+        tipo="aviso",
+        canal="mando",
+        raiz=raiz,
+    )
+    return True
+
+
 def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None, canal="claude-mac"):
     if not _opus_disponible(estado):
         _fallo(
@@ -306,8 +335,9 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
     estado = estado if estado is not None else {}
     sesion = motores_director.direccion_motor().get("sesion")
     inicio = time.time()
+    ultimo = {"reinicio": False, "intentos": 0}
 
-    def ejecutar(prompt, ses):
+    def ejecutar_crudo(prompt, ses):
         with tempfile.NamedTemporaryFile(
             mode="r", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
@@ -330,6 +360,12 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
                 pass
         return rc, salida, datos
 
+    def ejecutar(prompt, ses):
+        # SES1121B: si la pasarela se reinicia, se reintenta la MISMA sesión con esperas cortas.
+        r = motores_director.hermes_con_reinicio(ejecutar_crudo, prompt, ses)
+        ultimo["reinicio"], ultimo["intentos"] = r["reinicio"], r["intentos"]
+        return r["rc"], r["salida"], r["uso"]
+
     def prompt_fresco():
         # HER1111K: una sesión nueva no recuerda el hilo; lleva el mismo contexto que el presidente.
         registros = director_chat.leer(limite=200, raiz=raiz)
@@ -341,21 +377,53 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
                       "español, claro y breve.",
         )
 
-    res = motores_director.hermes_con_pausa(ejecutar, mensaje.get("texto", ""), prompt_fresco, sesion)
+    def resolver(pausa):
+        # SES1121B: solo se descarta solo si la pausa vino de un reinicio y el turno era de lectura.
+        registros = director_chat.leer(limite=200, raiz=raiz)
+        solo_lectura = motores_director.turno_perdido_solo_lectura(
+            registros, mensaje.get("id"), estado.get("hermes_ultimo_turno")
+        )
+        decision = motores_director.decidir_pausa(pausa, solo_lectura)
+        if decision["accion"] != "descartar":
+            return False
+        return motores_director.descartar_sesion_hermes(pausa.get("sesion"))
+
+    res = motores_director.hermes_con_pausa(
+        ejecutar, mensaje.get("texto", ""), prompt_fresco, sesion, resolver=resolver
+    )
     rc, salida, datos_uso = res["rc"], res["salida"] or "", res["uso"] or {}
     pausa = res["pausa"]
-    if pausa:
+    if res.get("descartada"):
+        if res.get("recuperada"):
+            _anotar_descarte(estado, (pausa or {}).get("sesion"), raiz)
+        else:
+            director_presidente.avisar_pausa_hermes(estado, pausa, raiz=raiz)
+    elif pausa:
         director_presidente.avisar_pausa_hermes(estado, pausa, raiz=raiz)
+    # La pasarela reiniciándose no es un fallo: el mensaje queda pendiente y se reintenta.
+    if ultimo["reinicio"]:
+        estado["hermes_pasarela_hasta"] = (
+            time.time() + motores_director.ESPERA_ENTRE_PASADAS_PASARELA_S
+        )
+        estado["hermes_ultimo_turno"] = {
+            "id": mensaje["id"],
+            "solo_lectura": motores_director.es_turno_solo_lectura(mensaje),
+        }
+        return "espera"
     # Un aviso de pausa o el fallo de la cadena de Hermes nunca se publican como respuesta.
-    if (pausa and not res["fresca"]) or rc != 0 or not salida.strip() \
-            or motores_director.es_fallo_hermes(salida):
+    if (pausa and not res["fresca"] and not res.get("recuperada")) or rc != 0 \
+            or not salida.strip() or motores_director.es_fallo_hermes(salida):
         detalle = (
             "la sesión de dirección de Hermes está en pausa y la sesión nueva tampoco contestó"
             if pausa
             else (salida or "sin salida (rc=%s)" % rc)[:300]
         )
         _fallo(mensaje, "hermes", director_chat.tachar(detalle), raiz=raiz)
-        return
+        return "ok"
+    estado["hermes_ultimo_turno"] = {
+        "id": mensaje["id"],
+        "solo_lectura": motores_director.es_turno_solo_lectura(mensaje),
+    }
     if sesion and not pausa:
         director_presidente.hermes_reabierta(estado, sesion, raiz=raiz)
     director_presidente.despertar_cola(estado)  # DIR1111N: Hermes contesta; la cola del presidente se reintenta ya
@@ -371,6 +439,7 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
         uso["via"] = "hermes-sesion-nueva"
         texto = "(%s.)\n\n%s" % (nota[0].upper() + nota[1:], texto)
     _publicar_respuesta(mensaje, "hermes", texto, modelo_pedido, uso, raiz)
+    return "ok"
 
 
 def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
@@ -428,9 +497,19 @@ def atender(mensaje, canal, estado, raiz=None):
     # puede, el mensaje queda EN COLA y NO se anota como atendido: se reintenta solo.
     if canal == director_presidente.CANAL:
         try:
+            cfg_pres = None
+            if not director_chat.en_pruebas():
+                # SES1121B: el orden por defecto es Hermes → Claude (Sonnet) → resto. Si Alex
+                # cambió el orden en Ajustes, se respeta; solo se sustituye el de fábrica.
+                cfg_pres, _ = presidente_config.cargar()
+                cfg_pres = dict(cfg_pres)
+                if list(cfg_pres.get("orden_proveedores") or []) == \
+                        list(presidente_config.DEFAULTS["orden_proveedores"]):
+                    cfg_pres["orden_proveedores"] = motores_director.orden_proveedores_presidente()
             r = director_presidente.atender(
                 mensaje, estado, raiz=raiz, contexto=_contexto(), tope_opus=TOPE_OPUS,
                 sesion_hermes=motores_director.direccion_motor().get("sesion"),
+                config=cfg_pres,
             )
         except Exception as e:  # noqa: BLE001 — un fallo propio queda en cola, nunca se tira
             cola = estado.setdefault("presidente", {}).setdefault("cola", {})
@@ -447,19 +526,25 @@ def atender(mensaje, canal, estado, raiz=None):
     try:
         if canal in ("claude-mac", "claude-cowork") and motores_director.direccion_motor()["motor"] == "hermes":
             # (2026-10-29, DIR1029A) La dirección va por Hermes: contesta en su sesión de dirección.
-            _entregar_hermes(mensaje, "hermes/predeterminado", raiz=raiz, estado=estado)
+            if _pasarela_en_espera(estado):
+                return  # SES1121B: la pasarela se está reiniciando; se reintenta en otra pasada
+            if _entregar_hermes(mensaje, "hermes/predeterminado", raiz=raiz, estado=estado) == "espera":
+                return
         elif canal in ("claude-mac", "claude-cowork"):
-            _entregar_claude_mac(
-                mensaje,
-                estado,
-                mensaje.get("modelo") or "%s/claude-opus-5-5" % canal,
-                raiz=raiz,
-                canal=canal,
+            modelo = mensaje.get("modelo") or "%s/%s" % (
+                canal,
+                motores_director.modelo_presidente(
+                    motores_director.es_decision(mensaje.get("texto", ""))
+                ),
             )
+            _entregar_claude_mac(mensaje, estado, modelo, raiz=raiz, canal=canal)
         elif canal == "hermes":
-            _entregar_hermes(
+            if _pasarela_en_espera(estado):
+                return  # SES1121B: no se insiste a una pasarela que aún se reinicia
+            if _entregar_hermes(
                 mensaje, mensaje.get("modelo") or "hermes/predeterminado", raiz=raiz, estado=estado
-            )
+            ) == "espera":
+                return
         elif canal == "chatgpt":
             _entregar_chatgpt(
                 mensaje, mensaje.get("modelo") or "codex/gpt-5-codex", raiz=raiz
@@ -562,6 +647,10 @@ def texto_informe_uso(estado):
             motores[modelo] = motores.get(modelo, 0) + 1
     lineas = ["%s: %d" % (m, n) for m, n in sorted(motores.items())]
     partes.append("Llamadas a motores hoy: " + (", ".join(lineas) or "ninguna"))
+    # SES1121B: orden explícito, tabla medio × sesión y la carga que hay que quitarle a la Mac.
+    partes.append(motores_director.texto_orden_motores())
+    partes.append(motores_director.texto_tabla_medio_sesion())
+    partes.extend(motores_director.recomendaciones_carga_mac())
     return "\n".join(p[:200] for p in partes)
 
 
