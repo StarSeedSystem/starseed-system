@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "SES1122A",
+   "ola": "pasarelas-1122",
+   "titulo": "Sondas de pasarela con un modelo que exista",
+   "importancia": "capacidad",
+   "archivos": [
+    "scripts/puente/renovador-pasarelas.py",
+    "scripts/puente/pasarelas.py",
+    "scripts/puente/test_renovador_ses1122a.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 22-11 00:20: 4 de 19 pasarelas (openrouter, xkiro, tokenrouter, opencode-zen) salen «modelo_fuera» porque SONDAS las mide con un modelo fijo que su catálogo ya retiró (p. ej. nex-agi/nex-n2.5-pro:free → «unavailable for free», qwen/qwen3-coder-plus:free → «does not exist»). La pasarela puede estar viva y se la da por inútil. Haz que, cuando la sonda dé MODELO_FUERA, el renovador pida el catálogo de esa pasarela (GET <url>/models con su clave; openrouter ya tiene openrouter_gratuitos) y vuelva a sondear UNA vez con un modelo gratuito vigente; guarda en el informe `modelo` (el usado) y `modelo_anterior`. Función pura para elegir el modelo + E/S mínima; sin red en las pruebas (monkeypatch de urlopen). No cambies la lista SONDAS a mano por otro modelo fijo: el arreglo es que se elija solo. No toques DIR1121H/I. pytest de test_pasarelas*.py y test_acciones_de_alex.py en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "SES1122A"
+  ]
+ }
+}
