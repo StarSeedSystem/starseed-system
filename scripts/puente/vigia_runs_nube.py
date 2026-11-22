@@ -221,11 +221,15 @@ def ultimo_cambio(v):
 
 def run_vivo(estado_api):
     """PURA. Del `status` de un RUN según la API: True si sigue en marcha, False si terminó
-    («completed», con la conclusión que sea), None sin dato o con un estado que no conocemos."""
-    e = str(estado_api or "").strip().lower()
-    if e == "completed":
+    («completed», con la conclusión que sea), None sin dato o con un estado que no conocemos.
+    Acepta tanto string (status) como tupla (status, conclusion) para compatibilidad."""
+    if isinstance(estado_api, tuple):
+        status = str(estado_api[0] or "").strip().lower()
+    else:
+        status = str(estado_api or "").strip().lower()
+    if status == "completed":
         return False
-    return True if e in RUN_EN_MARCHA else None
+    return True if status in RUN_EN_MARCHA else None
 
 
 def runs_a_consultar(progreso, vivos, maximo=MAX_RUNS_CONSULTA):
@@ -239,7 +243,7 @@ def runs_a_consultar(progreso, vivos, maximo=MAX_RUNS_CONSULTA):
 def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=(), colas_nube=None, colas_completas=False):
     """PURA. Las «reasignada · nube» que ya no lleva ningún run → [(tid, run o None, motivo)].
 
-    `estados`: {run: status de la API o None}; `vivos`: runs en marcha según el resumen;
+    `estados`: {run: (status, conclusion) de la API o None}; `vivos`: runs en marcha según el resumen;
     `ids_vivos`: ids de las colas de esos runs (no se tocan nunca). Con run en la nota: vuelve solo
     si la API dice que ese RUN terminó; en marcha o sin dato, se queda. Sin run: vuelve si su último
     cambio tiene más de `SIN_RUN_MAX_S`; sin fecha legible, se queda.
@@ -247,7 +251,9 @@ def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=(), colas_nub
     (AUT1116A) `colas_nube`: {id: epoch de la `cola-nube-*.json` más nueva que la lleva}. Sin run en la nota (lo
     normal: «reasignada a la nube AAAAMMDD», del reparto), si `colas_completas` (todos los runs vivos dicen su cola,
     así que `ids_vivos` es entero) y esa cola se escribió hace más de `COLA_NUBE_VIDA_S` sin que ningún run vivo la
-    lleve, vuelve: a los ~75 min, no a las 24 h. VOZ01, FRN01 y DSB01 llevaban 5 h con diez runs terminados."""
+    lleve, vuelve: a los ~75 min, no a las 24 h. VOZ01, FRN01 y DSB01 llevaban 5 h con diez runs terminados.
+
+    (AUT1121C) Incluye la conclusión del run (success/failure/cancelled) en el motivo para diagnóstico."""
     salida = []
     for tid, v in sorted((progreso or {}).items()):
         if not es_reasignada_a_la_nube(v) or tid in ids_vivos:
@@ -255,7 +261,12 @@ def varadas_tras_su_run(progreso, estados, vivos, ahora, ids_vivos=(), colas_nub
         run = run_de_la_nota(v.get("nota"))
         if run:
             if run not in vivos and run_vivo((estados or {}).get(run)) is False:
-                salida.append((tid, run, "su run %s ya terminó según GitHub" % run))
+                # Incluir conclusión si está disponible
+                estado_info = (estados or {}).get(run)
+                conclusion = ""
+                if isinstance(estado_info, tuple) and len(estado_info) >= 2 and estado_info[1]:
+                    conclusion = " (conclusión: %s)" % estado_info[1]
+                salida.append((tid, run, "su run %s ya terminó según GitHub%s" % (run, conclusion)))
             continue
         cola_t = (colas_nube or {}).get(tid)
         if colas_completas and cola_t is not None and ahora - cola_t > COLA_NUBE_VIDA_S:
@@ -367,16 +378,28 @@ def commits_olvidados(progreso, ahora, en_tanda=(), espera_s=ESPERA_COMMIT_OLVID
 
 
 def estado_del_run(run, raiz, timeout=30):
-    """El `status` del RUN según la API de GitHub («completed», «in_progress»…), o None sin dato.
-    Nunca lanza. Es el dato del run, el mismo que da `gh run list`; jamás el de sus pasos."""
+    """El `status` y `conclusion` del RUN según la API de GitHub.
+    Devuelve (status, conclusion) o (None, None) sin dato. Nunca lanza.
+    Es el dato del run, el mismo que da `gh run list`; jamás el de sus pasos.
+    conclusion: 'success', 'failure', 'cancelled', 'skipped', 'timed_out', 'action_required' o None.
+    """
     try:
-        p = subprocess.run(["gh", "api", "/repos/{owner}/{repo}/actions/runs/%s" % run, "--jq", ".status"],
-                           cwd=raiz, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(
+            ["gh", "api", "/repos/{owner}/{repo}/actions/runs/%s" % run, "--jq", "[.status, .conclusion]"],
+            cwd=raiz, capture_output=True, text=True, timeout=timeout)
     except Exception:
-        return None
+        return (None, None)
     if p.returncode != 0:
-        return None
-    return (p.stdout or "").strip() or None
+        return (None, None)
+    try:
+        datos = json.loads(p.stdout or "[]")
+        if isinstance(datos, list) and len(datos) >= 2:
+            status = str(datos[0] or "").strip() or None
+            conclusion = str(datos[1] or "").strip() or None
+            return (status, conclusion)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return (None, None)
 
 
 def devolver_varadas(resumen, raiz, ahora=None, estado_run=None):

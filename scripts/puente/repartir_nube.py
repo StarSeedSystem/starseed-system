@@ -39,7 +39,9 @@ ESTADOS_REPARTIBLES = {None, "", "pendiente", "sin_cambios", "fallo", "fallo_tes
 # tarea, mas probable es que se quede a medias, y a medias en la nube es a la basura.
 # Las grandes se quedan en la Mac, donde hay revisor. Y entre las que caben, primero
 # las de un solo archivo.
-MAX_ARCHIVOS_NUBE = 3
+# (AUT1121C) Subido a 5: los runners de la nube tienen 4 vCPU / 16 GB y pueden manejar
+# tareas algo más grandes; el tope de 3 dejaba fuera tareas válidas de 4-5 archivos.
+MAX_ARCHIVOS_NUBE = 5
 
 #: (2026-09-24, MEDIDO) Alex: «cuando terminan los agentes vuelven a entrar 4 más pero no
 #: dice que haya más listas para trabajar, no sé de qué olas son». Eran SIEMPRE las mismas
@@ -51,7 +53,9 @@ MAX_ARCHIVOS_NUBE = 3
 #: «pendiente» y el director las volvía a mandar. Tres envíos sin integrar bastan para
 #: saber que repetir no sirve: a partir de ahí van a «Bloqueadas», donde se ven y se
 #: pueden reintentar con un cambio.
-MAX_ENVIOS_NUBE = 3
+#: (AUT1121C) Subido a 5: muchos envíos fallan por saturación de proveedores (429/quota),
+#: no por calidad de la tarea; 3 era demasiado agresivo y vaciaba la nube.
+MAX_ENVIOS_NUBE = 5
 
 #: (CAP1119B) A1 de Oracle Always Free: 2 OCPU y 12 GB. Su tope es suyo (el gobernador de la
 #: Mac no manda allí): un trabajador por OCPU libre, con ~1,5 GB de RAM y ~0,5 OCPU cada uno.
@@ -167,13 +171,33 @@ def ids_de_la_tanda_viva(args_procesos, olas):
 
 #: (2026-10-10, CAP1010) Rondas de trabajo que la Mac se guarda de su propia tanda antes de
 #: ceder el resto a otro medio: con 3 trabajadores, sus 6 listas siguientes.
+#: (AUT1121C) Dinámico: si tope_mac ≤ 2 o disco guard activo (< 2 GB), 1 ronda (o 0 si no arranca).
 RONDAS_RESERVA_MAC = 2
+#: Umbral de disco (GB) bajo el cual el guardia de disco bloquea nuevos arranques.
+DISCO_BLOQUEA_GB = 2.0
+
 #: (2026-10-13) Una cadena cedible cabe ENTERA en un job de la nube: 3 trabajadores × 2 tareas
 #: (`buscar_capacidad.TAREAS_POR_RUN`). Con 4, las cadenas de 5-6 tareas se quedaban en una Mac
 #: que con la memoria en aviso solo corre 2 agentes a la vez.
 MAX_CADENA_CEDIBLE = 6
 #: Estados con los que una tarea ya no espera a nadie ni nadie la espera a ella.
 _CERRADAS = ("commit", "sustituida", "descartada", "rechazada", "informe")
+
+
+def calcular_rondas_reserva(tope_mac: int, disco_gb: float | None) -> int:
+    """PURA (AUT1121C). Rondas de reserva dinámicas para la Mac.
+
+    Reglas:
+    - Si tope_mac ≤ 2: la Mac solo puede correr 2 agentes a la vez → 1 ronda (tope_mac × 1).
+    - Si disco_gb < DISCO_BLOQUEA_GB (2 GB): guardia de disco activo → 1 ronda.
+    - Si disco_gb < 1 GB: la Mac no puede arrancar nada → 0 rondas (cede todo).
+    - En caso normal (tope ≥ 3 y disco OK): 2 rondas (comportamiento anterior).
+    """
+    if disco_gb is not None and disco_gb < 1.0:
+        return 0  # La Mac no arranca nada: cede todo
+    if (tope_mac is not None and tope_mac <= 2) or (disco_gb is not None and disco_gb < DISCO_BLOQUEA_GB):
+        return 1  # Mac saturada o disco justo: guarda solo 1 ronda
+    return RONDAS_RESERVA_MAC  # 2 rondas por defecto
 
 
 def colas_de_la_tanda_viva(args_procesos, olas):
@@ -238,7 +262,10 @@ def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=R
     y los dos medios se quedaban parados con trabajo de sobra; el botón decía «lanzo 2 jobs»
     y contaba dos jobs fantasma 5 minutos. La Mac se queda las `tope_mac × rondas` primeras
     listas de su tanda (en SU orden de prioridad, `listas_mac`); de las demás listas, se ceden
-    las que ninguna otra tarea espera (`esperadas`)."""
+    las que ninguna otra tarea espera (`esperadas`).
+
+    (AUT1121C) `rondas` es dinámico: 2 por defecto, 1 si tope_mac ≤ 2 o disco < 2 GB,
+    0 si disco < 1 GB (Mac no arranca nada)."""
     tanda = set(str(t) for t in tanda_ids or ())
     en_tanda = [str(t) for t in listas_mac or () if str(t) in tanda]
     reserva = max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))
@@ -261,7 +288,10 @@ def cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por,
     solo si: (a) tiene como mucho `max_cadena` tareas; (b) ningún miembro depende de algo
     abierto (presente en la tanda) fuera de la cadena; (c) ningún miembro es esperado por una
     tarea de fuera de la cadena; (d) ningún miembro está en la reserva de la Mac
-    (`tope_mac × rondas` primeras listas)."""
+    (`tope_mac × rondas` primeras listas).
+
+    (AUT1121C) `rondas` es dinámico: 2 por defecto, 1 si tope_mac ≤ 2 o disco < 2 GB,
+    0 si disco < 1 GB (Mac no arranca nada)."""
     tareas = {str(k): v for k, v in (tareas_tanda or {}).items() if isinstance(v, dict)}
     en_tanda = [str(t) for t in listas_mac or ()]
     reserva = set(en_tanda[: max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))])
@@ -306,15 +336,21 @@ def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
     cuelga de alguien. Aquí se unen las sueltas (`cedibles_de_la_tanda`) con los miembros
     de `cadenas_cedibles` (cabeza esperada + dependientes de la tanda, viajan enteras).
     `lote` = solo los miembros de cadenas: se pasa como `mismo_lote` a `elegir`, que les
-    conserva el `depende` interno para que el orquestador de allí respete su orden."""
+    conserva el `depende` interno para que el orquestador de allí respete su orden.
+
+    (AUT1121C) Reserva dinámica: si tope_mac ≤ 2 o disco guard activo (< 2 GB), la Mac
+    se guarda solo 1 ronda (tope_mac × 1). Si disco < 1 GB, cede todo (0 rondas)."""
     ajenas = {str(x) for x in ajenas or ()}
     tanda = {str(t) for t in tanda or ()}
     estado_mac = estado_mac or {}
     listas_mac = [str(t) for t in (estado_mac.get("listas") or [])]
     tope_mac = estado_mac.get("tope") or 0
+    disco_gb = estado_mac.get("disco_gb")
+    # Reserva dinámica (AUT1121C): 1 ronda si tope ≤ 2 o disco < 2 GB; 0 si disco < 1 GB.
+    rondas = calcular_rondas_reserva(tope_mac, disco_gb)
     # Solo frena lo que espera una tarea que SE QUEDA en la tanda de la Mac (2026-10-13).
     esperadas = esperadas_por_otras(colas, progreso, solo_de=tanda)
-    sueltas = [t for t in cedibles_de_la_tanda(tanda, listas_mac, tope_mac, esperadas)
+    sueltas = [t for t in cedibles_de_la_tanda(tanda, listas_mac, tope_mac, esperadas, rondas=rondas)
                if t not in ajenas]
     # Tareas de la tanda con su dict (de las colas) y quién espera a quién DENTRO de la
     # tanda: `esperadas_por` de `cadenas_cedibles` son los dependientes directos de cada id.
@@ -330,7 +366,7 @@ def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
             if d:
                 esperadas_por.setdefault(str(d), set()).add(tid)
     lote = set()
-    for cadena in cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por):
+    for cadena in cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por, rondas=rondas):
         lote.update(m for m in cadena if m not in ajenas)
     cedibles, vistas = [], set()
     for tid in list(sueltas) + sorted(lote):

@@ -150,7 +150,8 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         self._cola("cola-nube-20261021-0900.json", ["OTRA"])
         self._runs({"run": 1, "cola": os.path.join("enjambre", "colas",
                                                    "cola-nube-20261021-0900.json")})
-        self.assertEqual(D.reclamar_varadas_de_la_nube(1), ["IMG1020A"])
+        ids, _ = D.reclamar_varadas_de_la_nube(1)
+        self.assertEqual(ids, ["IMG1020A"])
         self.assertEqual(self._leer_progreso()["IMG1020A"]["estado"], "pendiente")
 
     def test_con_el_run_vivo_de_su_cola_no_se_devuelve(self):
@@ -158,7 +159,8 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         self._cola("cola-nube-20261021-0900.json", ["IMG1020A"])
         self._runs({"run": 1, "cola": os.path.join("enjambre", "colas",
                                                    "cola-nube-20261021-0900.json")})
-        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+        ids, _ = D.reclamar_varadas_de_la_nube(1)
+        self.assertEqual(ids, [])
 
     def test_run_vivo_con_su_cola_tirada_no_devuelve_nada(self):
         # No se puede saber qué lleva el run vivo: mejor esperar un ciclo que devolver
@@ -166,30 +168,35 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
         self._cola("cola-nube-20261021-0900.json", ["OTRA"])
         self._runs({"run": 1, "cola": None})
-        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+        ids, _ = D.reclamar_varadas_de_la_nube(1)
+        self.assertEqual(ids, [])
 
     def test_una_cola_joven_sin_run_todavia_aguanta(self):
         self._progreso(NUE={"estado": "reasignada", "medio": "nube"})
         self._cola("cola-nube-20261021-1015.json", ["NUE"], edad_s=60)
         self._runs()  # todavía sin run: el lanzamiento va detrás de la cola
-        self.assertEqual(D.reclamar_varadas_de_la_nube(0), [])
+        ids, _ = D.reclamar_varadas_de_la_nube(0)
+        self.assertEqual(ids, [])
 
     def test_una_cola_vieja_sin_run_se_devuelve(self):
         self._progreso(VIEJA={"estado": "reasignada", "medio": "nube"})
         self._cola("cola-nube-20261021-0000.json", ["VIEJA"], edad_s=2 * 3600)
         self._runs()
-        self.assertEqual(D.reclamar_varadas_de_la_nube(0), ["VIEJA"])
+        ids, _ = D.reclamar_varadas_de_la_nube(0)
+        self.assertEqual(ids, ["VIEJA"])
 
     def test_runs_vivos_que_no_se_pueden_enumerar_no_devuelve_nada(self):
         self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
         D._ULTIMO_RESUMEN.clear()  # la medición falló: no sé qué llevan los runs vivos
-        self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
+        ids, _ = D.reclamar_varadas_de_la_nube(1)
+        self.assertEqual(ids, [])
 
     def test_medicion_fallida_con_cero_runs_tampoco_devuelve(self):
         # Antes, una medición fallida daba «0 runs» y se reclamaba TODO lo prestado.
         self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
         D._ULTIMO_RESUMEN.clear()
-        self.assertEqual(D.reclamar_varadas_de_la_nube(0), [])
+        ids, _ = D.reclamar_varadas_de_la_nube(0)
+        self.assertEqual(ids, [])
         self.assertEqual(self._leer_progreso()["IMG1020A"]["estado"], "reasignada")
 
     def test_medir_nube_fallida_borra_la_foto_vieja(self):

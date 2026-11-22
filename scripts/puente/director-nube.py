@@ -394,35 +394,37 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     con las `cola-nube-*.json` de menos de 30 min. Si un run vivo no dice su cola —o su
     cola no se lee—, NO se devuelve nada en esta pasada: mejor esperar un ciclo que
     devolver lo que alguien está haciendo. Envíos y veredictos, como hoy.
+
+    Devuelve (ids, veredictos) para diagnóstico (AUT1121C).
     """
     ruta = os.path.join(RAIZ, "starseed_memory_root", "olas", "progreso.json")
     try:
         with open(ruta, encoding="utf-8") as f:
             progreso = json.load(f)
     except (OSError, ValueError):
-        return []
+        return [], {}
     tareas = progreso.get("tareas") if isinstance(progreso, dict) and "tareas" in progreso else progreso
     if not isinstance(tareas, dict):
-        return []
+        return [], {}
     resumen = _ULTIMO_RESUMEN[0] if _ULTIMO_RESUMEN else None
     if resumen is None:
         # La medición falló: «0 runs» no es un dato, es no saber. No se devuelve nada.
-        return []
+        return [], {}
     runs = [r for r in ((resumen or {}).get("runs") or []) if isinstance(r, dict)]
     # Cada run vivo debe decir qué cola lleva. Si lo medido no coincide con lo que puedo
     # enumerar, no lo sé entero: no se devuelve nada.
     if runs_vivos > 0 and len(runs) != runs_vivos:
-        return []
+        return [], {}
     ids_vivos = set()
     for r in runs:
         ids = ids_de_una_cola(r.get("cola"))
         if ids is None:
-            return []
+            return [], {}
         ids_vivos |= ids
     jovenes = ids_de_colas_jovenes(os.path.join(RAIZ, "enjambre", "colas"), time.time())
     ids = RN.reclamar_varadas(tareas, runs_vivos, ids_vivos=ids_vivos, colas_jovenes=jovenes)
     if not ids:
-        return []
+        return [], {}
     veredictos = veredictos_del_ultimo_run(ids)
     ordenar_reapertura_en_colas_vivas(ids, veredictos)
     # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
@@ -442,8 +444,8 @@ def reclamar_varadas_de_la_nube(runs_vivos):
             json.dump(salida, f, ensure_ascii=False, indent=1)
         os.replace(tmp, ruta)
     except OSError:
-        return []
-    return ids
+        return [], {}
+    return ids, veredictos
 
 
 #: (CAP1026B) El progreso de un run TERMINADO no cambia: se guarda aquí y no se vuelve a descargar.
@@ -583,10 +585,17 @@ def main():
                 print("[%s] %s" % (time.strftime("%H:%M"), texto), flush=True)
             if acciones:
                 runs_vivos, agentes_vivos = medir_nube()
-            devueltas = reclamar_varadas_de_la_nube(runs_vivos)
+            devueltas, veredictos = reclamar_varadas_de_la_nube(runs_vivos)
             if devueltas:
-                print("[%s] devueltas de la nube a pendiente (allí no quedaba nadie): %s"
-                      % (time.strftime("%H:%M"), ", ".join(devueltas)), flush=True)
+                # Diagnóstico con veredictos (AUT1121C)
+                detalles = []
+                for tid in devueltas:
+                    v = veredictos.get(tid)
+                    if v and v[0]:
+                        detalles.append("%s (%s)" % (tid, v[0]))
+                    else:
+                        detalles.append(tid)
+                print("[%s] devueltas de la nube a pendiente: %s" % (time.strftime("%H:%M"), ", ".join(detalles)), flush=True)
             # El inventario MIDE la capacidad; el director ya no la supone. Si mañana se
             # abre Colab o Cloud Run, el tope sube solo y sin tocar este archivo.
             inv = inventario_de_contenedores()

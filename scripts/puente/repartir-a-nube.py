@@ -19,7 +19,7 @@ import argparse, contextlib, datetime, fcntl, json, os, re, subprocess, sys, tim
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import puente
-from repartir_nube import elegir, marcar
+from repartir_nube import elegir, marcar, clasificar, motivo_fuera
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enjambre")
@@ -174,6 +174,8 @@ def main():
     ap.add_argument("--publicar", action="store_true")
     ap.add_argument("--ceder", action="store_true",
                     help="ceder a la nube lo que la tanda de la Mac no alcanza pronto (CAP1010)")
+    ap.add_argument("--explicar", action="store_true",
+                    help="mostrar por qué cada tarea se queda o se va a la nube (AUT1121C)")
     args = ap.parse_args()
 
     # (2026-10-04) Con la nube en pausa nadie reparte: ni el director de la nube ni el vigía.
@@ -247,6 +249,48 @@ def main():
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")
     mensaje = _mensaje(fecha, elegidas)
+
+    # --explicar: mostrar por qué cada tarea se queda o se va (AUT1121C)
+    if args.explicar:
+        print("[reparto] === EXPLICACIÓN POR TAREA ===")
+        # Clasificar todas las tareas para ver el motivo de cada una
+        clasificacion = clasificar(colas, progreso, asuntos, ola_actual(colas),
+                                   envios=envios, mismo_lote=lote)
+        # Elegibles
+        for tid in clasificacion.get("elegibles", []):
+            print(f"  ✅ {tid}: VA A LA NUBE (elegible)")
+        # No elegibles por motivo
+        for motivo, tids in clasificacion.items():
+            if motivo == "elegibles":
+                continue
+            for tid in tids:
+                print(f"  ❌ {tid}: SE QUEDA ({motivo})")
+        # Tareas en la tanda de la Mac que no están en la clasificación (cerradas/en main)
+        todos_ids = set()
+        for _n, tareas in colas:
+            for t in tareas:
+                if isinstance(t, dict) and t.get("id"):
+                    todos_ids.add(str(t["id"]))
+        clasificados = set()
+        for tids in clasificacion.values():
+            if isinstance(tids, list):
+                clasificados.update(tids)
+        for tid in sorted(todos_ids - clasificados):
+            entrada = (progreso or {}).get(tid) or {}
+            estado = entrada.get("estado")
+            if estado in ("commit", "integrada", "hecho"):
+                print(f"  ⏭ {tid}: YA EN MAIN ({estado})")
+            elif estado in ("sustituida", "descartada", "rechazada", "informe"):
+                print(f"  ⏭ {tid}: CERRADA ({estado})")
+            elif tid in tanda:
+                print(f"  🔒 {tid}: EN TANDA MAC (reserva)")
+            elif tid in (ajenas or ()):
+                print(f"  🔒 {tid}: PRESTADA A OTRO MEDIO")
+            elif tid in (vuelo or ()):
+                print(f"  ✈️ {tid}: EN VUELO EN LA NUBE")
+            else:
+                print(f"  ❓ {tid}: OTRO MOTIVO")
+        print("[reparto] === FIN EXPLICACIÓN ===")
 
     if args.simular or not elegidas:
         print("[reparto] %s (simulación)" % mensaje)
