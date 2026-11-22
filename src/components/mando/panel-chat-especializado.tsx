@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Send, ShieldAlert, Sparkles } from "lucide-react";
 import type { IdCanalEspecializado, PerfilCanalEspecializado } from "@/lib/mando/canales-especializados";
+import { nombreDeCanal } from "@/lib/mando/canales-nombres";
 
 interface MensajeHilo {
     id: string;
@@ -128,6 +129,7 @@ export function PanelChatEspecializado({ canal, modo = "integrado" }: Props) {
     };
 
     const perfil = datos?.perfil;
+    const nombre = perfil?.nombre ?? nombreDeCanal(canal);
 
     return (
         <div
@@ -140,7 +142,7 @@ export function PanelChatEspecializado({ canal, modo = "integrado" }: Props) {
                 <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold text-white">
-                            {perfil?.nombre ?? (canal === "audiovisual" ? "Producción audiovisual y diseño" : "Dirección general")}
+                            {nombre}
                         </span>
                         {datos?.vinculo ? (
                             <span
@@ -304,14 +306,10 @@ export function PanelChatEspecializado({ canal, modo = "integrado" }: Props) {
                     rows={2}
                     placeholder={
                         canal === "audiovisual"
-                            ? "Encarga diseño (Stitch/DESIGN.md), vídeo/motion, síntesis NotebookLM o borrador de promoción/contactos…"
-                            : "Escribe una orden operativa para Dirección general (Hermes y @starseed_puente_bot)…"
+                            ? `Encarga a ${nombre}: diseño (Stitch/DESIGN.md), vídeo/motion, síntesis NotebookLM o borrador de promoción/contactos…`
+                            : `Escribe una orden operativa para ${nombre} (Hermes y @starseed_puente_bot)…`
                     }
-                    aria-label={
-                        canal === "audiovisual"
-                            ? "Mensaje para producción audiovisual, diseño y promoción"
-                            : "Mensaje para dirección general"
-                    }
+                    aria-label={`Mensaje para ${nombre}`}
                     className="min-h-[54px] flex-1 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-violet-400/60 focus:outline-none"
                 />
                 <button

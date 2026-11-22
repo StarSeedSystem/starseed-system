@@ -87,7 +87,7 @@ TABLA_PAPELES: tuple[PapelModelo, ...] = (
         modelo_principal="gemini-4-hydrogen-high",
         alternativa_agy="claude-opus-5-5-high",
         alternativas_fuera_agy=["hermes", "codex"],
-        descripcion="Dirección principal: planes, revisiones, decisiones largas",
+        descripcion="Planes, revisiones y decisiones largas de la dirección",
     ),
     PapelModelo(
         papel="directores_produccion_pruebas_capacidad",
