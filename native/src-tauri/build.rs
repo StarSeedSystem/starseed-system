@@ -40,6 +40,7 @@ mod control_entrada_parche; // AND1115K
 /// (src/lib/nativa/__tests__/contrato-rust.test.ts) vigila que esta lista, lib.rs y las capabilities
 /// casen. (APP1107B, 2026-11-07)
 const COMANDOS_APP: &[&str] = &[
+    // PENA1
     // (SEG1111U) Solo escritorio y con «acceso al equipo» (acceso_equipo.rs); su permiso solo lo da
     // capabilities/acceso-equipo.json. Inventario: architecture/permisos-y-control-del-dispositivo.md §4.8.1.
     "run_terminal",
@@ -166,6 +167,7 @@ const COMANDOS_APP: &[&str] = &[
     "control_estado_aparato",
     "control_entrada_aceptar",
     "control_entrada_aceptados",
+    "banco_latido_activar", // PENA1
     "control_entrada_quitar", // PENB2
     "control_pantalla_iniciar",
     "control_pantalla_cuadro",
