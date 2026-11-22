@@ -168,8 +168,11 @@ def atraso_de(salida):
 
 def atraso():
     """Cuántas tareas repartiría el reparto AHORA (simulación, no toca nada)."""
+    # DIR1121D (2026-11-21, medido a las 23:05): esta simulación iba SIN «--ceder» y el lanzamiento real (más abajo) CON él.
+    # Con 120 tareas en la tanda viva de la Mac (25 listas; la Mac con tope 2 por memoria) daba 0 → «no hay atraso que
+    # repartir» y GitHub Actions parado con 28 agentes libres. Con «--ceder» la decisión ve lo mismo que el reparto mandaría.
     return atraso_de(_sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
-                          "--tope", "6", "--simular"]))
+                          "--tope", "6", "--ceder", "--simular"]))
 
 
 #: Los nombres que lee el paso de claves del workflow. Solo NOMBRES, jamás un valor.
