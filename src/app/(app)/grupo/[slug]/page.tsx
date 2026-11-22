@@ -508,8 +508,9 @@ function GrupoPageContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [group, groupHasToolkit, groupKind, accentForTabs, layout.sections, layout.integrations, layout.gallery, isOwner, postCount, coverForWelcome]);
 
-    // SES1115Q · Pestañas del espacio (P1-B): leídas de la clave `espacio` y añadidas
-    // al final; se referencian, no se duplican. Con error o cargando no se añade nada.
+    // SES1115Q · Pestañas del espacio (P1-B): mismo bloque que `pagina/[slug]`, leídas
+    // de la clave `espacio` y añadidas al final; se referencian, no se duplican. Con
+    // error o cargando no se añade nada.
     const refEspacio = useMemo(() => entityRef ?? { kind: "group" as const, id: "" }, [entityRef]);
     const espacio = usarEspacio(refEspacio, { rango: isOwner ? 4 : 0, roles: SIN_ROLES_ESPACIO });
     const pestanasEspacio = useMemo(() => {
