@@ -4,7 +4,10 @@
 import json
 import os
 import sys
+import tempfile
+import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -251,6 +254,312 @@ class TestHermesConPausa(unittest.TestCase):
         r = M.hermes_con_pausa(ej, "p", lambda: "f", None, registrar=lambda t: None)
         self.assertEqual(1, len(ll))
         self.assertEqual("", r["salida"])
+
+
+class TestPasarelaReiniciando(unittest.TestCase):
+    """SES1121B: la pasarela de Hermes se reinicia y corta el turno."""
+
+    LINEA = ("Gateway event loop missed 3 consecutive liveness probes; "
+             "exiting with code 75")
+
+    def test_la_linea_medida_se_reconoce(self):
+        self.assertTrue(M.es_pasarela_reiniciando(self.LINEA, 75))
+        self.assertTrue(M.es_pasarela_reiniciando("Gateway starting: esperando sesión"))
+
+    def test_codigo_75_sin_texto_es_reinicio(self):
+        self.assertTrue(M.es_pasarela_reiniciando("", 75))
+
+    def test_una_respuesta_normal_no_es_reinicio(self):
+        self.assertFalse(M.es_pasarela_reiniciando("Hola, todo bien."))
+        self.assertFalse(M.es_pasarela_reiniciando("", 0))
+
+    def test_una_respuesta_larga_que_menciona_gateway_no_es_reinicio(self):
+        self.assertFalse(M.es_pasarela_reiniciando("x" * 1000 + " gateway"))
+
+    def test_esperas_cortas_y_techo(self):
+        self.assertEqual([2, 3, 5, 8, 8], [M.esperas_pasarela(n) for n in range(1, 6)])
+        self.assertEqual(2, M.esperas_pasarela(0))
+
+
+class TestHermesConReinicio(unittest.TestCase):
+    def test_reintenta_la_misma_sesion_y_no_abre_una_nueva(self):
+        llamadas, esperas = [], []
+        respuestas = [
+            (75, "Gateway event loop missed liveness probes", {}),
+            (75, "exiting with code 75", {}),
+            (0, "respuesta con contexto", {}),
+        ]
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return respuestas[len(llamadas) - 1]
+
+        r = M.hermes_con_reinicio(
+            ejecutar, "p", "s1", esperar=esperas.append, registrar=lambda t: None
+        )
+        self.assertEqual([("p", "s1"), ("p", "s1"), ("p", "s1")], llamadas)
+        self.assertEqual([2, 3], esperas)
+        self.assertEqual("respuesta con contexto", r["salida"])
+        self.assertFalse(r["reinicio"])
+
+    def test_agota_los_intentos_y_marca_reinicio(self):
+        llamadas, esperas = [], []
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return 75, "Gateway starting: reinicio", {}
+
+        r = M.hermes_con_reinicio(
+            ejecutar, "p", "s1", esperar=esperas.append, registrar=lambda t: None, intentos=3
+        )
+        self.assertEqual([("p", "s1")] * 3, llamadas)
+        self.assertEqual([2, 3], esperas)
+        self.assertTrue(r["reinicio"])
+        self.assertEqual(3, r["intentos"])
+
+    def test_una_pausa_no_se_reintenta_aqui(self):
+        aviso = "This chat is paused. Run `hermes sessions discard s1 --yes`."
+        llamadas = []
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return 3, aviso, {}
+
+        r = M.hermes_con_reinicio(
+            ejecutar, "p", "s1", esperar=lambda s: None, registrar=lambda t: None
+        )
+        self.assertEqual(1, len(llamadas))
+        self.assertFalse(r["reinicio"])
+
+
+class TestHermesConPausaDescartada(unittest.TestCase):
+    AVISO = (
+        "This chat is paused. Hermes couldn't confirm how the last turn ended "
+        "(usually because it restarted mid-turn). Run `hermes sessions discard s1 --yes`."
+    )
+
+    def test_resolver_verdadero_reintenta_la_misma_sesion_con_contexto(self):
+        llamadas = []
+        respuestas = [(3, self.AVISO, {}), (0, "de la misma sesión", {})]
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return respuestas[len(llamadas) - 1]
+
+        r = M.hermes_con_pausa(
+            ejecutar, "p", lambda: "fresco", "s1",
+            registrar=lambda t: None, resolver=lambda p: True,
+        )
+        self.assertEqual([("p", "s1"), ("p", "s1")], llamadas)
+        self.assertTrue(r["descartada"])
+        self.assertTrue(r["recuperada"])
+        self.assertFalse(r["fresca"])
+        self.assertEqual("de la misma sesión", r["salida"])
+
+    def test_resolver_falso_sigue_con_la_sesion_nueva(self):
+        llamadas = []
+        respuestas = [(3, self.AVISO, {}), (0, "fresca", {})]
+
+        def ejecutar(prompt, sesion):
+            llamadas.append((prompt, sesion))
+            return respuestas[len(llamadas) - 1]
+
+        r = M.hermes_con_pausa(
+            ejecutar, "p", lambda: "fresco", "s1",
+            registrar=lambda t: None, resolver=lambda p: False,
+        )
+        self.assertEqual([("p", "s1"), ("fresco", None)], llamadas)
+        self.assertFalse(r["descartada"])
+        self.assertTrue(r["fresca"])
+
+
+class TestDecidirPausa(unittest.TestCase):
+    def _pausa(self, texto="Hermes restarted mid-turn"):
+        return {"sesion": "s1", "crudo": texto}
+
+    def test_reinicio_y_solo_lectura_se_descarta(self):
+        d = M.decidir_pausa(self._pausa(), True)
+        self.assertEqual("descartar", d["accion"])
+        self.assertIn("solo lectura", d["motivo"])
+
+    def test_reinicio_y_turno_que_pudo_escribir_se_pide(self):
+        self.assertEqual("pedir_a_alex", M.decidir_pausa(self._pausa(), False)["accion"])
+
+    def test_pausa_sin_reinicio_se_pide(self):
+        pausa = self._pausa("Hermes no pudo confirmar el turno")
+        self.assertEqual("pedir_a_alex", M.decidir_pausa(pausa, True)["accion"])
+
+    def test_sin_sesion_se_pide(self):
+        self.assertEqual("pedir_a_alex", M.decidir_pausa({"crudo": "restarted"}, True)["accion"])
+
+
+class TestTurnoSoloLectura(unittest.TestCase):
+    def test_uso_y_resumen_si(self):
+        self.assertTrue(M.es_turno_solo_lectura({"tipo": "uso"}))
+        self.assertTrue(M.es_turno_solo_lectura(
+            {"tipo": "mensaje", "texto": "Resumen periódico de la ola"}))
+
+    def test_pregunta_que_pudo_escribir_no(self):
+        self.assertFalse(M.es_turno_solo_lectura(
+            {"tipo": "mensaje", "texto": "Escribe el parche del cartero"}))
+
+    def test_turno_perdido_usa_lo_anotado(self):
+        self.assertTrue(M.turno_perdido_solo_lectura(
+            [], "m2", {"id": "m1", "solo_lectura": True}))
+        self.assertFalse(M.turno_perdido_solo_lectura(
+            [], "m2", {"id": "m1", "solo_lectura": False}))
+
+    def test_turno_perdido_sin_anotacion_mira_el_ultimo_registro(self):
+        registros = [{"id": "m1", "tipo": "uso", "texto": "informe de uso"}]
+        self.assertTrue(M.turno_perdido_solo_lectura(registros, "m2"))
+        self.assertFalse(M.turno_perdido_solo_lectura(
+            [{"id": "m1", "tipo": "mensaje", "texto": "hola"}], "m2"))
+
+
+class TestDescartarSesion(unittest.TestCase):
+    def test_orden_correcta(self):
+        vistas = []
+
+        def correr(orden, **k):
+            vistas.append(orden)
+            return 0, ""
+
+        self.assertTrue(M.descartar_sesion_hermes("s1", ejecutar_orden=correr))
+        self.assertEqual(["hermes", "sessions", "discard", "s1", "--yes"], vistas[0])
+
+    def test_sin_sesion_no_llama(self):
+        vistas = []
+        self.assertFalse(M.descartar_sesion_hermes(None, ejecutar_orden=lambda o, **k: vistas.append(o)))
+        self.assertEqual([], vistas)
+
+    def test_fallo_devuelve_false(self):
+        self.assertFalse(M.descartar_sesion_hermes("s1", ejecutar_orden=lambda o, **k: (1, "boom")))
+
+
+class TestMotoresPresidente(unittest.TestCase):
+    def test_sonnet_por_defecto_y_opus_solo_decision(self):
+        self.assertEqual("claude-sonnet-5-5", M.modelo_presidente(False))
+        self.assertEqual("claude-opus-5-5", M.modelo_presidente(True))
+
+    def test_es_decision(self):
+        self.assertTrue(M.es_decision("Decide el rumbo de la ola"))
+        self.assertTrue(M.es_decision("¿Qué hacemos con la pasarela?"))
+        self.assertFalse(M.es_decision("¿Cómo está el enjambre?"))
+
+    def test_orden_explicito(self):
+        modelos = [m["modelo"] for m in M.ORDEN_MOTORES_PRESIDENTE]
+        self.assertEqual(
+            ["hermes/predeterminado", "claude/claude-sonnet-5-5", "claude/claude-opus-5-5"],
+            modelos,
+        )
+
+    def test_orden_de_proveedores_sin_duplicados(self):
+        self.assertEqual(
+            ["hermes", "claude", "agy", "chatgpt"],
+            M.orden_proveedores_presidente(),
+        )
+
+    def test_texto_orden_visible(self):
+        texto = M.texto_orden_motores()
+        self.assertIn("Hermes con sesión y herramientas", texto)
+        self.assertIn("Sonnet", texto)
+        self.assertIn("Opus solo para decisiones", texto)
+        self.assertLessEqual(len(texto), 200)
+
+    def test_tabla_medio_sesion(self):
+        texto = M.texto_tabla_medio_sesion()
+        self.assertIn("Hermes con sesión", texto)
+        self.assertIn("Sonnet", texto)
+        self.assertLessEqual(len(texto), 200)
+
+    def test_recomendaciones_nombran_aut_y_alm(self):
+        recomendaciones = M.recomendaciones_carga_mac()
+        texto = " ".join(recomendaciones)
+        self.assertIn("AUT1121E", texto)
+        self.assertIn("ALM1121B", texto)
+        for linea in recomendaciones:
+            self.assertLessEqual(len(linea), 200)
+
+
+class TestCarteroPasarelaReiniciando(unittest.TestCase):
+    """SES1121B: el cartero no abre una sesión nueva si la pasarela se reinicia."""
+
+    def test_deja_pendiente_y_reintenta_la_misma_sesion(self):
+        import cartero_director as C
+        import director_chat as dc
+
+        with tempfile.TemporaryDirectory() as raiz:
+            msg = dc.publicar("¿estado?", de="alex", rol="alex", tipo="mensaje",
+                              canales=["hermes"], raiz=raiz)
+            estado = C.cargar_estado(raiz=raiz)
+            ordenes = []
+
+            def correr(orden, **k):
+                ordenes.append(list(orden))
+                return 75, "Gateway event loop missed liveness probes; exiting with code 75"
+
+            with mock.patch.object(C.motores_director, "direccion_motor",
+                                   return_value={"motor": "hermes", "sesion": "s1"}), \
+                    mock.patch.object(C.motores_director, "correr", side_effect=correr), \
+                    mock.patch.object(M.time, "sleep", lambda s: None), \
+                    mock.patch.object(M, "_registrar_pausa", lambda t: None):
+                C.atender(msg, "hermes", estado, raiz=raiz)
+
+            self.assertNotIn("%s|hermes" % msg["id"], estado["atendidos"])
+            self.assertGreater(estado["hermes_pasarela_hasta"], time.time())
+            self.assertEqual(M.INTENTOS_PASARELA, len(ordenes))
+            self.assertTrue(all("--resume" in o for o in ordenes))
+            self.assertTrue(all(o[o.index("--resume") + 1] == "s1" for o in ordenes))
+            chat = dc.leer(limite=500, raiz=raiz)
+            self.assertFalse(any(r.get("tipo") in ("respuesta", "fallo") for r in chat))
+
+
+class TestCarteroDescartaSoloTurnoDeLectura(unittest.TestCase):
+    """SES1121B: una pausa por reinicio de la pasarela y un turno de lectura se descarta solo."""
+
+    AVISO = (
+        "This chat is paused. Hermes couldn't confirm how the last turn ended "
+        "(usually because it restarted mid-turn). Run `hermes sessions discard s1 --yes`."
+    )
+
+    def test_descarta_y_reintenta_la_misma_sesion(self):
+        import cartero_director as C
+        import director_chat as dc
+
+        with tempfile.TemporaryDirectory() as raiz:
+            msg = dc.publicar("¿estado?", de="alex", rol="alex", tipo="mensaje",
+                              canales=["hermes"], raiz=raiz)
+            estado = C.cargar_estado(raiz=raiz)
+            estado["hermes_ultimo_turno"] = {"id": "prev", "solo_lectura": True}
+            ordenes, avisos = [], []
+
+            def correr(orden, **k):
+                ordenes.append(list(orden))
+                if "sessions" in orden:
+                    return 0, ""
+                if sum(1 for o in ordenes if "--resume" in o) == 1:
+                    return 3, self.AVISO
+                return 0, "respuesta con su contexto"
+
+            with mock.patch.object(C.motores_director, "direccion_motor",
+                                   return_value={"motor": "hermes", "sesion": "s1"}), \
+                    mock.patch.object(C.motores_director, "correr", side_effect=correr), \
+                    mock.patch.object(M, "_registrar_pausa", lambda t: None), \
+                    mock.patch.object(C.director_presidente, "avisar_pausa_hermes",
+                                      side_effect=lambda *a, **k: avisos.append(a)):
+                C.atender(msg, "hermes", estado, raiz=raiz)
+
+            self.assertIn(["hermes", "sessions", "discard", "s1", "--yes"], ordenes)
+            resumen = [o for o in ordenes if "--resume" in o]
+            self.assertEqual(2, len(resumen))
+            self.assertTrue(all(o[o.index("--resume") + 1] == "s1" for o in resumen))
+            self.assertEqual([], avisos)  # no se le pide nada a Alex
+            self.assertIn("%s|hermes" % msg["id"], estado["atendidos"])
+            self.assertIn("s1", estado["hermes_descartes"])
+            chat = dc.leer(limite=500, raiz=raiz)
+            self.assertTrue(any("descartado solo" in (r.get("texto") or "") for r in chat))
+            self.assertTrue(any(r.get("tipo") == "respuesta"
+                                and "respuesta con su contexto" in (r.get("texto") or "") for r in chat))
 
 
 if __name__ == "__main__":

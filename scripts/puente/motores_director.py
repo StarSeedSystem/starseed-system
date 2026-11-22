@@ -42,6 +42,21 @@ except ImportError:
         pass
 
 MODELO_DIRECTOR = "claude-opus-5-5"
+#: SES1121B · El presidente contesta por defecto con Sonnet (capacidad suficiente, coste medio)
+#: y solo sube a Opus cuando el mensaje pide una decisión. Los permisos son los mismos:
+#: `permisos_del_presidente()` se aplica a cualquier modelo de `orden_claude`.
+MODELO_PRESIDENTE = "claude-sonnet-5-5"
+#: Orden explícito por capacidad y coste. Primero Hermes con su sesión de dirección y sus
+#: herramientas (cuota gratuita); después Claude Sonnet con los permisos del presidente;
+#: Opus queda solo para decisiones, que es donde su coste se justifica.
+ORDEN_MOTORES_PRESIDENTE = (
+    {"motor": "hermes", "modelo": "hermes/predeterminado", "capacidad": "sesión de dirección con herramientas",
+     "coste": "cuota gratuita", "papel": "primero"},
+    {"motor": "claude", "modelo": "claude/" + MODELO_PRESIDENTE, "capacidad": "permisos del presidente",
+     "coste": "medio", "papel": "segundo"},
+    {"motor": "claude", "modelo": "claude/" + MODELO_DIRECTOR, "capacidad": "solo decisiones",
+     "coste": "alto", "papel": "solo decisiones"},
+)
 #: GEM1118A · Antigravity CLI (`agy`) con la cuenta de Google de Alex: cuota de Antigravity,
 #: sin clave de API ni plan de Claude. El modelo de plan es para mensajes largos o de plan.
 MODELO_AGY = "gemini-3.8-flash-medium"
@@ -210,12 +225,41 @@ _FALLOS_HERMES = (
     "every provider in the fallback chain",
     "invalid api key",
     "gateway connection failed",
+    "gateway connection/read failed",
     "gateway starting:",
     "gateway unavailable",
     "gateway exited",
+    "gateway event loop missed",
+    "liveness probe",
+    "exiting with code 75",
     "error: gateway",
     "no local fallback",
 )
+
+# ── SES1121B · la pasarela de Hermes se reinicia y corta el turno ──────────────────
+# Medido el 21-11 en ~/.hermes/logs/gateway.log: «Gateway event loop missed 3 consecutive
+# liveness probes… exiting with code 75» y 16 arranques en un día. La Mac de 8 GB no deja
+# contestar a su propio vigilante. Cuando el cartero ve esa marca NO abre una sesión nueva
+# sin contexto: reintenta la MISMA sesión con esperas cortas, y si aun así no vuelve, deja
+# el mensaje pendiente para la pasada siguiente (con una pausa entre pasadas).
+_PASARELA_REINICIO = (
+    "gateway event loop missed",
+    "consecutive liveness probes",
+    "liveness probe",
+    "exiting with code 75",
+    "gateway starting",
+    "gateway restart",
+    "gateway is restarting",
+    "restarting gateway",
+    "pasarela reiniciando",
+    "pasarela reiniciándose",
+    "gateway reiniciando",
+    "gateway reiniciándose",
+)
+_PASARELA_TOPE_CHARS = 800
+INTENTOS_PASARELA = 4
+ESPERAS_PASARELA_S = (2, 3, 5, 8)
+ESPERA_ENTRE_PASADAS_PASARELA_S = 30
 
 
 def es_pausa_hermes(rc, salida) -> bool:
@@ -249,6 +293,32 @@ def es_fallo_tiempo_agotado(texto) -> bool:
     return len(bajo) < 600 and "[tiempo agotado]" in bajo
 
 
+def es_pasarela_reiniciando(texto, rc=None) -> bool:
+    """PURA. ¿La salida de Hermes dice que su pasarela se está reiniciando?
+
+    Medido el 21-11: «Gateway event loop missed 3 consecutive liveness probes… exiting with
+    code 75». Es un fallo de la pasarela, no una respuesta ni una pausa de sesión. Solo se
+    mira en salidas cortas: una respuesta larga que mencione «gateway» no lo es.
+    """
+    bajo = (texto or "").replace("\u2019", "'").replace("\u2018", "'").lower()
+    if len(bajo) > _PASARELA_TOPE_CHARS:
+        return False
+    if rc == 75 and not bajo.strip():
+        return True
+    return any(m in bajo for m in _PASARELA_REINICIO)
+
+
+def esperas_pasarela(intento, esperas=None) -> int:
+    """PURA. Segundos de espera antes del reintento `intento` (1 = tras el primer fallo).
+
+    Son cortas a propósito: la pasarela tarda segundos en volver y el mensaje no debe
+    perderse ni abrir una sesión nueva sin contexto. La última espera se repite.
+    """
+    serie = tuple(esperas) if esperas else ESPERAS_PASARELA_S
+    i = max(1, int(intento or 1)) - 1
+    return serie[min(i, len(serie) - 1)]
+
+
 def id_sesion_pausada(salida, por_defecto=None):
     """PURA. El id de sesión que nombra el aviso (`hermes sessions discard <id>`), o `por_defecto`."""
     texto = salida or ""
@@ -274,30 +344,238 @@ def _registrar_pausa(crudo):
     print("[hermes en pausa] salida cruda: %s" % crudo[:2000].replace("\n", " "), file=sys.stderr, flush=True)
 
 
-def hermes_con_pausa(ejecutar, prompt, prompt_fresco, sesion, registrar=None):
-    """Llama a Hermes; si su sesión está en pausa, reintenta en una sesión nueva (una sola vez).
+def hermes_con_pausa(ejecutar, prompt, prompt_fresco, sesion, registrar=None, resolver=None):
+    """Llama a Hermes; si su sesión está en pausa, la resuelve o reintenta en una sesión nueva.
 
     `ejecutar(prompt, sesion) -> (rc, salida, uso)` lanza la orden. `prompt_fresco()` devuelve el
     prompt con el contexto del hilo para la sesión nueva (sin `--resume` no recuerda nada).
-    Devuelve {rc, salida, uso, pausa, fresca}: `pausa` es None o {sesion, crudo}; `fresca` es True
-    si hay una respuesta válida de la sesión nueva. Si lo que queda es otro aviso de pausa, `salida`
-    sale vacía y `rc` distinto de 0: quien llama sigue su camino de fallo.
+
+    `resolver(pausa) -> bool` (SES1121B) decide si el turno perdido se puede descartar solo. Si
+    devuelve True, se reintenta la MISMA sesión con el mismo prompt, conservando el contexto; si
+    devuelve False (o no hay resolver), se sigue el camino de siempre: sesión nueva.
+
+    Devuelve {rc, salida, uso, pausa, fresca, descartada, recuperada}: `pausa` es None o
+    {sesion, crudo}; `fresca` es True si hay respuesta válida de una sesión nueva; `descartada`
+    es True si se descartó el turno perdido; `recuperada` es True si la misma sesión volvió a
+    contestar tras el descarte. Si lo que queda es otro aviso de pausa, `salida` sale vacía y
+    `rc` distinto de 0: quien llama sigue su camino de fallo.
     """
     registrar = registrar or _registrar_pausa
     rc, salida, uso = ejecutar(prompt, sesion)
     if not es_pausa_hermes(rc, salida):
-        return {"rc": rc, "salida": salida, "uso": uso, "pausa": None, "fresca": False}
+        return {"rc": rc, "salida": salida, "uso": uso, "pausa": None,
+                "fresca": False, "descartada": False, "recuperada": False}
     registrar(salida or "(sin texto, rc=%s)" % rc)
     pausa = {"sesion": id_sesion_pausada(salida, sesion), "crudo": (salida or "")[:2000]}
     if not sesion:
         # Ya era una conversación nueva y aun así avisa de pausa: no hay otra vía que probar.
-        return {"rc": rc or 1, "salida": "", "uso": uso, "pausa": pausa, "fresca": False}
+        return {"rc": rc or 1, "salida": "", "uso": uso, "pausa": pausa,
+                "fresca": False, "descartada": False, "recuperada": False}
+    if resolver is not None and resolver(pausa):
+        rc2, salida2, uso2 = ejecutar(prompt, sesion)
+        if es_pausa_hermes(rc2, salida2):
+            registrar(salida2 or "(sin texto, rc=%s)" % rc2)
+            return {"rc": rc2 or 1, "salida": "", "uso": uso2, "pausa": pausa,
+                    "fresca": False, "descartada": True, "recuperada": False}
+        bien = rc2 == 0 and bool((salida2 or "").strip()) and not es_fallo_hermes(salida2)
+        return {"rc": rc2, "salida": salida2 if bien else "", "uso": uso2, "pausa": pausa,
+                "fresca": False, "descartada": True, "recuperada": bien}
     rc2, salida2, uso2 = ejecutar(prompt_fresco(), None)
     if es_pausa_hermes(rc2, salida2):
         registrar(salida2 or "(sin texto, rc=%s)" % rc2)
-        return {"rc": rc2 or 1, "salida": "", "uso": uso2, "pausa": pausa, "fresca": False}
+        return {"rc": rc2 or 1, "salida": "", "uso": uso2, "pausa": pausa,
+                "fresca": False, "descartada": False, "recuperada": False}
     bien = rc2 == 0 and bool((salida2 or "").strip()) and not es_fallo_hermes(salida2)
-    return {"rc": rc2, "salida": salida2, "uso": uso2, "pausa": pausa, "fresca": bien}
+    return {"rc": rc2, "salida": salida2, "uso": uso2, "pausa": pausa,
+            "fresca": bien, "descartada": False, "recuperada": False}
+
+
+def hermes_con_reinicio(ejecutar, prompt, sesion, esperar=None, registrar=None,
+                        intentos=None):
+    """Llama a Hermes y, si su pasarela se reinicia, reintenta la MISMA sesión con esperas cortas.
+
+    No abre una sesión nueva sin contexto: el mismo prompt y el mismo `--resume` se repiten
+    hasta `intentos` veces. Devuelve {rc, salida, uso, reinicio, intentos}: `reinicio` es True
+    si se agotaron los intentos y la pasarela seguía reiniciándose (quien llama deja el mensaje
+    pendiente, no lo marca como fallo). Un aviso de pausa no se reintenta aquí: lo resuelve
+    `hermes_con_pausa`.
+    """
+    esperar = esperar or time.sleep
+    registrar = registrar or _registrar_pausa
+    tope = max(1, int(intentos or INTENTOS_PASARELA))
+    rc, salida, uso = 1, "", {}
+    for n in range(1, tope + 1):
+        rc, salida, uso = ejecutar(prompt, sesion)
+        if es_pausa_hermes(rc, salida):
+            return {"rc": rc, "salida": salida, "uso": uso, "reinicio": False, "intentos": n}
+        if not es_pasarela_reiniciando(salida, rc):
+            return {"rc": rc, "salida": salida, "uso": uso, "reinicio": False, "intentos": n}
+        registrar(salida or "(sin texto, rc=%s)" % rc)
+        if n < tope:
+            esperar(esperas_pasarela(n))
+    # La salida de un reinicio de pasarela no es una respuesta: no se entrega nunca.
+    return {"rc": rc, "salida": "", "uso": uso, "reinicio": True, "intentos": tope}
+
+
+# ── SES1121B · pausa por reinicio de la pasarela: descartar solo si el turno era de lectura ──
+_PAUSA_REINICIO = (
+    "restarted mid-turn",
+    "restart",
+    "reinicia",
+    "gateway",
+    "pasarela",
+    "liveness",
+    "code 75",
+)
+_TIPOS_SOLO_LECTURA = ("uso", "informe", "resumen", "actualizacion", "actualización")
+_MARCAS_SOLO_LECTURA = (
+    "resumen periódico",
+    "resumen periodico",
+    "parte periódico",
+    "parte periodico",
+    "informe de uso",
+)
+
+
+def pausa_por_reinicio(pausa) -> bool:
+    """PURA. ¿El aviso de pausa dice que vino de un reinicio de la pasarela?
+
+    El aviso real de Hermes lo dice así: «Hermes couldn't confirm how the last turn ended
+    (usually because it restarted mid-turn)». Si no hay esa marca, no se descarta nada solo.
+    """
+    crudo = (pausa or {}).get("crudo") if isinstance(pausa, dict) else ""
+    bajo = (crudo or "").replace("\u2019", "'").replace("\u2018", "'").lower()
+    return any(m in bajo for m in _PAUSA_REINICIO)
+
+
+def es_turno_solo_lectura(registro) -> bool:
+    """PURA. ¿El turno era de solo lectura? Un resumen periódico o un informe no escribe.
+
+    Conservador a propósito: solo los tipos y las marcas explícitas de resumen cuentan. Ante la
+    duda, el turno pudo escribir y se le pide a Alex; nunca se descarta solo.
+    """
+    if not isinstance(registro, dict):
+        return False
+    if (registro.get("tipo") or "").strip().lower() in _TIPOS_SOLO_LECTURA:
+        return True
+    texto = (registro.get("texto") or "").lower()
+    return len(texto) < 4000 and any(m in texto for m in _MARCAS_SOLO_LECTURA)
+
+
+def turno_perdido_solo_lectura(registros, mensaje_id=None, ultimo=None) -> bool:
+    """PURA. ¿El último turno antes de `mensaje_id` era de solo lectura?
+
+    `ultimo` es lo que el cartero anotó al entregar (`{id, solo_lectura}`). Si no lo hay, se
+    mira el último registro de dirección anterior al mensaje actual.
+    """
+    if isinstance(ultimo, dict) and "solo_lectura" in ultimo:
+        return bool(ultimo.get("solo_lectura"))
+    candidatos = [
+        r for r in (registros or [])
+        if isinstance(r, dict) and r.get("id") != mensaje_id and r.get("tipo") != "entrega"
+    ]
+    if not candidatos:
+        return False
+    return es_turno_solo_lectura(candidatos[-1])
+
+
+def decidir_pausa(pausa, turno_solo_lectura: bool) -> dict:
+    """PURA. {accion: «descartar»|«pedir_a_alex», motivo}.
+
+    Solo se descarta sola una pausa que vino de un reinicio de la pasarela Y un turno de solo
+    lectura. Cualquier otra pausa (o un turno que pudo escribir) se le pide a Alex con la orden
+    para reabrirla: el sistema nunca decide por él cuando hay riesgo de perder trabajo.
+    """
+    if not isinstance(pausa, dict) or not pausa.get("sesion"):
+        return {"accion": "pedir_a_alex", "motivo": "no hay una sesión identificada que descartar"}
+    if not pausa_por_reinicio(pausa):
+        return {"accion": "pedir_a_alex", "motivo": "la pausa no consta como reinicio de la pasarela"}
+    if not turno_solo_lectura:
+        return {"accion": "pedir_a_alex", "motivo": "el turno perdido pudo escribir"}
+    return {"accion": "descartar", "motivo": "reinicio de la pasarela y turno de solo lectura"}
+
+
+def descartar_sesion_hermes(sesion, ejecutar_orden=None, segundos=30) -> bool:
+    """Descarta el turno perdido de una sesión de Hermes (solo cuando `decidir_pausa` lo autoriza).
+
+    Es una orden de la CLI de Hermes; no lee credenciales ni archivos de sesión. Devuelve True
+    si Hermes aceptó el descarte. La comprobación real es la llamada siguiente con el mismo
+    `--resume`: si contesta, la sesión quedó sana y con su contexto.
+    """
+    if not sesion:
+        return False
+    ejecutar_orden = ejecutar_orden or correr
+    try:
+        rc, _ = ejecutar_orden(
+            ["hermes", "sessions", "discard", str(sesion), "--yes"], segundos=segundos
+        )
+    except OSError:
+        return False
+    return rc == 0
+
+
+# ── SES1121B · motores del presidente por capacidad y coste, y carga de la Mac ──────────
+_DECISION_MARCAS = (
+    "decide", "decisión", "decision", "elige", "rumbo", "aprueba", "rechaza",
+    "prioriza", "qué hacemos", "que hacemos", "qué hago", "que hago",
+)
+
+
+def es_decision(texto) -> bool:
+    """PURA. ¿El mensaje pide una decisión (y no una consulta o un resumen)?"""
+    bajo = (texto or "").lower()
+    return any(m in bajo for m in _DECISION_MARCAS)
+
+
+def modelo_presidente(es_decision_flag: bool = False) -> str:
+    """PURA. Sonnet para lo normal; Opus solo cuando hay una decisión que justifique su coste."""
+    return MODELO_DIRECTOR if es_decision_flag else MODELO_PRESIDENTE
+
+
+def orden_proveedores_presidente() -> list:
+    """PURA. Orden de proveedores por capacidad y coste, sin duplicados.
+
+    Hermes primero (sesión de dirección con herramientas, cuota gratuita), Claude después
+    (Sonnet por defecto y Opus solo para decisiones), y el resto como respaldo.
+    """
+    orden = []
+    for motor in ORDEN_MOTORES_PRESIDENTE:
+        nombre = motor["motor"]
+        if nombre not in orden:
+            orden.append(nombre)
+    for nombre in ("hermes", "claude", "agy", "chatgpt"):
+        if nombre not in orden:
+            orden.append(nombre)
+    return orden
+
+
+def texto_orden_motores() -> str:
+    """PURA. La línea visible del orden: capacidad primero, coste después."""
+    return (
+        "Motores del presidente: Hermes con sesión y herramientas → Claude Sonnet con "
+        "permisos_del_presidente() → Opus solo para decisiones."
+    )
+
+
+def texto_tabla_medio_sesion() -> str:
+    """PURA. La tabla corta medio × sesión que va en el informe de uso."""
+    return (
+        "Medio × sesión: Hermes con sesión (contexto+herramientas, gratis) · Hermes nueva "
+        "(contexto reconstruido, gratis) · Sonnet (permisos, medio) · Opus (decisiones, tope 40/día)."
+    )
+
+
+def recomendaciones_carga_mac() -> tuple:
+    """PURA. Qué quitarle a la Mac de 8 GB para que la pasarela deje de reiniciarse.
+
+    Coordina con AUT1121E (mover escritura a la nube) y ALM1121B (mover síntesis y archivado).
+    """
+    return (
+        "Carga a quitar de la Mac: no ejecutar `next build` ni tsc/vitest con el enjambre vivo (8 GB).",
+        "Carga a quitar de la Mac: bajar a 2-3 los agentes de escritura en paralelo; el resto a la nube (AUT1121E).",
+        "Carga a quitar de la Mac: cerrar Antigravity/IDE pesados y `llama-server` de BitNet antes de las olas.",
+        "Carga a quitar de la Mac: mover síntesis y archivado a ALM1121B; la pasarela de Hermes sola, sin builds.",
+    )
 
 
 def orden_codex(modelo: str, raiz: str) -> list:
