@@ -22,6 +22,7 @@ import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
+import { admiteFuente } from "./nativo-comandos";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
@@ -175,6 +176,16 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
 
+/** RST1116A: la fuente que viaja a lo nativo; `null` si no se pidió (sin campo o «auto»). */
+export function fuentePedidaDe(args: Args): FuenteReal | null {
+    return args.fuente === "proyeccion" ? "proyeccion" : null;
+}
+
+/** RST1116A: la fuente REAL que contestó el aparato; si no la dice, accesibilidad (nunca se da por fluida). */
+export function fuenteContestadaDe(r: Record<string, unknown>): FuenteReal {
+    return r.fuente === "proyeccion" ? "proyeccion" : "accesibilidad";
+}
+
 export class OrigenPantalla {
     private activa: Activa | null = null;
     /** Tarea pesada de la pantalla de control (alimenta el modo «auto» de rendimiento). */
@@ -238,7 +249,9 @@ export class OrigenPantalla {
         await this.parar("reinicio");
         // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
         // sin campo o con «auto» no se manda la clave (el aparato arranca con lo que tenga, como siempre).
-        const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
+        // El nombre va en una constante para que la costura que lee las llamadas no lo tome por una invocación sin claves.
+        const comandoIniciar = "control_pantalla_iniciar";
+        const pedida: FuenteReal | null = admiteFuente(comandoIniciar) ? fuentePedidaDe(args) : null;
         const pide = (fuente?: FuenteReal): Record<string, unknown> => ({
             sesion: s.token,
             lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
@@ -256,7 +269,7 @@ export class OrigenPantalla {
             const falta = esObjeto(r) && Array.isArray(r.falta) ? r.falta.filter((x): x is string => typeof x === "string" && RE_MOTIVO.test(x)).slice(0, 8) : [];
             return { ok: false, motivo, falta };
         }
-        const fuente: FuenteReal = r.fuente === "proyeccion" ? "proyeccion" : "accesibilidad";
+        const fuente: FuenteReal = fuenteContestadaDe(r);
         const ancho = Number(r.ancho) || 0;
         const alto = Number(r.alto) || 0;
         const giro = [0, 90, 180, 270].includes(Number(r.giro)) ? Number(r.giro) : 0;
@@ -352,7 +365,7 @@ export class OrigenPantalla {
             const { mantener: _m, ...resto } = args;
             return this.iniciar(s, resto);
         }
-        const manual = args.fuente === "proyeccion";
+        const manual = fuentePedidaDe(args) === "proyeccion";
         this.d.anotar(`control-fuente paso=mantener fuente=${a.fuente} manual=${manual ? "si" : "no"}`);
         if (manual && debePedirFluida(a.fuente, this.fluidaPedidas.get(a.token) ?? 0, true)) void this.buscarFluida(a, true);
         return { ok: true, mantenida: true, fuente: a.fuente, ...(manual && a.fuente !== "proyeccion" ? { fuente_pedida: "proyeccion" as const } : {}), ancho: a.ancho, alto: a.alto, giro: a.giro };

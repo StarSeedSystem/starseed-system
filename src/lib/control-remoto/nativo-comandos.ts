@@ -17,3 +17,8 @@ export const COMANDOS_NATIVOS: Readonly<Record<string, readonly string[]>> = {
     control_entrada_aceptados: [],
     control_entrada_quitar: ["huella"],
 };
+
+/** RST1116A: ¿el comando admite `fuente`? La tabla es la única fuente de verdad de las claves permitidas. */
+export function admiteFuente(nombre: string): boolean {
+    return COMANDOS_NATIVOS[nombre]?.includes("fuente") === true;
+}
