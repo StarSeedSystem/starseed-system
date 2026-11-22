@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Sincronización en tiempo real de los 3 canales especializados de dirección de MetaGenesis.
+"""Sincronización en tiempo real de los 3 canales de dirección de MetaGenesis.
+
+Los nombres visibles NO se escriben aquí: se leen del registro único
+`~/.starseed/canales-direccion.json` (campo `nombre`). Si el registro falta, se usan los
+tres nombres canónicos de `NOMBRES_CANALES_POR_DEFECTO` («Principal», «General» y
+«Audiovisual y diseño»), que es el único lugar del módulo donde están escritos.
 
 Separa bots, sesiones Hermes y puentes Astraura sin mezclarlos ni duplicar polling Telegram:
-  1. `principal` («Dirección principal»):
-     - Hermes `local-1daf85ca...` («Dirección MetaGenesis») + Telegram Maggacortex
-       (`@starseed_neurocortex_bot`, ÚNICO bot con polling `getUpdates` permitido aquí) +
-       MetaGenesis (`director/chat.jsonl`) + Antigravity + Astraura › Genesis.
-  2. `general` («Dirección general»):
-     - Hermes `20260909_210504_867626` + `@starseed_puente_bot` (`TELEGRAM_BOT_TOKEN`,
-       propiedad del gateway Hermes: jamás `getUpdates` aquí, solo `sendMessage` si aplica)
-       + `director/general.jsonl` + Astraura `puente:hermes-avisos`.
-  3. `audiovisual` («Producción audiovisual, diseño y promoción»):
-     - Hermes `local-a1bb42b2...` + `@StarSeed_Design_bot` (`TELEGRAM_SINTESIS_BOT_TOKEN`,
-       propiedad de Oracle A1 `peticiones_telegram.py`: jamás `getUpdates` aquí, solo
-       `sendMessage`) + `director/audiovisual.jsonl` + Astraura `puente:peticiones`.
+  1. `principal`: sesión Hermes del registro + bot `@starseed_neurocortex_bot` (ÚNICO bot
+     con polling `getUpdates` permitido aquí) + `director/chat.jsonl` + Antigravity +
+     Astraura › Genesis.
+  2. `general`: sesión Hermes del registro + bot `@starseed_puente_bot` (`TELEGRAM_BOT_TOKEN`,
+     propiedad del gateway Hermes: jamás `getUpdates` aquí, solo `sendMessage` si aplica)
+     + `director/general.jsonl` + Astraura `puente:hermes-avisos`.
+  3. `audiovisual`: sesión Hermes del registro + bot `@StarSeed_Design_bot`
+     (`TELEGRAM_SINTESIS_BOT_TOKEN`, propiedad de Oracle A1 `peticiones_telegram.py`: jamás
+     `getUpdates` aquí, solo `sendMessage`) + `director/audiovisual.jsonl` + Astraura
+     `puente:peticiones`.
 
 Nunca guarda ni imprime claves, tokens ni ids secretos. Solo biblioteca estándar.
 """
@@ -44,6 +47,16 @@ ARCHIVOS_ENV_DEFECTO = ("~/.starseed/env", "~/.hermes/.env")
 DB_HERMES_DEFECTO = os.path.expanduser("~/.hermes/state.db")
 RUTA_CANALES_DEFECTO = os.path.expanduser("~/.starseed/canales-direccion.json")
 CANALES_ESPECIALIZADOS = ("principal", "general", "audiovisual")
+
+# ÚNICO lugar del módulo con los nombres escritos a mano. El registro manda; esto es el respaldo.
+NOMBRES_CANALES_POR_DEFECTO: Dict[str, str] = {
+    "principal": "Principal",
+    "general": "General",
+    "audiovisual": "Audiovisual y diseño",
+}
+
+# Medios donde una persona ve el nombre de cada canal. El orden es el de la salida de `nombres`.
+MEDIOS_NOMBRES = ("registro", "mac", "hermes", "telegram", "genesis-web", "astraura")
 
 _ENV_TELEGRAM_POR_CANAL: Dict[str, Tuple[Tuple[str, str], ...]] = {
     "principal": (
@@ -98,6 +111,247 @@ def cargar_canales_direccion(ruta: Optional[str] = None) -> Dict[str, Dict[str, 
     }
 
 
+def nombre_de_canal(
+    canal_clave: str,
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> str:
+    """PURA. Nombre visible del canal: el `nombre` del registro o el canónico de respaldo.
+
+    Es el ÚNICO punto que decide cómo se llama un canal. Ningún otro medio debe escribir
+    un nombre distinto a mano.
+    """
+    entrada = (canales_cfg or {}).get(canal_clave)
+    if isinstance(entrada, dict):
+        nombre = " ".join(str(entrada.get("nombre") or "").split()).strip()
+        if nombre:
+            return nombre
+    return NOMBRES_CANALES_POR_DEFECTO.get(canal_clave, canal_clave)
+
+
+def _plegar_nombre(texto: Any) -> str:
+    """PURA. Compara nombres sin distinguir mayúsculas ni espacios repetidos."""
+    return " ".join(str(texto or "").split()).strip().casefold()
+
+
+def evaluar_nombres(
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]],
+    nombres_por_medio: Optional[Dict[str, Dict[str, Optional[str]]]],
+) -> List[Dict[str, Any]]:
+    """PURA. Por canal y medio, qué nombre ve la persona y si coincide con el canónico.
+
+    `nombres_por_medio`: `{medio: {canal: nombre_o_None}}`. Un medio sin dato queda
+    «sin-comprobar» (no se marca como fallo). Devuelve filas con `estado` y `coincide`.
+    """
+    cfg = canales_cfg or {}
+    por_medio = nombres_por_medio or {}
+    filas: List[Dict[str, Any]] = []
+    for canal in CANALES_ESPECIALIZADOS:
+        canonico = nombre_de_canal(canal, cfg)
+        for medio in MEDIOS_NOMBRES:
+            crudo = (por_medio.get(medio) or {}).get(canal)
+            texto = " ".join(str(crudo).split()).strip() if crudo is not None else ""
+            if not texto:
+                estado = "sin-comprobar"
+            elif _plegar_nombre(texto) == _plegar_nombre(canonico):
+                estado = "igual"
+            else:
+                estado = "distinto"
+            filas.append({
+                "canal": canal,
+                "nombre_canonico": canonico,
+                "medio": medio,
+                "nombre": texto,
+                "estado": estado,
+                "coincide": estado == "igual",
+            })
+    return filas
+
+
+def nombres_por_medio_desde_canon(
+    canon: Any,
+    canal_clave: str,
+) -> Dict[str, str]:
+    """PURA. Extrae `{medio: nombreEnMedio}` del chat `genesis.canal.<canal>` del registro canónico."""
+    chats = canon.get("chats") if isinstance(canon, dict) else None
+    if not isinstance(chats, list):
+        return {}
+    objetivo = "genesis.canal.%s" % canal_clave
+    for chat in chats:
+        if not isinstance(chat, dict) or str(chat.get("id") or "") != objetivo:
+            continue
+        salida: Dict[str, str] = {}
+        for medio in chat.get("medios") or []:
+            if not isinstance(medio, dict):
+                continue
+            nombre = " ".join(str(medio.get("nombreEnMedio") or "").split()).strip()
+            clave = str(medio.get("medio") or "").strip()
+            if clave and nombre:
+                salida[clave] = nombre
+        return salida
+    return {}
+
+
+def _a_booleano(valor: Any) -> bool:
+    if isinstance(valor, str):
+        return valor.strip().lower() in ("1", "true", "yes", "si", "sí", "t")
+    return bool(valor)
+
+
+def comprobar_sesiones_fijadas(
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]],
+    sesiones: Optional[Iterable[Dict[str, Any]]],
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """PURA. Comprueba que cada canal tiene su sesión en Hermes y que está fijada.
+
+    Marca como problema una sesión `oneshot` (nació con `hermes -z`) y avisa si el número de
+    sesiones fijadas no es exactamente el de canales con sesión (una fijada por canal).
+    """
+    cfg = canales_cfg or {}
+    lista = [s for s in (sesiones or []) if isinstance(s, dict)]
+    fijadas = [s for s in lista if _a_booleano(s.get("fijada"))]
+    por_canal: Dict[str, Dict[str, Any]] = {}
+    canales_con_sesion = 0
+    for canal in CANALES_ESPECIALIZADOS:
+        sid = " ".join(str((cfg.get(canal) or {}).get("hermes_sesion") or "").split()).strip()
+        if sid:
+            canales_con_sesion += 1
+        propias = [s for s in lista if sid and str(s.get("id") or "") == sid]
+        actual = propias[0] if propias else {}
+        fijada = _a_booleano(actual.get("fijada"))
+        source = str(actual.get("source") or "").strip()
+        problemas: List[str] = []
+        if not sid:
+            problemas.append("sin sesión declarada en el registro")
+        elif not propias:
+            problemas.append("la sesión del registro no existe en Hermes")
+        else:
+            if not fijada:
+                problemas.append("la sesión no está fijada")
+            if source.lower() == "oneshot":
+                problemas.append(
+                    "nació con `hermes -z`; recréala con `hermes chat -q`, titúlala y fíjala"
+                )
+        por_canal[canal] = {
+            "sesion": sid,
+            "titulo": str(actual.get("title") or ""),
+            "fijada": fijada,
+            "source": source,
+            "ok": not problemas,
+            "problemas": problemas,
+        }
+    resumen = {
+        "fijadas": len(fijadas),
+        "canales": canales_con_sesion,
+        "ok": (
+            canales_con_sesion == len(CANALES_ESPECIALIZADOS)
+            and len(fijadas) == len(CANALES_ESPECIALIZADOS)
+        ),
+    }
+    return por_canal, resumen
+
+
+def leer_sesiones_hermes(db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Lee `id`, `title`, `source` y la marca de fijada de `~/.hermes/state.db` (solo lectura)."""
+    ruta = Path(os.path.expanduser(db_path or DB_HERMES_DEFECTO))
+    if not ruta.exists():
+        return []
+    try:
+        con = sqlite3.connect(f"file:{ruta}?mode=ro", uri=True, timeout=2.0)
+    except sqlite3.Error:
+        return []
+    try:
+        con.row_factory = sqlite3.Row
+        cols = {str(r[1]) for r in con.execute("PRAGMA table_info(sessions)").fetchall()}
+        if "id" not in cols:
+            return []
+        col_pin = next((c for c in sorted(cols) if "pin" in c.lower()), None)
+        campos = ["id"] + [c for c in ("title", "source") if c in cols]
+        if col_pin:
+            campos.append(col_pin)
+        filas = con.execute("SELECT %s FROM sessions" % ", ".join(campos)).fetchall()
+        salida: List[Dict[str, Any]] = []
+        for fila in filas:
+            datos = dict(fila)
+            salida.append({
+                "id": str(datos.get("id") or ""),
+                "title": str(datos.get("title") or ""),
+                "source": str(datos.get("source") or ""),
+                "fijada": _a_booleano(datos.get(col_pin)) if col_pin else False,
+            })
+        return salida
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+
+
+def _leer_json_opcional(ruta: str) -> Any:
+    objetivo = Path(os.path.expanduser(ruta))
+    if not objetivo.exists():
+        return {}
+    try:
+        return json.loads(objetivo.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _nombres_por_medio(
+    registro: Dict[str, Dict[str, Any]],
+    canon: Any,
+    sesiones: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Optional[str]]]:
+    """Reúne el nombre visible de cada canal en cada medio, sin red y sin escribir nada."""
+    nombres: Dict[str, Dict[str, Optional[str]]] = {
+        "registro": {c: nombre_de_canal(c, registro) for c in CANALES_ESPECIALIZADOS},
+        "mac": {c: NOMBRES_CANALES_POR_DEFECTO.get(c, c) for c in CANALES_ESPECIALIZADOS},
+        "astraura": {c: nombre_de_canal(c, registro) for c in CANALES_ESPECIALIZADOS},
+    }
+    for canal in CANALES_ESPECIALIZADOS:
+        for medio, nombre in nombres_por_medio_desde_canon(canon, canal).items():
+            nombres.setdefault(medio, {})[canal] = nombre
+    por_id = {str(s.get("id") or ""): s for s in sesiones}
+    hermes: Dict[str, Optional[str]] = {}
+    for canal in CANALES_ESPECIALIZADOS:
+        sid = str((registro.get(canal) or {}).get("hermes_sesion") or "").strip()
+        if sid and sid in por_id:
+            hermes[canal] = str(por_id[sid].get("title") or "")
+    if hermes:
+        nombres["hermes"] = hermes
+    return nombres
+
+
+def _cmd_nombres() -> int:
+    """`sincronizador_direccion.py nombres`: qué nombre ve la persona en cada medio."""
+    registro = cargar_canales_direccion()
+    canon = _leer_json_opcional("~/.starseed/genesis-chats/canon.json")
+    sesiones = leer_sesiones_hermes()
+    filas = evaluar_nombres(registro, _nombres_por_medio(registro, canon, sesiones))
+
+    print("Nombres de los canales de dirección · fuente: ~/.starseed/canales-direccion.json\n")
+    marcas = {"igual": "✓", "distinto": "✗", "sin-comprobar": "·"}
+    for canal in CANALES_ESPECIALIZADOS:
+        print("%s (%s)" % (nombre_de_canal(canal, registro), canal))
+        for fila in filas:
+            if fila["canal"] != canal:
+                continue
+            visto = fila["nombre"] or "sin comprobar"
+            print("  %-12s %-30s %s" % (fila["medio"], visto, marcas[fila["estado"]]))
+        print()
+
+    por_canal, resumen = comprobar_sesiones_fijadas(registro, sesiones)
+    print("Sesiones de Hermes · una fijada por canal")
+    for canal in CANALES_ESPECIALIZADOS:
+        datos = por_canal[canal]
+        marca = "✓" if datos["ok"] else "✗"
+        detalle = "; ".join(datos["problemas"]) if datos["problemas"] else "fijada"
+        print("  %-12s %-30s %s %s" % (canal, datos["titulo"] or "(sin título)", marca, detalle))
+    print("  fijadas: %d · canales con sesión: %d\n" % (resumen["fijadas"], resumen["canales"]))
+
+    hay_distinto = any(f["estado"] == "distinto" for f in filas)
+    sesiones_ok = all(datos["ok"] for datos in por_canal.values())
+    return 0 if not hay_distinto and resumen["ok"] and sesiones_ok else 1
+
+
 def _leer_archivos_env(archivos: Iterable[str] = ARCHIVOS_ENV_DEFECTO) -> Dict[str, str]:
     datos: Dict[str, str] = {}
     for archivo in archivos:
@@ -125,7 +379,7 @@ def leer_telegram_canal(
     archivos: Iterable[str] = ARCHIVOS_ENV_DEFECTO,
     canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Tuple[str, str]:
-    """Devuelve `(token, chat_id)` para `principal` (Maggacortex), `general` o `audiovisual`."""
+    """Devuelve `(token, chat_id)` para `principal`, `general` o `audiovisual`."""
     datos = _leer_archivos_env(archivos)
     cfg = canales_cfg if canales_cfg is not None else (
         cargar_canales_direccion() if tuple(archivos) == ARCHIVOS_ENV_DEFECTO else {}
@@ -148,7 +402,7 @@ def leer_telegram_canal(
 
 
 def leer_telegram_direccion(archivos: Iterable[str] = ARCHIVOS_ENV_DEFECTO) -> Tuple[str, str]:
-    """Devuelve `(token, chat_id)` del bot de dirección principal (Maggacortex o respaldo general)."""
+    """Devuelve `(token, chat_id)` del bot del canal `principal` (con respaldo del general)."""
     return leer_telegram_canal("principal", archivos=archivos)
 
 
@@ -247,7 +501,7 @@ def enviar_telegram_direccion(
     chat_id: Optional[str] = None,
     enviar_fn: Optional[Callable[[str, str, str], Tuple[bool, str]]] = None,
 ) -> Tuple[bool, str]:
-    """Compatibilidad: envía al bot de dirección principal (Maggacortex)."""
+    """Compatibilidad: envía al bot del canal `principal`."""
     return enviar_telegram_canal(
         "principal",
         texto,
@@ -267,7 +521,7 @@ def recoger_maggacortex_telegram(
     chat_id_autorizado: Optional[str] = None,
     archivos: Iterable[str] = ARCHIVOS_ENV_DEFECTO,
 ) -> int:
-    """Recoge mensajes entrantes de Maggacortex (`@starseed_neurocortex_bot`) hacia `director_chat`.
+    """Recoge mensajes entrantes del bot del canal `principal` (`@starseed_neurocortex_bot`).
 
     REGLA DE POLLER ÚNICO: solo consulta `getUpdates` usando `TELEGRAM_MAGGACORTEX_BOT_TOKEN`
     y rechaza ejecutarse si dicho token coincide con `@starseed_puente_bot` (`TELEGRAM_BOT_TOKEN`)
@@ -640,7 +894,7 @@ def sincronizar_canal_secundario_hermes(
         importados += 1
 
         if enviar_tg and not es_user and sync_cfg.get("telegram", True):
-            pref = "Audiovisual · Hermes" if canal_clave == "audiovisual" else "General · Hermes"
+            pref = f"{nombre_de_canal(canal_clave, cargar_canales_direccion())} · Hermes"
             enviar_telegram_canal(canal_clave, contenido, prefijo=pref, enviar_fn=enviar_fn)
     return importados
 
@@ -663,7 +917,7 @@ def publicar_en_canal_especializado(
 
     rol = "alex" if de == "alex" else "director"
     tipo = "mensaje" if rol == "alex" else "respuesta"
-    prefijo = "MetaGenesis · Dirección" if canal_clave == "principal" else f"MetaGenesis · {origen}"
+    prefijo = nombre_de_canal(canal_clave, cargar_canales_direccion())
 
     if canal_clave == "principal":
         canal_pub = origen if origen in director_chat.CANALES else "metagenesis"
@@ -715,10 +969,10 @@ def sincronizar_todos_los_canales(
     """Ejecuta una pasada de sincronización para `principal`, `general` y `audiovisual`."""
     mapa = canales_cfg if canales_cfg is not None else cargar_canales_direccion()
     ses_principal = (mapa.get("principal") or {}).get("hermes_sesion")
-    ses_general = (mapa.get("general") or {}).get("hermes_sesion") or "20260909_210504_867626"
+    ses_general = (mapa.get("general") or {}).get("hermes_sesion")
     ses_audiovisual = (mapa.get("audiovisual") or {}).get("hermes_sesion")
 
-    # Canal 1 (`principal`): Hermes `Dirección MetaGenesis` + Maggacortex (polling exclusivo).
+    # Canal 1 (`principal`): sesión Hermes del registro + bot del canal (polling exclusivo).
     # Pasa `chat_id_telegram=""` para no mezclar `@starseed_puente_bot` (que va en `general`).
     n_hermes_prin = sincronizar_desde_hermes(
         estado,
@@ -791,7 +1045,7 @@ def espejar_a_telegram_direccion(
     cfg: Optional[Dict[str, Any]] = None,
     enviar_fn: Optional[Callable[[str, str], Tuple[bool, str]]] = None,
 ) -> int:
-    """Espeja nuevos mensajes/respuestas de dirección principal hacia Maggacortex (`principal`).
+    """Espeja nuevos mensajes/respuestas del canal `principal` hacia su bot de Telegram.
 
     Mantiene `telegram_dir_vistos` en ORDEN CRONOLÓGICO ESTRICTO (hasta 2500 IDs, nunca `list(set)`
     que desalojaba IDs antiguos al azar y los reenviaba horas después) y guarda marca de agua
@@ -843,7 +1097,7 @@ def espejar_a_telegram_direccion(
             vistos_ordenados.append(ident_msg)
 
     fallos: Dict[str, int] = dict(estado.get("telegram_dir_fallos") or {})
-    por_id = {r.get("id"): r for r in registros if isinstance(r, dict) and r.get("id")}
+    por_id = {str(r.get("id")): r for r in registros if isinstance(r, dict) and r.get("id")}
     ultimo_epoch = _a_segundos(float(estado.get("telegram_dir_ultimo_epoch") or 0.0))
     # En producción real (sin enviar_fn inyectada), si aún no había marca de agua temporal,
     # nunca reenviar mensajes con más de 10 minutos de antigüedad que hubieran sido desalojados por el set antiguo.
@@ -871,7 +1125,9 @@ def espejar_a_telegram_direccion(
         if enviar_fn is not None:
             ok, _ = enviar_fn(etiqueta, texto)
         else:
-            ok, _ = enviar_telegram_canal("principal", texto, prefijo=f"MetaGenesis · {etiqueta}")
+            ok, _ = enviar_telegram_canal(
+                "principal", texto, prefijo=nombre_de_canal("principal", cargar_canales_direccion())
+            )
         if ok:
             _marcar_visto(ident)
             if ep > ultimo_epoch:
@@ -902,8 +1158,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_pub.add_argument("--de", default="alex")
     p_pub.add_argument("--origen", default="metagenesis")
     p_pub.add_argument("--sin-telegram", action="store_true")
+    sub.add_parser(
+        "nombres",
+        help="Muestra por medio el nombre visible de los 3 canales y marca el que no coincide",
+    )
 
     args = parser.parse_args(argv)
+    if args.cmd == "nombres":
+        return _cmd_nombres()
     if args.cmd == "publicar-canal":
         res = publicar_en_canal_especializado(
             args.canal,
