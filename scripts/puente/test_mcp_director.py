@@ -110,6 +110,9 @@ class PruebasAtender(unittest.TestCase):
                 "canal_decir",
                 "metagenesis_estado",
                 "metagenesis_orden",
+                "sqlite_estado",
+                "sqlite_tablas",
+                "sqlite_consultar",
             ],
         )
 

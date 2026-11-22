@@ -23,13 +23,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import director_chat
 import mcp_director_ordenes as ordenes
+import mcp_sqlite as sq
 import produccion_candidatos as pc
 
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
-    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada."
+    "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada y "
+    "consulta bases SQLite en solo lectura."
 )
 
 
@@ -54,6 +56,10 @@ _P_ORDEN = _s(
     enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
+_P_SQL = _s("string", "Consulta SQL de solo lectura (select, with, pragma, explain).")
+_P_FILAS = _s(
+    "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -132,6 +138,9 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "sqlite_estado": _esquema({}, []),
+    "sqlite_tablas": _esquema({}, []),
+    "sqlite_consultar": _esquema({"sql": _P_SQL, "limite": _P_FILAS}, ["sql"]),
 }
 
 _HERR = [
@@ -149,6 +158,9 @@ _HERR = [
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
     ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
+    ("sqlite_estado", "Comprueba la conexión SQLite configurada (ruta, versión y tablas)."),
+    ("sqlite_tablas", "Lista las tablas de la base SQLite con su número de filas."),
+    ("sqlite_consultar", "Ejecuta una consulta SQL de solo lectura y devuelve sus filas."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -347,9 +359,21 @@ def _produccion(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+def _sqlite(nombre, args):
+    if nombre == "sqlite_estado":
+        return sq.estado()
+    if nombre == "sqlite_tablas":
+        return sq.tablas()
+    if nombre == "sqlite_consultar":
+        return sq.consultar(args.get("sql"), _limite(args, defecto=50))
+    raise ValueError("herramienta sqlite desconocida: %s" % nombre)
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
+    if nombre.startswith("sqlite_"):
+        return _sqlite(nombre, args)
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
     if nombre == "director_leer":
