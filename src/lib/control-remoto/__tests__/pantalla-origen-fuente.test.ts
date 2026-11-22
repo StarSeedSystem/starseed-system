@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OrigenPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
+import { COMANDOS_NATIVOS } from "../nativo-comandos";
 import type { RespuestaOrden } from "../orden";
 import type { Args } from "../niveles";
 
@@ -50,6 +51,10 @@ afterEach(async () => {
 });
 
 describe("RST1116A · la petición de fuente llega a lo nativo", () => {
+    it("el comando nativo admite la clave fuente sin cambiar las demás", () => {
+        expect(COMANDOS_NATIVOS.control_pantalla_iniciar).toEqual(["sesion", "lado_max", "calidad", "fuente"]);
+    });
+
     it("con «proyeccion» se manda fuente:proyeccion a control_pantalla_iniciar", async () => {
         await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
         expect(primeraPeticion()).toMatchObject({ sesion: SESION.token, fuente: "proyeccion" });
