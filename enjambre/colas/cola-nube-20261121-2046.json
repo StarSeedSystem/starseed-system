@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261121",
+ "tareas": [
+  {
+   "id": "IMG-diaria-hilo-unico-de-direccion-cross-med",
+   "titulo": "Hilo único de dirección cross-media",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Hilo único de dirección cross-media. : unificar Telegram (bot Hermes), Astraura › Chat › Genesis y Chat Director con mismos mensajes/respuestas (contrato GEN1113 §10 hoy incumplido). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "MRA11b",
+   "ola": "MAP1116B",
+   "titulo": "Prueba de regresión de la causa: la red completa aparece, la privada no se cuela",
+   "archivos": [
+    "src/lib/senales/__tests__/red-completa.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Prueba de integración PURA (sin red) que fija el arreglo: (1) cuenta A publica Wi-Fi y LoRa en capa pública con zona; cuenta B publica Bluetooth en comunidad `c1`; una tercera cuenta C (miembro de `c1`) ve las tres en el modelo del mapa, y D (no miembro) ve solo las públicas; (2) lo que A deja en capa 'privada' no lo ve nadie más; (3) ningún objeto del modelo del mapa contiene lat/lon de otra cuenta; (4) con el radar en `off` la cuenta no publica nada pública (`filasAPublicar`); (5) sin la tabla el mapa dice el motivo en vez de una lista vacía. Usa un servidor falso en memoria que aplique las mismas reglas que la política SQL (frescura de 15 min, membresía). COMPRUEBA: `NODE_ENV=test npx vitest run src/lib/senales/__tests__/red-completa.test.ts` verde y tsc acotado.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRA11b:` y dice qué comprobaste y qué NO pudiste comprobar.",
+   "revisor_quitadas": [
+    "MRA10b"
+   ],
+   "dependencias_ya_en_main": [
+    "MRA6b"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "MRA11b",
+   "IMG-diaria-hilo-unico-de-direccion-cross-med"
+  ]
+ }
+}
