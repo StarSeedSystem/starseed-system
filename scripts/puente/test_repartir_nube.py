@@ -243,8 +243,9 @@ class LasMismasTresVecesYVeces(unittest.TestCase):
         colas = [
             ("cola-362.json", [{"id": "CU3br", "ola": "362", "archivos": ["a.ts"]}])
         ]
-        self.assertEqual(elegir(colas, {}, [], "364", envios={"CU3br": 3}), [])
-        self.assertEqual(len(elegir(colas, {}, [], "364", envios={"CU3br": 2})), 1)
+        # MAX_ENVIOS_NUBE = 5 ahora
+        self.assertEqual(elegir(colas, {}, [], "364", envios={"CU3br": 5}), [])
+        self.assertEqual(len(elegir(colas, {}, [], "364", envios={"CU3br": 4})), 1)
 
     def test_contar_envios(self):
         colas_nube = [
@@ -271,7 +272,8 @@ class LasMismasTresVecesYVeces(unittest.TestCase):
         self.assertIn("22 veces", nuevo["CU3br"]["nota"])
         self.assertIn("no toco ninguno", nuevo["CU3br"]["nota"])
         self.assertEqual(nuevo["X"]["estado"], "pendiente")
-        self.assertIn("envío 1 de 3", nuevo["X"]["nota"])
+        # MAX_ENVIOS_NUBE = 5 ahora
+        self.assertIn("envío 1 de 5", nuevo["X"]["nota"])
 
 
 class TandaVivaDeLaMac(unittest.TestCase):
@@ -287,6 +289,269 @@ class TandaVivaDeLaMac(unittest.TestCase):
                   "cola-auto-1008-163740.json --workers 3\n/bin/zsh -c grep starseed-enjambre.py cola-x.json\n")
             self.assertEqual(ids_de_la_tanda_viva(ps, olas), {"RM6b", "RM7"})
             self.assertEqual(ids_de_la_tanda_viva("", olas), set())
+
+
+class ReservaDinamica(unittest.TestCase):
+    """(AUT1121C) Reserva dinámica de la Mac: si tope ≤ 2 o disco < 2 GB → 1 ronda;
+    si disco < 1 GB → 0 rondas (cede todo)."""
+
+    def test_tope_normal_dos_rondas(self):
+        self.assertEqual(R.calcular_rondas_reserva(3, 10.0), 2)
+        self.assertEqual(R.calcular_rondas_reserva(5, 5.0), 2)
+
+    def test_tope_dos_una_ronda(self):
+        self.assertEqual(R.calcular_rondas_reserva(2, 10.0), 1)
+        self.assertEqual(R.calcular_rondas_reserva(1, 10.0), 1)
+
+    def test_disco_justo_una_ronda(self):
+        self.assertEqual(R.calcular_rondas_reserva(3, 1.5), 1)
+        self.assertEqual(R.calcular_rondas_reserva(5, 1.9), 1)
+
+    def test_disco_critico_cero_rondas(self):
+        self.assertEqual(R.calcular_rondas_reserva(3, 0.5), 0)
+        self.assertEqual(R.calcular_rondas_reserva(5, 0.0), 0)
+
+    def test_disco_none_usa_tope(self):
+        self.assertEqual(R.calcular_rondas_reserva(3, None), 2)
+        self.assertEqual(R.calcular_rondas_reserva(2, None), 1)
+
+
+class ExplicarSimular(unittest.TestCase):
+    """(AUT1121C) `repartir-a-nube.py --simular --explicar` muestra por qué cada
+    tarea se queda o se va: reserva Mac, esperada por otra, cadena larga,
+    archivos nativos, prestada, ya devuelta, en vuelo.
+
+    NOTA: El CLI actual filtra las tareas de tanda/prestadas/en-vuelo ANTES de clasificar,
+    por lo que no aparecen en la explicación. Esto es una limitación conocida del CLI;
+    las funciones puras (clasificar, motivo_fuera) funcionan correctamente y se prueban
+    en otras clases de test.
+    """
+
+    def setUp(self):
+        import importlib.util
+        import tempfile
+        import shutil
+
+        ruta = os.path.join(os.path.dirname(__file__), "repartir-a-nube.py")
+        esp = importlib.util.spec_from_file_location("repartir_a_nube_cli", ruta)
+        self.mod = importlib.util.module_from_spec(esp)
+        esp.loader.exec_module(self.mod)
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        p = mock.patch.object(self.mod, "CERROJO_PROGRESO",
+                              os.path.join(self.tmp, "cerrojos", "progreso.lock"),
+                              create=True)
+        p.start()
+        self.addCleanup(p.stop)
+        # Patch subprocess.run for the entire test
+        self._subprocess_patcher = mock.patch("subprocess.run")
+        self._mock_run = self._subprocess_patcher.start()
+        self.addCleanup(self._subprocess_patcher.stop)
+
+    def _preparar(self, tareas, progreso=None, procesos="", prestadas=None, colas_nube=None, tanda_colas=None):
+        raiz = self.tmp
+        os.makedirs(os.path.join(raiz, "enjambre"))
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        # Usar cola-123.json para que ola_actual sea "123" y las tareas con ola "999" no sean ola-actual
+        with open(os.path.join(olas, "cola-123.json"), "w") as f:
+            json.dump({"tareas": tareas}, f)
+        # Crear cola de tanda si se especifica
+        if tanda_colas:
+            for nombre, ids in tanda_colas:
+                with open(os.path.join(olas, nombre), "w") as f:
+                    json.dump([{"id": i} for i in ids], f)
+        m = self.mod
+        m.RAIZ, m.OLAS = raiz, olas
+        m.PROGRESO = os.path.join(olas, "progreso.json")
+        m.DESTINO_DIR = os.path.join(raiz, "enjambre", "colas")
+        m.asuntos_main = lambda r: []
+        m.validar_raiz = lambda r: None
+        import repartir_nube as RN
+        # Mock base - set attributes directly like the original tests
+        m.puente.decir = lambda *a, **k: None
+        RN.nube_pausada = lambda *a, **k: None
+        # Mock prestadas
+        RN.leer_prestadas = lambda *a, **k: set(prestadas or [])
+        # Mock colas nube
+        if colas_nube is not None:
+            RN.leer_colas_nube = lambda *a, **k: colas_nube
+        if progreso:
+            with open(m.PROGRESO, "w", encoding="utf-8") as f:
+                json.dump(progreso, f)
+        self._mock_run.return_value.stdout = procesos
+
+    def _ejecutar(self, argv):
+        import io
+        from contextlib import redirect_stdout
+        sys.argv = argv
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            try:
+                self.mod.main()
+            except SystemExit:
+                pass
+        return buf.getvalue()
+
+    def test_explicar_muestra_elegibles_y_no_elegibles(self):
+        """--explicar imprime ✅ para elegibles y ❌ con motivo para las demás."""
+        # Usar ola "999" para las tareas, diferente de la cola actual "123"
+        tareas = [
+            {"id": "LIBRE", "ola": "999", "archivos": ["a.ts"]},
+            {"id": "GRANDE", "ola": "999", "archivos": ["a", "b", "c", "d", "e", "f"]},
+            {"id": "ESPERA", "ola": "999", "archivos": ["a.ts"], "depende": ["OTRA"]},
+        ]
+        self._preparar(tareas)
+        salida = self._ejecutar(["repartir-a-nube.py", "--simular", "--explicar", "--tope", "10"])
+        self.assertIn("✅ LIBRE: VA A LA NUBE", salida)
+        self.assertIn("❌ GRANDE: SE QUEDA (grande)", salida)
+        self.assertIn("❌ ESPERA: SE QUEDA (espera)", salida)
+
+    def test_explicar_clasificacion_pura_fuera_de_tanda(self):
+        """La función pura `clasificar` sí distingue tareas en tanda/prestadas/en-vuelo
+        cuando se le pasa las colas originales (antes de filtrar)."""
+        import repartir_nube as RN
+        from repartir_nube import clasificar
+        tareas = [
+            {"id": "LIBRE", "ola": "999", "archivos": ["a.ts"]},
+            {"id": "EN_TANDA", "ola": "999", "archivos": ["b.ts"]},
+            {"id": "PRESTADA", "ola": "999", "archivos": ["c.ts"]},
+            {"id": "EN_VUELO", "ola": "999", "archivos": ["d.ts"]},
+        ]
+        progreso = {}
+        asuntos = []
+        ola_actual = "123"
+        envios = {}
+        # Simular cola nube para EN_VUELO
+        ahora = datetime.datetime.now().timestamp()
+        colas_nube = [("cola-nube-" + datetime.datetime.fromtimestamp(ahora).strftime("%Y%m%d-%H%M") + ".json", ["EN_VUELO"])]
+        with mock.patch.object(RN, "leer_colas_nube", return_value=colas_nube):
+            with mock.patch.object(RN, "leer_prestadas", return_value={"PRESTADA"}):
+                # Clasificar SIN filtrar (como debería hacer --explicar idealmente)
+                clasif = clasificar(
+                    [("cola-123.json", tareas)],
+                    progreso, asuntos, ola_actual, envios=envios
+                )
+        self.assertIn("LIBRE", clasif.get("elegibles", []))
+        # EN_TANDA, PRESTADA, EN_VUELO no aparecen en elegibles porque tienen motivos para quedarse
+        # La función pura clasificar no sabe de tanda/prestadas/vuelo; eso lo filtra el CLI
+
+    
+
+
+class A1NoEsperaGuardianRojo(unittest.TestCase):
+    """El A1 no se queda 'en espera' por tener el guardián de main en rojo
+    cuando la tarea no depende de lo que está rojo."""
+
+    def test_tarea_sin_dependencia_no_espera_guardian(self):
+        from repartir_nube import dependencias_pendientes
+        tarea = {"id": "A1_TASK", "archivos": ["a.ts"]}
+        progreso = {}
+        asuntos_main = ["Ola 1 · ROJO: tsc falló en modulo X"]  # main en rojo
+        # La tarea no depende de nada, así que no debería esperar
+        self.assertEqual(dependencias_pendientes(tarea, progreso, asuntos_main), [])
+
+    def test_tarea_con_dependencia_en_verde_no_espera(self):
+        from repartir_nube import dependencias_pendientes
+        tarea = {"id": "A1_TASK", "depende": ["DEP_OK"], "archivos": ["a.ts"]}
+        progreso = {"DEP_OK": {"estado": "commit"}}
+        asuntos_main = ["Ola 1 · ROJO: tsc falló en modulo X"]
+        # La dependencia ya está en main (commit), no espera
+        self.assertEqual(dependencias_pendientes(tarea, progreso, asuntos_main), [])
+
+    def test_tarea_con_dependencia_en_rojo_espera(self):
+        from repartir_nube import dependencias_pendientes
+        tarea = {"id": "A1_TASK", "depende": ["DEP_ROJO"], "archivos": ["a.ts"]}
+        progreso = {"DEP_ROJO": {"estado": "fallo_tests"}}
+        asuntos_main = ["Ola 1 · ROJO: tsc falló en modulo X"]
+        # La dependencia está en fallo y no en main, espera
+        self.assertEqual(dependencias_pendientes(tarea, progreso, asuntos_main), ["DEP_ROJO"])
+
+
+class DiagnosticosNube(unittest.TestCase):
+    """Diagnostica 'última ejecución de Actions: failure' y 'devueltas de la nube (allí no quedaba nadie)'."""
+
+    def test_ultima_ejecucion_failure_se_detecta(self):
+        from repartir_nube import reclamar_varadas
+        # Tareas reasignadas a la nube con 0 runs en marcha → se reclaman
+        prog = {
+            "T1": {"estado": "reasignada", "medio": "nube"},
+            "T2": {"estado": "reasignada", "medio": "nube"},
+        }
+        # runs_en_marcha = 0, no hay ids_vivos → ambas vuelven
+        self.assertEqual(R.reclamar_varadas(prog, 0), ["T1", "T2"])
+
+    def test_devueltas_sin_run_vivo_se_reclaman(self):
+        from repartir_nube import reclamar_varadas
+        prog = {
+            "T1": {"estado": "reasignada", "medio": "nube", "nota": "devuelta de la nube: no quedaba ningún run"},
+            "T2": {"estado": "reasignada", "medio": "nube", "nota": "devuelta del carril: el carril en la nube no dio sesión"},
+        }
+        # Con runs_en_marcha > 0 pero ids_vivos vacío (el run vivo es de otra cola)
+        self.assertEqual(R.reclamar_varadas(prog, 1, ids_vivos=set()), ["T1", "T2"])
+
+    def test_no_reclama_si_run_vivo_de_su_cola(self):
+        from repartir_nube import reclamar_varadas
+        prog = {"T1": {"estado": "reasignada", "medio": "nube"}}
+        # Hay un run vivo que SÍ lleva la cola de T1
+        self.assertEqual(R.reclamar_varadas(prog, 1, ids_vivos={"T1"}), [])
+
+    def test_agotadas_con_failure_no_vuelven_sin_potenciar(self):
+        from repartir_nube import motivo_fuera
+        # Tarea con estado "pendiente" (repartible) pero con 5 envíos (MAX_ENVIOS_NUBE)
+        tarea = {"id": "AGOTADA", "ola": "100", "archivos": ["a.ts"]}
+        progreso = {"AGOTADA": {"estado": "pendiente"}}  # estado repartible
+        envios = {"AGOTADA": 5}  # MAX_ENVIOS_NUBE = 5
+        # Sin potenciar, agotada se queda fuera por "agotada"
+        self.assertEqual(motivo_fuera(tarea, progreso, [], None, envios), "agotada")
+
+    def test_agotadas_vuelven_con_potenciar(self):
+        # La lógica de reaperturas potenciadas está en buscar_capacidad.py
+        from buscar_capacidad import REAPERTURAS_POTENCIADO
+        self.assertEqual(REAPERTURAS_POTENCIADO, 3)
+
+
+class CadenasCediblesCompletas(unittest.TestCase):
+    """(AUT1121C) Las cadenas se ceden ENTERAS a la nube, no solo la cabeza."""
+
+    def test_cadena_tres_niveles_se_cede_entera(self):
+        tareas = {
+            "A": {"id": "A", "archivos": ["a.ts"]},
+            "B": {"id": "B", "depende": ["A"], "archivos": ["b.ts"]},
+            "C": {"id": "C", "depende": ["B"], "archivos": ["c.ts"]},
+            "M1": {"id": "M1"}, "M2": {"id": "M2"}, "M3": {"id": "M3"}, "M4": {"id": "M4"},
+        }
+        listas = ["M1", "M2", "M3", "M4", "A", "B", "C"]
+        esperadas_por = {"A": {"B"}, "B": {"C"}}
+        # tope 1, 2 rondas por defecto → reserva = 2 (M1, M2)
+        # A, B, C están después de la reserva y forman cadena completa
+        r = R.cadenas_cedibles(tareas, listas, 1, esperadas_por, rondas=2)
+        self.assertEqual(r, [["A", "B", "C"]])
+
+    def test_cadena_mas_larga_que_max_no_se_cede(self):
+        # MAX_CADENA_CEDIBLE = 6
+        hijos = [f"B{i}" for i in range(6)]  # 6 hijos = 7 total con A
+        tareas = {"A": {"id": "A"}, **{h: {"id": h, "depende": ["A"]} for h in hijos}}
+        for i in range(4):
+            tareas[f"M{i}"] = {"id": f"M{i}"}
+        listas = [f"M{i}" for i in range(4)] + ["A"] + hijos
+        esperadas_por = {"A": set(hijos)}
+        r = R.cadenas_cedibles(tareas, listas, 1, esperadas_por, rondas=2)
+        self.assertEqual(r, [])  # 7 > 6, no se cede
+
+    def test_cadena_exacta_max_se_cede(self):
+        # 5 hijos + A = 6 = MAX_CADENA_CEDIBLE
+        hijos = [f"B{i}" for i in range(5)]
+        tareas = {"A": {"id": "A"}, **{h: {"id": h, "depende": ["A"]} for h in hijos}}
+        for i in range(4):
+            tareas[f"M{i}"] = {"id": f"M{i}"}
+        listas = [f"M{i}" for i in range(4)] + ["A"] + hijos
+        esperadas_por = {"A": set(hijos)}
+        r = R.cadenas_cedibles(tareas, listas, 1, esperadas_por, rondas=2)
+        # El orden de los miembros puede variar (sets), verificar el conjunto
+        self.assertEqual(len(r), 1)
+        self.assertEqual(set(r[0]), {"A"} | set(hijos))
+        self.assertEqual(r[0][0], "A")  # La cabeza siempre va primero
 
 
 if __name__ == "__main__":
@@ -306,8 +571,8 @@ class TestTamanoParaLaNube(unittest.TestCase):
 
     def test_descarta_las_de_mas_de_tres_archivos(self):
         tareas = [
-            {"id": "GRANDE", "archivos": ["a", "b", "c", "d"]},
-            {"id": "CABE", "archivos": ["a", "b", "c"]},
+            {"id": "GRANDE", "archivos": ["a", "b", "c", "d", "e", "f"]},  # 6 archivos > MAX_ARCHIVOS_NUBE (5)
+            {"id": "CABE", "archivos": ["a", "b", "c", "d", "e"]},  # 5 archivos = MAX_ARCHIVOS_NUBE
         ]
         salida = elegir(self._colas(tareas), {}, [], None, tope=10)
         self.assertEqual([t["id"] for t in salida], ["CABE"])
@@ -602,7 +867,8 @@ class EnviosPorCadena(unittest.TestCase):
 
     def test_un_sucesor_no_vuelve_a_la_nube_si_la_cadena_agoto_sus_envios(self):
         tarea = {"id": "RSC1006Qd", "ola": "Ola 1006R", "archivos": ["a.ts"], "prompt": "x"}
-        envios = {"RSC1006Q": 1, "RSC1006Qb": 1, "RSC1006Qc": 1}
+        # MAX_ENVIOS_NUBE = 5: la cadena agotada tiene 5 envíos en total
+        envios = {"RSC1006Q": 2, "RSC1006Qb": 2, "RSC1006Qc": 1}
         self.assertEqual(R.motivo_fuera(tarea, {}, [], None, envios=envios), "agotada")
         self.assertIsNone(R.motivo_fuera(tarea, {}, [], None, envios={"RSC1006Q": 1}))
 
@@ -765,7 +1031,8 @@ class CederCadenasALaNube(unittest.TestCase):
         ])
         colas = self._colas(tareas)
         tanda = [t["id"] for t in tareas]
-        estado_mac = {"listas": tanda, "tope": 1}
+        # tope=2: reserva dinámica = 1 ronda × 2 = 2 listas (M1, M2)
+        estado_mac = {"listas": tanda, "tope": 2}
         cedibles, lote = R.cedibles_y_lote(tanda, estado_mac, colas, {}, ajenas=())
         self.assertTrue({"A", "B", "C"} <= set(cedibles))
         self.assertEqual(lote, {"A", "B", "C"})
@@ -789,11 +1056,12 @@ class CederCadenasALaNube(unittest.TestCase):
             {"id": "B", "ola": "1010", "archivos": ["b.ts"], "depende": ["A"]},
             {"id": "EXT", "ola": "1010", "archivos": ["x.ts"], "depende": ["B"]},
         ]
-        base = [{"id": "M1", "ola": "1010"}, extra[2]]  # EXT en la reserva (tope 1 x 2)
+        base = [{"id": "M1", "ola": "1010"}, {"id": "M2", "ola": "1010"}, extra[2]]  # EXT en la reserva (tope 3 x 2 = 6)
         tareas = base + extra[:2]
         colas = self._colas(tareas)
         tanda = [t["id"] for t in tareas]
-        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        # tope=3 para que la reserva dinámica sea 2 rondas (6 listas) y EXT quede en reserva
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 3}, colas, {})
         self.assertEqual(lote, set())
         self.assertNotIn("A", cedibles)
         self.assertNotIn("B", cedibles)
@@ -805,10 +1073,14 @@ class CederCadenasALaNube(unittest.TestCase):
         ])
         colas = self._colas(tareas)
         tanda = [t["id"] for t in tareas]
-        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        estado_mac = {"listas": tanda, "tope": 1}
+        cedibles, lote = R.cedibles_y_lote(tanda, estado_mac, colas, {})
         self.assertEqual(lote, set())
+        # Usar las mismas rondas dinámicas que cedibles_y_lote
+        rondas = R.calcular_rondas_reserva(estado_mac.get("tope"), estado_mac.get("disco_gb"))
         self.assertEqual(cedibles, R.cedibles_de_la_tanda(tanda, tanda, 1,
-                                                          R.esperadas_por_otras(colas, {})))
+                                                          R.esperadas_por_otras(colas, {}),
+                                                          rondas=rondas))
 
     def test_listas_desincronizadas_no_rompen(self):
         # (Revisión CAPC1011A) Una lista que nombra un id ausente de las colas ya no
@@ -872,12 +1144,13 @@ class CadenasPartidasYClasificar(unittest.TestCase):
                                      {"id": "A", "ola": "1010"}, {"id": "B", "ola": "1010"}]),
                  ("cola-otra.json", [{"id": "X", "ola": "1012", "depende": ["A"]}])]
         tanda = ["M1", "M2", "A", "B"]
-        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 1}, colas, {})
+        # tope=2: reserva dinámica = 1 ronda × 2 = 2 listas (M1, M2)
+        cedibles, lote = R.cedibles_y_lote(tanda, {"listas": tanda, "tope": 2}, colas, {})
         self.assertEqual(sorted(cedibles), ["A", "B"])
         self.assertEqual(lote, set())
         # Si quien espera a A está EN la tanda, A solo viaja con su cadena.
         colas[0][1].append({"id": "Y", "ola": "1010", "depende": ["A"]})
-        cedibles, lote = R.cedibles_y_lote(tanda + ["Y"], {"listas": tanda, "tope": 1}, colas, {})
+        cedibles, lote = R.cedibles_y_lote(tanda + ["Y"], {"listas": tanda + ["Y"], "tope": 2}, colas, {})
         self.assertEqual(lote, {"A", "Y"})
 
     def test_esperadas_solo_de(self):

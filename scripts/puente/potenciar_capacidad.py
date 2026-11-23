@@ -16,7 +16,12 @@ capacidad» con dos botones: «⚡ Potenciar …» y «Mantener el ritmo de …�
 - Mantener el ritmo deja de preguntar por ese medio `HORAS_SIN_PREGUNTAR` horas.
 - `STARSEED_POTENCIAR=todo` (o una lista: `claude-nube,cloudroom`) potencia sin preguntar, para una sesión a mano.
 
+(AUT1121C) Potenciar AUTOMÁTICO: se activa solo cuando la Mac está saturada (tope ≤ 2 o disco < 2 GB)
+y hay huecos en la nube (runs_vivos < tope_runs y hay tareas elegibles), dentro de los topes gratuitos.
+Meta medible: con 8+ tareas listas, al menos 6 agentes de la nube ocupados en 15 min.
+
 Uso: potenciar_capacidad.py activar|mantener <servicio> [--horas N] [--json] · potenciar_capacidad.py ver [--json]
+       potenciar_capacidad.py auto [--json]  # decide y activa automáticamente
 """
 from __future__ import annotations
 
@@ -42,6 +47,99 @@ EFECTO = {
 HORAS_POR_DEFECTO = 24
 HORAS_SIN_PREGUNTAR = 12
 PREGUNTA_VALE_S = 6 * 3600
+
+#: (AUT1121C) Umbrales para activación automática de potenciar.
+AUTO_MIN_LISTAS = 8          # Mínimo de tareas listas para considerar auto-potenciar
+AUTO_MIN_AGENTES_NUBE = 6    # Meta: agentes ocupados en la nube
+AUTO_MIN_HUECOS_NUBE = 2     # Mínimo de huecos (runs libres) en la nube
+AUTO_COOLDOWN_H = 4          # No reactivar antes de N horas salvo que cambie la situación
+
+
+def debe_potenciar_automatico(servicio, estado_mac, plan_nube, ahora=None, datos=None):
+    """PURA (AUT1121C). ¿Debe activarse `servicio` automáticamente?
+
+    Reglas:
+    - Solo si NO está ya potenciado ni callado (Alex dijo «mantener el ritmo»).
+    - La Mac está saturada: tope_mac ≤ 2 O disco_gb < 2 GB (guardia de disco).
+    - Hay huecos en la nube: runs_vivos < tope_runs Y hay tareas elegibles que no caben.
+    - Suficientes tareas listas: len(listas_mac) >= AUTO_MIN_LISTAS (8 por defecto).
+    - No se reactiva antes de AUTO_COOLDOWN_H salvo que cambie la situación (tope o disco).
+
+    `estado_mac`: {"tope": int, "disco_gb": float, "listas": [ids], "ocupados": [ids]}
+    `plan_nube`: {"lanzar": int, "reabrir": [ids], "trabajadores": int, "por_que": str,
+                  "tope_runs": int, "runs_vivos": int, "elegibles": [ids]}
+    Retorna (bool, motivo_str)."""
+    ahora = time.time() if ahora is None else ahora
+    d = normalizar(datos) if datos is not None else leer()
+
+    # Ya potenciado o callado → no
+    if activo(servicio, ahora, d, env={}) or callado(servicio, ahora, d):
+        return False, "ya potenciado o callado"
+
+    # Solo para nube-gh por ahora (GitHub Actions)
+    if servicio != "nube-gh":
+        return False, "solo nube-gh tiene auto-potenciar"
+
+    # Mac saturada: tope ≤ 2 o disco < 2 GB
+    tope_mac = int(estado_mac.get("tope") or 0)
+    disco_gb = estado_mac.get("disco_gb")
+    mac_saturada = (tope_mac > 0 and tope_mac <= 2) or (disco_gb is not None and disco_gb < 2.0)
+    if not mac_saturada:
+        return False, f"Mac no saturada (tope={tope_mac}, disco={disco_gb} GB)"
+
+    # Suficientes tareas listas
+    listas_mac = estado_mac.get("listas") or []
+    if len(listas_mac) < AUTO_MIN_LISTAS:
+        return False, f"pocas listas ({len(listas_mac)} < {AUTO_MIN_LISTAS})"
+
+    # Huecos en la nube
+    runs_vivos = int(plan_nube.get("runs_vivos") or 0)
+    tope_runs = int(plan_nube.get("tope_runs") or 0)
+    elegibles = plan_nube.get("elegibles") or []
+    huecos = max(0, tope_runs - runs_vivos)
+    if huecos < AUTO_MIN_HUECOS_NUBE or not elegibles:
+        return False, f"sin huecos en nube (huecos={huecos}, elegibles={len(elegibles)})"
+
+    # Cooldown: no reactivar antes de AUTO_COOLDOWN_H salvo que tope/disco hayan cambiado
+    e = d["activos"].get(servicio)
+    if isinstance(e, dict):
+        ultima_activacion = _num(e.get("desde"))
+        if ahora - ultima_activacion < AUTO_COOLDOWN_H * 3600:
+            # Verificar si cambió la situación (tope o disco)
+            ultima_situacion = e.get("situacion") or {}
+            if (ultima_situacion.get("tope") == tope_mac and
+                abs((ultima_situacion.get("disco_gb") or 0) - (disco_gb or 0)) < 0.5):
+                return False, f"cooldown activo ({AUTO_COOLDOWN_H}h)"
+
+    return True, f"Mac saturada (tope={tope_mac}, disco={disco_gb}GB) + {len(elegibles)} elegibles + {huecos} huecos en nube"
+
+
+def activar_automatico_si_cabe(servicio, estado_mac, plan_nube, ahora=None, ruta=None):
+    """Decide y activa `servicio` automáticamente si cabe. PURA salvo escritura en disco.
+
+    Retorna (activado: bool, motivo: str, datos_nuevos: dict)."""
+    ahora = time.time() if ahora is None else ahora
+    d = leer(ruta) if ruta else leer()
+
+    debe, motivo = debe_potenciar_automatico(servicio, estado_mac, plan_nube, ahora, d)
+    if not debe:
+        return False, motivo, d
+
+    # Activar por HORAS_POR_DEFECTO horas
+    h = HORAS_POR_DEFECTO
+    d = con_decision(d, servicio, True, ahora, horas=h)
+    # Guardar la situación para cooldown
+    d["activos"][servicio]["situacion"] = {
+        "tope": int(estado_mac.get("tope") or 0),
+        "disco_gb": estado_mac.get("disco_gb"),
+        "listas": len(estado_mac.get("listas") or []),
+        "huecos_nube": max(0, int(plan_nube.get("tope_runs") or 0) - int(plan_nube.get("runs_vivos") or 0)),
+    }
+    if ruta:
+        _guardar(d, ruta)
+    else:
+        _guardar(d)
+    return True, f"auto-activado {h}h: {motivo}", d
 
 
 def _ruta(ruta=None):
@@ -211,7 +309,8 @@ def decidir(servicio, potenciar, horas=None, ahora=None, ruta=None):
 
 
 def main(argv):
-    uso = "uso: potenciar_capacidad.py activar|mantener <servicio> [--horas N] [--json] | ver [--json]"
+    uso = ("uso: potenciar_capacidad.py activar|mantener <servicio> [--horas N] [--json] | "
+           "ver [--json] | auto [--json]")
     como_json = "--json" in argv
     args = [a for a in argv if a != "--json"]
     ahora = time.time()
@@ -221,6 +320,25 @@ def main(argv):
              "activos": [s for s in SERVICIOS if activo(s, ahora, d)]}
         r["resumen"] = ("Potenciados: %s" % ", ".join(SERVICIOS[s] for s in r["activos"]) if r["activos"]
                         else "Ningún medio potenciado") + ("\n" + texto_preguntas(r["preguntas"]) if r["preguntas"] else "")
+    elif args[:1] == ["auto"]:
+        # Auto-potenciar: leer estado_mac y plan_nube de stdin (JSON) o usar valores por defecto
+        import sys as _sys
+        stdin_data = {}
+        if not _sys.stdin.isatty():
+            try:
+                stdin_data = json.load(_sys.stdin)
+            except (ValueError, OSError):
+                pass
+        estado_mac = stdin_data.get("estado_mac", {})
+        plan_nube = stdin_data.get("plan_nube", {})
+        # Si no hay datos, no se puede decidir
+        if not estado_mac or not plan_nube:
+            r = {"ok": False, "motivo": "falta estado_mac o plan_nube en stdin"}
+        else:
+            activado, motivo, d = activar_automatico_si_cabe("nube-gh", estado_mac, plan_nube, ahora)
+            r = {"ok": True, "activado": activado, "motivo": motivo,
+                 "activos": [s for s in SERVICIOS if activo(s, ahora, d)]}
+        r["resumen"] = ("⚡ nube-gh auto-activado: %s" % motivo) if r.get("activado") else ("Auto: %s" % r.get("motivo", "no procede"))
     elif args[:1] in (["activar"], ["mantener"]) and len(args) >= 2 and args[1] in SERVICIOS:
         horas = None
         if "--horas" in args:
