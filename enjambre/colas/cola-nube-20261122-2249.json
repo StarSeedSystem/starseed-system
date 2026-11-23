@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "ALM1121A",
+   "ola": "ALM1121",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox.py",
+    "deploy/launchd/com.starseed.respaldo-maggabox.plist",
+    "scripts/puente/recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "ALM1121A"
+  ]
+ }
+}
