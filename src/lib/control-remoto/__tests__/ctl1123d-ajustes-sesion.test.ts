@@ -53,17 +53,17 @@ describe("CTL1123D · ajustes avanzados de sesión remota", () => {
 
     describe("normalizarCalidadJpeg", () => {
         it.each<[unknown, CalidadJpeg]>([
-            [40, 40],
-            [50, 50],
-            [75, 75],
-            [90, 90],
-            [30, 40],
-            [95, 90],
-            [75.6, 76],
-            [75.4, 75],
-            ["75", 75],
-            [null, 75],
-            [undefined, 75],
+            [40, 40 as CalidadJpeg],
+            [50, 50 as CalidadJpeg],
+            [75, 75 as CalidadJpeg],
+            [90, 90 as CalidadJpeg],
+            [30, 40 as CalidadJpeg],
+            [95, 90 as CalidadJpeg],
+            [75.6, 76 as CalidadJpeg],
+            [75.4, 75 as CalidadJpeg],
+            ["75", 75 as CalidadJpeg],
+            [null, 75 as CalidadJpeg],
+            [undefined, 75 as CalidadJpeg],
         ])("devuelve %p para entrada %p", (entrada, esperado) => {
             expect(normalizarCalidadJpeg(entrada)).toBe(esperado);
         });

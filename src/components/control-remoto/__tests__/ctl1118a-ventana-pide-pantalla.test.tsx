@@ -53,11 +53,13 @@ async function dejarCorrer() {
 }
 const iniciares = () => mandadas.filter((m) => m.nombre === "pantalla-iniciar");
 
+import { AJUSTES_DEFECTO } from "@/lib/control-remoto/ajustes-sesion";
+
 describe("CTL1118A · cada elección de fuente llega a pantalla-iniciar con su valor", () => {
     it.each([
-        ["auto", {}],
-        ["proyeccion", { fuente: "proyeccion" }],
-        ["algo-raro", {}],
+        ["auto", { lado: AJUSTES_DEFECTO.ladoMaximo, calidad: AJUSTES_DEFECTO.calidadJpeg }],
+        ["proyeccion", { fuente: "proyeccion", lado: AJUSTES_DEFECTO.ladoMaximo, calidad: AJUSTES_DEFECTO.calidadJpeg }],
+        ["algo-raro", { lado: AJUSTES_DEFECTO.ladoMaximo, calidad: AJUSTES_DEFECTO.calidadJpeg }],
     ] as const)("fuente %s → args %j", async (pedida, args) => {
         const { unmount } = renderHook(() => usarPantallaRemota("tableta-1", { fuente: pedida as FuentePedida }));
         await dejarCorrer();
@@ -71,7 +73,10 @@ describe("CTL1118A · cada elección de fuente llega a pantalla-iniciar con su v
         await dejarCorrer();
         rerender({ f: { fuente: "proyeccion" as FuentePedida } });
         await dejarCorrer();
-        expect(iniciares().map((m) => m.args)).toEqual([{}, { fuente: "proyeccion" }]);
+        expect(iniciares().map((m) => m.args)).toEqual([
+            { lado: AJUSTES_DEFECTO.ladoMaximo, calidad: AJUSTES_DEFECTO.calidadJpeg },
+            { fuente: "proyeccion", lado: AJUSTES_DEFECTO.ladoMaximo, calidad: AJUSTES_DEFECTO.calidadJpeg },
+        ]);
         unmount();
     });
 

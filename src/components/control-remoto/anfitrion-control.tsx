@@ -15,6 +15,14 @@ import { AvisoPeticionControl } from "./aviso-peticion-control"; // CTL1117J
 import { usarPantallaRemota, type PantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
 import { fuentePedidaValida, type FuentePedida, FUENTE_DEFECTO } from "@/lib/control-remoto/fuente-pantalla";
+import {
+    type AjustesSesion,
+    AJUSTES_DEFECTO,
+    serializarAjustes,
+    deserializarAjustes,
+    validarAjustes,
+    sonIguales,
+} from "@/lib/control-remoto/ajustes-sesion";
 
 interface Abierta {
     neurona: string;
@@ -26,6 +34,7 @@ const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 const RE_ID = /^[A-Za-z0-9-]{1,100}$/;
 const CLAVE_FUENTE = "starseed.control.fuente.v1";
+const CLAVE_AJUSTES = "starseed.control.ajustes.v1";
 
 function leerFuenteGuardada(): Record<string, FuentePedida> {
     try {
@@ -50,6 +59,42 @@ function guardarFuente(neuronaId: string, fuente: FuentePedida): void {
         const actual = leerFuenteGuardada();
         actual[neuronaId] = fuente;
         localStorage.setItem(CLAVE_FUENTE, JSON.stringify(actual));
+    } catch {
+        /* almacenamiento no disponible */
+    }
+}
+
+function leerAjustesGuardados(): Record<string, AjustesSesion> {
+    try {
+        const raw = localStorage.getItem(CLAVE_AJUSTES);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+            const resultado: Record<string, AjustesSesion> = {};
+            for (const [k, v] of Object.entries(parsed)) {
+                if (typeof v === "string") {
+                    resultado[k] = deserializarAjustes(v);
+                } else if (v && typeof v === "object") {
+                    resultado[k] = validarAjustes(v as Partial<AjustesSesion>);
+                }
+            }
+            return resultado;
+        }
+    } catch {
+        /* almacenamiento no disponible o corrupto */
+    }
+    return {};
+}
+
+function guardarAjustes(neuronaId: string, ajustes: AjustesSesion): void {
+    try {
+        const actual = leerAjustesGuardados();
+        if (!sonIguales(actual[neuronaId] ?? AJUSTES_DEFECTO, ajustes)) {
+            actual[neuronaId] = ajustes;
+            localStorage.setItem(CLAVE_AJUSTES, JSON.stringify(
+                Object.fromEntries(Object.entries(actual).map(([k, v]) => [k, serializarAjustes(v)]))
+            ));
+        }
     } catch {
         /* almacenamiento no disponible */
     }
@@ -107,6 +152,7 @@ export function VentanaRemota({
     alCerrada,
 }: { neurona: string; nombre: string; modo: "flotante" | "pagina"; alCerrada?: () => void }) {
     const [fuente, setFuente] = useState<FuentePedida>(FUENTE_DEFECTO);
+    const [ajustes, setAjustes] = useState<AjustesSesion>(AJUSTES_DEFECTO);
     const colores = usarColoresControl(neurona);
 
     // Primer render usa 'auto'; lo guardado entra en efecto para no desajustar la hidratación
@@ -115,7 +161,12 @@ export function VentanaRemota({
         if (guardada) setFuente(guardada);
     }, [neurona]);
 
-    const p: PantallaRemota = usarPantallaRemota(neurona, { fuente });
+    useEffect(() => {
+        const guardados = leerAjustesGuardados()[neurona];
+        if (guardados) setAjustes(guardados);
+    }, [neurona]);
+
+    const p: PantallaRemota = usarPantallaRemota(neurona, { fuente, ajustes });
 
     const alCambiarFuente = (nueva: FuentePedida) => {
         setFuente(nueva);
