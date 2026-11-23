@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
+import { pideRecarga } from "@/lib/mando/director-datos";
+
 export type EstadoPasarela = "escribe" | "sin_cupo" | "sin_clave" | "sin_canal"
     | "modelo_fuera" | "lenta" | "caida" | "fichaje";
 
@@ -40,7 +42,7 @@ const CATALOGO: Record<string, { nombre: string; enlace: string }> = {
 
 const ACCIONES: Record<EstadoPasarela, { texto: string; enlace: boolean; humano: boolean }> = {
     escribe: { texto: "Escribe: déjala en la rotación.", enlace: false, humano: false },
-    sin_cupo: { texto: "Sin cupo: apártala hasta que se reponga.", enlace: true, humano: false },
+    sin_cupo: { texto: "Sin cupo: se repone sola; apártala hasta mañana.", enlace: false, humano: false },
     sin_clave: { texto: "La clave falta o no vale: hay que renovarla.", enlace: true, humano: true },
     sin_canal: { texto: "No hay proveedor detrás: cambia el modelo.", enlace: false, humano: false },
     modelo_fuera: { texto: "El modelo salió del catálogo: quítalo de la rotación.", enlace: false, humano: false },
@@ -48,6 +50,9 @@ const ACCIONES: Record<EstadoPasarela, { texto: string; enlace: boolean; humano:
     caida: { texto: "No responde: déjala fuera de la rotación.", enlace: true, humano: false },
     fichaje: { texto: "Pide el fichaje diario: entra y pulsa el botón.", enlace: true, humano: true },
 };
+
+// Un «sin cupo» que pide recarga no se repone sola ni se arregla fichando: decide Alex.
+const ACCION_RECARGA = "Sin saldo: pide una recarga de pago; no se repone sola (decide Alex)";
 
 function objeto(valor: unknown): Record<string, unknown> {
     return typeof valor === "object" && valor !== null && !Array.isArray(valor)
@@ -88,11 +93,13 @@ export function convertirInformePasarelas(
         if (!id) return [];
         const ficha = CATALOGO[id] ?? { nombre: id, enlace: "" };
         const estado = estadoSeguro(dato.estado);
+        const recarga = estado === "sin_cupo" && pideRecarga(dato.mensaje);
         const accion = ACCIONES[estado];
         return [{ id, nombre: ficha.nombre, modelo: texto(dato.modelo),
             variable: texto(dato.variable) || null, tieneClave: dato.tiene_clave === true,
-            estado, necesitaPersona: accion.humano,
-            enlace: accion.enlace ? ficha.enlace : "", accion: accion.texto, medidoHace }];
+            estado, necesitaPersona: recarga ? false : accion.humano,
+            enlace: !recarga && accion.enlace ? ficha.enlace : "",
+            accion: recarga ? ACCION_RECARGA : accion.texto, medidoHace }];
     });
     const antiguo = medidoHaceMin === null || medidoHaceMin > SEIS_HORAS_MIN;
     const mensaje = medidoHaceMin === null

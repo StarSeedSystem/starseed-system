@@ -41,6 +41,20 @@ export interface ResumenDirector {
 
 const UMBRAL_COLGADO_S = 300;
 
+// (DIR1121I, medido el 2026-11-22) Frases con las que una pasarela dice «paga para
+// seguir». El estado sigue siendo `sin_cupo`, pero NO se repone sola: pide una recarga
+// de pago que decide Alex. Las mismas pistas que `scripts/puente/pasarelas.py`.
+export const PISTAS_RECARGA = [
+  "top-up", "top up", "topup", "recharge", "insufficient balance", "balance is insufficient",
+  "pre-paid credits", "purchase credits", "buy credits", "add credits", "used all available credits",
+] as const;
+
+/** PURA. ¿Este «sin cupo» es en realidad un «recarga saldo para seguir»? */
+export function pideRecarga(mensaje: unknown): boolean {
+  const texto = typeof mensaje === "string" ? mensaje.toLowerCase() : "";
+  return PISTAS_RECARGA.some((pista) => texto.includes(pista));
+}
+
 export function clasificarAgente(t: TareaLatido, ahora: number): EstadoAgente {
   if (t.fase === "hecho") return "hecho";
   if (t.fase === "esperando aprobación" || t.fase === "esperando_aprobacion") {
@@ -196,9 +210,14 @@ export function resumenProveedores(
   return [...new Set([...proveedoresSalud, ...conteo.keys()])].sort().map((p) => {
     const s = salud[p] ?? {};
     const sinCupoHasta = aEpoch(s.sin_cupo_hasta);
+    // Un «sin cupo» que pide recarga no es un fichaje: no se ofrece el botón de
+    // check-in. Solo cuenta como fichaje lo que el informe marca como tal o un
+    // motivo de check-in que no sea, en realidad, una recarga de saldo.
+    const fichaje = !pideRecarga(s.motivo)
+      && (s.estado === "fichaje" || Boolean(s.motivo?.includes("check-in")));
     return {
       proveedor: p, vivo: s.estado === "vivo" && !(sinCupoHasta && sinCupoHasta > ahora), modelos: conteo.get(p) ?? 0,
-      necesitaCheckin: Boolean(s.motivo?.includes("check-in")),
+      necesitaCheckin: fichaje,
       ...(sinCupoHasta !== undefined ? { sinCupoHasta } : {}),
       ...(s.motivo ? { motivo: s.motivo } : {}),
     };

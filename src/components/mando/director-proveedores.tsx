@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { Power, PowerOff } from "lucide-react";
-import type { ResumenProveedor } from "@/lib/mando/director-datos";
+import { pideRecarga, type ResumenProveedor } from "@/lib/mando/director-datos";
 import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
 
 function calcularSinCupoHasta(value: number | string | undefined): string {
@@ -54,6 +54,9 @@ function FilaProveedor({ proveedor }: { proveedor: ResumenProveedor }) {
   const estadoTexto =
     proveedor.vivo ? "vivo" : sinCupoHasta ? `sin cupo hasta ${sinCupoHasta}` : "caído";
   const estadoColor = proveedor.vivo ? "text-emerald-400" : "text-rose-400";
+  // Solo el fichaje de verdad ofrece el botón: una recarga de saldo decide Alex y
+  // no se arregla fichando.
+  const ofreceCheckin = proveedor.necesitaCheckin && !pideRecarga(proveedor.motivo);
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border/20 bg-black/10 px-3 py-2 text-xs" data-testid={`proveedor-${proveedor.proveedor}`}>
@@ -66,7 +69,7 @@ function FilaProveedor({ proveedor }: { proveedor: ResumenProveedor }) {
         {proveedor.motivo ? <span>{proveedor.motivo}</span> : null}
       </div>
 
-      {proveedor.necesitaCheckin ? (
+      {ofreceCheckin ? (
         <a
           href="https://apinex.bond/airdrop?tab=quests"
           target="_blank"
