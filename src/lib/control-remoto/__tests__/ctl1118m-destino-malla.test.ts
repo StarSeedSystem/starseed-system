@@ -211,4 +211,43 @@ describe("CTL1118M · pantalla por la malla (destino)", () => {
         expect(lineas.some((l) => l.includes("causa=ice-fallido"))).toBe(true);
         await d.cerrar("fin", false);
     });
+    it("partes corruptas repetidas en malla esperan entre reintentos y cierran tras 5 fallos sin colgar la vista", async () => {
+        hayWebRtc = false;
+        comprobarWebRtcUtilizableMock.mockResolvedValue({ usable: false, faltaWebRtc: "webrtc-linux", detalle: "faltan" });
+        decidirViaPantallaMock.mockResolvedValue({ via: "malla", razon: "sin webrtc" });
+        let cuadrosPedidos = 0;
+        const esperas: number[] = [];
+        const d = new PantallaDestino("tableta", {
+            mandar: async (nombre) => {
+                if (nombre === "abrir-sesion") return ok({ sesion: TOKEN, nivel: "controlar", caduca: new Date(Date.now() + 3 * 60_000).toISOString() });
+                if (nombre === "pantalla-iniciar") return ok({ ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0, capacidades: CAPS });
+                if (nombre === "pantalla-cuadro") {
+                    cuadrosPedidos += 1;
+                    // Devuelve respuesta malformada para forzar fallo en leerParteCuadro.
+                    return ok({ nuevo: true, numero: 99, datos: "invalido" });
+                }
+                return ok({ aparato: {} });
+            },
+            firmar: async () => null,
+            iceServers: async () => [],
+            crearPeer: () => peer,
+            flujoDe: () => null,
+            ahora: () => Date.now(),
+            malla: {
+                hayWebRtc: () => false,
+                crearLienzo: () => ({ pintar: async () => true, flujo: () => null, liberar: () => undefined }),
+                enlace: () => ({ camino: "directo", medio: "red-local" }),
+                esperar: (ms) => {
+                    esperas.push(ms);
+                    return new Promise((r) => setTimeout(r, Math.min(ms, 5)));
+                },
+            },
+        });
+        await d.iniciar();
+        await vi.advanceTimersByTimeAsync(200);
+        expect(cuadrosPedidos).toBe(5);
+        expect(esperas).toEqual([300, 600, 900, 1200]);
+        expect(d.instantanea().estado).toBe("cerrada");
+        expect(d.instantanea().motivo).toBe("sin-cuadros");
+    });
 });

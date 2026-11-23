@@ -55,6 +55,7 @@ static ULTIMO_NUMERO: AtomicU32 = AtomicU32::new(0);
 static ULTIMA_ENTREGA_MS: AtomicU64 = AtomicU64::new(0);
 static RETARDO_RECEPTOR_MS: AtomicU64 = AtomicU64::new(0);
 static PERIODO_CAPTURA_MS: AtomicU64 = AtomicU64::new(q::PERIODO_OBJETIVO_MS);
+static ENTREGAS_CONTADOR: AtomicU64 = AtomicU64::new(0);
 
 struct Activa {
     ancho: u32,
@@ -77,10 +78,11 @@ fn buffer() -> MutexGuard<'static, Vec<u8>> {
 fn anotar_entrega(desde: u32, periodo_ms: u64) {
     let ahora = crate::control_neuronas::mono_k();
     let antes = ULTIMA_ENTREGA_MS.swap(ahora, Ordering::Relaxed);
-    let por_reloj = if antes == 0 { 0 } else { ahora.saturating_sub(antes).saturating_sub(periodo_ms) };
+    let hubo_previa = antes != 0;
+    let intervalo_ms = ahora.saturating_sub(antes);
     let atraso = ULTIMO_NUMERO.load(Ordering::Relaxed).saturating_sub(desde).saturating_sub(1);
-    let por_cola = u64::from(atraso).saturating_mul(periodo_ms);
-    RETARDO_RECEPTOR_MS.store(por_reloj.max(por_cola).min(1000), Ordering::Relaxed);
+    RETARDO_RECEPTOR_MS.store(q::retardo_para_ritmo(hubo_previa, intervalo_ms, atraso, periodo_ms), Ordering::Relaxed);
+    ENTREGAS_CONTADOR.fetch_add(1, Ordering::Relaxed);
 }
 
 /// La captura de prueba falló aunque nada faltaba: en el Mac es casi siempre el permiso; en Linux, el servidor X.
@@ -129,6 +131,7 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
     ULTIMA_ENTREGA_MS.store(0, Ordering::Relaxed);
     RETARDO_RECEPTOR_MS.store(0, Ordering::Relaxed);
     PERIODO_CAPTURA_MS.store(q::PERIODO_OBJETIVO_MS, Ordering::Relaxed);
+    ENTREGAS_CONTADOR.store(0, Ordering::Relaxed);
     let parar = Arc::new(AtomicBool::new(false));
     let cuadros = Arc::new(AtomicU32::new(1));
     {
@@ -138,6 +141,7 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
             .spawn(move || {
                 let mut ritmo = q::Ritmo::nuevo(lado, calidad);
                 let mut huella_previa = huella_inicial;
+                let mut entregas_vistas = 0u64;
                 while !parar.load(Ordering::SeqCst) {
                     let t0 = std::time::Instant::now();
                     let en_pausa = crate::control_neuronas::sesion_pausada(&sesion2);
@@ -167,13 +171,27 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
                         }
                     }
                     let trabajo = t0.elapsed().as_millis() as u64;
-                    let retardo = RETARDO_RECEPTOR_MS.load(Ordering::Relaxed);
+                    let entregas_ahora = ENTREGAS_CONTADOR.load(Ordering::Relaxed);
+                    // Solo consume el retardo cuando hubo una entrega real desde el ciclo anterior.
+                    let retardo = if entregas_ahora > entregas_vistas {
+                        entregas_vistas = entregas_ahora;
+                        RETARDO_RECEPTOR_MS.load(Ordering::Relaxed)
+                    } else {
+                        0
+                    };
                     let cambio = ritmo.muestra(trabajo, retardo);
                     let linea = q::linea_cambio(cambio, trabajo, retardo);
                     if !linea.is_empty() {
                         crate::ble::nota(None, "control-pantalla", &format!("ritmo {linea}"));
                     }
-                    let periodo = ritmo.periodo_ms(trabajo);
+                    let ultima_entrega = ULTIMA_ENTREGA_MS.load(Ordering::Relaxed);
+                    let sin_peticion_reciente = ultima_entrega != 0
+                        && crate::control_neuronas::mono_k().saturating_sub(ultima_entrega) > 300;
+                    let periodo = if sin_peticion_reciente {
+                        q::PERIODO_MAX_MS
+                    } else {
+                        ritmo.periodo_ms(trabajo)
+                    };
                     PERIODO_CAPTURA_MS.store(periodo, Ordering::Relaxed);
                     let _ = &app2;
                     std::thread::sleep(std::time::Duration::from_millis(periodo.saturating_sub(trabajo).max(20)));

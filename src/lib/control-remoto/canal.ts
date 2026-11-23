@@ -562,14 +562,16 @@ export async function recrearClaveAparato(nombre: string, cuenta: string): Promi
  * En Linux verifica también GStreamer (nice, webrtcbin) vía `capacidadesNativas`.
  * Devuelve `true` si hay WebRTC usable, `false` si falta (y deja la causa en `faltaWebRtc`).
  */
-export async function comprobarWebRtcUtilizable(): Promise<{ usable: boolean; faltaWebRtc?: string; detalle?: string }> {
+export async function comprobarWebRtcUtilizable(
+    capsPrevias?: Awaited<ReturnType<typeof capacidadesNativas>> | null,
+): Promise<{ usable: boolean; faltaWebRtc?: string; detalle?: string }> {
     const hayPeer = typeof RTCPeerConnection === "function";
     if (!hayPeer) {
         return { usable: false, faltaWebRtc: "webrtc-linux", detalle: "RTCPeerConnection no existe en este navegador" };
     }
 
     try {
-        const caps = await capacidadesNativas();
+        const caps = capsPrevias === undefined ? await capacidadesNativas() : capsPrevias;
         if (caps && caps.falta.includes("webrtc-linux")) {
             const detalle = caps.falta.filter((f) => f.startsWith("webrtc")).join(", ") || "faltan elementos de GStreamer";
             return { usable: false, faltaWebRtc: "webrtc-linux", detalle };
@@ -591,7 +593,7 @@ export async function decidirViaPantalla(
     capsControlador: Awaited<ReturnType<typeof capacidadesNativas>> | null,
     _capsControlado: unknown
 ): Promise<{ via: "webrtc" | "malla"; razon: string }> {
-    const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable();
+    const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable(capsControlador);
     if (usable) {
         return { via: "webrtc", razon: "WebRTC disponible en el controlador" };
     }

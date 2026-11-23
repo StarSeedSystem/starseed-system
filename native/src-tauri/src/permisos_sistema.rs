@@ -359,7 +359,7 @@ fn linux_estado() -> EstadoLinux {
     let uinput = salida("ls", &["-l", "/dev/uinput"]);
     let bluetooth = salida("systemctl", &["is-active", "bluetooth"]);
     let polkit = std::path::Path::new("/etc/polkit-1/rules.d/50-starseed-netdev.rules").exists();
-    let webrtc = crate::permisos_medios::webrtc_linux_estado();
+    let webrtc = crate::permisos_medios::webrtc_linux_estado_sync();
     let faltan: Vec<String> = webrtc
         .get("faltan")
         .and_then(|f| f.as_array())

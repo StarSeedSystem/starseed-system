@@ -24,7 +24,6 @@
 use crate::enlace_wifi::ahora_ms;
 use crate::enlace_wifi_linux_logica as lg;
 use crate::enlace_wifi_logica::{self as logica, CapacidadesWifi, CredencialesNativas, EstadoEnlaceWifi};
-use crate::entorno_hijos::limpiar_entorno;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -204,17 +203,7 @@ fn texto_de(p: &HashMap<String, OwnedValue>, k: &str) -> Option<String> {
 
 fn ip_de_interfaz(interfaz: &str) -> Option<(std::net::Ipv4Addr, u8)> {
     let mut cmd = std::process::Command::new("ip");
-    if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
-        let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-        let limpio = limpiar_entorno(vars, std::path::Path::new(&appdir));
-        for (k, v) in limpio {
-            if let Some(val) = v {
-                cmd.env(k, val);
-            } else {
-                cmd.env_remove(k);
-            }
-        }
-    }
+    crate::entorno_hijos::aplicar_a_comando(&mut cmd);
     let o = cmd.args(["-4", "-o", "addr", "show", "dev", interfaz]).output().ok()?;
     lg::ipv4_de_ip_addr(&String::from_utf8_lossy(&o.stdout))
 }

@@ -25,6 +25,18 @@ pub const RETARDO_BUENO_MS: u64 = 40;
 /// Muestras seguidas para bajar y para volver a subir.
 pub const MUESTRAS_PARA_BAJAR: u32 = 6;
 pub const MUESTRAS_PARA_SUBIR: u32 = 24;
+/// Peticiones espaciadas ≥450 ms indican consumo por malla (≤2 cuadros/s): no penalizan el nivel local.
+pub const UMBRAL_MALLA_ENTREGA_MS: u64 = 450;
+
+/// Calcula el retardo del receptor (ms) para alimentar `Ritmo::muestra`.
+pub fn retardo_para_ritmo(hubo_entrega_previa: bool, intervalo_ms: u64, atraso_cuadros: u32, periodo_ms: u64) -> u64 {
+    if !hubo_entrega_previa || intervalo_ms >= UMBRAL_MALLA_ENTREGA_MS {
+        return 0;
+    }
+    let por_reloj = intervalo_ms.saturating_sub(periodo_ms);
+    let por_cola = u64::from(atraso_cuadros).saturating_mul(periodo_ms);
+    por_reloj.max(por_cola).min(1000)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Nivel {
@@ -235,6 +247,17 @@ mod pruebas {
         assert_ne!(huella_bloques(&negro, 3, w, h), Some(h1), "un bloque distinto sí se ve");
         assert_eq!(huella_bloques(&base, 3, 4, 4), None);
         assert_eq!(huella_bloques(&[0; 10], 3, 64, 64), None, "bytes de menos no se leen");
+    }
+
+    #[test]
+    fn ctl1119c_modo_malla_espaciado_no_hunde_calidad_local() {
+        // Receptor por malla pidiendo cada ~1000 ms con muchos cuadros capturados entremedias: devuelve 0.
+        assert_eq!(retardo_para_ritmo(false, 0, 0, 66), 0);
+        assert_eq!(retardo_para_ritmo(true, 1000, 15, 66), 0);
+        assert_eq!(retardo_para_ritmo(true, 450, 8, 66), 0);
+        // Receptor fluido un poco lento (120 ms) sí reporta retardo real acotado.
+        assert_eq!(retardo_para_ritmo(true, 120, 0, 66), 54);
+        assert_eq!(retardo_para_ritmo(true, 200, 3, 66), 198);
     }
 
     #[test]

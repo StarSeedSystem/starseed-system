@@ -409,6 +409,7 @@ export class PantallaDestino {
             viaRazon = await decidirViaPantalla(capsControlador, null);
             if (viaRazon.via === "malla") {
                 this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+                this.cada(500, () => void this.actualizarCalidad());
                 this.pasarAMalla(this.causaCorto(viaRazon.razon));
                 void this.leerAparato();
                 return;
@@ -419,6 +420,7 @@ export class PantallaDestino {
         } catch (e) {
             if (this.d.malla && !this.cerrada) {
                 this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+                this.cada(500, () => void this.actualizarCalidad());
                 this.pasarAMalla("sin-oferta");
                 void this.leerAparato();
                 return;
@@ -574,9 +576,9 @@ export class PantallaDestino {
                 await m.esperar(300 * fallos);
                 continue;
             }
-            fallos = 0;
             const res = (r.resultado ?? {}) as Record<string, unknown>;
             if (res.nuevo === false) {
+                fallos = 0;
                 vacios += 1;
                 if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
                 await m.esperar(esperaSinCuadro(vacios));
@@ -586,6 +588,8 @@ export class PantallaDestino {
             const p0 = leerParteCuadro(res);
             if (!p0) {
                 fallos += 1;
+                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                await m.esperar(300 * fallos);
                 continue;
             }
             let jpeg: Uint8Array | null = null;
@@ -599,9 +603,18 @@ export class PantallaDestino {
                 }
             } catch {
                 fallos += 1;
+                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                await m.esperar(300 * fallos);
                 continue;
             }
-            if (!jpeg || this.cerrada) continue;
+            if (this.cerrada) return;
+            if (!jpeg) {
+                fallos += 1;
+                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                await m.esperar(300 * fallos);
+                continue;
+            }
+            fallos = 0;
             desde = p0.num;
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
@@ -1056,7 +1069,12 @@ export class PantallaDestino {
 function crearLienzoMalla() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const flujo = typeof canvas.captureStream === "function" ? canvas.captureStream(0) : null;
+    let flujo: MediaStream | null = null;
+    try {
+        flujo = typeof canvas.captureStream === "function" ? canvas.captureStream(0) : null;
+    } catch {
+        flujo = null;
+    }
     const pista = flujo?.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
     return {
         async pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean> {

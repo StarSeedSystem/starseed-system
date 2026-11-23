@@ -483,10 +483,14 @@ object ControlFondo {
                 aplicada = true
             }
             if (enFondo) {
-                w.onResume()
-                w.resumeTimers()
-                reanudos += 1
-                medida = "webview-activo"
+                if (!ControlEntradaNativo.congelado()) {
+                    w.onResume()
+                    w.resumeTimers()
+                    reanudos += 1
+                    medida = "webview-activo"
+                } else {
+                    medida = "dialogo-abierto"
+                }
             } else {
                 medida = "en-primer-plano"
             }

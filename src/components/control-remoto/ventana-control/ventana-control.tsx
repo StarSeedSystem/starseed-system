@@ -20,6 +20,15 @@ import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pan
 import { estiloSeleccionUsuario } from "@/lib/seleccion/colores-seleccion";
 import { CapaSeleccionCompartida } from "@/components/seleccion/capa-seleccion-compartida";
 import { MedidorPresentacional } from "../medidor-calidad";
+import { COMANDO_PANTALLA_VENTANA } from "@/lib/nativa/pantalla-completa";
+
+export type ModoTeclado = "mensaje" | "tiempo-real" | "ambos";
+
+function invocarPantallaVentana(activo: boolean): void {
+    const t = (globalThis as { __TAURI__?: { core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__;
+    const inv = t?.core?.invoke;
+    if (typeof inv === "function") void inv(COMANDO_PANTALLA_VENTANA, { activo }).catch(() => undefined);
+}
 
 export type { EntradaControl, PropsVentanaControl, FuentePedida } from "./tipos";
 
@@ -449,9 +458,32 @@ function FilaFuente({ p }: { p: PropsVentanaControl }) {
     );
 }
 
-function Controles({ p }: { p: PropsVentanaControl }) {
+const MODOS_TECLADO: ReadonlyArray<{ id: ModoTeclado; texto: string }> = [
+    { id: "mensaje", texto: "Mensaje" },
+    { id: "tiempo-real", texto: "Tiempo real" },
+    { id: "ambos", texto: "Ambos" },
+];
+
+const TECLAS_VIRTUALES: ReadonlyArray<{ etiqueta: string; envio: string; aria: string }> = [
+    { etiqueta: "Espacio", envio: " ", aria: "Enviar espacio" },
+    { etiqueta: "Intro", envio: "\n", aria: "Enviar intro" },
+    { etiqueta: "Borrar", envio: "\b", aria: "Enviar borrar" },
+    { etiqueta: "Tab", envio: "\t", aria: "Enviar tabulador" },
+    { etiqueta: "Esc", envio: "\x1b", aria: "Enviar escape" },
+];
+
+function Controles({
+    p,
+    modoTeclado,
+    alCambiarModoTeclado,
+}: {
+    p: PropsVentanaControl;
+    modoTeclado: ModoTeclado;
+    alCambiarModoTeclado: (m: ModoTeclado) => void;
+}) {
     const c = p.capacidades;
     const [texto, setTexto] = useState("");
+    const [vivo, setVivo] = useState("");
     const escritorio = esEscritorio(c.teclas);
     const teclas = TECLAS.filter((t) => c.teclas.includes(t.cual));
     const enviarTexto = () => {
@@ -461,6 +493,8 @@ function Controles({ p }: { p: PropsVentanaControl }) {
     };
     const hay = teclas.length > 0 || c.volumen || c.brillo || c.texto;
     if (!hay) return <p className="px-3 py-2 text-[12px] text-white/55">Este aparato no ofrece mandos.</p>;
+    const verMensaje = modoTeclado === "mensaje" || modoTeclado === "ambos";
+    const verTiempoReal = modoTeclado === "tiempo-real" || modoTeclado === "ambos";
     return (
         <div data-testid="ventana-control-mandos" className="space-y-2 px-3 py-2">
             {teclas.length > 0 && (
@@ -486,26 +520,94 @@ function Controles({ p }: { p: PropsVentanaControl }) {
             )}
             {c.brillo && <Deslizador etiqueta="Brillo" valor={p.aparato?.brillo} onCambia={(nivel) => p.alEnviar({ tipo: "brillo", nivel })} />}
             {c.texto && (
-                <form
-                    className="flex gap-1.5"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        enviarTexto();
-                    }}
-                >
-                    <input
-                        type="text"
-                        value={texto}
-                        onChange={(e) => setTexto(e.target.value)}
-                        aria-label="Texto para escribir en el aparato"
-                        placeholder="Escribir en el aparato"
-                        autoComplete="off"
-                        className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-3 text-[13px] text-white placeholder:text-white/35"
-                    />
-                    <button type="submit" className="min-h-10 cursor-pointer rounded-lg bg-[#DC143C] px-3 text-[12px] font-medium text-white hover:bg-[#b01030]">
-                        Enviar texto
-                    </button>
-                </form>
+                <div className="space-y-2">
+                    <div role="group" aria-label="Modo de teclado" data-testid="ventana-control-modo-teclado" className="flex flex-wrap gap-1">
+                        {MODOS_TECLADO.map((m) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                aria-pressed={modoTeclado === m.id}
+                                onClick={() => alCambiarModoTeclado(m.id)}
+                                className={`min-h-8 cursor-pointer rounded-md border px-2.5 text-[11px] font-medium transition-colors ${
+                                    modoTeclado === m.id ? "border-[#DC143C] bg-[#DC143C]/25 text-white" : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.1]"
+                                }`}
+                            >
+                                {m.texto}
+                            </button>
+                        ))}
+                    </div>
+                    {verTiempoReal && (
+                        <div className="space-y-1.5" data-testid="ventana-control-bloque-tiempo-real">
+                            <input
+                                type="text"
+                                value={vivo}
+                                onChange={(e) => {
+                                    const valor = e.target.value;
+                                    if (valor) {
+                                        for (const t of trocear(valor)) p.alEnviar({ tipo: "texto", texto: t });
+                                    }
+                                    setVivo("");
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.nativeEvent?.isComposing) return;
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        p.alEnviar({ tipo: "texto", texto: "\n" });
+                                    } else if (e.key === "Backspace" && vivo.length === 0) {
+                                        e.preventDefault();
+                                        p.alEnviar({ tipo: "texto", texto: "\b" });
+                                    } else if (e.key === "Tab") {
+                                        e.preventDefault();
+                                        p.alEnviar({ tipo: "texto", texto: "\t" });
+                                    } else if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        p.alEnviar({ tipo: "texto", texto: "\x1b" });
+                                    }
+                                }}
+                                data-testid="ventana-control-teclado-vivo"
+                                aria-label="Escritura en tiempo real en el aparato"
+                                placeholder="Escribe aquí en tiempo real…"
+                                autoComplete="off"
+                                className="min-h-10 w-full rounded-lg border border-white/15 bg-black/50 px-3 text-[13px] text-white placeholder:text-white/40"
+                            />
+                            <div role="group" aria-label="Teclas rápidas" data-testid="ventana-control-teclas-virtuales" className="flex flex-wrap gap-1">
+                                {TECLAS_VIRTUALES.map((tv) => (
+                                    <button
+                                        key={tv.etiqueta}
+                                        type="button"
+                                        aria-label={tv.aria}
+                                        onClick={() => p.alEnviar({ tipo: "texto", texto: tv.envio })}
+                                        className="min-h-8 cursor-pointer rounded-md border border-white/10 bg-white/[0.05] px-2.5 text-[11px] font-medium text-white/85 hover:bg-white/[0.12]"
+                                    >
+                                        {tv.etiqueta}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {verMensaje && (
+                        <form
+                            className="flex gap-1.5"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                enviarTexto();
+                            }}
+                        >
+                            <input
+                                type="text"
+                                value={texto}
+                                onChange={(e) => setTexto(e.target.value)}
+                                aria-label="Texto para escribir en el aparato"
+                                placeholder="Escribir en el aparato"
+                                autoComplete="off"
+                                className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-3 text-[13px] text-white placeholder:text-white/35"
+                            />
+                            <button type="submit" className="min-h-10 cursor-pointer rounded-lg bg-[#DC143C] px-3 text-[12px] font-medium text-white hover:bg-[#b01030]">
+                                Enviar texto
+                            </button>
+                        </form>
+                    )}
+                </div>
             )}
         </div>
     );
@@ -553,6 +655,19 @@ export function VentanaControl(props: PropsVentanaControl) {
     }, [g]);
 
     const [minimizada, setMinimizada] = useState(false);
+    const [pantallaCompleta, setPantallaCompleta] = useState(false);
+    const pantallaCompletaRef = useRef(false);
+    pantallaCompletaRef.current = pantallaCompleta;
+    useEffect(() => () => {
+        if (pantallaCompletaRef.current) invocarPantallaVentana(false);
+    }, []);
+    const alternarPantallaCompleta = () => {
+        const siguiente = !pantallaCompleta;
+        setPantallaCompleta(siguiente);
+        if (siguiente) setMinimizada(false);
+        invocarPantallaVentana(siguiente);
+    };
+    const [modoTeclado, setModoTeclado] = useState<ModoTeclado>("mensaje");
     const [mandosAbiertos, setMandosAbiertos] = useState(modo === "pagina");
     const [vista, setVista] = useState({ w: 1280, h: 800 });
     const [lugar, setLugar] = useState<Lugar>(() => ({ x: -1, y: -1, w: ANCHO_DEFECTO }));
@@ -617,14 +732,20 @@ export function VentanaControl(props: PropsVentanaControl) {
     };
 
     const alTeclear = (e: React.KeyboardEvent) => {
-        // Escape es «atrás»; ninguna otra tecla sale hacia el aparato (el cuadro de texto escribe por su botón).
+        // Escape es «atrás» cuando hay entrada activa; si no, sale de pantalla completa local.
         if (e.key === "Escape" && activo && props.capacidades.teclas.includes("atras")) {
             e.preventDefault();
             props.alEnviar({ tipo: "tecla", cual: "atras" });
             return;
         }
-        // CTL1117M · en un Mac controlado, lo que se teclea sobre la pantalla llega como texto (no desde los cuadros de la ventana).
-        if (activo && props.capacidades.texto && esEscritorio(props.capacidades.teclas)) {
+        if (e.key === "Escape" && pantallaCompleta) {
+            e.preventDefault();
+            setPantallaCompleta(false);
+            invocarPantallaVentana(false);
+            return;
+        }
+        // CTL1117M + modo tiempo real: lo que se teclea sobre la pantalla llega en directo (en escritorio o con teclado en tiempo real).
+        if (activo && props.capacidades.texto && (esEscritorio(props.capacidades.teclas) || modoTeclado !== "mensaje")) {
             const el = e.target as HTMLElement | null;
             if (el?.closest?.("input,textarea,select,button,[contenteditable='true']")) return;
             const t = textoDeTecla(e);
@@ -653,6 +774,19 @@ export function VentanaControl(props: PropsVentanaControl) {
             Solo mirar
         </span>
     ) : null;
+
+    const botonPantallaCompleta = (
+        <button
+            type="button"
+            onClick={alternarPantallaCompleta}
+            aria-pressed={pantallaCompleta}
+            data-testid="ventana-control-pantalla-completa"
+            aria-label={pantallaCompleta ? `Salir de pantalla completa de ${nombre}` : `Pantalla completa de ${nombre}`}
+            className="min-h-10 min-w-10 cursor-pointer rounded-lg px-2 text-[13px] text-white/80 hover:bg-white/10"
+        >
+            {pantallaCompleta ? "⤡" : "⤢"}
+        </button>
+    );
 
     const botonCerrar = (
         <button type="button" onClick={props.alCerrar} aria-label={`Cerrar el control de ${nombre}`} className="min-h-10 min-w-10 cursor-pointer rounded-lg text-white/80 hover:bg-white/10">
@@ -696,7 +830,18 @@ export function VentanaControl(props: PropsVentanaControl) {
     if (modo === "pagina") {
         const mostrarSelector = props.alCambiarFuente && (mandosAbiertos || nivel === "ver");
         return (
-            <section role="region" aria-label={`Control de ${nombre}`} tabIndex={-1} onKeyDown={alTeclear} style={estilosSeleccion.cssVars} className={`${base} h-full w-full min-h-0 outline-none`} data-testid="ventana-control" data-ventana-control data-modo="pagina">
+            <section
+                role="region"
+                aria-label={`Control de ${nombre}`}
+                tabIndex={-1}
+                onKeyDown={alTeclear}
+                style={estilosSeleccion.cssVars}
+                className={`${base} ${pantallaCompleta ? "fixed inset-0 z-[2147482500] h-screen w-screen" : "h-full w-full"} min-h-0 outline-none`}
+                data-testid="ventana-control"
+                data-ventana-control
+                data-modo="pagina"
+                data-pantalla-completa={pantallaCompleta ? "si" : "no"}
+            >
                 <header className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 px-3">
                     {props.color && <PuntoColor color={props.color} />}
                     <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{nombre}</h2>
@@ -705,6 +850,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {chip}
                     {medidor}
                     {nivel === "ver" && mostrarSelector && selector}
+                    {botonPantallaCompleta}
                     {botonCerrar}
                 </header>
                 {props.ranuraMedio}
@@ -717,7 +863,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     </div>
                     {nivel === "controlar" && (
                         <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-white/10 md:max-h-none md:w-80 md:border-l md:border-t-0">
-                            <Controles p={props} />
+                            <Controles p={props} modoTeclado={modoTeclado} alCambiarModoTeclado={setModoTeclado} />
                             {mandosAbiertos && mostrarSelector && selector}
                         </div>
                     )}
@@ -726,7 +872,7 @@ export function VentanaControl(props: PropsVentanaControl) {
         );
     }
 
-    if (minimizada) {
+    if (minimizada && !pantallaCompleta) {
         return (
             <div
                 role="group"
@@ -757,16 +903,23 @@ export function VentanaControl(props: PropsVentanaControl) {
             data-testid="ventana-control"
             data-ventana-control
             data-modo="flotante"
-            className={`${base} fixed z-[2147482000] rounded-xl outline-none`}
-            style={{ ...estilosSeleccion.cssVars, left: lugar.x, top: lugar.y, width: wVentana, maxHeight: vista.h - lugar.y }}
+            data-pantalla-completa={pantallaCompleta ? "si" : "no"}
+            className={`${base} fixed ${pantallaCompleta ? "inset-0 z-[2147482500] h-screen w-screen rounded-none" : "z-[2147482000] rounded-xl"} outline-none`}
+            style={
+                pantallaCompleta
+                    ? { ...estilosSeleccion.cssVars, left: 0, top: 0, width: "100vw", height: "100vh", maxHeight: "100vh" }
+                    : { ...estilosSeleccion.cssVars, left: lugar.x, top: lugar.y, width: wVentana, maxHeight: vista.h - lugar.y }
+            }
         >
             <header
-                onPointerDown={(e) => empezar(e, "mover")}
+                onPointerDown={(e) => {
+                    if (!pantallaCompleta) empezar(e, "mover");
+                }}
                 onPointerMove={seguir}
                 onPointerUp={terminar}
                 onPointerCancel={terminar}
                 data-testid="ventana-control-barra"
-                className="flex shrink-0 cursor-grab touch-none items-center gap-1.5 border-b border-white/10 px-2 active:cursor-grabbing"
+                className={`flex shrink-0 touch-none items-center gap-1.5 border-b border-white/10 px-2 ${pantallaCompleta ? "" : "cursor-grab active:cursor-grabbing"}`}
                 style={{ height: BARRA_PX }}
             >
                 {props.color && <PuntoColor color={props.color} className="ml-1" />}
@@ -781,6 +934,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                         Controles
                     </button>
                 )}
+                {botonPantallaCompleta}
                 <button type="button" onClick={() => setMinimizada(true)} aria-label={`Reducir el control de ${nombre} a una pastilla`} className="min-h-10 min-w-10 cursor-pointer rounded-lg text-white/80 hover:bg-white/10">
                     ▁
                 </button>
@@ -788,32 +942,38 @@ export function VentanaControl(props: PropsVentanaControl) {
             </header>
             {props.ranuraMedio}
             {bloqueSeleccionCompartida}
-            <div className="relative flex shrink-0 flex-col" style={{ height: Math.min(wVentana * aspecto, altoPantallaMax) }} data-testid="ventana-control-marco">
+            <div
+                className={pantallaCompleta ? "relative flex min-h-0 flex-1 flex-col" : "relative flex shrink-0 flex-col"}
+                style={pantallaCompleta ? undefined : { height: Math.min(wVentana * aspecto, altoPantallaMax) }}
+                data-testid="ventana-control-marco"
+            >
                 <Pantalla p={props} activo={activo} gestor={g} />
             </div>
             <FilaEstado p={props} />
             <FilaFuente p={props} />
             {nivel === "controlar" && mandosAbiertos && (
                 <div className="min-h-0 shrink overflow-y-auto border-t border-white/10">
-                    <Controles p={props} />
+                    <Controles p={props} modoTeclado={modoTeclado} alCambiarModoTeclado={setModoTeclado} />
                     {mostrarSelector && selector}
                 </div>
             )}
-            <div
-                role="separator"
-                tabIndex={0}
-                aria-label="Cambiar el tamaño de la ventana"
-                aria-orientation="horizontal"
-                onKeyDown={teclaTamano}
-                onPointerDown={(e) => empezar(e, "tamano")}
-                onPointerMove={seguir}
-                onPointerUp={terminar}
-                onPointerCancel={terminar}
-                data-testid="ventana-control-esquina"
-                className="absolute bottom-0 right-0 h-6 w-6 cursor-nwse-resize touch-none"
-            >
-                <span className="absolute bottom-1 right-1 h-2.5 w-2.5 border-b-2 border-r-2 border-white/50" />
-            </div>
+            {!pantallaCompleta && (
+                <div
+                    role="separator"
+                    tabIndex={0}
+                    aria-label="Cambiar el tamaño de la ventana"
+                    aria-orientation="horizontal"
+                    onKeyDown={teclaTamano}
+                    onPointerDown={(e) => empezar(e, "tamano")}
+                    onPointerMove={seguir}
+                    onPointerUp={terminar}
+                    onPointerCancel={terminar}
+                    data-testid="ventana-control-esquina"
+                    className="absolute bottom-0 right-0 h-6 w-6 cursor-nwse-resize touch-none"
+                >
+                    <span className="absolute bottom-1 right-1 h-2.5 w-2.5 border-b-2 border-r-2 border-white/50" />
+                </div>
+            )}
         </div>
     );
 }

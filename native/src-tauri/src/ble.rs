@@ -24,7 +24,6 @@
 
 use crate::ble_l2cap::{self as l2, Carril, Castigos, Desmarcador};
 use crate::ble_trama::{self as bt, Enlace, Hecho, Vecindario};
-use crate::entorno_hijos::limpiar_entorno;
 use crate::malla_local_trama::{Buzon, Limitador, Recibido};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -1891,19 +1890,7 @@ pub fn ble_registro_compartir() -> Result<String, String> {
         let orden = "xdg-open";
         let mut cmd = std::process::Command::new(orden);
         #[cfg(target_os = "linux")]
-        {
-            if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
-                let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-                let limpio = limpiar_entorno(vars, Path::new(&appdir));
-                for (k, v) in limpio {
-                    if let Some(val) = v {
-                        cmd.env(k, val);
-                    } else {
-                        cmd.env_remove(k);
-                    }
-                }
-            }
-        }
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd);
         cmd.arg(&dir).spawn().map_err(|e| format!("No se pudo abrir la carpeta del registro: {e}"))?;
         return Ok(format!("Carpeta del registro abierta: {}", dir.display()));
     }

@@ -32,11 +32,13 @@ const VARIABLES_QUITAR: &[&str] = &[
 /// Variables de tipo «lista de rutas» que se filtran para quitar entradas dentro de APPDIR.
 const VARIABLES_FILTRAR: &[&str] = &["PATH", "XDG_DATA_DIRS"];
 
-/// Detecta si estamos dentro de una AppImage (APPIMAGE o APPDIR definida).
-fn en_appimage() -> Option<String> {
-    std::env::var("APPIMAGE")
+/// Detecta si estamos dentro de una AppImage (`APPDIR` primero por ser la raíz montada;
+/// `APPIMAGE` como respaldo).
+pub fn appdir_actual() -> Option<String> {
+    std::env::var("APPDIR")
         .ok()
-        .or_else(|| std::env::var("APPDIR").ok())
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| std::env::var("APPIMAGE").ok().filter(|s| !s.trim().is_empty()))
 }
 
 /// Limpia una variable de tipo lista de rutas (PATH, XDG_DATA_DIRS) quitando
@@ -55,14 +57,15 @@ fn filtrar_lista(valor: &str, appdir: &Path) -> String {
 ///
 /// - Si no hay APPIMAGE ni APPDIR, devuelve `vars` sin cambios.
 /// - Si hay APPIMAGE/APPDIR:
-///   * Elimina las variables en `VARIABLES_QUITAR`.
+///   * Devuelve `(clave, None)` para las variables en `VARIABLES_QUITAR` para que el
+///     llamador ejecute `cmd.env_remove(clave)`.
 ///   * Filtra `PATH` y `XDG_DATA_DIRS` quitando entradas dentro de `appdir`.
 ///   * El resto de variables pasa sin cambios.
 pub fn limpiar_entorno(
     vars: Vec<(String, Option<String>)>,
     appdir: &Path,
 ) -> Vec<(String, Option<String>)> {
-    let Some(appdir_str) = en_appimage() else {
+    let Some(appdir_str) = appdir_actual() else {
         return vars;
     };
     let appdir_path = Path::new(&appdir_str);
@@ -74,7 +77,7 @@ pub fn limpiar_entorno(
     vars.into_iter()
         .filter_map(|(k, v)| {
             if VARIABLES_QUITAR.contains(&k.as_str()) {
-                None // se quita
+                Some((k, None)) // se marca explícitamente para env_remove
             } else if VARIABLES_FILTRAR.contains(&k.as_str()) {
                 v.map(|val| (k, Some(filtrar_lista(&val, appdir))))
             } else {
@@ -84,33 +87,59 @@ pub fn limpiar_entorno(
         .collect()
 }
 
+/// Limpia las variables heredadas de la AppImage sobre un `Command` del sistema.
+pub fn aplicar_a_comando(cmd: &mut std::process::Command) {
+    let Some(appdir) = appdir_actual() else {
+        return;
+    };
+    let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
+    for (k, v) in limpiar_entorno(vars, Path::new(&appdir)) {
+        if let Some(val) = v {
+            cmd.env(k, val);
+        } else {
+            cmd.env_remove(k);
+        }
+    }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
     use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+
+    fn candado_env() -> std::sync::MutexGuard<'static, ()> {
+        static L: OnceLock<Mutex<()>> = OnceLock::new();
+        L.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn fuera_de_appimage_no_toca_nada() {
-        // Simulamos un entorno sin APPIMAGE/APPDIR
+        let _g = candado_env();
+        let prev_dir = std::env::var_os("APPDIR");
+        let prev_img = std::env::var_os("APPIMAGE");
+        std::env::remove_var("APPDIR");
+        std::env::remove_var("APPIMAGE");
         let vars = vec![
             ("LD_LIBRARY_PATH".into(), Some("/usr/lib".into())),
             ("PATH".into(), Some("/usr/bin:/bin".into())),
             ("OTRA".into(), Some("valor".into())),
         ];
-        // Como no hay APPIMAGE en el entorno de test, la función no debe cambiar nada
-        // Nota: la función lee APPIMAGE/APPDIR del entorno real, así que en test
-        // real se comporta como "fuera de AppImage".
         let resultado = limpiar_entorno(vars.clone(), Path::new("/tmp/.mount_xxx"));
+        if let Some(v) = prev_dir { std::env::set_var("APPDIR", v); }
+        if let Some(v) = prev_img { std::env::set_var("APPIMAGE", v); }
         assert_eq!(resultado, vars);
     }
 
     #[test]
     fn dentro_de_appimage_quita_variables_problematicas() {
-        // Este test requiere APPIMAGE o APPDIR en el entorno.
-        // Lo marcamos como ignored y se ejecuta manualmente dentro de una AppImage.
-        // Aquí solo comprobamos la lógica de filtrado con una appdir conocida.
+        let _g = candado_env();
+        let prev_dir = std::env::var_os("APPDIR");
+        let prev_img = std::env::var_os("APPIMAGE");
         let appdir = PathBuf::from("/tmp/.mount_test");
         std::env::set_var("APPDIR", &appdir);
+        // Aunque exista APPIMAGE apuntando al archivo, APPDIR debe mandar.
+        std::env::set_var("APPIMAGE", "/home/alex/StarSeed.AppImage");
 
         let vars = vec![
             ("LD_LIBRARY_PATH".into(), Some("/tmp/.mount_test/usr/lib".into())),
@@ -121,12 +150,16 @@ mod pruebas {
             ("OTRA".into(), Some("valor".into())),
         ];
 
-        let resultado = limpiar_entorno(vars, &appdir);
+        let resultado = limpiar_entorno(vars, Path::new(&appdir_actual().unwrap()));
 
-        // Variables quitadas
-        assert!(!resultado.iter().any(|(k, _)| k == "LD_LIBRARY_PATH"));
-        assert!(!resultado.iter().any(|(k, _)| k == "LD_PRELOAD"));
-        assert!(!resultado.iter().any(|(k, _)| k == "GST_PLUGIN_PATH"));
+        if let Some(v) = prev_dir { std::env::set_var("APPDIR", v); } else { std::env::remove_var("APPDIR"); }
+        if let Some(v) = prev_img { std::env::set_var("APPIMAGE", v); } else { std::env::remove_var("APPIMAGE"); }
+
+        // Variables marcadas con None para que los llamadores hagan env_remove(k)
+        assert_eq!(resultado.iter().find(|(k, _)| k == "LD_LIBRARY_PATH").and_then(|(_, v)| v.as_ref()), None);
+        assert!(resultado.iter().any(|(k, v)| k == "LD_LIBRARY_PATH" && v.is_none()));
+        assert!(resultado.iter().any(|(k, v)| k == "LD_PRELOAD" && v.is_none()));
+        assert!(resultado.iter().any(|(k, v)| k == "GST_PLUGIN_PATH" && v.is_none()));
 
         // PATH filtrado
         let path = resultado.iter().find(|(k, _)| k == "PATH").map(|(_, v)| v.clone().unwrap());
@@ -141,8 +174,6 @@ mod pruebas {
 
         // Otras variables pasan
         assert!(resultado.iter().any(|(k, v)| k == "OTRA" && v.as_deref() == Some("valor")));
-
-        std::env::remove_var("APPDIR");
     }
 
     #[test]

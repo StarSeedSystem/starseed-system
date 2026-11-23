@@ -15,7 +15,6 @@
 use crate::control_entrada_logica as l;
 use crate::control_entrada_macos_logica as m;
 use crate::control_escritorio_linux_logica as ll;
-use crate::entorno_hijos::limpiar_entorno;
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
@@ -52,17 +51,7 @@ pub fn falta_para_ver() -> Option<(&'static str, &'static str)> {
 
 fn ejecutar_texto(prog: &str, args: &[&str]) -> Option<String> {
     let mut cmd = std::process::Command::new(prog);
-    if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
-        let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-        let limpio = limpiar_entorno(vars, std::path::Path::new(&appdir));
-        for (k, v) in limpio {
-            if let Some(val) = v {
-                cmd.env(k, val);
-            } else {
-                cmd.env_remove(k);
-            }
-        }
-    }
+    crate::entorno_hijos::aplicar_a_comando(&mut cmd);
     let o = cmd.args(args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).output().ok()?;
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).to_string())
 }

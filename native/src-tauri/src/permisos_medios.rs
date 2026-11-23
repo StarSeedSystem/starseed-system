@@ -19,7 +19,6 @@
 // Lo de decidir es puro (se prueba sin Tauri); el pegamento con Tauri va al final.
 // ═══════════════════════════════════════════════════════════════════════════
 
-use crate::entorno_hijos::limpiar_entorno;
 use serde::Serialize;
 use std::sync::Mutex;
 
@@ -279,20 +278,11 @@ pub const ELEMENTOS_WEBRTC: [(&str, &str, &str, &str); 6] = [
 #[cfg(target_os = "linux")]
 pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
     use std::process::{Command, Stdio};
-    let mut cmd = Command::new("gst-inspect-1.0");
-    if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
-        let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-        let limpio = limpiar_entorno(vars, std::path::Path::new(&appdir));
-        for (k, v) in limpio {
-            if let Some(val) = v {
-                cmd.env(k, val);
-            } else {
-                cmd.env_remove(k);
-            }
-        }
-    }
     let mut faltan = Vec::new();
     for (el, ..) in ELEMENTOS_WEBRTC {
+        // Un `Command` nuevo por elemento: antes se acumulaban argumentos en el mismo `Command`.
+        let mut cmd = Command::new("gst-inspect-1.0");
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd);
         let r = cmd.args(["--exists", el]).stdout(Stdio::null()).stderr(Stdio::null()).status();
         match r {
             Err(_) => return None,
@@ -303,14 +293,17 @@ pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
     Some(faltan)
 }
 
-/// CTL1118M · lo que la web pregunta al arrancar y al abrir el control: ¿tiene este equipo lo que WebKitGTK necesita para WebRTC?
-/// `faltan` = elementos de GStreamer que no aparecen (vacío = todo); `sabido` = false si no hay `gst-inspect-1.0` (no se acusa a nadie);
-/// `orden` = la orden exacta para Debian/Ubuntu. El AppImage usa el GStreamer del SISTEMA (no hay `bundleMediaFramework` en tauri.conf.json).
-#[tauri::command]
-pub fn webrtc_linux_estado() -> serde_json::Value {
+#[cfg(target_os = "linux")]
+fn elementos_webrtc_que_faltan_cacheado() -> Option<Vec<&'static str>> {
+    static CACHE_WEBRTC: std::sync::OnceLock<Option<Vec<&'static str>>> = std::sync::OnceLock::new();
+    CACHE_WEBRTC.get_or_init(elementos_webrtc_que_faltan).clone()
+}
+
+/// Versión síncrona y cacheada de la sonda GStreamer para llamadores internos y pruebas.
+pub fn webrtc_linux_estado_sync() -> serde_json::Value {
     #[cfg(target_os = "linux")]
     {
-        let r = elementos_webrtc_que_faltan();
+        let r = elementos_webrtc_que_faltan_cacheado();
         let faltan: Vec<&str> = r.clone().unwrap_or_default();
         return serde_json::json!({
             "linux": true,
@@ -322,6 +315,26 @@ pub fn webrtc_linux_estado() -> serde_json::Value {
     }
     #[cfg(not(target_os = "linux"))]
     serde_json::json!({ "linux": false, "sabido": true, "faltan": Vec::<String>::new() })
+}
+
+/// CTL1118M · lo que la web pregunta al arrancar y al abrir el control: ¿tiene este equipo lo que WebKitGTK necesita para WebRTC?
+/// Corre en `spawn_blocking` para nunca bloquear el hilo principal de GTK/WebKit.
+#[tauri::command(async)]
+pub async fn webrtc_linux_estado() -> serde_json::Value {
+    #[cfg(target_os = "linux")]
+    {
+        return tauri::async_runtime::spawn_blocking(webrtc_linux_estado_sync)
+            .await
+            .unwrap_or_else(|_| serde_json::json!({
+                "linux": true,
+                "sabido": false,
+                "faltan": Vec::<String>::new(),
+                "orden": ORDEN_APT_WEBRTC,
+                "texto": "",
+            }));
+    }
+    #[cfg(not(target_os = "linux"))]
+    webrtc_linux_estado_sync()
 }
 
 /// CTL1118M · la orden exacta para el nodo Debian (WebKitGTK necesita `nice` para el ICE y `plugins-bad` para `webrtcbin` y DTLS).
@@ -357,7 +370,7 @@ mod pruebas {
     fn orden_apt_exacta() {
         // CTL1118M
         assert_eq!(ORDEN_APT_WEBRTC, "su -c 'apt-get install -y gstreamer1.0-nice gstreamer1.0-plugins-bad'");
-        let v = webrtc_linux_estado();
+        let v = webrtc_linux_estado_sync();
         assert!(v.get("faltan").is_some());
     }
 

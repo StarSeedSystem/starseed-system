@@ -15,12 +15,10 @@
 // Solo std (+ serde para la respuesta de Tauri): se prueba sin la app.
 // ═══════════════════════════════════════════════════════════════════════════
 
-use crate::entorno_hijos::limpiar_entorno;
 use serde::Serialize;
 use std::collections::HashMap;
 #[cfg(not(windows))]
 use std::process::Command;
-use std::path::Path;
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 
@@ -352,19 +350,8 @@ fn volumenes_del_sistema() -> (Vec<VolumenNativo>, Vec<String>) {
     let mut cmd_mount = Command::new("mount");
     #[cfg(target_os = "linux")]
     {
-        if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
-            let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-            let limpio = limpiar_entorno(vars, Path::new(&appdir));
-            for (k, v) in limpio.clone() {
-                if let Some(val) = v {
-                    cmd_df.env(k.clone(), &val);
-                    cmd_mount.env(k, val);
-                } else {
-                    cmd_df.env_remove(k.clone());
-                    cmd_mount.env_remove(k);
-                }
-            }
-        }
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd_df);
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd_mount);
     }
     
     let salida_df = cmd_df.args(["-kP"]).output();

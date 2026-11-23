@@ -829,10 +829,24 @@ class ServicioControlEntrada : AccessibilityService() {
         if (foco != null && foco.isPassword && ControlNeuronasNativo.alcance != "total") return rechazo("regla-g") // en `protegido`, nunca texto en un campo de contraseña (CTL1117K: en `total` sí)
         if (foco == null || !foco.isEditable) return rechazo("sin-servicio").put("detalle", "sin-campo")
         val previo = if (foco.isShowingHintText) "" else (foco.text?.toString() ?: "")
-        val a = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, previo + t) }
+        val nuevo = StringBuilder(previo)
+        var escritos = 0
+        for (ch in t) {
+            if (ch == '\b') {
+                if (nuevo.isNotEmpty()) {
+                    val s = nuevo.toString()
+                    val cp = s.codePointCount(0, s.length)
+                    if (cp > 0) nuevo.setLength(s.offsetByCodePoints(0, cp - 1))
+                }
+            } else if (ch != '\u001b') {
+                nuevo.append(ch)
+                escritos++
+            }
+        }
+        val a = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, nuevo.toString()) }
         if (!foco.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, a)) return rechazo("sin-servicio").put("detalle", "texto-no-aplicado")
         // CTL1117H: la marca dice QUE se escribió y cuántos caracteres, nunca el texto (podría ser privado); junto al campo, o arriba en el centro.
-        try { val r = android.graphics.Rect(); foco.getBoundsInScreen(r); ControlToques.marca(this, "⌨ escribió ${t.length} caracteres", r.centerX().toFloat(), r.top.toFloat()) } catch (_: Throwable) {}
+        if (escritos > 0) try { val r = android.graphics.Rect(); foco.getBoundsInScreen(r); ControlToques.marca(this, "⌨ escribió $escritos caracteres", r.centerX().toFloat(), r.top.toFloat()) } catch (_: Throwable) {}
         return JSONObject().put("ok", true)
     }
 

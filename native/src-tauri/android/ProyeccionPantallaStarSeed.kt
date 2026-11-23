@@ -71,6 +71,7 @@ object ProyeccionPantalla {
 
     /** Diálogo nativo que explica quién pide y, solo con el «Sí», abre la pantalla de consentimiento de Android. */
     fun pedir(a: Activity): JSONObject {
+        if (a.isFinishing || a.isDestroyed) return no("sin-pantalla")
         if (!ControlNeuronasNativo.encendido() || !ControlNeuronasNativo.mostrando || ControlNeuronasNativo.sesion == null) return no("sesion")
         if (concedida()) return JSONObject().put("ok", true).put("dialogo", false)
         val ahora = System.currentTimeMillis()

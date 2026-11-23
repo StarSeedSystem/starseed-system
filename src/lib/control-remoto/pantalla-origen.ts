@@ -482,6 +482,7 @@ export class OrigenPantalla {
                     await this.parar("cuadro-fallo");
                     return;
                 }
+                await this.d.esperar(100);
                 continue;
             }
             fallos = 0;
@@ -492,6 +493,7 @@ export class OrigenPantalla {
             if (!a.peer && this.d.ahora() <= a.mallaHasta) {
                 a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
                 a.cuadros += 1;
+                await this.d.esperar(25);
                 continue;
             }
             a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
@@ -846,7 +848,9 @@ export function crearPintorReal(cada?: (fn: () => void, ms: number) => () => voi
     };
 }
 
-/** CTL1118M: vuelve a codificar un JPEG más pequeño (solo para la pantalla por la malla; no corre con WebRTC). */
+let lienzoReducir: HTMLCanvasElement | null = null;
+
+/** CTL1118M: vuelve a codificar un JPEG más pequeño (solo para la pantalla por la malla; no corre con WebRTC). Reutiliza el mismo lienzo para no fugar superficies GPU en WebView. */
 async function reducirReal(jpeg: Uint8Array, ancho: number, alto: number, lado: number, calidad: number): Promise<{ jpeg: Uint8Array; ancho: number; alto: number } | null> {
     let bmp: ImageBitmap | null = null;
     try {
@@ -854,9 +858,12 @@ async function reducirReal(jpeg: Uint8Array, ancho: number, alto: number, lado: 
         const k = Math.min(1, lado / Math.max(ancho, alto));
         const w = Math.max(1, Math.round(ancho * k));
         const h = Math.max(1, Math.round(alto * k));
-        const c = document.createElement("canvas");
-        c.width = w;
-        c.height = h;
+        if (!lienzoReducir) lienzoReducir = document.createElement("canvas");
+        const c = lienzoReducir;
+        if (c.width !== w || c.height !== h) {
+            c.width = w;
+            c.height = h;
+        }
         c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
         const blob: Blob | null = await new Promise((res) => c.toBlob(res, "image/jpeg", calidad / 100));
         if (!blob) return null;
