@@ -118,6 +118,131 @@ pub fn tamano_principal() -> Option<(u32, u32)> {
     crate::control_captura::tamano_principal()
 }
 
+/// Comprueba si `pactl` está disponible.
+fn tiene_pactl() -> bool {
+    std::process::Command::new("pactl")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Comprueba si `wpctl` está disponible.
+fn tiene_wpctl() -> bool {
+    std::process::Command::new("wpctl")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Comprueba si `brightnessctl` está disponible.
+fn tiene_brightnessctl() -> bool {
+    std::process::Command::new("brightnessctl")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Comprueba si `xrandr` está disponible.
+fn tiene_xrandr() -> bool {
+    std::process::Command::new("xrandr")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Obtiene la salida conectada principal para xrandr.
+fn salida_xrandr_principal() -> Option<String> {
+    let out = std::process::Command::new("xrandr")
+        .args(["--query"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for line in stdout.lines() {
+        if line.contains(" connected") && !line.contains("disconnected") {
+            return line.split_whitespace().next().map(|s| s.to_string());
+        }
+    }
+    None
+}
+
+/// Ejecuta un comando de volumen (pactl o wpctl).
+fn ejecutar_volumen(porcentaje: u32) -> Result<(), ()> {
+    if tiene_pactl() {
+        let args = ll::comando_volumen_pactl(porcentaje);
+        let mut cmd = std::process::Command::new("pactl");
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+        let status = cmd.args(&args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+        if status.map(|s| s.success()).unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    if tiene_wpctl() {
+        let valor = (porcentaje as f64) / 100.0;
+        let args = ll::comando_volumen_wpctl(valor);
+        let mut cmd = std::process::Command::new("wpctl");
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+        let status = cmd.args(&args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+        if status.map(|s| s.success()).unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    Err(())
+}
+
+/// Ejecuta un comando de brillo (brightnessctl o xrandr).
+fn ejecutar_brillo(porcentaje: u32) -> Result<(), ()> {
+    if tiene_brightnessctl() {
+        let args = ll::comando_brillo_brightnessctl(porcentaje);
+        let mut cmd = std::process::Command::new("brightnessctl");
+        crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+        let status = cmd.args(&args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+        if status.map(|s| s.success()).unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    if tiene_xrandr() {
+        if let Some(salida) = salida_xrandr_principal() {
+            let valor = (porcentaje as f64) / 100.0;
+            let args = ll::comando_brillo_xrandr(&salida, valor);
+            let mut cmd = std::process::Command::new("xrandr");
+            crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+            let status = cmd.args(&args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+            if status.map(|s| s.success()).unwrap_or(false) {
+                return Ok(());
+            }
+        }
+    }
+    Err(())
+}
+
+/// Indica si hay control de volumen disponible (pactl o wpctl).
+pub fn hay_volumen() -> bool {
+    tiene_pactl() || tiene_wpctl()
+}
+
+/// Indica si hay control de brillo disponible (brightnessctl o xrandr).
+pub fn hay_brillo() -> bool {
+    tiene_brightnessctl() || tiene_xrandr()
+}
+
 // ─────────────────────────── Estado de la inyección ───────────────────────────
 
 struct Mundo {
@@ -353,7 +478,16 @@ fn ejecutar(app: &AppHandle, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Opti
             tecla(&mut w, t)
         }
         "texto" => texto(&mut w, o.args.get("texto").and_then(|t| t.as_str()).unwrap_or("")),
-        // Volumen y brillo por nivel no se prometen en un Linux (ver `capacidades_linux`): se dice la verdad.
+        "volumen" => {
+            let valor = o.args.get("valor").and_then(|v| v.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
+            let pct = ll::porcentaje_volumen(valor);
+            ejecutar_volumen(pct).map_err(|_| (l::Motivo::SinServicio, None))
+        }
+        "brillo" => {
+            let valor = o.args.get("valor").and_then(|v| v.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
+            let pct = ll::porcentaje_brillo(valor);
+            ejecutar_brillo(pct).map_err(|_| (l::Motivo::SinServicio, None))
+        }
         _ => return Err((l::Motivo::SinServicio, None)),
     };
     r.map_err(|_| (l::Motivo::SinServicio, None))
@@ -386,7 +520,9 @@ pub fn al_cerrar(app: &AppHandle) {
 pub fn capacidades(app: &AppHandle) -> Value {
     let g = grafica();
     let (conecta, xtest) = if g == ll::Grafica::X11 { sondear_x11() } else { (false, false) };
-    ll::capacidades_linux(g, conecta, xtest, alcance(app))
+    let hay_volumen = hay_volumen();
+    let hay_brillo = hay_brillo();
+    ll::capacidades_linux(g, conecta, xtest, alcance(app), hay_volumen, hay_brillo)
 }
 
 /// En Linux no hay un panel de Ajustes donde dar estos permisos (no son permisos: es la sesión). No se abre nada.

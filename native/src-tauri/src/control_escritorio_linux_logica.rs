@@ -182,7 +182,7 @@ pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: m::Alcance) -> String 
 
 /// `control_capacidades` en un Linux: lo que se puede de verdad AHORA y lo que falta. Sin X11 no se promete nada; sin XTEST no se
 /// promete entrada. No hay «ajustes» que abrir: lo que falta lo da la sesión (iniciar en X11), no un permiso.
-pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m::Alcance) -> Value {
+pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m::Alcance, hay_volumen: bool, hay_brillo: bool) -> Value {
     let pantalla_ok = falta_pantalla(g, conecta_x11).is_none();
     let entrada_ok = falta_entrada(g, conecta_x11, xtest).is_none();
     let mut falta: Vec<&str> = Vec::new();
@@ -198,8 +198,8 @@ pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m:
             "gestos": entrada_ok,
             "max_dedos": if entrada_ok { 2 } else { 0 },
             "teclas": teclas,
-            "volumen": false,
-            "brillo": false,
+            "volumen": hay_volumen,
+            "brillo": hay_brillo,
             "texto": entrada_ok,
         },
         "falta": falta,
@@ -286,6 +286,40 @@ pub fn bloqueo_conocido(fuentes: &[Option<bool>]) -> bool {
     fuentes.iter().any(|b| b.is_some())
 }
 
+// ─────────────────────────── Volumen y brillo (lógica pura) ───────────────────────────
+
+/// Acota `valor` a [0.0, 1.0] y devuelve el porcentaje entero (0–100) redondeado hacia abajo.
+pub fn porcentaje_volumen(valor: f64) -> u32 {
+    valor.clamp(0.0, 1.0).mul_add(100.0, 0.0) as u32
+}
+
+/// Acota `valor` a [0.0, 1.0] y devuelve el porcentaje entero (0–100) redondeado hacia abajo.
+pub fn porcentaje_brillo(valor: f64) -> u32 {
+    valor.clamp(0.0, 1.0).mul_add(100.0, 0.0) as u32
+}
+
+/// Comando `pactl set-sink-volume @DEFAULT_SINK@ N%`.
+pub fn comando_volumen_pactl(porcentaje: u32) -> Vec<String> {
+    vec!["set-sink-volume".to_string(), "@DEFAULT_SINK@".to_string(), format!("{}%", porcentaje)]
+}
+
+/// Comando `wpctl set-volume @DEFAULT_AUDIO_SINK@ N.NN` (valor 0.0–1.0 con dos decimales).
+pub fn comando_volumen_wpctl(valor: f64) -> Vec<String> {
+    let v = valor.clamp(0.0, 1.0);
+    vec!["set-volume".to_string(), "@DEFAULT_AUDIO_SINK@".to_string(), format!("{:.2}", v)]
+}
+
+/// Comando `brightnessctl set N%`.
+pub fn comando_brillo_brightnessctl(porcentaje: u32) -> Vec<String> {
+    vec!["set".to_string(), format!("{}%", porcentaje)]
+}
+
+/// Comando `xrandr --output <salida> --brightness N.NN` (valor 0.0–1.0 con dos decimales).
+pub fn comando_brillo_xrandr(salida: &str, valor: f64) -> Vec<String> {
+    let v = valor.clamp(0.0, 1.0);
+    vec!["--output".to_string(), salida.to_string(), "--brightness".to_string(), format!("{:.2}", v)]
+}
+
 // ─────────────────────────── Registro ───────────────────────────
 
 /// Líneas del registro de enlaces con las mismas claves que macOS y Android (`control-entrada`).
@@ -332,12 +366,13 @@ mod pruebas {
 
     #[test]
     fn capacidades_dicen_la_verdad_y_marcan_el_escritorio_linux() {
-        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total);
+        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, false, false);
         assert_eq!(c["plataforma"], "linux");
         assert_eq!(c["pantalla"]["proyeccion"], true);
         assert_eq!(c["entrada"]["gestos"], true);
         assert_eq!(c["entrada"]["max_dedos"], 2);
         assert_eq!(c["entrada"]["volumen"], false);
+        assert_eq!(c["entrada"]["brillo"], false);
         assert_eq!(c["falta"], json!([]));
         let teclas: Vec<&str> = c["entrada"]["teclas"].as_array().unwrap().iter().filter_map(|t| t.as_str()).collect();
         assert!(teclas.contains(&"escritorio") && teclas.contains(&"linux") && teclas.contains(&"recientes"));
@@ -345,15 +380,23 @@ mod pruebas {
         for t in TECLAS_LINUX {
             assert!(crate::control_entrada_logica::TECLAS.contains(&t), "{t}");
         }
-        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total);
+        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total, false, false);
         assert_eq!(w["falta"], json!(["wayland"]));
         assert_eq!(w["pantalla"]["proyeccion"], false);
         assert_eq!(w["entrada"]["gestos"], false);
         assert_eq!(w["entrada"]["teclas"], json!(["escritorio", "linux"]));
-        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido);
+        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido, false, false);
         assert_eq!(sx["falta"], json!(["entrada-x11"]));
         assert_eq!(sx["pantalla"]["proyeccion"], true, "sin XTEST aún se ve");
         assert_eq!(sx["alcance"], "protegido");
+        // Con herramientas disponibles
+        let c_vol = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, true, false);
+        assert_eq!(c_vol["entrada"]["volumen"], true);
+        let c_bri = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, false, true);
+        assert_eq!(c_bri["entrada"]["brillo"], true);
+        let c_ambos = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, true, true);
+        assert_eq!(c_ambos["entrada"]["volumen"], true);
+        assert_eq!(c_ambos["entrada"]["brillo"], true);
     }
 
     #[test]
@@ -433,5 +476,51 @@ mod pruebas {
         let s = linea_pantalla_sin("sin-consentimiento", "wayland", Grafica::Wayland);
         assert!(s.contains("falta=wayland") && s.contains("grafica=wayland"));
         assert!(linea_vigia("xi2", 2, 14).contains("mecanismo=xi2"));
+    }
+
+    #[test]
+    fn volumen_porcentaje_acota_y_redondea() {
+        assert_eq!(porcentaje_volumen(0.0), 0);
+        assert_eq!(porcentaje_volumen(0.5), 50);
+        assert_eq!(porcentaje_volumen(1.0), 100);
+        assert_eq!(porcentaje_volumen(-0.1), 0);
+        assert_eq!(porcentaje_volumen(1.1), 100);
+        assert_eq!(porcentaje_volumen(0.123), 12);
+        assert_eq!(porcentaje_volumen(0.999), 99);
+    }
+
+    #[test]
+    fn brillo_porcentaje_acota_y_redondea() {
+        assert_eq!(porcentaje_brillo(0.0), 0);
+        assert_eq!(porcentaje_brillo(0.5), 50);
+        assert_eq!(porcentaje_brillo(1.0), 100);
+        assert_eq!(porcentaje_brillo(-0.1), 0);
+        assert_eq!(porcentaje_brillo(1.1), 100);
+        assert_eq!(porcentaje_brillo(0.123), 12);
+        assert_eq!(porcentaje_brillo(0.999), 99);
+    }
+
+    #[test]
+    fn comando_volumen_pactl_formato_correcto() {
+        let cmd = comando_volumen_pactl(50);
+        assert_eq!(cmd, vec!["set-sink-volume", "@DEFAULT_SINK@", "50%"].into_iter().map(String::from).collect::<Vec<String>>());
+    }
+
+    #[test]
+    fn comando_volumen_wpctl_formato_correcto() {
+        let cmd = comando_volumen_wpctl(0.5);
+        assert_eq!(cmd, vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0.50"].into_iter().map(String::from).collect::<Vec<String>>());
+    }
+
+    #[test]
+    fn comando_brillo_brightnessctl_formato_correcto() {
+        let cmd = comando_brillo_brightnessctl(50);
+        assert_eq!(cmd, vec!["set", "50%"].into_iter().map(String::from).collect::<Vec<String>>());
+    }
+
+    #[test]
+    fn comando_brillo_xrandr_formato_correcto() {
+        let cmd = comando_brillo_xrandr("eDP-1", 0.5);
+        assert_eq!(cmd, vec!["--output", "eDP-1", "--brightness", "0.50"].into_iter().map(String::from).collect::<Vec<String>>());
     }
 }
