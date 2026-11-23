@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "ola": "ALM1118",
+   "id": "ALM1118A-d2",
+   "titulo": "Contrato del almacén de neurona por la malla (capas de capacidades locales y funciones de nodo, privadas y públicas) (parte 2 de 2)",
+   "archivos": [
+    "starseed_memory_root/olas/cola-almacen-neurona-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): lo planeado para el disco Maggabit se hace con la neurona Maggabox (Debian, 500 GB, ~425 GB libres) a través de las capas de conciencia de capacidades locales mesh P2P y de las funciones de nodo de las neuronas de StarSeed OS, privadas y públicas: respaldos de los sistemas y sus versiones; todo el código con reflejo de GitHub autoactualizado; archivos y carpetas pesados de la producción y el desarrollo a través de MetaGenesis; capas de conciencia colectivas privadas de la cuenta y públicas; medios de producción, contenedor en la nube de MetaGenesis y funciones de nodo de las neuronas públicas. Nunca medio único de lo principal. En el nodo ya hay (o habrá al pasar el guion del nodo) ~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas/privadas,capas/publicas,nube} con temporizadores de espejo (15 min) y versiones (1 h). Tarea: escribe docs/contratos/almacen-de-neurona.md con (1) «Lo que ya existe»: dónde está hoy en el código el elegir medio de almacenamiento por neurona, el enjambre de datos (semillas, imanes, espejos), las capas de capacidades de la neurona, el servidor de capas y las funciones de nodo público (rutas y funciones exactas, con grep); (2) el diseño: una neurona anuncia capacidad de almacén (GB libres, cuota que fija su dueño), espacio privado de la cuenta cifrado de punta a punta y solo para neuronas de la misma cuenta, espacio público direccionado por contenido para las capas colectivas, réplica obligatoria de lo principal en otro medio, y cómo lo usa MetaGenesis (respaldos, datos pesados, contenedor en la nube); (3) los riesgos y lo que nunca se sirve en público. Y una cola de 3 a 6 tareas pequeñas en starseed_memory_root/olas/cola-almacen-neurona-1118.json (mismo formato que esta cola) para construirlo por partes con sus pruebas. No escribas código de producto en esta tarea. Reglas: nunca imprimas claves ni variables de entorno; nada de borrar sin copia comprobada; la Maggabox nunca es el medio único de nada principal; la lógica pura va con pruebas unitarias (sin red ni aparatos reales en las pruebas). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió ALM1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/olas/cola-almacen-neurona-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "ALM1118A-d1"
+   ]
+  },
+  {
+   "id": "CAP-mcp-brave-search-conectar",
+   "ola": "CAP1119",
+   "titulo": "Conectar servidor MCP brave-search",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    ".agent/skills/mcp-brave-search/"
+   ],
+   "depende": [],
+   "prompt": "Configurar y probar conexión MCP brave-search para uso en tareas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CAP-mcp-brave-search-conectar",
+   "ALM1118A-d2"
+  ]
+ }
+}
