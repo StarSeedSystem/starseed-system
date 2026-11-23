@@ -3,6 +3,13 @@
   "nombre_canonico": "Principal",
   "_nombre_canonico_fuente": "~/.starseed/canales-direccion.json · campo principal.nombre (este valor es solo el respaldo del chat principal)",
   "_canales": "Los tres canales de dirección se llaman IGUAL en todos los medios. Su nombre visible se lee de ~/.starseed/canales-direccion.json (campo nombre); aquí solo se declaran las claves y los ids. Ningún medio escribe un nombre distinto a mano.",
+  "_ficha": "La ficha de cada canal (propósito, especialidad, qué decide y qué no, herramientas, motores por orden, memorias y relevo) vive en scripts/puente/fichas_canales.py y es la MISMA en todos los medios. Cada medio la pide con fichas_canales.entregar(<medio>, <canal>); ninguno escribe una copia.",
+  "fichas": {
+    "fuente": "scripts/puente/fichas_canales.py",
+    "funcion": "entregar(medio, canal)",
+    "canales": ["principal", "general", "audiovisual"],
+    "medios": ["hermes", "antigravity", "codex", "claude", "cartero", "telegram", "astraura", "metagenesis"]
+  },
   "prefijo_tareas": "ola/",
   "proyecto": "starseed-os",
   "entornos": {

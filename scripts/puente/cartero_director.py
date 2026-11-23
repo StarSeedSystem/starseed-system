@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_chat
 import director_presidente  # DIR1111G
+import fichas_canales  # DIR1121: la ficha única de cada canal
 import motores_director
 import presidente_config
 import sincronizador_direccion
@@ -276,6 +277,14 @@ def _contexto(raiz=None, ahora=None, estado=None):
            ultimas_lineas=20)
     añadir("PUENTE DE MANDO", "PUENTE-DE-MANDO.md", 4000)
     añadir("ORQUESTACIÓN ECONÓMICA", "memory/orquestacion-economica.md", 4000)
+    # (DIR1121) La ficha única del canal, la MISMA que reciben Hermes, Antigravity, Codex,
+    # Claude, Telegram, Astraura y el panel de MetaGenesis. El presidente no tiene copia.
+    partes.append((
+        "FICHA DEL CANAL",
+        titulo_contexto("FICHA DEL CANAL", None, ahora) + "\n"
+        + fichas_canales.texto_ficha("principal"),
+        3000,
+    ))
     # Lo VIVO no se lee de un archivo del proyecto: se comprueba ahora.
     partes.append(("SESIÓN DE DIRECCIÓN",
                    titulo_contexto("SESIÓN DE DIRECCIÓN", None, ahora) + "\n" + _sesion_viva(), 600))
@@ -422,7 +431,8 @@ def _entregar_claude_mac(mensaje, estado, modelo_pedido, raiz=None, canal="claud
     )
     inicio = time.time()
     rc, salida = motores_director.correr(
-        motores_director.orden_claude(prompt, modelo, estado.get("sesion_claude")),
+        motores_director.orden_claude(prompt, modelo, estado.get("sesion_claude"),
+                                      canal="principal"),
         env=motores_director.entorno_sin_claves_api(os.environ),
         cwd=str(RAIZ),
         segundos=600,
@@ -469,7 +479,8 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None, estado=None):
         segundos = motores_director.SEGUNDOS_SESION_FRESCA if (ses is None and sesion) else 600
         try:
             rc, salida = motores_director.correr(
-                motores_director.orden_hermes(prompt, modelo, archivo_uso, ses, con_permisos=True),
+                motores_director.orden_hermes(prompt, modelo, archivo_uso, ses,
+                                              con_permisos=True, canal="principal"),
                 segundos=segundos,
             )
             try:
@@ -570,7 +581,9 @@ def _entregar_chatgpt(mensaje, modelo_pedido, raiz=None):
     inicio = time.time()
     rc, salida = motores_director.correr(
         motores_director.orden_codex(modelo, str(RAIZ)),
-        entrada=motores_director.prompt_con_permisos(mensaje.get("texto", "")),
+        entrada=motores_director.prompt_con_ficha(
+            "principal", motores_director.prompt_con_permisos(mensaje.get("texto", ""))
+        ),
         segundos=600,
     )
     if rc != 0 and not salida.strip():
