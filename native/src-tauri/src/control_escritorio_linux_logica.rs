@@ -182,7 +182,13 @@ pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: m::Alcance) -> String 
 
 /// `control_capacidades` en un Linux: lo que se puede de verdad AHORA y lo que falta. Sin X11 no se promete nada; sin XTEST no se
 /// promete entrada. No hay «ajustes» que abrir: lo que falta lo da la sesión (iniciar en X11), no un permiso.
-pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m::Alcance) -> Value {
+pub fn capacidades_linux(
+    g: Grafica,
+    conecta_x11: bool,
+    xtest: bool,
+    alcance: m::Alcance,
+    herramientas: HerramientasVolumenBrillo,
+) -> Value {
     let pantalla_ok = falta_pantalla(g, conecta_x11).is_none();
     let entrada_ok = falta_entrada(g, conecta_x11, xtest).is_none();
     let mut falta: Vec<&str> = Vec::new();
@@ -198,8 +204,8 @@ pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m:
             "gestos": entrada_ok,
             "max_dedos": if entrada_ok { 2 } else { 0 },
             "teclas": teclas,
-            "volumen": false,
-            "brillo": false,
+            "volumen": herramientas.hay_volumen(),
+            "brillo": herramientas.hay_brillo(),
             "texto": entrada_ok,
         },
         "falta": falta,
@@ -286,6 +292,79 @@ pub fn bloqueo_conocido(fuentes: &[Option<bool>]) -> bool {
     fuentes.iter().any(|b| b.is_some())
 }
 
+// ─────────────────────────── Volumen y brillo: lógica pura ───────────────────────────
+
+/// Acota un nivel en [0.0, 1.0] y devuelve el porcentaje entero 0-100.
+pub fn nivel_a_porcentaje(nivel: f64) -> u32 {
+    nivel.clamp(0.0, 1.0).mul_add(100.0, 0.5).floor() as u32
+}
+
+/// Argumentos para `pactl set-sink-volume @DEFAULT_SINK@ N%`.
+pub fn args_pactl_volumen(nivel: f64) -> Vec<String> {
+    vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("{}%", nivel_a_porcentaje(nivel))]
+}
+
+/// Argumentos para `wpctl set-volume @DEFAULT_AUDIO_SINK@ N%`.
+pub fn args_wpctl_volumen(nivel: f64) -> Vec<String> {
+    vec!["set-volume".into(), "@DEFAULT_AUDIO_SINK@".into(), format!("{}%", nivel_a_porcentaje(nivel))]
+}
+
+/// Argumentos para `brightnessctl set N%`.
+pub fn args_brightnessctl_brillo(nivel: f64) -> Vec<String> {
+    vec!["set".into(), format!("{}%", nivel_a_porcentaje(nivel))]
+}
+
+/// Detecta el nombre de la salida conectada para `xrandr --output <out> --brightness N`.
+/// Devuelve `None` si no se puede determinar.
+pub fn salida_xrandr_conectada(salida_xrandr: &str) -> Option<String> {
+    for linea in salida_xrandr.lines() {
+        let partes: Vec<&str> = linea.split_whitespace().collect();
+        if partes.len() >= 2 && partes[1] == "connected" {
+            return Some(partes[0].to_string());
+        }
+    }
+    None
+}
+
+/// Argumentos para `xrandr --output <salida> --brightness N` (N en 0.0-1.0).
+pub fn args_xrandr_brillo(salida: &str, nivel: f64) -> Vec<String> {
+    let n = nivel.clamp(0.0, 1.0);
+    vec!["--output".into(), salida.into(), "--brightness".into(), format!("{:.3}", n)]
+}
+
+/// Qué herramientas de volumen/brillo están disponibles en el sistema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HerramientasVolumenBrillo {
+    pub pactl: bool,
+    pub wpctl: bool,
+    pub brightnessctl: bool,
+    pub xrandr: bool,
+}
+
+impl HerramientasVolumenBrillo {
+    pub fn hay_volumen(&self) -> bool {
+        self.pactl || self.wpctl
+    }
+    pub fn hay_brillo(&self) -> bool {
+        self.brightnessctl || self.xrandr
+    }
+}
+
+/// Comprueba qué herramientas están disponibles (sin E/S real en tests: se mockea la comprobación).
+pub fn detectar_herramientas(
+    hay_pactl: bool,
+    hay_wpctl: bool,
+    hay_brightnessctl: bool,
+    hay_xrandr: bool,
+) -> HerramientasVolumenBrillo {
+    HerramientasVolumenBrillo {
+        pactl: hay_pactl,
+        wpctl: hay_wpctl,
+        brightnessctl: hay_brightnessctl,
+        xrandr: hay_xrandr,
+    }
+}
+
 // ─────────────────────────── Registro ───────────────────────────
 
 /// Líneas del registro de enlaces con las mismas claves que macOS y Android (`control-entrada`).
@@ -332,12 +411,14 @@ mod pruebas {
 
     #[test]
     fn capacidades_dicen_la_verdad_y_marcan_el_escritorio_linux() {
-        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total);
+        let herramientas = detectar_herramientas(true, false, true, false);
+        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, herramientas);
         assert_eq!(c["plataforma"], "linux");
         assert_eq!(c["pantalla"]["proyeccion"], true);
         assert_eq!(c["entrada"]["gestos"], true);
         assert_eq!(c["entrada"]["max_dedos"], 2);
-        assert_eq!(c["entrada"]["volumen"], false);
+        assert_eq!(c["entrada"]["volumen"], true);
+        assert_eq!(c["entrada"]["brillo"], true);
         assert_eq!(c["falta"], json!([]));
         let teclas: Vec<&str> = c["entrada"]["teclas"].as_array().unwrap().iter().filter_map(|t| t.as_str()).collect();
         assert!(teclas.contains(&"escritorio") && teclas.contains(&"linux") && teclas.contains(&"recientes"));
@@ -345,15 +426,17 @@ mod pruebas {
         for t in TECLAS_LINUX {
             assert!(crate::control_entrada_logica::TECLAS.contains(&t), "{t}");
         }
-        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total);
+        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total, detectar_herramientas(false, false, false, false));
         assert_eq!(w["falta"], json!(["wayland"]));
         assert_eq!(w["pantalla"]["proyeccion"], false);
         assert_eq!(w["entrada"]["gestos"], false);
         assert_eq!(w["entrada"]["teclas"], json!(["escritorio", "linux"]));
-        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido);
+        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido, detectar_herramientas(false, false, false, false));
         assert_eq!(sx["falta"], json!(["entrada-x11"]));
         assert_eq!(sx["pantalla"]["proyeccion"], true, "sin XTEST aún se ve");
         assert_eq!(sx["alcance"], "protegido");
+        assert_eq!(sx["entrada"]["volumen"], false);
+        assert_eq!(sx["entrada"]["brillo"], false);
     }
 
     #[test]
@@ -433,5 +516,54 @@ mod pruebas {
         let s = linea_pantalla_sin("sin-consentimiento", "wayland", Grafica::Wayland);
         assert!(s.contains("falta=wayland") && s.contains("grafica=wayland"));
         assert!(linea_vigia("xi2", 2, 14).contains("mecanismo=xi2"));
+    }
+
+    #[test]
+    fn nivel_a_porcentaje_acota_y_redondea() {
+        assert_eq!(nivel_a_porcentaje(0.0), 0);
+        assert_eq!(nivel_a_porcentaje(1.0), 100);
+        assert_eq!(nivel_a_porcentaje(0.5), 50);
+        assert_eq!(nivel_a_porcentaje(0.33), 33);
+        assert_eq!(nivel_a_porcentaje(0.67), 67);
+        assert_eq!(nivel_a_porcentaje(-0.1), 0);
+        assert_eq!(nivel_a_porcentaje(1.1), 100);
+    }
+
+    #[test]
+    fn args_pactl_y_wpctl_volumen_formato_correcto() {
+        assert_eq!(args_pactl_volumen(0.5), vec!["set-sink-volume", "@DEFAULT_SINK@", "50%"]);
+        assert_eq!(args_wpctl_volumen(0.75), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "75%"]);
+    }
+
+    #[test]
+    fn args_brightnessctl_brillo_formato_correcto() {
+        assert_eq!(args_brightnessctl_brillo(0.4), vec!["set", "40%"]);
+    }
+
+    #[test]
+    fn salida_xrandr_conectada_lee_la_primera() {
+        let out = "eDP-1 connected primary 1920x1080+0+0\nHDMI-1 disconnected\nDP-1 connected 1920x1080+1920+0";
+        assert_eq!(salida_xrandr_conectada(out), Some("eDP-1".into()));
+        let solo_desc = "HDMI-1 disconnected\nDP-1 disconnected";
+        assert_eq!(salida_xrandr_conectada(solo_desc), None);
+    }
+
+    #[test]
+    fn args_xrandr_brillo_acota_y_formatea() {
+        assert_eq!(args_xrandr_brillo("eDP-1", 0.5), vec!["--output", "eDP-1", "--brightness", "0.500"]);
+        assert_eq!(args_xrandr_brillo("HDMI-1", -0.2), vec!["--output", "HDMI-1", "--brightness", "0.000"]);
+        assert_eq!(args_xrandr_brillo("DP-1", 1.2), vec!["--output", "DP-1", "--brightness", "1.000"]);
+    }
+
+    #[test]
+    fn detectar_herramientas_reporta_disponibilidad() {
+        let h = detectar_herramientas(true, false, true, false);
+        assert!(h.hay_volumen());
+        assert!(h.hay_brillo());
+        assert!(!h.wpctl);
+        assert!(!h.xrandr);
+        let h2 = detectar_herramientas(false, false, false, false);
+        assert!(!h2.hay_volumen());
+        assert!(!h2.hay_brillo());
     }
 }

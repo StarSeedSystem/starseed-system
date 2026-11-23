@@ -57,6 +57,21 @@ fn ejecutar_texto(prog: &str, args: &[&str]) -> Option<String> {
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).to_string())
 }
 
+fn herramienta_disponible(nombre: &str) -> bool {
+    let mut cmd = std::process::Command::new("which");
+    crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+    cmd.arg(nombre).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+}
+
+fn detectar_herramientas_volumen_brillo() -> ll::HerramientasVolumenBrillo {
+    ll::detectar_herramientas(
+        herramienta_disponible("pactl"),
+        herramienta_disponible("wpctl"),
+        herramienta_disponible("brightnessctl"),
+        herramienta_disponible("xrandr"),
+    )
+}
+
 /// ¿El equipo está bloqueado? logind (`LockedHint`) y el salvapantallas de Xfce/XScreenSaver; bloqueado si CUALQUIERA lo dice.
 /// Se vuelve a mirar como mucho cada segundo. Si ninguna fuente sabe, se cuenta como no bloqueado (se dice en el registro).
 pub fn bloqueada() -> bool {
@@ -386,7 +401,8 @@ pub fn al_cerrar(app: &AppHandle) {
 pub fn capacidades(app: &AppHandle) -> Value {
     let g = grafica();
     let (conecta, xtest) = if g == ll::Grafica::X11 { sondear_x11() } else { (false, false) };
-    ll::capacidades_linux(g, conecta, xtest, alcance(app))
+    let herramientas = detectar_herramientas_volumen_brillo();
+    ll::capacidades_linux(g, conecta, xtest, alcance(app), herramientas)
 }
 
 /// En Linux no hay un panel de Ajustes donde dar estos permisos (no son permisos: es la sesión). No se abre nada.
