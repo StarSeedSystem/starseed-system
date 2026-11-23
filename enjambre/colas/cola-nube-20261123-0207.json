@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "id": "ALM1121A",
+   "ola": "ALM1121",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox.py",
+    "deploy/launchd/com.starseed.respaldo-maggabox.plist",
+    "scripts/puente/recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "PRU1118A-d3",
+   "ALM1121A"
+  ]
+ }
+}
