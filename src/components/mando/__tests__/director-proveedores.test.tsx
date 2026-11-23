@@ -11,15 +11,16 @@ afterEach(() => {
 });
 
 describe("DirectorProveedores", () => {
-  it("un proveedor sin cupo con necesitaCheckin=true muestra el enlace a apinex.bond", () => {
+  it("un proveedor en fichaje muestra el enlace de check-in a apinex.bond", () => {
     const proveedores: ResumenProveedor[] = [
       {
         proveedor: "apinex",
         vivo: false,
         modelos: 3,
         necesitaCheckin: true,
+        estado: "fichaje",
         sinCupoHasta: Math.floor(Date.now() / 1000) + 3600,
-        motivo: "sin cupo",
+        motivo: "fichaje diario",
       },
     ];
     render(<DirectorProveedores proveedores={proveedores} />);
@@ -27,6 +28,21 @@ describe("DirectorProveedores", () => {
     expect(enlace).toBeInTheDocument();
     expect(enlace).toHaveAttribute("href", "https://apinex.bond/airdrop?tab=quests");
     expect(enlace).toHaveAttribute("target", "_blank");
+  });
+
+  it("un sin cupo que pide recarga no ofrece el botón de fichaje", () => {
+    const proveedores: ResumenProveedor[] = [
+      {
+        proveedor: "apinex",
+        vivo: false,
+        modelos: 3,
+        necesitaCheckin: true,
+        estado: "sin_cupo",
+        motivo: "Make a single top-up of $5 or more",
+      },
+    ];
+    render(<DirectorProveedores proveedores={proveedores} />);
+    expect(screen.queryByRole("link", { name: /check-in diario pendiente/ })).not.toBeInTheDocument();
   });
 
   it("un proveedor sin cupo muestra «sin cupo hasta HH:MM»", () => {

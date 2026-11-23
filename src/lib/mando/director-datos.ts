@@ -31,7 +31,7 @@ export interface SaludProveedor {
 }
 export interface ResumenProveedor {
   proveedor: string; vivo: boolean; modelos: number; necesitaCheckin: boolean;
-  sinCupoHasta?: number; motivo?: string;
+  sinCupoHasta?: number; motivo?: string; estado?: string;
 }
 export interface MensajeCanal { quien?: string; texto?: string; hora?: number | string }
 export interface ResumenDirector {
@@ -198,7 +198,8 @@ export function resumenProveedores(
     const sinCupoHasta = aEpoch(s.sin_cupo_hasta);
     return {
       proveedor: p, vivo: s.estado === "vivo" && !(sinCupoHasta && sinCupoHasta > ahora), modelos: conteo.get(p) ?? 0,
-      necesitaCheckin: Boolean(s.motivo?.includes("check-in")),
+      necesitaCheckin: s.estado === "fichaje",
+      ...(s.estado ? { estado: s.estado } : {}),
       ...(sinCupoHasta !== undefined ? { sinCupoHasta } : {}),
       ...(s.motivo ? { motivo: s.motivo } : {}),
     };
