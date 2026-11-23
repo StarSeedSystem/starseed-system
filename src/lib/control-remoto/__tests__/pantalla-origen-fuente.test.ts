@@ -4,7 +4,7 @@
  * dice «accesibilidad» con `fuente_pedida: "proyeccion"`; nunca se dice «fluida» si no lo es.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OrigenPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
+import { OrigenPantalla, argumentosIniciarPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
 import type { RespuestaOrden } from "../orden";
 import type { Args } from "../niveles";
 
@@ -47,6 +47,20 @@ const primeraPeticion = () => de("control_pantalla_iniciar")[0]?.args ?? {};
 beforeEach(() => montar());
 afterEach(async () => {
     await origen.parar("fin");
+});
+
+describe("RST1116A · la regla pura de los argumentos de pantalla", () => {
+    it("solo lleva `fuente` cuando se le pasa; nunca inventa la clave ni pisa los defectos", () => {
+        expect(argumentosIniciarPantalla(SESION.token, { lado: 1000, calidad: 70 }, "proyeccion")).toEqual({
+            sesion: SESION.token,
+            lado_max: 1000,
+            calidad: 70,
+            fuente: "proyeccion",
+        });
+        const sin = argumentosIniciarPantalla(SESION.token, {});
+        expect(sin).toEqual({ sesion: SESION.token, lado_max: 1280, calidad: 60 });
+        expect("fuente" in sin).toBe(false);
+    });
 });
 
 describe("RST1116A · la petición de fuente llega a lo nativo", () => {

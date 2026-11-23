@@ -36,6 +36,19 @@ export const CABECERA_CUADRO = 12;
 export const MAX_MENSAJE_CANAL = 8192;
 export const ORDENES_ENTRADA = ["gesto", "tecla", "volumen", "brillo", "texto"] as const;
 
+/**
+ * RST1116A: argumentos de `control_pantalla_iniciar`. La `fuente` viaja solo cuando la persona pidió
+ * «proyeccion»; con «auto» o sin campo no se manda y el aparato arranca con lo que tenga.
+ */
+export function argumentosIniciarPantalla(sesion: string, args: Args, fuente?: FuenteReal): Record<string, unknown> {
+    return {
+        sesion,
+        lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
+        calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
+        ...(fuente ? { fuente } : {}),
+    };
+}
+
 // ── cuadro: cabecera de la costura 1 ─────────────────────────────────────────────────────────
 
 export interface CabeceraCuadro {
@@ -239,12 +252,7 @@ export class OrigenPantalla {
         // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
         // sin campo o con «auto» no se manda la clave (el aparato arranca con lo que tenga, como siempre).
         const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
-        const pide = (fuente?: FuenteReal): Record<string, unknown> => ({
-            sesion: s.token,
-            lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
-            calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
-            ...(fuente ? { fuente } : {}),
-        });
+        const pide = (fuente?: FuenteReal): Record<string, unknown> => argumentosIniciarPantalla(s.token, args, fuente);
         let r = await inv("control_pantalla_iniciar", pide(pedida ?? undefined)).catch(() => null);
         if (pedida && (!esObjeto(r) || r.ok !== true)) {
             // Lo nativo no pudo con la proyección: la sesión sigue con lo que haya, sin cerrar nada.
