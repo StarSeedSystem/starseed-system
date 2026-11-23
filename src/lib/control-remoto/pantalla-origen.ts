@@ -25,9 +25,10 @@ import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, pr
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
+import { AJUSTES_DEFECTO, type AjustesSesion } from "./ajustes-sesion";
 
-export const LADO_MAX_DEFECTO = 1280;
-export const CALIDAD_DEFECTO = 60;
+export const LADO_MAX_DEFECTO = AJUSTES_DEFECTO.ladoMaximo;
+export const CALIDAD_DEFECTO = AJUSTES_DEFECTO.calidadJpeg;
 /** Sin oferta en este tiempo desde que se pidió la pantalla, se para (nadie la está recogiendo). */
 export const ESPERA_OFERTA_MS = 30_000;
 /** Espera máxima a que la conexión recoja sus candidatos antes de contestar (la contestación los lleva dentro). */
@@ -107,6 +108,7 @@ export interface SesionViva {
     token: string;
     de: string;
     nivel: string;
+    ajustes?: AjustesSesion;
 }
 
 export interface DepsOrigen {
@@ -241,10 +243,11 @@ export class OrigenPantalla {
         // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
         // sin campo o con «auto» no se manda la clave (el aparato arranca con lo que tenga, como siempre).
         const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
+        const ajustes = s.ajustes ?? AJUSTES_DEFECTO;
         const pide = (fuente?: FuenteReal): Record<string, unknown> => ({
             sesion: s.token,
-            lado_max: typeof args.lado === "number" ? args.lado : LADO_MAX_DEFECTO,
-            calidad: typeof args.calidad === "number" ? args.calidad : CALIDAD_DEFECTO,
+            lado_max: typeof args.lado === "number" ? args.lado : ajustes.ladoMaximo,
+            calidad: typeof args.calidad === "number" ? args.calidad : ajustes.calidadJpeg,
             ...(fuente ? { fuente } : {}),
         });
         let r = await inv("control_pantalla_iniciar", pide(pedida ?? undefined)).catch(() => null);
@@ -889,7 +892,7 @@ function invocadorTauri(): DepsOrigen["invocar"] {
 }
 
 interface PuertaMinima {
-    sesionActiva(): SesionViva | null;
+    sesionActiva(): { token: string; de: string; nivel: string; color?: string; fin?: number | null; ajustes?: AjustesSesion } | null;
     recibir(sobre: unknown): Promise<RespuestaOrden>;
     /** CTL1117C: órdenes cumplidas hasta ahora (diagnóstico de segundo plano). */
     ordenesServidas?(): number;
@@ -921,7 +924,11 @@ export function origenGlobal(): OrigenPantalla {
         },
         crearPeer: (iceServers) => new RTCPeerConnection({ iceServers }) as unknown as PeerLike,
         crearPintor: () => crearPintorReal((f, ms) => reloj.cada(f, ms)),
-        sesionViva: () => puertaRegistrada?.sesionActiva() ?? null,
+        sesionViva: () => {
+            const s = puertaRegistrada?.sesionActiva();
+            if (!s) return null;
+            return { token: s.token, de: s.de, nivel: s.nivel, ajustes: s.ajustes };
+        },
         recibirSobre: async (sobre) => (puertaRegistrada ? puertaRegistrada.recibir(sobre) : { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-puerta" }),
         esperar: (ms) => esperarCon(reloj, ms),
         ahora: () => Date.now(),

@@ -1,6 +1,6 @@
 /**
  * CTL1123C · Enrutamiento multiantena simultáneo y capas de conciencia.
- * ═══════════════════════════════════════════════════════════════════════════════
+ * ════════════════════════════════════════════════════════════════════════════════
  * Módulo PURO (sin red, sin DOM, sin `any`): planifica qué antena real lleva cada función
  * de la sesión remota (`video`, `entrada`, `ordenes`, `telemetria`) según latencia,
  * ancho de banda y disponibilidad, combinado con capas de conciencia (prioridad,
@@ -10,6 +10,8 @@
  * entrada/teclado en tiempo real, mientras el flujo pesado de pantalla usa
  * Wi‑Fi local / WebRTC / malla simultáneamente cuando hay más de una antena.
  */
+
+import { PerfilMultiantena, PERFILES_VALIDOS } from "./ajustes-sesion";
 
 export type TipoAntena = "bluetooth" | "wifi-directo" | "wifi-router" | "malla" | "turn" | "servidor";
 
@@ -27,6 +29,19 @@ export interface PerfilConciencia {
     prioridad: FuncionSesion[];
     umbralLatenciaMs: number;
     umbralAnchoBandaKbps: number;
+}
+
+/** Convierte un `PerfilMultiantena` de ajustes de sesión a un `PerfilConciencia` para el enrutamiento. */
+export function perfilConcienciaDe(perfil: PerfilMultiantena): PerfilConciencia {
+    switch (perfil) {
+        case "baja-latencia":
+            return { nombre: "baja-latencia", prioridad: ["entrada", "ordenes", "video", "telemetria"], umbralLatenciaMs: 40, umbralAnchoBandaKbps: 500 };
+        case "ahorro":
+            return { nombre: "ahorro", prioridad: ["video", "telemetria", "entrada", "ordenes"], umbralLatenciaMs: 100, umbralAnchoBandaKbps: 2000 };
+        case "auto-simultaneo":
+        default:
+            return { nombre: "auto-simultaneo", prioridad: ["entrada", "ordenes", "video", "telemetria"], umbralLatenciaMs: 60, umbralAnchoBandaKbps: 1500 };
+    }
 }
 
 export interface AntenaEnPlan {

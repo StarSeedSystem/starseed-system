@@ -38,6 +38,7 @@ import { capacidadesDeNivel, definicion, nivelMinimo, rangoNivel, NIVELES_CONCED
 import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
+import { AJUSTES_DEFECTO, type AjustesSesion } from "./ajustes-sesion";
 
 /** CTL1119A: la hora máxima histórica (1 h) se conserva como referencia; ya no se aplica sola: sin límite no hay techo. */
 export const SESION_MAX_MS = 60 * 60_000;
@@ -161,6 +162,8 @@ export interface SesionActiva {
     color?: string;
     /** CTL1119A: cuándo termina el límite elegido (ms epoch) o null si la sesión no tiene límite. */
     fin?: number | null;
+    /** CTL1123D: ajustes avanzados de la sesión (FPS, calidad, perfil multiantena, modo teclado). */
+    ajustes?: AjustesSesion;
 }
 
 export interface DepsPuerta {
@@ -458,7 +461,7 @@ export class PuertaControl {
             const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
             const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
             const color = colorFirmado ?? ctl.color;
-            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ...(color ? { color } : {}) };
+            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ajustes: AJUSTES_DEFECTO, ...(color ? { color } : {}) };
             this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
             this.caducadaPor = null;
             if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
@@ -468,6 +471,7 @@ export class PuertaControl {
                 sesion: this.sesion.token,
                 nivel,
                 capacidades: capacidadesDeNivel(nivel),
+                ajustes: this.sesion.ajustes,
                 ...(fin !== null ? { caduca: new Date(fin).toISOString() } : { sinLimite: true }),
             });
         }
