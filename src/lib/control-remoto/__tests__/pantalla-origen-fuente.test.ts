@@ -104,4 +104,12 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad" });
         expect(r.fuente_pedida).toBeUndefined();
     });
+
+    it("la fuente que se guarda y se enseña después también es la real, no la pedida", async () => {
+        respuestas.control_pantalla_iniciar = { ok: true, fuente: "accesibilidad", ancho: 800, alto: 1280, giro: 0 };
+        await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx());
+        const e = (await origen.ejecutar("leer-aparato", {}, ctx())) as Record<string, unknown>;
+        expect(e.fuente).toBe("accesibilidad");
+        expect(de("control_pantalla_parar")).toHaveLength(0);
+    });
 });
