@@ -15,6 +15,7 @@ import {
     type ContextoMedio, type EleccionesGuardadas, type MedioElegido, type MedioReal, type OpcionMedio, type PoliticaIce,
 } from "./medio";
 import { enlacesAuto, elegirOrdenesAuto, lineaCambioMedio, tocaReevaluar, type AutoPrevio, type EnlaceAuto } from "./auto-enlace";
+import { planificarAntenasSimultaneas, resumenPlanAntenas, type AntenaDisponible, type PerfilConciencia } from "./multicapa-antenas";
 import type { CandidatoMedio } from "@/lib/mensajeria/medios/tipos";
 
 export const EVENTO_MEDIO = "starseed:control-medio-cambio";
@@ -216,10 +217,54 @@ export async function refrescarContexto(neurona: string): Promise<void> {
         }
         const enl = wf.enlaceWifiDe(neurona);
         i.ctx = { candidatos, relevoPorNodo, hayTurn, wifiDirecto: enl ? { ipOtro: enl.ipOtro } : null, esWifiDirecto: (id) => wf.esEnlaceWifiDirecto(id) };
+        const antenas = candidatosAAntenaDisponible(candidatos);
+        if (antenas.length > 0) {
+            const perfil: PerfilConciencia = { nombre: "equilibrado", prioridad: ["video", "entrada", "ordenes", "telemetria"], umbralLatenciaMs: 100, umbralAnchoBandaKbps: 2000 };
+            try {
+                const plan = planificarAntenasSimultaneas(antenas, perfil);
+                anotar(`control-multicapa ${resumenPlanAntenas(plan)}`);
+            } catch {
+                /* sin plan: no se registra */
+            }
+        }
     } catch {
         /* sin transporte: las opciones quedan como estaban */
     }
     publicar(neurona);
+}
+
+function candidatosAAntenaDisponible(candidatos: readonly CandidatoMedio[]): AntenaDisponible[] {
+    return candidatos
+        .filter((c) => c.abierto && c.llega)
+        .map((c) => ({
+            id: c.enlaceId,
+            tipo: medioAAntena(c.medio, c.ruta),
+            latenciaMs: typeof c.rttMs === "number" && Number.isFinite(c.rttMs) ? c.rttMs : 400,
+            anchoBandaKbps: typeof c.capacidadKbps === "number" && c.capacidadKbps > 0 ? c.capacidadKbps : caudalNominalPorMedio(c.medio),
+        }));
+}
+
+function medioAAntena(medio: CandidatoMedio["medio"], ruta: CandidatoMedio["ruta"]): AntenaDisponible["tipo"] {
+    if (medio === "bluetooth") return "bluetooth";
+    if (medio === "turn") return "turn";
+    if (medio === "rele" || medio === "servidor") return "servidor";
+    if (medio === "local" || medio === "wifi-local") return ruta === "wifi-directo" ? "wifi-directo" : "wifi-router";
+    if (medio === "p2p-internet") return ruta === "misma-red-local" ? "wifi-router" : "malla";
+    return "malla";
+}
+
+function caudalNominalPorMedio(medio: CandidatoMedio["medio"]): number {
+    switch (medio) {
+        case "bluetooth": return 120;
+        case "local":
+        case "wifi-local": return 20_000;
+        case "p2p-internet": return 4_000;
+        case "turn": return 1_500;
+        case "rele":
+        case "servidor": return 300;
+        case "lora": return 5;
+        default: return 1_000;
+    }
 }
 
 // ── la pantalla: configuración ICE, filtros y medida del par ─────────────────────────────────
