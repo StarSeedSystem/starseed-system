@@ -93,8 +93,8 @@ describe("CTL1117F · el carril de la ventana no se queda colgado", () => {
         d.cerrar("prueba", false);
     });
 
-    it("el límite es mayor que la espera de una orden normal (15 s) y menor que la caducidad por inactividad (2 min)", () => {
+    it("el límite es mayor que la espera de una orden normal (15 s) y menor que la caducidad por inactividad (45 s)", () => {
         expect(LIMITE_CARRIL_MS).toBeGreaterThan(15_000);
-        expect(LIMITE_CARRIL_MS).toBeLessThan(120_000 / 4);
+        expect(LIMITE_CARRIL_MS).toBeLessThan(45_000 / 2);
     });
 });

@@ -24,7 +24,7 @@ import { MOTIVOS_TERMINALES } from "./palabras";
 /** Cómo se manda una orden a la neurona de este registro (la firma y el canal los pone quien lo construye). */
 export type MandarSesion = (nombre: string, args: Args, o: { nivel: Nivel; sesion?: string | null; esperaMs?: number }) => Promise<RespuestaOrden>;
 
-/** Una sesión que no se ha usado en este tiempo ya no se da por viva (el aparato la cierra a los 2 min sin órdenes). */
+/** CTL1119A: una sesión que no se ha usado en este tiempo ya no se da por viva (el aparato la cierra a los 45 s sin latidos/órdenes). */
 export const REUSO_MAX_MS = 75_000;
 
 interface Viva {
