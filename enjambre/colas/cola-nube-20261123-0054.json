@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CTL1123E",
+   "ola": "control-avanzado-1123",
+   "titulo": "Diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE",
+   "importancia": "alta",
+   "archivos": [
+    "native/src-tauri/src/ble_enlace_diagnostico.rs"
+   ],
+   "depende": [],
+   "prompt": "Contexto medido en Ronda 1 (22-11, 0.5.1-prueba.57): Maggabox Linux registra `org.bluez.Error.Failed: le-connection-abort-by-local` al conectar a Maggaboard Android (mientras escanea o justo tras parar escaneo sin espera suficiente) y MaggaBook macOS registra `listo-tarde (sin listo para escribir en 400 ms)` + `Bluetooth directo: sin acuse por Bluetooth tras 4 intentos`. Crea el módulo puro `native/src-tauri/src/ble_enlace_diagnostico.rs` (con sus tests en Rust, sin cambios a `Cargo.toml`) que calcule el tiempo de asentamiento recomendado entre parar escaneo BlueZ y `Connect()`, y el backoff / reintentos de acuse GATT antes de castigar el enlace b1/b2. Declara `mod ble_enlace_diagnostico;` en `native/src-tauri/src/lib.rs` (solo si el módulo queda compilado sin warnings bajo `#![allow(dead_code)]` hasta su cableado). Verifica `cargo test --lib ble_enlace_diagnostico`."
+  },
+  {
+   "id": "CTL1123C",
+   "ola": "control-avanzado-1123",
+   "titulo": "Enrutamiento multiantena simultáneo y capas de conciencia",
+   "importancia": "alta",
+   "archivos": [
+    "src/lib/control-remoto/multicapa-antenas.ts",
+    "src/lib/control-remoto/__tests__/ctl1123c-multicapa-antenas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea el módulo puro `src/lib/control-remoto/multicapa-antenas.ts` (sin `any`, sin DOM, sin red) y sus tests Vitest (con `import { describe, it, expect } from \"vitest\"`). Modela la asignación simultánea de múltiples antenas reales por función de sesión remota (`video`, `entrada`, `ordenes`, `telemetria`) combinada con las capas de conciencia (p. ej. priorizar baja latencia `< 40 ms` por Bluetooth/Wi-Fi Direct para entrada/teclado en tiempo real, mientras el flujo pesado de pantalla usa Wi-Fi local/WebRTC/malla simultáneamente cuando hay más de una antena disponible). Exporta funciones puras: `planificarAntenasSimultaneas(disponibles, perfil)` y `resumenPlanAntenas(plan)` que expliquen en español qué antena lleva cada función."
+  },
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  },
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CTL1123C",
+   "CTL1119A",
+   "CTL1123E",
+   "PRU1123A"
+  ]
+ }
+}
