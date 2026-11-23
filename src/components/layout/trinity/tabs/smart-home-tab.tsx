@@ -67,7 +67,7 @@ export function etiquetaDelFondo(bg: AppearanceConfig["background"] | undefined)
 }
 
 export function SmartHomeTab() {
-    const { config, updateSection } = useAppearance();
+    const { config, updateSection, updateLocalDisplay } = useAppearance();
     const bg = config.background;
     const isLiving = bg.type === "living";
     const living = bg.living;
@@ -85,13 +85,18 @@ export function SmartHomeTab() {
     const cycleVariant = () => {
         if (!isLiving || !living) return;
         const next = LIVING_VARIANTS[(currentVariantIndex + 1) % LIVING_VARIANTS.length];
-        updateSection("background", { living: { ...living, variant: next.id } });
+        if (updateLocalDisplay) updateLocalDisplay({ livingVariant: next.id });
+        else updateSection("background", { living: { ...living, variant: next.id } });
     };
 
     // Intensidad de partículas/efectos: "living.intensity" si el fondo es vivo,
-    // o el "intensity" genérico (fondos "materia-*") como equivalente honesto.
+    // o el "intensity" genérico (fondos "materia-*") como equivalente honesto, local a esta neurona.
     const intensityValue = isLiving && living ? living.intensity : (bg.intensity ?? 0.7);
     const setIntensity = (v: number) => {
+        if (updateLocalDisplay) {
+            updateLocalDisplay({ intensity: v });
+            return;
+        }
         if (isLiving && living) {
             updateSection("background", { living: { ...living, intensity: v } });
         } else {
@@ -101,11 +106,13 @@ export function SmartHomeTab() {
 
     // Brillo del fondo: overlayOpacity más ALTO = overlay más oscuro = fondo
     // MENOS brillante. Mostramos el slider ya invertido (100 = brillo máximo,
-    // overlay 0) para que sea intuitivo; ver mismo patrón en quick-settings-tab.
+    // overlay 0) para que sea intuitivo y se aplica solo en esta neurona.
     const overlayOpacity = bg.overlayOpacity ?? 0.1;
     const brightnessPct = Math.round((1 - overlayOpacity) * 100);
     const setBrightnessPct = (pct: number) => {
-        updateSection("background", { overlayOpacity: Math.min(1, Math.max(0, 1 - pct / 100)) });
+        const nextOverlay = Math.min(1, Math.max(0, 1 - pct / 100));
+        if (updateLocalDisplay) updateLocalDisplay({ overlayOpacity: nextOverlay });
+        else updateSection("background", { overlayOpacity: nextOverlay });
     };
 
     return (
@@ -129,7 +136,10 @@ export function SmartHomeTab() {
                                         key={v.id}
                                         label={v.label}
                                         active={v.id === living.variant}
-                                        onClick={() => updateSection("background", { living: { ...living, variant: v.id } })}
+                                        onClick={() => {
+                                            if (updateLocalDisplay) updateLocalDisplay({ livingVariant: v.id });
+                                            else updateSection("background", { living: { ...living, variant: v.id } });
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -154,7 +164,7 @@ export function SmartHomeTab() {
                     />
                     <DeslizadorLogic icono={SunDim} valor={brightnessPct} onCambio={setBrightnessPct} etiqueta="Brillo del fondo" />
                 </div>
-                <p className="mt-2 px-1 text-[11px] leading-snug text-amber-100/55">Se aplica en vivo a toda la interfaz.</p>
+                <p className="mt-2 px-1 text-[11px] leading-snug text-amber-100/55">Se aplica en vivo solo en esta neurona.</p>
             </SeccionLogic>
 
             {/* Hogar / IoT (Home Assistant) — opt-in, honesto, config local */}

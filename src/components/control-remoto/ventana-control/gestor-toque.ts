@@ -30,11 +30,16 @@ export interface DepsGestor {
 
 const INTERVALO_MIN_MS = 16;
 const SILENCIO_RUEDA_MS = 140;
+const SILENCIO_RUEDA_TACTIL_MS = 180;
 const SEPARACION_INICIAL = 0.2;
 const SEPARACION_MIN = 0.04;
 const SEPARACION_MAX = 0.8;
 const BORDE = 0.01;
+const BORDE_TACTIL = 0.08;
+const UMBRAL_RUEDA_TACTIL = 0.035;
+const DT_RUEDA_TACTIL_MS = 48;
 export const CLAVE_RUEDA = "rueda";
+export const CLAVE_RUEDA_DOS = ["rueda-dos-a", "rueda-dos-b"] as const;
 export const CLAVE_PELLIZCO = ["pellizco-a", "pellizco-b"] as const;
 
 const acotar = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
@@ -46,7 +51,8 @@ export class GestorToque {
     private ultimoEnvio = -Infinity;
     private centro: [number, number] = [0.5, 0.5];
     private separacion = SEPARACION_INICIAL;
-    private grupoRueda: "pellizco" | "desplazar" | null = null;
+    private grupoRueda: "pellizco" | "desplazar" | "desplazar-dos" | null = null;
+    private acumRuedaTactil: { dx: number; dy: number } = { dx: 0, dy: 0 };
 
     constructor(private readonly d: DepsGestor) {}
 
@@ -71,11 +77,12 @@ export class GestorToque {
         return true;
     }
 
-    mover(clave: string, x: number, y: number): void {
+    mover(clave: string, x: number, y: number, minDtMs = 0): void {
         const f = this.dedos.get(clave);
         if (!f) return;
         const t = this.d.ahora();
-        f.pend.push([x, y, Math.max(0, Math.round(t - f.t))]);
+        const dt = Math.max(minDtMs, Math.round(t - f.t));
+        f.pend.push([x, y, dt]);
         f.x = x;
         f.y = y;
         f.t = t;
@@ -95,12 +102,14 @@ export class GestorToque {
         this.cancelarSilencio?.();
         this.cancelarSilencio = null;
         this.grupoRueda = null;
+        this.acumRuedaTactil = { dx: 0, dy: 0 };
         this.cerrar([...this.dedos.keys()]);
     }
 
     /** Pellizco de trackpad (Ctrl + rueda): dos dedos alrededor del puntero; `deltaY` en píxeles de rueda. */
     pellizcar(x: number, y: number, deltaY: number): void {
         if (this.grupoRueda === "desplazar") this.levantar(CLAVE_RUEDA);
+        if (this.grupoRueda === "desplazar-dos") this.cerrar(CLAVE_RUEDA_DOS.filter((k) => this.dedos.has(k)));
         if (this.grupoRueda !== "pellizco") {
             this.centro = [x, y];
             this.separacion = SEPARACION_INICIAL;
@@ -130,32 +139,108 @@ export class GestorToque {
         });
     }
 
-    /** Rueda sin Ctrl: un dedo que se arrastra `dx,dy` (0..1 del cuadro del aparato, ya al revés de la rueda). */
-    desplazar(x: number, y: number, dx: number, dy: number): void {
+    /** Clic derecho en escritorio controlado: dos dedos quietos en el punto (sin arrastre) para abrir menú contextual. */
+    clicDerecho(x: number, y: number): boolean {
         if (this.grupoRueda === "pellizco") this.cerrar(CLAVE_PELLIZCO.filter((k) => this.dedos.has(k)));
+        if (this.grupoRueda === "desplazar") this.levantar(CLAVE_RUEDA);
+        if (this.grupoRueda === "desplazar-dos") this.cerrar(CLAVE_RUEDA_DOS.filter((k) => this.dedos.has(k)));
+        const px = acotar(x);
+        const py = acotar(y);
+        const sep = Math.min(0.03, px, 1 - px);
+        const idA = this.hueco();
+        if (idA === null) return false;
+        const t = this.d.ahora();
+        this.dedos.set("__clic_der__", { id: idA, x: acotar(px - sep), y: py, t, pend: [[acotar(px - sep), py, 0]] });
+        const idB = this.hueco();
+        this.dedos.delete("__clic_der__");
+        if (idB === null) return false;
+        this.ultimoEnvio = t;
+        this.d.enviar({
+            tipo: "gesto",
+            dedos: [
+                { id: idA, puntos: [[acotar(px - sep), py, 0]] },
+                { id: idB, puntos: [[acotar(px + sep), py, 0]] },
+            ],
+            sigue: false,
+        });
+        return true;
+    }
+
+    /**
+     * Rueda sin Ctrl:
+     * · `dosDedos = true` (escritorio): 2 dedos paralelos que se desplazan para hacer rueda natural (sin seleccionar elementos).
+     * · `dosDedos = false` (táctil/Android): acumula pasos pequeños por encima del umbral táctil antes de tocar, y traza suavemente.
+     */
+    desplazar(x: number, y: number, dx: number, dy: number, dosDedos = false): void {
+        if (this.grupoRueda === "pellizco") this.cerrar(CLAVE_PELLIZCO.filter((k) => this.dedos.has(k)));
+        if (dosDedos) {
+            if (this.grupoRueda === "desplazar") this.levantar(CLAVE_RUEDA);
+            if (!this.dedos.has(CLAVE_RUEDA_DOS[0])) {
+                const px = acotar(x);
+                const py = acotar(y);
+                const sep = Math.min(0.03, px, 1 - px);
+                const a = this.abajo(CLAVE_RUEDA_DOS[0], acotar(px - sep), py);
+                const b = a ? this.abajo(CLAVE_RUEDA_DOS[1], acotar(px + sep), py) : false;
+                if (!a || !b) {
+                    for (const k of CLAVE_RUEDA_DOS) this.dedos.delete(k);
+                    return;
+                }
+                this.grupoRueda = "desplazar-dos";
+            }
+            const fA = this.dedos.get(CLAVE_RUEDA_DOS[0]);
+            const fB = this.dedos.get(CLAVE_RUEDA_DOS[1]);
+            if (!fA || !fB) return;
+            const nxA = acotar(fA.x + dx);
+            const nyA = acotar(fA.y + dy);
+            const nxB = acotar(fB.x + dx);
+            const nyB = acotar(fB.y + dy);
+            this.mover(CLAVE_RUEDA_DOS[0], nxA, nyA);
+            this.mover(CLAVE_RUEDA_DOS[1], nxB, nyB);
+            const alBorde = nyA <= BORDE || nyA >= 1 - BORDE || nxA <= BORDE || nxB >= 1 - BORDE;
+            if (alBorde) {
+                this.cerrar([...CLAVE_RUEDA_DOS]);
+                return;
+            }
+            this.esperarSilencio(() => this.cerrar([...CLAVE_RUEDA_DOS]), SILENCIO_RUEDA_MS);
+            return;
+        }
+        if (this.grupoRueda === "desplazar-dos") this.cerrar(CLAVE_RUEDA_DOS.filter((k) => this.dedos.has(k)));
+        let pasoDx = dx;
+        let pasoDy = dy;
         if (!this.dedos.has(CLAVE_RUEDA)) {
+            this.acumRuedaTactil.dx += dx;
+            this.acumRuedaTactil.dy += dy;
+            if (Math.hypot(this.acumRuedaTactil.dx, this.acumRuedaTactil.dy) < UMBRAL_RUEDA_TACTIL) {
+                this.esperarSilencio(() => {
+                    this.acumRuedaTactil = { dx: 0, dy: 0 };
+                }, SILENCIO_RUEDA_TACTIL_MS);
+                return;
+            }
+            pasoDx = this.acumRuedaTactil.dx;
+            pasoDy = this.acumRuedaTactil.dy;
+            this.acumRuedaTactil = { dx: 0, dy: 0 };
             if (!this.abajo(CLAVE_RUEDA, x, y)) return;
             this.grupoRueda = "desplazar";
         }
         const f = this.dedos.get(CLAVE_RUEDA);
         if (!f) return;
-        const nx = acotar(f.x + dx);
-        const ny = acotar(f.y + dy);
-        this.mover(CLAVE_RUEDA, nx, ny);
-        const alBorde = nx <= BORDE || nx >= 1 - BORDE || ny <= BORDE || ny >= 1 - BORDE;
+        const nx = acotar(f.x + pasoDx);
+        const ny = acotar(f.y + pasoDy);
+        this.mover(CLAVE_RUEDA, nx, ny, DT_RUEDA_TACTIL_MS);
+        const alBorde = nx <= BORDE_TACTIL || nx >= 1 - BORDE_TACTIL || ny <= BORDE_TACTIL || ny >= 1 - BORDE_TACTIL;
         if (alBorde) {
             this.cerrar([CLAVE_RUEDA]); // el siguiente giro empieza otro trazo en el puntero
             return;
         }
-        this.esperarSilencio(() => this.cerrar([CLAVE_RUEDA]));
+        this.esperarSilencio(() => this.cerrar([CLAVE_RUEDA]), SILENCIO_RUEDA_TACTIL_MS);
     }
 
-    private esperarSilencio(f: () => void): void {
+    private esperarSilencio(f: () => void, ms = SILENCIO_RUEDA_MS): void {
         this.cancelarSilencio?.();
         this.cancelarSilencio = this.d.esperar(() => {
             this.cancelarSilencio = null;
             f();
-        }, SILENCIO_RUEDA_MS);
+        }, ms);
     }
 
     private programar(): void {
@@ -196,8 +281,9 @@ export class GestorToque {
         const quedan = this.dedos.size > quita.length;
         this.vaciar(quedan);
         for (const k of quita) this.dedos.delete(k);
-        if (this.grupoRueda && !this.dedos.has(CLAVE_RUEDA) && !this.dedos.has(CLAVE_PELLIZCO[0])) {
+        if (this.grupoRueda && !this.dedos.has(CLAVE_RUEDA) && !this.dedos.has(CLAVE_RUEDA_DOS[0]) && !this.dedos.has(CLAVE_PELLIZCO[0])) {
             this.grupoRueda = null;
+            this.acumRuedaTactil = { dx: 0, dy: 0 };
             this.cancelarSilencio?.();
             this.cancelarSilencio = null;
         }

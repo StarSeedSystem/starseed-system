@@ -306,3 +306,40 @@ describe("IND1115F · el rechazo por falta de indicador dice qué falta", () => 
         expect(lineas.some((l) => l.endsWith("resultado=rechazo:sin-indicador-nativo"))).toBe(true);
     });
 });
+
+describe("CTL1124 · multicontrolador simultáneo y ventana deslizante de seq", () => {
+    it("admite múltiples neuronas de la cuenta controlando simultáneamente y cerrar una no tira a otra", async () => {
+        await emparejar();
+        const linux = await aparato();
+        await puerta.recibir(await firmar(linux, "presentarse", { spki: linux.spki, nombre: "Maggabox", neurona: "aaaa0000-0000-4000-8000-000000000002" }));
+        permiso = { ...aceptarPendiente(permiso, linux.huella), encendido: true, nivel: "controlar" };
+
+        const sMac = await abrirSesion();
+        const rLinux = await puerta.recibir(await firmar(linux, "abrir-sesion"));
+        expect(rLinux.ok).toBe(true);
+        const sLinux = (rLinux.resultado as { sesion: string }).sesion;
+        expect(sLinux).not.toBe(sMac);
+        expect(puerta.sesionesActivas()).toHaveLength(2);
+
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion: sMac }))).ok).toBe(true);
+        expect((await puerta.recibir(await firmar(linux, "leer-estado", {}, { sesion: sLinux }))).ok).toBe(true);
+
+        // Cerrar una sesión deja activa a la otra.
+        expect((await puerta.recibir(await firmar(linux, "cerrar-sesion", {}, { sesion: sLinux }))).ok).toBe(true);
+        expect(puerta.sesionesActivas()).toHaveLength(1);
+        expect((await puerta.recibir(await firmar(mac, "leer-estado", {}, { sesion: sMac }))).ok).toBe(true);
+        expect((await puerta.recibir(await firmar(linux, "leer-estado", {}, { sesion: sLinux }))).motivo).toBe("sin-sesion");
+    });
+
+    it("acepta paquetes levemente desordenados dentro de la ventana deslizante pero rechaza replays", async () => {
+        await emparejar();
+        const sesion = await abrirSesion();
+        const futuro = await firmar(mac, "leer-estado", {}, { sesion, seq: 10 });
+        const intermedio = await firmar(mac, "leer-estado", {}, { sesion, seq: 8 });
+        expect((await puerta.recibir(futuro)).ok).toBe(true);
+        expect((await puerta.recibir(intermedio)).ok).toBe(true);
+        // Repetir el mismo seq intermedio (aunque con nonce nuevo) sí se rechaza.
+        const replay = await firmar(mac, "leer-estado", {}, { sesion, seq: 8 });
+        expect((await puerta.recibir(replay)).motivo).toBe("repetida");
+    });
+});

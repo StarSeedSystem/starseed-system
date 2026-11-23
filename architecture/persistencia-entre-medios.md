@@ -124,7 +124,8 @@ Además: `starseed.avisos.vistos.v1` (fusionable, §2). Se quitó un duplicado d
 `starseed.bloqueo.v1` / `.sesion.v1` / `.intentos.v1`, `starseed.device.id`, `starseed.device.id.v1`,
 `starseed.device.self`, `starseed.device.alias.v1`, `starseed.neuron.device-id`, `starseed.mesh.device-id.v1`,
 `starseed.mesh.identity.v1`, `starseed.mesh.master-identity.v1`, `starseed.mesh.enc-identity.v1`,
-`starseed.mesh.relay-key.v1`, `starseed.mesh.relay-keyring.v1`, `starseed.mesh.revocation-cert.v1`.
+`starseed.mesh.relay-key.v1`, `starseed.mesh.relay-keyring.v1`, `starseed.mesh.revocation-cert.v1`,
+`starseed.perf.v1` (modo de rendimiento por neurona), `starseed.display.local.v1` (transparencia/brillo/atmósfera locales del Centro de Control), `starseed.malla.protocolos-universales.v1` (ajustes locales de antenas y malla universal P2P).
 (Más las que ya estaban: proveedores IA, credenciales de conectores, clave Porcupine, chats con `apiKey`,
 espejos y colas de cerebros…)
 

@@ -20,7 +20,7 @@ import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-part
 import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
-import { MAX_CUADRO_BYTES, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
+import { MAX_CUADRO_BYTES, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
@@ -117,6 +117,8 @@ export interface DepsOrigen {
     crearPintor: () => Pintor;
     /** La sesión abierta ahora en la puerta (null si no hay o caducó). */
     sesionViva: () => SesionViva | null;
+    /** CTL1124 · sesión viva concreta por su token (controladores simultáneos). */
+    sesionPorToken?: (token: string) => SesionViva | null;
     /** Una orden firmada que llegó por el canal de datos de la conexión: pasa por la MISMA puerta. */
     recibirSobre: (sobre: unknown) => Promise<RespuestaOrden>;
     esperar: (ms: number) => Promise<void>;
@@ -169,6 +171,7 @@ interface Activa {
     /** CTL1119B: estado de calidad (cuadros enviados, acuses, métricas). */
     calidad: EstadoCalidad;
     ultimaCalidad: MetricasCalidad | null;
+    intCalidad?: ReturnType<typeof setInterval>;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -178,49 +181,76 @@ function esObjeto(x: unknown): x is Record<string, unknown> {
 const RE_MOTIVO = /^[a-z-]{1,32}$/;
 
 export class OrigenPantalla {
-    private activa: Activa | null = null;
+    private activas = new Map<string, Activa>();
+    /** Captura compartida para todos los controladores simultáneos de este aparato. */
+    private capturaEnMarcha = false;
+    private capturaGen = 0;
+    private desdeCaptura = 0;
+    private ultimoCompartido: { numero: number; jpeg: Uint8Array; ancho: number; alto: number } | null = null;
     /** Tarea pesada de la pantalla de control (alimenta el modo «auto» de rendimiento). */
     private soltarOcupado: (() => void) | null = null;
     /** CTL1118F: cuántas veces se pidió la pantalla fluida en cada sesión de control (por su token): sola, UNA; después, solo si la persona lo pide. */
     private readonly fluidaPedidas = new Map<string, number>();
-    /** CTL1119B: intervalos para actualización de calidad. */
-    private intervalos = new Set<ReturnType<typeof setInterval>>();
 
     constructor(private readonly d: DepsOrigen) {}
 
-    /** ¿Está mandando pantalla? (para la banda y las pruebas) */
+    private buscarSesion(token: string): SesionViva | null {
+        const porToken = this.d.sesionPorToken?.(token);
+        if (porToken !== undefined) return porToken;
+        const v = this.d.sesionViva();
+        return v && v.token === token ? v : null;
+    }
+
+    private vivas(): Activa[] {
+        const lista: Activa[] = [];
+        for (const a of this.activas.values()) {
+            if (!a.parado) lista.push(a);
+        }
+        return lista;
+    }
+
+    /** Compatibilidad para pruebas que inspeccionan la primera pantalla activa. */
+    private get activa(): Activa | null {
+        return this.vivas()[0] ?? null;
+    }
+
+    /** ¿Está mandando pantalla a algún controlador? (para la banda y las pruebas) */
     enMarcha(): boolean {
-        return !!this.activa && !this.activa.parado;
+        return this.vivas().length > 0;
     }
 
     /** Cuadros pintados desde que empezó (solo un contador; nunca el contenido). */
     cuadrosPintados(): number {
-        return this.activa?.cuadros ?? 0;
+        const lista = this.vivas();
+        return lista.length === 0 ? 0 : Math.max(...lista.map((a) => a.cuadros));
     }
 
     /** CTL1119B: métricas de calidad actuales (fps, rtt, kbps, resolución, codec, calidad, pérdidas, medio). */
     calidad(): MetricasCalidad | null {
-        return this.activa?.ultimaCalidad ?? null;
+        for (const a of this.activas.values()) {
+            if (!a.parado && a.ultimaCalidad) return a.ultimaCalidad;
+        }
+        return null;
     }
 
     /** Ejecuta una orden de pantalla o de entrada YA validada por la puerta. Lanza con un motivo corto. */
     async ejecutar(nombre: string, args: Args, ctx: { sobre?: unknown; sesion?: { token: string; nivel: string } }): Promise<unknown> {
         const s = ctx.sesion;
         if (!s) throw new Error("sesion");
-        const viva = this.d.sesionViva();
+        const viva = this.buscarSesion(s.token);
         if (!viva || viva.token !== s.token) throw new Error("sesion");
         switch (nombre) {
             case "pantalla-iniciar":
                 return args.mantener === true ? this.mantener(viva, args) : this.iniciar(viva, args);
             case "pantalla-parar":
-                await this.parar("ordenado");
+                await this.pararToken(viva.token, "ordenado");
                 return { parada: true };
             case "pantalla-senal":
                 return this.senal(viva, args);
             case "pantalla-cuadro":
                 return this.cuadro(viva, args);
             case "leer-aparato":
-                return this.leerAparato();
+                return this.leerAparato(viva);
             case "gesto":
             case "tecla":
             case "volumen":
@@ -237,7 +267,7 @@ export class OrigenPantalla {
     private async iniciar(s: SesionViva, args: Args): Promise<unknown> {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
-        await this.parar("reinicio");
+        if (this.activas.has(s.token)) await this.pararToken(s.token, "reinicio");
         // RST1116A: lo que pide la persona viaja explícito. Con «proyeccion» se pide esa fuente a lo nativo;
         // sin campo o con «auto» no se manda la clave (el aparato arranca con lo que tenga, como siempre).
         const pedida: FuenteReal | null = args.fuente === "proyeccion" ? "proyeccion" : null;
@@ -277,7 +307,7 @@ export class OrigenPantalla {
             ancho,
             alto,
             giro,
-            desde: 0,
+            desde: this.desdeCaptura,
             buscandoFluida: false,
             coste: null,
             enMedida: 0,
@@ -285,7 +315,7 @@ export class OrigenPantalla {
             cuadros: 0,
             recibidos: 0,
             cola: Promise.resolve(),
-            ultimo: null,
+            ultimo: this.ultimoCompartido,
             mallaHasta: 0,
             envio: null,
             reens: new Reensamblador(this.d.ahora),
@@ -293,24 +323,30 @@ export class OrigenPantalla {
             calidad: { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: medio, lado: "aparato" },
             ultimaCalidad: null,
         };
-        this.activa = a;
-        this.soltarOcupado?.();
-        this.soltarOcupado = marcarOcupado(`control-pantalla:${a.token}`, "control");
-        // CTL1117C: mide el segundo plano mientras dure esta pantalla (nada corre sin ella).
-        try {
-            this.d.vigia?.arrancar({
-                producidos: () => a.recibidos,
-                enviados: () => a.cuadros,
-                latidos: () => a.pintor.latidos?.() ?? 0,
-                ordenes: () => this.d.ordenesServidas?.() ?? 0,
-            });
-        } catch {
-            /* el diagnóstico nunca impide la pantalla */
+        const eraVacia = this.vivas().length === 0;
+        this.activas.set(s.token, a);
+        if (!this.soltarOcupado) {
+            this.soltarOcupado = marcarOcupado("control-pantalla:activa", "control");
         }
-        void this.bucle(a);
-        // CTL1119B: actualización de calidad cada 500 ms
-        const intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
-        this.intervalos.add(intCalidad);
+        // CTL1117C: mide el segundo plano mientras dure al menos una pantalla (nada corre sin ellas).
+        if (eraVacia) {
+            try {
+                this.d.vigia?.arrancar({
+                    producidos: () => this.vivas().reduce((acc, x) => acc + x.recibidos, 0),
+                    enviados: () => this.vivas().reduce((acc, x) => acc + x.cuadros, 0),
+                    latidos: () => this.vivas().reduce((acc, x) => acc + (x.pintor.latidos?.() ?? 0), 0),
+                    ordenes: () => this.d.ordenesServidas?.() ?? 0,
+                });
+            } catch {
+                /* el diagnóstico nunca impide la pantalla */
+            }
+        }
+        // CTL1119B: actualización de calidad cada 500 ms por sesión
+        a.intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
+        if (!this.capturaEnMarcha) {
+            this.capturaGen += 1;
+            void this.bucleCompartido(this.capturaGen);
+        }
         this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${pedida ?? "auto"}`);
         // CTL1118F: si no se pidió explícita, la pantalla ya sale y lo fluido se busca UNA vez sin cerrar nada.
         // RST1116A: con «proyeccion» la petición ya fue la de arriba; no se repite sola.
@@ -351,7 +387,7 @@ export class OrigenPantalla {
 
     /** CTL1118F: `pantalla-iniciar` con `mantener`: no reabre nada (ni conexión ni canal); si la persona pide la fluida, la busca; contesta lo que hay ahora. */
     private async mantener(s: SesionViva, args: Args): Promise<unknown> {
-        const a = this.activa;
+        const a = this.activas.get(s.token);
         if (!a || a.parado || a.token !== s.token || a.de !== s.de) {
             const { mantener: _m, ...resto } = args;
             return this.iniciar(s, resto);
@@ -435,100 +471,134 @@ export class OrigenPantalla {
     private cambiarFuente(a: Activa, nueva: FuenteReal, r: Record<string, unknown> | null, causa: string, ms: number): void {
         if (a.fuente === nueva) return;
         const antes = a.fuente;
-        a.fuente = nueva;
-        a.desde = 0;
-        a.coste = null;
-        a.enMedida = 0;
-        a.ritmo = RITMO_INICIAL;
-        if (r) {
-            if (Number(r.ancho) > 0) a.ancho = Number(r.ancho);
-            if (Number(r.alto) > 0) a.alto = Number(r.alto);
+        this.desdeCaptura = 0;
+        for (const act of this.vivas()) {
+            act.fuente = nueva;
+            act.desde = 0;
+            act.coste = null;
+            act.enMedida = 0;
+            act.ritmo = RITMO_INICIAL;
+            if (r) {
+                if (Number(r.ancho) > 0) act.ancho = Number(r.ancho);
+                if (Number(r.alto) > 0) act.alto = Number(r.alto);
+            }
         }
         this.d.anotar(`control-fuente paso=cambio de=${antes} a=${nueva} causa=${causa} ms=${Math.max(0, Math.round(ms))} cuadros-hasta-ahora=${a.cuadros}`);
     }
 
-    /** Pide el siguiente cuadro solo cuando el anterior ya se pintó: nunca hay cola de cuadros. */
-    private async bucle(a: Activa): Promise<void> {
+    /** Bucle compartido: captura UN cuadro por tick y lo entrega a todos los controladores simultáneos. */
+    private async bucleCompartido(gen: number): Promise<void> {
         const inv = this.d.invocar;
         if (!inv) return;
+        this.capturaEnMarcha = true;
         let vacios = 0;
         let fallos = 0;
-        while (!a.parado) {
-            if (!this.vive(a)) {
-                await this.parar("sesion-cerrada");
-                return;
-            }
-            if (!a.peer && this.d.ahora() - a.inicio > ESPERA_OFERTA_MS && this.d.ahora() > a.mallaHasta) {
-                await this.parar("sin-oferta");
-                return;
-            }
-            let bytes: Uint8Array | null = null;
-            const tPide = this.d.ahora();
-            try {
-                bytes = abytes(await inv("control_pantalla_cuadro", { sesion: a.token, desde: a.desde }));
-            } catch {
-                fallos += 1;
-                if (fallos >= 3) {
-                    await this.parar("cuadro-fallo");
-                    return;
+        try {
+            while (this.capturaGen === gen) {
+                const ahora = this.d.ahora();
+                for (const a of this.vivas()) {
+                    if (!this.vive(a)) {
+                        await this.pararToken(a.token, "sesion-cerrada");
+                        continue;
+                    }
+                    if (!a.peer && ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
+                        await this.pararToken(a.token, "sin-oferta");
+                    }
                 }
-                await this.d.esperar(100);
-                continue;
-            }
-            if (!bytes || bytes.length === 0) {
-                vacios += 1;
-                await this.d.esperar(Math.min(200, 20 + vacios * 20)); // sin cuadro nuevo: se adapta, no se ocupa de más
-                continue;
-            }
-            const h = leerCabeceraCuadro(bytes);
-            if (!h) {
-                fallos += 1;
-                if (fallos >= 3) {
-                    await this.parar("cuadro-fallo");
-                    return;
+                const vivas = this.vivas();
+                if (vivas.length === 0 || this.capturaGen !== gen) return;
+                const primero = vivas[0];
+                let bytes: Uint8Array | null = null;
+                const tPide = this.d.ahora();
+                try {
+                    bytes = abytes(await inv("control_pantalla_cuadro", { sesion: primero.token, desde: this.desdeCaptura }));
+                } catch {
+                    if (!this.activas.has(primero.token) && this.vivas().length > 0) continue;
+                    fallos += 1;
+                    if (fallos >= 3) {
+                        await this.parar("cuadro-fallo");
+                        return;
+                    }
+                    await this.d.esperar(100);
+                    continue;
                 }
-                await this.d.esperar(100);
-                continue;
-            }
-            fallos = 0;
-            vacios = 0;
-            a.desde = h.numero;
-            a.recibidos += 1;
-            // CTL1118M: sin conexión de vídeo y con quien manda pidiendo por la malla, el cuadro se guarda para repartirlo; no se pinta para nadie.
-            if (!a.peer && this.d.ahora() <= a.mallaHasta) {
+                if (!bytes || bytes.length === 0) {
+                    vacios += 1;
+                    await this.d.esperar(Math.min(200, 20 + vacios * 20)); // sin cuadro nuevo: se adapta, no se ocupa de más
+                    continue;
+                }
+                const h = leerCabeceraCuadro(bytes);
+                if (!h) {
+                    fallos += 1;
+                    if (fallos >= 3) {
+                        await this.parar("cuadro-fallo");
+                        return;
+                    }
+                    await this.d.esperar(100);
+                    continue;
+                }
+                fallos = 0;
+                vacios = 0;
+                this.desdeCaptura = h.numero;
                 const jpeg = bytes.subarray(CABECERA_CUADRO);
-                a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
-                a.cuadros += 1;
-                añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
-                await this.d.esperar(25);
-                continue;
+                const copia = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
+                this.ultimoCompartido = copia;
+                const tEnv = this.d.ahora();
+                const actuales = this.vivas();
+                const tareasPintado: Promise<void>[] = [];
+                for (const a of actuales) {
+                    a.desde = h.numero;
+                    a.recibidos += 1;
+                    a.ultimo = copia;
+                    // CTL1118M: sin conexión WebRTC y con quien manda pidiendo por la malla, se entrega directo en partes sin pintar.
+                    if (!a.peer && tEnv <= a.mallaHasta) {
+                        a.cuadros += 1;
+                        añadirCuadro(a.calidad, { t: tEnv, bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
+                        continue;
+                    }
+                    tareasPintado.push(
+                        a.pintor
+                            .pintar(jpeg, h.ancho, h.alto)
+                            .catch(() => false)
+                            .then((ok) => {
+                                if (!ok) return;
+                                a.cuadros += 1;
+                                añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
+                                if (a.token === primero.token && a.fuente === "proyeccion") {
+                                    this.medirRitmo(a, this.d.ahora() - tPide);
+                                }
+                            }),
+                    );
+                }
+                if (tareasPintado.length === 0) {
+                    await this.d.esperar(25);
+                } else {
+                    await Promise.all(tareasPintado);
+                }
             }
-            a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
-            const jpeg = bytes.subarray(CABECERA_CUADRO);
-            const ok = await a.pintor.pintar(jpeg, h.ancho, h.alto).catch(() => false);
-            if (ok) {
-                a.cuadros += 1;
-                // CTL1119B: alimentar cuadro a calidad (aparato)
-                añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
+        } finally {
+            if (this.capturaGen === gen) {
+                this.capturaEnMarcha = false;
             }
-            // CTL1118F: lo que cuesta un cuadro (traerlo + pintarlo) manda el tamaño y la calidad de los siguientes, solo con la fluida.
-            if (ok && a.fuente === "proyeccion") this.medirRitmo(a, this.d.ahora() - tPide);
         }
     }
 
     private vive(a: Activa): boolean {
-        const v = this.d.sesionViva();
+        const v = this.buscarSesion(a.token);
         return !!v && v.token === a.token && v.de === a.de;
     }
 
-    /** La sesión pudo cerrarse, caducar o perder su indicador: si es así, la pantalla para ya. */
+    /** La sesión pudo cerrarse, caducar o perder su indicador: cierra solo las que ya no valen. */
     async revisar(): Promise<void> {
-        const a = this.activa;
-        if (a && !a.parado && !this.vive(a)) await this.parar("sesion-cerrada");
+        for (const a of [...this.activas.values()]) {
+            if (!a.parado && !this.vive(a)) {
+                await this.pararToken(a.token, "sesion-cerrada");
+            }
+        }
     }
 
     private async senal(s: SesionViva, args: Args): Promise<unknown> {
-        const a = this.activa;
+        const a = this.activas.get(s.token);
         if (!a || a.parado || a.token !== s.token || a.de !== s.de) throw this.falloSenal("oferta", "sin-pantalla");
         // SEN1116A: la oferta llega en partes; la respuesta se pide por partes. Cada fallo deja su línea en el registro.
         if (typeof args.pide === "number") return this.darParteRespuesta(a, args);
@@ -552,7 +622,7 @@ export class OrigenPantalla {
      * y contesta su parte 0; si no, `{ nuevo: false }`. Partes 1..n-1: las del cuadro congelado (`num` tiene que casar). Nada se guarda: se suelta al llegar el siguiente.
      */
     private async cuadro(s: SesionViva, args: Args): Promise<unknown> {
-        const a = this.activa;
+        const a = this.activas.get(s.token);
         if (!a || a.parado || a.token !== s.token || a.de !== s.de) throw new Error("sin-pantalla");
         a.mallaHasta = this.d.ahora() + VIGENCIA_MALLA_MS;
         const pide = Number(args.pide);
@@ -561,7 +631,7 @@ export class OrigenPantalla {
             if (!e || e.num !== Number(args.num) || !e.partes[pide]) throw new Error("cuadro-cambiado");
             return { ...e.partes[pide] };
         }
-        const u = a.ultimo;
+        const u = this.ultimoCompartido ?? a.ultimo;
         if (!u || u.numero <= Number(args.desde)) return { nuevo: false, numero: u?.numero ?? 0 };
         let { jpeg, ancho, alto } = u;
         const niv = nivelDe(args.nivel);
@@ -571,7 +641,10 @@ export class OrigenPantalla {
             if (r) ({ jpeg, ancho, alto } = r);
         }
         if (jpeg.length > MAX_CUADRO_BYTES) return { nuevo: false, numero: u.numero, motivo: "grande" };
-        const partes = partirCuadro(jpeg, u.numero);
+        const maxParte = typeof args.maxParte === "number" && Number.isFinite(args.maxParte)
+            ? Math.max(PARTE_CUADRO_MAX, Math.min(PARTE_CUADRO_DIRECTO, Math.floor(args.maxParte)))
+            : PARTE_CUADRO_MAX;
+        const partes = partirCuadro(jpeg, u.numero, maxParte);
         a.envio = { num: u.numero, partes, ancho, alto };
         return { nuevo: true, ancho, alto, ...partes[0] };
     }
@@ -600,7 +673,7 @@ export class OrigenPantalla {
             a.peer = peer;
             peer.ondatachannel = (e) => this.alAbrirseCanal(a, peer, e.channel);
             peer.onconnectionstatechange = () => {
-                if (peer.connectionState === "failed" || peer.connectionState === "closed") void this.parar("conexion-perdida");
+                if (peer.connectionState === "failed" || peer.connectionState === "closed") void this.pararToken(a.token, "conexion-perdida");
             };
             await peer.setRemoteDescription({ type: "offer", sdp: texto });
             peer.addTrack(a.pintor.pista(), a.pintor.flujo());
@@ -688,7 +761,7 @@ export class OrigenPantalla {
 
     // ── aparato y entrada ────────────────────────────────────────────────────────────────────
 
-    private async leerAparato(): Promise<unknown> {
+    private async leerAparato(s?: SesionViva): Promise<unknown> {
         const inv = this.d.invocar;
         if (!inv) throw new Error("sin-soporte");
         const e = await inv("control_estado_aparato").catch(() => null);
@@ -696,7 +769,7 @@ export class OrigenPantalla {
         if (e.ok === false) throw new Error(typeof e.motivo === "string" && RE_MOTIVO.test(e.motivo) ? e.motivo : "sin-soporte");
         const c = await inv("control_capacidades").catch(() => null);
         // CTL1118F: la fuente REAL ahora (la que dice el aparato; si la fluida se cortó, vuelve a accesibilidad y aquí se entera). Nunca la pedida.
-        const a = this.activa;
+        const a = s ? this.activas.get(s.token) : this.vivas()[0];
         const real = fuenteActivaDe(c);
         if (a && !a.parado && real && real !== a.fuente) this.cambiarFuente(a, real, null, real === "accesibilidad" ? "la-fluida-se-corto" : "detectado", this.d.ahora() - a.inicio);
         return { aparato: e, capacidades: esObjeto(c) ? c : null, ...(a && !a.parado ? { fuente: a.fuente } : {}) };
@@ -718,11 +791,12 @@ export class OrigenPantalla {
             throw new Error("sin-servicio");
         }
         const tAcuse = this.d.ahora();
+        const a = this.activas.get(s.token);
         // CTL1119B: alimentar acuse a calidad (canal de control)
-        if (nonce && this.activa) {
-            const medioSnap = instantaneaMedio(this.activa.de);
+        if (nonce && a) {
+            const medioSnap = instantaneaMedio(a.de);
             const medio: TipoMedio = (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
-            añadirAcuse(this.activa.calidad, { nonce, tEnvio, tAcuse, medio, ok: esObjeto(r) && r.ok === true });
+            añadirAcuse(a.calidad, { nonce, tEnvio, tAcuse, medio, ok: esObjeto(r) && r.ok === true });
         }
         if (esObjeto(r) && r.ok === true) return { ok: true };
         const m = esObjeto(r) && typeof r.motivo === "string" && RE_MOTIVO.test(r.motivo) ? r.motivo : "fallo";
@@ -731,21 +805,27 @@ export class OrigenPantalla {
 
     // ── parar ────────────────────────────────────────────────────────────────────────────────
 
-    /** Para la pantalla y suelta todo: la fuente nativa, la conexión, el canal y el lienzo. Idempotente. */
-    async parar(motivo: string): Promise<void> {
-        const a = this.activa;
+    /** Para la pantalla de UNA sola sesión sin cortar a los demás controladores activos. */
+    async pararToken(token: string, motivo: string): Promise<void> {
+        const a = this.activas.get(token);
         if (!a) return;
-        this.activa = null;
+        this.activas.delete(token);
         a.parado = true;
-        // CTL1119B: limpiar intervalos de calidad
-        for (const i of this.intervalos) clearInterval(i);
-        this.intervalos.clear();
-        this.soltarOcupado?.();
-        this.soltarOcupado = null;
-        try {
-            this.d.vigia?.parar();
-        } catch {
-            /* nada */
+        if (a.intCalidad) {
+            clearInterval(a.intCalidad);
+            a.intCalidad = undefined;
+        }
+        if (this.vivas().length === 0) {
+            this.capturaGen += 1;
+            this.desdeCaptura = 0;
+            this.ultimoCompartido = null;
+            this.soltarOcupado?.();
+            this.soltarOcupado = null;
+            try {
+                this.d.vigia?.parar();
+            } catch {
+                /* nada */
+            }
         }
         this.d.anotar(`pantalla parada motivo=${RE_MOTIVO.test(motivo) ? motivo : "parada"} cuadros=${a.cuadros}`);
         try {
@@ -766,6 +846,13 @@ export class OrigenPantalla {
             /* nada */
         }
         await this.d.invocar?.("control_pantalla_parar", { sesion: a.token }).catch(() => undefined);
+    }
+
+    /** Para todas las pantallas activas y suelta todo. Idempotente. */
+    async parar(motivo: string): Promise<void> {
+        for (const token of [...this.activas.keys()]) {
+            await this.pararToken(token, motivo);
+        }
     }
 }
 
@@ -890,6 +977,7 @@ function invocadorTauri(): DepsOrigen["invocar"] {
 
 interface PuertaMinima {
     sesionActiva(): SesionViva | null;
+    sesionPorToken?(token: string): SesionViva | null;
     recibir(sobre: unknown): Promise<RespuestaOrden>;
     /** CTL1117C: órdenes cumplidas hasta ahora (diagnóstico de segundo plano). */
     ordenesServidas?(): number;
@@ -922,6 +1010,7 @@ export function origenGlobal(): OrigenPantalla {
         crearPeer: (iceServers) => new RTCPeerConnection({ iceServers }) as unknown as PeerLike,
         crearPintor: () => crearPintorReal((f, ms) => reloj.cada(f, ms)),
         sesionViva: () => puertaRegistrada?.sesionActiva() ?? null,
+        sesionPorToken: (token) => puertaRegistrada?.sesionPorToken?.(token) ?? null,
         recibirSobre: async (sobre) => (puertaRegistrada ? puertaRegistrada.recibir(sobre) : { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-puerta" }),
         esperar: (ms) => esperarCon(reloj, ms),
         ahora: () => Date.now(),

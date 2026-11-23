@@ -182,7 +182,6 @@ const EVENT_BY_KEY: Record<string, string[]> = {
  "starseed.memorias.capsulas.v1": [CAPSULAS_EVENT],
  "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
-    "starseed.perf.v1": ["starseed:perf-changed"],
     "starseed.dock.items.v2": ["starseed:sync:apply"],
     "starseed.dock.folders.v1": ["starseed:sync:apply"],
     "starseed.dock.iconos.v1": ["starseed:dock-iconos"],

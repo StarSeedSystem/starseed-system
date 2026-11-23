@@ -611,6 +611,19 @@ class ServicioControlNeuronas : Service() {
     }
 
     private fun mostrar(sesion: String, nombre: String, color: String, nivel: String) {
+        if (ControlNeuronasNativo.mostrando && ControlNeuronasNativo.sesion == sesion && pastilla != null) {
+            ControlNeuronasNativo.nombre = nombre
+            ControlNeuronasNativo.color = color
+            ControlNeuronasNativo.nivel = nivel
+            val desde = if (ControlNeuronasNativo.desdeMs > 0L) ControlNeuronasNativo.desdeMs else System.currentTimeMillis()
+            ControlNeuronasNativo.lista = listOf(Controlador(nombre, nivel, color, desde))
+            ControlNeuronasNativo.pausada = false
+            ControlNeuronasNativo.pausaManual = false
+            refrescarAviso()
+            reajustarVentana()
+            ControlNeuronasNativo.escribirEstado()
+            return
+        }
         ControlNeuronasNativo.sesion = sesion
         ControlNeuronasNativo.nombre = nombre
         ControlNeuronasNativo.color = color
@@ -733,7 +746,7 @@ class ServicioControlNeuronas : Service() {
         val c = ControlNeuronasNativo.lista.firstOrNull()
         val alc = if (ControlNeuronasNativo.alcance == "total") "control total" else "protegido"
         // CTL1118G: el nombre ENTERO en su propia vista (hasta dos líneas; «…» solo si pasa de 40 letras, lo corta Rust) y la línea de estado aparte.
-        nombrePanel?.text = ControlNeuronasNativo.nombre
+        nombrePanel?.text = "Controlada por: ${ControlNeuronasNativo.nombre}"
         textoPanel?.text = if (ControlNeuronasNativo.pausada) "En pausa · $alc" else "${if (c?.nivel == "controlar") "Controla" else "Ve"} · desde ${hora(c?.desdeMs ?: System.currentTimeMillis())} · $alc"
         botonPausa?.text = if (ControlNeuronasNativo.pausada) "  Reanudar  " else "  Pausar  "
     }
@@ -873,8 +886,8 @@ class ServicioControlNeuronas : Service() {
         }
         t.setSingleLine(false)
         t.maxLines = 2
-        pan.minimumWidth = dp(200)
-        pan.addView(nombreV)
+        pan.minimumWidth = dp(240)
+        pan.addView(nombreV, LinearLayout.LayoutParams(-2, -2))
         pan.addView(t); pan.addView(botones); pan.addView(confirma)
         fila.addView(pan)
         // Un toque en cualquier otro sitio de la pantalla llega aquí como ACTION_OUTSIDE: pausa al instante.

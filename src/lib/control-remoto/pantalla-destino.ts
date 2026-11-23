@@ -20,7 +20,7 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
@@ -285,6 +285,7 @@ export class PantallaDestino {
     private fallo: string | null = null; // SEN1116A: motivo de señalización con paso y lado
     private cerrada = false;
     private ultimosCuadros = { n: 0, t: 0 };
+    private ultimosBytes: { bytes: number; t: number } | null = null;
     private sinCuadros = 0;
     private rtt: number | null = null;
     private medidaLatencia: number | null = null;
@@ -569,10 +570,18 @@ export class PantallaDestino {
         let t0fps = this.d.ahora();
         let ultimaLinea = t0fps;
         while (!this.cerrada && this.enMalla) {
+            if (this.cola.length > 0) await m.esperar(0);
+            if (this.cerrada || !this.enMalla) return;
             const camino = m.enlace();
             const plan = planPorCamino(camino.camino, ritmo.nivel);
+            const maxParte = camino.camino === "directo" ? PARTE_CUADRO_DIRECTO : PARTE_CUADRO_MAX;
+            const leerParte = (x: unknown) =>
+                leerParteCuadro(x, maxParte) ?? (maxParte !== PARTE_CUADRO_MAX ? leerParteCuadro(x, PARTE_CUADRO_MAX) : null);
+            const argsP0: Args = camino.camino === "directo"
+                ? { desde, pide: 0, nivel: plan.nivel, maxParte }
+                : { desde, pide: 0, nivel: plan.nivel };
             const t0 = this.d.ahora();
-            const r = await this.orden("pantalla-cuadro", { desde, pide: 0, nivel: plan.nivel }, "ver");
+            const r = await this.orden("pantalla-cuadro", argsP0, "ver", 4000);
             if (this.cerrada) return;
             if (!r.ok) {
                 if (r.motivo === "pausa-local") {
@@ -581,7 +590,7 @@ export class PantallaDestino {
                     continue;
                 }
                 fallos += 1;
-                if (fallos >= 5) return void (await this.cerrar(r.motivo === "sin-pantalla" ? "sin-pantalla" : "sin-cuadros", true));
+                if (fallos >= 10) return void (await this.cerrar(r.motivo === "sin-pantalla" ? "sin-pantalla" : "sin-cuadros", true));
                 await m.esperar(300 * fallos);
                 continue;
             }
@@ -595,10 +604,10 @@ export class PantallaDestino {
                 continue;
             }
             vacios = 0;
-            const p0 = leerParteCuadro(res);
+            const p0 = leerParte(res);
             if (!p0) {
                 fallos += 1;
-                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
                 await m.esperar(300 * fallos);
                 continue;
             }
@@ -606,21 +615,21 @@ export class PantallaDestino {
             try {
                 jpeg = reens.meter(p0);
                 for (let i = 1; jpeg === null && i < p0.n && !this.cerrada; i++) {
-                    const q = await this.orden("pantalla-cuadro", { desde, pide: i, num: p0.num }, "ver");
-                    const pq = q.ok ? leerParteCuadro(q.resultado) : null;
+                    const q = await this.orden("pantalla-cuadro", { desde, pide: i, num: p0.num }, "ver", 4000);
+                    const pq = q.ok ? leerParte(q.resultado) : null;
                     if (!pq) throw new Error("parte");
                     jpeg = reens.meter(pq);
                 }
             } catch {
                 fallos += 1;
-                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
                 await m.esperar(300 * fallos);
                 continue;
             }
             if (this.cerrada) return;
             if (!jpeg) {
                 fallos += 1;
-                if (fallos >= 5) return void (await this.cerrar("sin-cuadros", true));
+                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
                 await m.esperar(300 * fallos);
                 continue;
             }
@@ -693,9 +702,9 @@ export class PantallaDestino {
 
     // ── órdenes ──────────────────────────────────────────────────────────────────────────────
 
-    private async orden(nombre: string, args: Args, nivel: "ver" | "controlar"): Promise<RespuestaOrden> {
+    private async orden(nombre: string, args: Args, nivel: "ver" | "controlar", esperaMs?: number): Promise<RespuestaOrden> {
         const t0 = this.d.ahora();
-        const r = await this.emitir(nombre, args, { nivel, sesion: this.token });
+        const r = await this.emitir(nombre, args, { nivel, sesion: this.token, ...(esperaMs !== undefined ? { esperaMs } : {}) });
         this.tomarLatencia(this.d.ahora() - t0);
         if (r.ok) this.registro.usada(this.neurona);
         if (!r.ok && FATALES.has(r.motivo)) {
@@ -822,13 +831,20 @@ export class PantallaDestino {
                 // Tres medidas seguidas sin un cuadro nuevo: no se enseña como vivo lo que no llega.
                 if (this.sinCuadros >= 3 && this.snap.estado === "en-vivo") this.poner({ estado: "sin-pantalla", motivo: "sin-cuadros" });
                 if (this.sinCuadros === 0 && this.snap.estado === "sin-pantalla" && this.snap.motivo === "sin-cuadros") this.poner({ estado: "en-vivo" });
-                // CTL1119B: alimentar cuadro a calidad (aprox. 1 cuadro por muestra)
+                // CTL1119B: alimentar cuadro a calidad usando el delta real de bytes desde la muestra anterior
                 if (!primera && bytesRecibidos !== null && ancho !== null && alto !== null && dt > 0) {
-                    const cuadrosNuevos = Math.max(1, decodificados - cuadrosAnteriores);
-                    const bytesPorCuadro = Math.round(bytesRecibidos / cuadrosNuevos);
-                    if (bytesPorCuadro > 0) {
-                        añadirCuadro(this.calidad, { t, bytes: bytesPorCuadro, ancho, alto, codec: codec ?? undefined, completo: true });
+                    const prevBytes = this.ultimosBytes;
+                    const deltaBytes = prevBytes && bytesRecibidos >= prevBytes.bytes ? bytesRecibidos - prevBytes.bytes : 0;
+                    this.ultimosBytes = { bytes: bytesRecibidos, t };
+                    if (prevBytes && deltaBytes > 0) {
+                        const cuadrosNuevos = Math.max(1, decodificados - cuadrosAnteriores);
+                        const bytesPorCuadro = Math.round(deltaBytes / cuadrosNuevos);
+                        if (bytesPorCuadro > 0) {
+                            añadirCuadro(this.calidad, { t, bytes: bytesPorCuadro, ancho, alto, codec: codec ?? undefined, completo: true });
+                        }
                     }
+                } else if (bytesRecibidos !== null && this.ultimosBytes === null) {
+                    this.ultimosBytes = { bytes: bytesRecibidos, t };
                 }
             }
             if (rtt !== null) {
@@ -1053,6 +1069,7 @@ export class PantallaDestino {
         if (this.cerrada) return;
         this.cerrada = true;
         this.cola = [];
+        this.ultimosBytes = null;
         for (const t of this.temporizadores) clearTimeout(t);
         for (const i of this.intervalos) clearInterval(i);
         this.temporizadores.clear();
@@ -1102,11 +1119,22 @@ async function pintarConImagen(
 ): Promise<boolean> {
     if (typeof Image !== "function" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return false;
     const url = URL.createObjectURL(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
+    let temporizador: ReturnType<typeof setTimeout> | null = null;
     try {
         const img = await new Promise<HTMLImageElement>((res, rej) => {
             const el = new Image();
-            el.onload = () => res(el);
-            el.onerror = () => rej(new Error("imagen-invalida"));
+            let resuelto = false;
+            const terminar = (fn: () => void) => {
+                if (resuelto) return;
+                resuelto = true;
+                if (temporizador) clearTimeout(temporizador);
+                el.onload = null;
+                el.onerror = null;
+                fn();
+            };
+            temporizador = setTimeout(() => terminar(() => rej(new Error("tiempo-agotado-imagen"))), 2_500);
+            el.onload = () => terminar(() => res(el));
+            el.onerror = () => terminar(() => rej(new Error("imagen-invalida")));
             el.src = url;
         });
         if (canvas.width !== ancho || canvas.height !== alto) {
@@ -1118,7 +1146,15 @@ async function pintarConImagen(
     } catch {
         return false;
     } finally {
-        URL.revokeObjectURL(url);
+        if (temporizador) clearTimeout(temporizador);
+        // En WebKitGTK, revocar el blob URL de forma asíncrona evita cancelar la decodificación/pintado en vuelo del fotograma siguiente.
+        setTimeout(() => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch {
+                /* nada */
+            }
+        }, 120);
     }
 }
 

@@ -93,7 +93,7 @@ export const SYNCED_KEYS = [
     "starseed.dock.iconos.v1",           // (Ola 1025U · V1b) plantilla de iconos del perfil (forma, fondo, glifo) — lib/dock/iconos/almacen.ts
     "starseed.aurora.orb.pos.v1",        // posición del orbe de Aurora en pantalla — aurora-orb-bus.ts
     "starseed.a11y.settings",            // accesibilidad (contraste, movimiento reducido…) — accessibility-settings.tsx
-    "starseed.perf.v1",                  // modo de rendimiento auto/alto/eco — device-tier.ts
+    // "starseed.perf.v1" — fuera de la sincronización de cuenta: el modo de rendimiento y los ajustes locales de pantalla son propios de cada neurona.
     // ── Perfiles múltiples + sync por perfiles (Adenda 65 · profiles.ts / sync-profiles-config.ts) ──
     "starseed.profile.active.v1",        // perfil activo en ESTE dispositivo (por dispositivo, pero viaja como respaldo)
     "starseed.sync.profiles.v1",         // config de sync por perfiles (modo todos/seleccionados + overrides por dispositivo)
@@ -325,6 +325,9 @@ export const NEVER_SYNCED_KEYS = [
     "starseed.astraura.huggingbay.cache.v1", // caché de catálogo
     "starseed.sync.realtime.v1",        // interruptor del motor (deliberadamente por dispositivo)
     "starseed.sync.meta.v1",            // marcas de tiempo LWW locales (ver realtime-sync.ts)
+    "starseed.perf.v1",                 // modo de rendimiento auto/alto/eco/eficiente (solo en esta neurona)
+    "starseed.display.local.v1",        // transparencia/brillo/atmósfera locales del Centro de Control (solo en esta neurona)
+    "starseed.malla.protocolos-universales.v1", // configuración de antenas/protocolos mesh de ESTA neurona
 ] as const;
 
 /** Prefijos que JAMÁS se suben. */

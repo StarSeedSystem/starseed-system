@@ -214,6 +214,8 @@ pub struct Mano {
     /// Hubo dos dedos: hasta levantar todo no se hace nada con el que queda (no es un clic).
     ignorar: bool,
     centro: Option<(f64, f64)>,
+    inicio_rueda: Option<(f64, f64)>,
+    desplazo_rueda: bool,
     resto_v: f64,
     resto_h: f64,
 }
@@ -302,10 +304,21 @@ impl Mano {
         let n = ultimos.len() as f64;
         let fin = (ultimos.iter().map(|p| p.0).sum::<f64>() / n, ultimos.iter().map(|p| p.1).sum::<f64>() / n);
         let primeros: Vec<(f64, f64)> = g.dedos.iter().filter_map(|d| d.puntos.first().map(|p| (acotar(p.0), acotar(p.1)))).collect();
+        let primera = self.centro.is_none();
         let ini = self.centro.unwrap_or_else(|| {
             let m = primeros.len().max(1) as f64;
             (primeros.iter().map(|p| p.0).sum::<f64>() / m, primeros.iter().map(|p| p.1).sum::<f64>() / m)
         });
+        if primera {
+            self.inicio_rueda = Some(ini);
+            self.desplazo_rueda = false;
+            a.push(Accion::Mover(ini.0, ini.1));
+        }
+        if let Some(base) = self.inicio_rueda {
+            if ((fin.0 - base.0) * ancho_px).hypot((fin.1 - base.1) * alto_px) > 2.0 {
+                self.desplazo_rueda = true;
+            }
+        }
         // Dedos hacia arriba = contenido hacia arriba = la rueda baja (como en una pantalla táctil).
         self.resto_v += -(fin.1 - ini.1) * alto_px / PX_POR_LINEA;
         self.resto_h += -(fin.0 - ini.0) * ancho_px / PX_POR_LINEA;
@@ -314,9 +327,13 @@ impl Mano {
         self.resto_h -= h;
         self.centro = Some(fin);
         if v != 0.0 || h != 0.0 {
+            self.desplazo_rueda = true;
             a.push(Accion::Rueda { v: v as i32, h: h as i32 });
         }
         if !g.sigue {
+            if !self.desplazo_rueda {
+                a.push(Accion::ClicDer);
+            }
             self.olvidar();
         }
         a
@@ -590,9 +607,9 @@ mod pruebas {
     #[test]
     fn dos_dedos_hacen_rueda_y_el_dedo_que_queda_no_hace_clic() {
         let mut m = Mano::default();
-        // Dos dedos suben 0,1 de alto (90 px) → ~6 líneas hacia abajo.
+        // Dos dedos suben 0,1 de alto (90 px) → mueve el puntero al sitio y manda ~6 líneas hacia abajo.
         let a = m.avanzar(&g(vec![dedo(0, &[(0.4, 0.6, 0), (0.4, 0.5, 30)]), dedo(1, &[(0.6, 0.6, 0), (0.6, 0.5, 30)])], true), W, H);
-        assert_eq!(a, vec![Accion::Rueda { v: 6, h: 0 }]);
+        assert_eq!(a, vec![Accion::Mover(0.5, 0.6), Accion::Rueda { v: 6, h: 0 }]);
         // Siguiente orden: continúa desde donde quedó (resto acumulado, no se repite el tramo).
         let a = m.avanzar(&g(vec![dedo(0, &[(0.4, 0.5, 0), (0.4, 0.4, 30)]), dedo(1, &[(0.6, 0.5, 0), (0.6, 0.4, 30)])], true), W, H);
         assert_eq!(a, vec![Accion::Rueda { v: 6, h: 0 }]);
@@ -610,12 +627,24 @@ mod pruebas {
     #[test]
     fn la_rueda_hacia_el_otro_lado_y_los_restos_no_se_pierden() {
         let mut m = Mano::default();
-        // 5 px hacia abajo: menos de una línea → nada todavía.
+        // 5 px hacia abajo: sitúa el puntero sin emitir rueda todavía.
         let a = m.avanzar(&g(vec![dedo(0, &[(0.4, 0.5, 0), (0.4, 0.5 + 5.0 / H, 10)]), dedo(1, &[(0.6, 0.5, 0), (0.6, 0.5 + 5.0 / H, 10)])], true), W, H);
-        assert!(a.is_empty());
+        assert_eq!(a, vec![Accion::Mover(0.5, 0.5)]);
         // Otros 20 px hacia abajo: en total 25 px = 1,8 líneas hacia ARRIBA (−1).
         let a = m.avanzar(&g(vec![dedo(0, &[(0.4, 0.5 + 5.0 / H, 0), (0.4, 0.5 + 25.0 / H, 10)]), dedo(1, &[(0.6, 0.5 + 5.0 / H, 0), (0.6, 0.5 + 25.0 / H, 10)])], true), W, H);
         assert_eq!(a, vec![Accion::Rueda { v: -1, h: 0 }]);
+    }
+
+    #[test]
+    fn dos_dedos_quietos_hacen_clic_derecho_y_al_soltar_tras_mover_no() {
+        let mut m = Mano::default();
+        let a = m.avanzar(&g(vec![dedo(0, &[(0.3, 0.4, 0)]), dedo(1, &[(0.3, 0.4, 0)])], false), W, H);
+        assert_eq!(a, vec![Accion::Mover(0.3, 0.4), Accion::ClicDer]);
+        assert!(!m.hay_dedo());
+        // Tras desplazarse con 2 dedos (aunque no alcance una línea), levantar NO dispara clic derecho.
+        m.avanzar(&g(vec![dedo(0, &[(0.4, 0.5, 0), (0.4, 0.5 + 5.0 / H, 10)]), dedo(1, &[(0.6, 0.5, 0), (0.6, 0.5 + 5.0 / H, 10)])], true), W, H);
+        let fin = m.avanzar(&g(vec![dedo(0, &[(0.4, 0.5 + 5.0 / H, 10)]), dedo(1, &[(0.6, 0.5 + 5.0 / H, 10)])], false), W, H);
+        assert!(fin.is_empty());
     }
 
     #[test]

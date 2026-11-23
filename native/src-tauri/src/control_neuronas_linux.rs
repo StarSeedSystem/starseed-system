@@ -35,6 +35,7 @@ fn confirmacion() -> std::sync::MutexGuard<'static, p::Confirmacion> {
 struct Pieza {
     punto: gtk::Window,
     panel: gtk::Window,
+    nombre: gtk::Label,
     estado: gtk::Label,
     reanudar: gtk::Button,
     quitar: gtk::Button,
@@ -77,10 +78,11 @@ fn css_de(color_hex: &str) -> String {
     format!(
         "#ss-control-punto {{ background-color: transparent; }}\n\
 #ss-control-punto-boton {{ background-image: none; background-color: {c}; border: 2px solid #ffffff; border-radius: 50%; padding: 0; min-width: 10px; min-height: 10px; }}\n\
-#ss-control-panel {{ background-color: rgba(24,24,32,0.94); border: 2px solid {c}; border-radius: 12px; }}\n\
+#ss-control-panel {{ background-color: rgba(24,24,32,0.96); border: 2px solid {c}; border-radius: 12px; }}\n\
+#ss-control-panel, #ss-control-panel * {{ color: #ffffff; }}\n\
 #ss-control-panel label {{ color: #ffffff; }}\n\
-#ss-control-nombre {{ font-weight: bold; font-size: 13px; }}\n\
-#ss-control-estado {{ font-size: 11px; color: #ccccd8; }}\n\
+#ss-control-nombre {{ color: #ffffff; font-weight: 700; font-size: 14px; }}\n\
+#ss-control-estado {{ font-size: 12px; color: #d4d4e0; }}\n\
 #ss-control-panel button {{ color: #ffffff; background-image: none; background-color: #3a3a4a; border: 1px solid #ffffff; border-radius: 6px; padding: 3px 10px; }}\n\
 #ss-control-panel button:hover {{ background-color: #55556a; }}\n"
     )
@@ -148,15 +150,15 @@ fn alternar_panel(app: &AppHandle) {
     }
     PIEZA.with(|z| {
         if let Some(pz) = z.borrow().as_ref() {
-            let area = area_util();
-            let punto = p::punto_en_esquina(area, p::Eje::YHaciaAbajo);
-            let alto = f64::from(pz.panel.preferred_size().1.height).max(120.0);
-            let r = p::panel_junto_al_punto(punto, area, p::Eje::YHaciaAbajo, alto);
-            pz.panel.move_(r.x as i32, r.y as i32);
             pz.panel.show_all();
             if pz.estado.text().as_str() != p::texto_estado(&pz.nivel, true) {
                 pz.reanudar.hide();
             }
+            let area = area_util();
+            let punto = p::punto_en_esquina(area, p::Eje::YHaciaAbajo);
+            let alto = f64::from(pz.panel.preferred_size().1.height).max(150.0);
+            let r = p::panel_junto_al_punto(punto, area, p::Eje::YHaciaAbajo, alto);
+            pz.panel.move_(r.x as i32, r.y as i32);
             pz.panel.present();
         }
     });
@@ -176,8 +178,8 @@ fn crear(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str) -> Option<
     let css = gtk::CssProvider::new();
     css.load_from_data(css_de(color_hex).as_bytes()).ok()?;
     if let Some(pantalla) = gtk::gdk::Screen::default() {
-        // Los selectores van por nombre (`#ss-control-…`): no tocan ninguna otra ventana de la app.
-        gtk::StyleContext::add_provider_for_screen(&pantalla, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        // Los selectores van por nombre (`#ss-control-…`): prioridad de usuario para ganar a Adwaita claro.
+        gtk::StyleContext::add_provider_for_screen(&pantalla, &css, gtk::STYLE_PROVIDER_PRIORITY_USER);
     }
     // El punto.
     let punto = ventana("ss-control-punto");
@@ -198,14 +200,14 @@ fn crear(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str) -> Option<
     let panel = ventana("ss-control-panel");
     let caja = gtk::Box::new(gtk::Orientation::Vertical, 6);
     caja.set_border_width(12);
-    let n = gtk::Label::new(Some(nombre));
+    let n = gtk::Label::new(Some(&format!("Controlada por: {nombre}")));
     n.set_widget_name("ss-control-nombre");
     n.set_xalign(0.0);
     n.set_line_wrap(true);
-    n.set_lines(2); // el nombre entero, hasta dos líneas
-    n.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    n.set_max_width_chars(30);
-    n.set_width_chars(30);
+    n.set_line_wrap_mode(gtk::pango::WrapMode::WordChar);
+    n.set_ellipsize(gtk::pango::EllipsizeMode::None);
+    n.set_max_width_chars(28);
+    n.set_width_chars(24);
     let estado = gtk::Label::new(Some(&p::texto_estado(nivel, false)));
     estado.set_widget_name("ss-control-estado");
     estado.set_xalign(0.0);
@@ -254,7 +256,7 @@ fn crear(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str) -> Option<
     let a_la_vista = punto.is_mapped() && punto.is_visible();
     VISIBLE.store(a_la_vista, Ordering::SeqCst);
     if a_la_vista {
-        Some(Pieza { punto, panel, estado, reanudar, quitar, nivel: nivel.to_string(), css })
+        Some(Pieza { punto, panel, nombre: n, estado, reanudar, quitar, nivel: nivel.to_string(), css })
     } else {
         punto.close();
         panel.close();
@@ -292,6 +294,18 @@ fn quitar_en_principal() {
 pub fn quitar(app: &AppHandle) {
     VISIBLE.store(false, Ordering::SeqCst);
     let _ = en_principal(app, quitar_en_principal);
+}
+
+/// Actualiza el texto visible con el/los controladores activos en el panel del punto.
+pub fn actualizar_nombre(app: &AppHandle, nombre: &str) {
+    let texto = format!("Controlada por: {nombre}");
+    let _ = en_principal(app, move || {
+        PIEZA.with(|z| {
+            if let Some(pz) = z.borrow().as_ref() {
+                pz.nombre.set_text(&texto);
+            }
+        });
+    });
 }
 
 /// El texto del panel y el botón «Reanudar» siguen a la pausa local.

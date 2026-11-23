@@ -19,12 +19,26 @@ const BASE: Record<string, Base> = {
   par: { mtu: null, alcanceM: null, energia: "media", tiempoAire: "libre", coste: "datos", privacidad: "cuenta", llevaFlujos: false, cifrado: "propio", permisos: ["cuenta", "vinculo-consentido"] },
   rele: { mtu: null, alcanceM: null, energia: "baja", tiempoAire: "libre", coste: "servidor", privacidad: "servidor", llevaFlujos: false, cifrado: "no-dice", permisos: ["cuenta", "internet"] },
   lora: { mtu: 200, alcanceM: 5000, energia: "baja", tiempoAire: "escaso", coste: "gratis", privacidad: "local", llevaFlujos: false, cifrado: "no-dice", permisos: ["antena-lora"] },
+  "wifi-direct": { mtu: null, alcanceM: 120, energia: "media", tiempoAire: "libre", coste: "gratis", privacidad: "local", llevaFlujos: true, cifrado: "propio", permisos: ["red-local", "wifi-directo"] },
+  reticulum: { mtu: 500, alcanceM: 15_000, energia: "baja", tiempoAire: "escaso", coste: "gratis", privacidad: "local", llevaFlujos: false, cifrado: "propio", permisos: ["red-local", "antena-lora"] },
+  meshtastic: { mtu: 237, alcanceM: 10_000, energia: "baja", tiempoAire: "escaso", coste: "gratis", privacidad: "local", llevaFlujos: false, cifrado: "propio", permisos: ["bluetooth", "antena-lora"] },
+  meshcore: { mtu: 255, alcanceM: 12_000, energia: "baja", tiempoAire: "escaso", coste: "gratis", privacidad: "local", llevaFlujos: false, cifrado: "propio", permisos: ["bluetooth", "antena-lora"] },
+  titanio: { mtu: 1400, alcanceM: 1000, energia: "baja", tiempoAire: "libre", coste: "gratis", privacidad: "local", llevaFlujos: true, cifrado: "propio", permisos: ["bluetooth", "red-local"] },
 };
 
 const DESCONOCIDO: Base = { mtu: null, alcanceM: null, energia: "media", tiempoAire: "normal", coste: "gratis", privacidad: "local", llevaFlujos: false, cifrado: "no-dice", permisos: [] };
 
 /** Ancho de banda típico (kbps) de diseño, solo para ordenar cuando no hay medida. null = no se supone. */
-const ANCHO_DISENO: Record<string, number | null> = { ble: null, lora: 1, nativo: null };
+const ANCHO_DISENO: Record<string, number | null> = {
+  ble: null,
+  lora: 1,
+  nativo: null,
+  "wifi-direct": 50_000,
+  reticulum: 10,
+  meshtastic: 2,
+  meshcore: 4,
+  titanio: 20_000,
+};
 
 export function fichaBase(tipo: string): Base {
   return BASE[tipo] ?? DESCONOCIDO;

@@ -172,7 +172,12 @@ fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
 #[tauri::command(async)]
 pub fn control_pantalla_parar(app: tauri::AppHandle, webview: tauri::Webview, sesion: String) -> Result<Value, String> {
     crate::control_neuronas::pagina_ok(&app, &webview)?;
-    let _ = sesion;
+    if crate::control_neuronas::otras_sesiones_vivas(&sesion) {
+        #[cfg(not(any(target_os = "android", target_os = "macos", target_os = "linux")))]
+        return Ok(crate::control_entrada::sin_soporte());
+        #[cfg(any(target_os = "android", target_os = "macos", target_os = "linux"))]
+        return Ok(serde_json::json!({ "ok": true }));
+    }
     #[cfg(target_os = "android")]
     {
         parar_interno(&app);

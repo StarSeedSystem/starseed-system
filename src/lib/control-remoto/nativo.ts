@@ -35,7 +35,7 @@ export interface PuenteNativoControl {
     orden(token: string, nombre: string): Promise<RespuestaNativa>;
     /** Apunta en el registro encadenado una orden que la puerta rechazó (no concede nada). */
     anotar(nombre: string, de: string, resultado: string): void;
-    parar(motivo: string): Promise<void>;
+    parar(motivo: string, token?: string): Promise<void>;
 }
 
 /** Sin app nativa: nada disponible (la puerta rechaza «sin-indicador-nativo»). */
@@ -96,8 +96,8 @@ export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoContr
         anotar: (nombre, de, resultado) => {
             void inv("control_neuronas_anotar", { nombre, de, resultado }).catch(() => undefined);
         },
-        parar: async (motivo) => {
-            await inv("control_neuronas_parar", { motivo }).catch(() => undefined);
+        parar: async (motivo, token) => {
+            await inv("control_neuronas_parar", token ? { motivo, token } : { motivo }).catch(() => undefined);
         },
     };
 }

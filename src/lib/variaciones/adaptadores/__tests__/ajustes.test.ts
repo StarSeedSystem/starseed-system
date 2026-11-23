@@ -37,29 +37,30 @@ describe("ajustes · familia de variaciones públicas", () => {
       "starseed.privacy.ghost", "starseed.privacy.telemetry", "starseed.mesh.privacy.v1", "starseed.connectivity.settings.v1", // privacidad
       "starseed.brain.c1.memory-mirror.v1", // espejo/caché pesada: nunca viajan
       "starseed_user_memory", "starseed.profile.active.v1", "starseed_defaults_version", // identidad de la cuenta
+      "starseed.perf.v1", // rendimiento estrictamente local por neurona
       "starseed.fuera.synced", // ni exacta ni por prefijo sincronizado
     ]) expect(esClaveAjustePermitida(prohibida), prohibida).toBe(false);
   });
 
   it("resuelve la clave ajuste:<id> con ajustes del mapa y nada más", () => {
     expect(idDeAjuste("ajuste:accesibilidad")).toBe("accesibilidad");
-    expect(idDeAjuste("ajuste:rendimiento")).toBe("rendimiento");
-    for (const otra of ["tema:synthwave", "ajuste:vuelo", "ajuste:"]) {
+    expect(idDeAjuste("ajuste:voz-modo")).toBe("voz-modo");
+    for (const otra of ["tema:synthwave", "ajuste:rendimiento", "ajuste:vuelo", "ajuste:"]) {
       expect(idDeAjuste(otra), otra).toBeNull();
     }
   });
 
   it("valida un parche con entradas del mapa y valores JSON planos, y rechaza lo demás", () => {
-    const bueno = validarParcheAjustes({ rendimiento: { modo: "eco" } });
+    const bueno = validarParcheAjustes({ accesibilidad: { altoContraste: true } });
     expect(bueno.ok).toBe(true);
-    if (bueno.ok) expect(bueno.parche.rendimiento).toEqual({ modo: "eco" });
+    if (bueno.ok) expect(bueno.parche.accesibilidad).toEqual({ altoContraste: true });
     const casos: Array<[unknown, string]> = [
       [[], "debe ser un objeto"],
       [null, "debe ser un objeto"],
       [{}, "está vacío"],
       [{ vuelo: 1 }, "no es un ajuste de la familia"],
-      [{ rendimiento: "sk-fake123def456ghi789" }, "token"],
-      [{ rendimiento: () => 1 }, "no serializable"],
+      [{ accesibilidad: "sk-fake123def456ghi789" }, "token"],
+      [{ accesibilidad: () => 1 }, "no serializable"],
       [{ cursor: { html: "<b>hola</b>" } }, "código"],
     ];
     for (const [payload, esperado] of casos) {
@@ -73,21 +74,21 @@ describe("ajustes · familia de variaciones públicas", () => {
     const almacen = almacenFalso();
     const guardado = guardadoFalso();
     const adaptador = crearAdaptadorAjustes({ pushPreferences: guardado.pushPreferences, almacen });
-    const aplicado = adaptador.aplicar("ajuste:rendimiento", { rendimiento: { modo: "eco" } });
-    expect(almacen.getItem("starseed.perf.v1")).toBe(JSON.stringify({ modo: "eco" }));
+    const aplicado = adaptador.aplicar("ajuste:accesibilidad", { accesibilidad: { altoContraste: true } });
+    expect(almacen.getItem("starseed.a11y.settings")).toBe(JSON.stringify({ altoContraste: true }));
     expect(guardado.llamadas).toBe(1);
     aplicado.deshacer();
-    expect(almacen.tiene("starseed.perf.v1")).toBe(false); // no existía antes: se quita
+    expect(almacen.tiene("starseed.a11y.settings")).toBe(false); // no existía antes: se quita
     expect(guardado.llamadas).toBe(2); // deshacer también guarda en la cuenta
   });
 
   it("deshacer devuelve el valor que el ajuste tenía antes de aplicar la variación", () => {
     const almacen = almacenFalso();
     const guardado = guardadoFalso();
-    almacen.setItem("starseed.perf.v1", JSON.stringify({ modo: "alto" }));
+    almacen.setItem("starseed.a11y.settings", JSON.stringify({ altoContraste: false }));
     const adaptador = crearAdaptadorAjustes({ pushPreferences: guardado.pushPreferences, almacen });
-    adaptador.aplicar("ajuste:rendimiento", { rendimiento: { modo: "eco" } }).deshacer();
-    expect(almacen.getItem("starseed.perf.v1")).toBe(JSON.stringify({ modo: "alto" }));
+    adaptador.aplicar("ajuste:accesibilidad", { accesibilidad: { altoContraste: true } }).deshacer();
+    expect(almacen.getItem("starseed.a11y.settings")).toBe(JSON.stringify({ altoContraste: false }));
   });
 
   it("no ejecuta nada sin validar: un parche rechazado no toca el almacen ni guarda", () => {
@@ -102,13 +103,13 @@ describe("ajustes · familia de variaciones públicas", () => {
 
   it("captura el estado actual del ajuste desde el almacen inyectado, y su familia es ajuste", () => {
     const almacen = almacenFalso();
-    almacen.setItem("starseed.perf.v1", '{"modo":"alto"}');
+    almacen.setItem("starseed.a11y.settings", '{"altoContraste":true}');
     const guardado = guardadoFalso();
     const adaptador = crearAdaptadorAjustes({ pushPreferences: guardado.pushPreferences, almacen });
     expect(adaptador.familia).toBe("ajuste");
-    expect(adaptador.capturar("ajuste:rendimiento")).toEqual({ rendimiento: { modo: "alto" } });
+    expect(adaptador.capturar("ajuste:accesibilidad")).toEqual({ accesibilidad: { altoContraste: true } });
     expect(adaptador.capturar("tema:synthwave")).toBeNull();
     expect(adaptador.capturar("ajuste:visualizador")).toBeNull(); // sin valor actual: nada que capturar
-    expect(adaptador.validar({ rendimiento: "eco" })).toEqual({ ok: true, payload: { rendimiento: "eco" } });
+    expect(adaptador.validar({ accesibilidad: { escala: 1.1 } })).toEqual({ ok: true, payload: { accesibilidad: { escala: 1.1 } } });
   });
 });

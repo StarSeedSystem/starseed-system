@@ -117,6 +117,7 @@ enum Accion {
 struct Pieza {
     punto: *mut AnyObject,
     panel: *mut AnyObject,
+    nombre: *mut AnyObject,
     estado: *mut AnyObject,
     reanudar: *mut AnyObject,
     quitar: *mut AnyObject,
@@ -365,7 +366,7 @@ fn de_lib(r: p::Rect) -> Rect {
     Rect { o: Punto { x: r.x, y: r.y }, t: Tam { w: r.w, h: r.h } }
 }
 
-const PANEL_ALTO: f64 = 178.0;
+const PANEL_ALTO: f64 = 192.0;
 
 /// Pone el indicador de AppKit: el punto del color de `color_hex` (si `indicador` no es «oculto») y su panel. `true` = completo.
 pub fn poner_punto(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str, indicador: &str) -> bool {
@@ -422,32 +423,45 @@ unsafe fn crear_punto(nombre: &str, color_hex: &str, nivel: &str, indicador: &st
     let c_campo: &AnyClass = clase("NSTextField").expect("NSTextField");
     let c_fuente: &AnyClass = clase("NSFont").expect("NSFont");
     let ancho = p::PANEL_ANCHO - 24.0;
-    // Nombre ENTERO, hasta dos líneas.
-    let n_campo: *mut AnyObject = msg_send![c_campo, wrappingLabelWithString: &*ns(nombre)];
+    // Nombre ENTERO, hasta tres líneas, explícitamente con autoresizing para que AppKit respete setFrame:.
+    let titulo_nombre = format!("Controlada por:\n{nombre}");
+    let n_campo: *mut AnyObject = msg_send![c_campo, wrappingLabelWithString: &*ns(&titulo_nombre)];
     let f_nombre: *mut AnyObject = msg_send![c_fuente, boldSystemFontOfSize: 13.0f64];
+    let _: () = msg_send![n_campo, setTranslatesAutoresizingMaskIntoConstraints: Bool::YES];
+    let _: () = msg_send![n_campo, setDrawsBackground: Bool::NO];
+    let _: () = msg_send![n_campo, setBezeled: Bool::NO];
+    let _: () = msg_send![n_campo, setEditable: Bool::NO];
+    let _: () = msg_send![n_campo, setSelectable: Bool::NO];
+    let _: () = msg_send![n_campo, setUsesSingleLineMode: Bool::NO];
     let _: () = msg_send![n_campo, setFont: f_nombre];
     let _: () = msg_send![n_campo, setTextColor: blanco];
-    let _: () = msg_send![n_campo, setMaximumNumberOfLines: 2isize];
-    let _: () = msg_send![n_campo, setFrame: Rect { o: Punto { x: 12.0, y: 130.0 }, t: Tam { w: ancho, h: 36.0 } }];
+    let _: () = msg_send![n_campo, setMaximumNumberOfLines: 3isize];
+    let _: () = msg_send![n_campo, setLineBreakMode: 4usize];
+    let _: () = msg_send![n_campo, setFrame: Rect { o: Punto { x: 12.0, y: 136.0 }, t: Tam { w: ancho, h: 44.0 } }];
     let _: () = msg_send![pv, addSubview: n_campo];
     // Estado.
     let e_campo: *mut AnyObject = msg_send![c_campo, labelWithString: &*ns(&p::texto_estado(nivel, false))];
     let f_chica: *mut AnyObject = msg_send![c_fuente, systemFontOfSize: 11.0f64];
     let gris = color(0.8, 0.8, 0.85, 1.0);
+    let _: () = msg_send![e_campo, setTranslatesAutoresizingMaskIntoConstraints: Bool::YES];
+    let _: () = msg_send![e_campo, setDrawsBackground: Bool::NO];
+    let _: () = msg_send![e_campo, setBezeled: Bool::NO];
+    let _: () = msg_send![e_campo, setEditable: Bool::NO];
     let _: () = msg_send![e_campo, setFont: f_chica];
     let _: () = msg_send![e_campo, setTextColor: gris];
-    let _: () = msg_send![e_campo, setFrame: Rect { o: Punto { x: 12.0, y: 110.0 }, t: Tam { w: ancho, h: 16.0 } }];
+    let _: () = msg_send![e_campo, setFrame: Rect { o: Punto { x: 12.0, y: 114.0 }, t: Tam { w: ancho, h: 18.0 } }];
     let _: () = msg_send![pv, addSubview: e_campo];
     // Botones: Reanudar (solo en pausa), Terminar, Quitar permiso.
     let crear_boton = |titulo: &str, accion: objc2::runtime::Sel, y: f64| -> *mut AnyObject {
         let b: *mut AnyObject = msg_send![c_boton, buttonWithTitle: &*ns(titulo), target: objetivo, action: accion];
+        let _: () = msg_send![b, setTranslatesAutoresizingMaskIntoConstraints: Bool::YES];
         let _: () = msg_send![b, setFrame: Rect { o: Punto { x: 12.0, y }, t: Tam { w: ancho, h: 26.0 } }];
         let _: () = msg_send![pv, addSubview: b];
         b
     };
-    let reanudar = crear_boton("Reanudar", objc2::sel!(ssReanudar:), 76.0);
+    let reanudar = crear_boton("Reanudar", objc2::sel!(ssReanudar:), 78.0);
     let _: () = msg_send![reanudar, setHidden: Bool::YES];
-    let _terminar = crear_boton("Terminar (el permiso sigue)", objc2::sel!(ssTerminar:), 44.0);
+    let _terminar = crear_boton("Terminar (el permiso sigue)", objc2::sel!(ssTerminar:), 45.0);
     let quitar = crear_boton(p::TEXTO_QUITAR, objc2::sel!(ssQuitar:), 12.0);
     confirmacion().deshacer();
 
@@ -460,8 +474,22 @@ unsafe fn crear_punto(nombre: &str, color_hex: &str, nivel: &str, indicador: &st
         return false;
     }
     PUNTO_VISIBLE.store(true, Ordering::SeqCst);
-    PIEZA.with(|z| *z.borrow_mut() = Some(Pieza { punto, panel, estado: e_campo, reanudar, quitar, nivel: nivel.to_string() }));
+    PIEZA.with(|z| *z.borrow_mut() = Some(Pieza { punto, panel, nombre: n_campo, estado: e_campo, reanudar, quitar, nivel: nivel.to_string() }));
     true
+}
+
+/// Actualiza el nombre visible en el panel del punto (p. ej. al sumarse o salir otro controlador).
+pub fn actualizar_nombre(app: &AppHandle, nombre: &str) {
+    let texto = format!("Controlada por:\n{nombre}");
+    let _ = en_principal(app, move || {
+        PIEZA.with(|z| {
+            if let Some(pz) = z.borrow().as_ref() {
+                unsafe {
+                    let _: () = msg_send![pz.nombre, setStringValue: &*ns(&texto)];
+                }
+            }
+        });
+    });
 }
 
 fn quitar_en_principal() {

@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   push: undefined as unknown as (href: string) => void,
   setActiveEdge: undefined as unknown as (edge: string | null) => void,
   setTheme: undefined as unknown as (t: string) => void,
+  updateSectionSpy: vi.fn(),
+  updateLocalDisplaySpy: vi.fn(),
   theme: "dark",
   sesion: true,
   inbox: [] as Array<{ id: string; title: string; body?: string; category: string; read: boolean; createdAt: string }>,
@@ -56,13 +58,23 @@ vi.mock("@/context/perimeter-context", () => ({ usePerimeter: () => ({ activeEdg
 vi.mock("@/context/appearance-context", async () => {
   const React = await import("react");
   const updateSection = (seccion: string, parche: Record<string, unknown>) => {
+    h.updateSectionSpy(seccion, parche);
     const actual = almacen.get();
     almacen.fijar({ ...actual, [seccion]: { ...(actual[seccion] as object), ...parche } });
+  };
+  const updateLocalDisplay = (parche: Record<string, unknown>) => {
+    h.updateLocalDisplaySpy(parche);
+    const actual = almacen.get();
+    const styling = { ...(actual.styling as Record<string, unknown>) };
+    const background = { ...(actual.background as Record<string, unknown>) };
+    if (typeof parche.opacity === "number") styling.opacity = parche.opacity;
+    if (typeof parche.overlayOpacity === "number") background.overlayOpacity = parche.overlayOpacity;
+    almacen.fijar({ ...actual, styling, background });
   };
   return {
     useAppearance: () => {
       const config = React.useSyncExternalStore(almacen.suscribir, almacen.get, almacen.get);
-      return { config, updateSection };
+      return { config, updateSection, updateLocalDisplay };
     },
   };
 });
@@ -76,10 +88,14 @@ vi.mock("@/context/notifications-context", () => ({
   }),
 }));
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: h.theme, setTheme: (t: string) => h.setTheme(t) }) }));
-vi.mock("@/lib/settings-sync", () => ({
-  hasStarseedSession: () => Promise.resolve(h.sesion),
-  pushPreferences: vi.fn(async () => ({ ok: true, message: "" })),
-}));
+vi.mock("@/lib/settings-sync", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/settings-sync")>();
+  return {
+    ...actual,
+    hasStarseedSession: () => Promise.resolve(h.sesion),
+    pushPreferences: vi.fn(async () => ({ ok: true, message: "" })),
+  };
+});
 vi.mock("@/lib/sync/realtime-sync", () => ({
   getRealtimeSyncStatus: () => ({ state: "connected", lastChangeAt: null }),
   onRealtimeSyncStatus: () => () => {},
@@ -342,13 +358,34 @@ describe("Centro de Control · accesos rápidos con estado", () => {
     expect(seleccionada()).toBe("Grabar");
   });
 
-  it("el rendimiento es un selector de tres opciones y recuerda la elegida", async () => {
+  it("el rendimiento guarda modos locales («alto» en vez de «high») y nunca sincroniza", async () => {
+    h.updateSectionSpy.mockClear();
+    h.updateLocalDisplaySpy.mockClear();
     await montar();
     const grupo = screen.getByRole("radiogroup", { name: "Rendimiento" });
     const eco = within(grupo).getByRole("radio", { name: /Eco/ });
     fireEvent.click(eco);
     expect(eco.getAttribute("aria-checked")).toBe("true");
     expect(window.localStorage.getItem("starseed.perf.v1")).toBe("eco");
+
+    const alto = within(grupo).getByRole("radio", { name: /Alto/ });
+    fireEvent.click(alto);
+    expect(alto.getAttribute("aria-checked")).toBe("true");
+    expect(window.localStorage.getItem("starseed.perf.v1")).toBe("alto");
+
+    const { isNeverSyncedKey } = await import("@/lib/settings-sync");
+    expect(isNeverSyncedKey("starseed.perf.v1")).toBe(true);
+    expect(isNeverSyncedKey("starseed.display.local.v1")).toBe(true);
+
+    const sliderTransparencia = within(screen.getByTestId("deslizador-transparencia")).getByRole("slider");
+    fireEvent.keyDown(sliderTransparencia, { key: "ArrowRight" });
+    expect(h.updateLocalDisplaySpy).toHaveBeenCalledWith({ opacity: 0.66 });
+    expect(h.updateSectionSpy).not.toHaveBeenCalled();
+
+    const sliderBrillo = within(screen.getByTestId("deslizador-brillo")).getByRole("slider");
+    fireEvent.keyDown(sliderBrillo, { key: "ArrowLeft" });
+    expect(h.updateLocalDisplaySpy).toHaveBeenCalledWith({ overlayOpacity: expect.closeTo(0.11, 5) });
+    expect(h.updateSectionSpy).not.toHaveBeenCalled();
   });
 
   it("Ajustes completos y Aurora llevan a páginas que existen y cierran el panel", async () => {

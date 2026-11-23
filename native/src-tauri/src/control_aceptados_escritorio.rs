@@ -98,14 +98,19 @@ pub fn listar(app: &AppHandle) -> Value {
 }
 
 /// `control_entrada_quitar`: quitar a alguien de la lista nunca da poder, y la persona lo hace desde su propio panel.
-/// Si el que se quita es el de la sesión verificada, esa sesión deja de tener pantalla y entrada.
+/// Si el que se quita tenía sesión verificada, deja de tener pantalla y entrada sin tirar a los demás.
 pub fn quitar(app: &AppHandle, huella: &str) -> Value {
-    let (lista, quitados) = m::sin_aceptado(&leer(app), huella);
+    let antes = leer(app);
+    let (lista, quitados) = m::sin_aceptado(&antes, huella);
     if quitados > 0 && !escribir(app, &lista) {
         return json!({ "ok": false, "motivo": "sin-servicio" });
     }
     if quitados > 0 {
-        olvidar_verificada();
+        for a in &antes {
+            if !lista.iter().any(|x| x.huella == a.huella) {
+                olvidar_verificada_de(&a.huella);
+            }
+        }
     }
     json!({ "ok": true, "quitados": quitados })
 }
@@ -126,22 +131,25 @@ fn vistas() -> MutexGuard<'static, l::Vistos> {
     V.get_or_init(|| Mutex::new(l::Vistos::default())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn verificada() -> MutexGuard<'static, Option<String>> {
-    static V: OnceLock<Mutex<Option<String>>> = OnceLock::new();
-    V.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner())
+fn verificadas() -> MutexGuard<'static, std::collections::HashSet<String>> {
+    static V: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    V.get_or_init(|| Mutex::new(std::collections::HashSet::new())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
 pub fn olvidar_verificada() {
-    *verificada() = None;
+    verificadas().clear();
 }
 
-/// ¿La sesión de este controlador (`de`, su huella) se abrió con su orden firmada Y sigue aceptado en este Mac?
+pub fn olvidar_verificada_de(de: &str) {
+    verificadas().remove(de);
+}
+
+/// ¿La sesión de este controlador (`de`, su huella) se abrió con su orden firmada Y sigue aceptado aquí?
 pub fn sesion_verificada(de: &str) -> bool {
-    verificada().as_deref() == Some(de)
+    verificadas().contains(de)
 }
 
 pub fn apertura(app: &AppHandle, sobre: Option<&Value>, nivel_pagina: &str) -> Apertura {
-    olvidar_verificada(); // cada apertura decide de nuevo; una dudosa nunca hereda la anterior
     let Some(sobre) = sobre else { return Apertura::SinVerificar };
     let aceptados = leer(app);
     if aceptados.is_empty() {
@@ -150,7 +158,7 @@ pub fn apertura(app: &AppHandle, sobre: Option<&Value>, nivel_pagina: &str) -> A
     let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
     match l::verificar_apertura(sobre, &aceptados, nivel_pagina, ahora, &mut vistas()) {
         Ok(a) => {
-            *verificada() = Some(a.de.clone());
+            verificadas().insert(a.de.clone());
             Apertura::Verificada(a)
         }
         Err((l::Motivo::NoAutorizado, "controlador-no-aceptado")) => Apertura::SinVerificar,
@@ -171,10 +179,15 @@ mod pruebas {
     fn sin_verificar_no_hay_sesion_verificada() {
         olvidar_verificada();
         assert!(!sesion_verificada("abc"));
-        *verificada() = Some("abc".into());
+        verificadas().insert("abc".into());
+        verificadas().insert("xyz".into());
         assert!(sesion_verificada("abc"));
+        assert!(sesion_verificada("xyz"));
         assert!(!sesion_verificada("abd"));
-        olvidar_verificada();
+        olvidar_verificada_de("abc");
         assert!(!sesion_verificada("abc"));
+        assert!(sesion_verificada("xyz"));
+        olvidar_verificada();
+        assert!(!sesion_verificada("xyz"));
     }
 }

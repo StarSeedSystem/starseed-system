@@ -13,6 +13,8 @@ pub const REGISTRO: &str = "control-neuronas.log";
 pub const INICIO_CADENA: &str = "inicio";
 pub const SESION_MAX_MS: u64 = 60 * 60_000;
 pub const SESION_INACTIVA_MS: u64 = 2 * 60_000;
+/// Hasta cuántas neuronas de la cuenta pueden controlar/ver esta neurona a la vez.
+pub const MAX_SESIONES_ACTIVAS: usize = 8;
 const MAX_DETALLE: usize = 160;
 #[allow(dead_code)]
 /// (ORD1114T) Margen tras abrir o reanudar en el que lo local no pausa (el propio clic de «Reanudar»).
@@ -106,7 +108,7 @@ pub fn linea_pausa_escritorio_sale(motivo: &str, p: PausaTerminada) -> String {
 
 #[derive(Debug, Default)]
 pub struct Control {
-    sesion: Option<Sesion>,
+    sesiones: Vec<Sesion>,
     /// La última parada: (hora, motivo). Para el estado que lee la página.
     pub ultima_parada: Option<(u64, String)>,
 }
@@ -144,11 +146,32 @@ pub fn origen_de_control_ok(url: &str, puerto_local: Option<u16>) -> bool {
 
 impl Control {
     pub fn activa(&self) -> Option<&Sesion> {
-        self.sesion.as_ref()
+        self.sesiones.first()
+    }
+
+    pub fn activas(&self) -> &[Sesion] {
+        &self.sesiones
+    }
+
+    /// Nombres únicos de los controladores activos para mostrar en el indicador nativo.
+    pub fn nombres_activos(&self) -> String {
+        let mut unicos: Vec<&str> = Vec::new();
+        for s in &self.sesiones {
+            if !s.nombre.is_empty() && !unicos.iter().any(|&x| x == s.nombre) {
+                unicos.push(s.nombre.as_str());
+            }
+        }
+        let texto = match unicos.len() {
+            0 => String::new(),
+            1 => unicos[0].to_string(),
+            2 => format!("{} + {}", unicos[0], unicos[1]),
+            n => format!("{} + {} (+{})", unicos[0], unicos[1], n - 2),
+        };
+        texto.chars().take(60).collect()
     }
 
     /// Abre la sesión (la pide la página tras aceptar «abrir-sesion»). `indicador` = Rust ya puso el
-    /// indicador visible. Mismo aparato con sesión viva: la renueva con token nuevo.
+    /// indicador visible. Hasta `MAX_SESIONES_ACTIVAS` controladores simultáneos; mismo `de` renueva su sesión.
     pub fn abrir(&mut self, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
         if !huella_valida(de) || !nivel_valido(nivel) || token.len() < 32 {
             return Err(Rechazo::Forma);
@@ -156,46 +179,72 @@ impl Control {
         if !indicador {
             return Err(Rechazo::SinIndicador);
         }
-        self.caducar(ahora);
-        if let Some(s) = &self.sesion {
-            if s.de != de {
-                return Err(Rechazo::OtraSesion);
-            }
-            if s.pausada_ms.is_some() {
+        self.caducar_todas(ahora);
+        if let Some(idx) = self.sesiones.iter().position(|s| s.de == de) {
+            if self.sesiones[idx].pausada_ms.is_some() {
                 return Err(Rechazo::Pausada); // ORD1114T: renovar no quita la pausa local
             }
+            self.sesiones[idx] = Sesion {
+                token: token.into(),
+                de: de.into(),
+                nombre: nombre_limpio(nombre),
+                nivel: nivel.into(),
+                inicio_ms: ahora,
+                ultima_ms: ahora,
+                pausada_ms: None,
+                reanudada_ms: ahora,
+                local_ms: 0,
+                pausas: 0,
+            };
+            return Ok(&self.sesiones[idx]);
         }
-        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora, local_ms: 0, pausas: 0 });
-        Ok(self.sesion.as_ref().expect("recién puesta"))
+        if self.sesiones.len() >= MAX_SESIONES_ACTIVAS {
+            return Err(Rechazo::OtraSesion);
+        }
+        let pausada = self.sesiones.iter().find(|s| s.pausada_ms.is_some());
+        let (pausada_ms, reanudada_ms, local_ms, pausas) = match pausada {
+            Some(p) => (p.pausada_ms, p.reanudada_ms, p.local_ms, p.pausas),
+            None => (None, ahora, 0, 0),
+        };
+        self.sesiones.push(Sesion {
+            token: token.into(),
+            de: de.into(),
+            nombre: nombre_limpio(nombre),
+            nivel: nivel.into(),
+            inicio_ms: ahora,
+            ultima_ms: ahora,
+            pausada_ms,
+            reanudada_ms,
+            local_ms,
+            pausas,
+        });
+        Ok(self.sesiones.last().expect("recién puesta"))
     }
 
     /// (CTL1117A · S1/S4) Abrir OTRA vez con la sesión viva del MISMO controlador y el indicador ya a la vista: es la
     /// misma sesión (mismo token, mismo indicador), solo se da por activa ahora. Nada de indicador nuevo ni de token
     /// nuevo: así una apertura repetida (la Mac, dos ventanas, un reintento) no tumba lo que ya funciona. No reutiliza
-    /// si es otro aparato ni si no hay indicador a la vista. Con pausa local SÍ (CTL1118H): abrir no quita la pausa, pero tampoco se niega.
+    /// si ese controlador no tiene sesión viva ni si no hay indicador a la vista. Con pausa local SÍ (CTL1118H).
     /// No alarga la hora máxima: `inicio_ms` no cambia.
     pub fn reutilizar(&mut self, de: &str, nivel: &str, ahora: u64, indicador: bool) -> Option<&Sesion> {
         if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
             return None;
         }
-        self.caducar(ahora);
-        let s = self.sesion.as_mut()?;
-        // CTL1118H: con pausa local también es la misma sesión (mismo token, y la pausa sigue como estaba: reabrir NO la quita).
-        if s.de != de {
-            return None;
-        }
+        self.caducar_todas(ahora);
+        let s = self.sesiones.iter_mut().find(|s| s.de == de)?;
         s.nivel = nivel.into();
         s.ultima_ms = ahora;
         Some(s)
     }
 
-    /// (CTL1117A · S7) Lo que `abrir` va a negar de todos modos por la sesión que YA hay (otro aparato, pausa local),
-    /// dicho ANTES de tocar el indicador: negar una apertura nunca debe quitar el indicador de la sesión que sigue viva.
+    /// (CTL1117A · S7) Lo que `abrir` va a negar de todos modos antes de tocar el indicador: solo niega por `OtraSesion`
+    /// si es un controlador distinto y ya se alcanzó `MAX_SESIONES_ACTIVAS`.
     pub fn negada_por_la_viva(&mut self, de: &str, ahora: u64) -> Option<Rechazo> {
-        self.caducar(ahora);
-        let s = self.sesion.as_ref()?;
-        // CTL1118H: la pausa local ya no niega una apertura del mismo controlador (se reutiliza la sesión; ver `reutilizar`).
-        if s.de != de {
+        self.caducar_todas(ahora);
+        if self.sesiones.is_empty() || self.sesiones.iter().any(|s| s.de == de) {
+            return None;
+        }
+        if self.sesiones.len() >= MAX_SESIONES_ACTIVAS {
             Some(Rechazo::OtraSesion)
         } else {
             None
@@ -212,21 +261,24 @@ impl Control {
         self.abrir(token, de, nombre, nivel, ahora, indicador)
     }
 
-    /// Antes de ejecutar CADA orden: hay sesión viva, el token es el suyo y el indicador sigue a la vista.
+    /// Antes de ejecutar CADA orden: hay sesión viva para `token` y el indicador sigue a la vista.
     pub fn orden(&mut self, token: &str, nombre: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
         if !nombre_orden_valido(nombre) {
             return Err(Rechazo::Forma);
         }
-        self.caducar(ahora);
-        if !indicador && self.sesion.is_some() {
-            // Indicador desaparecido = sesión cerrada (SEG1111T §4.7, §2.4 del contrato).
+        self.caducar_todas(ahora);
+        if !indicador && !self.sesiones.is_empty() {
+            // Indicador desaparecido = sesiones cerradas (SEG1111T §4.7, §2.4 del contrato).
             self.parar(ahora, "sin-indicador");
             return Err(Rechazo::SinIndicador);
         }
-        let Some(s) = self.sesion.as_mut() else { return Err(Rechazo::SinSesion) };
-        if !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()) {
-            return Err(Rechazo::Token);
+        if self.sesiones.is_empty() {
+            return Err(Rechazo::SinSesion);
         }
+        let Some(idx) = self.sesiones.iter().position(|s| crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes())) else {
+            return Err(Rechazo::Token);
+        };
+        let s = &mut self.sesiones[idx];
         // CTL1118H: la pausa solo frena la entrada. Abrir, pantalla y lecturas pasan (y renuevan la actividad: una pausa larga ya no mata la sesión).
         if s.pausada_ms.is_some() && !orden_pasa_en_pausa(nombre) {
             return Err(Rechazo::Pausada); // ORD1114T
@@ -237,56 +289,75 @@ impl Control {
 
     /// (AND1115K) Solo MIRA: ¿hay sesión y es este el token? No renueva la actividad ni mira la pausa.
     pub fn valida(&self, token: &str) -> Result<&Sesion, Rechazo> {
-        let s = self.sesion.as_ref().ok_or(Rechazo::SinSesion)?;
-        if !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()) {
-            return Err(Rechazo::Token);
+        if self.sesiones.is_empty() {
+            return Err(Rechazo::SinSesion);
         }
-        Ok(s)
+        self.sesiones
+            .iter()
+            .find(|s| crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()))
+            .ok_or(Rechazo::Token)
     }
 
-    /// Cierra la sesión si pasó la hora o 2 min sin órdenes. Devuelve la sesión cerrada.
+    /// Cierra todas las sesiones que pasaron la hora o 2 min sin órdenes. Devuelve las cerradas.
+    pub fn caducar_todas(&mut self, ahora: u64) -> Vec<Sesion> {
+        let mut vivas = Vec::with_capacity(self.sesiones.len());
+        let mut vencidas = Vec::new();
+        for s in self.sesiones.drain(..) {
+            if ahora.saturating_sub(s.inicio_ms) > SESION_MAX_MS || ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS {
+                vencidas.push(s);
+            } else {
+                vivas.push(s);
+            }
+        }
+        self.sesiones = vivas;
+        if !vencidas.is_empty() {
+            self.ultima_parada = Some((ahora, "caducada".into()));
+        }
+        vencidas
+    }
+
+    /// Cierra la primera sesión vencida (si hay). Devuelve la sesión cerrada.
     pub fn caducar(&mut self, ahora: u64) -> Option<Sesion> {
-        let vencida = self
-            .sesion
-            .as_ref()
-            .is_some_and(|s| ahora.saturating_sub(s.inicio_ms) > SESION_MAX_MS || ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS);
-        if vencida {
-            self.parar(ahora, "caducada")
-        } else {
-            None
-        }
+        self.caducar_todas(ahora).into_iter().next()
     }
 
-    /// (ORD1114T) Lo local pausa al instante. `entrada_ms` = hora de la última entrada local (tecla, ratón,
-    /// toque). Solo cuenta si es POSTERIOR a abrir o reanudar más `GRACIA_LOCAL_MS` (el clic de «Reanudar» no
-    /// vuelve a pausar). Devuelve true si acaba de pausar. (CTL1118P) Con la pausa ya puesta, una actividad nueva NO pausa otra vez
-    /// pero sí vuelve a empezar la cuenta de los 3 s (`local_ms`); devuelve false.
+    /// (ORD1114T) Lo local pausa al instante todas las sesiones activas. `entrada_ms` = hora de la última entrada local.
     #[allow(dead_code)]
     pub fn entrada_local(&mut self, entrada_ms: u64) -> bool {
-        let Some(s) = self.sesion.as_mut() else { return false };
-        if entrada_ms <= s.reanudada_ms.saturating_add(GRACIA_LOCAL_MS) {
+        if self.sesiones.is_empty() {
             return false;
         }
-        if s.pausada_ms.is_some() {
-            s.local_ms = s.local_ms.max(entrada_ms);
+        let max_reanudada = self.sesiones.iter().map(|s| s.reanudada_ms).max().unwrap_or(0);
+        if entrada_ms <= max_reanudada.saturating_add(GRACIA_LOCAL_MS) {
             return false;
         }
-        s.pausada_ms = Some(entrada_ms);
-        s.local_ms = entrada_ms;
-        s.pausas = s.pausas.saturating_add(1);
+        if self.pausada() {
+            for s in &mut self.sesiones {
+                if s.pausada_ms.is_some() {
+                    s.local_ms = s.local_ms.max(entrada_ms);
+                }
+            }
+            return false;
+        }
+        for s in &mut self.sesiones {
+            s.pausada_ms = Some(entrada_ms);
+            s.local_ms = entrada_ms;
+            s.pausas = s.pausas.saturating_add(1);
+        }
         true
     }
 
-    /// (ORD1114T) Pausa sin más (Android: Kotlin ya aplicó la gracia al toque local).
+    /// (ORD1114T) Pausa todas las sesiones sin más (Android: Kotlin ya aplicó la gracia al toque local).
     #[allow(dead_code)]
     pub fn pausar(&mut self, ahora: u64) -> bool {
-        let Some(s) = self.sesion.as_mut() else { return false };
-        if s.pausada_ms.is_some() {
+        if self.sesiones.is_empty() || self.pausada() {
             return false;
         }
-        s.pausada_ms = Some(ahora);
-        s.local_ms = ahora;
-        s.pausas = s.pausas.saturating_add(1);
+        for s in &mut self.sesiones {
+            s.pausada_ms = Some(ahora);
+            s.local_ms = ahora;
+            s.pausas = s.pausas.saturating_add(1);
+        }
         true
     }
 
@@ -296,43 +367,45 @@ impl Control {
         self.reanudar_medida(ahora).is_some()
     }
 
-    /// (CTL1118P) Como `reanudar`, pero dice cuánto duró la pausa y cuántas lleva la sesión (para el registro). Es la acción inmediata
-    /// de «Reanudar»: no espera a los 3 s.
+    /// (CTL1118P) Como `reanudar`, pero dice cuánto duró la pausa y cuántas lleva la sesión.
     #[allow(dead_code)]
     pub fn reanudar_medida(&mut self, ahora: u64) -> Option<PausaTerminada> {
-        let s = self.sesion.as_mut()?;
-        let desde = s.pausada_ms.take()?;
-        s.reanudada_ms = ahora;
-        s.ultima_ms = ahora;
-        Some(PausaTerminada { dur_ms: ahora.saturating_sub(desde), pausas: s.pausas })
+        let min_desde = self.sesiones.iter().filter_map(|s| s.pausada_ms).min()?;
+        let mut max_pausas = 0u32;
+        for s in &mut self.sesiones {
+            s.pausada_ms = None;
+            s.reanudada_ms = ahora;
+            s.ultima_ms = ahora;
+            max_pausas = max_pausas.max(s.pausas);
+        }
+        Some(PausaTerminada { dur_ms: ahora.saturating_sub(min_desde), pausas: max_pausas })
     }
 
     /// (CTL1118P) Solo macOS y Linux: quita la pausa SOLA si han pasado `PAUSA_LOCAL_MS` desde la última actividad física local.
-    /// No cierra la sesión. La gracia de después NO se come el toque siguiente: la reanudación cuenta como hecha en la última actividad
-    /// (que ya queda a 3 s o más), así que cualquier toque posterior a ella vuelve a pausar.
     #[allow(dead_code)]
     pub fn vencer_pausa(&mut self, ahora: u64) -> Option<PausaTerminada> {
-        let s = self.sesion.as_mut()?;
-        let desde = s.pausada_ms?;
-        if ahora.saturating_sub(s.local_ms) < PAUSA_LOCAL_MS {
+        let min_desde = self.sesiones.iter().filter_map(|s| s.pausada_ms).min()?;
+        let max_local = self.sesiones.iter().filter(|s| s.pausada_ms.is_some()).map(|s| s.local_ms).max()?;
+        if ahora.saturating_sub(max_local) < PAUSA_LOCAL_MS {
             return None;
         }
-        s.pausada_ms = None;
-        s.reanudada_ms = s.local_ms;
-        s.ultima_ms = ahora;
-        Some(PausaTerminada { dur_ms: ahora.saturating_sub(desde), pausas: s.pausas })
+        let mut max_pausas = 0u32;
+        for s in &mut self.sesiones {
+            s.pausada_ms = None;
+            s.reanudada_ms = s.local_ms;
+            s.ultima_ms = ahora;
+            max_pausas = max_pausas.max(s.pausas);
+        }
+        Some(PausaTerminada { dur_ms: ahora.saturating_sub(min_desde), pausas: max_pausas })
     }
 
-    /// (CTL1118P) Pausas locales de la sesión viva (0 sin sesión).
+    /// (CTL1118P) Pausas locales máximas entre sesiones vivas (0 sin sesión).
     #[allow(dead_code)]
     pub fn pausas(&self) -> u32 {
-        self.sesion.as_ref().map_or(0, |s| s.pausas)
+        self.sesiones.iter().map(|s| s.pausas).max().unwrap_or(0)
     }
 
-    /// (CTL1117C · FALLO 3) El detalle de un rechazo `parada-nativa`: POR QUÉ no hay sesión, para que quien manda no diga que la
-    /// persona pulsó «Terminar» cuando fue la caducidad, el indicador perdido u otra cosa. `motivo=` es el de `parar` (solo
-    /// `a-z` y `-`), `hace=` los segundos desde esa parada; sin parada conocida, `sin-sesion`; con sesión pero de otro token,
-    /// `otro-token`. Cualquier otro rechazo no lleva detalle.
+    /// (CTL1117C · FALLO 3) El detalle de un rechazo `parada-nativa`.
     pub fn detalle_parada(&self, r: Rechazo, ahora: u64) -> Option<String> {
         match r {
             Rechazo::SinSesion => Some(match &self.ultima_parada {
@@ -348,16 +421,29 @@ impl Control {
     }
 
     pub fn pausada(&self) -> bool {
-        self.sesion.as_ref().is_some_and(|s| s.pausada_ms.is_some())
+        self.sesiones.iter().any(|s| s.pausada_ms.is_some())
     }
 
-    /// Para: no necesita a la página para nada. Devuelve la sesión que había.
-    pub fn parar(&mut self, ahora: u64, motivo: &str) -> Option<Sesion> {
-        let s = self.sesion.take();
-        if s.is_some() {
-            self.ultima_parada = Some((ahora, limpiar(motivo, 40)));
+    /// Cierra SOLO la sesión identificada por `token` sin tocar las demás.
+    pub fn parar_token(&mut self, token: &str, ahora: u64, motivo: &str) -> Option<Sesion> {
+        let idx = self.sesiones.iter().position(|s| crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()))?;
+        let s = self.sesiones.remove(idx);
+        self.ultima_parada = Some((ahora, limpiar(motivo, 40)));
+        Some(s)
+    }
+
+    /// Cierra todas las sesiones activas y las devuelve.
+    pub fn parar_todas(&mut self, ahora: u64, motivo: &str) -> Vec<Sesion> {
+        if self.sesiones.is_empty() {
+            return Vec::new();
         }
-        s
+        self.ultima_parada = Some((ahora, limpiar(motivo, 40)));
+        std::mem::take(&mut self.sesiones)
+    }
+
+    /// Para todas las sesiones (cierre desde dueño/indicador). Devuelve la primera sesión que había.
+    pub fn parar(&mut self, ahora: u64, motivo: &str) -> Option<Sesion> {
+        self.parar_todas(ahora, motivo).into_iter().next()
     }
 }
 
@@ -708,12 +794,25 @@ mod pruebas {
     fn otro_aparato_no_pisa_la_sesion_y_formas() {
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
-        let otro = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        assert_eq!(c.abrir(TOK, otro, "X", "controlar", 1, true).unwrap_err(), Rechazo::OtraSesion);
-        assert_eq!(c.abrir(TOK, "ZZ", "X", "controlar", 1, true).unwrap_err(), Rechazo::Forma);
-        assert_eq!(c.abrir(TOK, DE, "X", "administrar", 1, true).unwrap_err(), Rechazo::Forma);
-        assert_eq!(c.orden(TOK, "rm -rf", 2, true).unwrap_err(), Rechazo::Forma);
+        // Hasta MAX_SESIONES_ACTIVAS pueden controlar a la vez con su propio token; la (MAX+1).ª se rechaza con OtraSesion.
+        for i in 1..MAX_SESIONES_ACTIVAS {
+            let de_i = format!("{i:064x}");
+            let tok_i = format!("tok{i:029}");
+            assert!(c.abrir(&tok_i, &de_i, &format!("Neurona {i}"), "controlar", 1, true).is_ok());
+            assert!(c.orden(&tok_i, "leer-estado", 2, true).is_ok());
+        }
+        assert!(c.orden(TOK, "leer-estado", 2, true).is_ok(), "la primera sesión sigue viva en paralelo");
+        let extra = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        assert_eq!(c.abrir("extra-token-extra-token-extra-token", extra, "X", "controlar", 3, true).unwrap_err(), Rechazo::OtraSesion);
+        assert_eq!(c.abrir(TOK, "ZZ", "X", "controlar", 3, true).unwrap_err(), Rechazo::Forma);
+        assert_eq!(c.abrir(TOK, DE, "X", "administrar", 3, true).unwrap_err(), Rechazo::Forma);
+        assert_eq!(c.orden(TOK, "rm -rf", 4, true).unwrap_err(), Rechazo::Forma);
         assert_eq!(nombre_limpio("\u{7}  "), "otra neurona");
+        // Cerrar una sola sesión por token deja intactas las demás.
+        let tok_1 = format!("tok{:029}", 1);
+        assert!(c.parar_token(&tok_1, 5, "cerrar-sesion").is_some());
+        assert_eq!(c.activas().len(), MAX_SESIONES_ACTIVAS - 1);
+        assert!(c.orden(TOK, "leer-estado", 6, true).is_ok());
     }
 
     #[test]
@@ -835,23 +934,28 @@ mod pruebas {
         assert!(c.reutilizar(DE, "controlar", 2_000, false).is_none());
         let s = c.reutilizar(DE, "controlar", 5_000, true).expect("misma sesión");
         assert_eq!((s.token.as_str(), s.inicio_ms, s.ultima_ms), (TOK, 1_000, 5_000), "mismo token, misma hora de inicio");
-        // Otro aparato, forma rara, pausa local: no.
+        // Otro aparato sin sesión, forma rara: no reutiliza; con < MAX_SESIONES_ACTIVAS otro aparato NO se niega.
         let otro = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         assert!(c.reutilizar(otro, "controlar", 5_100, true).is_none());
         assert!(c.reutilizar("zz", "controlar", 5_100, true).is_none());
         assert!(c.reutilizar(DE, "administrar", 5_100, true).is_none());
+        assert_eq!(c.negada_por_la_viva(otro, 5_100), None);
         assert!(c.pausar(6_000));
         // CTL1118H: con pausa local reabrir es la misma sesión (no se niega) y NO quita la pausa.
         let s = c.reutilizar(DE, "controlar", 6_100, true).expect("la pausa ya no niega reabrir");
         assert_eq!(s.token, TOK);
         assert!(c.pausada(), "reabrir no quita la pausa local");
         assert_eq!(c.negada_por_la_viva(DE, 6_200), None);
-        assert_eq!(c.negada_por_la_viva(otro, 6_200), Some(Rechazo::OtraSesion));
         assert!(c.reanudar(7_000));
         assert!(c.reutilizar(DE, "ver", 7_100, true).is_some());
         assert_eq!(c.activa().unwrap().nivel, "ver");
+        // Al llenar MAX_SESIONES_ACTIVAS, una nueva neurona sí recibe Rechazo::OtraSesion en negada_por_la_viva.
+        for i in 1..MAX_SESIONES_ACTIVAS {
+            c.abrir(&format!("tok{i:029}"), &format!("{i:064x}"), &format!("N{i}"), "controlar", 7_100, true).unwrap();
+        }
+        assert_eq!(c.negada_por_la_viva(otro, 7_200), Some(Rechazo::OtraSesion));
         // Caducada (2 min sin órdenes) o terminada por la persona: NO resucita.
-        assert!(c.reutilizar(DE, "controlar", 7_100 + SESION_INACTIVA_MS + 1, true).is_none());
+        assert!(c.reutilizar(DE, "controlar", 7_200 + SESION_INACTIVA_MS + 1, true).is_none());
         assert!(c.activa().is_none());
         assert_eq!(c.negada_por_la_viva(DE, 9_000_000), None, "sin sesión no hay nada que negar");
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();

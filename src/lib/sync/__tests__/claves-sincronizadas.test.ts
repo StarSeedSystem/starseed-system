@@ -56,6 +56,9 @@ const NUNCA = [
     "starseed.mesh.revocation-cert.v1",
     "starseed.brain.abc.memory-mirror.v1",
     "starseed.brain.abc.offline-queue.v1",
+    "starseed.perf.v1",
+    "starseed.display.local.v1",
+    "starseed.malla.protocolos-universales.v1",
 ];
 
 /**

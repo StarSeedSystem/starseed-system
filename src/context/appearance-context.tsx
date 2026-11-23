@@ -29,6 +29,23 @@ import { EVENTO_APLICAR_FONDO } from "@/lib/protomolecula/peticion/fondo-evento"
 // OS, así que aquí se pide la hoja del papel en uso. Satoshi solo si el
 // registro o la pieza es display editorial; Quicksand con el tema Natural.
 import { FuentesMarca } from "@/components/theme/fuentes-marca";
+import {
+    leerPantallaLocal,
+    guardarPantallaLocal,
+    limpiarPantallaLocal,
+    suscribirPantallaLocal,
+    type AjustesPantallaLocal,
+} from "@/lib/perf/pantalla-local";
+
+const LIVING_VARIANT_IDS = new Set([
+    "aurora",
+    "nebula",
+    "starfield",
+    "mycelium",
+    "plasma",
+    "prisma",
+    "ocean",
+]);
 
 export interface CustomFont {
     name: string;
@@ -773,6 +790,10 @@ interface AppearanceContextType {
     updateConfig: (updates: DeepPartial<AppearanceConfig>) => void;
     resetConfig: () => void;
     updateSection: <K extends keyof AppearanceConfig>(section: K, data: DeepPartial<AppearanceConfig[K]>) => void;
+    /** Ajustes visuales de pantalla estrictamente locales a esta neurona (no viajan con la cuenta). */
+    updateLocalDisplay?: (patch: Partial<AjustesPantallaLocal>) => void;
+    /** Limpia el override visual local de esta neurona para volver al valor de la cuenta. */
+    resetLocalDisplay?: () => void;
     addCustomFont: (font: CustomFont) => void;
     removeCustomFont: (name: string) => void;
     // Theme Actions
@@ -890,6 +911,21 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
     const pathname = usePathname() || "/";
 
+    const [localDisplay, setLocalDisplay] = useState<AjustesPantallaLocal>({});
+    useEffect(() => {
+        setLocalDisplay(leerPantallaLocal());
+        return suscribirPantallaLocal(() => setLocalDisplay(leerPantallaLocal()));
+    }, []);
+
+    const updateLocalDisplay = React.useCallback((patch: Partial<AjustesPantallaLocal>) => {
+        setLocalDisplay(guardarPantallaLocal(patch));
+    }, []);
+
+    const resetLocalDisplay = React.useCallback(() => {
+        limpiarPantallaLocal();
+        setLocalDisplay({});
+    }, []);
+
     // Ámbito de EDICIÓN del fondo (cuenta · perfil · página). Es una preferencia
     // de la sesión de edición: no se persiste ni se sincroniza.
     const [bgScopeMode, setBgScopeMode] = useState<BackgroundScopeMode>("cuenta");
@@ -901,25 +937,33 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     }, [profileId, pathname]);
 
     /**
-     * Fondo EFECTIVO: global ⟵ override de perfil ⟵ override de página.
+     * Fondo y estilo EFECTIVO: global ⟵ override de perfil ⟵ override de página ⟵ ajuste local de esta neurona.
      * Todo el OS (incluidos los motores pesados, que leen `config.background.type`)
-     * consume el resultado, así que el ámbito funciona para el fondo entero.
+     * consume el resultado, así que el ámbito funciona para el fondo entero sin sincronizar ajustes locales.
      */
     const resolvedConfig = useMemo<AppearanceConfig>(() => {
         const scopes = config.background?.scopes;
-        if (!scopes || typeof scopes !== "object") return config;
-        const profileOv = profileId ? scopes[`perfil:${profileId}`] : undefined;
+        const hasScopes = !!scopes && typeof scopes === "object";
+        const profileOv = hasScopes && profileId ? scopes[`perfil:${profileId}`] : undefined;
         // Página: coincidencia por prefijo más largo (una ruta hija hereda de su padre).
         let pageOv: Record<string, unknown> | undefined;
-        let bestLen = -1;
-        for (const key of Object.keys(scopes)) {
-            if (!key.startsWith("pagina:")) continue;
-            const route = key.slice("pagina:".length);
-            if (route === pathname || (route !== "/" && pathname.startsWith(route + "/"))) {
-                if (route.length > bestLen) { bestLen = route.length; pageOv = scopes[key]; }
+        if (hasScopes) {
+            let bestLen = -1;
+            for (const key of Object.keys(scopes)) {
+                if (!key.startsWith("pagina:")) continue;
+                const route = key.slice("pagina:".length);
+                if (route === pathname || (route !== "/" && pathname.startsWith(route + "/"))) {
+                    if (route.length > bestLen) { bestLen = route.length; pageOv = scopes[key]; }
+                }
             }
         }
-        if (!profileOv && !pageOv) return config;
+        const hasLocal =
+            localDisplay.opacity !== undefined ||
+            localDisplay.overlayOpacity !== undefined ||
+            localDisplay.intensity !== undefined ||
+            localDisplay.livingVariant !== undefined;
+        if (!profileOv && !pageOv && !hasLocal) return config;
+
         let background = config.background;
         if (profileOv) background = deepMerge(background, profileOv);
         if (pageOv) background = deepMerge(background, pageOv);
@@ -927,9 +971,36 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         if ((background.type as string) === "audiomorphic" || (background.type as string) === "none") {
             background = { ...background, type: "spline" };
         }
-        background = { ...background, layers: normalizeLayers(background.layers) };
-        return { ...config, background };
-    }, [config, profileId, pathname]);
+        if (profileOv || pageOv) {
+            background = { ...background, layers: normalizeLayers(background.layers) };
+        }
+
+        let styling = config.styling;
+        if (localDisplay.opacity !== undefined) {
+            styling = { ...styling, opacity: localDisplay.opacity };
+        }
+        if (localDisplay.overlayOpacity !== undefined) {
+            background = { ...background, overlayOpacity: localDisplay.overlayOpacity };
+        }
+        if (localDisplay.intensity !== undefined) {
+            if (background.living) {
+                background = { ...background, living: { ...background.living, intensity: localDisplay.intensity } };
+            } else {
+                background = { ...background, intensity: localDisplay.intensity };
+            }
+        }
+        if (
+            localDisplay.livingVariant &&
+            background.type === "living" &&
+            background.living &&
+            LIVING_VARIANT_IDS.has(localDisplay.livingVariant)
+        ) {
+            const variant = localDisplay.livingVariant as NonNullable<AppearanceConfig["background"]["living"]>["variant"];
+            background = { ...background, living: { ...background.living, variant } };
+        }
+
+        return { ...config, styling, background };
+    }, [config, profileId, pathname, localDisplay]);
 
     // Re-aplica el ThemePack del catálogo (theme-engine.ts) que el usuario
     // dejó activo la última vez, si lo hay — sin esto, un tema aplicado desde
@@ -1511,6 +1582,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             updateConfig,
             resetConfig,
             updateSection,
+            updateLocalDisplay,
+            resetLocalDisplay,
             addCustomFont,
             removeCustomFont,
             saveTheme,

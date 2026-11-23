@@ -930,9 +930,14 @@ class ServicioControlEntrada : AccessibilityService() {
                 ys.add((q.getDouble(1).toFloat() * h).coerceIn(0f, h))
                 ts.add(t.coerceAtMost(maxMs))
             }
+            val seMovio = xs.size > 1 && xs.indices.any { idx -> kotlin.math.hypot((xs[idx] - xs[0]).toDouble(), (ys[idx] - ys[0]).toDouble()) > 1.0 }
             var fin = t
             if (sigueDeAntes && fin == 0L) fin = 1
             if (!sigueDeAntes && pts.length() == 1) fin = 50 // un toque
+            if (seMovio) {
+                val minMovMs = if (sigueDeAntes) 16L else 40L
+                if (fin < minMovMs) fin = minMovMs
+            }
             fin = fin.coerceIn(1L, maxMs)
             lista.add(Dedo(id, xs.toFloatArray(), ys.toFloatArray(), ts.toLongArray(), fin, sigue))
         }

@@ -77,7 +77,7 @@ const AURORA_ENGINE_LABEL: Record<AuroraVoiceEngine, string> = {
 
 const OPCIONES_RENDIMIENTO = [
     { id: "auto" as PerfMode, rotulo: "Auto", icono: Sparkles, titulo: "El sistema elige según tu aparato" },
-    { id: "high" as PerfMode, rotulo: "Alto", icono: Zap, titulo: "Todos los efectos visuales" },
+    { id: "alto" as PerfMode, rotulo: "Alto", icono: Zap, titulo: "Todos los efectos visuales" },
     { id: "eco" as PerfMode, rotulo: "Eco", icono: Leaf, titulo: "Menos animaciones y fondos más ligeros" },
     { id: "eficiente" as PerfMode, rotulo: "Eficiente", icono: Battery, titulo: "Pausa animaciones, transiciones, desenfoques, reflejos y dinamismo; ahorra batería" },
 ];
@@ -103,7 +103,7 @@ function puntoTiempoReal(state: RealtimeSyncStatus["state"] | undefined): string
 export function QuickSettingsTab() {
     const ir = useIrCerrando();
     const { setTheme, theme } = useTheme();
-    const { config, updateSection } = useAppearance();
+    const { config, updateSection, updateLocalDisplay } = useAppearance();
     const { controlador, estado: grabadora } = useGrabadora();
     const soporteGrabar = useMemo(() => controlador.soporte(), [controlador]);
 
@@ -214,18 +214,22 @@ export function QuickSettingsTab() {
         }
     }, []);
 
-    // Transparencias del cristal — mismo campo que Ajustes → Apariencia.
+    // Transparencias del cristal — locales a esta neurona desde el Centro de Control.
     const opacityPct = Math.round((config.styling?.opacity ?? 0.65) * 100);
     const setOpacityPct = (pct: number) => {
-        updateSection("styling", { opacity: Math.min(1, Math.max(0, pct / 100)) });
+        const opacity = Math.min(1, Math.max(0, pct / 100));
+        if (updateLocalDisplay) updateLocalDisplay({ opacity });
+        else updateSection("styling", { opacity });
     };
 
     // Brillo del fondo — overlayOpacity más alto = overlay más oscuro = fondo
-    // MENOS brillante. Slider mostrado ya invertido (100 = brillo máximo).
+    // MENOS brillante. Slider mostrado ya invertido (100 = brillo máximo), local a esta neurona.
     const overlayOpacity = config.background?.overlayOpacity ?? 0.1;
     const brightnessPct = Math.round((1 - overlayOpacity) * 100);
     const setBrightnessPct = (pct: number) => {
-        updateSection("background", { overlayOpacity: Math.min(1, Math.max(0, 1 - pct / 100)) });
+        const nextOverlay = Math.min(1, Math.max(0, 1 - pct / 100));
+        if (updateLocalDisplay) updateLocalDisplay({ overlayOpacity: nextOverlay });
+        else updateSection("background", { overlayOpacity: nextOverlay });
     };
 
     const franjaGrabadora = rotuloDeFase(grabadora);
@@ -301,13 +305,14 @@ export function QuickSettingsTab() {
                 </p>
             </section>
 
-            <SeccionLogic titulo="Pantalla y rendimiento" icono={Gauge} testId="seccion-pantalla">
+            <SeccionLogic titulo="Pantalla y rendimiento" icono={Gauge} insignia="Solo esta neurona" testId="seccion-pantalla">
                 <div className="space-y-4">
                     <Segmentado etiqueta="Rendimiento" valor={perfMode} opciones={OPCIONES_RENDIMIENTO} onCambio={choosePerf} testId="selector-rendimiento" />
                     <div className="space-y-1 rounded-2xl border border-white/10 bg-black/25 p-3.5">
                         <DeslizadorLogic icono={Layers} etiqueta="Transparencia del cristal" valor={opacityPct} onCambio={setOpacityPct} testId="deslizador-transparencia" />
                         <DeslizadorLogic icono={SunDim} etiqueta="Brillo del fondo" valor={brightnessPct} onCambio={setBrightnessPct} testId="deslizador-brillo" />
                     </div>
+                    <p className="px-1 text-[11px] leading-snug text-amber-100/55">Solo aplica en esta neurona.</p>
                 </div>
             </SeccionLogic>
 

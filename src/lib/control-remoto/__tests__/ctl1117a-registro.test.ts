@@ -142,4 +142,16 @@ describe("S3 · rechazo terminal: se dice y se espera con retroceso", () => {
         expect(enviadas).toHaveLength(2);
         expect(r.enEspera("tableta")).toBeNull();
     });
+
+    it("un rechazo transitorio de transporte reintenta una sola vez tras 450 ms", async () => {
+        const esperas: number[] = [];
+        const r = new RegistroSesiones(() => Date.now(), async (ms) => {
+            esperas.push(ms);
+        });
+        const { mandar, enviadas } = banco([no("sin-enlace"), ok(T1)]);
+        const res = await r.abrir("tableta", mandar);
+        expect(res.ok).toBe(true);
+        expect(esperas).toEqual([450]);
+        expect(enviadas.filter((e) => e.nombre === "abrir-sesion")).toHaveLength(2);
+    });
 });

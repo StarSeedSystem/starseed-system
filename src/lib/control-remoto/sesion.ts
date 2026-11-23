@@ -189,6 +189,10 @@ export interface DepsPuerta {
 }
 
 const MAX_NONCES = 2000;
+/** Máximo de neuronas de la cuenta que pueden operar/ver esta neurona simultáneamente. */
+export const MAX_SESIONES_ACTIVAS = 8;
+/** Ventana deslizante de `seq` para tolerar reordenamiento entre canal de datos y canal de control sin permitir repeticiones. */
+export const VENTANA_SEQ = 64;
 
 /** CTL1118G: el motivo que recibe quien manda cuando la persona de este aparato termina la sesión. */
 export const MOTIVO_TERMINADO = "terminado-por-el-dueno";
@@ -206,8 +210,8 @@ export function nombreLimpio(v: unknown): string | null {
 }
 
 export class PuertaControl {
-    private sesion: SesionActiva | null = null;
-    private ultimoSeq = new Map<string, number>();
+    private sesiones = new Map<string, SesionActiva>();
+    private seqVentana = new Map<string, { max: number; vistos: Set<number> }>();
     private nonces: string[] = [];
     private noncesSet = new Set<string>();
     private marcas = new Map<string, number[]>();
@@ -235,18 +239,29 @@ export class PuertaControl {
 
     sesionActiva(): SesionActiva | null {
         this.caducarSesion();
-        return this.sesion;
+        return this.sesiones.values().next().value ?? null;
+    }
+
+    sesionesActivas(): SesionActiva[] {
+        this.caducarSesion();
+        return [...this.sesiones.values()];
+    }
+
+    sesionPorToken(token: string): SesionActiva | null {
+        this.caducarSesion();
+        return this.sesiones.get(token) ?? null;
     }
 
     /**
-     * CTL1118G · «Terminar»: cierra SOLO la sesión. El permiso sigue encendido y el controlador sigue aceptado. Quien manda recibe
-     * `terminado-por-el-dueno` y no reabre solo.
+     * CTL1118G · «Terminar»: cierra todas las sesiones activas. El permiso sigue encendido y los controladores siguen aceptados.
+     * Quien manda recibe `terminado-por-el-dueno` y no reabre solo.
      */
     terminar(motivo = MOTIVO_TERMINADO): void {
-        const s = this.sesion;
-        this.sesion = null;
+        const cerradas = [...this.sesiones.values()];
+        const s = cerradas[0] ?? null;
+        this.sesiones.clear();
         this.caducadaPor = null;
-        if (s) this.terminadoPor.add(s.de);
+        for (const x of cerradas) this.terminadoPor.add(x.de);
         void this.d.nativo.parar(motivo).catch(() => undefined);
         this.d.anotar(`orden terminar de=${s ? s.de.slice(0, 8) : "-"} nivel=- resultado=${motivo}`);
         this.d.alCambiar?.();
@@ -257,10 +272,10 @@ export class PuertaControl {
         this.revocar("revocado");
     }
 
-    /** Cierra la sesión y apaga el permiso en este aparato. */
+    /** Cierra todas las sesiones activas y apaga el permiso en este aparato. */
     revocar(motivo = "revocado"): void {
-        const s = this.sesion;
-        this.sesion = null;
+        const s = this.sesiones.values().next().value ?? null;
+        this.sesiones.clear();
         this.caducadaPor = null;
         this.terminadoPor.clear();
         void this.d.nativo.parar(motivo).catch(() => undefined); // ORD1114Q
@@ -270,42 +285,72 @@ export class PuertaControl {
         this.d.alCambiar?.();
     }
 
-    /** (ORD1114Q) Rust paró la sesión (indicador, caducidad): aquí también se cierra. */
+    /** (ORD1114Q) Rust paró la sesión (indicador, caducidad): aquí también se cierran. */
     paradaNativa(motivo: string): void {
-        const s = this.sesion;
-        if (!s) return;
-        this.sesion = null;
+        const cerradas = [...this.sesiones.values()];
+        if (cerradas.length === 0) return;
+        this.sesiones.clear();
         this.caducadaPor = null;
-        if (esTerminarDeLaPersona(motivo)) this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
-        this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${/^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada"}`);
+        const limpia = /^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada";
+        for (const s of cerradas) {
+            if (esTerminarDeLaPersona(motivo)) this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
+            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${limpia}`);
+        }
         this.d.alCambiar?.();
     }
 
-    /** (ORD1114Q) La persona contestó/colgó a mano en ESTE aparato: se para la sesión y se avisa a quien manda. */
+    /** (ORD1114Q) La persona contestó/colgó a mano en ESTE aparato: se paran las sesiones y se avisa a quien manda. */
     intervencionLocal(que: string): void {
-        const s = this.sesion;
+        const cerradas = [...this.sesiones.values()];
         this.aMano = /^[a-z-]{1,24}$/.test(que) ? que : "a-mano";
-        if (s) {
-            this.sesion = null;
+        if (cerradas.length > 0) {
+            this.sesiones.clear();
             this.caducadaPor = null;
             void this.d.nativo.parar("a-mano").catch(() => undefined);
-            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=a-mano:${this.aMano}`);
+            for (const s of cerradas) {
+                this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=a-mano:${this.aMano}`);
+            }
             this.d.alCambiar?.();
         }
     }
 
     private caducarSesion(): void {
-        const s = this.sesion;
-        if (!s) return;
+        if (this.sesiones.size === 0) return;
         const t = this.d.ahora();
-        const porLimite = s.fin !== null && s.fin !== undefined && t > s.fin;
-        const porLatidos = t - s.ultima > SESION_INACTIVA_MS;
-        if (porLimite || porLatidos) {
-            this.sesion = null;
-            this.caducadaPor = porLimite ? "limite" : "latidos";
-            this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${porLimite ? "limite-cumplido" : "caducada"}`);
-            this.d.alCambiar?.();
+        let cambio = false;
+        for (const [token, s] of [...this.sesiones.entries()]) {
+            const porLimite = s.fin !== null && s.fin !== undefined && t > s.fin;
+            const porLatidos = t - s.ultima > SESION_INACTIVA_MS;
+            if (porLimite || porLatidos) {
+                this.sesiones.delete(token);
+                this.caducadaPor = porLimite ? "limite" : "latidos";
+                this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${porLimite ? "limite-cumplido" : "caducada"}`);
+                cambio = true;
+            }
         }
+        if (cambio) this.d.alCambiar?.();
+    }
+
+    private aceptarSeqYNonce(de: string, seq: number, nonce: string): boolean {
+        if (this.noncesSet.has(nonce) || !Number.isInteger(seq) || seq <= 0) return false;
+        let v = this.seqVentana.get(de);
+        if (!v) {
+            v = { max: seq, vistos: new Set([seq]) };
+            this.seqVentana.set(de, v);
+            return true;
+        }
+        if (seq > v.max) {
+            v.max = seq;
+            v.vistos.add(seq);
+            const piso = v.max - VENTANA_SEQ;
+            for (const n of v.vistos) if (n <= piso) v.vistos.delete(n);
+            return true;
+        }
+        if (seq > v.max - VENTANA_SEQ && !v.vistos.has(seq)) {
+            v.vistos.add(seq);
+            return true;
+        }
+        return false;
     }
 
     private respuesta(nonce: string, ok: boolean, motivo: string, nombre: string, de: string, nivel: string, resultado?: unknown, detalle?: Record<string, string>): RespuestaOrden {
@@ -411,9 +456,7 @@ export class PuertaControl {
         if (Math.abs(ahora - t) > DESFASE_MAX_MS || cad <= ahora || cad - t > VIDA_ORDEN_MS || cad < t) {
             return this.respuesta(c.nonce, false, "caducada", nombre, c.de, c.nivel);
         }
-        const previo = this.ultimoSeq.get(c.de) ?? 0;
-        if (c.seq <= previo || this.noncesSet.has(c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
-        this.ultimoSeq.set(c.de, c.seq);
+        if (!this.aceptarSeqYNonce(c.de, c.seq, c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
         this.recordarNonce(c.nonce);
         if (!this.tope(c.de, definicion(nombre)?.entrada === true || definicion(nombre)?.senal === true, ACCIONES_LECTURA.has(nombre))) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
 
@@ -436,7 +479,8 @@ export class PuertaControl {
 
         if (nombre === "abrir-sesion") {
             this.caducarSesion();
-            if (this.sesion && this.sesion.de !== c.de) return this.respuesta(c.nonce, false, "otra-sesion", nombre, c.de, c.nivel);
+            const existenteDe = [...this.sesiones.values()].find((x) => x.de === c.de) ?? null;
+            if (!existenteDe && this.sesiones.size >= MAX_SESIONES_ACTIVAS) return this.respuesta(c.nonce, false, "otra-sesion", nombre, c.de, c.nivel);
             const nivel = nivelMinimo(c.nivel, concedido);
             // CTL1118G: el nombre de su neurona viaja DENTRO de lo firmado (la firma ya se comprobó arriba): así se pone al día el de quien
             // se aceptó con el nombre viejo, sin aceptarlo otra vez. Nunca desde algo sin firma.
@@ -454,18 +498,21 @@ export class PuertaControl {
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token y mismo fin):
             // renovar la ventana de latidos sí, estirar el límite elegido no.
-            const mismaSesion = this.sesion !== null && this.sesion.token === n.token && this.sesion.de === c.de;
-            const inicio = mismaSesion && this.sesion ? this.sesion.inicio : ahora;
+            const prev = this.sesiones.get(n.token) ?? (existenteDe && existenteDe.token === n.token ? existenteDe : null);
+            if (existenteDe && existenteDe.token !== n.token) this.sesiones.delete(existenteDe.token);
+            const mismaSesion = prev !== null && prev.de === c.de;
+            const inicio = mismaSesion && prev ? prev.inicio : ahora;
             const colorFirmado = typeof c.accion.args.color === "string" && /^#[0-9a-f]{6}$/.test(c.accion.args.color) ? c.accion.args.color : undefined;
             const color = colorFirmado ?? ctl.color;
-            this.sesion = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ...(color ? { color } : {}) };
+            const activa: SesionActiva = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ...(color ? { color } : {}) };
+            this.sesiones.set(activa.token, activa);
             this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
             this.caducadaPor = null;
             if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
             this.d.alCambiar?.();
             if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
-                sesion: this.sesion.token,
+                sesion: activa.token,
                 nivel,
                 capacidades: capacidadesDeNivel(nivel),
                 ...(fin !== null ? { caduca: new Date(fin).toISOString() } : { sinLimite: true }),
@@ -473,19 +520,19 @@ export class PuertaControl {
         }
 
         this.caducarSesion();
-        const s = this.sesion;
+        const s = c.sesion ? this.sesiones.get(c.sesion) : undefined;
         if (!s && this.terminadoPor.has(c.de)) {
             // CTL1118G: la persona terminó esta sesión. Se dice con el motivo de siempre de «parada-nativa» (terminal: no reabre sola).
             return this.respuesta(c.nonce, false, "parada-nativa", nombre, c.de, c.nivel, undefined, { motivo: MOTIVO_TERMINADO });
         }
         if (!s && this.caducadaPor === "limite") return this.respuesta(c.nonce, false, "limite-cumplido", nombre, c.de, c.nivel);
-        if (!s || s.de !== c.de || c.sesion !== s.token) return this.respuesta(c.nonce, false, s ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
+        if (!s || s.de !== c.de) return this.respuesta(c.nonce, false, this.sesiones.size > 0 ? "sin-sesion" : "sesion-caducada", nombre, c.de, c.nivel);
         if (rangoNivel(def.nivel) > rangoNivel(s.nivel)) return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
         s.ultima = ahora;
 
         if (nombre === "cerrar-sesion") {
-            this.sesion = null;
-            await this.d.nativo.parar("cerrar-sesion").catch(() => undefined); // ORD1114Q
+            this.sesiones.delete(s.token);
+            await this.d.nativo.parar("cerrar-sesion", s.token).catch(() => undefined); // ORD1114Q: cierra solo este token
             this.d.alCambiar?.();
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, s.nivel);
         }
@@ -497,7 +544,7 @@ export class PuertaControl {
             return this.respuesta(c.nonce, false, "pausa-local", nombre, c.de, s.nivel);
         }
         if (!visto.ok) {
-            if (this.sesion === s) this.sesion = null;
+            this.sesiones.delete(s.token);
             this.d.alCambiar?.();
             // CTL1117C · FALLO 3: «parada-nativa» lleva el motivo REAL de lo nativo (no siempre es «Terminar»).
             const sinIndicador = visto.motivo === "sin-indicador-nativo";

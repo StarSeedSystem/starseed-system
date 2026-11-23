@@ -217,21 +217,21 @@ pub fn capacidades_linux(
 }
 
 /// Argumentos para `pactl set-sink-volume @DEFAULT_SINK@ N%` a partir de un nivel en [0.0, 1.0].
-pub fn volumen_pactl_args(nivel: f64) -> Vec<&'static str> {
+pub fn volumen_pactl_args(nivel: f64) -> Vec<String> {
     let p = (nivel.clamp(0.0, 1.0) * 100.0).round() as u32;
-    vec!["set-sink-volume", "@DEFAULT_SINK@", &format!("{}%", p)]
+    vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("{p}%")]
 }
 
 /// Argumentos para `wpctl set-volume @DEFAULT_AUDIO_SINK@ N` a partir de un nivel en [0.0, 1.0].
-pub fn volumen_wpctl_args(nivel: f64) -> Vec<&'static str> {
-    let v = nivel.clamp(0.0, 1.0);
-    vec!["set-volume", "@DEFAULT_AUDIO_SINK@", &format!("{:.2}", v)]
+pub fn volumen_wpctl_args(nivel: f64) -> Vec<String> {
+    let v = (nivel.clamp(0.0, 1.0) * 100.0).round() / 100.0;
+    vec!["set-volume".into(), "@DEFAULT_AUDIO_SINK@".into(), format!("{v}")]
 }
 
 /// Argumentos para `brightnessctl set N%` a partir de un nivel en [0.0, 1.0].
-pub fn brillo_brightnessctl_args(nivel: f64) -> Vec<&'static str> {
+pub fn brillo_brightnessctl_args(nivel: f64) -> Vec<String> {
     let p = (nivel.clamp(0.0, 1.0) * 100.0).round() as u32;
-    vec!["set", &format!("{}%", p)]
+    vec!["set".into(), format!("{p}%")]
 }
 
 /// Argumentos para `xrandr --output <out> --brightness N` a partir de un nivel en [0.0, 1.0].

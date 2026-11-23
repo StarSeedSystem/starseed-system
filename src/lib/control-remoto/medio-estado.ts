@@ -64,6 +64,7 @@ interface Interno {
     autoMirado: number;
     autoFallidos: Map<string, number>;
     autoEnlace: EnlaceAuto | null;
+    ultimoLogMulticapa: string;
 }
 
 const CTX_VACIO: ContextoMedio = { candidatos: [], relevoPorNodo: null, hayTurn: null, wifiDirecto: null };
@@ -94,7 +95,7 @@ function guardar(m: EleccionesGuardadas): void {
 function de(n: string): Interno {
     let i = internos.get(n);
     if (!i) {
-        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, parConocido: null, parConocidoHasta: 0, ordenesViejas: false, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "", autoPrevio: null, autoMirado: 0, autoFallidos: new Map(), autoEnlace: null };
+        i = { ctx: CTX_VACIO, ordenes: SIN_DETERMINAR, par: null, parConocido: null, parConocidoHasta: 0, ordenesViejas: false, canalAbierto: () => false, peer: null, ordenFallo: false, giro: 0, snap: null, ultimaLinea: "", autoPrevio: null, autoMirado: 0, autoFallidos: new Map(), autoEnlace: null, ultimoLogMulticapa: "" };
         internos.set(n, i);
     }
     return i;
@@ -222,7 +223,11 @@ export async function refrescarContexto(neurona: string): Promise<void> {
             const perfil: PerfilConciencia = { nombre: "equilibrado", prioridad: ["video", "entrada", "ordenes", "telemetria"], umbralLatenciaMs: 100, umbralAnchoBandaKbps: 2000 };
             try {
                 const plan = planificarAntenasSimultaneas(antenas, perfil);
-                anotar(`control-multicapa ${resumenPlanAntenas(plan)}`);
+                const lineaMulticapa = `control-multicapa ${resumenPlanAntenas(plan)}`;
+                if (lineaMulticapa !== i.ultimoLogMulticapa) {
+                    i.ultimoLogMulticapa = lineaMulticapa;
+                    anotar(lineaMulticapa);
+                }
             } catch {
                 /* sin plan: no se registra */
             }

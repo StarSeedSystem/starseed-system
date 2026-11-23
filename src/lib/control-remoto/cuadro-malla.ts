@@ -10,6 +10,7 @@ import type { Args } from "./niveles";
 import { type NivelCuadro, NIVELES_CUADRO } from "./ritmo-pantalla";
 
 export const PARTE_CUADRO_MAX = 9000; // bytes binarios por parte (12 000 caracteres base64)
+export const PARTE_CUADRO_DIRECTO = 48_000; // bytes binarios por parte en enlace directo LAN (64 KB base64)
 export const MAX_PARTES_CUADRO = 40;
 export const MAX_CUADRO_BYTES = PARTE_CUADRO_MAX * MAX_PARTES_CUADRO;
 export const RE_B64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -48,21 +49,24 @@ export function deBase64(t: string): Uint8Array | null {
 }
 
 /** Parte un JPEG; lanza «demasiado-grande» si pasa del tope. */
-export function partirCuadro(jpeg: Uint8Array, num: number): ParteCuadro[] {
+export function partirCuadro(jpeg: Uint8Array, num: number, maxParte = PARTE_CUADRO_MAX): ParteCuadro[] {
     if (jpeg.length === 0 || jpeg.length > MAX_CUADRO_BYTES) throw new Error("demasiado-grande");
-    const n = Math.ceil(jpeg.length / PARTE_CUADRO_MAX);
-    return Array.from({ length: n }, (_, i) => ({ num, i, n, total: jpeg.length, datos: aBase64(jpeg.subarray(i * PARTE_CUADRO_MAX, (i + 1) * PARTE_CUADRO_MAX)) }));
+    const tam = Math.max(1000, Math.min(64_000, Math.floor(maxParte)));
+    const n = Math.ceil(jpeg.length / tam);
+    return Array.from({ length: n }, (_, i) => ({ num, i, n, total: jpeg.length, datos: aBase64(jpeg.subarray(i * tam, (i + 1) * tam)) }));
 }
 
 /** Valida una parte recibida (lo que contesta el aparato). null si no vale. */
-export function leerParteCuadro(x: unknown): ParteCuadro | null {
+export function leerParteCuadro(x: unknown, maxParte = PARTE_CUADRO_MAX): ParteCuadro | null {
     if (!x || typeof x !== "object") return null;
     const a = x as Record<string, unknown>;
+    const tam = Math.max(1000, Math.min(64_000, Math.floor(maxParte)));
+    const maxPartes = Math.max(MAX_PARTES_CUADRO, Math.ceil(MAX_CUADRO_BYTES / tam));
     const ent = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
-    if (!ent(a.num, 0, 0xffffffff) || !ent(a.n, 1, MAX_PARTES_CUADRO) || !ent(a.i, 0, MAX_PARTES_CUADRO - 1) || a.i >= a.n || !ent(a.total, 1, MAX_CUADRO_BYTES)) return null;
+    if (!ent(a.num, 0, 0xffffffff) || !ent(a.n, 1, maxPartes) || !ent(a.i, 0, maxPartes - 1) || a.i >= a.n || !ent(a.total, 1, MAX_CUADRO_BYTES)) return null;
     if (typeof a.datos !== "string" || a.datos.length === 0) return null;
-    if (a.total > a.n * PARTE_CUADRO_MAX || a.total <= (a.n - 1) * PARTE_CUADRO_MAX) return null;
-    const esperado = a.i < a.n - 1 ? PARTE_CUADRO_MAX : a.total - (a.n - 1) * PARTE_CUADRO_MAX;
+    if (a.total > a.n * tam || a.total <= (a.n - 1) * tam) return null;
+    const esperado = a.i < a.n - 1 ? tam : a.total - (a.n - 1) * tam;
     const b = deBase64(a.datos);
     if (!b || b.length !== esperado) return null;
     return { num: a.num, i: a.i, n: a.n, total: a.total, datos: a.datos };
@@ -100,10 +104,10 @@ export class ReensambladorCuadro {
     }
 }
 
-/** Argumentos de `pantalla-cuadro`: `desde` (último número visto), `pide` (parte), `num` (obligatorio desde la parte 1) y `nivel` (0..3, solo parte 0). */
+/** Argumentos de `pantalla-cuadro`: `desde` (último número visto), `pide` (parte), `num` (obligatorio desde la parte 1), `nivel` (0..3, solo parte 0) y `maxParte` (opcional, solo parte 0). */
 export function validarPideCuadro(a: Args): Args | null {
     const claves = Object.keys(a);
-    if (!claves.every((k) => ["desde", "pide", "num", "nivel"].includes(k))) return null;
+    if (!claves.every((k) => ["desde", "pide", "num", "nivel", "maxParte"].includes(k))) return null;
     const ent = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
     if (!ent(a.desde, 0, 0xffffffff) || !ent(a.pide, 0, MAX_PARTES_CUADRO - 1)) return null;
     const r: Args = { desde: a.desde, pide: a.pide };
@@ -114,6 +118,10 @@ export function validarPideCuadro(a: Args): Args | null {
     if (a.nivel !== undefined) {
         if (a.pide !== 0 || !ent(a.nivel, 0, NIVELES_CUADRO.length - 1)) return null;
         r.nivel = a.nivel;
+    }
+    if (a.maxParte !== undefined) {
+        if (a.pide !== 0 || !ent(a.maxParte, 1000, 64_000)) return null;
+        r.maxParte = a.maxParte;
     }
     return r;
 }

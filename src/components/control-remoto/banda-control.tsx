@@ -665,8 +665,11 @@ export function ControlEntreNeuronasPanel() {
             setAviso("Escribe el id completo de la neurona (lo ves en Mensajes › Neuronas).");
             return;
         }
-        const c = await import("@/lib/control-remoto/canal");
-        const r = await c.presentarmeA(destino.trim().toLowerCase(), typeof navigator !== "undefined" ? (navigator.platform || "Neurona") : "Neurona");
+        const [c, { nombreNeuronaPropia }] = await Promise.all([
+            import("@/lib/control-remoto/canal"),
+            import("@/lib/control-remoto/nombre-propio"),
+        ]);
+        const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreNeuronaPropia());
         if (r.ok) {
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
@@ -682,7 +685,7 @@ export function ControlEntreNeuronasPanel() {
             try {
                 const f = await import("@/lib/chats-genesis/firma-aparato");
                 const yo = await f.aparatoLocal().catch(() => null);
-                const nombreAparato = yo?.nombre ?? (typeof navigator !== "undefined" ? (navigator.platform || "Neurona") : "Neurona");
+                const nombreAparato = yo?.nombre ?? nombreNeuronaPropia();
                 const cuenta = await (async () => {
                     try {
                         const { uidActual } = await import("@/lib/consumo/usuario");

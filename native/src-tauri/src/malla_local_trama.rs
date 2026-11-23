@@ -30,7 +30,7 @@ pub const CABECERA: usize = 10;
 /// de archivo cifrado (~51 KiB) supera al de antes (46 KiB claros). Es compatible: cada app ANUNCIA el
 /// suyo en `malla_local_estado` y en su saludo firmado (`lim.max_cuerpo`), y la web manda a cada una
 /// como máximo min(tope propio, tope del otro); una app anterior (sin anuncio) sigue en 64 KiB.
-pub const MAX_CUERPO: usize = 96 * 1024;
+pub const MAX_CUERPO: usize = 256 * 1024;
 /// El tope que asume la web de una app anterior (que no lo anuncia).
 pub const MAX_CUERPO_ANTERIOR: usize = 64 * 1024;
 /// Puerto TCP del canal local: el del faro UDP (47070) + 1. `malla_local.rs` lo comprueba al compilar.
@@ -43,7 +43,7 @@ pub const ACUSE_OK: &str = "{\"ok\":true}";
 /// `malla_local_estado`, los anuncia en su saludo y nunca manda más del 90 % del cupo del otro
 /// (`src/lib/malla/red-local-nativa.ts`). El tope de conexiones a la vez y de tiempo por conexión
 /// siguen igual.
-pub const LIMITE_MENSAJES: u32 = 300;
+pub const LIMITE_MENSAJES: u32 = 900;
 pub const LIMITE_VENTANA_MS: u64 = 10_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -374,7 +374,7 @@ mod pruebas {
     /// (64 KiB) quedaría por debajo, así que la web debe pedirle ≤ 64 KiB (`MAX_CUERPO_ANTERIOR`).
     #[test]
     fn el_tope_de_96_kib_vale_en_los_dos_sentidos() {
-        assert_eq!(MAX_CUERPO, 96 * 1024);
+        assert_eq!(MAX_CUERPO, 256 * 1024);
         assert!(MAX_CUERPO > MAX_CUERPO_ANTERIOR);
         let justo = format!("{{\"x\":\"{}\"}}", "a".repeat(MAX_CUERPO - 8));
         assert_eq!(justo.len(), MAX_CUERPO);

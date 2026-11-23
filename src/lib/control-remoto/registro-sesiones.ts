@@ -54,12 +54,18 @@ function resultadoDe(v: Viva): RespuestaOrden {
     return { tipo: "respuesta", nonce: "", ok: true, motivo: "ok", resultado: { sesion: v.token, nivel: v.nivel, reutilizada: true } };
 }
 
+/** Motivos transitorios de transporte que admiten un reintento automático único al abrir sesión. */
+const MOTIVOS_TRANSPORTE_REINTENTABLES = new Set(["sin-respuesta", "sin-enlace", "tiempo-agotado"]);
+
 export class RegistroSesiones {
     private vivas = new Map<string, Viva>();
     private abriendo = new Map<string, Promise<RespuestaOrden>>();
     private terminal = new Map<string, { motivo: string; hasta: number; n: number }>();
 
-    constructor(private readonly ahora: () => number = () => Date.now()) {}
+    constructor(
+        private readonly ahora: () => number = () => Date.now(),
+        private readonly esperar: (ms: number) => Promise<void> = (ms) => new Promise((res) => setTimeout(res, ms)),
+    ) {}
 
     /**
      * CTL1118F: UN carril de órdenes por neurona para todos los que comparten esta sesión (ventana, banco…). Cada destino firmaba y mandaba por el
@@ -148,7 +154,17 @@ export class RegistroSesiones {
         }
         const p = (async (): Promise<RespuestaOrden> => {
             let r = await mandar("abrir-sesion", {}, { nivel });
-            if (!r.ok && r.motivo === "nivel" && o.bajarSiNivel && nivel === "controlar") r = await mandar("abrir-sesion", {}, { nivel: "ver" });
+            if (!r.ok && MOTIVOS_TRANSPORTE_REINTENTABLES.has(r.motivo)) {
+                await this.esperar(450);
+                r = await mandar("abrir-sesion", {}, { nivel });
+            }
+            if (!r.ok && r.motivo === "nivel" && o.bajarSiNivel && nivel === "controlar") {
+                r = await mandar("abrir-sesion", {}, { nivel: "ver" });
+                if (!r.ok && MOTIVOS_TRANSPORTE_REINTENTABLES.has(r.motivo)) {
+                    await this.esperar(450);
+                    r = await mandar("abrir-sesion", {}, { nivel: "ver" });
+                }
+            }
             const s = r.resultado as { sesion?: string; nivel?: string } | undefined;
             if (r.ok && typeof s?.sesion === "string") {
                 const previo = this.vivas.get(k);

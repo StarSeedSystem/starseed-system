@@ -114,9 +114,12 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
         nota_sin_pantalla("sin-servicio", "bloqueada");
         return json!({ "ok": false, "motivo": "sin-servicio" });
     }
+    if let Some(a) = activa().as_ref() {
+        return json!({ "ok": true, "fuente": "proyeccion", "ancho": a.ancho, "alto": a.alto, "giro": 0 });
+    }
     let lado = lado.clamp(l::LADO_MIN, l::LADO_MAX);
     let calidad = l::calidad_jpeg(calidad);
-    parar_interno(app); // una captura a la vez
+    parar_interno(app); // una captura compartida a la vez
     reiniciar_via();
     // El primer cuadro se hace aquí para decir el tamaño real y para fallar con verdad si el sistema no deja capturar.
     let Some(primero) = capturar_cuadro(lado, calidad, 1, None) else {
@@ -135,7 +138,7 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
     let parar = Arc::new(AtomicBool::new(false));
     let cuadros = Arc::new(AtomicU32::new(1));
     {
-        let (parar, cuadros, app2, sesion2) = (parar.clone(), cuadros.clone(), app.clone(), sesion.to_string());
+        let (parar, cuadros, app2) = (parar.clone(), cuadros.clone(), app.clone());
         std::thread::Builder::new()
             .name("control-pantalla-mac".into())
             .spawn(move || {
@@ -143,8 +146,11 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
                 let mut huella_previa = huella_inicial;
                 let mut entregas_vistas = 0u64;
                 while !parar.load(Ordering::SeqCst) {
+                    if !crate::control_neuronas::sesion_viva() {
+                        break;
+                    }
                     let t0 = std::time::Instant::now();
-                    let en_pausa = crate::control_neuronas::sesion_pausada(&sesion2);
+                    let en_pausa = crate::control_neuronas::alguna_pausada();
                     if en_pausa || plataforma_bloqueada() {
                         if en_pausa {
                             buffer().clear(); // en pausa local no sale ningún cuadro (lo que la persona teclea no se ve)

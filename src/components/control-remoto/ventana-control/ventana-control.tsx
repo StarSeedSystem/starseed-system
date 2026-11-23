@@ -263,10 +263,13 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
         return { left: (r?.left ?? 0) + img.left, top: (r?.top ?? 0) + img.top, width: img.width, height: img.height };
     }, [img.left, img.top, img.width, img.height]);
 
+    const destinoEscritorio = esEscritorio(p.capacidades.teclas);
     const activoRef = useRef(activo);
     activoRef.current = activo;
     const giroRef = useRef(giro);
     giroRef.current = giro;
+    const escritorioRef = useRef(destinoEscritorio);
+    escritorioRef.current = destinoEscritorio;
 
     useEffect(() => {
         const el = caja.current;
@@ -282,7 +285,7 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
                 gestor.pellizcar(pt.x, pt.y, e.deltaY * k);
             } else {
                 const [dx, dy] = deltaACuadro((-e.deltaX * k) / im.width, (-e.deltaY * k) / im.height, giroRef.current);
-                gestor.desplazar(pt.x, pt.y, dx, dy);
+                gestor.desplazar(pt.x, pt.y, dx, dy, escritorioRef.current);
             }
         };
         el.addEventListener("wheel", rueda, { passive: false });
@@ -292,7 +295,17 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
     const clave = (e: React.PointerEvent) => `p${e.pointerId}`;
     const alBajar = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!activo) return;
-        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (e.pointerType === "mouse" && e.button !== 0) {
+            if (e.button === 2 && destinoEscritorio) {
+                const pt = puntoEnPantalla(e.clientX, e.clientY, imagenCliente(), giro);
+                if (!pt.fuera) {
+                    const r = caja.current?.getBoundingClientRect();
+                    lanzar(e.clientX - (r?.left ?? 0), e.clientY - (r?.top ?? 0));
+                    gestor.clicDerecho(pt.x, pt.y);
+                }
+            }
+            return;
+        }
         const pt = puntoEnPantalla(e.clientX, e.clientY, imagenCliente(), giro);
         if (pt.fuera) return;
         try {

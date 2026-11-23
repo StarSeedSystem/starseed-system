@@ -58,10 +58,9 @@ export function esClaveAjustePermitida(clave: string): boolean {
   return !CLAVES_DE_CUENTA.has(clave); // identidad de la cuenta: nunca en una variación
 }
 
-// Mapa curado id de ajuste → clave sincronizada permitida: un parche nunca toca cuenta, claves ni privacidad.
+// Mapa curado id de ajuste → clave sincronizada permitida: un parche nunca toca cuenta, claves, privacidad ni rendimiento local de cada neurona.
 export const RUTA_AJUSTES: Record<string, string> = {
   accesibilidad: "starseed.a11y.settings",
-  rendimiento: "starseed.perf.v1",
   "voz-modo": "starseed.voz.modo.v1",
   "voz-timbre": "starseed.voz.timbre.v1",
   "pantalla-inicial": "starseed.inicio.pantalla.v1",

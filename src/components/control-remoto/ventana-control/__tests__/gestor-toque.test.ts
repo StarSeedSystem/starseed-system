@@ -209,4 +209,30 @@ describe("VEN1115L · rueda y pellizco", () => {
         m.fotograma();
         for (const d of m.enviados[0].dedos) for (const p of d.puntos) { expect(p[0]).toBeGreaterThanOrEqual(0); expect(p[0]).toBeLessThanOrEqual(1); }
     });
+
+    it("en escritorio, desplazar con dos dedos manda un gesto paralelo y clicDerecho envía dos dedos quietos", () => {
+        m.g.desplazar(0.5, 0.5, 0, -0.08, true);
+        m.fotograma();
+        expect(m.enviados[0].dedos).toHaveLength(2);
+        expect(m.enviados[0].sigue).toBe(true);
+        expect(m.enviados[0].dedos[0].puntos.map((p) => p[1])).toEqual([0.5, 0.42]);
+        expect(m.enviados[0].dedos[1].puntos.map((p) => p[1])).toEqual([0.5, 0.42]);
+        m.avanza(200);
+        expect(m.enviados.at(-1)!.sigue).toBe(false);
+
+        const antes = m.enviados.length;
+        expect(m.g.clicDerecho(0.3, 0.4)).toBe(true);
+        expect(m.enviados[antes]).toMatchObject({ tipo: "gesto", sigue: false });
+        expect(m.enviados[antes].dedos).toHaveLength(2);
+    });
+
+    it("en táctil, pasos mínimos de rueda se acumulan antes de tocar para evitar clics", () => {
+        m.g.desplazar(0.5, 0.5, 0, -0.01, false);
+        m.fotograma();
+        expect(m.enviados).toHaveLength(0);
+        m.g.desplazar(0.5, 0.5, 0, -0.03, false);
+        m.fotograma();
+        expect(m.enviados).toHaveLength(1);
+        expect(m.enviados[0].dedos[0].puntos.map((p) => p[1])[1]).toBeCloseTo(0.46);
+    });
 });

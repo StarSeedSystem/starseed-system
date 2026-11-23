@@ -70,6 +70,11 @@ const VincularSinInternet = dynamic(
   { ssr: false },
 );
 
+const PanelMallaUniversal = dynamic(
+  () => import("@/components/connectivity/panel-malla-universal").then((m) => m.PanelMallaUniversal),
+  { ssr: false },
+);
+
 const ROUTE_OPTIONS: Array<{ id: PreferredRoute; label: string; hint: string }> = [
   { id: "auto", label: "Auto", hint: "el router inteligente decide por clase de tráfico" },
   { id: "wifi", label: "Router externo", hint: "prioriza la red convencional" },
@@ -343,6 +348,7 @@ export function ConnectionsCenter({ compact = false }: { compact?: boolean }) {
         <CanalesTelegram compact={compact} />
       ) : tab === "malla" ? (
         <div className="space-y-3">
+          <PanelMallaUniversal compact={compact} />
           <VincularSinInternet compact={compact} />
           <MallaNeuronasPanel compact={compact} />
         </div>

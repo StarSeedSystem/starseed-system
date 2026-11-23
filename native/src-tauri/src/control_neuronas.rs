@@ -167,7 +167,7 @@ fn estado(app: &AppHandle) -> EstadoControl {
         ultimo_rechazo: ultimo_rechazo(),
         activa: s.is_some(),
         de: s.map(|s| s.de.chars().take(8).collect()),
-        nombre: s.map(|s| s.nombre.clone()),
+        nombre: if c.activas().is_empty() { None } else { Some(c.nombres_activos()) },
         nivel: s.map(|s| s.nivel.clone()),
         desde: s.map(|s| crate::ble::iso_utc(pared_ms().saturating_sub(mono_ms().saturating_sub(s.inicio_ms)))),
         ultima_parada: c.ultima_parada.as_ref().map(|(t, _)| crate::ble::iso_utc(pared_ms().saturating_sub(mono_ms().saturating_sub(*t)))),
@@ -267,15 +267,17 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
             return Ok(token);
         }
     }
-    let posible = indicador_posible(&app);
-    if !posible && cfg!(target_os = "android") {
+    let ya_abierta = int.encendido && !control().activas().is_empty() && indicador_visible(&app);
+    if !ya_abierta && !indicador_posible(&app) && cfg!(target_os = "android") {
         // ORD1114T: en Android se PIDE a Kotlin el diálogo nativo (la persona decide allí; nada se enciende solo).
         pedir_preparar(&app);
     }
     // IND1115F: con el detalle de por qué no (solo Android lo tiene; en el resto queda vacío).
     let mut detalle = String::new();
     let visible = int.encendido
-        && if posible {
+        && if ya_abierta {
+            true
+        } else if indicador_posible(&app) {
             match poner_indicador(&app, &l::nombre_limpio(&nombre), &color, &nivel) {
                 Ok(()) => true,
                 Err(d) => {
@@ -292,6 +294,10 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
     match r {
         Ok((de8, nivel)) => {
             *ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()) = None; // IND1115F: ya no hay nada que explicar
+            if ya_abierta {
+                let nombres = control().nombres_activos();
+                actualizar_indicador(&app, &nombres, &color, &nivel);
+            }
             // CTL1117K · S2: el alcance que rige en este aparato (`total` | `protegido`) queda en la cadena y en el registro de enlaces.
             let alcance = crate::control_ajustes::actuales(&app).alcance;
             anotar(&app, "sesion-abierta", &format!("de={de8} nivel={nivel} alcance={}", l::alcance_de_registro(&alcance)));
@@ -299,7 +305,7 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
             Ok(token)
         }
         Err(e) => {
-            if control().activa().is_none() {
+            if control().activas().is_empty() {
                 quitar_indicador(&app);
             }
             let sin_indicador = e.codigo() == "sin-indicador-nativo" && !detalle.is_empty();
@@ -329,7 +335,7 @@ pub fn control_neuronas_orden(app: AppHandle, webview: tauri::Webview, token: St
             anotar(&app, "orden", &format!("{nombre} resultado=rechazo:{}", e.codigo()));
             // CTL1117C · FALLO 3: «parada-nativa» dice POR QUÉ no hay sesión (caducada, sin-indicador, la persona…), no solo el código.
             let detalle = control().detalle_parada(e, mono_ms());
-            if control().activa().is_none() {
+            if control().activas().is_empty() {
                 quitar_indicador(&app);
             }
             Err(match detalle {
@@ -391,14 +397,47 @@ pub fn control_neuronas_anotar(app: AppHandle, webview: tauri::Webview, nombre: 
     Ok(())
 }
 
-/// Parar desde la página (botón de la banda). Parar SIEMPRE se puede.
+/// Parar desde la página (botón de la banda) o cerrar la sesión concreta de un controlador (`token`). Parar SIEMPRE se puede.
 #[tauri::command]
-pub fn control_neuronas_parar(app: AppHandle, motivo: String) -> EstadoControl {
+pub fn control_neuronas_parar(app: AppHandle, motivo: String, token: Option<String>) -> EstadoControl {
     let m: String = motivo.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(30).collect();
-    parar(&app, if m.is_empty() { "pagina" } else { &m });
+    let motivo_limpio = if m.is_empty() { "pagina" } else { m.as_str() };
+    if let Some(tok) = token.filter(|t| !t.is_empty()) {
+        if !l::motivo_apaga(motivo_limpio) {
+            let cerrada = control().parar_token(&tok, mono_ms(), motivo_limpio);
+            if let Some(s) = cerrada {
+                #[cfg(target_os = "macos")]
+                crate::control_entrada_macos::soltar_sesion(&tok);
+                #[cfg(target_os = "linux")]
+                crate::control_entrada_linux::soltar_sesion(&tok);
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                if !control().activas().iter().any(|x| x.de == s.de) {
+                    crate::control_aceptados_escritorio::olvidar_verificada_de(&s.de);
+                }
+                let de8: String = s.de.chars().take(8).collect();
+                anotar(&app, "sesion-parada", &format!("de={de8} motivo={motivo_limpio}"));
+                nota_fin_sesion(&app, &de8, motivo_limpio);
+                if control().activas().is_empty() {
+                    quitar_indicador(&app);
+                    let _ = app.emit(EVENTO_PARADA, serde_json::json!({ "motivo": motivo_limpio }));
+                } else {
+                    let (nombres, color_rest, nivel_rest) = {
+                        let c = control();
+                        let first = c.activa();
+                        let col = first.map(|f| crate::control_ajustes::color_por_defecto(&f.de)).unwrap_or_else(|| "#dd3c3c".into());
+                        let niv = first.map(|f| f.nivel.clone()).unwrap_or_else(|| "ver".into());
+                        (c.nombres_activos(), col, niv)
+                    };
+                    actualizar_indicador(&app, &nombres, &color_rest, &nivel_rest);
+                }
+            }
+            return estado(&app);
+        }
+    }
+    parar(&app, motivo_limpio);
     // ORD1114V: quitar el permiso en la página apaga también el interruptor nativo (apagar no pide nada).
-    if l::motivo_apaga(&m) {
-        apagar_interruptor(&app, &m);
+    if l::motivo_apaga(motivo_limpio) {
+        apagar_interruptor(&app, motivo_limpio);
     }
     estado(&app)
 }
@@ -547,6 +586,21 @@ pub(crate) fn sesion_viva_sin_pausa() -> bool {
     c.activa().is_some() && !c.pausada()
 }
 
+/// ¿Está en pausa local el control actualmente?
+#[allow(dead_code)]
+pub(crate) fn alguna_pausada() -> bool {
+    control().pausada()
+}
+
+/// ¿Hay alguna otra sesión viva distinta de `token`? (para captura compartida en multicontrolador).
+#[allow(dead_code)]
+pub(crate) fn otras_sesiones_vivas(token: &str) -> bool {
+    control()
+        .activas()
+        .iter()
+        .any(|s| !crate::sha256::iguales_ct(s.token.as_bytes(), token.as_bytes()))
+}
+
 /// (ORD1114T) Solo desde el indicador nativo.
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 pub(crate) fn reanudar(app: &AppHandle, desde: &str) {
@@ -644,12 +698,34 @@ pub fn iniciar(app: &AppHandle) {
             parar(&h, "sin-indicador");
             continue;
         }
-        let cerrada = control().caducar(mono_ms());
-        if let Some(s) = cerrada {
-            quitar_indicador(&h);
-            anotar(&h, "sesion-parada", &format!("de={} motivo=caducada", s.de.chars().take(8).collect::<String>()));
-            nota_fin_sesion(&h, &s.de.chars().take(8).collect::<String>(), "caducada"); // CTL1117C
-            let _ = h.emit(EVENTO_PARADA, serde_json::json!({ "motivo": "caducada" }));
+        let caducadas = control().caducar_todas(mono_ms());
+        if !caducadas.is_empty() {
+            for s in &caducadas {
+                #[cfg(target_os = "macos")]
+                crate::control_entrada_macos::soltar_sesion(&s.token);
+                #[cfg(target_os = "linux")]
+                crate::control_entrada_linux::soltar_sesion(&s.token);
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                if !control().activas().iter().any(|x| x.de == s.de) {
+                    crate::control_aceptados_escritorio::olvidar_verificada_de(&s.de);
+                }
+                let de8: String = s.de.chars().take(8).collect();
+                anotar(&h, "sesion-parada", &format!("de={de8} motivo=caducada"));
+                nota_fin_sesion(&h, &de8, "caducada"); // CTL1117C
+            }
+            if control().activas().is_empty() {
+                quitar_indicador(&h);
+                let _ = h.emit(EVENTO_PARADA, serde_json::json!({ "motivo": "caducada" }));
+            } else {
+                let (nombres, color_rest, nivel_rest) = {
+                    let c = control();
+                    let first = c.activa();
+                    let col = first.map(|f| crate::control_ajustes::color_por_defecto(&f.de)).unwrap_or_else(|| "#dd3c3c".into());
+                    let niv = first.map(|f| f.nivel.clone()).unwrap_or_else(|| "ver".into());
+                    (c.nombres_activos(), col, niv)
+                };
+                actualizar_indicador(&h, &nombres, &color_rest, &nivel_rest);
+            }
         }
     });
 }
@@ -860,22 +936,42 @@ fn diagnostico(r: &crate::control_neuronas_android::Espera, pedir: &str, nombre:
 #[cfg(desktop)]
 #[allow(dead_code)] // ORD1114T: lo usan macOS y Android, no Windows/Linux
 fn marcar_pausa_indicador(app: &AppHandle, pausada: bool) {
+    let nombres = control().nombres_activos();
     #[cfg(target_os = "macos")]
     crate::control_neuronas_macos::marcar_pausa(app, pausada); // CTL1118H: el panel del punto
     #[cfg(target_os = "linux")]
-    {
-        // CTL1118L: la franja de GTK cambia su texto y enseña «Reanudar» solo en pausa.
-        let nombre = control().activa().map(|s| s.nombre.clone()).unwrap_or_default();
-        crate::control_neuronas_linux::marcar_pausa(app, pausada, nombre);
-    }
+    crate::control_neuronas_linux::marcar_pausa(app, pausada, nombres.clone());
     if let Some(t) = app.tray_by_id(ID_BANDEJA) {
-        let nombre = control().activa().map(|s| s.nombre.clone()).unwrap_or_default();
-        let _ = t.set_title(Some(if pausada { "‖ Control en pausa · menú para reanudar".to_string() } else { format!("● Controlada por {nombre}") }));
+        let _ = t.set_title(Some(if pausada { "‖ Control en pausa · menú para reanudar".to_string() } else { format!("● Controlada por {nombres}") }));
     }
 }
 
 #[cfg(not(desktop))]
 fn marcar_pausa_indicador(_app: &AppHandle, _pausada: bool) {}
+
+#[cfg(target_os = "macos")]
+fn actualizar_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) {
+    crate::control_neuronas_macos::actualizar_nombre(app, nombre);
+    if let Some(t) = app.tray_by_id(ID_BANDEJA) {
+        let _ = t.set_title(Some(format!("● Controlada por {nombre}")));
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn actualizar_indicador(app: &AppHandle, nombre: &str, _color: &str, _nivel: &str) {
+    crate::control_neuronas_linux::actualizar_nombre(app, nombre);
+}
+
+#[cfg(target_os = "android")]
+fn actualizar_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) {
+    let id = sesion_indicador().clone();
+    if let Some(id) = id {
+        let _ = crate::control_neuronas_android::es::pedir_mostrar(app, &id, nombre, color, nivel);
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "android", target_os = "linux")))]
+fn actualizar_indicador(_app: &AppHandle, _nombre: &str, _color: &str, _nivel: &str) {}
 
 #[cfg(target_os = "macos")]
 fn poner_indicador(app: &AppHandle, nombre: &str, color: &str, nivel: &str) -> Result<(), String> {
@@ -1012,16 +1108,27 @@ fn ruta_registro(app: &AppHandle) -> Option<PathBuf> {
     }
 }
 
+fn ultimo_hash_cache() -> MutexGuard<'static, Option<(PathBuf, String)>> {
+    static H: OnceLock<Mutex<Option<(PathBuf, String)>>> = OnceLock::new();
+    H.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn anotar(app: &AppHandle, evento: &str, detalle: &str) {
     let Some(ruta) = ruta_registro(app) else { return };
     let _c = cerrojo_registro();
     if let Some(d) = ruta.parent() {
         let _ = std::fs::create_dir_all(d);
     }
-    let anterior = std::fs::read_to_string(&ruta).map(|t| l::ultimo_hash(&t)).unwrap_or_else(|_| l::INICIO_CADENA.to_string());
+    let mut cache = ultimo_hash_cache();
+    let anterior = match cache.as_ref() {
+        Some((p, h)) if p == &ruta && ruta.exists() => h.clone(),
+        _ => std::fs::read_to_string(&ruta).map(|t| l::ultimo_hash(&t)).unwrap_or_else(|_| l::INICIO_CADENA.to_string()),
+    };
     let linea = l::linea_registro(&anterior, &crate::ble::iso_utc(pared_ms()), evento, detalle);
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&ruta) {
-        let _ = writeln!(f, "{linea}");
+        if writeln!(f, "{linea}").is_ok() {
+            *cache = Some((ruta, l::ultimo_hash(&linea)));
+        }
     }
 }
 

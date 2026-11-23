@@ -211,7 +211,7 @@ describe("CTL1118M · pantalla por la malla (destino)", () => {
         expect(lineas.some((l) => l.includes("causa=ice-fallido"))).toBe(true);
         await d.cerrar("fin", false);
     });
-    it("partes corruptas repetidas en malla esperan entre reintentos y cierran tras 5 fallos sin colgar la vista", async () => {
+    it("partes corruptas repetidas en malla esperan entre reintentos y cierran tras 10 fallos sin colgar la vista", async () => {
         hayWebRtc = false;
         comprobarWebRtcUtilizableMock.mockResolvedValue({ usable: false, faltaWebRtc: "webrtc-linux", detalle: "faltan" });
         decidirViaPantallaMock.mockResolvedValue({ via: "malla", razon: "sin webrtc" });
@@ -245,8 +245,8 @@ describe("CTL1118M · pantalla por la malla (destino)", () => {
         });
         await d.iniciar();
         await vi.advanceTimersByTimeAsync(200);
-        expect(cuadrosPedidos).toBe(5);
-        expect(esperas).toEqual([300, 600, 900, 1200]);
+        expect(cuadrosPedidos).toBe(10);
+        expect(esperas).toEqual([300, 600, 900, 1200, 1500, 1800, 2100, 2400, 2700]);
         expect(d.instantanea().estado).toBe("cerrada");
         expect(d.instantanea().motivo).toBe("sin-cuadros");
     });

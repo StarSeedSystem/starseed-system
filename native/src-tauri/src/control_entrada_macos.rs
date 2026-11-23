@@ -100,7 +100,7 @@ pub fn alcance(app: &AppHandle) -> m::Alcance {
 
 struct Mundo {
     enigo: Option<Enigo>,
-    mano: m::Mano,
+    manos: std::collections::HashMap<String, m::Mano>,
     propias: m::Propias,
     /// Dónde dejamos el puntero (puntos), para saber si una mano lo apartó.
     dejado: Option<(f64, f64)>,
@@ -110,7 +110,7 @@ struct Mundo {
 
 fn mundo() -> MutexGuard<'static, Mundo> {
     static M: OnceLock<Mutex<Mundo>> = OnceLock::new();
-    M.get_or_init(|| Mutex::new(Mundo { enigo: None, mano: m::Mano::default(), propias: m::Propias::default(), dejado: None, descontadas: 0, pausas_de_mano: 0 }))
+    M.get_or_init(|| Mutex::new(Mundo { enigo: None, manos: std::collections::HashMap::new(), propias: m::Propias::default(), dejado: None, descontadas: 0, pausas_de_mano: 0 }))
         .lock()
         .unwrap_or_else(|e| e.into_inner())
 }
@@ -190,10 +190,29 @@ fn texto(w: &mut Mundo, t: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Suelta lo que hubiera pulsado una sesión concreta sin afectar al resto. Nunca falla hacia fuera.
+pub fn soltar_sesion(sesion: &str) {
+    let mut w = mundo();
+    let Some(mut mano) = w.manos.remove(sesion) else { return };
+    let acciones = mano.soltar_todo();
+    if w.enigo.is_some() {
+        for a in &acciones {
+            let _ = aplicar(&mut w, a, 1.0, 1.0);
+        }
+    }
+    if w.manos.is_empty() {
+        w.dejado = None;
+    }
+}
+
 /// Suelta lo que hubiera pulsado (pausa, parada, cambio de modo). Nunca falla hacia fuera.
 pub fn soltar_todo() {
     let mut w = mundo();
-    let acciones = w.mano.soltar_todo();
+    let mut acciones = Vec::new();
+    for mano in w.manos.values_mut() {
+        acciones.extend(mano.soltar_todo());
+    }
+    w.manos.clear();
     if w.enigo.is_some() {
         for a in &acciones {
             let _ = aplicar(&mut w, a, 1.0, 1.0);
@@ -256,7 +275,7 @@ pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
         anotar_resultado(app, sesion, Err(mo));
         return rechazo(mo);
     }
-    match ejecutar(app, &orden) {
+    match ejecutar(app, sesion, &orden) {
         Ok(()) => {
             anotar_resultado(app, sesion, Ok(()));
             json!({ "ok": true })
@@ -272,7 +291,7 @@ pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
     }
 }
 
-fn ejecutar(app: &AppHandle, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Option<&'static str>)> {
+fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Option<&'static str>)> {
     // Un Mac bloqueado no recibe nada, en ningún alcance.
     if bloqueada() {
         return Err((l::Motivo::ReglaG, None));
@@ -300,7 +319,10 @@ fn ejecutar(app: &AppHandle, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Opti
     let r = match o.nombre.as_str() {
         "gesto" => {
             let g = m::leer_gesto(&o.args).ok_or((l::Motivo::SinServicio, None))?;
-            let acciones = w.mano.avanzar(&g, ancho, alto);
+            if w.manos.len() > 16 && !w.manos.contains_key(sesion) {
+                w.manos.retain(|_, m| m.hay_dedo());
+            }
+            let acciones = w.manos.entry(sesion.to_string()).or_default().avanzar(&g, ancho, alto);
             let mut r = Ok(());
             for a in &acciones {
                 r = aplicar(&mut w, a, ancho, alto);
