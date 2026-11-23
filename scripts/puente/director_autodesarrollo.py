@@ -530,7 +530,8 @@ def fusionar_con_disco(inicial, propuestas, disco_crudo):
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None, agente_sintesis=None, agente_buzon_encargos=None, llamar_egm=None):
+          a_la_flota=None, agente_alcance=None, agente_sintesis=None, agente_buzon_encargos=None, llamar_egm=None,
+          motor=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
@@ -675,10 +676,14 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
-        tareas = [{"id": id_de_tarea(p["id"]), "titulo": p["titulo"], "area": "imaginacion",
-                   "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
-                   **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
+        if motor is not None:  # con motor real, la tarea lleva su formulación y no la plantilla (IMN1021Db)
+            tareas = [_tarea_formulada(p, mem, ahora, motor) for p in cola]
+        else:
+            tareas = [{"id": id_de_tarea(p["id"]), "titulo": p["titulo"], "area": "imaginacion",
+                       "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
+                       **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]
+        recomendaciones = _recomendaciones(esperan, mem, ahora)
         cola_r = cola_e = flota = None
         ola_bloqueada = False
         if tareas and not seco:
@@ -732,6 +737,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
                 "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
+                "recomendaciones": recomendaciones,
                 "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
 
 
