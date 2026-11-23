@@ -24,7 +24,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
     "sesion-caducada": "Se dejaron de recibir los latidos de quien controla (45 s) y la sesión se cortó. Se reabre sola mientras el permiso siga encendido.",
-    "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
+    "sin-sesion": "El aparato ya no tiene esta sesión abierta. Pulsa «Reabrir» para seguir.",
     // CTL1117C · FALLO 3: sin el motivo real no se sabe QUIÉN paró (antes toda parada se decía «Terminar»).
     "parada-nativa": "El aparato cerró el control por su cuenta y no dijo por qué.",
     "parada-nativa-persona": "La persona terminó la sesión desde el aviso del aparato («Terminar»). El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
