@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -119,6 +120,9 @@ class PruebasAtender(unittest.TestCase):
                 "postgres_estado",
                 "postgres_probar",
                 "postgres_consultar",
+                "brave_estado",
+                "brave_probar",
+                "brave_buscar",
             ],
         )
 
@@ -620,6 +624,193 @@ class PruebasPostgres(unittest.TestCase):
             texto = self._error("postgres_probar")
         self.assertIn("psql no disponible", texto)
         self.assertNotIn("secreto", texto)
+
+
+class _RespuestaBrave:
+    """Respuesta HTTP mínima para inyectar en `urllib.request.urlopen`."""
+
+    def __init__(self, datos):
+        self._cuerpo = json.dumps(datos).encode("utf-8")
+
+    def read(self):
+        return self._cuerpo
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_excepcion):
+        return False
+
+
+class PruebasBrave(unittest.TestCase):
+    """Brave Search: la clave vive en el entorno y viaja solo en la cabecera."""
+
+    CLAVE = "clave-de-prueba"
+    VARS = mcp_director.VARIABLES_BRAVE
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self.VARS}
+        for v in self.VARS:
+            os.environ.pop(v, None)
+        self._endpoint = os.environ.pop("STARSEED_BRAVE_ENDPOINT", None)
+
+    def tearDown(self):
+        for v in self.VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+        os.environ.pop("STARSEED_BRAVE_ENDPOINT", None)
+        if self._endpoint is not None:
+            os.environ["STARSEED_BRAVE_ENDPOINT"] = self._endpoint
+
+    def _peticion(self, nombre, argumentos=None, ident=1):
+        return {
+            "jsonrpc": "2.0", "id": ident, "method": "tools/call",
+            "params": {"name": nombre, "arguments": argumentos or {}},
+        }
+
+    def _texto(self, nombre, argumentos=None):
+        r = mcp_director.atender(self._peticion(nombre, argumentos))
+        self.assertNotIn("error", r, r)
+        self.assertNotIn("isError", r["result"], r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def _error(self, nombre, argumentos=None):
+        r = mcp_director.atender(self._peticion(nombre, argumentos))
+        self.assertNotIn("error", r, r)
+        self.assertTrue(r["result"].get("isError"), r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def test_estado_sin_variable_dice_cual_definir(self):
+        datos = json.loads(self._texto("brave_estado"))
+        self.assertFalse(datos["configurada"])
+        self.assertIsNone(datos["variable"])
+        self.assertEqual(datos["variables_aceptadas"], list(self.VARS))
+        self.assertEqual(datos["modo"], "solo-consulta")
+
+    def test_estado_devuelve_nombre_no_valor(self):
+        os.environ["BRAVE_API_KEY"] = self.CLAVE
+        datos = json.loads(self._texto("brave_estado"))
+        self.assertTrue(datos["configurada"])
+        self.assertEqual(datos["variable"], "BRAVE_API_KEY")
+        self.assertNotIn(self.CLAVE, json.dumps(datos))
+
+    def test_variable_brave_es_pura_y_respeta_precedencia(self):
+        self.assertIsNone(mcp_director._variable_brave({}))
+        self.assertEqual(
+            mcp_director._variable_brave({"BRAVE_SEARCH_API_KEY": self.CLAVE}),
+            "BRAVE_SEARCH_API_KEY",
+        )
+        dos = {"BRAVE_SEARCH_API_KEY": self.CLAVE, "BRAVE_API_KEY": self.CLAVE}
+        self.assertEqual(mcp_director._variable_brave(dos), "BRAVE_API_KEY")
+
+    def test_parametros_brave_valida_y_escapa(self):
+        params = mcp_director._parametros_brave(
+            "hola mundo", cuenta=3, pais="es", idioma="ES", frescura="pw",
+            safesearch="strict",
+        )
+        self.assertEqual(params["q"], "hola mundo")
+        self.assertEqual(params["count"], "3")
+        self.assertEqual(params["country"], "ES")
+        self.assertEqual(params["search_lang"], "es")
+        self.assertEqual(params["freshness"], "pw")
+        self.assertEqual(params["safesearch"], "strict")
+        url = mcp_director._url_brave(params)
+        self.assertIn("q=hola+mundo", url)
+        self.assertIn("count=3", url)
+        self.assertNotIn(self.CLAVE, url)
+        for malo in ("", None):
+            with self.subTest(consulta=malo), self.assertRaises(ValueError):
+                mcp_director._parametros_brave(malo)
+        with self.assertRaises(ValueError):
+            mcp_director._parametros_brave("x", cuenta=21)
+        with self.assertRaises(ValueError):
+            mcp_director._parametros_brave("x", frescura="ayer")
+        with self.assertRaises(ValueError):
+            mcp_director._parametros_brave("x", pais="ESP")
+
+    def test_normalizar_deja_solo_campos_utiles(self):
+        datos = {"web": {"results": [
+            {"title": "Uno", "url": "https://uno", "description": "d" * 900},
+            {"title": "Sin URL"},
+            "basura",
+        ]}}
+        filas = mcp_director._normalizar_brave(datos, 5)
+        self.assertEqual(len(filas), 1)
+        self.assertEqual(filas[0]["titulo"], "Uno")
+        self.assertEqual(filas[0]["url"], "https://uno")
+        self.assertEqual(len(filas[0]["descripcion"]), 400)
+        self.assertEqual(mcp_director._normalizar_brave({}, 5), [])
+
+    def test_buscar_pasa_clave_en_cabecera_y_no_en_url(self):
+        os.environ["BRAVE_API_KEY"] = self.CLAVE
+        vistos = {}
+
+        def falso(pedido, timeout=None):
+            vistos["url"] = pedido.full_url
+            vistos["headers"] = {k.lower(): v for k, v in pedido.header_items()}
+            return _RespuestaBrave({"web": {"results": [
+                {"title": "Resultado", "url": "https://ejemplo", "description": "hola"},
+            ]}})
+
+        with mock.patch.object(
+            mcp_director.urllib.request, "urlopen", side_effect=falso
+        ):
+            texto = self._texto("brave_buscar", {"consulta": "hola mundo", "cuenta": 1})
+        datos = json.loads(texto)
+        self.assertEqual(datos["consulta"], "hola mundo")
+        self.assertEqual(datos["resultados"][0]["url"], "https://ejemplo")
+        self.assertEqual(vistos["headers"]["x-subscription-token"], self.CLAVE)
+        self.assertIn("q=hola+mundo", vistos["url"])
+        self.assertNotIn(self.CLAVE, vistos["url"])
+        self.assertNotIn(self.CLAVE, texto)
+
+    def test_sin_variable_buscar_dice_cual_definir(self):
+        texto = self._error("brave_buscar", {"consulta": "x"})
+        self.assertIn("sin conexión", texto)
+        self.assertIn("BRAVE_API_KEY", texto)
+
+    def test_probar_ok_con_respuesta_simulada(self):
+        os.environ["BRAVE_API_KEY"] = self.CLAVE
+        with mock.patch.object(
+            mcp_director.urllib.request, "urlopen",
+            side_effect=lambda *_a, **_k: _RespuestaBrave(
+                {"web": {"results": [{"title": "x", "url": "https://x"}]}}
+            ),
+        ):
+            texto = self._texto("brave_probar")
+        self.assertIn("Conexión OK con BRAVE_API_KEY", texto)
+        self.assertIn("1 resultado", texto)
+
+    def test_error_http_tacha_la_clave(self):
+        os.environ["BRAVE_API_KEY"] = self.CLAVE
+
+        def falso(pedido, timeout=None):
+            raise urllib.error.HTTPError(
+                pedido.full_url, 500, "fallo con " + self.CLAVE, None, None
+            )
+
+        with mock.patch.object(
+            mcp_director.urllib.request, "urlopen", side_effect=falso
+        ):
+            texto = self._error("brave_probar")
+        self.assertIn("HTTP 500", texto)
+        self.assertIn("***", texto)
+        self.assertNotIn(self.CLAVE, texto)
+
+    def test_429_no_insiste(self):
+        os.environ["BRAVE_API_KEY"] = self.CLAVE
+
+        def falso(pedido, timeout=None):
+            raise urllib.error.HTTPError(pedido.full_url, 429, "sin cuota", None, None)
+
+        with mock.patch.object(
+            mcp_director.urllib.request, "urlopen", side_effect=falso
+        ):
+            texto = self._error("brave_buscar", {"consulta": "x"})
+        self.assertIn("429", texto)
+        self.assertIn("no reintentar", texto)
 
 
 class PruebaProcesoReal(unittest.TestCase):

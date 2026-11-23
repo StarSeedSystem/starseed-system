@@ -4,8 +4,9 @@
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
 historial, vetar, pausar y reanudar, cuatro herramientas sqlite de solo
-lectura (estado, tablas, esquema y consulta) sobre una base permitida y tres
-herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta.
+lectura (estado, tablas, esquema y consulta) sobre una base permitida, tres
+herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta, y
+tres herramientas brave-search (CAP1119): estado, prueba y búsqueda web.
 
 La base sqlite se elige con `STARSEED_SQLITE_RUTA` (por defecto
 `~/.starseed/mcp-sqlite/starseed.db`) y se confina al repo, a ese directorio
@@ -15,6 +16,11 @@ La conexión postgres se toma de la primera variable definida entre
 `STARSEED_SUPABASE_DB_URL`, `SUPABASE_DB_URL`, `DATABASE_URL`, `POSTGRES_URL` o
 `POSTGRES_PRISMA_URL`; su valor nunca se escribe en el repo, se pasa por argv ni
 se devuelve en un mensaje. Las consultas son SELECT/CTE con tope de filas.
+
+La clave de Brave Search se toma de `BRAVE_API_KEY` o `BRAVE_SEARCH_API_KEY` y
+solo viaja en la cabecera `X-Subscription-Token`; su valor nunca se escribe en el
+repo, se pasa por argv ni se devuelve en un mensaje. El endpoint se puede inyectar
+con `STARSEED_BRAVE_ENDPOINT` (solo para pruebas con un servidor local).
 
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
@@ -30,9 +36,11 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -45,7 +53,8 @@ PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
     "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada, "
-    "consulta bases sqlite locales y postgres remoto en solo lectura sin revelar credenciales."
+    "consulta bases sqlite locales y postgres remoto en solo lectura y busca en la web con "
+    "Brave Search, sin revelar credenciales."
 )
 
 _SQLITE_DIR = os.path.join(os.path.expanduser("~"), ".starseed", "mcp-sqlite")
@@ -81,6 +90,19 @@ _P_SQLITE_LIMITE = _s(
     "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
 )
 _P_SQL = _s("string", "Una sola consulta SELECT/CTE de solo lectura (sin ';' ni comentarios).")
+_P_BRAVE_Q = _s("string", "Consulta de búsqueda web (obligatoria).")
+_P_BRAVE_CUENTA = _s(
+    "integer", "Número de resultados (1-20; por defecto 5).", minimum=1, maximum=20
+)
+_P_BRAVE_PAIS = _s("string", "País de los resultados, código ISO de dos letras (p. ej. «ES»).")
+_P_BRAVE_IDIOMA = _s("string", "Idioma de búsqueda, código de dos letras (p. ej. «es»).")
+_P_BRAVE_FRESCURA = _s(
+    "string", "Antigüedad de los resultados.",
+    enum=["pd", "pw", "pm", "py"],
+)
+_P_BRAVE_SAFESEARCH = _s(
+    "string", "Filtro de contenido adulto.", enum=["off", "moderate", "strict"]
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -176,6 +198,19 @@ ESQUEMAS = {
     "postgres_estado": _esquema({}, []),
     "postgres_probar": _esquema({}, []),
     "postgres_consultar": _esquema({"sql": _P_SQL, "limite": _P_SQLITE_LIMITE}, ["sql"]),
+    "brave_estado": _esquema({}, []),
+    "brave_probar": _esquema({}, []),
+    "brave_buscar": _esquema(
+        {
+            "consulta": _P_BRAVE_Q,
+            "cuenta": _P_BRAVE_CUENTA,
+            "pais": _P_BRAVE_PAIS,
+            "idioma": _P_BRAVE_IDIOMA,
+            "frescura": _P_BRAVE_FRESCURA,
+            "safesearch": _P_BRAVE_SAFESEARCH,
+        },
+        ["consulta"],
+    ),
 }
 
 _HERR = [
@@ -200,6 +235,9 @@ _HERR = [
     ("postgres_estado", "Informa si hay conexión postgres configurada, sin revelar credenciales."),
     ("postgres_probar", "Comprueba la conexión postgres con SELECT 1, en modo solo lectura."),
     ("postgres_consultar", "Consulta postgres en solo lectura (SELECT/CTE), con límite de filas."),
+    ("brave_estado", "Informa si hay clave de Brave Search configurada, sin revelar su valor."),
+    ("brave_probar", "Comprueba la conexión con Brave Search haciendo una búsqueda mínima."),
+    ("brave_buscar", "Busca en la web con Brave Search y devuelve título, URL y descripción."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -442,6 +480,158 @@ def _postgres(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+# --- Brave Search para tareas (CAP1119) ---
+# La clave se toma del entorno y solo viaja en la cabecera de la petición. Nunca
+# se escribe en el repo, se pasa por argv ni se devuelve en una respuesta o error.
+
+BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
+VARIABLES_BRAVE = ("BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY")
+_FRESCURAS = ("pd", "pw", "pm", "py")
+_SAFESEARCH = ("off", "moderate", "strict")
+
+
+def _variable_brave(entorno=None):
+    """PURA: nombre de la primera variable de Brave definida, nunca su valor."""
+    fuente = os.environ if entorno is None else entorno
+    for nombre in VARIABLES_BRAVE:
+        if (fuente.get(nombre) or "").strip():
+            return nombre
+    return None
+
+
+def _endpoint_brave(entorno=None):
+    """Permite inyectar un endpoint local en pruebas; por defecto, el de Brave."""
+    fuente = os.environ if entorno is None else entorno
+    return (fuente.get("STARSEED_BRAVE_ENDPOINT") or BRAVE_ENDPOINT).strip()
+
+
+def _parametros_brave(consulta, cuenta=5, pais=None, idioma=None, frescura=None,
+                      safesearch=None):
+    """PURA: valida la consulta y arma los parámetros de Brave Search."""
+    texto = str(consulta or "").strip()
+    if not texto:
+        raise ValueError("consulta es obligatoria")
+    if len(texto) > 400:
+        raise ValueError("consulta demasiado larga (máximo 400 caracteres)")
+    try:
+        tope = 5 if cuenta is None else int(cuenta)
+    except (TypeError, ValueError):
+        raise ValueError("cuenta debe ser un número entero (1-20)")
+    if not 1 <= tope <= 20:
+        raise ValueError("cuenta fuera de rango (1-20)")
+    parametros = {"q": texto, "count": str(tope)}
+    if pais:
+        codigo = str(pais).strip().upper()
+        if len(codigo) != 2:
+            raise ValueError("pais debe ser un código ISO de dos letras")
+        parametros["country"] = codigo
+    if idioma:
+        codigo = str(idioma).strip().lower()
+        if len(codigo) != 2:
+            raise ValueError("idioma debe ser un código de dos letras")
+        parametros["search_lang"] = codigo
+    if frescura:
+        if frescura not in _FRESCURAS:
+            raise ValueError("frescura debe ser pd, pw, pm o py")
+        parametros["freshness"] = frescura
+    if safesearch:
+        if safesearch not in _SAFESEARCH:
+            raise ValueError("safesearch debe ser off, moderate o strict")
+        parametros["safesearch"] = safesearch
+    return parametros
+
+
+def _url_brave(parametros, endpoint=None):
+    """PURA: URL absoluta con los parámetros escapados; nunca lleva la clave."""
+    return "%s?%s" % (endpoint or BRAVE_ENDPOINT, urlencode(parametros))
+
+
+def _normalizar_brave(datos, limite=None):
+    """PURA: deja solo título, URL y descripción de los resultados web."""
+    web = datos.get("web") if isinstance(datos, dict) else None
+    crudos = web.get("results") if isinstance(web, dict) else None
+    filas = []
+    for item in crudos or []:
+        if not isinstance(item, dict) or not item.get("url"):
+            continue
+        filas.append({
+            "titulo": str(item.get("title") or "").strip(),
+            "url": str(item.get("url")),
+            "descripcion": str(item.get("description") or "").strip()[:400],
+        })
+        if limite is not None and len(filas) >= limite:
+            break
+    return filas
+
+
+def _ejecutar_brave(url, clave, abrir=None, tope_s=15):
+    """Consulta Brave con la clave SOLO en la cabecera y tacha el valor de los errores."""
+    pedido = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "X-Subscription-Token": clave,
+        "User-Agent": "starseed-director/1.0",
+    })
+    correr = abrir or urllib.request.urlopen
+    try:
+        with correr(pedido, timeout=tope_s) as respuesta:
+            cuerpo = respuesta.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise ValueError("Brave rechazó la clave (401): revisa la variable de entorno")
+        if e.code == 429:
+            raise ValueError("Brave sin cuota ahora mismo (429): no reintentar en bucle")
+        raise ValueError(_sin_secreto("Brave respondió HTTP %s: %s" % (e.code, e.reason), clave))
+    except (urllib.error.URLError, OSError, TimeoutError) as fallo:
+        raise ValueError(_sin_secreto("Brave no respondió: %s" % type(fallo).__name__, clave))
+    try:
+        datos = json.loads(cuerpo)
+    except json.JSONDecodeError:
+        raise ValueError("Brave devolvió una respuesta que no es JSON")
+    if not isinstance(datos, dict):
+        raise ValueError("Brave devolvió una respuesta inesperada")
+    if isinstance(datos.get("error"), dict):
+        detalle = datos["error"].get("detail") or datos["error"].get("message")
+        raise ValueError(_sin_secreto(str(detalle or "error de Brave"), clave))
+    return datos
+
+
+def _brave(nombre, args):
+    """Despacha las herramientas brave-search; la clave nunca sale en la respuesta."""
+    variable = _variable_brave()
+    if nombre == "brave_estado":
+        return json.dumps({
+            "configurada": bool(variable),
+            "variable": variable,
+            "variables_aceptadas": list(VARIABLES_BRAVE),
+            "modo": "solo-consulta",
+            "endpoint": _endpoint_brave(),
+        }, ensure_ascii=False, indent=2, sort_keys=True)
+    if not variable:
+        raise ValueError("sin conexión: define una de %s" % ", ".join(VARIABLES_BRAVE))
+    clave = (os.environ.get(variable) or "").strip()
+    endpoint = _endpoint_brave()
+    if nombre == "brave_probar":
+        datos = _ejecutar_brave(
+            _url_brave(_parametros_brave("StarSeed OS", cuenta=1), endpoint), clave
+        )
+        total = len(_normalizar_brave(datos, 1))
+        return "Conexión OK con %s: %d resultado%s." % (
+            variable, total, "" if total == 1 else "s")
+    if nombre == "brave_buscar":
+        parametros = _parametros_brave(
+            args.get("consulta"), cuenta=args.get("cuenta"), pais=args.get("pais"),
+            idioma=args.get("idioma"), frescura=args.get("frescura"),
+            safesearch=args.get("safesearch"),
+        )
+        datos = _ejecutar_brave(_url_brave(parametros, endpoint), clave)
+        filas = _normalizar_brave(datos, int(parametros["count"]))
+        return json.dumps(
+            {"consulta": parametros["q"], "resultados": filas},
+            ensure_ascii=False, indent=2, sort_keys=True,
+        )
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
+
 # --- Producción: rutas inyectables y helpers (§9, fila MCP) ---
 
 _ESTADO_VACIO = {"lote": None, "candidatos": [], "medios": {}}
@@ -620,6 +810,8 @@ def _llamar(nombre, args):
         return _sqlite(nombre, args)
     if nombre.startswith("postgres_"):
         return _postgres(nombre, args)
+    if nombre.startswith("brave_"):
+        return _brave(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
