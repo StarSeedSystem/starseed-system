@@ -198,8 +198,9 @@ mod control_pantalla_escritorio; // CTL1117M · CTL1118L: macOS y Linux
 mod control_calidad_logica; // CTL1119C: bucle adaptativo, huella y vías de captura (puro)
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod control_captura; // CTL1118L · CTL1119C: la captura JPEG (XShm/xcap) que comparten macOS y Linux
-// CTL1118L: Linux (X11) como aparato controlado. La lógica pura se prueba en todas las plataformas.
-mod control_escritorio_linux_logica;
+#[cfg(any(target_os = "linux", test))]
+mod control_estado_linux_logica; // CTL1123A: lógica pura del estado (volumen, brillo, batería, red)
+mod control_escritorio_linux_logica; // CTL1118L: Linux (X11) como aparato controlado
 #[cfg(target_os = "linux")]
 mod control_entrada_linux; // CTL1118L
 #[cfg(target_os = "linux")]
