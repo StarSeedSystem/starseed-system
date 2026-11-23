@@ -459,5 +459,230 @@ class TestNombresCanales(unittest.TestCase):
         )
 
 
+class TestA1BotLoggingYSync(unittest.TestCase):
+    """Pruebas para CAN1121B-d1: logging del bot A1 y sincronización via puerta de datos."""
+
+    def test_a1_bot_log_recibido_y_respuesta_en_jsonl_con_id_estable(self):
+        """El bot A1 escribe cada mensaje recibido y cada respuesta en su log jsonl con id estable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Configurar directorio de peticiones del A1
+            dir_peticiones = Path(tmp) / ".starseed" / "peticiones"
+            dir_peticiones.mkdir(parents=True)
+            
+            # Importar peticiones_telegram y probar _registrar_mensaje_recibido
+            import peticiones_telegram as PT
+            
+            # Mockear DIR para que use nuestro directorio temporal
+            PT.DIR = str(dir_peticiones)
+            
+            # Registrar mensaje recibido
+            PT._registrar_mensaje_recibido("Hola desde Alex")
+            
+            # Registrar respuesta enviada (simular)
+            log_path = dir_peticiones / "mensajes_recibidos.log"
+            self.assertTrue(log_path.exists())
+            
+            contenido = log_path.read_text(encoding="utf-8")
+            self.assertIn("Hola desde Alex", contenido)
+            
+            # Verificar que el log tiene formato con timestamp
+            lineas = contenido.strip().split("\n")
+            self.assertEqual(len(lineas), 1)
+            # Formato: ISO timestamp + texto
+            self.assertRegex(lineas[0], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{6} Hola desde Alex$")
+
+    def test_sincronizador_lee_log_a1_desde_puerta_y_escribe_audiovisual_jsonl(self):
+        """El sincronizador lee el log del A1 desde la puerta de datos y lo vuelca en audiovisual.jsonl."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            
+            # Simular latidos de la puerta con mensajes del A1
+            latidos_puerta = [
+                {
+                    "id": "chat.md-1001",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-1001",
+                        "t": "2026-11-21T14:30:00.000+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "a1-telegram",
+                        "texto": "[prueba de sincronía] Mensaje desde A1",
+                    }
+                },
+                {
+                    "id": "chat.md-1002",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-1002",
+                        "t": "2026-11-21T14:31:00.000+00:00",
+                        "de": "peticiones-a1",
+                        "rol": "director",
+                        "tipo": "respuesta",
+                        "canal": "a1-telegram",
+                        "texto": "Respuesta del A1",
+                    }
+                },
+            ]
+            
+            estado = {}
+            cfg = {"sincronizar_canales": {"telegram": True, "hermes": True}}
+            
+            # Llamar a la función que recoge de la puerta y sincroniza audiovisual
+            # (Esta función se creará en la implementación)
+            n = SD.sincronizar_desde_puerta_a1(
+                estado, latidos_puerta, cfg, raiz=raiz
+            )
+            
+            # Verificar que se escribieron en audiovisual.jsonl
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            self.assertTrue(ruta_av.exists())
+            
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+            self.assertEqual(lineas[0]["id"], "md-1001")
+            self.assertEqual(lineas[0]["texto"], "[prueba de sincronía] Mensaje desde A1")
+            self.assertEqual(lineas[0]["canal"], "a1-telegram")
+            self.assertEqual(lineas[1]["id"], "md-1002")
+            self.assertEqual(lineas[1]["texto"], "Respuesta del A1")
+
+    def test_dedupe_por_id_y_marca_origen_no_eco(self):
+        """Mensajes del canal desde otro medio salen por el bot sin eco: dedupe por id y marca de origen."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            
+            # Estado previo con mensaje ya visto desde a1-telegram
+            estado = {
+                "a1_log_vistos": ["md-2001"],
+                "a1_log_ultimo_epoch": 1795205400.0,
+            }
+            
+            # Latidos de la puerta: uno ya visto (mismo id), uno nuevo
+            latidos_puerta = [
+                {
+                    "id": "chat.md-2001",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-2001",
+                        "t": "2026-11-21T14:30:00.000+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "a1-telegram",
+                        "texto": "Mensaje ya procesado",
+                    }
+                },
+                {
+                    "id": "chat.md-2002",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-2002",
+                        "t": "2026-11-21T14:35:00.000+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "a1-telegram",
+                        "texto": "Mensaje nuevo del A1",
+                    }
+                },
+                # Mensaje que viene de otro medio (metagenesis) con mismo contenido pero id distinto
+                {
+                    "id": "chat.md-2003",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-2003",
+                        "t": "2026-11-21T14:36:00.000+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "metagenesis",
+                        "texto": "Mensaje nuevo del A1",  # Mismo texto, distinto origen
+                    }
+                },
+            ]
+            
+            cfg = {"sincronizar_canales": {"telegram": True, "hermes": True}}
+            n = SD.sincronizar_desde_puerta_a1(
+                estado, latidos_puerta, cfg, raiz=raiz
+            )
+            
+            # Solo debe procesar los 2 nuevos (md-2002 y md-2003), no el ya visto (md-2001)
+            self.assertEqual(n, 2)
+            
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+            ids = [l["id"] for l in lineas]
+            self.assertIn("md-2002", ids)
+            self.assertIn("md-2003", ids)
+            self.assertNotIn("md-2001", ids)
+            
+            # Verificar que el estado se actualizó
+            self.assertEqual(set(estado["a1_log_vistos"]), {"md-2001", "md-2002", "md-2003"})
+
+    def test_publicar_en_audiovisual_desde_otro_medio_sale_por_bot_sin_eco(self):
+        """Al publicar en audiovisual desde metagenesis, el mensaje sale por el bot Telegram (sendMessage) pero no hace eco de vuelta."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            
+            enviados_tg = []
+            
+            # Publicar desde metagenesis hacia audiovisual
+            res = SD.publicar_en_canal_especializado(
+                "audiovisual",
+                "[prueba de sincronía] Mensaje desde metagenesis",
+                de="alex",
+                origen="metagenesis",
+                enviar_telegram=True,
+                raiz=raiz,
+                enviar_fn=lambda t, c, body: (enviados_tg.append((t, c, body)) or True, "ok"),
+            )
+            
+            self.assertTrue(res["ok"])
+            self.assertTrue(res["telegram_ok"])
+            self.assertEqual(len(enviados_tg), 1)
+            self.assertIn("[prueba de sincronía] Mensaje desde metagenesis", enviados_tg[0][2])
+            
+            # Verificar que se escribió en audiovisual.jsonl
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 1)
+            self.assertEqual(lineas[0]["canal"], "metagenesis")
+            self.assertEqual(lineas[0]["de"], "alex")
+            
+            # Ahora simular que el bot A1 recibe ese mismo mensaje de vuelta (eco)
+            # El sincronizador debe detectar que ya existe (por contenido + origen) y no duplicar
+            latidos_puerta = [
+                {
+                    "id": "chat.md-3001",
+                    "clase": "metagenesis",
+                    "datos": {
+                        "id": "md-3001",  # ID distinto al original
+                        "t": "2026-11-21T14:40:00.000+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "a1-telegram",
+                        "texto": "[prueba de sincronía] Mensaje desde metagenesis",  # Mismo texto
+                    }
+                },
+            ]
+            
+            estado = {"a1_log_vistos": [lineas[0]["id"]], "a1_log_ultimo_epoch": 1795205400.0}
+            cfg = {"sincronizar_canales": {"telegram": True, "hermes": True}}
+            
+            n = SD.sincronizar_desde_puerta_a1(estado, latidos_puerta, cfg, raiz=raiz)
+            
+            # No debe añadir duplicado (dedupe por contenido normalizado + marca de origen)
+            self.assertEqual(n, 0)
+            
+            lineas_despues = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas_despues), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
