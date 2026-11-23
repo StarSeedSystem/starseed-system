@@ -151,3 +151,5 @@ export type MotivoEncaje =
   | "sin-gpu"
   | "bateria"
   | "disco";
+
+export type { PerfilNeurona, EntradaPerfilNeurona } from "./perfil-neurona";
