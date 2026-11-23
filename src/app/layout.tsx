@@ -95,6 +95,9 @@ import { RealtimeSyncProvider } from "@/components/system/realtime-sync-provider
 // de la cuenta + radar de neuronas cercanas de otras cuentas. Ver src/lib/network/malla-neuronas.ts.
 import { MallaNeuronasMount } from "@/components/network/malla-neuronas-mount";
 import { PresenciaNeuronasMount } from "@/components/neurons/presencia-neuronas-mount";
+// Vector visual de la orbe (por cláusula o del motor 1.58b) publicado en el tema
+// `orb_params` de Supabase Realtime para que otras neuronas/agentes reaccionen.
+import { OrbeParamsPublisher } from "@/components/aurora/orbe-params-publisher";
 // (AN02) Motor de la retícula: se carga después del primer pintado y no arranca con la capa apagada.
 import { MotorCristalMountDiferido } from "@/components/malla/motor-cristal-mount-diferido";
 import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-app-host";
@@ -421,6 +424,8 @@ export default function RootLayout({
                         <MallaNeuronasMount />
                         <MotorCristalMountDiferido />
                         <PresenciaNeuronasMount />
+                        {/* Vector expresivo de la orbe → tema `orb_params` (y de vuelta al bus local). */}
+                        <OrbeParamsPublisher />
                         {/* App Omnifrecuencias en ventana del OS (escucha 'starseed:open-omnifrecuencias'). */}
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
                         {/* Estación en vivo sonando en todo el OS + puente postMessage con la app oficial. */}
