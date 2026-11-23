@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """PRU1118A · Pruebas de la lógica pura del conductor de pruebas de la malla.
 
-Cubre las costuras acordadas con el director: lectura de ventanas de tiempo,
+Cubiertas las costuras acordadas con el director: lectura de ventanas de tiempo,
 evaluación de criterios `debe`/`no_debe`, formato del informe, filtrado de la
 batería y las líneas del registro. Todo se prueba con registros de ejemplo:
 ninguna prueba lee logs reales, abre red ni ejecuta un aparato.
@@ -159,6 +159,71 @@ class TestPatrones:
         assert res["ok"] is True
         assert res["debe_cumplidos"] == 0
         assert res["no_debe_cumplidos"] == 0
+
+
+class TestPatronesRelevo:
+    """Patrones de registro para relevo (enlaces.log)."""
+
+    def test_web_relevo_tabla(self):
+        lineas = [
+            "2026-11-18T10:00:00.000Z web 2026-11-18T10:00:00.000Z web relevo - - tabla Maggaboard releva alcanza=b1",
+        ]
+        criterios = {
+            "debe": [r"web relevo - - tabla"],
+            "no_debe": [],
+        }
+        res = PM.evaluar_patrones(lineas, criterios)
+        assert res["ok"] is True
+
+    def test_web_relevo_entregado(self):
+        lineas = [
+            "2026-11-18T10:00:00.000Z web · relevo - - entregado destino=tableta",
+        ]
+        criterios = {
+            "debe": [r"entregado destino="],
+            "no_debe": [],
+        }
+        res = PM.evaluar_patrones(lineas, criterios)
+        assert res["ok"] is True
+
+    def test_web_relevo_sin_ruta_no_debe(self):
+        lineas = [
+            "2026-11-18T10:00:00.000Z web · relevo - - sin-ruta destino=tableta",
+        ]
+        criterios = {
+            "debe": [],
+            "no_debe": [r"sin-ruta"],
+        }
+        res = PM.evaluar_patrones(lineas, criterios)
+        assert res["ok"] is False
+
+
+class TestPatronesMensajeMalla:
+    """Patrones de registro para mensaje-malla (enlaces.log y control-neuronas.log)."""
+
+    def test_mensaje_malla_enviado_bluetooth(self):
+        lineas = [
+            "2026-11-18T10:00:00.000Z web · mensaje-malla · b1 · neurona aaa · enviado via=bluetooth",
+            "2026-11-18T10:00:01.000Z web · mensaje-malla · b1 · neurona aaa · entregado via=bluetooth",
+        ]
+        criterios = {
+            "debe": [r"mensaje-malla.*enviado via=bluetooth"],
+            "no_debe": [],
+        }
+        res = PM.evaluar_patrones(lineas, criterios)
+        assert res["ok"] is True
+
+    def test_mensaje_malla_malla(self):
+        lineas = [
+            "2026-11-18T10:00:00.000Z web · mensaje-malla · b1 · neurona aaa · enviado via=rele",
+            "2026-11-18T10:00:01.000Z web · mensaje-malla · b1 · neurona aaa · entregado via=turn",
+        ]
+        criterios = {
+            "debe": [r"mensaje-malla.*enviado via=(?:rele|turn|p2p-internet)"],
+            "no_debe": [],
+        }
+        res = PM.evaluar_patrones(lineas, criterios)
+        assert res["ok"] is True
 
 
 class TestInforme:
