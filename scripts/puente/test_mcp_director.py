@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import select
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -110,6 +111,8 @@ class PruebasAtender(unittest.TestCase):
                 "canal_decir",
                 "metagenesis_estado",
                 "metagenesis_orden",
+                "sqlite_consultar",
+                "sqlite_esquema",
             ],
         )
 
@@ -391,6 +394,100 @@ class PruebaProcesoReal(unittest.TestCase):
             finally:
                 proc.kill()
                 proc.wait()
+
+
+class PruebasSQLite(unittest.TestCase):
+    """Herramientas sqlite_* sobre una base temporal abierta en solo lectura."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ruta = os.path.join(self.tmp.name, "memoria.sqlite")
+        db = sqlite3.connect(self.ruta)
+        try:
+            db.execute("create table tareas (id integer primary key, titulo text)")
+            db.executemany(
+                "insert into tareas (titulo) values (?)",
+                [("una",), ("dos",), ("tres",)],
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _call(self, nombre, argumentos):
+        r = mcp_director.atender(
+            self._p("tools/call", {"name": nombre, "arguments": argumentos})
+        )
+        assert "error" not in r, r.get("error")
+        return r["result"]
+
+    def _p(self, metodo, params=None, ident=1):
+        peticion = {"jsonrpc": "2.0", "id": ident, "method": metodo}
+        if params is not None:
+            peticion["params"] = params
+        return peticion
+
+    def test_consultar_devuelve_filas(self):
+        r = self._call(
+            "sqlite_consultar",
+            {"ruta": self.ruta, "sql": "select * from tareas order by id"},
+        )
+        self.assertNotIn("isError", r, r)
+        datos = json.loads(r["content"][0]["text"])
+        self.assertEqual(datos["columnas"], ["id", "titulo"])
+        self.assertEqual([f["titulo"] for f in datos["filas"]], ["una", "dos", "tres"])
+
+    def test_consultar_respeta_limite(self):
+        r = self._call(
+            "sqlite_consultar",
+            {"ruta": self.ruta, "sql": "select * from tareas", "limite": 2},
+        )
+        datos = json.loads(r["content"][0]["text"])
+        self.assertEqual(datos["devueltas"], 2)
+        self.assertEqual(len(datos["filas"]), 2)
+
+    def test_consultar_rechaza_escritura(self):
+        r = self._call(
+            "sqlite_consultar", {"ruta": self.ruta, "sql": "delete from tareas"}
+        )
+        self.assertTrue(r["isError"])
+        self.assertIn("solo consultas de lectura", r["content"][0]["text"])
+
+    def test_consultar_rechaza_varias_sentencias(self):
+        r = self._call(
+            "sqlite_consultar",
+            {"ruta": self.ruta, "sql": "select 1; drop table tareas"},
+        )
+        self.assertTrue(r["isError"])
+        self.assertIn("una sentencia", r["content"][0]["text"])
+
+    def test_consultar_ruta_inexistente(self):
+        r = self._call(
+            "sqlite_consultar",
+            {"ruta": os.path.join(self.tmp.name, "no.sqlite"), "sql": "select 1"},
+        )
+        self.assertTrue(r["isError"])
+        self.assertIn("no existe", r["content"][0]["text"])
+
+    def test_esquema_lista_tablas_y_columnas(self):
+        r = self._call("sqlite_esquema", {"ruta": self.ruta})
+        self.assertNotIn("isError", r, r)
+        texto = r["content"][0]["text"]
+        self.assertIn("table tareas", texto)
+        self.assertIn("titulo TEXT", texto)
+
+    def test_la_base_sigue_intacta_tras_intento_de_escritura(self):
+        self._call(
+            "sqlite_consultar", {"ruta": self.ruta, "sql": "delete from tareas"}
+        )
+        db = sqlite3.connect(self.ruta)
+        try:
+            total = db.execute("select count(*) from tareas").fetchone()[0]
+        finally:
+            db.close()
+        self.assertEqual(total, 3)
 
 
 if __name__ == "__main__":

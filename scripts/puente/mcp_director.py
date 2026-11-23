@@ -14,10 +14,12 @@ STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -29,7 +31,8 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
-    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada."
+    "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada y consulta "
+    "bases SQLite locales en solo lectura (esquema y select)."
 )
 
 
@@ -54,6 +57,10 @@ _P_ORDEN = _s(
     enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
+_P_RUTA_SQLITE = _s("string", "Ruta del archivo SQLite; se abre en solo lectura.")
+_P_SQL = _s(
+    "string", "Consulta de lectura: select, with, pragma o explain (una sola sentencia)."
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -132,6 +139,11 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "sqlite_consultar": _esquema(
+        {"ruta": _P_RUTA_SQLITE, "sql": _P_SQL, "limite": _P_LIMITE},
+        ["ruta", "sql"],
+    ),
+    "sqlite_esquema": _esquema({"ruta": _P_RUTA_SQLITE}, ["ruta"]),
 }
 
 _HERR = [
@@ -149,6 +161,8 @@ _HERR = [
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
     ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
+    ("sqlite_consultar", "Consulta en solo lectura una base SQLite local (select, with, pragma o explain)."),
+    ("sqlite_esquema", "Lista tablas, vistas y columnas de una base SQLite local."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -226,6 +240,84 @@ def _limite(args, defecto=20):
     if not 1 <= limite <= 200:
         raise ValueError("limite fuera de rango (1-200): %d" % limite)
     return limite
+
+
+# --- SQLite: consulta de solo lectura sobre bases locales ---
+
+
+def _ruta_sqlite(valor):
+    """Ruta absoluta de una base existente; se abre siempre en solo lectura."""
+    texto = str(valor or "").strip()
+    if not texto:
+        raise ValueError("la ruta de la base SQLite es obligatoria")
+    ruta = os.path.abspath(os.path.expanduser(texto))
+    if not os.path.isfile(ruta):
+        raise ValueError("no existe la base SQLite: %s" % ruta)
+    return ruta
+
+
+def _conectar_sqlite(ruta):
+    return sqlite3.connect("file:%s?mode=ro" % quote(ruta), uri=True, timeout=5.0)
+
+
+def _sql_lectura(sql):
+    limpio = str(sql or "").strip().rstrip(";").strip()
+    if not limpio:
+        raise ValueError("la consulta SQL es obligatoria")
+    if ";" in limpio:
+        raise ValueError("solo se admite una sentencia por consulta")
+    if limpio.split(None, 1)[0].lower() not in ("select", "with", "pragma", "explain"):
+        raise ValueError("solo consultas de lectura (select, with, pragma, explain)")
+    return limpio
+
+
+def _citar_identificador(nombre):
+    return '"%s"' % str(nombre).replace('"', '""')
+
+
+def _sqlite_consultar(args):
+    ruta = _ruta_sqlite(args.get("ruta"))
+    sql = _sql_lectura(args.get("sql"))
+    limite = _limite(args, defecto=50)
+    conexion = _conectar_sqlite(ruta)
+    try:
+        conexion.row_factory = sqlite3.Row
+        cursor = conexion.execute(sql)
+        columnas = [d[0] for d in cursor.description or ()]
+        filas = [dict(f) for f in cursor.fetchmany(limite)]
+    finally:
+        conexion.close()
+    if not columnas:
+        return "La consulta no devolvió columnas."
+    datos = {
+        "ruta": ruta,
+        "columnas": columnas,
+        "devueltas": len(filas),
+        "filas": filas,
+    }
+    return json.dumps(datos, ensure_ascii=False, indent=2, default=str)
+
+
+def _sqlite_esquema(args):
+    ruta = _ruta_sqlite(args.get("ruta"))
+    conexion = _conectar_sqlite(ruta)
+    try:
+        objetos = conexion.execute(
+            "select name, type from sqlite_master where type in ('table', 'view') "
+            "and name not like 'sqlite_%' order by name"
+        ).fetchall()
+        lineas = []
+        for nombre, tipo in objetos:
+            columnas = conexion.execute(
+                "pragma table_info(%s)" % _citar_identificador(nombre)
+            ).fetchall()
+            detalle = ", ".join("%s %s" % (c[1], c[2] or "") for c in columnas)
+            lineas.append("%s %s(%s)" % (tipo, nombre, detalle))
+    finally:
+        conexion.close()
+    if not lineas:
+        return "La base no tiene tablas ni vistas."
+    return "\n".join(lineas)
 
 
 def _estado():
@@ -473,6 +565,10 @@ def _llamar(nombre, args):
             "ultimo_ci": ultimo_ci,
         }
         return json.dumps(resultado, ensure_ascii=False, indent=2, sort_keys=True)
+    if nombre == "sqlite_consultar":
+        return _sqlite_consultar(args)
+    if nombre == "sqlite_esquema":
+        return _sqlite_esquema(args)
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
