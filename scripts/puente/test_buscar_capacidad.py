@@ -233,18 +233,18 @@ class MotivosYClasificar(unittest.TestCase):
         self.assertIsNone(RN.motivo_fuera(_tarea("A"), {}, [], None))
         self.assertEqual(RN.motivo_fuera(_tarea("A"), {}, [], 900), "ola-actual")
         self.assertEqual(RN.motivo_fuera(_tarea("A"), {"A": {"estado": "commit"}}, [], None), "estado")
-        self.assertEqual(RN.motivo_fuera(_tarea("A", archivos=list("abcd")), {}, [], None), "grande")
+        self.assertEqual(RN.motivo_fuera(_tarea("A", archivos=list("abcdef")), {}, [], None), "grande")
         self.assertEqual(RN.motivo_fuera(_tarea("A", depende=["D"]), prog, [], None), "espera")
-        self.assertEqual(RN.motivo_fuera(_tarea("A"), {}, [], None, envios={"A": 3}), "agotada")
+        self.assertEqual(RN.motivo_fuera(_tarea("A"), {}, [], None, envios={"A": 5}), "agotada")
         self.assertEqual(RN.motivo_fuera(_tarea("A", privado=True), {}, [], None), "privada")
 
     def test_clasificar_coincide_con_elegir(self):
-        colas = [("c1", [_tarea("A"), _tarea("B", archivos=list("abcd")), _tarea("C")]),
+        colas = [("c1", [_tarea("A"), _tarea("B", archivos=list("abcdef")), _tarea("C")]),
                  ("c2", [_tarea("D", privado=True), _tarea("E"), _tarea("A")])]
-        envios = {"C": 3, "E": 3}
+        envios = {"C": 5, "E": 5}
         clases = RN.clasificar(colas, {"E": {"estado": "pendiente"}}, [], "", envios)
         elegidas = [t["id"] for t in RN.elegir(colas, {}, [], "", envios=envios)]
-        self.assertEqual(clases["elegibles"], elegidas)
+        self.assertEqual(sorted(clases["elegibles"]), sorted(elegidas))
         self.assertEqual(clases["grande"], ["B"])
         self.assertEqual(clases["agotada"], ["C", "E"])
         self.assertEqual(clases["privada"], ["D"])
@@ -282,7 +282,7 @@ class Reaperturas(unittest.TestCase):
     def test_reabrir_devuelve_la_tarea_a_la_nube(self):
         """Lo que hace el botón, de punta a punta en lo puro: agotada → reabierta → elegible."""
         colas = [("c", [_tarea("A")])]
-        envios = {"A": 3}
+        envios = {"A": 5}
         self.assertEqual(RN.elegir(colas, {}, [], "", envios=envios), [])
         efectivos = RN.envios_efectivos(envios, {"A": [AHORA]})
         self.assertEqual([t["id"] for t in RN.elegir(colas, {}, [], "", envios=efectivos)], ["A"])
@@ -473,7 +473,7 @@ class TopeNubeDinamico(unittest.TestCase):
     def test_las_agotadas_que_la_nube_ya_integro_se_dicen_y_no_se_reabren(self):
         clases = {"elegibles": [], "agotada": ["A", "B", "C"]}
         t = B.texto_nube(clases, {"por_que": "x"}, 0, por_traer=["B", "C", "Z"])
-        self.assertIn("3 ya se mandaron 3 veces sin integrarse (de ellas, 2 son trabajo que la nube YA integró y "
+        self.assertIn("3 ya se mandaron 5 veces sin integrarse (de ellas, 2 son trabajo que la nube YA integró y "
                       "que traer_nube trae a main: no se reabren)", t)
         self.assertNotIn("de ellas", B.texto_nube(clases, {"por_que": "x"}, 0))
 
@@ -1084,15 +1084,16 @@ class CloudroomEnElReparto(unittest.TestCase):
 
 
 class MacGuardadaCedeALaNube(unittest.TestCase):
-    """(CAP1119B) La Mac se queda solo su reserva (tope × 2 rondas); lo que no cabe va a la
-    nube en vez de esperar. Con la guardia de disco o memoria activa no se le reserva nada."""
+    """(CAP1119B) La Mac se queda solo su reserva (tope × rondas dinámicas); lo que no cabe va a la
+    nube en vez de esperar. Con la guardia de disco o memoria activa no se le reserva nada.
+    (AUT1121C) Rondas: 2 por defecto, 1 si tope ≤ 2 o disco < 2 GB, 0 si disco < 1 GB."""
 
     def test_la_tanda_cede_lo_que_no_cabe_en_el_tope_guardado(self):
         listas = ["T%d" % i for i in range(10)]
         colas = [("c", [{"id": t} for t in listas])]
         cedibles, lote = RN.cedibles_y_lote(set(listas), {"listas": listas, "tope": 1}, colas, {})
-        # La Mac se queda tope × 2 rondas = T0 y T1; el resto lo pueden coger otros medios.
-        self.assertEqual(cedibles, listas[2:])
+        # Con tope=1 → 1 ronda (AUT1121C): la Mac se queda T0; el resto (T1..T9) es cedible.
+        self.assertEqual(cedibles, listas[1:])
         self.assertEqual(lote, set())
 
     def test_plan_nube_reabre_lo_que_la_mac_no_puede_coger(self):

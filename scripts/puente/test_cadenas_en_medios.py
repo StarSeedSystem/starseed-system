@@ -100,13 +100,13 @@ class CadenasEnLosDosMedios(unittest.TestCase):
         salida, clasificar = self._boton()
         self.assertEqual([v[0] for v in self.vistas], ["botón"])
         _medio, cedibles, lote = self.vistas[0]
-        self.assertEqual(cedibles, ["S1", "CA", "CB", "DA", "DB", "DC"])
+        self.assertEqual(cedibles, ["R2", "S1", "CA", "CB", "DA", "DB", "DC"])
         self.assertEqual(lote, {"CA", "CB", "DA", "DB", "DC"})
         self.assertEqual(clasificar.call_args.kwargs["mismo_lote"], lote)
         mac = salida["mac"]
-        self.assertEqual((mac["cedibles"], mac["en_cadenas"], mac["cadenas"], mac["se_queda"]), (cedibles, 5, 2, 2))
+        self.assertEqual((mac["cedibles"], mac["en_cadenas"], mac["cadenas"], mac["se_queda"]), (cedibles, 5, 2, 1))
         texto = B.texto_nube(salida["clases"], {"por_que": ""}, 0, mac=mac)
-        self.assertIn("se queda 2 para sus próximas rondas y cede 6: 1 suelta(s) y 2 cadenas enteras (5 tareas)",
+        self.assertIn("se queda 1 para sus próximas rondas y cede 7: 2 suelta(s) y 2 cadenas enteras (5 tareas)",
                       texto)
 
     def test_el_prestamo_al_a1_usa_la_funcion_comun_y_no_parte_cadenas(self):
