@@ -459,5 +459,360 @@ class TestNombresCanales(unittest.TestCase):
         )
 
 
+class TestSincronizadorA1Bot(unittest.TestCase):
+    """Pruebas para la sincronización del bot del A1 (@StarSeed_Design_bot) hacia audiovisual.jsonl."""
+
+    def test_sincronizar_desde_a1_bot_siembra_inicial_y_nuevos_entran(self):
+        """Primera pasada siembra cursor (0 importados); mensajes nuevos entran en la siguiente."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            estado = {}
+            cfg = {"sincronizar_canales": {"hermes": True, "telegram": True}}
+
+            # Primera pasada: mensajes "antiguos" - solo siembra cursor
+            latidos_puerta_inicial = [
+                {
+                    "id": "chat.md-1001",
+                    "datos": {
+                        "id": "md-1001",
+                        "t": "2026-11-21T10:00:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Mensaje antiguo para siembra",
+                    }
+                },
+            ]
+
+            def pedir_puerta_inicial():
+                return latidos_puerta_inicial
+
+            n0 = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta_inicial
+            )
+            self.assertEqual(n0, 0)  # Siembra inicial: no importa
+
+            # Segunda pasada: mensajes nuevos
+            latidos_puerta_nuevos = [
+                {
+                    "id": "chat.md-1002",
+                    "datos": {
+                        "id": "md-1002",
+                        "t": "2026-11-21T10:01:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Hola desde Telegram al bot de diseño",
+                    }
+                },
+                {
+                    "id": "chat.md-1003",
+                    "datos": {
+                        "id": "md-1003",
+                        "t": "2026-11-21T10:02:00+00:00",
+                        "de": "peticiones-a1",
+                        "rol": "sistema",
+                        "tipo": "respuesta",
+                        "canal": "mando",
+                        "texto": "Recibido ✓ Lo atiende MetaGenesis en el A1",
+                    }
+                },
+            ]
+
+            def pedir_puerta_nuevos():
+                return latidos_puerta_nuevos
+
+            n1 = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta_nuevos
+            )
+            self.assertEqual(n1, 2)
+
+            # Verificar que se escribió en audiovisual.jsonl
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            self.assertTrue(ruta_av.exists())
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+            self.assertEqual(lineas[0]["id"], "md-1002")
+            self.assertEqual(lineas[0]["de"], "alex")
+            self.assertEqual(lineas[0]["canal"], "telegram")
+            self.assertEqual(lineas[1]["id"], "md-1003")
+            self.assertEqual(lineas[1]["de"], "peticiones-a1")
+            self.assertEqual(lineas[1]["canal"], "mando")
+            # Marca de origen para dedupe
+            self.assertEqual(lineas[0].get("origen_sync"), "a1")
+            self.assertEqual(lineas[1].get("origen_sync"), "a1")
+
+    def test_sincronizar_desde_a1_bot_dedupe_por_id_y_origen(self):
+        """No duplica mensajes ya presentes (dedupe por id y marca de origen)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            estado = {}
+            cfg = {"sincronizar_canales": {"hermes": True, "telegram": True}}
+
+            # Primera pasada: siembra
+            latidos_puerta_siembra = [
+                {
+                    "id": "chat.md-2001",
+                    "datos": {
+                        "id": "md-2001",
+                        "t": "2026-11-21T10:00:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Mensaje para siembra",
+                    }
+                },
+            ]
+
+            def pedir_puerta_siembra():
+                return latidos_puerta_siembra
+
+            n0 = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta_siembra
+            )
+            self.assertEqual(n0, 0)
+
+            # Segunda pasada: dos mensajes nuevos
+            latidos_puerta_1 = [
+                {
+                    "id": "chat.md-2002",
+                    "datos": {
+                        "id": "md-2002",
+                        "t": "2026-11-21T10:01:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Mensaje 1",
+                    }
+                },
+                {
+                    "id": "chat.md-2003",
+                    "datos": {
+                        "id": "md-2003",
+                        "t": "2026-11-21T10:02:00+00:00",
+                        "de": "peticiones-a1",
+                        "rol": "sistema",
+                        "tipo": "respuesta",
+                        "canal": "mando",
+                        "texto": "Respuesta 1",
+                    }
+                },
+            ]
+
+            def pedir_puerta_1():
+                return latidos_puerta_1
+
+            n1 = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta_1
+            )
+            self.assertEqual(n1, 2)
+
+            # Tercera pasada: mismo mensaje + uno nuevo (simula reenvío por la puerta)
+            latidos_puerta_2 = [
+                {
+                    "id": "chat.md-2002",
+                    "datos": {
+                        "id": "md-2002",
+                        "t": "2026-11-21T10:01:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Mensaje 1",
+                    }
+                },
+                {
+                    "id": "chat.md-2004",
+                    "datos": {
+                        "id": "md-2004",
+                        "t": "2026-11-21T10:03:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Mensaje 3 (nuevo)",
+                    }
+                },
+            ]
+
+            def pedir_puerta_2():
+                return latidos_puerta_2
+
+            n2 = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta_2
+            )
+            self.assertEqual(n2, 1)  # Solo el nuevo
+
+            # Verificar que solo hay 3 mensajes en total (2002, 2003, 2004)
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 3)
+            ids = [l["id"] for l in lineas]
+            self.assertEqual(ids, ["md-2002", "md-2003", "md-2004"])
+
+    def test_sincronizar_desde_a1_bot_filtra_solo_relevantes_audiovisual(self):
+        """Solo sincroniza mensajes relevantes para el canal audiovisual."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            estado = {}
+            cfg = {"sincronizar_canales": {"hermes": True, "telegram": True}}
+
+            # Siembra
+            latidos_siembra = [
+                {"id": "chat.md-3000", "datos": {"id": "md-3000", "t": "2026-11-21T09:00:00+00:00", "de": "alex", "rol": "alex", "tipo": "mensaje", "canal": "telegram", "texto": "siembra"}}
+            ]
+            def pedir_siembra(): return latidos_siembra
+            SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, pedir_puerta=pedir_siembra)
+
+            # Mensajes mixtos: algunos relevantes, otros no
+            latidos_puerta = [
+                {
+                    "id": "chat.md-3001",
+                    "datos": {
+                        "id": "md-3001",
+                        "t": "2026-11-21T10:00:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "telegram",
+                        "texto": "Desde Alex al bot (relevante)",
+                    }
+                },
+                {
+                    "id": "chat.md-3002",
+                    "datos": {
+                        "id": "md-3002",
+                        "t": "2026-11-21T10:01:00+00:00",
+                        "de": "peticiones-a1",
+                        "rol": "sistema",
+                        "tipo": "respuesta",
+                        "canal": "mando",
+                        "texto": "Respuesta del bot A1 (relevante)",
+                    }
+                },
+                {
+                    "id": "chat.md-3003",
+                    "datos": {
+                        "id": "md-3003",
+                        "t": "2026-11-21T10:02:00+00:00",
+                        "de": "director-capacidad",
+                        "rol": "director",
+                        "tipo": "informe",
+                        "canal": "mando",
+                        "texto": "Informe de capacidad (NO relevante para audiovisual)",
+                    }
+                },
+                {
+                    "id": "chat.md-3004",
+                    "datos": {
+                        "id": "md-3004",
+                        "t": "2026-11-21T10:03:00+00:00",
+                        "de": "alex",
+                        "rol": "alex",
+                        "tipo": "mensaje",
+                        "canal": "director-presidente",
+                        "texto": "Mensaje en canal principal (NO relevante para audiovisual)",
+                    }
+                },
+            ]
+
+            def pedir_puerta():
+                return latidos_puerta
+
+            n = SD.sincronizar_desde_a1_bot(
+                estado, cfg, raiz=raiz, pedir_puerta=pedir_puerta
+            )
+            self.assertEqual(n, 2)  # Solo los 2 relevantes
+
+            ruta_av = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta_av.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+            textos = [l["texto"] for l in lineas]
+            self.assertIn("Desde Alex al bot (relevante)", textos)
+            self.assertIn("Respuesta del bot A1 (relevante)", textos)
+            for l in lineas:
+                self.assertEqual(l.get("origen_sync"), "a1")
+
+
+class TestBotLogA1(unittest.TestCase):
+    """Pruebas para el log local del bot del A1 (jsonl 600, id estable)."""
+
+    def test_registrar_mensaje_entrante_y_saliente_escribe_jsonl(self):
+        """Entradas y salidas se registran en bot-log.jsonl con id estable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Redirigir DIR a directorio temporal
+            import scripts.puente.peticiones_telegram as PT
+            original_dir = PT.DIR
+            PT.DIR = tmp
+            PT.BOT_LOG = os.path.join(tmp, "bot-log.jsonl")
+            try:
+                # Registrar mensaje entrante
+                PT.registrar_mensaje_entrante(12345, "Hola bot", {"id": 123, "username": "alex"})
+                # Registrar mensaje saliente
+                PT.registrar_mensaje_saliente("Recibido ✓", origen="bot")
+
+                # Leer y verificar
+                with open(PT.BOT_LOG, "r", encoding="utf-8") as f:
+                    lineas = [json.loads(l) for l in f if l.strip()]
+                self.assertEqual(len(lineas), 2)
+                # Entrada
+                self.assertEqual(lineas[0]["direccion"], "entrante")
+                self.assertEqual(lineas[0]["update_id"], 12345)
+                self.assertEqual(lineas[0]["texto"], "Hola bot")
+                self.assertEqual(lineas[0]["from"], "123")
+                self.assertTrue(lineas[0]["id"].startswith("bl-"))
+                # Salida
+                self.assertEqual(lineas[1]["direccion"], "saliente")
+                self.assertEqual(lineas[1]["origen"], "bot")
+                self.assertEqual(lineas[1]["texto"], "Recibido ✓")
+                self.assertTrue(lineas[1]["id"].startswith("bl-"))
+            finally:
+                PT.DIR = original_dir
+                PT.BOT_LOG = os.path.join(original_dir, "bot-log.jsonl")
+
+    def test_bot_log_max_600_entradas(self):
+        """El log mantiene máximo 600 entradas (rotación)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            import scripts.puente.peticiones_telegram as PT
+            original_dir = PT.DIR
+            PT.DIR = tmp
+            PT.BOT_LOG = os.path.join(tmp, "bot-log.jsonl")
+            PT.BOT_LOG_MAX_ENTRIES = 10  # Reducir para prueba
+            try:
+                for i in range(15):
+                    PT.registrar_mensaje_entrante(i, f"msg{i}", {"id": i})
+
+                with open(PT.BOT_LOG, "r", encoding="utf-8") as f:
+                    lineas = [json.loads(l) for l in f if l.strip()]
+                self.assertEqual(len(lineas), 10)  # Solo las últimas 10
+                # Verificar que son las últimas 10 (5 a 14)
+                self.assertEqual(lineas[0]["update_id"], 5)
+                self.assertEqual(lineas[-1]["update_id"], 14)
+            finally:
+                PT.DIR = original_dir
+                PT.BOT_LOG = os.path.join(original_dir, "bot-log.jsonl")
+                PT.BOT_LOG_MAX_ENTRIES = 600
+
+    def test_bot_log_permisos_600(self):
+        """El archivo de log tiene permisos 600."""
+        with tempfile.TemporaryDirectory() as tmp:
+            import scripts.puente.peticiones_telegram as PT
+            original_dir = PT.DIR
+            PT.DIR = tmp
+            PT.BOT_LOG = os.path.join(tmp, "bot-log.jsonl")
+            try:
+                PT.registrar_mensaje_entrante(1, "test", {})
+                import stat
+                st = os.stat(PT.BOT_LOG)
+                self.assertEqual(stat.S_IMODE(st.st_mode), 0o600)
+            finally:
+                PT.DIR = original_dir
+                PT.BOT_LOG = os.path.join(original_dir, "bot-log.jsonl")
+
+
 if __name__ == "__main__":
     unittest.main()

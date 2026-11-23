@@ -1159,11 +1159,16 @@ def sincronizar_todos_los_canales(
         raiz=raiz,
         enviar_tg=True,
     )
+
+    # Canal 3 bis: sincroniza mensajes del bot del A1 (@StarSeed_Design_bot) vía puerta de datos.
+    n_a1_bot = sincronizar_desde_a1_bot(estado, cfg, raiz=raiz)
+
     return {
         "principal_hermes": n_hermes_prin,
         "principal_maggacortex": n_magga,
         "general": n_general,
         "audiovisual": n_audiovisual,
+        "a1_bot": n_a1_bot,
     }
 
 
@@ -1298,6 +1303,161 @@ def espejar_a_telegram_direccion(
         estado["telegram_dir_ultimo_epoch"] = ultimo_epoch
     estado["telegram_dir_fallos"] = fallos
     return enviados
+
+
+def sincronizar_desde_a1_bot(
+    estado: Dict[str, Any],
+    cfg: Optional[Dict[str, Any]] = None,
+    raiz: Optional[Path] = None,
+    pedir_puerta: Optional[Callable[[], List[Dict[str, Any]]]] = None,
+) -> int:
+    """Sincroniza mensajes del bot del A1 (@StarSeed_Design_bot) hacia `audiovisual.jsonl`.
+
+    Lee latidos de la puerta de datos (fuente `puente:peticiones`) que contienen mensajes
+    del chat del A1. Filtra los relevantes para el canal audiovisual y los escribe en
+    `director/audiovisual.jsonl` con deduplicación por `id` y marca de origen `a1`.
+
+    Args:
+        estado: Diccionario de estado persistente (mantiene `a1_bot_vistos` y `a1_bot_ultimo_epoch`).
+        cfg: Configuración con `sincronizar_canales`.
+        raiz: Raíz del repo (para pruebas).
+        pedir_puerta: Función que devuelve lista de latidos de la puerta. En producción usa
+            `director_chat.recoger_puerta`; en pruebas se inyecta.
+
+    Returns:
+        Número de mensajes nuevos sincronizados.
+    """
+    sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
+    if not sync_cfg.get("telegram", True):
+        return 0
+    if pedir_puerta is None:
+        if director_chat.en_pruebas() or raiz is not None:
+            return 0
+        try:
+            latidos = director_chat.recoger_puerta()
+        except Exception:
+            return 0
+    else:
+        latidos = pedir_puerta()
+
+    if not latidos:
+        return 0
+
+    def _a_segundos(val: float) -> float:
+        return (val / 1000.0) if val > 1e11 else val
+
+    def _epoch_reg(reg: Dict[str, Any]) -> float:
+        try:
+            return _a_segundos(float(director_chat._epoch_de(reg) or 0.0))
+        except Exception:
+            return 0.0
+
+    if "a1_bot_vistos" not in estado:
+        vistos_inicial: List[str] = []
+        vistos_set_init = set()
+        max_ep = 0.0
+        for l in latidos:
+            if not isinstance(l, dict):
+                continue
+            datos = l.get("datos")
+            if not isinstance(datos, dict):
+                continue
+            ident = str(datos.get("id") or "")
+            if ident and ident not in vistos_set_init:
+                vistos_set_init.add(ident)
+                vistos_inicial.append(ident)
+            ep = _epoch_reg(datos)
+            if ep > max_ep:
+                max_ep = ep
+        estado["a1_bot_vistos"] = vistos_inicial[-2500:]
+        if max_ep > 0:
+            estado["a1_bot_ultimo_epoch"] = max_ep
+        return 0
+
+    vistos_ordenados: List[str] = []
+    vistos: set[str] = set()
+    for x in estado.get("a1_bot_vistos") or []:
+        s = str(x or "")
+        if s and s not in vistos:
+            vistos.add(s)
+            vistos_ordenados.append(s)
+
+    def _marcar_visto(ident_msg: str) -> None:
+        if ident_msg and ident_msg not in vistos:
+            vistos.add(ident_msg)
+            vistos_ordenados.append(ident_msg)
+
+    ruta_jsonl = _archivo_canal_jsonl("audiovisual", raiz=raiz)
+    recientes = _leer_jsonl_canal(ruta_jsonl, limite=200)
+    huellas_locales = {
+        (r.get("id"), r.get("origen_sync"))
+        for r in recientes
+        if isinstance(r, dict) and r.get("id")
+    }
+
+    ultimo_epoch = _a_segundos(float(estado.get("a1_bot_ultimo_epoch") or 0.0))
+    corte_antiguedad = (time.time() - 600.0) if pedir_puerta is None else 0.0
+    importados = 0
+
+    for l in latidos:
+        if not isinstance(l, dict):
+            continue
+        datos = l.get("datos")
+        if not isinstance(datos, dict):
+            continue
+        ident = str(datos.get("id") or "")
+        if not ident:
+            continue
+        if (ident, "a1") in huellas_locales or ident in vistos:
+            _marcar_visto(ident)
+            continue
+        ep = _epoch_reg(datos)
+        if (ultimo_epoch > 0 and ep > 0 and ep < ultimo_epoch - 2.0) or (corte_antiguedad > 0 and 0 < ep < corte_antiguedad):
+            _marcar_visto(ident)
+            continue
+        texto = str(datos.get("texto") or "").strip()
+        if not texto:
+            _marcar_visto(ident)
+            continue
+        de = str(datos.get("de") or "").strip()
+        rol = str(datos.get("rol") or "").strip()
+        tipo = str(datos.get("tipo") or "").strip()
+        canal = str(datos.get("canal") or "").strip()
+        modelo = datos.get("modelo")
+
+        # Filtrar: solo mensajes relevantes para el canal audiovisual
+        # - Mensajes de Alex desde Telegram (canal == "telegram" y de == "alex")
+        # - Respuestas del bot del A1 (de == "peticiones-a1")
+        # - Mensajes de directores en el canal "audiovisual" específicamente
+        es_alex_telegram = (de == "alex" and canal == "telegram")
+        es_bot_a1 = (de == "peticiones-a1")
+        es_director_audiovisual = (canal == "audiovisual")
+        if not (es_alex_telegram or es_bot_a1 or es_director_audiovisual):
+            _marcar_visto(ident)
+            continue
+
+        registro = {
+            "id": ident,
+            "t": round(time.time(), 3),
+            "de": de,
+            "rol": rol,
+            "tipo": tipo,
+            "canal": canal,
+            "modelo": modelo,
+            "texto": director_chat.tachar(texto),
+            "origen_sync": "a1",
+        }
+        _escribir_jsonl_canal("audiovisual", registro, raiz=raiz)
+        huellas_locales.add((ident, "a1"))
+        _marcar_visto(ident)
+        importados += 1
+        if ep > ultimo_epoch:
+            ultimo_epoch = ep
+
+    estado["a1_bot_vistos"] = vistos_ordenados[-2500:]
+    if ultimo_epoch > 0:
+        estado["a1_bot_ultimo_epoch"] = ultimo_epoch
+    return importados
 
 
 def main(argv: Optional[List[str]] = None) -> int:

@@ -87,6 +87,10 @@ MULTIFORMATO_INTERVALO_S = 15 * 60
 PREFERENCIAS = os.path.join(DIR, "preferencias.json")
 RUTINAS = os.path.join(DIR, "rutinas.json")
 
+# Registro local del bot A1: mensajes entrantes/salientes (jsonl, 600 entradas, id estable)
+BOT_LOG = os.path.join(DIR, "bot-log.jsonl")
+BOT_LOG_MAX_ENTRIES = 600
+
 bloqueo = threading.Lock()
 hay_trabajo = threading.Event()
 _puente_instancia = None
@@ -149,6 +153,68 @@ def escribir_json(ruta: str, datos: Any) -> None:
     with open(tmp, "w") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+def _nuevo_id_bot_log() -> str:
+    """Genera un ID estable para el log del bot: ms timestamp + 4 hex."""
+    return "bl-%d-%s" % (int(time.time() * 1000), uuid.uuid4().hex[:4])
+
+
+def _escribir_bot_log(registro: dict[str, Any]) -> None:
+    """Escribe una entrada en el log jsonl del bot (máx 600 entradas, permisos 600)."""
+    try:
+        os.makedirs(DIR, exist_ok=True)
+        # Leer entradas existentes para mantener solo las últimas 600
+        existentes: list[dict[str, Any]] = []
+        if os.path.exists(BOT_LOG):
+            with open(BOT_LOG, "r", encoding="utf-8") as f:
+                for linea in f:
+                    linea = linea.strip()
+                    if linea:
+                        try:
+                            existentes.append(json.loads(linea))
+                        except json.JSONDecodeError:
+                            pass
+        existentes.append(registro)
+        if len(existentes) > BOT_LOG_MAX_ENTRIES:
+            existentes = existentes[-BOT_LOG_MAX_ENTRIES:]
+        # Escribir atómicamente
+        tmp = BOT_LOG + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for r in existentes:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        os.replace(tmp, BOT_LOG)
+        try:
+            os.chmod(BOT_LOG, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        pass
+
+
+def registrar_mensaje_entrante(update_id: int, texto: str, from_user: dict[str, Any] | None = None) -> None:
+    """Registra un mensaje entrante de Telegram en el log local del bot."""
+    registro = {
+        "id": _nuevo_id_bot_log(),
+        "t": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "direccion": "entrante",
+        "update_id": update_id,
+        "from": str((from_user or {}).get("id") or ""),
+        "texto": texto[:4000],
+    }
+    _escribir_bot_log(registro)
+
+
+def registrar_mensaje_saliente(texto: str, origen: str = "bot") -> None:
+    """Registra un mensaje saliente del bot en el log local."""
+    registro = {
+        "id": _nuevo_id_bot_log(),
+        "t": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "direccion": "saliente",
+        "origen": origen,  # "bot", "puente", "comando", etc.
+        "texto": texto[:4000],
+    }
+    _escribir_bot_log(registro)
 
 
 # --- Preferencias y rutinas permanentes (PSF1113B) ---
@@ -355,6 +421,7 @@ def tg(metodo: str, datos: dict[str, Any] | None = None, timeout: int = 70) -> d
 
 
 def decir(texto: str) -> None:
+    registrar_mensaje_saliente(texto, origen="bot")
     for i in range(0, max(len(texto), 1), 3900):
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
@@ -1629,8 +1696,8 @@ def recibir(upd: dict[str, Any]) -> None:
     decir("Recibido ✓ Lo atiende MetaGenesis en el A1, sin la Mac ni Claude.")
     hay_trabajo.set()
     
-    # Registrar texto del mensaje (sin claves) en archivo privado
-    _registrar_mensaje_recibido(texto)
+    # Registrar mensaje entrante en el log jsonl del bot (id estable, 600 entradas)
+    registrar_mensaje_entrante(update_id, texto, m.get("from"))
     
     # Procesar reglas permanentes en try/except: un fallo NO pierde el mensaje
     try:
