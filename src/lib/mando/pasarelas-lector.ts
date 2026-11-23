@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
+import { ACCION_RECARGA, pideRecarga } from "@/lib/mando/director-datos";
+
+export { ACCION_RECARGA, PISTAS_RECARGA, pideRecarga } from "@/lib/mando/director-datos";
+
 export type EstadoPasarela = "escribe" | "sin_cupo" | "sin_clave" | "sin_canal"
     | "modelo_fuera" | "lenta" | "caida" | "fichaje";
 
@@ -17,20 +21,6 @@ export interface DatosPasarelas {
     estadoInforme: "actual" | "antiguo" | "ausente"; mensaje: string;
     medidoEn: string | null; medidoHaceMin: number | null;
     filas: FilaPasarela[];
-}
-
-/** (DIR1121I) Frases con las que una pasarela pide pagar para seguir. El estado sigue siendo
- *  `sin_cupo`, pero no es verdad que se reponga sola: hay que decidir si se recarga o se retira. */
-export const PISTAS_RECARGA = [
-    "top-up", "top up", "topup", "recharge", "insufficient balance", "balance is insufficient",
-    "pre-paid credits", "purchase credits", "buy credits", "add credits", "used all available credits",
-] as const;
-
-const ACCION_RECARGA = "Sin saldo: pide una recarga de pago; no se repone sola (decide Alex)";
-
-export function pideRecarga(mensaje: string | null | undefined): boolean {
-    const limpio = (mensaje ?? "").toLowerCase();
-    return PISTAS_RECARGA.some((pista) => limpio.includes(pista));
 }
 
 const SEIS_HORAS_MIN = 6 * 60;

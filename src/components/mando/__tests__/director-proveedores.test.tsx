@@ -43,6 +43,7 @@ describe("DirectorProveedores", () => {
     ];
     render(<DirectorProveedores proveedores={proveedores} />);
     expect(screen.queryByRole("link", { name: /check-in diario pendiente/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Sin saldo: pide una recarga de pago; no se repone sola (decide Alex)")).toBeInTheDocument();
   });
 
   it("un proveedor sin cupo muestra «sin cupo hasta HH:MM»", () => {
