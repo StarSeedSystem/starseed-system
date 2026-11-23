@@ -158,6 +158,23 @@ def prompt_con_permisos(prompt: str) -> str:
     return ficha_permisos() + "\n" + prompt
 
 
+def prompt_con_ficha(canal: str, prompt: str) -> str:
+    """PURA (DIR1121). Antepone la ficha única del canal, sin duplicarla si ya la lleva.
+
+    Es la MISMA ficha que recibe cualquier otro medio (Hermes, Antigravity, Codex,
+    Claude, cartero, Telegram, Astraura y el panel de MetaGenesis); aquí no se escribe
+    una copia distinta.
+    """
+    import fichas_canales
+
+    ficha = fichas_canales.texto_ficha(canal)
+    if not prompt:
+        return ficha
+    if fichas_canales.MARCA in prompt[:400]:
+        return prompt
+    return ficha + "\n" + prompt
+
+
 def mcp_config_director(raiz=None) -> dict:
     """PURA (ACC1121). Config MCP con la ÚNICA puerta de la dirección: `starseed-director`."""
     base = Path(raiz) if raiz else Path(__file__).resolve().parent
@@ -171,8 +188,14 @@ def mcp_config_director(raiz=None) -> dict:
     }
 
 
-def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> list:
+def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None,
+                 canal=None) -> list:
     permitidas, vetadas = permisos_del_presidente()
+    sistema = ficha_permisos()
+    if canal:
+        import fichas_canales
+
+        sistema += "\n" + fichas_canales.texto_ficha(canal)
     orden = [
         "claude",
         "-p",
@@ -188,8 +211,9 @@ def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> lis
         json.dumps(mcp_config_director(), ensure_ascii=False),
         # (ACC1121) La misma ficha que reciben Hermes, `agy` y Codex, aquí en el prompt de
         # sistema: no se duplica en el mensaje del usuario y el mensaje queda tal cual.
+        # (DIR1121) Con `canal`, la ficha única del canal viaja también en ese prompt.
         "--append-system-prompt",
-        ficha_permisos(),
+        sistema,
         "--allowedTools",
         *permitidas,
         "--disallowedTools",
@@ -240,10 +264,13 @@ def direccion_motor(ruta=None) -> dict:
 
 
 def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None,
-                 con_permisos=False) -> list:
+                 con_permisos=False, canal=None) -> list:
     # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Dirección MetaGenesis»).
     # (ACC1121) `con_permisos=True` le da la MISMA ficha que a Claude: Hermes no tiene
     # `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
+    # (DIR1121) `canal` añade la ficha única de ese canal, idéntica a la de los demás medios.
+    if canal:
+        prompt = prompt_con_ficha(canal, prompt)
     if con_permisos:
         prompt = prompt_con_permisos(prompt)
     orden = ["hermes"] + (["--resume", sesion] if sesion else []) + ["-z", prompt]
@@ -705,13 +732,17 @@ _AGY_PERMISOS = (
 _AGY_TOPE_FALLO = 600
 
 
-def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True) -> list:
+def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True,
+              canal=None) -> list:
     """La orden de `agy` con la sesión de Google de Alex (100 % headless sin GUI).
 
     `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
     (ACC1121) `con_permisos` (encendido) le da la MISMA ficha que a Claude: `agy` no tiene
     `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
+    (DIR1121) `canal` añade la ficha única del canal, la misma que en los demás medios.
     """
+    if canal:
+        prompt = prompt_con_ficha(canal, prompt)
     if con_permisos:
         prompt = prompt_con_permisos(prompt)
     segundos = int(segundos or SEGUNDOS_AGY)
