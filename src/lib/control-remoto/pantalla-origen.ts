@@ -369,7 +369,7 @@ export class OrigenPantalla {
     private async llamarFluida(a: Activa): Promise<{ ok: boolean; r: Record<string, unknown> | null }> {
         const inv = this.d.invocar;
         const r = inv
-            ? await inv("control_pantalla_iniciar", { sesion: a.token, lado_max: LADO_MAX_DEFECTO, calidad: CALIDAD_DEFECTO, fuente: "proyeccion" }).catch(() => null)
+            ? await inv("control_pantalla_iniciar", argumentosIniciarPantalla(a.token, {}, "proyeccion")).catch(() => null)
             : null;
         return { ok: esObjeto(r) && r.ok === true && r.fuente === "proyeccion", r: esObjeto(r) ? r : null };
     }
@@ -431,7 +431,7 @@ export class OrigenPantalla {
         if (!cambio) return;
         this.d.anotar(`control-fuente paso=ritmo nivel=${estado.nivel} lado=${cambio.lado} calidad=${cambio.calidad} coste-ms=${Math.round(a.coste)} caben-fps=${capacidadFps(a.coste)}`);
         // Se vuelve a pedir lo mismo con otro tamaño/calidad: lo nativo ya tiene el «Sí», no pregunta nada y el cambio es en caliente.
-        void this.d.invocar?.("control_pantalla_iniciar", { sesion: a.token, lado_max: cambio.lado, calidad: cambio.calidad, fuente: "proyeccion" }).catch(() => undefined);
+        void this.d.invocar?.("control_pantalla_iniciar", argumentosIniciarPantalla(a.token, { lado: cambio.lado, calidad: cambio.calidad }, "proyeccion")).catch(() => undefined);
     }
 
     /** CTL1118F: la fuente cambió sin cerrar nada: los cuadros nuevos siguen por el mismo bucle y la misma pista. */
