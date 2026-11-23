@@ -2,12 +2,33 @@
 Description=StarSeed · peticiones de Alex por Telegram (@StarSeed_Design_bot) atendidas en el A1, sin la Mac ni Claude
 After=network-online.target starseed-freellmapi.service
 Wants=network-online.target
+# requiere: /home/starseed/starseed-system/scripts/puente/peticiones_telegram.py
+# requiere: /usr/bin/python3
+# requiere: /usr/bin/git
+#
+# (DIR1121) El bot corre SIEMPRE desde el checkout del A1, nunca desde una copia vieja
+# cargada días atrás. La publicación no reinicia sola el servicio: lo hace
+# `oracle_nodo.py desplegar-bots --aplicar`, que hace `git pull --ff-only` en
+# /home/starseed/starseed-system y reinicia ESTA unidad cuando el commit publicado toca
+# peticiones_*.py. Lo llaman el sanador del A1 y la autopublicación tras cada publicación.
+# Al arrancar, la unidad deja la línea canónica «corriendo commit <sha> desde <UTC>» en
+# el journal y la marca sin claves en /var/lib/starseed/nodo/peticiones-commit.txt, que
+# es el formato que `oracle_nodo.py` reconoce (`_extraer_commit_inicio`) para marcar en
+# ámbar un servicio que va por detrás de lo publicado. Nunca imprime claves ni la IP.
 
 [Service]
 User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
 Environment=HOME=/home/starseed
 Environment=PYTHONUNBUFFERED=1
+Environment=STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONPATH=/home/starseed/starseed-system/scripts/puente
 ExecStartPre=+/bin/chown -R starseed:starseed /home/starseed/.starseed/cuentas
+# Deja constancia del commit que va a ejecutar el proceso. Si el checkout no se puede
+# leer, arranca igual con «desconocido» y el medidor no inventa un ámbar. `$$` es el
+# escape de systemd para que el `$` llegue literal al shell y `%%` para el `%` de `date`.
+ExecStartPre=-/bin/sh -c 'sha=$$(/usr/bin/git -C /home/starseed/starseed-system rev-parse HEAD 2>/dev/null || echo desconocido); ahora=$$(/bin/date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ); echo "corriendo commit $$sha desde $$ahora"; /bin/mkdir -p /var/lib/starseed/nodo; /usr/bin/printf "%%s %%s" "$$sha" "$$ahora" > /var/lib/starseed/nodo/peticiones-commit.txt'
 ExecStart=/usr/bin/python3 -u /home/starseed/starseed-system/scripts/puente/peticiones_telegram.py
 Restart=always
 RestartSec=20
