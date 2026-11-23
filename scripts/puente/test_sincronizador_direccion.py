@@ -639,6 +639,27 @@ class TestEspejoHermesYAntigravityBidireccional(unittest.TestCase):
             finally:
                 os.environ.pop("STARSEED_CHAT_EN_PRUEBAS", None)
 
+    def test_espejar_sin_db_path_con_raiz_aislada_no_falla_ni_escribe_hermes_real(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp)
+            prev = os.environ.pop("STARSEED_CHAT_EN_PRUEBAS", None)
+            try:
+                res = SD.publicar_en_canal_especializado(
+                    "principal",
+                    "Prueba segura sin db_path y con raiz aislada",
+                    de="antigravity",
+                    origen="antigravity",
+                    enviar_telegram=False,
+                    raiz=raiz,
+                    db_path=None,
+                    espejar_hermes=True,
+                )
+                self.assertTrue(res["ok"])
+                self.assertFalse(res["hermes_ok"])
+            finally:
+                if prev is not None:
+                    os.environ["STARSEED_CHAT_EN_PRUEBAS"] = prev
+
 
 if __name__ == "__main__":
     unittest.main()

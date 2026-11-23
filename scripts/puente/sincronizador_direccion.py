@@ -1184,6 +1184,7 @@ def espejar_hacia_hermes(
     db_path: Optional[str] = None,
     canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
     max_inicial: int = 25,
+    raiz: Optional[Path] = None,
 ) -> int:
     """Espeja mensajes completos de `principal`, `general` o `audiovisual` hacia `~/.hermes/state.db`."""
     if canal_clave not in CANALES_ESPECIALIZADOS:
@@ -1591,7 +1592,7 @@ def publicar_en_canal_especializado(
     )
     if debe_espejar and isinstance(reg, dict):
         hermes_ok = espejar_hacia_hermes(
-            canal_clave, [reg], {}, db_path=db_path, canales_cfg=canales_cfg, max_inicial=1
+            canal_clave, [reg], {}, db_path=db_path, canales_cfg=canales_cfg, max_inicial=1, raiz=raiz
         ) > 0
 
     return {
@@ -1662,15 +1663,15 @@ def sincronizar_todos_los_canales(
     # Espejo bidireccional hacia las sesiones fijadas de Hermes en ~/.hermes/state.db.
     regs_prin = director_chat.leer(limite=120, raiz=raiz)
     n_esp_prin = espejar_hacia_hermes(
-        "principal", regs_prin, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+        "principal", regs_prin, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa, raiz=raiz
     )
     regs_gen = _leer_jsonl_canal(_archivo_canal_jsonl("general", raiz=raiz), limite=80)
     n_esp_gen = espejar_hacia_hermes(
-        "general", regs_gen, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+        "general", regs_gen, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa, raiz=raiz
     )
     regs_av = _leer_jsonl_canal(_archivo_canal_jsonl("audiovisual", raiz=raiz), limite=80)
     n_esp_av = espejar_hacia_hermes(
-        "audiovisual", regs_av, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+        "audiovisual", regs_av, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa, raiz=raiz
     )
 
     return {
