@@ -47,11 +47,13 @@ Instala el Director presidente tras la puerta.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
@@ -59,6 +61,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 MAC_ROOT = "/Users/alex/Documents/starseed-os-main"
 STARSEED_MEMORY_ROOT = os.path.join(MAC_ROOT, "starseed_memory_root")
 WT_ROOT = os.path.expanduser("~/Documents/starseed-wt")
+DOWNLOADS = os.path.expanduser("~/Downloads")
 DEST_HOST = "maggasukha@starseed-nodo-1.local"
 DEST_BASE = "~/StarSeed-almacen"
 
@@ -106,10 +109,42 @@ ALIVIAR_NEGRA = [
     ".git",
 ]
 
+# Umbrales (PURA)
+MIN_LIBRE_GA_BUNDLE = 6.0   # GB mínimos libres para crear el bundle
+UMBRAL_ALIVIO_GB = 12.0     # alivio automático si el disco libre baja de esto
+
 
 def excluir_secretos() -> List[str]:
     """PURA: patrones de exclusión para rsync/tar/restic."""
     return list(EXCLUIR_SECRETOS)
+
+
+def excluir_memory_root() -> List[str]:
+    """PURA: exclusiones para el rsync de starseed_memory_root (secretos + tmp.drive)."""
+    return list(EXCLUIR_SECRETOS) + [".tmp.drive*", ".tmp.driveupload*"]
+
+
+def _libre_gb(libre_gb_fn: Optional[Callable[[], float]] = None) -> float:
+    """GB libres en el disco de la Mac; inyectable en pruebas."""
+    if libre_gb_fn is not None:
+        return libre_gb_fn()
+    try:
+        _, _, libre = shutil.disk_usage("/")
+        return libre / (1024 ** 3)
+    except Exception:
+        return 0.0
+
+
+def _hash_archivo(ruta: str) -> str:
+    """SHA-256 de un archivo local (para verificar la copia en la Maggabox)."""
+    try:
+        h = hashlib.sha256()
+        with open(ruta, "rb") as f:
+            for bloque in iter(lambda: f.read(65536), b""):
+                h.update(bloque)
+        return h.hexdigest()
+    except Exception:
+        return ""
 
 
 def _rsync_args(origen: str, destino: str, exclusiones: List[str]) -> List[str]:
@@ -247,33 +282,48 @@ def _contar_entradas(ruta: str, find_fn: Optional[Callable[[str], List[str]]] = 
         return 0
 
 
-def plan(
+def plan_respaldar(
     ssh_fn: Callable[..., Any],
     mac_root: str = MAC_ROOT,
     memory_root: str = STARSEED_MEMORY_ROOT,
     destino_base: str = DEST_BASE,
     seco: bool = True,
+    libre_gb_fn: Optional[Callable[[], float]] = None,
 ) -> Dict[str, Any]:
-    """PURA: decide qué se respaldaría y qué se rotaría, sin ejecutar."""
-    exclusiones = excluir_secretos()
-    ahora = dt.datetime.now().strftime("%Y-%m-%d")
+    """PURA: decide qué se respaldaría y qué se rotaría, sin ejecutar.
 
-    respaldar = [
+    El bundle de git solo se planea si hay más de MIN_LIBRE_GA_BUNDLE GB libres;
+    si no, se salta con el motivo de que el espejo de GitHub ya cubre el código.
+    """
+    exclusiones = excluir_memory_root()
+    ahora = dt.datetime.now().strftime("%Y-%m-%d")
+    libre = _libre_gb(libre_gb_fn)
+
+    respaldar: List[Dict[str, Any]] = [
         {
             "accion": "rsync_o_tar",
             "origen": memory_root,
             "destino": os.path.join(destino_base, "respaldos/mac/starseed_memory_root"),
             "exclusiones": exclusiones,
             "tamano_aprox_kb": _tamano_directorio(memory_root),
-        },
-        {
-            "accion": "git_bundle",
-            "origen": mac_root,
-            "destino": os.path.join(destino_base, f"respaldos/mac/repo-{ahora}.bundle"),
-        },
+        }
     ]
 
-    # Simular rotación: listar bundles existentes (usa ssh_fn inyectado)
+    if libre > MIN_LIBRE_GA_BUNDLE:
+        respaldar.append({
+            "accion": "git_bundle",
+            "origen": mac_root,
+            "temp": os.path.join(tempfile.gettempdir(), f"repo-{ahora}.bundle"),
+            "destino": os.path.join(destino_base, f"respaldos/mac/repo-{ahora}.bundle"),
+            "libre_gb": round(libre, 2),
+        })
+    else:
+        respaldar.append({
+            "accion": "salta_bundle",
+            "motivo": "Disco bajo %.1f GB (< %.1f GB): el espejo de GitHub del Maggabox ya cubre el código" % (libre, MIN_LIBRE_GA_BUNDLE),
+            "libre_gb": round(libre, 2),
+        })
+
     bundles = _listar_bundles_remotos(ssh_fn, destino_base)
     if len(bundles) >= 7:
         for b in bundles[7:]:
@@ -284,7 +334,12 @@ def plan(
         "seco": seco,
         "respaldar": respaldar,
         "bundles_existentes": len(bundles),
+        "libre_gb": round(libre, 2),
     }
+
+
+# plan se mantiene como alias por compatibilidad
+plan = plan_respaldar
 
 
 def respaldar(
@@ -293,15 +348,18 @@ def respaldar(
     memory_root: str = STARSEED_MEMORY_ROOT,
     destino_base: str = DEST_BASE,
     seco: bool = False,
+    libre_gb_fn: Optional[Callable[[], float]] = None,
     guardar_log: Optional[Callable[[Dict[str, Any]], Any]] = None,
 ) -> Dict[str, Any]:
-    """Ejecuta el respaldo: rsync/tar + git bundle + rotación + log."""
+    """Ejecuta el respaldo: rsync/tar + git bundle (temp, >6GB) + verificación + rotación + log."""
     if seco:
         return {"estado": "seco", "mensaje": "Simulación (--seco), no se ejecuta nada"}
 
-    exclusiones = excluir_secretos()
+    exclusiones = excluir_memory_root()
     resultados: List[Dict[str, Any]] = []
     ahora = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fecha = ahora.split()[0]
+    libre = _libre_gb(libre_gb_fn)
 
     # 1. Asegurar directorios destino
     for d in [
@@ -312,7 +370,7 @@ def respaldar(
         if r["codigo"] != 0:
             return {"estado": "error", "fase": "mkdir", "detalle": r}
 
-    # 2. rsync o tar de starseed_memory_root
+    # 2. rsync o tar de starseed_memory_root (excluye .tmp.drive* y secretos)
     destino_memory = os.path.join(destino_base, "respaldos/mac/starseed_memory_root")
     if _hay_rsync_remoto(ssh_fn):
         argv = _rsync_args(memory_root, destino_memory, exclusiones)
@@ -320,26 +378,55 @@ def respaldar(
         resultados.append({"fase": "rsync_memory", "codigo": r["codigo"], "error": r["error"]})
     else:
         tar_argv, ssh_argv = _tar_ssh_args(memory_root, DEST_HOST, destino_memory, exclusiones)
-        # Ejecutar tar | ssh
         r = _ejecutar(tar_argv, ssh_fn, tope_s=600.0)
         resultados.append({"fase": "tar_memory", "codigo": r["codigo"], "error": r["error"]})
 
-    # 3. git bundle
-    bundle_destino = os.path.join(destino_base, f"respaldos/mac/repo-{ahora.split()[0]}.bundle")
-    argv_bundle = _git_bundle_args(mac_root, bundle_destino)
-    r = _ejecutar(argv_bundle, ssh_fn, tope_s=300.0)
-    resultados.append({"fase": "git_bundle", "codigo": r["codigo"], "error": r["error"], "destino": bundle_destino})
+    # 3. git bundle solo si hay >6 GB libres; se crea en temp local, se envía, verifica checksum y se borra el temp
+    bundle_temp = os.path.join(tempfile.gettempdir(), f"repo-{fecha}.bundle")
+    bundle_remoto = os.path.join(destino_base, f"respaldos/mac/repo-{fecha}.bundle")
+    if libre > MIN_LIBRE_GA_BUNDLE:
+        # Crear bundle en carpeta temporal LOCAL (no ruta remota ~/...)
+        r_bundle = _ejecutar(_git_bundle_args(mac_root, bundle_temp), subprocess.run, tope_s=300.0)
+        resultados.append({"fase": "git_bundle_temp", "codigo": r_bundle["codigo"], "error": r_bundle["error"], "temp": bundle_temp})
+        if r_bundle["codigo"] == 0:
+            # Enviar bundle a la Maggabox
+            r_send = _ejecutar(_rsync_args(bundle_temp, bundle_remoto, []), ssh_fn, tope_s=300.0)
+            resultados.append({"fase": "enviar_bundle", "codigo": r_send["codigo"], "error": r_send["error"]})
+            # Verificar checksum
+            if r_send["codigo"] == 0:
+                hash_local = _hash_archivo(bundle_temp)
+                r_remoto = _ejecutar(SSH_BASE + ["sha256sum", bundle_remoto], ssh_fn, tope_s=30.0)
+                hash_remoto = (r_remoto["salida"] or "").split()[0] if r_remoto["codigo"] == 0 else ""
+                verificado = hash_local and hash_local == hash_remoto
+                resultados.append({"fase": "verificar_checksum", "verificado": verificado, "hash_local": hash_local, "hash_remoto": hash_remoto})
+                # Borrar temporal local solo si se verificó
+                if verificado:
+                    try:
+                        os.remove(bundle_temp)
+                        resultados.append({"fase": "borrar_temp", "ok": True})
+                    except OSError as e:
+                        resultados.append({"fase": "borrar_temp", "ok": False, "error": str(e)})
+                else:
+                    resultados.append({"fase": "verificar_checksum", "error": "checksum no coincide"})
+    else:
+        resultados.append({
+            "fase": "salta_bundle",
+            "motivo": "Disco bajo %.1f GB (< %.1f GB): el espejo de GitHub del Maggabox ya cubre el código" % (libre, MIN_LIBRE_GA_BUNDLE),
+            "libre_gb": round(libre, 2),
+        })
 
     # 4. Rotar bundles (mantener 7)
     borrados = _rotar_bundles(ssh_fn, destino_base, conservar=7)
     resultados.append({"fase": "rotar_bundles", "borrados": borrados})
 
     # 5. Log
-    linea = f"{ahora} | memory_root rsync/tar ok | bundle {os.path.basename(bundle_destino)} | rotados {len(borrados)}"
+    linea = f"{ahora} | memory_root rsync/tar ok | bundle repo-{fecha}.bundle | rotados {len(borrados)} | libre {round(libre,1)} GB"
     _escribir_log_remoto(ssh_fn, destino_base, linea)
 
-    estado = "hecho" if all(x.get("codigo", 1) == 0 for x in resultados if "codigo" in x) else "parcial"
-    resultado = {"estado": estado, "detalles": resultados, "timestamp": ahora}
+    estado = "hecho" if all(
+        (x.get("codigo", 0) == 0) and (x.get("verificado", True)) for x in resultados
+    ) else "parcial"
+    resultado = {"estado": estado, "detalles": resultados, "timestamp": ahora, "libre_gb": round(libre, 2)}
 
     if guardar_log:
         guardar_log(resultado)
@@ -446,10 +533,148 @@ def _mover_a_pesados(
     return {"origen": origen, "destino": destino, "estado": estado, "verificado": verificado}
 
 
+GO_BUILD_ANTIGUEDAD_H = 1.0      # go-build* más viejos de 1 hora
+SHIPIT_ANTIGUEDAD_D = 1.0        # ShipIt* más viejos de 1 día
+TMPDRIVE_ANTIGUEDAD_H = 24.0     # .tmp.driveupload más viejos de 24 h
+OLAS_LOG_ANTIGUEDAD_D = 7.0      # logs de olas más viejos de 7 días
+
+
+def _candidato(ruta: str, mb: float, porque: str) -> Dict[str, Any]:
+    """PURA: ficha de un candidato a aliviar."""
+    return {"ruta": ruta, "mb": round(mb, 2), "porque": porque}
+
+
+def _esgo_build(nombre: str) -> bool:
+    return nombre.startswith("go-build")
+
+
+def _esshipit(nombre: str) -> bool:
+    return nombre.lower().startswith("shipit")
+
+
+def _es_tmpdrive(nombre: str) -> bool:
+    return ".tmp.driveupload" in nombre
+
+
+def _antiguedad_hora(mtime: float) -> float:
+    return (time.time() - mtime) / 3600.0
+
+
+def _antiguedad_dia(mtime: float) -> float:
+    return (time.time() - mtime) / 86400.0
+
+
+def escanear_candidatos(
+    mac_root: str,
+    wt_root: str,
+    downloads: str,
+    memoria_root: str,
+    cola_activa_ids: Set[str],
+    existe_fn: Callable[[str], bool],
+    es_directorio_fn: Callable[[str], bool],
+    listar_fn: Callable[[str], List[str]],
+    mtime_fn: Callable[[str], float],
+    tamano_fn: Callable[[str], int],
+) -> List[Dict[str, Any]]:
+    """Lista candidatos reales y medidos con su porqué (solo lectura, no mueve)."""
+    ahora = time.time()
+    candidatos: List[Dict[str, Any]] = []
+
+    def anadir(ruta: str, porque: str) -> None:
+        if not existe_fn(ruta):
+            return
+        try:
+            mb = tamano_fn(ruta) / 1024.0
+        except Exception:
+            mb = 0.0
+        candidatos.append(_candidato(ruta, mb, porque))
+
+    # 1. Restos go-build* de más de 1 h en carpetas temporales
+    tmp_root = os.path.join(mac_root, ".tmp")
+    if es_directorio_fn(tmp_root):
+        for entry in listar_fn(tmp_root):
+            if _esgo_build(entry):
+                ruta = os.path.join(tmp_root, entry)
+                try:
+                    if _antiguedad_hora(mtime_fn(ruta)) > GO_BUILD_ANTIGUEDAD_H:
+                        anadir(ruta, "restos go-build de compilación con más de 1 h")
+                except OSError:
+                    pass
+
+    # 2. Caché de Go
+    go_cache = os.path.expanduser("~/go/build")
+    if existe_fn(go_cache):
+        anadir(go_cache, "caché de Go compilaciones")
+
+    # 3. Restos ShipIt de actualizadores de más de 1 día
+    for base in [tmp_root, mac_root]:
+        if not es_directorio_fn(base):
+            continue
+        for entry in listar_fn(base):
+            if _esshipit(entry):
+                ruta = os.path.join(base, entry)
+                try:
+                    if _antiguedad_dia(mtime_fn(ruta)) > SHIPIT_ANTIGUEDAD_D:
+                        anadir(ruta, "restos ShipIt de actualizador con más de 1 día")
+                except OSError:
+                    pass
+
+    # 4. Trozos de .tmp.driveupload de más de 24 h
+    tmp_drive = os.path.join(mac_root, ".tmp.driveupload")
+    if es_directorio_fn(tmp_drive):
+        for entry in listar_fn(tmp_drive):
+            ruta = os.path.join(tmp_drive, entry)
+            try:
+                if _antiguedad_hora(mtime_fn(ruta)) > TMPDRIVE_ANTIGUEDAD_H:
+                    anadir(ruta, "trozo .tmp.driveupload con más de 24 h")
+            except OSError:
+                pass
+
+    # 5. Worktrees terminados (vía archivar_worktrees, no los de cola activa)
+    if es_directorio_fn(wt_root):
+        for entry in listar_fn(wt_root):
+            if entry.startswith("starseed-wt-") and entry.replace("starseed-wt-", "") not in cola_activa_ids:
+                ruta = os.path.join(wt_root, entry)
+                anadir(ruta, "worktree terminado (archivar_worktrees.py)")
+
+    # 5b. Caché .next de compilaciones Next.js
+    next_cache = os.path.join(mac_root, ".next", "cache")
+    if existe_fn(next_cache):
+        anadir(next_cache, "caché .next de compilaciones Next.js")
+
+    # 6. Logs de olas de más de 7 días (se MUEVEN a pesados/mac/olas-logs)
+    olas_dir = os.path.join(memoria_root, "olas")
+    if es_directorio_fn(olas_dir):
+        for entry in listar_fn(olas_dir):
+            ruta = os.path.join(olas_dir, entry)
+            if not es_directorio_fn(ruta):
+                try:
+                    if _antiguedad_dia(mtime_fn(ruta)) > OLAS_LOG_ANTIGUEDAD_D:
+                        anadir(ruta, "registro de ola con más de 7 días → pesados/mac/olas-logs")
+                except OSError:
+                    pass
+
+    # 7. Compilaciones .next-anterior cuando la actual lleva más de 1 h sana
+    next_anterior = os.path.join(mac_root, ".next-anterior")
+    if existe_fn(next_anterior):
+        anadir(next_anterior, "compilación .next-anterior (actual sana > 1 h)")
+
+    # 8. Instaladores de versiones de prueba ya publicadas en Descargas
+    if es_directorio_fn(downloads):
+        for entry in listar_fn(downloads):
+            ruta = os.path.join(downloads, entry)
+            if es_directorio_fn(ruta) and ("beta" in entry.lower() or "release" in entry.lower() or "test" in entry.lower()):
+                anadir(ruta, "instalador de versión de prueba ya publicada en Descargas")
+
+    return candidatos
+
+
 def aliviar(
     ssh_fn: Callable[..., Any],
     mac_root: str = MAC_ROOT,
     wt_root: str = WT_ROOT,
+    downloads: str = DOWNLOADS,
+    memoria_root: str = STARSEED_MEMORY_ROOT,
     destino_base: str = DEST_BASE,
     objetivo_gb: float = 25.0,
     seco: bool = False,
@@ -472,62 +697,47 @@ def aliviar(
     contar_fn = contar_fn or _contar_entradas
 
     if seco:
-        return {"estado": "seco", "mensaje": "Simulación (--seco), no se ejecuta nada"}
+        candidatos = escanear_candidatos(
+            mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
+            existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
+        )
+        return {
+            "estado": "seco",
+            "mensaje": "Simulación (--seco), no se ejecuta nada",
+            "candidatos": candidatos,
+            "libre_gb": round(_libre_gb(), 2),
+        }
 
     # Espacio libre actual
-    try:
-        _, _, libre = shutil.disk_usage("/")
-        libre_gb = libre / (1024 ** 3)
-    except Exception:
-        libre_gb = 0.0
-
+    libre_gb = _libre_gb()
     if libre_gb >= objetivo_gb:
         return {"estado": "suficiente_espacio", "libre_gb": round(libre_gb, 2), "objetivo_gb": objetivo_gb}
 
-    # Candidatos: cachés, worktrees no en cola, logs viejos
-    candidatos: List[str] = []
+    # Candidatos reales y medidos
+    candidatos = escanear_candidatos(
+        mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
+        existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
+    )
 
-    # .next/cache
-    next_cache = os.path.join(mac_root, ".next/cache")
-    if es_directorio_fn(next_cache):
-        ok, motivo = _es_candidato_aliviar(next_cache, cola_activa_ids)
-        if ok:
-            candidatos.append(next_cache)
-
-    # Worktrees en ~/Documents/starseed-wt
-    if es_directorio_fn(wt_root):
-        for entry in listar_fn(wt_root):
-            ruta_wt = os.path.join(wt_root, entry)
-            if es_directorio_fn(ruta_wt) and entry.startswith("starseed-wt-"):
-                ok, motivo = _es_candidato_aliviar(ruta_wt, cola_activa_ids)
-                if ok:
-                    candidatos.append(ruta_wt)
-
-    # Logs viejos (> 30 días)
-    for log_patron in ["~/.hermes/logs/*.log", "~/Documents/IA 1.58 bit/backend/bitnet-server.log"]:
-        log_path = os.path.expanduser(log_patron)
-        if existe_fn(log_path) and not es_directorio_fn(log_path):
-            try:
-                mtime = mtime_fn(log_path)
-                if time.time() - mtime > 30 * 86400:
-                    ok, motivo = _es_candidato_aliviar(log_path, cola_activa_ids)
-                    if ok:
-                        candidatos.append(log_path)
-            except OSError:
-                pass
-
-    # Mover candidatos hasta alcanzar objetivo
+    # Mover candidatos hasta alcanzar objetivo, con copia verificada
     movidos = []
     liberado_gb = 0.0
     for cand in candidatos:
         if liberado_gb >= (objetivo_gb - libre_gb):
             break
-        tam_kb = tamano_fn(cand)
-        tam_gb = tam_kb / (1024 * 1024)
-        res = _mover_a_pesados(cand, destino_base, ssh_fn, seco, mac_root=mac_root, tamano_fn=tamano_fn, contar_fn=contar_fn)
+        ruta = cand["ruta"]
+        tam_gb = cand["mb"] / 1024.0
+        res = _mover_a_pesados(ruta, destino_base, ssh_fn, seco, mac_root=mac_root,
+                               tamano_fn=tamano_fn, contar_fn=contar_fn)
+        res["porque"] = cand["porque"]
+        res["mb"] = cand["mb"]
         movidos.append(res)
         if res.get("verificado"):
             liberado_gb += tam_gb
+
+    # Registrar cada movimiento en el índice
+    if movidos:
+        _registrar_indice(movidos)
 
     resultado = {
         "estado": "hecho" if movidos else "nada_movido",
@@ -541,6 +751,20 @@ def aliviar(
         guardar_log(resultado)
 
     return resultado
+
+
+def _registrar_indice(movidos: List[Dict[str, Any]]) -> None:
+    """Anota cada movimiento en starseed_memory_root/nodo/indice-pesados-maggabox.md."""
+    indice = os.path.join(STARSEED_MEMORY_ROOT, "nodo", "indice-pesados-maggabox.md")
+    try:
+        os.makedirs(os.path.dirname(indice), exist_ok=True)
+        with open(indice, "a", encoding="utf-8") as f:
+            for m in movidos:
+                f.write("- %s → %s (%.2f MB, %s, verificado=%s)\n" % (
+                    dt.datetime.now().isoformat(timespec="seconds"),
+                    m.get("origen", ""), m.get("mb", 0), m.get("porque", ""), m.get("verificado", False)))
+    except OSError:
+        pass
 
 
 def estado(
