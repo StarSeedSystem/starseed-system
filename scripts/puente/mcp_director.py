@@ -14,10 +14,12 @@ STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 
 import json
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -29,8 +31,45 @@ PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
-    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada."
+    "reanuda la producción, y ejecuta las órdenes de MetaGenesis de la lista cerrada. "
+    "Con PostgreSQL configurado, ofrece herramientas postgres_* de solo lectura."
 )
+
+_DSN_VAR = "STARSEED_POSTGRES_URL"
+_SQL_BLOQUEADA = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|execute|"
+    r"call|do|set|merge|vacuum|into|replace)\b",
+    re.I,
+)
+_SQL_COMENTARIOS = re.compile(r"/\*.*?\*/|--[^\n]*", re.S)
+
+
+def _dsn():
+    return (os.environ.get(_DSN_VAR) or "").strip()
+
+
+def _host():
+    dsn = _dsn()
+    if not dsn:
+        return None
+    return (urlparse(dsn).hostname if "://" in dsn else None) or "no expuesto"
+
+
+def _controlador():
+    for nombre in ("psycopg", "psycopg2"):
+        try:
+            return nombre, __import__(nombre)
+        except ImportError:
+            continue
+    return None, None
+
+
+def _sanear(texto):
+    salida = str(texto)
+    dsn = _dsn()
+    if dsn:
+        salida = salida.replace(dsn, "[REDACTED]")
+    return salida[:500]
 
 
 def _s(tipo, descripcion, **extra):
@@ -54,6 +93,9 @@ _P_ORDEN = _s(
     enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
+_P_LIMITE_SQL = _s("integer", "Máximo de filas a devolver (1-200).", minimum=1, maximum=200)
+_P_SQL = _s("string", "Consulta SELECT o WITH de solo lectura; una sola sentencia.")
+_P_ESQUEMA = _s("string", "Esquema a consultar (por defecto public).")
 
 
 def _esquema(propiedades, requeridos):
@@ -132,6 +174,10 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "postgres_estado": _esquema({}, []),
+    "postgres_probar": _esquema({}, []),
+    "postgres_tablas": _esquema({"esquema": _P_ESQUEMA, "limite": _P_LIMITE_SQL}, []),
+    "postgres_consulta": _esquema({"sql": _P_SQL, "limite": _P_LIMITE_SQL}, ["sql"]),
 }
 
 _HERR = [
@@ -153,6 +199,20 @@ _HERR = [
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
 ]
+_POSTGRES_HERR = [
+    ("postgres_estado", "Estado de la conexión PostgreSQL, sin secretos."),
+    ("postgres_probar", "Prueba la conexión PostgreSQL con SELECT 1."),
+    ("postgres_tablas", "Lista las tablas visibles de un esquema."),
+    ("postgres_consulta", "Ejecuta una consulta SELECT o WITH de solo lectura."),
+]
+
+
+def _herramientas():
+    if not _dsn():
+        return HERRAMIENTAS
+    return HERRAMIENTAS + [
+        {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _POSTGRES_HERR
+    ]
 
 
 def _error(ident, codigo, mensaje):
@@ -476,6 +536,76 @@ def _llamar(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+def _leer_sql(sql, limite):
+    texto = _SQL_COMENTARIOS.sub(" ", str(sql or "")).strip().rstrip(";").strip()
+    if not re.match(r"^(select|with)\b", texto, re.I):
+        raise ValueError("solo se permiten consultas SELECT o WITH")
+    if ";" in texto or _SQL_BLOQUEADA.search(texto):
+        raise ValueError("la consulta debe ser de solo lectura y de una sola sentencia")
+    _, modulo = _controlador()
+    if modulo is None:
+        raise ValueError("instala psycopg (o psycopg2) para consultar PostgreSQL")
+    try:
+        conn = modulo.connect(_dsn(), connect_timeout=5)
+        try:
+            try:
+                conn.read_only = True
+            except (AttributeError, TypeError):
+                pass
+            cur = conn.cursor()
+            try:
+                cur.execute("SET TRANSACTION READ ONLY")
+                cur.execute(texto)
+                columnas = [d[0] for d in (cur.description or [])]
+                filas = cur.fetchmany(limite + 1)
+            finally:
+                cur.close()
+        finally:
+            conn.rollback()
+            conn.close()
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(_sanear(e)) from e
+    return columnas, filas
+
+
+def _postgres(nombre, args):
+    if nombre == "postgres_estado":
+        return json.dumps({
+            "configurada": bool(_dsn()),
+            "variable": _DSN_VAR,
+            "host": _host(),
+            "controlador": _controlador()[0],
+            "modo": "solo-lectura",
+        }, ensure_ascii=False, indent=2, sort_keys=True)
+    if not _dsn():
+        raise ValueError("PostgreSQL no está configurado: define %s" % _DSN_VAR)
+    if nombre == "postgres_probar":
+        _leer_sql("SELECT 1 AS ok", 1)
+        return "Conexión PostgreSQL correcta en %s." % _host()
+    limite = _limite(args)
+    if nombre == "postgres_tablas":
+        esquema = str(args.get("esquema") or "public")
+        if not re.match(r"^[A-Za-z_]\w*$", esquema):
+            raise ValueError("esquema no válido")
+        sql = (
+            "SELECT table_schema, table_name FROM information_schema.tables "
+            "WHERE table_schema = '%s' AND table_type = 'BASE TABLE' ORDER BY table_name"
+            % esquema
+        )
+        columnas, filas = _leer_sql(sql, limite)
+        return "\n".join("%s.%s" % tuple(f[:2]) for f in filas) or "No hay tablas visibles."
+    if nombre == "postgres_consulta":
+        columnas, filas = _leer_sql(args["sql"], limite)
+        return json.dumps({
+            "columnas": columnas,
+            "filas": [list(f) for f in filas[:limite]],
+            "limitada": len(filas) > limite,
+        }, ensure_ascii=False, default=str, indent=2)
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
+
 def atender(peticion):
     """Atiende una petición JSON-RPC; None para notificaciones sin respuesta."""
     if not isinstance(peticion, dict) or peticion.get("jsonrpc") != "2.0":
@@ -500,17 +630,20 @@ def atender(peticion):
     if metodo == "ping":
         return {"jsonrpc": "2.0", "id": ident, "result": {}}
     if metodo == "tools/list":
-        return {"jsonrpc": "2.0", "id": ident, "result": {"tools": HERRAMIENTAS}}
+        return {"jsonrpc": "2.0", "id": ident, "result": {"tools": _herramientas()}}
     if metodo == "tools/call":
         params = peticion.get("params") or {}
         nombre = params.get("name")
-        if nombre not in ESQUEMAS:
+        if not isinstance(nombre, str) or nombre not in {h["name"] for h in _herramientas()}:
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
-            texto = _llamar(nombre, params.get("arguments"))
-        except (ValueError, KeyError) as e:
+            if nombre.startswith("postgres_"):
+                texto = _postgres(nombre, params.get("arguments") or {})
+            else:
+                texto = _llamar(nombre, params.get("arguments"))
+        except Exception as e:
             contenido = {
-                "content": [{"type": "text", "text": "Error: %s" % e}],
+                "content": [{"type": "text", "text": "Error: %s" % _sanear(e)}],
                 "isError": True,
             }
             return {"jsonrpc": "2.0", "id": ident, "result": contenido}
