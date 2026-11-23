@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from peticiones_reglas import (
     TIPOS,
@@ -73,6 +73,7 @@ ESTADO = os.path.join(DIR, "estado.json")
 COLA = os.path.join(DIR, "cola.json")
 ORDENES_MAC = os.path.join(DIR, "ordenes-mac.json")
 SALIDAS = NB_SALIDAS
+REGISTRO_AV = os.path.join(DIR, "audiovisual_registros.jsonl")
 
 # Rutas del sanador de sesiones (SES1113C)
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -117,6 +118,45 @@ def log(*partes: Any) -> None:
     if TOKEN:
         texto = texto.replace(TOKEN, "***")
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, flush=True)
+
+
+def _norm_dedupe(texto: str) -> str:
+    return " ".join(str(texto or "").split()).strip()[:160].lower()
+
+
+def _cortar_registros(registros: List[Dict[str, Any]], tope: int = 600) -> List[Dict[str, Any]]:
+    """Mantiene solo los últimos `tope` registros, eliminando los más antiguos."""
+    if len(registros) <= tope:
+        return registros
+    return registros[-tope:]
+
+
+def _escribir_registro_audiovisual(registro: Dict[str, Any]) -> None:
+    """Escribe un registro al jsonl propio del canal audiovisual (máx 600 entradas)."""
+    try:
+        existentes: List[Dict[str, Any]] = []
+        ruta = Path(os.path.expanduser(REGISTRO_AV))
+        if ruta.exists():
+            try:
+                for linea in ruta.read_text(encoding="utf-8").splitlines():
+                    if not linea.strip():
+                        continue
+                    try:
+                        reg = json.loads(linea)
+                        if isinstance(reg, dict):
+                            existentes.append(reg)
+                    except json.JSONDecodeError:
+                        continue
+            except OSError:
+                pass
+        existentes.append(registro)
+        existentes = _cortar_registros(existentes, tope=600)
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as fh:
+            for reg in existentes:
+                fh.write(json.dumps(reg, ensure_ascii=False) + "\n")
+    except Exception as e:
+        log(f"Error escribiendo registro audiovisual: {e}")
 
 
 def _llm_log(msg: str) -> None:
@@ -931,6 +971,19 @@ def responder(p: dict[str, Any]) -> None:
     actualizar(p["id"], respuesta=texto, modelo=modelo)
     decir("%s\n\n— MetaGenesis · %s" % (texto, modelo))
 
+    # Registrar la respuesta en el registry del canal audiovisual
+    if texto:
+        _escribir_registro_audiovisual({
+            "id": f"md-{p['id']}-r",
+            "t": time.time(),
+            "de": "director",
+            "rol": "director",
+            "tipo": "respuesta",
+            "canal": "audiovisual",
+            "modelo": "hermes/" + modelo if modelo else None,
+            "texto": texto,
+        })
+
 
 def trabajar() -> None:
     while True:
@@ -1626,6 +1679,15 @@ def recibir(upd: dict[str, Any]) -> None:
         if not any(p["id"] == update_id for p in cola):
             cola.append({"id": update_id, "texto": texto, "recibida": time.time(), "estado": "nueva", "intentos": 0})
             escribir_json(COLA, cola[-200:])
+        _escribir_registro_audiovisual({
+            "id": f"md-{update_id}",
+            "t": time.time(),
+            "de": "alex",
+            "rol": "alex",
+            "tipo": "mensaje",
+            "canal": "audiovisual",
+            "texto": texto,
+        })
     decir("Recibido ✓ Lo atiende MetaGenesis en el A1, sin la Mac ni Claude.")
     hay_trabajo.set()
     

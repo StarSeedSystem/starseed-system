@@ -953,6 +953,7 @@ def sincronizar_canal_secundario_hermes(
     if not sid and not cid:
         return 0
 
+    importados = 0
     conds: List[str] = []
     params: List[Any] = []
     if sid:
@@ -1012,7 +1013,49 @@ def sincronizar_canal_secundario_hermes(
         (r.get("rol"), _norm_dedupe(r.get("texto") or ""))
         for r in recientes
     }
-    importados = 0
+
+    # Nueva sección: leer registros del bot A1 y volcarlos al jsonl del canal
+    registro_av_path = Path(os.path.expanduser("~/.starseed/peticiones/audiovisual_registros.jsonl"))
+    if registro_av_path.exists():
+        try:
+            registros_av: List[Dict[str, Any]] = []
+            for linea in registro_av_path.read_text(encoding="utf-8").splitlines():
+                if not linea.strip():
+                    continue
+                try:
+                    reg = json.loads(linea)
+                    if isinstance(reg, dict):
+                        registros_av.append(reg)
+                except json.JSONDecodeError:
+                    continue
+            registros_av = registros_av[-60:]  # solo los más recientes
+            for reg in registros_av:
+                contenido = str(reg.get("texto") or "").strip()
+                if not contenido:
+                    continue
+                es_user = reg.get("rol") == "alex"
+                rol = "alex" if es_user else "director"
+                norm = _norm_dedupe(contenido)
+                if (rol, norm) in huellas:
+                    continue
+                uuid_local = uuid.uuid4().hex[:6]
+                registro = {
+                    "id": f"md-{int(time.time() * 1000)}-{uuid_local}",
+                    "t": round(time.time(), 3),
+                    "de": reg.get("de", "alex"),
+                    "rol": rol,
+                    "tipo": "mensaje" if es_user else "respuesta",
+                    "canal": "telegram",
+                    "modelo": None if es_user else ("hermes/" + str(reg.get("modelo") or "predeterminado").split("/", 1)[-1]),
+                    "texto": contenido,
+                }
+                _escribir_jsonl_canal(canal_clave, registro, raiz=raiz)
+                huellas.add((rol, norm))
+                importados += 1
+        except Exception as e:
+            print(f"Error leyendo registro bot audiovisual: {e}")
+
+    importados = importados + 0  # ensure initialization
     for f in filas:
         estado[cursor_key] = max(int(estado.get(cursor_key) or 0), int(f["id"]))
         contenido = director_chat.tachar(str(f["content"] or "").strip())
