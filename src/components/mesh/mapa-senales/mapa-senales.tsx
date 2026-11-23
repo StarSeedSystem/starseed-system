@@ -13,6 +13,7 @@
  *   · «Mapa 3D» — lienzo R3F con altura que significa algo.
  *   · «Plano»   — el MISMO modelo en SVG: móviles y equipos modestos, y red de seguridad si el
  *                 navegador no puede abrir WebGL.
+ *   · «Espectro» — espectrómetro: eje de frecuencias con barras por señal, filtros y ficha.
  *
  * Modelo puro: `src/lib/senales/` (`modelo.ts`). Escena (único archivo con three): `escena-3d.tsx`,
  * cargada perezosa. SOP: `architecture/mapa-3d-senales-reales.md`.
@@ -20,7 +21,8 @@
 
 import { useEffect, useState } from "react";
 import { useReducedMotion } from "framer-motion";
-import { Loader2, Radar } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Loader2, Radar, RadioTower } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { webglDisponible } from "@/lib/senales/webgl";
 import {
@@ -30,6 +32,14 @@ import {
 import { SelectorVista } from "./barra-mapa";
 import { ContenidoMapa } from "./contenido-mapa";
 import { useCompacto } from "./use-compacto";
+import { useMapaVivo } from "./use-mapa-vivo";
+import type { MapaVivoRed } from "@/lib/senales/tipos-vivo";
+import { MEDIOS } from "./geo/panel-filtros-senales-tipos";
+
+const EspectroVista = dynamic(
+  () => import("./espectro-vista").then((m) => m.EspectroVista),
+  { ssr: false, loading: () => null }
+);
 
 export interface MapaSenalesProps {
   className?: string;
@@ -41,6 +51,8 @@ export interface MapaSenalesProps {
   soloPlano?: boolean;
 }
 
+type VistaMapaExtendida = "3d" | "plano" | "espectro";
+
 export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, soloPlano = false }: MapaSenalesProps) {
   const reducido = useReducedMotion() ?? false;
   const compacto = useCompacto(compactoForzado);
@@ -48,9 +60,10 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
   const [hidratado, setHidratado] = useState(false);
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [fallo, setFallo] = useState<string | null>(null);
+  const [vista, setVista] = useState<VistaMapaExtendida>("3d");
 
-  // Preferencias de este dispositivo: se leen DESPUÉS de montar (el HTML del
-  // servidor no las conoce y así no hay desajuste de hidratación).
+  const { red } = useMapaVivo({ verPublicos: prefs.verPublicos });
+
   useEffect(() => {
     setPrefs(leerPreferenciasMapa());
     setHidratado(true);
@@ -73,6 +86,9 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
   const en3d = quiere3d && webgl === true && !fallo;
   const esperando = !hidratado || (quiere3d && webgl === null);
 
+  const mediosConSenales = new Set(red.senales.map((s) => s.medio));
+  const mediosSinFuente = MEDIOS.filter((m) => !mediosConSenales.has(m)).length;
+
   return (
     <div className={cn("rounded-2xl border border-white/10 bg-black/30 p-3", className)}>
       <div className="mb-2.5 flex flex-wrap items-start justify-between gap-2">
@@ -87,18 +103,39 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
             </p>
           )}
         </div>
-        {soloPlano ? null : (
-          <SelectorVista
-            vista={en3d || (quiere3d && webgl === null) ? "3d" : "plano"}
-            onVista={(vista) => {
-              setFallo(null);
-              cambiar({ vista });
-            }}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {soloPlano ? null : (
+            <SelectorVista
+              vista={en3d || (quiere3d && webgl === null) ? "3d" : "plano"}
+              onVista={(v) => {
+                setFallo(null);
+                if (v === "3d" || v === "plano") {
+                  setVista(v);
+                  cambiar({ vista: v });
+                }
+              }}
+            />
+          )}
+          <button
+            type="button"
+            aria-pressed={vista === "espectro"}
+            onClick={() => setVista("espectro")}
+            className={cn(
+              "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors duration-200",
+              vista === "espectro"
+                ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+                : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/25 hover:text-white/90"
+            )}
+            title="Espectrómetro: frecuencias, filtros y ficha de cada señal"
+          >
+            <RadioTower className="h-3.5 w-3.5" /> Espectro
+          </button>
+        </div>
       </div>
 
-      {esperando ? (
+      {vista === "espectro" ? (
+        <EspectroVista red={red} mediosSinFuente={mediosSinFuente} />
+      ) : esperando ? (
         <div className="flex h-[240px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/40 text-sm text-white/40">
           <Loader2 className="h-4 w-4 animate-spin" /> Preparando el mapa…
         </div>
