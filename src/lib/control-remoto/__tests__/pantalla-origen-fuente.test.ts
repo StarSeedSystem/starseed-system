@@ -57,10 +57,12 @@ describe("RST1116A · la petición de fuente llega a lo nativo", () => {
 
     it("sin fuente o con «auto» la petición no lleva el campo: no se inventa lo que no se pidió", async () => {
         for (const args of [{}, { fuente: "auto" }] as Args[]) {
-            montar();
             await origen.ejecutar("pantalla-iniciar", args, ctx());
-            expect("fuente" in primeraPeticion()).toBe(false);
+            const peticiones = de("control_pantalla_iniciar");
+            expect(peticiones.length).toBeGreaterThan(0); // se pidió de verdad: la prueba no pasa por vacío
+            expect("fuente" in (peticiones[0]?.args ?? {})).toBe(false);
             await origen.parar("fin");
+            montar(); // instancia limpia para la siguiente vuelta
         }
     });
 });
@@ -72,6 +74,9 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         expect(origen.enMarcha()).toBe(true);
         expect(de("control_pantalla_parar")).toHaveLength(0);
+        // «se devuelve y se guarda»: lo que queda activo es la fuente que contestó el aparato, no la pedida.
+        const aparato = (await origen.ejecutar("leer-aparato", {}, ctx())) as Record<string, unknown>;
+        expect(aparato.fuente).toBe("accesibilidad");
     });
 
     it("si el aparato no ofrece proyeccion, la sesión sigue con la fuente disponible", async () => {
