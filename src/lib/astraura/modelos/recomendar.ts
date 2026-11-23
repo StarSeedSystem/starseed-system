@@ -123,8 +123,9 @@ export interface Candidato {
   e: Encaje;
 }
 
-function comparador(caso: CasoUso, p: PerfilNeurona): (a: Candidato, b: Candidato) => number {
+function comparador(caso: CasoUso, p: PerfilNeurona, priorizarPreferentes = true): (a: Candidato, b: Candidato) => number {
   const apple = (c: Candidato) => (p.chip === "apple-silicon" && c.m.soloApple === true ? 0 : 1);
+  const pref = (c: Candidato) => (priorizarPreferentes && c.m.preferente === true ? 0 : 1);
   return (a, b) => {
     const t = tier(a.e) - tier(b.e);
     if (t !== 0) return t;
@@ -143,19 +144,19 @@ function comparador(caso: CasoUso, p: PerfilNeurona): (a: Candidato, b: Candidat
         d = b.m.descargaGb - a.m.descargaGb;
         break;
       default:
-        d = eci(b.m) - eci(a.m) || apple(a) - apple(b) || (RANGO_PAPEL[b.m.papel ?? ""] ?? 0) - (RANGO_PAPEL[a.m.papel ?? ""] ?? 0) || b.m.descargaGb - a.m.descargaGb;
+        d = pref(a) - pref(b) || eci(b.m) - eci(a.m) || apple(a) - apple(b) || (RANGO_PAPEL[b.m.papel ?? ""] ?? 0) - (RANGO_PAPEL[a.m.papel ?? ""] ?? 0) || b.m.descargaGb - a.m.descargaGb;
     }
     return d || a.m.id.localeCompare(b.m.id);
   };
 }
 
 /** Candidatos ordenados (mejor primero) para un caso en una neurona; solo lo recomendable y ejecutable. */
-export function candidatosPara(catalogo: readonly ModeloLocal[], p: PerfilNeurona, caso: CasoUso, instalados?: ReadonlySet<string>): Candidato[] {
+export function candidatosPara(catalogo: readonly ModeloLocal[], p: PerfilNeurona, caso: CasoUso, instalados?: ReadonlySet<string>, priorizarPreferentes = true): Candidato[] {
   return catalogo
     .filter((m) => m.clase === "normal" && recomendable(m) && elegible(m, caso)) // «Automático» NUNCA elige una variante sin filtros
     .map((m) => ({ m, e: encajar(m, p, instalados?.has(m.id) === true) }))
     .filter((c) => c.e.veredicto !== "no-cabe")
-    .sort(comparador(caso, p));
+    .sort(comparador(caso, p, priorizarPreferentes));
 }
 
 // ── Rutas ────────────────────────────────────────────────────────────────────────────────────────
@@ -182,6 +183,8 @@ export interface EntornoRuta {
   contexto?: ContextoUso;
   /** La cuenta usa su propia clave de API (nunca la de otra persona ni la de la fundación). */
   claveDeLaCuenta?: boolean;
+  /** Prioriza los modelos marcados como preferentes en neuronas que los soporten holgados (por defecto true). */
+  priorizarPreferentes?: boolean;
 }
 
 export type RutaIA =
@@ -230,11 +233,12 @@ function frase(c: Candidato | undefined, p: PerfilNeurona, caso: CasoUso): strin
   }
   if (m.tipo !== "estandar") return `«${m.etiqueta}» es una capa propia de Astraura: ligera y rápida, y deja libre la memoria.`;
   const punt = m.puntuacion ? ` y rinde como ${m.puntuacion.eci.toFixed(0)} en el índice de Epoch` : "";
+  if (m.preferente === true) return `«${m.etiqueta}» es preferente y cabe holgado en ${memTxt(p)}${punt}.`;
   return `«${m.etiqueta}» es el modelo más capaz que cabe holgado en ${memTxt(p)}${punt}.`;
 }
 
-function elegirMejor(catalogo: readonly ModeloLocal[], p: PerfilNeurona, caso: CasoUso, instalados?: ReadonlySet<string>): { lista: Candidato[]; mejor: Candidato | undefined } {
-  const lista = candidatosPara(catalogo, p, caso, instalados);
+function elegirMejor(catalogo: readonly ModeloLocal[], p: PerfilNeurona, caso: CasoUso, instalados?: ReadonlySet<string>, priorizarPreferentes = true): { lista: Candidato[]; mejor: Candidato | undefined } {
+  const lista = candidatosPara(catalogo, p, caso, instalados, priorizarPreferentes);
   return { lista, mejor: lista[0] };
 }
 
@@ -259,7 +263,8 @@ export function recomendar(entrada: {
 }): Recomendacion {
   const { catalogo, perfil: p, caso } = entrada;
   const entorno: EntornoRuta = { pares: [], privacidad: PRIVACIDAD_PREDETERMINADA, ...entrada.entorno };
-  const { lista, mejor } = elegirMejor(catalogo, p, caso, entorno.instalados);
+  const prio = entorno.priorizarPreferentes !== false;
+  const { lista, mejor } = elegirMejor(catalogo, p, caso, entorno.instalados, prio);
   const privado = caso === "archivos-privados";
   const externoOk = entorno.privacidad.externoPermitido && (!privado || entorno.privacidad.externoParaPrivados) && !!entorno.externo;
 
@@ -293,7 +298,7 @@ export function recomendar(entrada: {
     let mejorPar: { par: PerfilNeurona; c: Candidato } | null = null;
     for (const par of entorno.pares) {
       if (par.id === p.id || !par.enLinea || !par.iaMalla) continue;
-      const r = elegirMejor(catalogo, par, caso).mejor;
+      const r = elegirMejor(catalogo, par, caso, undefined, prio).mejor;
       if (!r || r.e.veredicto !== "recomendado") continue;
       if (!mejorPar || eci(r.m) > eci(mejorPar.c.m)) mejorPar = { par, c: r };
     }

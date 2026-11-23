@@ -258,7 +258,7 @@ describe("detección posterior", () => {
     expect(bloqueado.bloqueo).toMatch(/Instalar Ollama/);
     const con = { ...sin, runtimes: [...sin.runtimes, "ollama" as const], puedeInstalarOllama: false };
     const despues = recomendar({ catalogo, perfil: con, caso: "conversacion" });
-    expect(despues.modelo?.id).toBe("gemma4:26b");
+    expect(despues.modelo?.id).toBe("hf.co/unsloth/Inkling-2-Mini-GGUF:Q4_K_M");
     const plan = planInstalar(modelo, con);
     expect(plan.bloqueo).toBeNull();
     expect(plan.pregunta).toMatch(/16,0 GB de descarga/);

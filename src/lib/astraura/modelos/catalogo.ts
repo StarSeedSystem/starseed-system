@@ -12,7 +12,12 @@ const txt = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
 /** Publicadores de variantes sin filtros que se aceptan (lista cerrada; las demás se descartan al leer). */
 export const PUBLICADORES_SIN_FILTROS: readonly string[] = ["huihui_ai"];
+/** Publicadores de Hugging Face GGUF normales aceptados para autoactualización vía Ollama (`hf.co/...`). */
+export const PUBLICADORES_HF_NORMALES: readonly string[] = ["unsloth", "ggml-org", "bartowski", "lmstudio-community", "thinkingmachines"];
+/** Publicadores de Hugging Face aceptados para variantes sin filtros (`hf.co/...`). */
+export const PUBLICADORES_SIN_FILTROS_HF: readonly string[] = ["AtomicChat"];
 const FUENTE_SIN_FILTROS = /^https:\/\/ollama\.com\/([\w.-]+)\/[\w.-]+(\/tags)?$/;
+const FUENTE_HF_API = /^https:\/\/huggingface\.co\/api\/models\/([\w.-]+)\/[\w.-]+(\?blobs=true)?$/;
 
 /** Una variante sin filtros solo vale con su rastro completo: publicador de la lista, fuente viva, base y sin puntuación propia. */
 function sinFiltrosValida(e: Record<string, unknown>): boolean {
@@ -20,10 +25,21 @@ function sinFiltrosValida(e: Record<string, unknown>): boolean {
   if (!txt(e.baseId) || !txt(e.publicador)) return false;
   if (!Array.isArray(e.runtimes) || e.runtimes.length !== 1 || e.runtimes[0] !== "ollama") return false;
   const id = String(e.id);
+  const fuentes = e.fuentes as string[];
+  if (fuentes.length === 0) return false;
+  if (id.startsWith("hf.co/")) {
+    const partes = id.slice(6).split("/");
+    if (partes.length !== 2 || !partes[1].includes(":")) return false;
+    const pub = partes[0];
+    if (!PUBLICADORES_SIN_FILTROS_HF.includes(pub)) return false;
+    return fuentes.every((f) => {
+      const m = FUENTE_HF_API.exec(f);
+      return !!m && PUBLICADORES_SIN_FILTROS_HF.includes(m[1]);
+    });
+  }
   const usuario = id.split("/")[0];
   if (!id.includes("/") || !PUBLICADORES_SIN_FILTROS.includes(usuario)) return false;
-  const fuentes = e.fuentes as string[];
-  return fuentes.length > 0 && fuentes.every((f) => {
+  return fuentes.every((f) => {
     const m = FUENTE_SIN_FILTROS.exec(f);
     return !!m && PUBLICADORES_SIN_FILTROS.includes(m[1]);
   });
@@ -59,10 +75,9 @@ export function leerCatalogoModelos(json: unknown): CatalogoModelos {
   if (r.esquema !== 1 || !Array.isArray(r.modelos)) return semilla;
   const modelos = r.modelos.filter(modeloValido);
   if (modelos.length === 0) return semilla;
-  // Propagación a cuentas existentes (regla del OS): un catálogo guardado antes de MOD1110B no trae la clase
-  // «sin filtros»; se le añaden las de la semilla que falten. Una que ya está (aunque retirada) no se repone.
+  // Propagación a cuentas existentes (regla del OS): catálogos guardados antes reciben nuevas entradas de la semilla que falten. Una ya existente (aunque retirada) no se repone.
   const vistos = new Set(modelos.map((x) => x.id));
-  for (const s of semilla.modelos) if (s.clase === "abliterated" && !vistos.has(s.id)) modelos.push(s);
+  for (const s of semilla.modelos) if (!vistos.has(s.id)) modelos.push(s);
   const frontera = Array.isArray(r.frontera)
     ? (r.frontera as unknown[]).filter((p): p is PuntoFrontera => {
         const q = p as Record<string, unknown> | null;

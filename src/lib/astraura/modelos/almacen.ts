@@ -39,10 +39,25 @@ export interface AjustesModelos {
   variantesSinFiltros: boolean;
   /** Día (YYYY-MM-DD) en que se aceptó la explicación; null si nunca. */
   variantesConfirmadoEl: string | null;
+  /** Permite a Astraura investigar automáticamente novedades en internet (Ollama, HF, Epoch). */
+  investigacionInternet?: boolean;
+  /** Prioriza los modelos marcados como preferentes cuando la neurona los soporta holgados. */
+  priorizarPreferentes?: boolean;
 }
 
 export function ajustesPredeterminados(): AjustesModelos {
-  return { v: 1, modo: "automatico", porCaso: {}, privacidad: { ...PRIVACIDAD_PREDETERMINADA }, ramDeclaradaGb: null, avisosVistos: [], variantesSinFiltros: false, variantesConfirmadoEl: null };
+  return {
+    v: 1,
+    modo: "automatico",
+    porCaso: {},
+    privacidad: { ...PRIVACIDAD_PREDETERMINADA },
+    ramDeclaradaGb: null,
+    avisosVistos: [],
+    variantesSinFiltros: false,
+    variantesConfirmadoEl: null,
+    investigacionInternet: true,
+    priorizarPreferentes: true,
+  };
 }
 
 /**
@@ -84,6 +99,8 @@ export function migrarAjustes(raw: unknown): AjustesModelos {
     avisosVistos: Array.isArray(r.avisosVistos) ? (r.avisosVistos as unknown[]).filter((x): x is string => typeof x === "string").slice(-50) : [],
     variantesSinFiltros: variantes,
     variantesConfirmadoEl: variantes ? confirmado : null,
+    investigacionInternet: typeof r.investigacionInternet === "boolean" ? r.investigacionInternet : true,
+    priorizarPreferentes: typeof r.priorizarPreferentes === "boolean" ? r.priorizarPreferentes : true,
   };
 }
 

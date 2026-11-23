@@ -85,6 +85,8 @@ export interface ModeloLocal {
   runtimes: RuntimeLocal[];
   /** Build solo para Apple silicon (MLX). */
   soloApple?: boolean;
+  /** Modelo preferente en recomendaciones locales para las neuronas que lo soporten. */
+  preferente?: boolean;
   descargaGb: number;
   /** Contexto en miles de tokens. */
   contextoK: number | null;

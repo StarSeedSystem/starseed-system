@@ -45,6 +45,7 @@ const CABE = new Set<Veredicto>(["recomendado", "justo"]);
 function comparador(todos: readonly ModeloLocal[]): (a: ModeloLocal, b: ModeloLocal) => number {
   const puntos = (m: ModeloLocal) => (m.clase === "abliterated" ? puntuacionDeBase(m, todos) : m.puntuacion);
   return (a, b) => {
+    if (Boolean(a.preferente) !== Boolean(b.preferente)) return a.preferente ? -1 : 1;
     const pa = puntos(a);
     const pb = puntos(b);
     if ((pa === null) !== (pb === null)) return pa ? -1 : 1;
@@ -53,7 +54,7 @@ function comparador(todos: readonly ModeloLocal[]): (a: ModeloLocal, b: ModeloLo
   };
 }
 
-/** Ollama = builds normales comprobadas del editor; huihui_ai = variantes sin filtros listables; capas = las propias. */
+/** Ollama = builds normales comprobadas del editor; huihui_ai/AtomicChat = variantes sin filtros listables; capas = las propias. */
 function gruposLocales(catalogo: readonly ModeloLocal[], sinFiltros: boolean): { proveedor: string; modelos: ModeloLocal[] }[] {
   const ollama: ModeloLocal[] = [];
   const capas: ModeloLocal[] = [];
@@ -61,7 +62,11 @@ function gruposLocales(catalogo: readonly ModeloLocal[], sinFiltros: boolean): {
   for (const m of catalogo) {
     if (m.clase === "abliterated") {
       if (!sinFiltros || !listableSinFiltros(m)) continue;
-      const k = m.id.includes("/") ? m.id.split("/")[0] : "huihui_ai";
+      const k = m.id.startsWith("hf.co/")
+        ? (m.id.split("/")[1] || "Hugging Face")
+        : m.id.includes("/")
+          ? m.id.split("/")[0]
+          : "huihui_ai";
       porPublicador.set(k, [...(porPublicador.get(k) ?? []), m]);
     } else if (m.tipo !== "estandar") {
       if (m.estado === "comprobado") capas.push(m);

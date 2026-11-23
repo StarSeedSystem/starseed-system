@@ -11,7 +11,9 @@
 import type { CatalogoModelos, ModeloLocal, Puntuacion, PuntoFrontera } from "./tipos";
 
 export const FECHA_SEMILLA = "2026-11-10";
+export const FECHA_INKLING = "2026-11-23";
 const OLLAMA = "https://ollama.com/library/";
+const HF_API = "https://huggingface.co/api/models/";
 const EPOCH = "https://epoch.ai/data/eci_scores.csv";
 
 interface Base {
@@ -26,6 +28,9 @@ interface Base {
   licencia?: string | null;
   eci?: [nombre: string, valor: number, fecha: string];
   soloApple?: boolean;
+  preferente?: boolean;
+  comprobado?: string;
+  fuentes?: string[];
   nota?: string;
 }
 
@@ -45,6 +50,7 @@ function m(b: Base): ModeloLocal {
     tipo: "estandar",
     runtimes: ["ollama"],
     soloApple: b.soloApple,
+    ...(b.preferente ? { preferente: true } : {}),
     descargaGb: b.descargaGb,
     contextoK: b.contextoK,
     herramientas: b.herramientas,
@@ -54,8 +60,8 @@ function m(b: Base): ModeloLocal {
     puntuacion: punt(b.eci),
     eciNombre: b.eci?.[0],
     estado: "comprobado",
-    comprobado: FECHA_SEMILLA,
-    fuentes: b.eci ? [`${OLLAMA}${fam}/tags`, `${OLLAMA}${fam}`, EPOCH] : [`${OLLAMA}${fam}/tags`, `${OLLAMA}${fam}`],
+    comprobado: b.comprobado ?? FECHA_SEMILLA,
+    fuentes: b.fuentes ?? (b.eci ? [`${OLLAMA}${fam}/tags`, `${OLLAMA}${fam}`, EPOCH] : [`${OLLAMA}${fam}/tags`, `${OLLAMA}${fam}`]),
     nota: b.nota,
   };
 }
@@ -92,6 +98,68 @@ export const MODELOS_SEMILLA: ModeloLocal[] = [
   m({ id: "glm-4.7-flash", familia: "GLM-4.7 Flash", editor: "Z.ai (GLM)", descargaGb: 19, contextoK: 198, vision: false, herramientas: true, razonamiento: true }),
   m({ id: "deepseek-r1:8b", familia: "DeepSeek-R1 (destilado 0528 sobre Qwen3 8B)", editor: "DeepSeek", descargaGb: 5.2, contextoK: 128, vision: false, herramientas: true, razonamiento: true, licencia: "MIT (según la página de Ollama)" }),
   m({ id: "deepseek-r1:70b", familia: "DeepSeek-R1 (destilado sobre Llama 70B)", editor: "DeepSeek", descargaGb: 43, contextoK: 128, vision: false, herramientas: true, razonamiento: true, licencia: "MIT (según la página de Ollama)" }),
+  // ── Inkling-2-Mini (2026-11-23 · preferente en neuronas que lo soporten) ──
+  m({
+    id: "inkling-2-mini:26b-a5b",
+    familia: "Inkling-2-Mini",
+    editor: "Thinking Machines",
+    descargaGb: 20,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    razonamiento: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Thinking Machines, 2026-11-23)",
+    fuentes: [`${OLLAMA}inkling-2-mini/tags`, `${OLLAMA}inkling-2-mini`],
+    nota: "26,4B MoE (3,4B activos), ventana 1M, visión y herramientas. Preferente en neuronas que lo soporten.",
+  }),
+  m({
+    id: "inkling-2-mini:26b-a5b-nvfp4",
+    familia: "Inkling-2-Mini",
+    editor: "Thinking Machines",
+    descargaGb: 20,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    razonamiento: true,
+    soloApple: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Thinking Machines, 2026-11-23)",
+    fuentes: [`${OLLAMA}inkling-2-mini/tags`, `${OLLAMA}inkling-2-mini`],
+    nota: "Build MLX (NVFP4) de Inkling-2-Mini para Apple silicon (1M contexto).",
+  }),
+  m({
+    id: "hf.co/unsloth/Inkling-2-Mini-GGUF:IQ2_XXS",
+    familia: "Inkling-2-Mini",
+    editor: "Thinking Machines · Unsloth GGUF",
+    descargaGb: 8.5,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    razonamiento: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Thinking Machines, 2026-11-23)",
+    fuentes: [`${HF_API}unsloth/Inkling-2-Mini-GGUF?blobs=true`],
+    nota: "Cuantización ligera IQ2_XXS (8,5 GB) de Inkling-2-Mini (26,4B MoE, 3,4B activos, 1M contexto) para Ollama.",
+  }),
+  m({
+    id: "hf.co/unsloth/Inkling-2-Mini-GGUF:Q4_K_M",
+    familia: "Inkling-2-Mini",
+    editor: "Thinking Machines · Unsloth GGUF",
+    descargaGb: 16.6,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    razonamiento: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Thinking Machines, 2026-11-23)",
+    fuentes: [`${HF_API}unsloth/Inkling-2-Mini-GGUF?blobs=true`],
+    nota: "Cuantización equilibrada Q4_K_M (16,6 GB) de Inkling-2-Mini (26,4B MoE, 3,4B activos, 1M contexto) para Ollama.",
+  }),
 ];
 
 // ── «Variantes sin filtros» (MOD1110B · comprobadas el 2026-11-10) ───────────────────────────────────────────
@@ -121,6 +189,9 @@ interface Sf {
   licencia?: string | null;
   nota?: string;
   comprobado?: string;
+  publicador?: string;
+  fuentes?: string[];
+  preferente?: boolean;
 }
 
 function sf(b: Sf): ModeloLocal {
@@ -133,6 +204,7 @@ function sf(b: Sf): ModeloLocal {
     clase: "abliterated",
     tipo: "estandar",
     runtimes: ["ollama"],
+    ...(b.preferente ? { preferente: true } : {}),
     descargaGb: b.descargaGb,
     contextoK: b.contextoK,
     herramientas: b.herramientas,
@@ -142,8 +214,8 @@ function sf(b: Sf): ModeloLocal {
     puntuacion: null,
     estado: "comprobado",
     comprobado: b.comprobado ?? FECHA_SEMILLA,
-    fuentes: [`${HUIHUI}${fam}/tags`, `${HUIHUI}${fam}`],
-    publicador: PUBLICA,
+    fuentes: b.fuentes ?? [`${HUIHUI}${fam}/tags`, `${HUIHUI}${fam}`],
+    publicador: b.publicador ?? PUBLICA,
     baseId: b.baseId,
     nota: b.nota ?? "Variante sin filtros de la comunidad: nadie midió su calidad (la puntuación que se enseña es la de su base).",
   };
@@ -178,6 +250,52 @@ export const MODELOS_SIN_FILTROS_SEMILLA: ModeloLocal[] = [
     id: "huihui_ai/glm-4.7-flash-abliterated:latest", baseId: "glm-4.7-flash", familia: "GLM-4.7 Flash sin filtros",
     editor: "Z.ai (GLM) · variante huihui_ai", descargaGb: 19, contextoK: 198, vision: false, herramientas: true,
   }),
+  // ── Inkling-2-Mini sin filtros (AtomicChat · Hugging Face GGUF para Ollama, comprobado 2026-11-23) ──
+  sf({
+    id: "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ2_M",
+    baseId: "inkling-2-mini:26b-a5b",
+    familia: "Inkling-2-Mini sin filtros",
+    editor: "Thinking Machines · variante AtomicChat",
+    descargaGb: 8.7,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Hugging Face, 2026-11-23)",
+    publicador: "AtomicChat (Hugging Face; no es el editor del modelo)",
+    fuentes: [`${HF_API}AtomicChat/Inkling-2-Mini-Uncensored-GGUF?blobs=true`],
+  }),
+  sf({
+    id: "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ3_S",
+    baseId: "inkling-2-mini:26b-a5b",
+    familia: "Inkling-2-Mini sin filtros",
+    editor: "Thinking Machines · variante AtomicChat",
+    descargaGb: 13.3,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Hugging Face, 2026-11-23)",
+    publicador: "AtomicChat (Hugging Face; no es el editor del modelo)",
+    fuentes: [`${HF_API}AtomicChat/Inkling-2-Mini-Uncensored-GGUF?blobs=true`],
+  }),
+  sf({
+    id: "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:Q4_K",
+    baseId: "inkling-2-mini:26b-a5b",
+    familia: "Inkling-2-Mini sin filtros",
+    editor: "Thinking Machines · variante AtomicChat",
+    descargaGb: 16.5,
+    contextoK: 1024,
+    vision: true,
+    herramientas: true,
+    preferente: true,
+    comprobado: FECHA_INKLING,
+    licencia: "Apache-2.0 (Hugging Face, 2026-11-23)",
+    publicador: "AtomicChat (Hugging Face; no es el editor del modelo)",
+    fuentes: [`${HF_API}AtomicChat/Inkling-2-Mini-Uncensored-GGUF?blobs=true`],
+  }),
 ];
 
 /**
@@ -206,7 +324,7 @@ export const FRONTERA_SEMILLA: PuntoFrontera[] = [
 ];
 
 /** Familias de la biblioteca de Ollama que la semilla ya conoce (no se avisan como novedad). */
-export const FAMILIAS_SEMILLA: string[] = ["qwen3.5", "qwen3.8", "gemma4", "gpt-oss", "deepseek-r1", "glm-4.7-flash"];
+export const FAMILIAS_SEMILLA: string[] = ["qwen3.5", "qwen3.8", "gemma4", "gpt-oss", "deepseek-r1", "glm-4.7-flash", "inkling-2-mini"];
 
 export function catalogoSemilla(): CatalogoModelos {
   return {

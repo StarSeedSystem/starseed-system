@@ -21,13 +21,17 @@ import { ramasPorProveedor } from "@/lib/astraura/modelos/ramas-proveedor";
 import { casosDe, encajar } from "@/lib/astraura/modelos/recomendar";
 import { useModelosNeurona, type AccionesModelos, type EstadoModelos } from "@/lib/astraura/modelos/use-modelos";
 import { CASOS, ETIQUETA_CASO, type CasoUso, type ModeloLocal, type Veredicto } from "@/lib/astraura/modelos/tipos";
-import { Comparacion, InsigniaVeredicto, PreguntaDescarga, gbTxt } from "@/components/astraura/modelos-ui";
+import { Comparacion, InsigniaPreferente, InsigniaVeredicto, PreguntaDescarga, gbTxt } from "@/components/astraura/modelos-ui";
 import { ContinuarModelo, InsigniaSinFiltros, InstalarOllama } from "@/components/astraura/modelos-sin-filtros-ui";
 import { RamasProveedor } from "@/components/astraura/ramas-proveedor-ui";
 
 type Filtro = CasoUso | "todos";
 
-const orden = (a: ModeloLocal, b: ModeloLocal) => (b.puntuacion?.eci ?? -1) - (a.puntuacion?.eci ?? -1) || b.descargaGb - a.descargaGb || a.id.localeCompare(b.id);
+const orden = (a: ModeloLocal, b: ModeloLocal) =>
+  (b.preferente ? 1 : 0) - (a.preferente ? 1 : 0) ||
+  (b.puntuacion?.eci ?? -1) - (a.puntuacion?.eci ?? -1) ||
+  b.descargaGb - a.descargaGb ||
+  a.id.localeCompare(b.id);
 const BUENO_PARA: Record<string, string> = {
   estandar: "Modelo general de un editor, ejecutado con Ollama en tu aparato.",
   "capa-158": "Capa 1.58-bit propia de Astraura: ligera y rápida para el día a día.",
@@ -50,6 +54,7 @@ function Tarjeta({ m, e, preguntando, setPreguntando }: { m: ModeloLocal; e: Est
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[13px] text-white/90">{m.etiqueta}</span>
         <span className="text-[11px] text-white/45">{m.familia} · {m.editor}</span>
+        {m.preferente && <InsigniaPreferente />}
         {sinFiltros && <InsigniaSinFiltros />}
         {aqui && comprobado && <span className="ml-auto"><InsigniaVeredicto v={aqui.veredicto as Veredicto} liberarGb={aqui.liberarGb} soloEncaje={sinFiltros} /></span>}
         {!comprobado && <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/55">{m.estado === "candidato" ? "Candidato nuevo: sin recomendar" : "Sin comprobar: no se recomienda"}</span>}

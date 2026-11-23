@@ -17,7 +17,7 @@ export async function GET(peticion: Request): Promise<Response> {
   try {
     const r = await fetch(u, {
       redirect: "manual",
-      headers: { "user-agent": "StarSeedOS-catalogo-modelos", accept: "text/html,text/csv,*/*" },
+      headers: { "user-agent": "StarSeedOS-catalogo-modelos", accept: "application/json,text/html,text/csv,*/*" },
       signal: AbortSignal.timeout(12_000),
       cache: "no-store",
     });

@@ -136,7 +136,7 @@ describe("cuándo revisar y qué avisar", () => {
       if (url.endsWith("/tags")) return tagsQwen();
       return "<html></html>";
     };
-    const r = await revisarFuentes(cat, "2026-12-01", traer, { perfil: mac32, propios });
+    const r = await revisarFuentes(cat, "2026-12-01", traer, { perfil: mac32, propios, entorno: { priorizarPreferentes: false } });
     expect(r.revisado).toBe(true);
     expect(pedidas.every(urlPermitida)).toBe(true);
     expect(r.mejoras.length).toBeGreaterThan(0);

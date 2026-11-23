@@ -73,6 +73,8 @@ export interface AccionesModelos {
   elegirManual(caso: CasoUso, id: string | null): void;
   setPrivacidad(p: Partial<AjustesModelos["privacidad"]>): void;
   setRamDeclarada(gb: number | null): void;
+  setInvestigacionInternet?(v: boolean): void;
+  setPriorizarPreferentes?(v: boolean): void;
   revisarAhora(): Promise<void>;
   descartarAviso(): void;
   /** Plan con la pregunta previa (tamaño incluido). No descarga nada. */
@@ -160,7 +162,8 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     sinFiltros: { activado: sinFiltros.activado, disponible: sinFiltros.disponible },
     contexto: "compartido" as const,
     claveDeLaCuenta: false,
-  }), [pares, ajustes.privacidad, instalados, sinFiltros.activado, sinFiltros.disponible]);
+    priorizarPreferentes: ajustes.priorizarPreferentes !== false,
+  }), [pares, ajustes.privacidad, instalados, sinFiltros.activado, sinFiltros.disponible, ajustes.priorizarPreferentes]);
   const recomendaciones = useMemo(() => (perfilEf ? recomendarTodos({ catalogo: modelos, perfil: perfilEf, entorno }) : null), [modelos, perfilEf, entorno]);
   // Lo que se usa de verdad: la elección manual con los límites de las variantes sin filtros (aquí el contexto es siempre «privado-propio»:
   // este bloque habla de MIS conversaciones en MI neurona; bots, grupos, capas públicas y segundo plano no pasan por la elección manual).
@@ -196,6 +199,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
 
   const revisar = useCallback(async (forzar: boolean) => {
     if (!perfilEf || revisionEnCurso.current) return;
+    if (!forzar && ajustes.investigacionInternet === false) return;
     const a = almacen();
     const rev = leerRevision(a);
     const enLinea = typeof navigator === "undefined" ? true : navigator.onLine !== false;
@@ -225,7 +229,7 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
       revisionEnCurso.current = false;
       setRevisando(false);
     }
-  }, [perfilEf, catalogo, entorno, ajustes.avisosVistos]);
+  }, [perfilEf, catalogo, entorno, ajustes.avisosVistos, ajustes.investigacionInternet]);
 
   // «En el siguiente arranque»: si se pidió instalar Ollama para un modelo, se mira una vez si ya está.
   useEffect(() => {
@@ -253,6 +257,8 @@ export function useModelosNeurona(): EstadoModelos & AccionesModelos {
     }),
     setPrivacidad: (p) => aplicarAjustes((a) => ({ ...a, privacidad: { ...a.privacidad, ...p } })),
     setRamDeclarada: (gb) => aplicarAjustes((a) => ({ ...a, ramDeclaradaGb: gb })),
+    setInvestigacionInternet: (v) => aplicarAjustes((a) => ({ ...a, investigacionInternet: v })),
+    setPriorizarPreferentes: (v) => aplicarAjustes((a) => ({ ...a, priorizarPreferentes: v })),
     revisarAhora: () => revisar(true),
     descartarAviso: () => {
       const av = aviso;

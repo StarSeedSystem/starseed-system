@@ -1,8 +1,8 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-23",
+  "actualizado": "2026-11-23",
   "descripcion": "Qué vigila el vigía de modelos de MetaGenesis, como dato (architecture/vigia-modelos.md §2): un especialista por área. Añadir un área = añadir una entrada en «areas». Lo carga y valida scripts/puente/vigia_areas.py (cargar_areas). «cuantizadores» de arriba es la lista de cuantizadores conocidos (cada área elige los suyos de ella; si no los da, hereda todos) y «licencias_conocidas» es la tabla común de clases de licencia (libre · personal · condicionada · desconocida, §3), porque Hugging Face marca muchas como «other»; un área puede añadir las suyas. «catalogo» es la ruta, relativa al repo, del archivo que el vigía propone actualizar: tiene que existir de verdad.",
-  "cuantizadores": ["unsloth", "city96", "QuantStack", "bartowski", "lmstudio-community", "mlx-community", "onnx-community", "Comfy-Org"],
+  "cuantizadores": ["unsloth", "AtomicChat", "city96", "QuantStack", "bartowski", "lmstudio-community", "mlx-community", "onnx-community", "Comfy-Org"],
   "licencias_conocidas": {
     "apache-2.0": "libre", "mit": "libre", "bsd-2-clause": "libre", "bsd-3-clause": "libre", "cc0-1.0": "libre",
     "cc-by-4.0": "libre", "cc-by-sa-4.0": "libre", "openrail": "libre", "openrail++": "libre",
@@ -57,8 +57,8 @@
     {
       "id": "palabra", "nombre": "Palabra y razón",
       "pipeline_tags": ["text-generation"],
-      "autores": ["Qwen", "prism-ml", "microsoft", "google", "meta-llama", "mistralai", "deepseek-ai"],
-      "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "autores": ["Qwen", "thinkingmachines", "prism-ml", "microsoft", "google", "meta-llama", "mistralai", "deepseek-ai"],
+      "cuantizadores": ["unsloth", "AtomicChat", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
       "catalogo": "config/capas-astraura.json",
       "filtros": { "max_parametros_b": 9 }
     },
@@ -73,8 +73,8 @@
     {
       "id": "vision", "nombre": "Visión",
       "pipeline_tags": ["image-text-to-text"],
-      "autores": ["Qwen", "google", "apple", "microsoft", "HuggingFaceTB"],
-      "cuantizadores": ["unsloth", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
+      "autores": ["Qwen", "thinkingmachines", "google", "apple", "microsoft", "HuggingFaceTB"],
+      "cuantizadores": ["unsloth", "AtomicChat", "bartowski", "lmstudio-community", "mlx-community", "onnx-community"],
       "catalogo": "config/capas-astraura.json",
       "filtros": { "max_parametros_b": 9 }
     },

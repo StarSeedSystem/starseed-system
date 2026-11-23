@@ -4,7 +4,7 @@
 // «Modelos de IA» de la Biblioteca. Presentacionales: reciben todo ya calculado.
 
 import { useState } from "react";
-import { Download, HardDrive, Loader2, ShieldCheck } from "lucide-react";
+import { Download, HardDrive, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { equivalencia, fechaCorta, pierdeHerramientas, puntuacionDeBase, requisitosDe } from "@/lib/astraura/modelos/catalogo";
 import type { PlanInstalacion, ResultadoInstalacion } from "@/lib/astraura/modelos/instalar";
@@ -19,6 +19,15 @@ const ESTILO: Record<Veredicto, string> = {
 };
 
 export const gbTxt = (n: number) => `${n.toFixed(1).replace(".", ",")} GB`;
+export const ctxTxt = (k: number): string => (k >= 1024 ? `${Math.round(k / 1024)}M` : `${k}K`);
+
+export function InsigniaPreferente() {
+  return (
+    <span data-insignia="preferente" className="inline-flex items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/15 px-2 py-0.5 text-[11px] text-cyan-200 whitespace-nowrap">
+      <Sparkles className="h-3 w-3" aria-hidden />Preferente
+    </span>
+  );
+}
 
 /** Etiqueta del veredicto; «Falta disco» lleva los GB a liberar. */
 export function textoVeredicto(v: Veredicto, liberarGb: number | null): string {
@@ -47,7 +56,7 @@ export function Comparacion({ m, frontera, modelos }: { m: ModeloLocal; frontera
       </p>
       <p data-campo="requisitos">
         Descarga {gbTxt(m.descargaGb)} · memoria {rq.memoriaMinGb}–{rq.memoriaComodaGb} GB · disco {gbTxt(rq.discoGb)}
-        {m.contextoK ? ` · contexto ${m.contextoK}K` : ""}
+        {m.contextoK ? ` · contexto ${ctxTxt(m.contextoK)}` : ""}
         {m.herramientas ? " · herramientas" : ""}
         {m.vision ? " · visión" : ""}
       </p>
@@ -73,7 +82,7 @@ function ComparacionSinFiltros({ m, modelos, rq }: { m: ModeloLocal; modelos: re
       </p>
       <p data-campo="requisitos">
         Descarga {gbTxt(m.descargaGb)} · memoria {rq.memoriaMinGb}–{rq.memoriaComodaGb} GB · disco {gbTxt(rq.discoGb)}
-        {m.contextoK ? ` · contexto ${m.contextoK}K` : ""}
+        {m.contextoK ? ` · contexto ${ctxTxt(m.contextoK)}` : ""}
         {m.herramientas ? " · herramientas" : " · sin herramientas"}
         {m.vision ? " · visión" : ""}
       </p>

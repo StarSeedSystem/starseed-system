@@ -129,7 +129,11 @@ describe("Biblioteca · Modelos de IA: la sección aparte", () => {
     render(<ModelosIaVista e={e} />);
     const sec = document.querySelector("[data-seccion=sin-filtros]") as HTMLElement;
     expect(sec).toBeTruthy();
-    expect(sec.querySelectorAll("[data-modelo]")).toHaveLength(9);
+    expect(sec.querySelectorAll("[data-modelo]")).toHaveLength(12);
+    const ink = sec.querySelector('[data-modelo="hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ2_M"]') as HTMLElement;
+    expect(ink).toBeTruthy();
+    expect(ink.querySelector("[data-insignia=preferente]")).toBeTruthy();
+    expect(ink.querySelector("[data-campo=requisitos]")?.textContent).toContain("contexto 1M");
     const tarjeta = sec.querySelector(`[data-modelo="${Q9}"]`) as HTMLElement;
     expect(tarjeta.querySelector("[data-insignia=sin-filtros]")).toBeTruthy();
     expect(tarjeta.querySelector("[data-campo=equivalencia]")?.textContent).toMatch(/Calidad: sin sin medir|Calidad: sin medir/);
@@ -156,7 +160,7 @@ describe("Biblioteca · Modelos de IA: la sección aparte", () => {
     const retirada = modelos.map((m) => (m.id === Q9 ? { ...m, estado: "sin-comprobar" as const } : m));
     render(<ModelosIaVista e={estado(mac32, { modelos: retirada }, { activado: true })} />);
     expect(document.querySelector(`[data-modelo="${Q9}"]`)).toBeNull();
-    expect(document.querySelectorAll("[data-seccion=sin-filtros] [data-modelo]")).toHaveLength(8);
+    expect(document.querySelectorAll("[data-seccion=sin-filtros] [data-modelo]")).toHaveLength(11);
     expect(document.querySelector("details")?.textContent ?? "").not.toContain(Q9); // ni en «sin comprobar»
   });
   it("instalar una variante también pregunta primero, con el tamaño y el aviso de comunidad", async () => {

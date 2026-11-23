@@ -31,8 +31,8 @@ describe("semilla del catálogo", () => {
       expect(m.clase).toBe("normal");
       expect(m.id).not.toMatch(/abliterat|uncensor|huihui/i);
       expect(m.fuentes.length).toBeGreaterThan(0);
-      expect(m.fuentes.every((f) => /^https:\/\/(ollama\.com|epoch\.ai)\//.test(f))).toBe(true);
-      expect(m.comprobado).toBe("2026-11-10");
+      expect(m.fuentes.every((f) => /^https:\/\/(ollama\.com|epoch\.ai|huggingface\.co)\//.test(f))).toBe(true);
+      expect(["2026-11-10", "2026-11-23"]).toContain(m.comprobado);
       expect(recomendable(m)).toBe(true);
       if (m.puntuacion) expect(m.puntuacion.comprobado).toBe("2026-11-10");
     }
@@ -120,9 +120,11 @@ describe("tabla de recomendaciones", () => {
     expect(ids(pc16).conversacion).toBe("qwen3.5:9b");
     expect(recomendar({ catalogo: CAT, perfil: pc16, caso: "vision" }).modelo?.vision).toBe(true);
   });
-  it("Mac 32 GB: Gemma 4 26B (el más puntuado que cabe holgado); Mac 64 GB: Gemma 4 31B", () => {
-    expect(ids(mac32).conversacion).toBe("gemma4:26b");
-    expect(ids(mac64).conversacion).toBe("gemma4:31b");
+  it("Mac 32 GB: Inkling-2-Mini Unsloth Q4_K_M preferente (y Gemma 4 26B sin preferentes); Mac 64 GB: Inkling-2-Mini NVFP4 (y Gemma 4 31B sin preferentes)", () => {
+    expect(ids(mac32).conversacion).toBe("hf.co/unsloth/Inkling-2-Mini-GGUF:Q4_K_M");
+    expect(ids(mac64).conversacion).toBe("inkling-2-mini:26b-a5b-nvfp4");
+    expect(recomendar({ catalogo: CAT, perfil: mac32, caso: "conversacion", entorno: { priorizarPreferentes: false } }).modelo?.id).toBe("gemma4:26b");
+    expect(recomendar({ catalogo: CAT, perfil: mac64, caso: "conversacion", entorno: { priorizarPreferentes: false } }).modelo?.id).toBe("gemma4:31b");
   });
   it("capas de conciencia: sube a la más capaz que cabe (profunda solo con memoria)", () => {
     const m8 = recomendar({ catalogo: CAT, perfil: mac8, caso: "capas-conciencia" }).modelo;

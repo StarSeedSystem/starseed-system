@@ -15,7 +15,7 @@ import { fechaCorta } from "@/lib/astraura/modelos/catalogo";
 import { candidatosPara, encajar } from "@/lib/astraura/modelos/recomendar";
 import { useModelosNeurona, type AccionesModelos, type EstadoModelos } from "@/lib/astraura/modelos/use-modelos";
 import { CASOS, ETIQUETA_CASO, type CasoUso, type ModeloLocal } from "@/lib/astraura/modelos/tipos";
-import { Comparacion, InsigniaPrivado, InsigniaVeredicto, PreguntaDescarga, textoRuta } from "./modelos-ui";
+import { Comparacion, InsigniaPreferente, InsigniaPrivado, InsigniaVeredicto, PreguntaDescarga, textoRuta } from "./modelos-ui";
 import { ContinuarModelo, InsigniaSinFiltros, InstalarOllama, InterruptorSinFiltros } from "./modelos-sin-filtros-ui";
 
 const NOMBRE_CHIP = { "apple-silicon": "Apple silicon", nvidia: "GPU NVIDIA", amd: "GPU AMD", cpu: "Solo CPU", "android-soc": "Android" } as const;
@@ -96,6 +96,7 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[12px] font-medium text-white/90">{ETIQUETA_CASO[caso]}</span>
                 <InsigniaVeredicto v={encaje ? encaje.veredicto : r.veredicto} liberarGb={encaje ? encaje.liberarGb : r.liberarGb} />
+                {elegido?.preferente && <InsigniaPreferente />}
                 {sinFiltros && <InsigniaSinFiltros />}
                 {caso === "archivos-privados" && <InsigniaPrivado />}
                 {elegido && <span className="ml-auto text-[11px] font-mono text-white/70" data-campo="modelo">{elegido.etiqueta}</span>}
@@ -157,6 +158,26 @@ export function ModelosRecomendadosVista({ e }: { e: EstadoModelos & AccionesMod
           <input type="checkbox" checked={e.ajustes.privacidad.externoParaPrivados} disabled={!e.ajustes.privacidad.externoPermitido}
             onChange={(ev) => e.setPrivacidad({ externoParaPrivados: ev.currentTarget.checked })} />
           También para mis archivos privados (no recomendado)
+        </label>
+      </fieldset>
+
+      <fieldset data-campo="astraura-radar" className="space-y-1 text-[11px] text-white/60">
+        <legend className="text-white/70">Investigación automática de Astraura</legend>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={e.ajustes.priorizarPreferentes !== false}
+            onChange={(ev) => e.setPriorizarPreferentes?.(ev.currentTarget.checked)}
+          />
+          Priorizar modelos preferentes (como Inkling-2-Mini) donde la neurona los soporte
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={e.ajustes.investigacionInternet !== false}
+            onChange={(ev) => e.setInvestigacionInternet?.(ev.currentTarget.checked)}
+          />
+          Buscar e investigar en internet novedades cada día (Ollama · Hugging Face GGUF · Epoch AI · Capas)
         </label>
       </fieldset>
 

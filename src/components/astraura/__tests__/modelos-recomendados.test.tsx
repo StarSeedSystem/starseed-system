@@ -52,21 +52,22 @@ describe("bloque «Modelo local recomendado para esta neurona»", () => {
     expect(screen.getByRole("button", { name: "Automático" }).getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector("[data-campo=catalogo]")?.textContent).toMatch(/nov\. 2026/);
   });
-  it("cada caso lleva su razón en una frase, la comparación y el veredicto", () => {
+  it("cada caso lleva su razón en una frase, la comparación, insignia preferente y el veredicto", () => {
     render(<ModelosRecomendadosVista e={estado(mac32)} />);
     const conv = document.querySelector("[data-caso=conversacion]") as HTMLElement;
-    expect(within(conv).getByText("gemma4:26b")).toBeTruthy();
+    expect(within(conv).getByText("hf.co/unsloth/Inkling-2-Mini-GGUF:Q4_K_M")).toBeTruthy();
+    expect(conv.querySelector("[data-insignia=preferente]")?.textContent).toContain("Preferente");
     expect(conv.querySelector("[data-veredicto=recomendado]")?.textContent).toBe("Recomendado");
-    expect(conv.querySelector("[data-campo=equivalencia]")?.textContent).toMatch(/ECI 141,7/);
+    expect(conv.querySelector("[data-campo=requisitos]")?.textContent).toContain("contexto 1M");
     expect(conv.querySelector("[data-campo=razon]")?.textContent?.length).toBeGreaterThan(20);
   });
   it("instalar PREGUNTA primero con el tamaño y no descarga hasta pulsar Descargar", async () => {
     const e = estado(mac32);
     render(<ModelosRecomendadosVista e={e} />);
     const conv = document.querySelector("[data-caso=conversacion]") as HTMLElement;
-    fireEvent.click(within(conv).getByRole("button", { name: /Instalar \(16,0 GB\)/ }));
+    fireEvent.click(within(conv).getByRole("button", { name: /Instalar \(16,6 GB\)/ }));
     const pregunta = await screen.findByRole("alertdialog");
-    expect(pregunta.textContent).toMatch(/16,0 GB de descarga/);
+    expect(pregunta.textContent).toMatch(/16,6 GB de descarga/);
     expect(pregunta.textContent).toMatch(/No se descarga nada hasta que aceptes/);
     expect(e.instalar).not.toHaveBeenCalled();
     fireEvent.click(within(pregunta).getByRole("button", { name: /Ahora no/ }));

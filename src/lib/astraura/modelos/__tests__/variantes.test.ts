@@ -34,9 +34,12 @@ const CONTEXTOS: ContextoUso[] = ["privado-propio", "compartido", "publico", "se
 const ENCENDIDO = { activado: true, disponible: true };
 const rec = (perfil: PerfilNeurona, caso: CasoUso) => recomendar({ catalogo: CAT, perfil, caso });
 
-describe("catálogo de variantes sin filtros: solo lo verificado el 2026-11-10 y 2026-11-16", () => {
-  it("las 9 entradas verificadas, todas de huihui_ai, con fecha, fuente viva, base y SIN puntuación propia", () => {
+describe("catálogo de variantes sin filtros: solo lo verificado (huihui_ai en Ollama y AtomicChat en Hugging Face)", () => {
+  it("las 12 entradas verificadas, de huihui_ai o AtomicChat, con fecha, fuente viva, base y SIN puntuación propia", () => {
     expect(MODELOS_SIN_FILTROS_SEMILLA.map((m) => m.id).sort()).toEqual([
+      "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ2_M",
+      "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:IQ3_S",
+      "hf.co/AtomicChat/Inkling-2-Mini-Uncensored-GGUF:Q4_K",
       "huihui_ai/deepseek-r1-abliterated:8b",
       "huihui_ai/gemma-4-abliterated:12b",
       "huihui_ai/gemma-4-abliterated:26b",
@@ -50,12 +53,16 @@ describe("catálogo de variantes sin filtros: solo lo verificado el 2026-11-10 y
     for (const m of SF) {
       expect(modeloValido(m), m.id).toBe(true);
       expect(m.clase).toBe("abliterated");
-      expect(["2026-11-10", "2026-11-16"]).toContain(m.comprobado);
+      expect(["2026-11-10", "2026-11-16", "2026-11-23"]).toContain(m.comprobado);
       expect(m.estado).toBe("comprobado");
       expect(m.puntuacion).toBeNull(); // «sin medir»: nadie las evaluó
-      expect(m.publicador).toMatch(/huihui_ai/);
+      expect(m.publicador).toMatch(/huihui_ai|AtomicChat/);
       expect(m.fuentes.length).toBeGreaterThan(0);
-      expect(m.fuentes.every((f) => f.startsWith("https://ollama.com/huihui_ai/"))).toBe(true);
+      expect(
+        m.fuentes.every(
+          (f) => f.startsWith("https://ollama.com/huihui_ai/") || f.startsWith("https://huggingface.co/api/models/AtomicChat/"),
+        ),
+      ).toBe(true);
       expect(CAT.find((b) => b.id === m.baseId && b.clase === "normal"), `base de ${m.id}`).toBeTruthy();
       expect(listableSinFiltros(m)).toBe(true);
       expect(recomendable(m)).toBe(false); // jamás «recomendable»
@@ -93,7 +100,7 @@ describe("catálogo de variantes sin filtros: solo lo verificado el 2026-11-10 y
   });
   it("un catálogo guardado ANTES (solo normales) recibe las variantes de la semilla; una ya retirada no se repone", () => {
     const viejo = { ...semilla, modelos: semilla.modelos.filter((m) => m.clase === "normal") };
-    expect(leerCatalogoModelos(JSON.parse(JSON.stringify(viejo))).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(9);
+    expect(leerCatalogoModelos(JSON.parse(JSON.stringify(viejo))).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(12);
     const retirada = { ...semilla, modelos: semilla.modelos.map((m) => (m.id === "huihui_ai/qwen3.5-abliterated:9b" ? { ...m, estado: "sin-comprobar" } : m)) };
     const leido = leerCatalogoModelos(JSON.parse(JSON.stringify(retirada)));
     expect(leido.modelos.find((m) => m.id === "huihui_ai/qwen3.5-abliterated:9b")?.estado).toBe("sin-comprobar");
@@ -274,7 +281,7 @@ describe("interruptor por perfil: apagado por defecto, migración, y apagarlo de
     al.setItem(CLAVE_AJUSTES, JSON.stringify(desactivarVariantes(leerAjustes(al))));
     expect(leerAjustes(al).variantesSinFiltros).toBe(false);
     al.setItem(CLAVE_CATALOGO, JSON.stringify({ ...semilla, modelos: semilla.modelos.filter((m) => m.clase === "normal") }));
-    expect(leerCatalogoGuardado(al).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(9);
+    expect(leerCatalogoGuardado(al).modelos.filter((m) => m.clase === "abliterated")).toHaveLength(12);
   });
   it("menores: sin datos de edad en el perfil el gancho no bloquea (queda abierto); con datos, sí", () => {
     expect(variantesDisponibles().disponible).toBe(true);
