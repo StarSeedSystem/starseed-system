@@ -9,7 +9,6 @@ import {
   tipoEntidad,
   tipoAmbitoCapa,
   seleccionarModeloContextual,
-  CandidatoContextual,
   ContextoSelector,
 } from "../selector-contextual";
 import { tipoFuenteRadar, CandidatoRadar } from "../radar-internet";
@@ -131,6 +130,7 @@ const ctxBase: ContextoSelector = {
   ambito: "privada",
   senales: crearSenalesRed({ local: true, mallaP2p: false, bluetooth: false, internet: true }),
   perfilNeurona: mac8,
+  candidatos: [],
 };
 
 describe("tipos y constructores", () => {
