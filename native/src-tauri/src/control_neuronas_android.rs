@@ -385,7 +385,7 @@ mod pruebas {
         let _pagina = PaginaColgada;
         let mut c = Control::default();
         let e = kotlin(serde_json::json!({}));
-        c.abrir(TOK, DE, "Mac", "controlar", 0, visible(Some(&e), "S1", 1_000_500)).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, None, visible(Some(&e), "S1", 1_000_500)).unwrap();
         assert_eq!(sincronizar(&mut c, Some(&e), "S1", 1_001_000, 10), Cambio::Nada);
         assert!(c.orden(TOK, "leer-estado", 20, visible(Some(&e), "S1", 1_001_000)).is_ok());
         // La persona pulsa «Terminar» en la notificación: Kotlin quita el indicador y lo apunta.
@@ -400,17 +400,17 @@ mod pruebas {
     #[test]
     fn descartar_la_notificacion_o_perder_el_latido_cierra_la_sesion() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, None, true).unwrap();
         // CTL1117G: ya no hay parada por «descartada»; un motivo que Kotlin no conoce se dice «indicador-perdido».
         let descartada = kotlin(serde_json::json!({ "mostrando": false,
             "terminada": { "sesion": "S1", "motivo": "notificacion-descartada", "t_ms": 1 } }));
         assert_eq!(sincronizar(&mut c, Some(&descartada), "S1", 1_000_100, 1), Cambio::Parar("indicador-perdido".into()));
-        c.abrir(TOK, DE, "Mac", "controlar", 2, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 2, None, true).unwrap();
         let viejo = kotlin(serde_json::json!({}));
         assert_eq!(sincronizar(&mut c, Some(&viejo), "S1", 1_000_000 + LATIDO_MAX_MS + 1, 3), Cambio::Parar("sin-indicador".into()));
-        c.abrir(TOK, DE, "Mac", "controlar", 4, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 4, None, true).unwrap();
         assert_eq!(sincronizar(&mut c, Some(&viejo), "OTRA", 1_000_100, 5), Cambio::Parar("sin-indicador".into()), "indicador de otra sesión");
-        c.abrir(TOK, DE, "Mac", "controlar", 6, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 6, None, true).unwrap();
         let rara = kotlin(serde_json::json!({ "terminada": { "sesion": "S1", "motivo": "<script>", "t_ms": 1 } }));
         assert_eq!(sincronizar(&mut c, Some(&rara), "S1", 1_000_100, 7), Cambio::Parar("indicador-perdido".into()));
     }
@@ -418,7 +418,7 @@ mod pruebas {
     #[test]
     fn un_toque_local_pausa_y_reanudar_solo_desde_kotlin() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", 0, None, true).unwrap();
         let pausada = kotlin(serde_json::json!({ "pausada": true }));
         assert_eq!(sincronizar(&mut c, Some(&pausada), "S1", 1_000_100, 10), Cambio::Pausada);
         assert_eq!(c.orden(TOK, "colgar", 11, true).unwrap_err().codigo(), "pausa-local");

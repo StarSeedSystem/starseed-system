@@ -11,8 +11,12 @@
 
 pub const REGISTRO: &str = "control-neuronas.log";
 pub const INICIO_CADENA: &str = "inicio";
-pub const SESION_MAX_MS: u64 = 60 * 60_000;
-pub const SESION_INACTIVA_MS: u64 = 2 * 60_000;
+/// CTL1119A: sin límite elegido al aceptar, la sesión no tiene hora máxima.
+/// Sólo si se eligió un límite, la hora máxima corta la sesión.
+pub const SESION_MAX_MS: u64 = 0;
+/// CTL1119A: la neurona que controla manda un latido firmado cada 10 s;
+/// la pantalla en curso cuenta como actividad.
+pub const SESION_INACTIVA_MS: u64 = 45_000;
 const MAX_DETALLE: usize = 160;
 #[allow(dead_code)]
 /// (ORD1114T) Margen tras abrir o reanudar en el que lo local no pausa (el propio clic de «Reanudar»).
@@ -75,6 +79,8 @@ pub struct Sesion {
     pub nivel: String,
     pub inicio_ms: u64,
     pub ultima_ms: u64,
+    /// CTL1119A: cuándo termina el límite elegido al aceptar (ms epoch) o None si no tiene límite.
+    pub fin_ms: Option<u64>,
     /// (ORD1114T) En pausa por una acción local desde esta hora (None = no pausada).
     pub pausada_ms: Option<u64>,
     /// (ORD1114T) Última vez que la persona la reanudó (o que se abrió): lo local anterior no pausa.
@@ -149,14 +155,14 @@ impl Control {
 
     /// Abre la sesión (la pide la página tras aceptar «abrir-sesion»). `indicador` = Rust ya puso el
     /// indicador visible. Mismo aparato con sesión viva: la renueva con token nuevo.
-    pub fn abrir(&mut self, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
+    pub fn abrir(&mut self, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool, fin: Option<u64>) -> Result<&Sesion, Rechazo> {
         if !huella_valida(de) || !nivel_valido(nivel) || token.len() < 32 {
             return Err(Rechazo::Forma);
         }
         if !indicador {
             return Err(Rechazo::SinIndicador);
         }
-        self.caducar(ahora);
+        self.caducar(ahora, fin);
         if let Some(s) = &self.sesion {
             if s.de != de {
                 return Err(Rechazo::OtraSesion);
@@ -165,7 +171,7 @@ impl Control {
                 return Err(Rechazo::Pausada); // ORD1114T: renovar no quita la pausa local
             }
         }
-        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, pausada_ms: None, reanudada_ms: ahora, local_ms: 0, pausas: 0 });
+        self.sesion = Some(Sesion { token: token.into(), de: de.into(), nombre: nombre_limpio(nombre), nivel: nivel.into(), inicio_ms: ahora, ultima_ms: ahora, fin_ms: fin, pausada_ms: None, reanudada_ms: ahora, local_ms: 0, pausas: 0 });
         Ok(self.sesion.as_ref().expect("recién puesta"))
     }
 
@@ -178,7 +184,7 @@ impl Control {
         if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
             return None;
         }
-        self.caducar(ahora);
+        self.caducar(ahora, None);
         let s = self.sesion.as_mut()?;
         // CTL1118H: con pausa local también es la misma sesión (mismo token, y la pausa sigue como estaba: reabrir NO la quita).
         if s.de != de {
@@ -186,13 +192,14 @@ impl Control {
         }
         s.nivel = nivel.into();
         s.ultima_ms = ahora;
+        // Mantener el fin existente si ya hay sesión
         Some(s)
     }
 
     /// (CTL1117A · S7) Lo que `abrir` va a negar de todos modos por la sesión que YA hay (otro aparato, pausa local),
     /// dicho ANTES de tocar el indicador: negar una apertura nunca debe quitar el indicador de la sesión que sigue viva.
     pub fn negada_por_la_viva(&mut self, de: &str, ahora: u64) -> Option<Rechazo> {
-        self.caducar(ahora);
+        self.caducar(ahora, None);
         let s = self.sesion.as_ref()?;
         // CTL1118H: la pausa local ya no niega una apertura del mismo controlador (se reutiliza la sesión; ver `reutilizar`).
         if s.de != de {
@@ -217,7 +224,7 @@ impl Control {
         if !nombre_orden_valido(nombre) {
             return Err(Rechazo::Forma);
         }
-        self.caducar(ahora);
+        self.caducar(ahora, None);
         if !indicador && self.sesion.is_some() {
             // Indicador desaparecido = sesión cerrada (SEG1111T §4.7, §2.4 del contrato).
             self.parar(ahora, "sin-indicador");
@@ -244,12 +251,13 @@ impl Control {
         Ok(s)
     }
 
-    /// Cierra la sesión si pasó la hora o 2 min sin órdenes. Devuelve la sesión cerrada.
-    pub fn caducar(&mut self, ahora: u64) -> Option<Sesion> {
-        let vencida = self
-            .sesion
-            .as_ref()
-            .is_some_and(|s| ahora.saturating_sub(s.inicio_ms) > SESION_MAX_MS || ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS);
+    /// Cierra la sesión si pasó el límite elegido al aceptar o 45 s sin órdenes.
+    /// Si no hay límite (SESION_MAX_MS = 0), solo corta por inactividad o parada.
+    pub fn caducar(&mut self, ahora: u64, fin_sesion: Option<u64>) -> Option<Sesion> {
+        let s = self.sesion.as_ref();
+        let vencida = s.map_or(false, |ses| {
+            (fin_sesion.is_some_and(|f| ahora >= f) || ahora.saturating_sub(ses.ultima_ms) > SESION_INACTIVA_MS)
+        });
         if vencida {
             self.parar(ahora, "caducada")
         } else {
@@ -613,7 +621,7 @@ mod pruebas {
     #[test]
     fn sin_indicador_no_hay_sesion() {
         let mut c = Control::default();
-        assert_eq!(c.abrir(TOK, DE, "Mac", "controlar", 0, false).unwrap_err(), Rechazo::SinIndicador);
+        assert_eq!(c.abrir(TOK, DE, "Mac", "controlar", None, 0, false).unwrap_err(), Rechazo::SinIndicador);
         assert!(c.activa().is_none());
     }
 
@@ -629,7 +637,7 @@ mod pruebas {
         }
         let _pagina = PaginaColgada;
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 1_000, true).unwrap();
         assert!(c.orden(TOK, "leer-estado", 2_000, true).is_ok());
         assert!(c.parar(3_000, "la persona, desde el indicador").is_some());
         assert_eq!(c.orden(TOK, "colgar", 3_001, true).unwrap_err(), Rechazo::SinSesion);
@@ -640,7 +648,7 @@ mod pruebas {
     fn ctl1117c_la_parada_nativa_dice_su_motivo_real() {
         let mut c = Control::default();
         assert_eq!(c.detalle_parada(Rechazo::SinSesion, 5_000).as_deref(), Some("motivo=sin-sesion"), "nunca hubo parada");
-        c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 1_000, true).unwrap();
         assert_eq!(c.detalle_parada(Rechazo::Token, 2_000).as_deref(), Some("motivo=otro-token"));
         assert_eq!(c.detalle_parada(Rechazo::Pausada, 2_000), None, "otros rechazos no llevan detalle");
         assert_eq!(c.detalle_parada(Rechazo::SinIndicador, 2_000), None);
@@ -652,7 +660,7 @@ mod pruebas {
             ("¡¡!!", "sin-sesion"),
         ] {
             let mut c = Control::default();
-            c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+            c.abrir(TOK, DE, "Mac", "controlar", None, 1_000, true).unwrap();
             c.parar(3_000, motivo);
             assert_eq!(c.orden(TOK, "leer-aparato", 4_000, true).unwrap_err(), Rechazo::SinSesion);
             assert_eq!(c.detalle_parada(Rechazo::SinSesion, 12_500).unwrap(), format!("motivo={esperado} hace=9"), "{motivo}");
@@ -688,18 +696,18 @@ mod pruebas {
     #[test]
     fn token_ajeno_inactividad_hora_e_indicador_perdido() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         assert_eq!(c.orden("ffffffffffffffffffffffffffffffff", "colgar", 10, true).unwrap_err(), Rechazo::Token);
         assert!(c.orden(TOK, "colgar", SESION_INACTIVA_MS, true).is_ok());
         assert_eq!(c.orden(TOK, "colgar", 2 * SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         let mut t = 0;
         while t < SESION_MAX_MS {
             t += 60_000;
             let _ = c.orden(TOK, "leer-estado", t, true);
         }
         assert_eq!(c.orden(TOK, "leer-estado", SESION_MAX_MS + 60_001, true).unwrap_err(), Rechazo::SinSesion);
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         assert_eq!(c.orden(TOK, "colgar", 5, false).unwrap_err(), Rechazo::SinIndicador);
         assert!(c.activa().is_none());
     }
@@ -707,11 +715,11 @@ mod pruebas {
     #[test]
     fn otro_aparato_no_pisa_la_sesion_y_formas() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         let otro = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         assert_eq!(c.abrir(TOK, otro, "X", "controlar", 1, true).unwrap_err(), Rechazo::OtraSesion);
-        assert_eq!(c.abrir(TOK, "ZZ", "X", "controlar", 1, true).unwrap_err(), Rechazo::Forma);
-        assert_eq!(c.abrir(TOK, DE, "X", "administrar", 1, true).unwrap_err(), Rechazo::Forma);
+        assert_eq!(c.abrir(TOK, "ZZ", "X", "controlar", 1, true).unwrap_err(), Rechazo::Forma, None);
+        assert_eq!(c.abrir(TOK, DE, "X", "administrar", None, 1, true).unwrap_err(), Rechazo::Forma);
         assert_eq!(c.orden(TOK, "rm -rf", 2, true).unwrap_err(), Rechazo::Forma);
         assert_eq!(nombre_limpio("\u{7}  "), "otra neurona");
     }
@@ -736,7 +744,7 @@ mod pruebas {
     #[test]
     fn lo_local_pausa_al_instante_y_solo_el_indicador_reanuda() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         assert!(!c.entrada_local(10_500), "lo de antes de abrir (y el gesto de abrir) no pausa");
         assert!(c.entrada_local(20_000));
         assert_eq!(c.orden(TOK, "colgar", 20_001, true).unwrap_err(), Rechazo::Pausada);
@@ -745,7 +753,7 @@ mod pruebas {
         assert!(!c.entrada_local(30_400), "el clic de «Reanudar» no vuelve a pausar");
         assert!(c.orden(TOK, "colgar", 30_500, true).is_ok());
         assert!(c.entrada_local(40_000));
-        assert_eq!(c.abrir(TOK, DE, "Mac", "controlar", 40_001, true).unwrap_err(), Rechazo::Pausada, "quien manda no se quita la pausa reabriendo");
+        assert_eq!(c.abrir(TOK, DE, "Mac", "controlar", None, 40_001, true).unwrap_err(), Rechazo::Pausada, "quien manda no se quita la pausa reabriendo");
         // En pausa también caduca por inactividad: pausar no alarga la sesión.
         assert_eq!(c.orden(TOK, "colgar", 30_500 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         assert_eq!(Rechazo::Pausada.codigo(), "pausa-local");
@@ -756,7 +764,7 @@ mod pruebas {
     #[test]
     fn la_pausa_local_se_quita_sola_a_los_3_s_sin_actividad() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         assert!(c.entrada_local(20_000));
         assert_eq!(c.vencer_pausa(22_999), None, "a 2999 ms todavía");
         assert!(c.pausada());
@@ -771,7 +779,7 @@ mod pruebas {
     #[test]
     fn cada_actividad_fisica_nueva_reinicia_la_cuenta() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         assert!(c.entrada_local(20_000));
         assert!(!c.entrada_local(22_500), "ya estaba en pausa: no pausa otra vez");
         assert_eq!(c.vencer_pausa(24_000), None, "la cuenta parte de 22 500, no de 20 000");
@@ -790,7 +798,7 @@ mod pruebas {
     #[test]
     fn lo_que_inyecta_el_propio_control_no_cuenta_y_tras_reanudar_un_toque_nuevo_vuelve_a_pausar() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         // Lo propio no llega nunca a `entrada_local` (lo descuentan los vigias): sin actividad fisica no hay pausa que alargar ni poner.
         assert_eq!(c.vencer_pausa(60_000), None);
         assert!(!c.pausada());
@@ -806,7 +814,7 @@ mod pruebas {
     #[test]
     fn reanudar_es_inmediato_y_su_clic_no_vuelve_a_pausar() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         assert!(c.entrada_local(20_000));
         let p = c.reanudar_medida(20_400).expect("Reanudar no espera a los 3 s");
         assert_eq!(p, PausaTerminada { dur_ms: 400, pausas: 1 });
@@ -830,7 +838,7 @@ mod pruebas {
     #[test]
     fn abrir_otra_vez_con_la_sesion_viva_es_la_misma_sesion() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 1_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 1_000, true).unwrap();
         // Sin indicador a la vista no se reutiliza (la apertura normal decide).
         assert!(c.reutilizar(DE, "controlar", 2_000, false).is_none());
         let s = c.reutilizar(DE, "controlar", 5_000, true).expect("misma sesión");
@@ -854,11 +862,11 @@ mod pruebas {
         assert!(c.reutilizar(DE, "controlar", 7_100 + SESION_INACTIVA_MS + 1, true).is_none());
         assert!(c.activa().is_none());
         assert_eq!(c.negada_por_la_viva(DE, 9_000_000), None, "sin sesión no hay nada que negar");
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         c.parar(10, "la-persona-desde-el-indicador");
         assert!(c.reutilizar(DE, "controlar", 11, true).is_none(), "una sesión que la persona terminó no se renueva");
         // La hora máxima no se alarga reabriendo.
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         let mut t = 0;
         while t < SESION_MAX_MS - 60_000 {
             t += 60_000;
@@ -924,7 +932,7 @@ mod pruebas {
     fn ctl1117f_con_la_ventana_leyendo_la_sesion_vive_hasta_el_tope_de_una_hora() {
         // La ventana lee cada 5 s con órdenes firmadas (`leer-aparato`): cada una que pasa renueva la inactividad, pero NO la hora máxima.
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         let mut t = 0;
         while t + 5_000 <= SESION_MAX_MS {
             t += 5_000;
@@ -938,14 +946,14 @@ mod pruebas {
     #[test]
     fn ctl1117f_sin_nadie_leyendo_caduca_por_inactividad_y_en_pausa_las_lecturas_no_renuevan() {
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         assert!(c.orden(TOK, "leer-aparato", 5_000, true).is_ok());
         // Sin lecturas: a los 2 min de la última, caducada.
         assert_eq!(c.orden(TOK, "leer-aparato", 5_000 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 2 min).
         // Lo que sigue sin renovar es lo que se rechaza (la entrada): una pausa sin nadie leyendo caduca como siempre.
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         assert!(c.pausar(10_000));
         for t in (15_000..=SESION_INACTIVA_MS * 2).step_by(5_000) {
             assert!(c.orden(TOK, "leer-aparato", t, true).is_ok(), "t={t}");
@@ -953,7 +961,7 @@ mod pruebas {
         }
         assert!(c.activa().is_some());
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 0, true).unwrap();
         assert!(c.pausar(10_000));
         for t in (15_000..=SESION_INACTIVA_MS).step_by(5_000) {
             assert_eq!(c.orden(TOK, "gesto", t, true).unwrap_err(), Rechazo::Pausada, "t={t}");
@@ -971,7 +979,7 @@ mod pruebas {
             assert!(!orden_pasa_en_pausa(frena), "{frena}");
         }
         let mut c = Control::default();
-        c.abrir(TOK, DE, "Mac", "controlar", 10_000, true).unwrap();
+        c.abrir(TOK, DE, "Mac", "controlar", None, 10_000, true).unwrap();
         assert!(c.entrada_local(20_000));
         for pasa in ORDENES_QUE_PASAN_EN_PAUSA {
             assert!(c.orden(TOK, pasa, 20_100, true).is_ok(), "{pasa} pasa en pausa");

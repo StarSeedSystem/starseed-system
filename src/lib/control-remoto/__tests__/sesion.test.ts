@@ -81,7 +81,7 @@ async function nuevaPuerta(cuentaPropia = CUENTA, nativoPropio: Record<string, u
         // ORD1114Q: lado nativo falso con indicador (la sesión y su token salen de «Rust»).
         nativo: {
             disponible: () => true,
-            abrir: async () => ({ ok: true, token: (++n).toString(16).padStart(32, "0") }),
+            abrir: async (_de: string, _nombre: string, _nivel: string, _fin: number | null, _sobre?: unknown) => ({ ok: true, token: (++n).toString(16).padStart(32, "0") }),
             orden: async () => ({ ok: true }),
             anotar: () => undefined,
             parar: async () => undefined,
@@ -285,7 +285,7 @@ describe("IND1115F · el rechazo por falta de indicador dice qué falta", () => 
     it("FSG1116 · A2: lo nativo recibe la orden firmada «abrir-sesion» tal como llegó, para comprobarla allí", async () => {
         const recibidos: unknown[] = [];
         await nuevaPuerta(CUENTA, {
-            abrir: async (_de: string, _nombre: string, _nivel: string, sobre: unknown) => {
+            abrir: async (_de: string, _nombre: string, _nivel: string, _fin: number | null, sobre: unknown) => {
                 recibidos.push(sobre);
                 return { ok: true, token: "b".repeat(32) };
             },

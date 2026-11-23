@@ -10,7 +10,7 @@
  *   4. la manda un aparato que el dueño aceptó AQUÍ (clave pública fijada) — si no, «no-autorizado»;
  *   5. la firma ECDSA vale con esa clave fijada — si no, «firma»;
  *   6. va dirigida a esta neurona — si no, «otro-destino»;
- *   7. su hora está a ±5 min y no ha caducado (vida ≤ 2 min) — si no, «caducada»;
+ *   7. su hora está a ±5 min y no ha caducado (sesión con latidos cada 10 s, cae a los 45 s sin ellos) — si no, «caducada»;
  *   8. su `seq` es mayor que el último visto de ese aparato y su nonce es nuevo — si no, «repetida»;
  *   9. no pasa del tope (5 por segundo, 60 por minuto por aparato) — si no, «limite»;
  *  10. la acción está en la lista cerrada — si no, «accion-desconocida» (nunca se adivina);
@@ -39,7 +39,7 @@ import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
 
-/** CTL1119A: la hora máxima histórica (1 h) se conserva como referencia; ya no se aplica sola: sin límite no hay techo. */
+/** CTL1119A: la hora máxima histórica se conserva como referencia para límite elegido; sin límite no hay techo. */
 export const SESION_MAX_MS = 60 * 60_000;
 /** CTL1119A: la neurona que controla manda un latido firmado cada 10 s. */
 export const LATIDO_CADA_MS = 10_000;
@@ -450,7 +450,8 @@ export class PuertaControl {
                 return this.respuesta(c.nonce, false, "limite-cumplido", nombre, c.de, c.nivel);
             }
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
-            const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
+            // CTL1119A: el límite (fin) se pasa a Rust para que cancele la sesión cuando llegue.
+            const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, fin, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token y mismo fin):
             // renovar la ventana de latidos sí, estirar el límite elegido no.

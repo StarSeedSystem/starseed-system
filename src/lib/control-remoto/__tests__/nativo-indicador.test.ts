@@ -39,8 +39,8 @@ describe("IND1115F · lo que dice Rust al negar la sesión", () => {
             return "c".repeat(32);
         });
         const sobre = { v: 1, carga: "abc", firma: "def" };
-        expect(await crearPuenteTauri().abrir("de", "Mac", "ver", sobre)).toEqual({ ok: true, token: "c".repeat(32) });
-        expect(vistos[0]).toEqual({ de: "de", nombre: "Mac", nivel: "ver", sobre });
+        expect(await crearPuenteTauri().abrir("de", "Mac", "ver", null, sobre)).toEqual({ ok: true, token: "c".repeat(32) });
+        expect(vistos[0]).toEqual({ de: "de", fin: null, nombre: "Mac", nivel: "ver", sobre: { v: 1, carga: "abc", firma: "def" } });
     });
 
     it("lee el estado del indicador con el último rechazo; fuera de la app, null", async () => {

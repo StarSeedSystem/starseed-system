@@ -204,9 +204,10 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
 /// IND1115F: en Android el comando es `async` (corre en el grupo de hilos de Tauri, no en el hilo que atiende la
 /// página) porque espera hasta 4 s el latido de Kotlin; un comando síncrono bloquearía ese hilo todo ese tiempo.
 /// El rechazo por falta de indicador lleva el detalle tras el código: «sin-indicador-nativo falta=… paso=… tras=…».
+/// CTL1119A: `fin` = hora de fin de la sesión (ms epoch) o None si no tiene límite.
 #[cfg_attr(target_os = "android", tauri::command(async))]
 #[cfg_attr(not(target_os = "android"), tauri::command)]
-pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, sobre: Option<serde_json::Value>) -> Result<String, String> {
+pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, fin: Option<u64>, sobre: Option<serde_json::Value>) -> Result<String, String> {
     exigir_pagina(&app, &webview)?;
     let _una_a_la_vez = cerrojo_apertura(); // CTL1117A · S1
     // FSG1116 · A2: en Android la sesión (y con ella la pantalla y los cuadros) solo la abre la orden firmada
@@ -644,7 +645,7 @@ pub fn iniciar(app: &AppHandle) {
             parar(&h, "sin-indicador");
             continue;
         }
-        let cerrada = control().caducar(mono_ms());
+        let cerrada = control().caducar(mono_ms(), control().activa().map(|s| s.fin_ms));
         if let Some(s) = cerrada {
             quitar_indicador(&h);
             anotar(&h, "sesion-parada", &format!("de={} motivo=caducada", s.de.chars().take(8).collect::<String>()));

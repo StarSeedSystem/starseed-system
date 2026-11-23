@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { duracionDeLimite, finDeLimite, limiteNormalizado, restanteDeSesion } from "../sesion";
+import { duracionDeLimite, finDeLimite, limiteNormalizado, restanteDeSesion, FiltroPermisos, LimiteSesion } from "../sesion";
 
 describe("duracionDeLimite", () => {
     it("devuelve null para sin-limite", () => {
@@ -36,22 +36,22 @@ describe("finDeLimite", () => {
 describe("limiteNormalizado", () => {
     const ahora = 1000000000000;
 
-    it("usa porDefecto cuando no hay elegido", () => {
-        const filtro = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "sin-limite" } };
+it("usa porDefecto cuando no hay elegido", () => {
+        const filtro: FiltroPermisos = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "sin-limite" } };
         expect(limiteNormalizado(null, filtro, ahora)).toEqual({ tipo: "minutos", minutos: 15 });
     });
 
-    it("corta por maximo cuando excede el filtro", () => {
-        const filtro = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 10 } };
+it("corta por maximo cuando excede el filtro", () => {
+        const filtro: FiltroPermisos = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 10 } };
         expect(limiteNormalizado({ tipo: "minutos", minutos: 30 }, filtro, ahora)).toEqual({ tipo: "minutos", minutos: 10 });
     });
 
     it("convierte a maximo minutos cuando excede", () => {
-        const filtro = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 10 } };
-        const largoFuturo = { tipo: "minutos", minutos: 100 * 60 * 24 };
+        const filtro: FiltroPermisos = { porDefecto: { tipo: "minutos", minutos: 15 }, maximo: { tipo: "minutos", minutos: 10 } };
+        const largoFuturo: LimiteSesion = { tipo: "minutos", minutos: 100 * 60 * 24 };
         const resultado = limiteNormalizado(largoFuturo, filtro, ahora);
         expect(resultado.tipo).toBe("minutos");
-        expect(resultado.minutos).toBeLessThanOrEqual(10);
+        expect((resultado as { minutos: number }).minutos).toBeLessThanOrEqual(10);
     });
 });
 
