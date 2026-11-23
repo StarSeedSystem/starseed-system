@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "SES1122B",
+   "ola": "pasarelas-1122",
+   "titulo": "Genesis: «pide recarga» no es «sin cupo, se repone sola» ni «check-in pendiente»",
+   "archivos": [
+    "src/lib/mando/pasarelas-lector.ts",
+    "src/lib/mando/director-datos.ts",
+    "src/components/mando/director-proveedores.tsx",
+    "src/lib/mando/__tests__/pasarelas-lector.ses1122b.test.ts"
+   ],
+   "depende": [],
+   "prompt": "DIR1121I (commit 5330a469b) añadió en scripts/puente/pasarelas.py `PISTAS_RECARGA` y `pide_recarga(mensaje)`: apinex, AIHubMix, DeepSeek, xAI y Hugging Face contestan «recarga saldo» (apinex: 402 «Make a single top-up of $5 or more to unlock 25M free tokens daily for life»; el fichaje diario ya NO desbloquea su API, medido el 22-11 tras fichar Alex). El informe en texto ya lo dice; la ventana de Genesis no: pasarelas-lector.ts sigue pintando sin_cupo como «se repone sola» y director-proveedores.tsx ofrece «check-in diario pendiente» con enlace fijo a apinex. Lleva la misma regla a TypeScript (mismas pistas, función pura, leyendo `mensaje` del informe ~/.starseed/pasarelas-informe.json): texto «Sin saldo: pide una recarga de pago; no se repone sola (decide Alex)», sin botón de fichaje para esos casos, y el enlace de check-in solo si el estado es `fichaje`. No inventes estados nuevos en el informe; no toques ajustes guardados ni diseño (solo textos y la condición). Pruebas vitest de la función pura. Nunca `next build` ni servidor de desarrollo."
+  },
+  {
+   "id": "ALM1121A",
+   "ola": "ALM1121",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox.py",
+    "deploy/launchd/com.starseed.respaldo-maggabox.plist",
+    "scripts/puente/recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después)."
+  },
+  {
+   "id": "CAN1121C",
+   "ola": "DIR1121",
+   "titulo": "Cada canal con las mismas características, herramientas y especialidad en todos sus chats",
+   "archivos": [
+    "scripts/puente/fichas_canales.py",
+    "scripts/puente/test_fichas_canales.py",
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/chats.json"
+   ],
+   "depende": [],
+   "prompt": "Alex: «perfeccionar y refinar sus características, cualidades, herramientas y especializaciones con todo MetaGenesis en todos los\nchats de canales activos: MetaGenesis, Astraura con Genesis desde mi cuenta, Hermes, Antigravity, Telegram, Claude, Codex». Crea la FICHA\nde cada canal en una sola fuente (dentro del registro canales-direccion o junto a él): propósito, especialidad, qué decide y qué no,\nherramientas y habilidades (skills, MCP, colas, puertas), motores y modelos por orden (gratuitos primero; créditos de Antigravity y\nClaude solo donde rinden), memorias y contextos que carga siempre (fundamentos, registro de pruebas, estado de olas, acciones de Alex),\nqué puede hacer sin la palabra de Alex y qué no, y a quién releva. Propuesta de reparto: Principal = presidente: plan, prioridades,\ndecisiones largas, supervisión y verificación, relevo con Claude en Cowork; General = operación diaria: colas, salud, capacidad,\npublicación, avisos y órdenes cortas desde el móvil; Audiovisual y diseño = identidad Trinity Liquid Crystal, piezas, vídeo, NotebookLM,\nDrive y redes. Luego haz que CADA medio cargue esa misma ficha como contexto de su chat del canal (prompt de la sesión de Hermes, chat de\nAntigravity, Codex, el contexto que el cartero da al presidente, /ayuda y /estado de cada bot de Telegram, pestaña de Genesis en\nAstraura, panel de MetaGenesis) y una prueba que compare que todos entregan la misma ficha. No amplíes los permisos de escritura de\nningún agente.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "CAN1121A-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "ALM1121A",
+   "SES1122B",
+   "CAN1121C"
+  ]
+ }
+}
