@@ -12,7 +12,7 @@ import { filtrarSenales, contarSinDatoFrecuencia } from "@/lib/senales/espectro/
 import type { FiltroSenales } from "@/components/mesh/mapa-senales/geo/panel-filtros-senales-tipos";
 import { MEDIOS } from "@/components/mesh/mapa-senales/geo/panel-filtros-senales-tipos";
 import { PanelFiltrosSenales } from "@/components/mesh/mapa-senales/geo/panel-filtros-senales";
-import { VistaEspectro } from "../vista-espectro";
+import { VistaEspectro } from "./vista-espectro";
 import { FichaSenalEspectro } from "./ficha-senal-espectro";
 import type { MapaVivoRed } from "@/lib/senales/tipos-vivo";
 import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/tipos";
