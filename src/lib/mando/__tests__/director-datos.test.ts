@@ -142,10 +142,10 @@ describe("resumenPendientes", () => {
 });
 
 describe("resumenProveedores", () => {
-  it("agrupa modelos por proveedor (nvidia/ ⇒ nim) y detecta check-in", () => {
+  it("agrupa modelos por proveedor (nvidia/ ⇒ nim) y detecta el fichaje", () => {
     const salud = {
       nim: { estado: "vivo" },
-      apinex: { estado: "caido", motivo: "necesita check-in", sin_cupo_hasta: 123 },
+      apinex: { estado: "fichaje", motivo: "necesita check-in", sin_cupo_hasta: 123 },
     };
     const modelos = ["nvidia/llama", "nvidia/qwen", "apinex/gpt"];
     const r = resumenProveedores(salud, modelos);
@@ -155,7 +155,18 @@ describe("resumenProveedores", () => {
     expect(nim?.vivo).toBe(true);
     expect(apinex?.vivo).toBe(false);
     expect(apinex?.necesitaCheckin).toBe(true);
+    expect(apinex?.estado).toBe("fichaje");
     expect(apinex?.sinCupoHasta).toBe(123);
+  });
+
+  it("un «sin cupo» con recarga no pide el fichaje diario", () => {
+    const r = resumenProveedores(
+      { apinex: { estado: "sin_cupo", motivo: "Make a single top-up of $5 or more" } },
+      ["apinex/gpt"],
+    );
+    const apinex = r.find((p) => p.proveedor === "apinex");
+    expect(apinex?.necesitaCheckin).toBe(false);
+    expect(apinex?.estado).toBe("sin_cupo");
   });
 
   it("incluye proveedores de modelos sin entrada en salud", () => {

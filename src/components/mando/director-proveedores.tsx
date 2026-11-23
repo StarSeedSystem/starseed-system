@@ -66,7 +66,7 @@ function FilaProveedor({ proveedor }: { proveedor: ResumenProveedor }) {
         {proveedor.motivo ? <span>{proveedor.motivo}</span> : null}
       </div>
 
-      {proveedor.necesitaCheckin ? (
+      {proveedor.estado === "fichaje" ? (
         <a
           href="https://apinex.bond/airdrop?tab=quests"
           target="_blank"
