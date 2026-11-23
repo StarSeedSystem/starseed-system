@@ -1590,6 +1590,7 @@ def recibir(upd: dict[str, Any]) -> None:
         _hfa_leer("propuestas.json", {})
         propuestas = _hfa_propuestas()
         propuestas.append(propuesta)
+        os.makedirs(_hfa_base(), exist_ok=True)
         with open(os.path.join(_hfa_base(), "propuestas.json"), "w", encoding="utf-8") as f:
             json.dump({"propuestas": propuestas}, f, ensure_ascii=False, indent=1)
         decir(
@@ -1836,7 +1837,25 @@ def _comando_higgsfield_presupuesto(args: str) -> None:
 def _es_peticion_higgsfield(texto: str) -> bool:
     """Detecta si el mensaje pide algo de Higgsfield."""
     t = texto.lower()
-    return any(p in t for p in ("higgsfield", "seedance", "veo", "video generat", "generar video", "clip de", "video para", "haz un video", "crea un video"))
+    return any(
+        p in t
+        for p in (
+            "higgsfield",
+            "seedance",
+            "veo-3",
+            "veo 3",
+            "veo3",
+            "veo-2",
+            "veo 2",
+            "veo2",
+            "video generat",
+            "generar video",
+            "clip de",
+            "video para",
+            "haz un video",
+            "crea un video",
+        )
+    )
 
 
 def _crear_propuesta_higgsfield(texto: str) -> dict:

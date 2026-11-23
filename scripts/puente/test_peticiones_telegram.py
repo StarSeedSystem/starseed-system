@@ -1000,6 +1000,30 @@ def test_peticion_higgsfield_proyecto_sistema_diseno(tmp_path, monkeypatch):
     assert "sistema-diseno" in texto
 
 
+def test_peticion_higgsfield_crea_directorio_si_no_existe(tmp_path, monkeypatch):
+    """Si produccion/higgsfield no existe aún en el nodo, lo crea antes de guardar propuestas.json."""
+    for k, v in (("CHAT", "123456"), ("TOKEN", "fake"), ("DIR", str(tmp_path)),
+                 ("COLA", str(tmp_path / "cola.json")), ("ESTADO", str(tmp_path / "estado.json"))):
+        monkeypatch.setattr(mod, k, v)
+    respuestas = []
+    monkeypatch.setattr(mod, "decir", respuestas.append)
+    monkeypatch.setattr(mod, "hfa", __import__("higgsfield_aprobado"))
+    base = str(tmp_path / "sin-crear" / "higgsfield")
+    monkeypatch.setattr(mod.hfa, "DIR", base)
+
+    recibir({"update_id": 999, "message": {"chat": {"id": "123456"}, "text": "genera un video con seedance de 5 segundos"}})
+
+    assert len(respuestas) == 1
+    assert "Nueva propuesta de Higgsfield creada" in respuestas[0]
+    assert os.path.exists(os.path.join(base, "propuestas.json"))
+
+
+def test_espanol_veo_no_dispara_higgsfield():
+    """El verbo español «veo» no debe activar Higgsfield; «veo 3» sí."""
+    assert mod._es_peticion_higgsfield("no veo respuesta sobre los demás mensajes") is False
+    assert mod._es_peticion_higgsfield("haz un clip con veo 3") is True
+
+
 def test_comando_higgsfield_aprobar_llama_drive(tmp_path, monkeypatch):
     """/higgsfield aprobar llama a la función de subida a Drive cuando la ejecución es exitosa."""
     propuestas = [
