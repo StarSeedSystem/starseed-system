@@ -69,10 +69,11 @@ fn ruta_archivo_metadatos(app: &AppHandle) -> Option<PathBuf> {
 /// Devuelve `Ok(almacen_usado)` si tuvo éxito, `Err(motivo)` si falló.
 #[cfg(target_os = "linux")]
 fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosClave) -> Result<String, String> {
-    use secret_service::blocking::{EncryptionType, SecretService};
+    use secret_service::blocking::SecretService;
+    use secret_service::EncryptionType;
     use std::collections::HashMap;
 
-    let ss = SecretService::connect(EncryptionType::Plain)
+    let ss = SecretService::connect(EncryptionType::Dh)
         .map_err(|e| format!("Secret Service no disponible: {e}"))?;
     let collection = ss
         .get_default_collection()
@@ -175,10 +176,11 @@ fn guardar_en_archivo(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
 /// Carga la clave privada desde el llavero del sistema.
 #[cfg(target_os = "linux")]
 fn cargar_desde_llavero(app: &AppHandle) -> Result<(SigningKey, MetadatosClave), String> {
-    use secret_service::blocking::{EncryptionType, SecretService};
+    use secret_service::blocking::SecretService;
+    use secret_service::EncryptionType;
     use std::collections::HashMap;
 
-    let ss = SecretService::connect(EncryptionType::Plain)
+    let ss = SecretService::connect(EncryptionType::Dh)
         .map_err(|e| format!("Secret Service no disponible: {e}"))?;
     let collection = ss
         .get_default_collection()
@@ -260,9 +262,10 @@ fn borrar_clave(app: &AppHandle) -> Result<(), String> {
     // Intentar borrar del llavero
     #[cfg(target_os = "linux")]
     {
-        use secret_service::blocking::{EncryptionType, SecretService};
+        use secret_service::blocking::SecretService;
+        use secret_service::EncryptionType;
         use std::collections::HashMap;
-        if let Ok(ss) = SecretService::connect(EncryptionType::Plain) {
+        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
             if let Ok(collection) = ss.get_default_collection() {
                 let _ = collection.unlock();
                 if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {
@@ -480,9 +483,10 @@ fn clave_existe(app: &AppHandle) -> bool {
     // Primero comprobar llavero
     #[cfg(target_os = "linux")]
     {
-        use secret_service::blocking::{EncryptionType, SecretService};
+        use secret_service::blocking::SecretService;
+        use secret_service::EncryptionType;
         use std::collections::HashMap;
-        if let Ok(ss) = SecretService::connect(EncryptionType::Plain) {
+        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
             if let Ok(collection) = ss.get_default_collection() {
                 let _ = collection.unlock();
                 if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {

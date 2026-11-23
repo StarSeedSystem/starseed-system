@@ -54,7 +54,7 @@ fn ejecutar_texto(prog: &str, args: &[&str]) -> Option<String> {
     let mut cmd = std::process::Command::new(prog);
     if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
         let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-        let limpio = limpiar_entorno(vars, Path::new(&appdir));
+        let limpio = limpiar_entorno(vars, std::path::Path::new(&appdir));
         for (k, v) in limpio {
             if let Some(val) = v {
                 cmd.env(k, val);

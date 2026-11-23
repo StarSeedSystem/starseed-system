@@ -380,7 +380,7 @@ pub fn permisos_sistema_estado() -> EstadoPermisosSistema {
     comunes(&mut estados);
     #[allow(unused_mut)]
     let mut sesion = String::new();
-    #[allow(unused_mut)]
+    #[allow(unused_mut, unused_assignments)]
     let mut linux: Option<EstadoLinux> = None;
     #[cfg(target_os = "macos")]
     macos::leer(&mut estados);

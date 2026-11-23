@@ -357,7 +357,7 @@ fn volumenes_del_sistema() -> (Vec<VolumenNativo>, Vec<String>) {
             let limpio = limpiar_entorno(vars, Path::new(&appdir));
             for (k, v) in limpio.clone() {
                 if let Some(val) = v {
-                    cmd_df.env(k.clone(), val);
+                    cmd_df.env(k.clone(), &val);
                     cmd_mount.env(k, val);
                 } else {
                     cmd_df.env_remove(k.clone());

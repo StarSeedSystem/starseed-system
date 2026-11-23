@@ -255,9 +255,8 @@ pub fn encender_medios_linux<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
             ajustes.set_enable_mediasource(true);
             ajustes.set_enable_media_capabilities(true);
             ajustes.set_enable_webaudio(true);
-            // (PRM1119A) La geolocalización de WebKitGTK venía apagada; sin esto `navigator.geolocation`
-            // ni existe. Si su proveedor interno (GeoClue) no da posición, la app tiene su vía nativa.
-            ajustes.set_enable_geolocation(true);
+            // (PRM1119A) La geolocalización de `navigator.geolocation` se autoriza vía `on_permission_request`
+            // (WebKitGTK 2.0.2 no expone `set_enable_geolocation` en SettingsExt) y su vía nativa (`ubicacion_linux.rs`).
             ajustes.set_enable_mock_capture_devices(false);
         }
     });
@@ -283,7 +282,7 @@ pub fn elementos_webrtc_que_faltan() -> Option<Vec<&'static str>> {
     let mut cmd = Command::new("gst-inspect-1.0");
     if let Some(appdir) = std::env::var("APPIMAGE").ok().or_else(|| std::env::var("APPDIR").ok()) {
         let vars: Vec<(String, Option<String>)> = std::env::vars().map(|(k, v)| (k, Some(v))).collect();
-        let limpio = limpiar_entorno(vars, Path::new(&appdir));
+        let limpio = limpiar_entorno(vars, std::path::Path::new(&appdir));
         for (k, v) in limpio {
             if let Some(val) = v {
                 cmd.env(k, val);
