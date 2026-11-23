@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-21 10:58:23 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-23 03:37:20 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -15,137 +15,157 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Ola arriba | Ola A-desbloqueo · publicacion-4d8777e4d |
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 1 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 1 · integradas 1 |
-| HEAD | `d17ef0a69 chore(memoria): aprendizaje de la ola auto-1118-175743` |
-| Sin publicar | 73 commits |
-| Árbol | 3 archivos sin commitear |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
+| HEAD | `1ce1315d7 fix(control-remoto,native): arregla bloqueo en Linux y acelera P2P local` |
+| Sin publicar | 0 commits |
+| Árbol | 1 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1118-175743.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1121-194150.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `RST06b` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 5 min | 302 s | 108975 |
-| `GEM1119D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 29 min | 1763 s | 188556 |
-| `ASW15` | hecho | openrouter/thinkingmachines/inklin | 37 min | 2224 s | 493441 |
-| `AN01-d1s` | hecho | freellmapi/auto | 54 min | 3217 s | 146387 |
-| `AN01-d2` | hecho | freellmapi/auto | 61 min | 3643 s | 61964 |
-| `IMG-profunda-catch-silencioso-en-auroratrans` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 93 min | 5607 s | 73409 |
-| `AN01-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 113 min | 6754 s | 133404 |
-| `GEM1119D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 124 min | 7416 s | 114723 |
-| `SVF1B5b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 146 min | 8753 s | 36342 |
-| `RST06-d2b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 174 min | 10433 s | 37649 |
-| `CTL1119A-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 197 min | 11794 s | 311780 |
-| `ASW14` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 207 min | 12405 s | 74730 |
-| `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 207 min | 12427 s | 501 |
-| `ENT-agentes-referencias-diseno-agentes-re-41b86d-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 208 min | 12471 s | 489 |
-| `ENT-agentes-referencias-diseno-agentes-re-d88ac4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 210 min | 12581 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-0dd280-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 211 min | 12686 s | 490 |
-| `ENT-agentes-referencias-diseno-agentes-re-46bbb1-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 214 min | 12818 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-b4f9c6-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 215 min | 12882 s | 489 |
-| `IRD11213` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 228 min | 13652 s | 452 |
-| `IRD11212` | hecho | nim/minimaxai/minimax-m3.1-flash | 229 min | 13762 s | 447 |
-| `AN01` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 231 min | 13851 s | 228148 |
-| `IRD11211` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 231 min | 13866 s | 452 |
-| `RST06-d2` | hecho | freellmapi/auto | 268 min | 16092 s | 15089 |
-| `ASW13-d3b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 273 min | 16408 s | 34418 |
-| `PRM1119B-d3` | hecho | llm7/minimax-m2.7 | 278 min | 16664 s | 32740 |
-| `SIN11217` | hecho | nim/minimaxai/minimax-m3.1-flash | 288 min | 17268 s | 377 |
-| `SIN11216` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 288 min | 17299 s | 382 |
-| `SIN11215` | hecho | nim/minimaxai/minimax-m3.1-flash | 289 min | 17325 s | 375 |
-| `SIN11214` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 290 min | 17395 s | 384 |
-| `SIN11213` | hecho | nim/minimaxai/minimax-m3.1-flash | 291 min | 17439 s | 381 |
-| `SIN11212` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 293 min | 17583 s | 383 |
-| `SIN11211` | hecho | nim/minimaxai/minimax-m3.1-flash | 294 min | 17632 s | 380 |
-| `RST06` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 319 min | 19156 s | 126427 |
-| `CTL1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 343 min | 20599 s | 188936 |
-| `IMG-agentes-reimaginada-agentes-referencias-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 358 min | 21455 s | 23895 |
-| `ASW13-d3` | hecho | freellmapi/auto | 373 min | 22369 s | 3615 |
-| `CTL1119E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 379 min | 22725 s | 132425 |
-| `SIN1116G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 425 min | 25521 s | 36408 |
-| `PET1116D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 430 min | 25808 s | 31699 |
-| `TU18c` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 432 min | 25916 s | 121484 |
-| `ASW13-d2` | hecho | openrouter/google/gemma-4-31b-it:f | 433 min | 25993 s | 487826 |
-| `TU18b-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 459 min | 27515 s | 552675 |
-| `IMG-agentes-reimaginada-agentes-referencias-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 485 min | 29082 s | 39541 |
-| `MAG1120D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 492 min | 29500 s | 70357 |
-| `CAP1119B-d1s` | hecho | freellmapi/auto | 506 min | 30337 s | 300518 |
-| `MAG1120B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 519 min | 31143 s | 73235 |
-| `MAG1120A` | hecho | freellmapi/auto | 538 min | 32271 s | 69831 |
-| `IMG-agentes-reimaginada-agentes-referencias-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 569 min | 34111 s | 29401 |
-| `CAP1119Ed` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 569 min | 34126 s | 421352 |
-| `GEM1119C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 642 min | 38509 s | 121376 |
-| `ABBA5CF6E` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 687 min | 41215 s | 251669 |
-| `ASW13-d1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 711 min | 42659 s | 643817 |
-| `ENT-agentes-referencias-diseno-agentes-re-0270f4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 738 min | 44295 s | 495 |
-| `ENT-agentes-referencias-diseno-agentes-re-3f4668-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 739 min | 44361 s | 490 |
-| `ENT-agentes-referencias-diseno-agentes-re-a202ac-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 740 min | 44413 s | 495 |
-| `CTL1119G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 743 min | 44596 s | 53727 |
-| `IRD11183` | hecho | nim/minimaxai/minimax-m3.1-flash | 750 min | 44997 s | 1828 |
-| `A3445965C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 755 min | 45305 s | 1013543 |
-| `ENT-agentes-referencias-diseno-agentes-re-81343e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 756 min | 45356 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-b59ecf-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 769 min | 46123 s | 489 |
-| `IRD11181` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 770 min | 46171 s | 3621 |
-| `ENT-agentes-referencias-diseno-agentes-re-351231-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 771 min | 46268 s | 489 |
-| `IRD11182` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 773 min | 46404 s | 939 |
-| `PRM1119B` | hecho | xkiro/mistralai/devstral-medium | 914 min | 54811 s | 82480 |
-| `ENT-agentes-referencias-diseno-agentes-re-cb1a60-v1` | hecho | explabs/deepseek-v4.1-flash | 915 min | 54891 s | 485 |
-| `ENT-agentes-referencias-diseno-agentes-re-603970-v1` | hecho | explabs/deepseek-v4.1-flash | 915 min | 54920 s | 1640 |
-| `ENT-agentes-referencias-diseno-agentes-re-231322-v1` | hecho | explabs/deepseek-v4.1-flash | 952 min | 57116 s | 484 |
-| `ENT-agentes-referencias-diseno-agentes-re-c0123c-v1` | hecho | explabs/deepseek-v4.1-flash | 957 min | 57427 s | 698 |
-| `A3F915889` | hecho | openrouter/google/gemma-4-31b-it:f | 1210 min | 72625 s | 469999 |
-| `FMT1119Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1276 min | 76536 s | 216487 |
-| `CAP1119B-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1318 min | 79060 s | 200703 |
-| `CTL1119Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1322 min | 79298 s | 708749 |
-| `AF44EE5BF` | hecho | freellmapi/auto | 1364 min | 81822 s | 278670 |
-| `ENT-agentes-referencias-diseno-agentes-re-9909e7-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1391 min | 83485 s | 1638 |
-| `ENT-agentes-referencias-diseno-agentes-re-a037ec-v1` | hecho | explabs/deepseek-v4.1-flash | 1393 min | 83608 s | 484 |
-| `A1705AD28` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1411 min | 84683 s | 49038 |
-| `IRD11203` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1418 min | 85063 s | 452 |
-| `IRD11202` | hecho | explabs/deepseek-v4.1-flash | 1419 min | 85145 s | 442 |
-| `IRD11201` | hecho | groq/openai/gpt-oss-120b | 1420 min | 85181 s | 439 |
-| `SIN11207` | hecho | nim/minimaxai/minimax-m3.1-flash | 1420 min | 85187 s | 377 |
-| `SIN11206` | hecho | explabs/deepseek-v4.1-flash | 1420 min | 85189 s | 372 |
-| `SIN11205` | hecho | groq/openai/gpt-oss-120b | 1420 min | 85222 s | 367 |
-| `SIN11204` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1420 min | 85230 s | 384 |
-| `SIN11203` | hecho | explabs/deepseek-v4.1-flash | 1421 min | 85270 s | 573 |
-| `SIN11202` | hecho | nim/minimaxai/minimax-m3.1-flash | 1421 min | 85288 s | 476 |
-| `A900E21C0` | hecho | freellmapi/auto | 1687 min | 101208 s | 75450 |
-| `A39897682b` | hecho | freellmapi/auto | 1693 min | 101562 s | 186665 |
-| `SIN11201` | hecho | groq/openai/gpt-oss-120b | 1707 min | 102442 s | 352 |
-| `A0FDE8168b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1708 min | 102503 s | 196756 |
-| `AE4588AA8` | hecho | freellmapi/auto | 2069 min | 124132 s | 97613 |
-| `AC2E049E1` | hecho | freellmapi/auto | 2274 min | 136467 s | 5392 |
-| `A392821BE` | hecho |  | 2302 min | 138147 s | 0 |
-| `A0FDE8168` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2319 min | 139137 s | 55080 |
-| `A39897682` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2331 min | 139830 s | 79027 |
-| `A80CF23A6` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2379 min | 142743 s | 47636 |
-| `ENT-agentes-referencias-diseno-agentes-re-bfe106-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2443 min | 146597 s | 494 |
-| `ENT-agentes-referencias-diseno-agentes-re-a4bab4-v1` | hecho | explabs/deepseek-v4.1-flash | 2444 min | 146630 s | 484 |
-| `ENT-agentes-referencias-diseno-agentes-re-838604-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 2444 min | 146645 s | 703 |
-| `RIM-agentes-referencias-diseno-agentes-re-fc659a-v2` | hecho | explabs/deepseek-v4.1-flash | 2464 min | 147848 s | 490 |
-| `ENT-agentes-referencias-diseno-agentes-re-a7186e-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2465 min | 147877 s | 807 |
-| `ENT-agentes-referencias-diseno-agentes-re-353c83-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 2467 min | 148005 s | 785 |
-| `ENT-agentes-referencias-diseno-agentes-re-e6b1d0-v1` | hecho | explabs/deepseek-v4.1-flash | 2468 min | 148080 s | 683 |
-| `IRD11193` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 2469 min | 148137 s | 559 |
-| `IRD11192` | hecho | explabs/deepseek-v4.1-flash | 2470 min | 148207 s | 442 |
-| `IRD11191` | hecho | groq/openai/gpt-oss-120b | 2471 min | 148236 s | 541 |
-| `PEND1b-d2` | hecho | openrouter/cohere/north-mini-code: | 3404 min | 204252 s | 99175 |
-| `A4F047CA3` | hecho | freellmapi/auto | 3415 min | 204886 s | 2054 |
-| `A0BF43013` | hecho | openrouter/thinkingmachines/inklin | 3440 min | 206411 s | 198062 |
-| `CAP1119B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3457 min | 207439 s | 356778 |
-| `PEND1b` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3580 min | 214787 s | 42295 |
-| `A13BE11E4` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3605 min | 216300 s | 13129 |
-| `CTL1119Fb` | hecho | openrouter/cohere/north-mini-code: | 3611 min | 216686 s | 46497 |
-| `ALM1118A-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 3638 min | 218295 s | 20015 |
-| `CAP1119C` | hecho | freellmapi/auto | 3638 min | 218300 s | 68236 |
-| `AF0E9F413` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3671 min | 220269 s | 20427 |
-| `PRU1118A-d1` | hecho | freellmapi/auto | 3778 min | 226680 s | 176190 |
-| `IMG-agentes-reimaginada-profunda-corregir-ti-d2` | hecho | openrouter/cohere/north-mini-code: | 3831 min | 229835 s | 70215 |
-| `ENT-agentes-referencias-diseno-agentes-re-6823f5-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 3835 min | 230118 s | 490 |
-| `EFI1119A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3841 min | 230445 s | 156485 |
-| `LNX1118WA` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3878 min | 232702 s | 51713 |
-| `ASW13-d1` | hecho | openrouter/thinkingmachines/inklin | 3885 min | 233074 s | 361833 |
-| `MRA8b-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3886 min | 233133 s | 5219 |
+| `CAN1121B-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 172 s | 145097 |
+| `AST1123A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 74 min | 4438 s | 73437 |
+| `MRE8b-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 91 min | 5449 s | 83822 |
+| `ENT-agentes-reimaginada-agentes-referenci-25e9ae-v2` | hecho | nim/minimaxai/minimax-m3.1-flash | 113 min | 6776 s | 690 |
+| `CAN1121B` | hecho | opencode/minimax-m3.1-flash-free | 116 min | 6942 s | 1482048 |
+| `RST06` | hecho | openrouter/liquid/lfm-3-1.7b:free | 118 min | 7091 s | 201668 |
+| `RIM-agentes-referencias-diseno-agentes-re-95ca85-v2` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 166 min | 9955 s | 501 |
+| `ENT-agentes-referencias-diseno-agentes-re-d248dc-v1` | hecho | groq/openai/gpt-oss-120b | 167 min | 10045 s | 482 |
+| `ENT-agentes-referencias-diseno-agentes-re-6b24d1-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 185 min | 11080 s | 708 |
+| `ENT-agentes-referencias-diseno-agentes-re-2125df-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 191 min | 11447 s | 694 |
+| `IRD11226` | hecho | nim/minimaxai/minimax-m3.1-flash | 249 min | 14924 s | 447 |
+| `CAP-skill-coop-qa-uso` | hecho | opencode/minimax-m3.1-flash-free | 250 min | 14987 s | 133994 |
+| `IRD11225` | hecho | openrouter/nvidia/nemotron-3-ultra | 257 min | 15414 s | 489 |
+| `MRE8b` | hecho | openrouter/inclusionai/ling-3.2-fl | 258 min | 15464 s | 106141 |
+| `IRD11224` | hecho | groq/openai/gpt-oss-120b | 259 min | 15520 s | 464 |
+| `CAP-skill-agent-reach-uso` | hecho | openrouter/inclusionai/ling-3.2-fl | 265 min | 15871 s | 60670 |
+| `CAP-skill-coop-sync-testing-uso` | hecho | openrouter/nvidia/nemotron-3.5-sup | 295 min | 17679 s | 81242 |
+| `CAP-skill-awesome-design-md-uso` | hecho | freellmapi/auto | 387 min | 23219 s | 97074 |
+| `CAP-skill-claude-video-studio-uso` | hecho | openrouter/nvidia/nemotron-3.5-sup | 403 min | 24161 s | 83064 |
+| `PRU1118A-d3` | hecho | freellmapi/auto | 422 min | 25316 s | 2989266 |
+| `AUT1121C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 454 min | 27237 s | 538095 |
+| `AUT1121Es` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 458 min | 27495 s | 106444 |
+| `PET1121C` | hecho | openrouter/inclusionai/ling-3.2-fl | 479 min | 28748 s | 232551 |
+| `A464751BC` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 484 min | 29054 s | 37669 |
+| `ALM1121B` | hecho | openrouter/inclusionai/ling-3.2-fl | 487 min | 29212 s | 266687 |
+| `ENT-agentes-reimaginada-agentes-referenci-b8519e-v2` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 539 min | 32329 s | 771 |
+| `RIM-agentes-referencias-diseno-agentes-re-99f900-v2` | hecho | nim/minimaxai/minimax-m3.1-flash | 553 min | 33201 s | 539 |
+| `RIM-agentes-referencias-diseno-agentes-re-b71e30-v2` | hecho | openrouter/nvidia/nemotron-3-ultra | 554 min | 33267 s | 556 |
+| `ENT-agentes-referencias-diseno-agentes-re-0ef10c-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 555 min | 33316 s | 665 |
+| `SIN11227` | hecho | nim/minimaxai/minimax-m3.1-flash | 562 min | 33711 s | 420 |
+| `SIN11226` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 562 min | 33721 s | 425 |
+| `SIN11225` | hecho | nim/minimaxai/minimax-m3.1-flash | 562 min | 33738 s | 529 |
+| `SIN11224` | hecho | nim/minimaxai/minimax-m3.1-flash | 563 min | 33772 s | 423 |
+| `SIN11223` | hecho | nim/minimaxai/minimax-m3.1-flash | 564 min | 33839 s | 425 |
+| `SIN11222` | hecho | nim/minimaxai/minimax-m3.1-flash | 565 min | 33891 s | 422 |
+| `SIN11221` | hecho | nim/minimaxai/minimax-m3.1-flash | 566 min | 33951 s | 423 |
+| `IRD11223` | hecho | nim/minimaxai/minimax-m3.1-flash | 566 min | 33963 s | 613 |
+| `IRD11222` | hecho | nim/minimaxai/minimax-m3.1-flash | 568 min | 34063 s | 490 |
+| `IRD11221` | hecho | openrouter/nvidia/nemotron-3-ultra | 569 min | 34157 s | 507 |
+| `SA112184` | hecho | freellmapi/auto | 570 min | 34188 s | 551 |
+| `SA112183` | hecho | freellmapi/auto | 571 min | 34275 s | 613 |
+| `SA112182` | hecho | freellmapi/auto | 574 min | 34429 s | 490 |
+| `SA112181` | hecho | groq/openai/gpt-oss-20b | 576 min | 34550 s | 277 |
+| `SA112180` | hecho | nim/minimaxai/minimax-m3.1-flash | 576 min | 34586 s | 280 |
+| `SA112179` | hecho | freellmapi/auto | 577 min | 34620 s | 1339 |
+| `SA112178` | hecho | freellmapi/auto | 595 min | 35677 s | 274 |
+| `SA112177` | hecho | freellmapi/auto | 596 min | 35767 s | 275 |
+| `SA112176` | hecho | freellmapi/auto | 597 min | 35834 s | 617 |
+| `SA112175` | hecho | freellmapi/auto | 599 min | 35955 s | 277 |
+| `SA112173` | hecho | freellmapi/auto | 601 min | 36040 s | 1335 |
+| `SA112174` | hecho | freellmapi/auto | 601 min | 36042 s | 529 |
+| `SA112172` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 603 min | 36197 s | 782 |
+| `SA112170` | hecho | groq/openai/gpt-oss-20b | 604 min | 36246 s | 977 |
+| `SA112171` | hecho | groq/openai/gpt-oss-20b | 604 min | 36246 s | 491 |
+| `SA112169` | hecho | groq/openai/gpt-oss-120b | 604 min | 36247 s | 681 |
+| `SA112167` | hecho | openrouter/nvidia/nemotron-3-ultra | 608 min | 36472 s | 1282 |
+| `SA112168` | hecho | freellmapi/auto | 613 min | 36770 s | 276 |
+| `SA112166` | hecho | groq/openai/gpt-oss-120b | 626 min | 37538 s | 272 |
+| `SA112165` | hecho | freellmapi/auto | 627 min | 37594 s | 382 |
+| `SA112164` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 627 min | 37605 s | 275 |
+| `SA112163` | hecho | groq/openai/gpt-oss-120b | 628 min | 37660 s | 273 |
+| `SA112162` | hecho | freellmapi/auto | 629 min | 37738 s | 371 |
+| `SA112161` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 629 min | 37764 s | 1721 |
+| `AUT1121D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 644 min | 38622 s | 181158 |
+| `SA112154` | hecho | nim/minimaxai/minimax-m3.1-flash | 644 min | 38638 s | 274 |
+| `SA112153` | hecho | openrouter/nvidia/nemotron-3-ultra | 645 min | 38684 s | 378 |
+| `SA112152` | hecho | groq/openai/gpt-oss-20b | 646 min | 38788 s | 507 |
+| `SA112151` | hecho | groq/openai/gpt-oss-120b | 648 min | 38903 s | 488 |
+| `SA112150` | hecho | groq/qwen/qwen3.8-27b | 650 min | 39029 s | 1768 |
+| `SA112149` | hecho | groq/openai/gpt-oss-20b | 651 min | 39033 s | 2417 |
+| `SA112146` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 658 min | 39451 s | 2088 |
+| `SA112144` | hecho | nim/minimaxai/minimax-m3.1-flash | 658 min | 39473 s | 1846 |
+| `SA112143` | hecho | explabs/gpt-6-luna | 658 min | 39494 s | 1817 |
+| `SA112147` | hecho | explabs/gpt-6-luna | 658 min | 39495 s | 1831 |
+| `SA112148` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 659 min | 39522 s | 1780 |
+| `SA112145` | hecho | groq/openai/gpt-oss-20b | 661 min | 39661 s | 1908 |
+| `AUT1121E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 677 min | 40620 s | 103390 |
+| `SA112142` | hecho | nim/minimaxai/minimax-m3.1-flash | 693 min | 41564 s | 380 |
+| `SA112141` | hecho | freellmapi/auto | 694 min | 41652 s | 703 |
+| `SA112140` | hecho | freellmapi/auto | 696 min | 41751 s | 479 |
+| `SA112139` | hecho | freellmapi/auto | 697 min | 41843 s | 1079 |
+| `SA112136` | hecho | freellmapi/auto | 711 min | 42638 s | 1008 |
+| `SA112133` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 711 min | 42656 s | 952 |
+| `SA112131` | hecho | explabs/gpt-6-luna | 711 min | 42668 s | 1616 |
+| `SA112132` | hecho | groq/openai/gpt-oss-20b | 711 min | 42669 s | 1185 |
+| `SA112134` | hecho | freellmapi/auto | 711 min | 42689 s | 660 |
+| `SA112137` | hecho | explabs/gpt-6-luna | 712 min | 42694 s | 945 |
+| `SA112135` | hecho | freellmapi/auto | 712 min | 42724 s | 928 |
+| `SA112138` | hecho | freellmapi/auto | 712 min | 42725 s | 990 |
+| `A9D6D2091` | hecho | openrouter/google/gemma-4-26b-a4b- | 715 min | 42925 s | 243234 |
+| `AUT1121B` | hecho | openrouter/nvidia/nemotron-3.5-sup | 768 min | 46056 s | 435105 |
+| `AA3BF26E5` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 790 min | 47377 s | 32392 |
+| `SA112129` | hecho | nim/minimaxai/minimax-m3.1-flash | 796 min | 47748 s | 680 |
+| `SA112126` | hecho | freellmapi/auto | 796 min | 47756 s | 410 |
+| `SA112125` | hecho | freellmapi/auto | 796 min | 47776 s | 703 |
+| `SA112128` | hecho | nim/minimaxai/minimax-m3.1-flash | 796 min | 47788 s | 391 |
+| `SA112130` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 797 min | 47796 s | 1056 |
+| `SA112127` | hecho | freellmapi/auto | 797 min | 47797 s | 495 |
+| `SA112124` | hecho | freellmapi/auto | 801 min | 48033 s | 346 |
+| `SA112123` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 802 min | 48095 s | 403 |
+| `AA8E83930` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 838 min | 50272 s | 80403 |
+| `AE4996E7C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 848 min | 50886 s | 47755 |
+| `SA112122` | hecho | nim/minimaxai/minimax-m3.1-flash | 856 min | 51369 s | 802 |
+| `AUT1121A` | hecho | freellmapi/auto | 1601 min | 96085 s | 257222 |
+| `A018C6A91` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1621 min | 97236 s | 21024 |
+| `SA112121` | hecho | freellmapi/auto | 1629 min | 97711 s | 710 |
+| `ACC1121A` | hecho | freellmapi/auto | 1635 min | 98120 s | 115940 |
+| `SA112120` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1638 min | 98309 s | 584 |
+| `SA112119` | hecho | nim/minimaxai/minimax-m3.1-flash | 1639 min | 98362 s | 687 |
+| `SA112118` | hecho | nim/minimaxai/minimax-m3.1-flash | 1648 min | 98872 s | 272 |
+| `SA112117` | hecho | groq/openai/gpt-oss-20b | 1652 min | 99100 s | 602 |
+| `SA112116` | hecho | nim/minimaxai/minimax-m3.1-flash | 1653 min | 99195 s | 490 |
+| `SA112115` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1655 min | 99279 s | 565 |
+| `MRA10c-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1656 min | 99384 s | 52592 |
+| `SA112114` | hecho | nim/minimaxai/minimax-m3.1-flash | 1663 min | 99760 s | 493 |
+| `SA112113` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1671 min | 100286 s | 924 |
+| `SA112112` | hecho | groq/qwen/qwen3.8-27b | 1684 min | 101065 s | 267 |
+| `SA112111` | hecho | groq/openai/gpt-oss-20b | 1685 min | 101122 s | 268 |
+| `SA112110` | hecho | groq/openai/gpt-oss-120b | 1687 min | 101205 s | 271 |
+| `SA11219` | hecho | groq/qwen/qwen3.8-27b | 1688 min | 101281 s | 270 |
+| `SA11218` | hecho | groq/openai/gpt-oss-20b | 1692 min | 101540 s | 273 |
+| `SA11217` | hecho | groq/openai/gpt-oss-120b | 1698 min | 101859 s | 788 |
+| `A13BE11E4` | hecho | openrouter/google/gemma-4-31b-it:f | 1706 min | 102362 s | 216889 |
+| `SA11216` | hecho | nim/minimaxai/minimax-m3.1-flash | 1710 min | 102597 s | 483 |
+| `SA11215` | hecho | nim/minimaxai/minimax-m3.1-flash | 1712 min | 102695 s | 485 |
+| `SA11214` | hecho | nim/minimaxai/minimax-m3.1-flash | 1713 min | 102772 s | 486 |
+| `SA11213` | hecho | nim/minimaxai/minimax-m3.1-flash | 1715 min | 102903 s | 578 |
+| `A15A13784` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1716 min | 102945 s | 14496 |
+| `SA11212` | hecho | freellmapi/auto | 1718 min | 103086 s | 369 |
+| `CAN1121A` | hecho | xkiro/mistralai/devstral-medium | 1719 min | 103115 s | 339054 |
+| `SA112160` | hecho | nim/minimaxai/minimax-m3.1-flash | 1732 min | 103941 s | 268 |
+| `SA112159` | hecho | groq/openai/gpt-oss-20b | 1763 min | 105807 s | 597 |
+| `SA112158` | hecho | nim/minimaxai/minimax-m3.1-flash | 1765 min | 105924 s | 486 |
+| `SA112157` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1781 min | 106877 s | 491 |
+| `SA112156` | hecho | nim/minimaxai/minimax-m3.1-flash | 1785 min | 107099 s | 488 |
+| `SA112155` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1799 min | 107922 s | 794 |
+| `SA11211` | hecho | nim/minimaxai/minimax-m3.1-flash | 1813 min | 108810 s | 1097 |
+| `AF26FCCD1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1851 min | 111039 s | 60052 |
+| `MRA10c` | hecho | openrouter/google/gemma-4-31b-it:f | 1895 min | 113729 s | 282511 |
+| `ENT-agentes-referencias-diseno-agentes-re-9909e7-v1` | hecho |  | 1911 min | 114636 s | 1948 |
+| `ENT-agentes-referencias-diseno-agentes-re-603970-v1` | hecho |  | 1911 min | 114640 s | 1950 |
+| `IRD11181` | hecho |  | 1912 min | 114724 s | 3845 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
