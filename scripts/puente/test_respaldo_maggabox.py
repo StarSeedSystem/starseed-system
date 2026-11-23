@@ -128,6 +128,49 @@ class SSHSimulado:
         return MagicMock(returncode=0, stdout="", stderr="")
 
 
+class FSSimulado:
+    """Sistema de archivos en memoria para `aliviar` (sin tocar el disco real).
+
+    `rutas`: ruta → {"tipo": "dir"|"file", "mtime": epoch, "mb": tamaño}.
+    Los listados se derivan de las rutas salvo que se fijen en `listados`."""
+
+    def __init__(self, rutas=None, listados=None):
+        self.rutas = rutas or {}
+        self.listados = listados or {}
+
+    def existe(self, ruta):
+        return ruta in self.rutas
+
+    def es_directorio(self, ruta):
+        return self.rutas.get(ruta, {}).get("tipo") == "dir"
+
+    def listar(self, ruta):
+        if ruta in self.listados:
+            return list(self.listados[ruta])
+        prefijo = ruta.rstrip("/") + "/"
+        vistos = []
+        for p in self.rutas:
+            if p.startswith(prefijo) and p != ruta:
+                hijo = p[len(prefijo):].split("/")[0]
+                if hijo not in vistos:
+                    vistos.append(hijo)
+        return vistos
+
+    def mtime(self, ruta):
+        return self.rutas.get(ruta, {}).get("mtime", 0)
+
+    def tamano_kb(self, ruta):
+        return int(self.rutas.get(ruta, {}).get("mb", 0) * 1024)
+
+    def contar(self, ruta):
+        prefijo = ruta.rstrip("/") + "/"
+        return 1 + sum(1 for p in self.rutas if p.startswith(prefijo))
+
+    def glob(self, patron):
+        import fnmatch
+        return sorted(p for p in self.rutas if fnmatch.fnmatch(p, patron))
+
+
 class TestExcluirSecretos(unittest.TestCase):
     """La lista de exclusión de secretos es PURA y determinista."""
 
@@ -221,6 +264,9 @@ class TestRespaldar(unittest.TestCase):
             destino_base=DEST_BASE,
             seco=False,
             guardar_log=self.guardados.append,
+            libre_gb_fn=lambda: 20.0,
+            sha_local_fn=lambda _ruta: "abc123",
+            sha_remoto_fn=lambda _ruta: "abc123",
         )
         self.assertEqual(resultado["estado"], "hecho")
         # Verificar que se llamó rsync con exclusiones
@@ -240,6 +286,9 @@ class TestRespaldar(unittest.TestCase):
             destino_base=DEST_BASE,
             seco=False,
             guardar_log=self.guardados.append,
+            libre_gb_fn=lambda: 20.0,
+            sha_local_fn=lambda _ruta: "abc123",
+            sha_remoto_fn=lambda _ruta: "abc123",
         )
         self.assertEqual(resultado["estado"], "hecho")
         tar_calls = [c for c in self.ssh.llamadas if c[0] == "tar"]
@@ -258,6 +307,9 @@ class TestRespaldar(unittest.TestCase):
             destino_base=DEST_BASE,
             seco=False,
             guardar_log=self.guardados.append,
+            libre_gb_fn=lambda: 20.0,
+            sha_local_fn=lambda _ruta: "abc123",
+            sha_remoto_fn=lambda _ruta: "abc123",
         )
         self.assertEqual(resultado["estado"], "hecho")
         # Debe haber creado uno nuevo y borrado el más viejo (mantener 7)
@@ -479,6 +531,185 @@ class TestPlistLaunchd(unittest.TestCase):
         self.assertIn("launchd", R.__doc__ or "")
         self.assertIn("StartInterval", R.__doc__ or "")
         self.assertIn("21600", R.__doc__ or "")  # 6 horas = 21600 segundos
+
+    def test_plist_real_existe_y_respalda_cada_6h(self):
+        import plistlib
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "..", "deploy", "launchd",
+                            "com.starseed.respaldo-maggabox.plist")
+        with open(ruta, "rb") as f:
+            plist = plistlib.load(f)
+        self.assertEqual(plist["Label"], "com.starseed.respaldo-maggabox")
+        self.assertEqual(plist["StartInterval"], 21600)
+        self.assertIn("respaldar", plist["ProgramArguments"])
+        self.assertTrue(plist["RunAtLoad"])
+
+
+class TestRespaldarReal(unittest.TestCase):
+    """ALM1121: el bundle se crea local, se envía, se comprueba y se borra."""
+
+    def setUp(self):
+        self.ssh = SSHSimulado()
+        self.guardados = []
+
+    def _respaldar(self, **kw):
+        base = dict(
+            ssh_fn=self.ssh,
+            mac_root=MAC_ROOT,
+            memory_root=STARSEED_MEMORY_ROOT,
+            destino_base=DEST_BASE,
+            seco=False,
+            guardar_log=self.guardados.append,
+        )
+        base.update(kw)
+        return R.respaldar(**base)  # type: ignore[arg-type]
+
+    def test_exclusiones_incluyen_tmp_drive_y_secretos(self):
+        excl = R.exclusiones_respaldo()
+        self.assertIn(".tmp.drive*", excl)
+        self.assertIn("~/.starseed/env", excl)
+        self.assertIn("*.pem", excl)
+
+    def test_bundle_se_salta_si_menos_de_6gb(self):
+        resultado = self._respaldar(libre_gb_fn=lambda: 3.0)
+        self.assertEqual(resultado["bundle"]["estado"], "saltado")
+        self.assertIn("GitHub", resultado["bundle"]["motivo"])
+        self.assertFalse([c for c in self.ssh.llamadas if c[0] == "git" and "bundle" in c])
+        self.assertEqual(resultado["estado"], "hecho")
+
+    def test_bundle_local_se_envia_verifica_y_borra_temporal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            fecha = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+            local = os.path.join(tmp, "repo-%s.bundle" % fecha)
+            with open(local, "w") as f:
+                f.write("bundle")
+            resultado = self._respaldar(
+                libre_gb_fn=lambda: 20.0,
+                tmp_dir=tmp,
+                sha_local_fn=lambda _ruta: "abc123",
+                sha_remoto_fn=lambda _ruta: "abc123",
+            )
+            self.assertEqual(resultado["bundle"]["estado"], "enviado")
+            self.assertTrue(resultado["bundle"]["verificado"])
+            self.assertTrue(resultado["bundle"]["borrado"])
+            self.assertFalse(os.path.exists(local))
+        rsync = [c for c in self.ssh.llamadas if c[0] == "rsync"]
+        self.assertTrue(any("repo-" in " ".join(c) and ".bundle" in " ".join(c) for c in rsync))
+
+    def test_bundle_no_se_borra_si_la_suma_no_coincide(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            fecha = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+            local = os.path.join(tmp, "repo-%s.bundle" % fecha)
+            with open(local, "w") as f:
+                f.write("bundle")
+            resultado = self._respaldar(
+                libre_gb_fn=lambda: 20.0,
+                tmp_dir=tmp,
+                sha_local_fn=lambda _ruta: "abc123",
+                sha_remoto_fn=lambda _ruta: "distinto",
+            )
+            self.assertFalse(resultado["bundle"]["verificado"])
+            self.assertFalse(resultado["bundle"]["borrado"])
+            self.assertTrue(os.path.exists(local))
+            self.assertEqual(resultado["estado"], "parcial")
+
+
+class TestAliviarReal(unittest.TestCase):
+    """ALM1121: candidatos medidos, con porqué, y `--seco` los enseña."""
+
+    def setUp(self):
+        self.ssh = SSHSimulado()
+        self.registros = []
+        self.avisos = []
+
+    def _aliviar(self, fs, **kw):
+        base = dict(
+            ssh_fn=self.ssh,
+            mac_root=MAC_ROOT,
+            wt_root=WT_ROOT,
+            destino_base=DEST_BASE,
+            objetivo_gb=12,
+            seco=False,
+            guardar_log=lambda _r: None,
+            existe_fn=fs.existe,
+            es_directorio_fn=fs.es_directorio,
+            listar_fn=fs.listar,
+            mtime_fn=fs.mtime,
+            tamano_fn=fs.tamano_kb,
+            contar_fn=fs.contar,
+            glob_fn=fs.glob,
+            indice_fn=lambda entradas: self.registros.extend(entradas),
+            decir_fn=lambda texto: self.avisos.append(texto),
+            borrar_fn=lambda _ruta: True,
+        )
+        base.update(kw)
+        return R.aliviar(**base)  # type: ignore[arg-type]
+
+    def test_seco_lista_candidatos_con_mb_y_porque(self):
+        ahora = time.time()
+        go_build = "/tmp/go-build123"
+        drive = os.path.join(STARSEED_MEMORY_ROOT, ".tmp.driveupload")
+        fs = FSSimulado({
+            go_build: {"tipo": "dir", "mtime": ahora - 2 * 3600, "mb": 120},
+            drive: {"tipo": "dir", "mtime": ahora - 25 * 3600, "mb": 800},
+        })
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300e9, 290e9, 5e9)):
+            resultado = self._aliviar(fs, seco=True, ahora_fn=lambda: ahora, tmp_root="/tmp")
+        self.assertEqual(resultado["estado"], "seco")
+        rutas = [c["ruta"] for c in resultado["candidatos"]]
+        self.assertIn(go_build, rutas)
+        self.assertIn(drive, rutas)
+        for cand in resultado["candidatos"]:
+            self.assertGreater(cand["mb"], 0)
+            self.assertTrue(cand["motivo"])
+        self.assertEqual(self.ssh.llamadas, [])
+
+    def test_no_toca_estado_vivo_de_olas(self):
+        ahora = time.time()
+        olas = os.path.join(STARSEED_MEMORY_ROOT, "olas")
+        vivo = os.path.join(olas, "progreso.json")
+        fs = FSSimulado({
+            olas: {"tipo": "dir"},
+            vivo: {"tipo": "file", "mtime": ahora - 30 * 86400, "mb": 2},
+        })
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300e9, 290e9, 5e9)):
+            resultado = self._aliviar(fs, seco=True, ahora_fn=lambda: ahora)
+        self.assertNotIn(vivo, [c["ruta"] for c in resultado["candidatos"]])
+
+    def test_logs_de_olas_se_mueven_con_rsync_remove_source(self):
+        ahora = time.time()
+        olas = os.path.join(STARSEED_MEMORY_ROOT, "olas")
+        logs = os.path.join(olas, "logs")
+        viejo = os.path.join(logs, "viejo.log")
+        fs = FSSimulado({
+            olas: {"tipo": "dir"},
+            logs: {"tipo": "dir"},
+            viejo: {"tipo": "file", "mtime": ahora - 8 * 86400, "mb": 40},
+        })
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300e9, 290e9, 5e9)):
+            resultado = self._aliviar(fs, ahora_fn=lambda: ahora)
+        self.assertEqual(resultado["estado"], "hecho")
+        rsync = [c for c in self.ssh.llamadas if c[0] == "rsync"]
+        self.assertTrue(any("--remove-source-files" in c for c in rsync))
+        self.assertTrue(any("pesados/mac/olas-logs" in " ".join(c) for c in rsync))
+        self.assertTrue(self.registros, "no se anotó nada en el índice")
+        self.assertTrue(self.avisos, "no se avisó al canal de lo ganado")
+
+    def test_nunca_mueve_claves_ni_bases_vivas(self):
+        ahora = time.time()
+        env = os.path.expanduser("~/.starseed/env")
+        db = os.path.expanduser("~/.starseed/state.db")
+        fs = FSSimulado({
+            env: {"tipo": "file", "mtime": ahora - 90 * 86400, "mb": 1},
+            db: {"tipo": "file", "mtime": ahora - 90 * 86400, "mb": 5},
+        })
+        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300e9, 290e9, 5e9)):
+            resultado = self._aliviar(fs, seco=True, ahora_fn=lambda: ahora)
+        rutas = [c["ruta"] for c in resultado["candidatos"]]
+        self.assertNotIn(env, rutas)
+        self.assertNotIn(db, rutas)
 
 
 if __name__ == "__main__":

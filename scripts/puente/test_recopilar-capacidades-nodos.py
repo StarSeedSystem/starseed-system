@@ -81,6 +81,31 @@ class Recopilar(unittest.TestCase):
                   lambda ruta, texto: capturado.setdefault(ruta, texto))
         self.assertEqual(json.loads(capturado[R.RUTA_SALIDA]), {"nodos": [{"nodoId": "mac-local"}]})
 
+    def test_drive_aparece_si_hay_medida(self):
+        datos = {R.RUTA_ORQUESTADOR: {}, R.RUTA_A1: {},
+                 R.RUTA_DRIVE: {"libreGb": 88.5, "movidoGb": 3.2,
+                                "indice": "starseed_memory_root/nodo/indice-pesados-maggabox.md"}}
+        nodos = R.recopilar(lambda r: datos.get(r, {}), lambda: {})["nodos"]
+        self.assertEqual([n["nodoId"] for n in nodos],
+                         ["mac-local", "maggabox", "a1-oracle", "Drive"])
+        drive = nodos[-1]
+        self.assertEqual(drive["discoLibreGb"], 88.5)
+        self.assertTrue(any("3.2" in a for a in drive["almacen"]))
+        self.assertTrue(any("indice-pesados" in a for a in drive["almacen"]))
+
+    def test_drive_sin_medida_no_inventa(self):
+        datos = {R.RUTA_ORQUESTADOR: {}, R.RUTA_A1: {}, R.RUTA_DRIVE: {"movidoGb": 2}}
+        nodos = R.recopilar(lambda r: datos.get(r, {}), lambda: {})["nodos"]
+        self.assertEqual(len(nodos), 3)
+
+    def test_mac_lleva_lo_movido_y_el_indice(self):
+        datos = {R.RUTA_ORQUESTADOR: {}, R.RUTA_A1: {},
+                 R.RUTA_ALIVIO: {"movidoGb": 4.5,
+                                 "indice": "starseed_memory_root/nodo/indice-pesados-maggabox.md"}}
+        mac = R.recopilar(lambda r: datos.get(r, {}), lambda: {})["nodos"][0]
+        self.assertTrue(any("4.5" in a for a in mac["almacen"]))
+        self.assertTrue(any("indice-pesados" in a for a in mac["almacen"]))
+
 
 if __name__ == "__main__":
     unittest.main()
