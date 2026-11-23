@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CTL1119A"
+  ]
+ }
+}
