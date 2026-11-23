@@ -343,6 +343,19 @@ export async function moverAvatar(g: Gesto, op: OpcionesMover = {}): Promise<Res
 }
 
 /**
+ * Publica el vector visual 1.58b por cláusula en el canal `params` del bus de la orbe.
+ *
+ * @param vector - El vector visual a publicar.
+ */
+export async function publicarVectorVisual(vector: number[]): Promise<void> {
+    // Implementación de la función para publicar el vector visual
+    // Aquí se debe incluir la lógica para publicar el vector visual en el canal `params` del bus de la orbe
+    // Por ejemplo, se podría usar una API o un servicio específico para publicar el vector visual
+    // Esta implementación es un placeholder y debe ser reemplazada con la lógica real
+    console.log("Publicando vector visual:", vector);
+}
+
+/**
  * Precalienta el motor de movimiento en segundo plano: mide el hardware,
  * decide el nivel y deja constancia de él para paneles. El precalentado real
  * del backend Kimodo se cableará en la Ola M2 junto con `/api/movimiento/generar`.
