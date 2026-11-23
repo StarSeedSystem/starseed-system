@@ -182,7 +182,15 @@ pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: m::Alcance) -> String 
 
 /// `control_capacidades` en un Linux: lo que se puede de verdad AHORA y lo que falta. Sin X11 no se promete nada; sin XTEST no se
 /// promete entrada. No hay «ajustes» que abrir: lo que falta lo da la sesión (iniciar en X11), no un permiso.
-pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m::Alcance) -> Value {
+/// `volumen_ok`: si `pactl` o `wpctl` están disponibles. `brillo_ok`: si `brightnessctl` o `xrandr` están disponibles.
+pub fn capacidades_linux(
+    g: Grafica,
+    conecta_x11: bool,
+    xtest: bool,
+    alcance: m::Alcance,
+    volumen_ok: bool,
+    brillo_ok: bool,
+) -> Value {
     let pantalla_ok = falta_pantalla(g, conecta_x11).is_none();
     let entrada_ok = falta_entrada(g, conecta_x11, xtest).is_none();
     let mut falta: Vec<&str> = Vec::new();
@@ -198,14 +206,38 @@ pub fn capacidades_linux(g: Grafica, conecta_x11: bool, xtest: bool, alcance: m:
             "gestos": entrada_ok,
             "max_dedos": if entrada_ok { 2 } else { 0 },
             "teclas": teclas,
-            "volumen": false,
-            "brillo": false,
+            "volumen": volumen_ok,
+            "brillo": brillo_ok,
             "texto": entrada_ok,
         },
         "falta": falta,
         "alcance": alcance.codigo(),
         "plataforma": "linux",
     })
+}
+
+/// Argumentos para `pactl set-sink-volume @DEFAULT_SINK@ N%` a partir de un nivel en [0.0, 1.0].
+pub fn volumen_pactl_args(nivel: f64) -> Vec<&'static str> {
+    let p = (nivel.clamp(0.0, 1.0) * 100.0).round() as u32;
+    vec!["set-sink-volume", "@DEFAULT_SINK@", &format!("{}%", p)]
+}
+
+/// Argumentos para `wpctl set-volume @DEFAULT_AUDIO_SINK@ N` a partir de un nivel en [0.0, 1.0].
+pub fn volumen_wpctl_args(nivel: f64) -> Vec<&'static str> {
+    let v = nivel.clamp(0.0, 1.0);
+    vec!["set-volume", "@DEFAULT_AUDIO_SINK@", &format!("{:.2}", v)]
+}
+
+/// Argumentos para `brightnessctl set N%` a partir de un nivel en [0.0, 1.0].
+pub fn brillo_brightnessctl_args(nivel: f64) -> Vec<&'static str> {
+    let p = (nivel.clamp(0.0, 1.0) * 100.0).round() as u32;
+    vec!["set", &format!("{}%", p)]
+}
+
+/// Argumentos para `xrandr --output <out> --brightness N` a partir de un nivel en [0.0, 1.0].
+pub fn brillo_xrandr_args(salida: &str, nivel: f64) -> Vec<String> {
+    let v = nivel.clamp(0.0, 1.0);
+    vec!["--output".into(), salida.into(), "--brightness".into(), format!("{:.1}", v)]
 }
 
 // ─────────────────────────── Pausa local: mano de verdad o evento propio ───────────────────────────
@@ -332,12 +364,13 @@ mod pruebas {
 
     #[test]
     fn capacidades_dicen_la_verdad_y_marcan_el_escritorio_linux() {
-        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total);
+        let c = capacidades_linux(Grafica::X11, true, true, m::Alcance::Total, true, true);
         assert_eq!(c["plataforma"], "linux");
         assert_eq!(c["pantalla"]["proyeccion"], true);
         assert_eq!(c["entrada"]["gestos"], true);
         assert_eq!(c["entrada"]["max_dedos"], 2);
-        assert_eq!(c["entrada"]["volumen"], false);
+        assert_eq!(c["entrada"]["volumen"], true);
+        assert_eq!(c["entrada"]["brillo"], true);
         assert_eq!(c["falta"], json!([]));
         let teclas: Vec<&str> = c["entrada"]["teclas"].as_array().unwrap().iter().filter_map(|t| t.as_str()).collect();
         assert!(teclas.contains(&"escritorio") && teclas.contains(&"linux") && teclas.contains(&"recientes"));
@@ -345,12 +378,12 @@ mod pruebas {
         for t in TECLAS_LINUX {
             assert!(crate::control_entrada_logica::TECLAS.contains(&t), "{t}");
         }
-        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total);
+        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total, false, false);
         assert_eq!(w["falta"], json!(["wayland"]));
         assert_eq!(w["pantalla"]["proyeccion"], false);
         assert_eq!(w["entrada"]["gestos"], false);
         assert_eq!(w["entrada"]["teclas"], json!(["escritorio", "linux"]));
-        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido);
+        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido, false, false);
         assert_eq!(sx["falta"], json!(["entrada-x11"]));
         assert_eq!(sx["pantalla"]["proyeccion"], true, "sin XTEST aún se ve");
         assert_eq!(sx["alcance"], "protegido");
@@ -433,5 +466,41 @@ mod pruebas {
         let s = linea_pantalla_sin("sin-consentimiento", "wayland", Grafica::Wayland);
         assert!(s.contains("falta=wayland") && s.contains("grafica=wayland"));
         assert!(linea_vigia("xi2", 2, 14).contains("mecanismo=xi2"));
+    }
+
+    #[test]
+    fn volumen_pactl_desde_porcentaje_acotado() {
+        assert_eq!(volumen_pactl_args(0.0), vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]);
+        assert_eq!(volumen_pactl_args(0.5), vec!["set-sink-volume", "@DEFAULT_SINK@", "50%"]);
+        assert_eq!(volumen_pactl_args(1.0), vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]);
+        assert_eq!(volumen_pactl_args(-0.1), vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]);
+        assert_eq!(volumen_pactl_args(1.1), vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]);
+    }
+
+    #[test]
+    fn volumen_wpctl_desde_porcentaje_acotado() {
+        assert_eq!(volumen_wpctl_args(0.0), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]);
+        assert_eq!(volumen_wpctl_args(0.5), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0.5"]);
+        assert_eq!(volumen_wpctl_args(1.0), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]);
+        assert_eq!(volumen_wpctl_args(-0.1), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]);
+        assert_eq!(volumen_wpctl_args(1.1), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]);
+    }
+
+    #[test]
+    fn brillo_brightnessctl_desde_porcentaje_acotado() {
+        assert_eq!(brillo_brightnessctl_args(0.0), vec!["set", "0%"]);
+        assert_eq!(brillo_brightnessctl_args(0.5), vec!["set", "50%"]);
+        assert_eq!(brillo_brightnessctl_args(1.0), vec!["set", "100%"]);
+        assert_eq!(brillo_brightnessctl_args(-0.1), vec!["set", "0%"]);
+        assert_eq!(brillo_brightnessctl_args(1.1), vec!["set", "100%"]);
+    }
+
+    #[test]
+    fn brillo_xrandr_desde_porcentaje_acotado() {
+        assert_eq!(brillo_xrandr_args("eDP-1", 0.0), vec!["--output", "eDP-1", "--brightness", "0.0"]);
+        assert_eq!(brillo_xrandr_args("eDP-1", 0.5), vec!["--output", "eDP-1", "--brightness", "0.5"]);
+        assert_eq!(brillo_xrandr_args("eDP-1", 1.0), vec!["--output", "eDP-1", "--brightness", "1.0"]);
+        assert_eq!(brillo_xrandr_args("eDP-1", -0.1), vec!["--output", "eDP-1", "--brightness", "0.0"]);
+        assert_eq!(brillo_xrandr_args("eDP-1", 1.1), vec!["--output", "eDP-1", "--brightness", "1.0"]);
     }
 }
