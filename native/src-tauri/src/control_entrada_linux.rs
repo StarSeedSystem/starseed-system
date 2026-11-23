@@ -15,6 +15,7 @@
 use crate::control_entrada_logica as l;
 use crate::control_entrada_macos_logica as m;
 use crate::control_escritorio_linux_logica as ll;
+use crate::control_estado_linux_logica as st;
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
@@ -393,10 +394,67 @@ pub fn abrir_ajuste(_cual: &str) -> Value {
     json!({ "ok": false, "motivo": "ajuste-desconocido" })
 }
 
-/// `control_estado_aparato` en Linux: solo lo que se sabe de verdad (pantalla y bloqueo); volumen, brillo y batería no se inventan.
+/// `control_estado_aparato` en Linux: solo lo que se sabe de verdad.
 pub fn estado_aparato() -> Value {
     let (ancho, alto) = tamano_principal().unwrap_or((0, 0));
-    json!({ "ok": true, "pantalla": { "ancho": ancho, "alto": alto, "giro": 0, "encendida": true, "bloqueada": bloqueada() }, "plataforma": "linux" })
+    let mut res = json!({
+        "ok": true,
+        "pantalla": { "ancho": ancho, "alto": alto, "giro": 0, "encendida": true, "bloqueada": bloqueada() },
+        "plataforma": "linux"
+    });
+
+    if let Some(s) = ejecutar_texto("pactl", &["get-sink-volume", "@DEFAULT_SINK@"]) {
+        if let Some(v) = st::parsear_pactl_volumen(&s) { res["volumen"] = json!(v); }
+    } else if let Some(s) = ejecutar_texto("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"]) {
+        let (v, m) = st::parsear_wpctl_volumen(&s);
+        if let Some(v) = v { res["volumen"] = json!(v); }
+        if let Some(m) = m { res["silencio"] = json!(m); }
+    }
+    if res["silencio"].is_null() {
+        if let Some(s) = ejecutar_texto("pactl", &["get-sink-mute", "@DEFAULT_SINK@"]) {
+            if let Some(m) = st::parsear_pactl_silencio(&s) { res["silencio"] = json!(m); }
+        }
+    }
+
+    if let (Some(actual), Some(max)) = (ejecutar_texto("brightnessctl", &["g"]), ejecutar_texto("brightnessctl", &["m"])) {
+        if let Some(b) = st::calcular_brillo(&actual, &max) { res["brillo"] = json!(b); }
+    } else {
+        let leer = |p: &str| std::fs::read_to_string(p).ok();
+        let paths = ["/sys/class/backlight/intel_backlight", "/sys/class/backlight/amdgpu_bl0", "/sys/class/backlight/acpi_video0"];
+        for p in paths {
+            if let (Some(a), Some(m)) = (leer(&format!("{}/brightness", p)), leer(&format!("{}/max_brightness", p))) {
+                if let Some(b) = st::calcular_brillo(&a, &m) {
+                    res["brillo"] = json!(b);
+                    break;
+                }
+            }
+        }
+    }
+
+    let leer = |p: &str| std::fs::read_to_string(p).ok();
+    if let (Some(c), Some(s)) = (leer("/sys/class/power_supply/BAT0/capacity"), leer("/sys/class/power_supply/BAT0/status")) {
+        if let Some(bat) = st::parsear_bateria(&c, &s) { res["bateria"] = json!(bat); }
+    } else if let (Some(c), Some(s)) = (leer("/sys/class/power_supply/BAT1/capacity"), leer("/sys/class/power_supply/BAT1/status")) {
+        if let Some(bat) = st::parsear_bateria(&c, &s) { res["bateria"] = json!(bat); }
+    }
+
+    let mut red = json!({});
+    if let Some(s) = ejecutar_texto("nmcli", &["-t", "-f", "WIFI,STATE", "g"]) {
+        let (enc, con) = st::parsear_nmcli_wifi(&s);
+        red["wifi_encendido"] = json!(enc);
+        red["wifi_conectado"] = json!(con);
+    }
+    if let Some(s) = ejecutar_texto("nmcli", &["-t", "-f", "active,ssid", "dev", "wifi"]) {
+        if let Some(ssid) = st::parsear_nmcli_ssid(&s) { red["wifi_ssid"] = json!(ssid); }
+    }
+    if let Some(s) = ejecutar_texto("rfkill", &["list", "bluetooth"]) {
+        red["bluetooth_encendido"] = json!(st::parsear_rfkill_bluetooth(&s));
+    }
+    if !red.as_object().unwrap().is_empty() {
+        res["red"] = red;
+    }
+
+    res
 }
 
 #[cfg(test)]
