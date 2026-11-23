@@ -21,106 +21,141 @@ Esto genera ~1 GB en la carpeta temporal (`go-build*`) y si la llamada se corta 
 
 Estos no se usan por el enjambre y inflan los ~24,000 tokens de entrada medidos por llamada.
 
-## Solución propuesta
+## Solución implementada
 
-Crear un archivo de configuración MCP propio y minimal para las llamadas de la flota, que incluya SOLO los servidores que el papel necesita.
+**`scripts/puente/antigravity_flota.py`** ahora incluye:
 
-### Configuración mínima actual (`~/.starseed/antigravity-config.json`)
-
-```json
-{
-  "add_dirs": ["starseed_memory_root", "."],
-  "memorias_metagenesis": [
-    "relevo",
-    "plan_de_pruebas",
-    "registro_de_pruebas",
-    "orquestacion-economica.md"
-  ],
-  "mcp_servidores": [],
-  "cuenta_google_modo_lectura": true
-}
-```
-
-### Configuración mínima para escritores del enjambre
+### 1. Configuración MCP mínima por defecto
 
 ```json
 {
-  "add_dirs": [".", "scripts/puente"],
-  "memorias_metagenesis": [
-    "orquestacion-economica.md"
-  ],
-  "mcp_servidores": [],
-  "cuenta_google_modo_lectura": true
+  "mcpServers": {
+    "starseed-director": {
+      "command": "python3",
+      "args": ["scripts/puente/mcp_director.py"]
+    }
+  }
 }
 ```
+
+Para el director (papel `director_presidente`). Para otros papeles, se genera config vacía.
+
+### 2. Generar configuración MCP mínima
+
+```bash
+python3 scripts/puente/antigravity_flota.py mcp --generar
+# Genera ~/.starseed/antigravity-mcp-minimal.json
+```
+
+### 3. Limpiar go-build* temporales
+
+```bash
+python3 scripts/puente/antigravity_flota.py limpiar-go-build
+```
+
+### 4. Comparar tokens con/sin MCP
+
+```bash
+python3 scripts/puente/antigravity_flota.py comparar-tokens gemini-3.8-flash-medium
+```
+
+### 5. Metas y recomendaciones
+
+```bash
+python3 scripts/puente/antigravity_flota.py metas
+```
+
+Muestra:
+- Orden para Alex si agy no admite `--mcp-config`
+- Ordenes para deshabilitar Java en worktrees
+- Carpetas volátiles para excluir de Drive
+- Verificación de `.metadata_never_index` (Spotlight)
 
 ## Uso desde el script de flota
 
-El script `scripts/puente/antigravity_flota.py` ya tiene soporte para cargar configuración desde `~/.starseed/antigravity-config.json` vía `cargar_config_agy()` y `guardar_config_agy()`.
+### Función `mcp_configuraion_minima(papeles_necesarios)`
 
-Para pasar la configuración a cada llamada de `agy`, se puede usar:
+ genera configuración MCP con SOLO los servidores estrictamente necesarios.
+
+### Función `orden_agy_con_mcp()`
+
+Construye orden agy con configuración MCP específica:
 
 ```python
-def orden_agy_con_mcp(modelo: str, worktree: str, prompt: str, config_path: str = None) -> list[str]:
-    """Construye orden agy con configuración MCP específica."""
-    orden = [
-        "agy", "-p", prompt,
-        "--model", modelo,
-        "--mode", "accept-edits",
-        "--sandbox",
-        "--add-dir", worktree,
-        "--output-format", "json"
-    ]
-    
-    if config_path:
-        orden.extend(["--mcp-config", config_path])
-    
-    return orden
+def orden_agy_con_mcp(
+    prompt: str,
+    modelo: str,
+    mcp_config_path: Path | None = None,
+    modo: str = "plan",
+    timeout_s: int = 180,
+    add_dirs: list[str] | None = None,
+) -> list[str]:
+```
+
+### Función `comparar_tokens_mcp()`
+
+Mide tokens reales con y sin MCP mínimo:
+
+```python
+def comparar_tokens_mcp(modelo: str = "gemini-3.8-flash-low") -> dict:
+    """Compara tokens de entrada con y sin MCP mínimo."""
 ```
 
 ## Acción pendiente para Alex
 
-Para aplicar la configuración MCP mínima:
+### 1. Editar configuraciones MCP existentes
 
-1. Editar `~/.gemini/antigravity/mcp_config.json` y quitar servidores no necesarios:
-   - Eliminar: `gke-oss`, `alloydb-postgres`, `firebase-mcp-server`, `genkit-mcp-server`, `dart-mcp-server`
-   - Mantener solo: `filesystem`, `git`, `memory` si son necesarios
-
-2. Editar `antigravity-ide/mcp_config.json` con la misma configuración mínima
-
-3. Si `agy` no admite `--mcp-config` por archivo, pasar la orden exacta para que Alex decida:
+Editar `~/.gemini/antigravity/mcp_config.json` y quitar servidores no necesarios:
 
 ```bash
 # Comando para usar configuración minimal
-agy -p "..." --model gemini-3.8-flash-medium --mode accept-edits \
-    --mcp-config ~/.starseed/antigravity-mcp-minimal.json
+STARSEED_MCP_CONFIG=~/.starseed/antigravity-mcp-minimal.json \
+  agy -p "..." --model gemini-3.8-flash-medium --mode plan \
+  --print-timeout 60s --output-format json
 ```
 
-## Limpieza automática de go-build*
+**SI** `agy` no admite `--mcp-config`, usar la variable de entorno `STARSEED_MCP_CONFIG`.
 
-El script `escritor_agy.py` debe limpiar los directorios `go-build*` creados al finalizar cada llamada:
+### 2. Deshabilitar Java en worktrees del enjambre
 
-```python
-import tempfile
-import shutil
-from pathlib import Path
+El script `escritor_agy.py` no toca configuración personal de Alex. Para evitar que
+Antigravity IDE arranque 5 procesos Java por worktree:
 
-def limpiar_go_builds():
-    """Limpia directorios temporales de compilación Go."""
-    temps_dir = Path(tempfile.gettempdir())
-    for go_build in temps_dir.glob("go-build*"):
-        try:
-            shutil.rmtree(go_build)
-        except Exception:
-            pass
+```bash
+mkdir -p <worktree>/.vscode && \
+echo '{"java": {"enabled": false}}' > <worktree>/.vscode/settings.json
 ```
 
-## Medida de tokens antes y después
+### 3. Carpetas volátiles de starseed_memory_root
 
-Usar `scripts/puente/antigravity_flota.py medir-arranque <modelo>` para verificar:
+Ver `generar_lista_carpetas_volatiles()` en el script. Sugerencia: instantánea diaria
+comprimida en lugar de copia continua de:
 
-- Antes: ~24,000 tokens de entrada base
-- Después: objetivo < 10,000 tokens con MCP minimal
+- `starseed_memory_root/.tmp.driveupload` (2,6 GB de 2 191 trozos)
+- `starseed_memory_root/chat.jsonl`
+- `starseed_memory_root/progreso.json`
+
+### 4. Spotlight indexing en worktrees
+
+Crear `.metadata_never_index` en:
+
+```bash
+# En cada worktree del enjambre
+touch <worktree>/.metadata_never_index
+
+# En directorios temporales go-build*
+touch /tmp/go-build*/.metadata_never_index
+```
+
+## Medida de tokens
+
+**Antes (con MCPs innecesarios):** ~24,000 tokens de entrada base
+**Después (con MCP mínimo):** objetivo < 10,000 tokens
+
+Ver `scripts/puente/MCP_CONFIG_MINIMA.md` o ejecutar:
+```bash
+python3 scripts/puente/antigravity_flota.py comparar-tokens
+```
 
 ## Referencias
 
@@ -129,4 +164,5 @@ Usar `scripts/puente/antigravity_flota.py medir-arranque <modelo>` para verifica
 - Archivos implicados:
   - `scripts/puente/antigravity_flota.py`
   - `scripts/puente/test_antigravity_flota.py`
-  - `scripts/puente/guardia_recursos.py` (nuevo)
+  - `scripts/puente/guardia_recursos.py`
+  - `scripts/puente/escritor_agy.py`
