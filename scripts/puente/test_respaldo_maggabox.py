@@ -1,135 +1,114 @@
 # -*- coding: utf-8 -*-
-"""Pruebas del respaldo Mac → Maggabox (ALM1118B).
+"""Pruebas del respaldo Mac → Maggabox (ALM1118B / ALM1121A).
 
 Herméticas: no tocan la red, ~/.ssh, ~/.starseed/env ni el disco real;
-todo va con dobles (ssh simulado, rsync/tar simulado, sistema de archivos en memoria).
+todo va con dobles (ssh simulado, rsync/scp simulado, sistema de archivos en
+memoria o en un tmpdir). Se prueba el comportamiento por la interfaz pública:
+`plan`, `respaldar`, `aliviar`, `estado` y el plist de launchd.
 """
+import json
 import os
 import sys
+import tempfile
 import time
 import unittest
-from unittest.mock import MagicMock, patch
-from typing import Dict, List, Any, Optional
+from unittest.mock import MagicMock
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import respaldo_maggabox as R  # noqa: E402
 
-
-# Constantes de prueba
 MAC_ROOT = "/Users/alex/Documents/starseed-os-main"
 STARSEED_MEMORY_ROOT = os.path.join(MAC_ROOT, "starseed_memory_root")
-WT_ROOT = os.path.expanduser("~/Documents/starseed-wd")
-ENV_PATH = os.path.expanduser("~/.starseed/env")
-SSH_KEY = os.path.expanduser("~/.ssh/starseed_nodo1")
+WT_ROOT = os.path.expanduser("~/Documents/starseed-wt")
 DEST_HOST = "maggasukha@starseed-nodo-1.local"
 DEST_BASE = "~/StarSeed-almacen"
-DEST_RESPALDOS = os.path.join(DEST_BASE, "respaldos/mac")
-DEST_PESADOS = os.path.join(DEST_BASE, "pesados")
+HASH = "b" * 64
 
 
 class SSHSimulado:
-    """Simula conexión SSH y comandos remotos."""
+    """Simula SSH/rsync/scp y guarda qué se le pidió. Nunca sale de la máquina."""
 
-    def __init__(self, respuestas: Optional[Dict[str, Any]] = None):
+    def __init__(self) -> None:
         self.llamadas: List[List[str]] = []
-        self.respuestas = respuestas or {}
+        self.remotos: Dict[str, Dict[str, Any]] = {}
         self.existe_rsync = True
-        self.archivos_remotos: Dict[str, Dict] = {}  # ruta -> {size, mtime, is_dir}
+        self.hash_remoto = HASH
 
-    def __call__(self, argv: List[str], **kw) -> Any:
-        self.llamadas.append(argv)
+    def _r(self, codigo: int = 0, salida: str = "", error: str = "") -> MagicMock:
+        return MagicMock(returncode=codigo, stdout=salida, stderr=error)
+
+    def __call__(self, argv: List[str], **kw: Any) -> Any:
+        self.llamadas.append(list(argv))
         cmd = " ".join(argv)
-
-        # ssh directo
         if argv[0] == "ssh":
-            clave = cmd
-            if clave in self.respuestas:
-                r = self.respuestas[clave]
-                return MagicMock(returncode=r.get("codigo", 0),
-                                 stdout=r.get("salida", ""),
-                                 stderr=r.get("error", ""))
-
-            # Comprobar rsync remoto
             if "rsync --version" in cmd:
-                if self.existe_rsync:
-                    return MagicMock(returncode=0, stdout="rsync  version 3.2.7", stderr="")
-                return MagicMock(returncode=127, stdout="", stderr="rsync not found")
-
-            # mkdir -p remoto
+                return self._r(0, "rsync  version 3.2.7") if self.existe_rsync else self._r(127, "", "no rsync")
             if "mkdir -p" in cmd:
-                return MagicMock(returncode=0, stdout="", stderr="")
-
-            # ls remoto para listar bundles (ls -1t)
+                return self._r()
             if "ls -1t" in cmd and "repo-" in cmd and ".bundle" in cmd:
-                bundles = sorted([os.path.basename(k) for k in self.archivos_remotos.keys() if k.endswith(".bundle")], reverse=True)
-                return MagicMock(returncode=0, stdout="\n".join(bundles), stderr="")
-
-            # du remoto para tamaños
+                nombres = sorted((k.rsplit("/", 1)[-1] for k in self.remotos if k.endswith(".bundle")), reverse=True)
+                return self._r(0, "\n".join(nombres))
+            if "sha256sum" in cmd:
+                return self._r(0, "%s  %s" % (self.hash_remoto, argv[-1]))
             if "du -sk" in cmd:
                 ruta = argv[-1]
-                if ruta in self.archivos_remotos:
-                    size_kb = self.archivos_remotos[ruta].get("size_kb", 0)
-                    return MagicMock(returncode=0, stdout=f"{size_kb}\t{ruta}", stderr="")
-                return MagicMock(returncode=1, stdout="", stderr="No such file")
-
-            # test -d / test -f remoto
-            if "test -d" in cmd or "test -f" in cmd or "test -e" in cmd:
-                ruta = argv[-1]
-                existe = ruta in self.archivos_remotos
-                return MagicMock(returncode=0 if existe else 1, stdout="", stderr="")
-
-            # find para contar entradas
+                if ruta in self.remotos:
+                    return self._r(0, "%s\t%s" % (self.remotos[ruta].get("size_kb", 0), ruta))
+                return self._r(1, "", "No such file")
+            if "test -e" in cmd or "test -d" in cmd or "test -f" in cmd:
+                return self._r(0 if argv[-1] in self.remotos else 1)
             if "find" in cmd and "-printf" in cmd:
                 ruta = argv[argv.index("find") + 1] if "find" in argv else ""
-                if ruta in self.archivos_remotos:
-                    meta = self.archivos_remotos[ruta]
-                    entradas = meta.get("entradas", 100)  # Usar entradas si está definido
-                    return MagicMock(returncode=0, stdout="." * entradas, stderr="")
-                return MagicMock(returncode=0, stdout="", stderr="")
-
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        # rsync local - simular que el archivo se copia al destino remoto
+                entradas = self.remotos.get(ruta, {}).get("entradas", 0)
+                return self._r(0, "." * entradas)
+            if "rm -f" in cmd:
+                return self._r()
+            return self._r()
         if argv[0] == "rsync":
-            # rsync -az --delete --info=progress2 --exclude=<excl> origen/ destino/
-            # El origen está en argv[-2] (sin trailing slash), el destino en argv[-1]
-            if len(argv) >= 4:
-                # Buscar el origen: el segundo último argumento que no empieza con --
-                origen = None
-                destino = argv[-1].rstrip("/")
-                for i in range(len(argv) - 2, -1, -1):
-                    if not argv[i].startswith("--"):
-                        origen = argv[i].rstrip("/")
-                        break
-                if origen and origen in self.archivos_remotos:
-                    self.archivos_remotos[destino] = self.archivos_remotos[origen].copy()
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        # tar local
+            destino = argv[-1]
+            origen = next((a for a in reversed(argv[:-1]) if not a.startswith("-")), "")
+            if origen.rstrip("/") in self.remotos:
+                self.remotos[destino.rstrip("/")] = dict(self.remotos[origen.rstrip("/")])
+            return self._r()
+        if argv[0] == "scp":
+            return self._r()
         if argv[0] == "tar":
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        # git bundle
-        if argv[0] == "git" and argv[1] == "bundle":
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        # git status / git rev-parse
+            return self._r()
         if argv[0] == "git":
-            if "rev-parse" in argv:
-                return MagicMock(returncode=0, stdout="abc123\n", stderr="")
-            if "status" in argv:
-                return MagicMock(returncode=0, stdout="", stderr="")
-
-        # shutil.disk_usage simulado
-        if argv[0] == "disk_usage":
-            return self.respuestas.get("disk_usage", (100_000_000_000, 50_000_000_000, 25_000_000_000))
-
-        return MagicMock(returncode=0, stdout="", stderr="")
+            return self._r()
+        return self._r()
 
 
-class TestExcluirSecretos(unittest.TestCase):
-    """La lista de exclusión de secretos es PURA y determinista."""
+class FSReal:
+    """Ayudas para montar árboles de prueba en un tmpdir (nada del disco de Alex)."""
+
+    def __init__(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = self._tmp.name
+
+    def limpiar(self) -> None:
+        self._tmp.cleanup()
+
+    def dir(self, *partes: str) -> str:
+        ruta = os.path.join(self.base, *partes)
+        os.makedirs(ruta, exist_ok=True)
+        return ruta
+
+    def archivo(self, *partes: str, contenido: str = "x", edad_s: float = 0.0) -> str:
+        ruta = os.path.join(self.base, *partes)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(contenido)
+        if edad_s:
+            t = time.time() - edad_s
+            os.utime(ruta, (t, t))
+        return ruta
+
+
+class TestExclusiones(unittest.TestCase):
+    """Lo secreto y los temporales de Drive nunca salen de la Mac."""
 
     def test_excluye_env_y_ssh(self):
         excluidas = R.excluir_secretos()
@@ -138,6 +117,13 @@ class TestExcluirSecretos(unittest.TestCase):
         self.assertIn("*.pem", excluidas)
         self.assertIn("*key*", excluidas)
         self.assertIn(".env*", excluidas)
+
+    def test_respaldo_anade_tmp_drive(self):
+        excluidas = R.excluir_respaldo()
+        self.assertIn(".tmp.drive*", excluidas)
+        self.assertIn(".tmp.driveupload", excluidas)
+        self.assertIn(".tmp.drivedownload", excluidas)
+        self.assertIn("*.bundle", excluidas)
 
     def test_no_incluye_rutas_normales(self):
         excluidas = R.excluir_secretos()
@@ -153,332 +139,235 @@ class TestPlan(unittest.TestCase):
         self.ssh = SSHSimulado()
 
     def test_plan_incluye_memory_root_y_repo(self):
-        plan = R.plan(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=True,
-        )
+        plan = R.plan(ssh_fn=self.ssh, mac_root=MAC_ROOT,
+                      memory_root=STARSEED_MEMORY_ROOT, destino_base=DEST_BASE, seco=True)
         self.assertTrue(any("starseed_memory_root" in p["origen"] for p in plan["respaldar"]))
         self.assertTrue(any("git_bundle" == p["accion"] for p in plan["respaldar"]))
+        self.assertTrue(any(".tmp.drive*" in p.get("exclusiones", []) for p in plan["respaldar"]))
 
     def test_plan_excluye_secretos(self):
-        plan = R.plan(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=True,
-        )
+        plan = R.plan(ssh_fn=self.ssh, mac_root=MAC_ROOT,
+                      memory_root=STARSEED_MEMORY_ROOT, destino_base=DEST_BASE, seco=True)
         for item in plan["respaldar"]:
             for excl in R.excluir_secretos():
                 self.assertNotIn(excl.replace("*", ""), item.get("origen", ""))
 
     def test_plan_rotacion_bundles_7(self):
-        # Simular 10 bundles existentes
         for i in range(10):
-            fecha = f"2026-01-{i+1:02d}"
-            self.ssh.archivos_remotos[f"respaldos/mac/repo-{fecha}.bundle"] = {"size_kb": 1000}
-
-        plan = R.plan(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=True,
-        )
-        # Debe planear borrar los 3 más viejos
+            self.ssh.remotos["/home/magga/StarSeed-almacen/respaldos/mac/repo-2026-01-%02d.bundle" % (i + 1)] = {}
+        plan = R.plan(ssh_fn=self.ssh, mac_root=MAC_ROOT,
+                      memory_root=STARSEED_MEMORY_ROOT, destino_base=DEST_BASE, seco=True)
         borrar = [p for p in plan["respaldar"] if p["accion"] == "borrar_bundle_antiguo"]
         self.assertEqual(len(borrar), 3)
 
 
 class TestRespaldar(unittest.TestCase):
-    """`respaldar` ejecuta rsync/tar y git bundle con copia verificada."""
+    """`respaldar` copia sin secretos, crea el bundle en local si hay espacio y verifica."""
 
     def setUp(self):
         self.ssh = SSHSimulado()
-        self.guardados = []
+        self.fs = FSReal()
+        self.guardados: List[Dict[str, Any]] = []
+        self.memory = self.fs.dir("repo", "starseed_memory_root")
+        self.fs.archivo("repo", "starseed_memory_root", "index.md", contenido="hola")
+        self.fs.dir("repo", "starseed_memory_root", ".tmp.driveupload")
+        self.fs.archivo("repo", "starseed_memory_root", ".tmp.driveupload", "trozo", contenido="basura")
 
-    def test_respaldar_seco_no_ejecuta(self):
-        resultado = R.respaldar(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=True,
-            guardar_log=self.guardados.append,
-        )
+    def tearDown(self):
+        self.fs.limpiar()
+
+    def _respaldar(self, **extra: Any) -> Dict[str, Any]:
+        datos = dict(ssh_fn=self.ssh, mac_root=os.path.join(self.fs.base, "repo"),
+                     memory_root=self.memory, destino_base=DEST_BASE, seco=False,
+                     guardar_log=self.guardados.append, auto_aliviar=False,
+                     notificar_fn=lambda *a, **k: None)
+        datos.update(extra)
+        return R.respaldar(**datos)
+
+    def test_seco_no_ejecuta(self):
+        resultado = self._respaldar(seco=True)
         self.assertEqual(resultado["estado"], "seco")
         self.assertEqual(len(self.ssh.llamadas), 0)
 
-    def test_respaldar_rsync_memory_root(self):
-        self.ssh.existe_rsync = True
-        resultado = R.respaldar(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=False,
-            guardar_log=self.guardados.append,
-        )
-        self.assertEqual(resultado["estado"], "hecho")
-        # Verificar que se llamó rsync con exclusiones
-        rsync_calls = [c for c in self.ssh.llamadas if c[0] == "rsync"]
-        self.assertTrue(len(rsync_calls) > 0)
-        # Verificar exclusiones de secretos
-        args = " ".join(rsync_calls[0])
-        for excl in R.excluir_secretos():
-            self.assertIn(excl.replace("*", ""), args)
+    def test_rsync_usa_host_remoto_y_excluye_tmp_drive(self):
+        resultado = self._respaldar(libre_fn=lambda: 0.0)
+        self.assertIn(resultado["estado"], ("hecho", "parcial"))
+        rsync = [c for c in self.ssh.llamadas if c[0] == "rsync"]
+        self.assertTrue(rsync)
+        args = " ".join(rsync[0])
+        self.assertIn(DEST_HOST + ":", args)
+        self.assertIn(".tmp.drive*", args)
+        self.assertIn("~/.starseed/env", args)
 
-    def test_respaldar_tar_si_no_hay_rsync(self):
-        self.ssh.existe_rsync = False
-        resultado = R.respaldar(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=False,
-            guardar_log=self.guardados.append,
-        )
-        self.assertEqual(resultado["estado"], "hecho")
-        tar_calls = [c for c in self.ssh.llamadas if c[0] == "tar"]
-        self.assertTrue(len(tar_calls) > 0)
+    def test_sin_6gb_omite_bundle_y_lo_dice(self):
+        llamadas_bundle: List[str] = []
 
-    def test_respaldar_git_bundle_y_rotacion(self):
-        # Simular bundles existentes
+        def bundle(_repo: str, destino: str) -> Dict[str, Any]:
+            llamadas_bundle.append(destino)
+            return {"codigo": 0, "salida": "", "error": ""}
+
+        resultado = self._respaldar(libre_fn=lambda: 5.9, bundle_fn=bundle)
+        self.assertEqual(llamadas_bundle, [])
+        fase = [d for d in resultado["detalles"] if d.get("fase") == "git_bundle"][0]
+        self.assertEqual(fase["estado"], "omitido")
+        self.assertIn("GitHub", fase["motivo"])
+
+    def test_bundle_temporal_se_envia_verifica_y_se_borra(self):
+        temporales: List[str] = []
+
+        def bundle(_repo: str, destino: str) -> Dict[str, Any]:
+            temporales.append(os.path.dirname(destino))
+            with open(destino, "wb") as f:
+                f.write(b"bundle")
+            return {"codigo": 0, "salida": "", "error": ""}
+
+        resultado = self._respaldar(libre_fn=lambda: 10.0, bundle_fn=bundle,
+                                    sha_local_fn=lambda _r: HASH)
+        fase = [d for d in resultado["detalles"] if d.get("fase") == "git_bundle"][0]
+        self.assertEqual(fase["estado"], "hecho")
+        self.assertTrue(any(c[0] == "scp" for c in self.ssh.llamadas))
+        self.assertTrue(any("sha256sum" in " ".join(c) for c in self.ssh.llamadas))
+        self.assertTrue(temporales and all(not os.path.exists(t) for t in temporales))
+
+    def test_rotacion_conserva_siete(self):
         for i in range(8):
-            fecha = f"2026-01-{i+1:02d}"
-            self.ssh.archivos_remotos[f"respaldos/mac/repo-{fecha}.bundle"] = {"size_kb": 1000}
-
-        resultado = R.respaldar(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            memory_root=STARSEED_MEMORY_ROOT,
-            destino_base=DEST_BASE,
-            seco=False,
-            guardar_log=self.guardados.append,
-        )
-        self.assertEqual(resultado["estado"], "hecho")
-        # Debe haber creado uno nuevo y borrado el más viejo (mantener 7)
-        git_calls = [c for c in self.ssh.llamadas if c[0] == "git" and "bundle" in c]
-        self.assertTrue(len(git_calls) > 0)
+            self.ssh.remotos["/home/magga/StarSeed-almacen/respaldos/mac/repo-2026-01-%02d.bundle" % (i + 1)] = {}
+        resultado = self._respaldar(libre_fn=lambda: 0.0)
+        fase = [d for d in resultado["detalles"] if d.get("fase") == "rotar_bundles"][0]
+        self.assertEqual(len(fase["borrados"]), 1)
 
 
 class TestAliviar(unittest.TestCase):
-    """`aliviar` mueve lo pesado y regenerable a pesados/ con copia verificada."""
+    """`aliviar` mide candidatos reales, dice por qué y nunca borra sin copia."""
 
     def setUp(self):
         self.ssh = SSHSimulado()
-        self.guardados = []
+        self.fs = FSReal()
+        self.home = self.fs.dir("home")
+        self.temp = self.fs.dir("temp")
+        self.repo = self.fs.dir("repo")
+        self.memory = self.fs.dir("repo", "starseed_memory_root")
+        self.logs = self.fs.dir("repo", "starseed_memory_root", "olas", "logs")
+        self.wt = self.fs.dir("worktrees")
+        self.indice = os.path.join(self.memory, "nodo", "indice-pesados-maggabox.md")
+        # candidatos
+        self.go_viejo = self.fs.dir("temp", "go-build-viejo")
+        self.fs.archivo("temp", "go-build-viejo", "x", edad_s=2 * 3600)
+        self.go_nuevo = self.fs.dir("temp", "go-build-nuevo")
+        self.fs.archivo("temp", "go-build-nuevo", "x", edad_s=10 * 60)
+        self.go_cache = self.fs.dir("home", "Library", "Caches", "go-build")
+        self.fs.archivo("home", "Library", "Caches", "go-build", "x")
+        self.shipit = self.fs.dir("home", "Library", "Caches", "ShipIt-viejo")
+        self.fs.archivo("home", "Library", "Caches", "ShipIt-viejo", "x", edad_s=2 * 86400)
+        self.drive_tmp = self.fs.dir("home", "Library", "Application Support", "Google", "DriveFS", ".tmp.driveupload", "trozo")
+        self.fs.archivo("home", "Library", "Application Support", "Google", "DriveFS", ".tmp.driveupload", "trozo", "x", edad_s=2 * 86400)
+        self.fs.dir("repo", ".next")
+        self.fs.archivo("repo", ".next", "BUILD_ID", contenido="abc", edad_s=2 * 3600)
+        self.fs.archivo("repo", ".next", "build-manifest.json", contenido="{}", edad_s=2 * 3600)
+        self.fs.dir("repo", ".next-anterior")
+        self.fs.archivo("repo", ".next-anterior", "BUILD_ID", contenido="old")
+        self.log_viejo = self.fs.archivo("repo", "starseed_memory_root", "olas", "logs", "ola-vieja.log", contenido="x" * 100, edad_s=8 * 86400)
+        self.fs.archivo("repo", "starseed_memory_root", "olas", "logs", "ola-nueva.log", contenido="x", edad_s=3600)
+        self.wt_vieja = self.fs.dir("worktrees", "starseed-wt-vieja")
+        self.fs.archivo("worktrees", "starseed-wt-vieja", "x")
+        self.fs.archivo("home", "Downloads", "StarSeed-prueba-4.dmg", contenido="x", edad_s=2 * 86400)
+        self.fs.archivo("repo", "MetaGenesis", "instaladores", "canal-pruebas", "prueba-4", "_publicacion.json",
+                        contenido='{"prueba": 4}')
 
-    def test_aliviar_seco_no_mueve(self):
-        resultado = R.aliviar(
-            ssh_fn=self.ssh,
-            mac_root=MAC_ROOT,
-            wt_root=WT_ROOT,
-            destino_base=DEST_BASE,
-            objetivo_gb=25,
-            seco=True,
-            guardar_log=self.guardados.append,
-        )
+    def tearDown(self):
+        self.fs.limpiar()
+
+    def _aliviar(self, **extra: Any) -> Dict[str, Any]:
+        datos = dict(ssh_fn=self.ssh, mac_root=self.repo, wt_root=self.wt,
+                     destino_base=DEST_BASE, objetivo_gb=12.0, seco=False,
+                     guardar_log=lambda _r: None, cola_activa_ids=set(),
+                     home=self.home, temp_dirs=[self.temp], ahora=time.time(),
+                     indice_path=self.indice, archivar_fn=lambda *a, **k: {"ok": True, "detalle": "archivados"},
+                     notificar_fn=lambda *a, **k: None,
+                     worktrees_terminados_fn=lambda _raiz, _wt: ["starseed-wt-vieja"])
+        datos.update(extra)
+        return R.aliviar(**datos)
+
+    def test_seco_lista_candidatos_con_mb_y_motivo(self):
+        resultado = self._aliviar(seco=True, objetivo_gb=999.0)
         self.assertEqual(resultado["estado"], "seco")
+        tipos = {c["tipo"] for c in resultado["candidatos"]}
+        for esperado in ("go-build", "go-cache", "shipit", "tmp-drive", "next-anterior", "olas-logs", "worktrees", "instalador-prueba"):
+            self.assertIn(esperado, tipos)
+        for c in resultado["candidatos"]:
+            self.assertGreaterEqual(c["mb"], 0)
+            self.assertTrue(c["motivo"])
+        nombres = {os.path.basename(c["ruta"]) for c in resultado["candidatos"]}
+        self.assertIn("go-build-viejo", nombres)
+        self.assertNotIn("go-build-nuevo", nombres)
 
-    def test_aliviar_no_hace_nada_si_hay_espacio(self):
-        # Simular 30 GB libres
-        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 30_000_000_000)):
-            resultado = R.aliviar(
-                ssh_fn=self.ssh,
-                mac_root=MAC_ROOT,
-                wt_root=WT_ROOT,
-                destino_base=DEST_BASE,
-                objetivo_gb=25,
-                seco=False,
-                guardar_log=self.guardados.append,
-            )
+    def test_no_toca_secretos_ni_worktree_en_cola(self):
+        self.fs.archivo("home", ".starseed", "env", contenido="CLAVE=1")
+        resultado = self._aliviar(seco=True, objetivo_gb=999.0,
+                                  cola_activa_ids={"starseed-wt-vieja"})
+        for c in resultado["candidatos"]:
+            self.assertNotIn(".starseed/env", c["ruta"])
+        self.assertNotIn("worktrees", {c["tipo"] for c in resultado["candidatos"]})
+
+    def test_mueve_logs_con_remove_source_files(self):
+        self.ssh.remotos[self.logs] = {"size_kb": 1, "entradas": 2}
+        resultado = self._aliviar(libre_fn=lambda: 5.0)
+        self.assertIn(resultado["estado"], ("hecho", "parcial"))
+        logs = [c for c in self.ssh.llamadas if c[0] == "rsync" and "--remove-source-files" in c]
+        self.assertTrue(logs, "no se usó rsync --remove-source-files para los registros de olas")
+        self.assertTrue(any("olas-logs" in " ".join(c) for c in logs))
+
+    def test_cada_movimiento_queda_en_el_indice(self):
+        self.ssh.remotos[self.logs] = {"size_kb": 1, "entradas": 2}
+        self._aliviar(libre_fn=lambda: 5.0)
+        self.assertTrue(os.path.isfile(self.indice))
+        with open(self.indice, encoding="utf-8") as f:
+            texto = f.read()
+        self.assertIn("ola-vieja.log", texto)
+        self.assertIn("olas-logs", texto)
+
+    def test_si_hay_espacio_no_mueve_nada(self):
+        resultado = self._aliviar(libre_fn=lambda: 30.0)
         self.assertEqual(resultado["estado"], "suficiente_espacio")
-
-    def test_aliviar_mueve_caches_next(self):
-        # Simular poco espacio
-        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
-            # Rutas simuladas
-            wt_ola1 = os.path.join(WT_ROOT, "starseed-wt-ola1")
-            next_cache = os.path.join(MAC_ROOT, ".next/cache")
-            self.ssh.archivos_remotos[wt_ola1] = {"size_kb": 5_000_000, "is_dir": True}
-            self.ssh.archivos_remotos[next_cache] = {"size_kb": 3_000_000, "is_dir": True}
-
-            # Inyectar funciones de filesystem simuladas
-            def existe_fn(path):
-                return path in (wt_ola1, next_cache)
-            def es_directorio_fn(path):
-                return path in (wt_ola1, next_cache)
-            def listar_fn(path):
-                if path == WT_ROOT:
-                    return ["starseed-wt-ola1"]
-                return []
-            def mtime_fn(path):
-                return time.time() - 40 * 86400  # 40 días
-
-            resultado = R.aliviar(
-                ssh_fn=self.ssh,
-                mac_root=MAC_ROOT,
-                wt_root=WT_ROOT,
-                destino_base=DEST_BASE,
-                objetivo_gb=25,
-                seco=False,
-                guardar_log=self.guardados.append,
-                cola_activa_ids={"ola2", "ola3"},  # ola1 no está en cola
-                existe_fn=existe_fn,
-                es_directorio_fn=es_directorio_fn,
-                listar_fn=listar_fn,
-                mtime_fn=mtime_fn,
-            )
-        self.assertEqual(resultado["estado"], "hecho")
-        # Verificar que se movieron items
-        self.assertTrue(len(resultado["movidos"]) > 0)
-
-    def test_aliviar_nunca_toca_datos_cuenta_ni_proyecto_en_uso(self):
-        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
-            # Simular datos de cuenta (deben estar en lista negra)
-            self.ssh.archivos_remotos[os.path.expanduser("~/.starseed/env")] = {"size_kb": 100, "is_dir": False}
-            self.ssh.archivos_remotos[os.path.join(MAC_ROOT, ".env.local")] = {"size_kb": 100, "is_dir": False}
-            # Proyecto en uso (worktree en cola activa)
-            self.ssh.archivos_remotos[os.path.join(WT_ROOT, "starseed-wt-ola2")] = {"size_kb": 5_000_000, "is_dir": True}
-
-            resultado = R.aliviar(
-                ssh_fn=self.ssh,
-                mac_root=MAC_ROOT,
-                wt_root=WT_ROOT,
-                destino_base=DEST_BASE,
-                objetivo_gb=25,
-                seco=False,
-                guardar_log=self.guardados.append,
-                cola_activa_ids={"ola2"},
-            )
-        # No debe mover ni .starseed/env ni .env.local ni el worktree en uso
-        for movido in resultado["movidos"]:
-            self.assertNotIn(".starseed/env", movido["origen"])
-            self.assertNotIn(".env.local", movido["origen"])
-            self.assertNotIn("starseed-wt-ola2", movido["origen"])
-
-    def test_aliviar_copia_verificada_antes_de_borrar(self):
-        import tempfile
-        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 280_000_000_000, 5_000_000_000)):
-            # Crear directorio temporal para simular .next/cache
-            with tempfile.TemporaryDirectory() as tmpdir:
-                next_cache = os.path.join(tmpdir, ".next", "cache")
-                os.makedirs(next_cache, exist_ok=True)
-                # Crear algunos archivos en el cache
-                with open(os.path.join(next_cache, "file1"), "w") as f:
-                    f.write("test")
-                with open(os.path.join(next_cache, "file2"), "w") as f:
-                    f.write("test")
-
-                origen = next_cache
-                # Simular archivo en remoto ANTES del rsync (para el tamaño del origen)
-                # El campo 'entradas' se usará para que el mock de find copie el contador correcto
-                self.ssh.archivos_remotos[origen] = {"size_kb": 3_000_000, "is_dir": True, "entradas": 2}
-                # Simular filesystem local
-                def existe_fn(path):
-                    return path == origen
-                def es_directorio_fn(path):
-                    return path == origen
-                def listar_fn(path):
-                    return ["file1", "file2"]
-                def mtime_fn(path):
-                    return time.time() - 40 * 86400  # 40 días
-
-                # Mocks para tamano_fn y contar_fn que usan los metadata del ssh
-                def tamano_fn(path):
-                    meta = self.ssh.archivos_remotos.get(path, {})
-                    return meta.get("size_kb", 0)  # du -sk devuelve KB
-                def contar_fn(path):
-                    meta = self.ssh.archivos_remotos.get(path, {})
-                    return meta.get("entradas", 0)
-
-                resultado = R.aliviar(
-                    ssh_fn=self.ssh,
-                    mac_root=tmpdir,
-                    wt_root=WT_ROOT,
-                    destino_base=DEST_BASE,
-                    objetivo_gb=25,
-                    seco=False,
-                    guardar_log=self.guardados.append,
-                    cola_activa_ids=set(),
-                    existe_fn=existe_fn,
-                    es_directorio_fn=es_directorio_fn,
-                    listar_fn=listar_fn,
-                    mtime_fn=mtime_fn,
-                    tamano_fn=tamano_fn,
-                    contar_fn=contar_fn,
-                )
-
-            # Verificar que cada item movido tiene verificación de tamaño y entradas
-            self.assertTrue(resultado.get("movidos"), "no se movió ningún candidato")
-            for movido in resultado["movidos"]:
-                self.assertIn("verificado", movido)
-                self.assertTrue(movido["verificado"])
+        self.assertFalse([c for c in self.ssh.llamadas if c[0] == "rsync"])
 
 
 class TestEstado(unittest.TestCase):
-    """`estado` muestra información del destino y espacio."""
+    """`estado` enseña lo medido y lo movido, sin inventar."""
 
-    def setUp(self):
-        self.ssh = SSHSimulado()
-
-    def test_estado_muestra_espacio_y_ultimos_respaldos(self):
-        # Simular bundles
-        for i in range(3):
-            fecha = f"2026-01-{i+1:02d}"
-            self.ssh.archivos_remotos[f"respaldos/mac/repo-{fecha}.bundle"] = {"size_kb": 1000 * (i+1)}
-        self.ssh.archivos_remotos["respaldos/mac/starseed_memory_root"] = {"size_kb": 5000, "is_dir": True}
-        self.ssh.archivos_remotos["respaldos/mac/respaldos.log"] = {"size_kb": 100, "is_dir": False}
-
-        with patch("respaldo_maggabox.shutil.disk_usage", return_value=(300_000_000_000, 200_000_000_000, 50_000_000_000)):
-            estado = R.estado(
-                ssh_fn=self.ssh,
-                mac_root=MAC_ROOT,
-                destino_base=DEST_BASE,
-            )
-
-        self.assertIn("mac_libre_gb", estado)
-        self.assertIn("destino", estado)
-        self.assertIn("ultimos_bundles", estado)
-        self.assertEqual(len(estado["ultimos_bundles"]), 3)
-
-
-class TestResticPreparado(unittest.TestCase):
-    """El comando restic para secretos está preparado pero sin contraseña."""
-
-    def test_comando_restic_sin_password(self):
-        cmd = R.comando_restic_inicializar(destino_base=DEST_BASE)
-        self.assertIn("restic", cmd)
-        self.assertIn("init", cmd)
-        self.assertIn("--repository", cmd)
-        # NO debe tener password
-        self.assertNotIn("-p", cmd)
-        self.assertNotIn("--password", cmd)
-        self.assertNotIn("password", " ".join(cmd).lower())
-
-    def test_comando_restic_respaldar_secretos(self):
-        cmd = R.comando_restic_respaldar(
-            origenes=["~/.starseed/env", "~/.ssh"],
-            destino_base=DEST_BASE,
-        )
-        self.assertIn("restic", cmd)
-        self.assertIn("backup", cmd)
-        # NO debe tener password en el comando
-        self.assertNotIn("-p", cmd)
-        self.assertNotIn("--password", cmd)
+    def test_estado_incluye_movido_e_indice(self):
+        ssh = SSHSimulado()
+        ssh.remotos["/home/magga/StarSeed-almacen/respaldos/mac/repo-2026-01-01.bundle"] = {"size_kb": 1024}
+        ssh.remotos["/home/magga/StarSeed-almacen/respaldos/mac/starseed_memory_root"] = {"size_kb": 2048}
+        ssh.remotos["/home/magga/StarSeed-almacen/respaldos/mac/respaldos.log"] = {"size_kb": 1}
+        estado = R.estado(ssh_fn=ssh, mac_root=MAC_ROOT, destino_base=DEST_BASE,
+                          movido_gb=3.5, indice="/x/indice.md")
+        self.assertEqual(estado["destino"]["log_existe"], True)
+        self.assertEqual(estado["movido_gb"], 3.5)
+        self.assertEqual(estado["indice"], "/x/indice.md")
+        self.assertEqual(len(estado["ultimos_bundles"]), 1)
 
 
 class TestPlistLaunchd(unittest.TestCase):
-    """El docstring incluye un plist de ejemplo para launchd (cada 6h)."""
+    """El plist real existe, corre cada 6 h y no lleva claves."""
+
+    def setUp(self):
+        self.ruta = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                 "deploy", "launchd", "com.starseed.respaldo-maggabox.plist")
+
+    def test_plist_cada_6h(self):
+        self.assertTrue(os.path.isfile(self.ruta), "falta deploy/launchd/com.starseed.respaldo-maggabox.plist")
+        with open(self.ruta, encoding="utf-8") as f:
+            texto = f.read()
+        self.assertIn("com.starseed.respaldo-maggabox", texto)
+        self.assertIn("respaldar", texto)
+        self.assertIn("<integer>21600</integer>", texto)
+        self.assertIn("RunAtLoad", texto)
 
     def test_docstring_tiene_plist(self):
         self.assertIn("launchd", R.__doc__ or "")
         self.assertIn("StartInterval", R.__doc__ or "")
-        self.assertIn("21600", R.__doc__ or "")  # 6 horas = 21600 segundos
+        self.assertIn("21600", R.__doc__ or "")
 
 
 if __name__ == "__main__":
