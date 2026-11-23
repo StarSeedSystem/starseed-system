@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CAP-skill-coop-qa-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-qa en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-qa/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-qa para que el enjambre la use."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP-skill-coop-qa-uso"
+  ]
+ }
+}
