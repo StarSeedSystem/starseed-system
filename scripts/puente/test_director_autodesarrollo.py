@@ -32,6 +32,7 @@ class DirectorTest(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_buzon_encargos=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -63,6 +64,31 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(props[0]["estado"], "encargada")
         self.assertTrue(os.path.isfile(os.path.join(self.home, "dream-encargado.json")))
         self.assertEqual(self.correr(ahora=datetime(2026, 10, 23, 3, 15))["autodesarrolladas"], 0)
+
+    def test_la_tarea_se_formula_con_el_motor_real(self):
+        """(DR1121-2) La cola se formula con el motor real, no con una plantilla fija."""
+        vistos = []
+
+        def motor(prompt, rol="codigo"):
+            vistos.append((prompt, rol))
+            return json.dumps({"propuesta": {"titulo": "Arreglar el lector (motor)", "cuerpo": "hecho por el motor",
+                                             "tipo": "codigo", "referencias": [], "archivos": ["scripts/puente/suenos.py"]}})
+
+        r = self.correr(motor_formulacion=motor)
+        cola = self.leer(self.raiz, "starseed_memory_root", "olas", r["cola"])
+        self.assertEqual(len(vistos), 1)
+        self.assertEqual(cola[0]["titulo"], "Arreglar el lector (motor)")
+        self.assertNotIn("propuesta", cola[0])
+        self.assertLessEqual(len(cola[0]["archivos"]), 3)
+
+    def test_recomienda_si_quedan_plantillas_abiertas(self):
+        """(DR1121-2) Si quedan plantillas abiertas, el ciclo las devuelve como recomendaciones."""
+        os.makedirs(os.path.join(self.raiz, "starseed_memory_root", "imaginacion"), exist_ok=True)
+        with open(os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "plantillas.json"), "w", encoding="utf-8") as f:
+            json.dump({"plantillas": [{"id": "p1", "titulo": "Patrón Horizon", "archivos": ["src/a.tsx"], "estado": "abierta"}]}, f)
+        r = self.correr()
+        self.assertEqual(len(r.get("recomendaciones") or []), 1)
+        self.assertIn("Patrón Horizon", r["recomendaciones"][0]["titulo"])
 
     def test_conserva_estado_de_alex_y_encarga_lo_aprobado(self):
         self.correr(capacidad=None)  # registra la propuesta sin encargarla

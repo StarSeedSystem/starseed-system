@@ -23,6 +23,7 @@ sys.path.insert(0, AQUI)
 import autodesarrollo_logica as AL, autodesarrollo_decidir as AD, autodesarrollo_fuentes as AF
 import autodesarrollo_reimaginar as AR, autodesarrollo_entregables as AE
 import egm_revision as EGM
+import formulate_task as FT, imaginacion_recomendador as IR
 
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 ESTADOS_ALEX = ("aprobada", "rechazada", "pospuesta", "hecha", "descartada")
@@ -493,9 +494,37 @@ def fusionar_con_disco(inicial, propuestas, disco_crudo):
     return salida
 
 
+def _tarea_formulada(p, mem, ahora, motor=None, formular=True):
+    """Tarea de cola formulada por el motor real (`formulate_task`), no por una plantilla fija.
+
+    Conserva el id de la cola, el área y la marca de aprobación; si el motor falla, cae a la
+    plantilla local para no dejar la cola vacía (la tarea de respaldo es la de antes). Con
+    `formular=False` (modo seco) no se llama al motor: solo se decide en memoria."""
+    fabricada = {"id": id_de_tarea(p.get("id", "")), "titulo": p.get("titulo", ""), "area": "imaginacion",
+                 "archivos": (p.get("archivos") or [])[:3], "depende": [],
+                 "prompt": PROMPT.format(t=p.get("titulo", ""), c=p.get("cuerpo", "")[:600])}
+    if formular:
+        try:
+            rol = "diseno" if p.get("tipo") in ("diseno", "contenido", "investigacion") else "codigo"
+            t = FT.formulate_next_intelligent_task(p, mem, ahora, motor, rol)
+            if isinstance(t, dict):
+                t["id"] = id_de_tarea(p.get("id", ""))
+                t["area"] = "imaginacion"
+                t["archivos"] = (t.get("archivos") or p.get("archivos") or [])[:3]
+                t["depende"] = t.get("depende") or []
+                t.pop("propuesta", None)  # el contrato de la cola no lleva la propuesta entera
+                fabricada = t
+        except Exception:
+            pass  # motor caído o propuesta no formulable: se queda la tarea de respaldo
+    if p.get("aprobacion_diff"):
+        fabricada["aprobacion"] = True
+    return fabricada
+
+
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None, agente_sintesis=None, agente_buzon_encargos=None, llamar_egm=None):
+          a_la_flota=None, agente_alcance=None, agente_sintesis=None, agente_buzon_encargos=None, llamar_egm=None,
+          motor_formulacion=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
@@ -505,6 +534,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
     `llamar_egm(prompt, modelo)`: función para llamar a modelos en la revisión EGM (None = usa modelos por defecto).
+    `motor_formulacion(prompt, rol)`: motor real para formular las tareas de la cola (None = `starseed-sub`, gratis y local;
+    las pruebas inyectan un motor fijo). Si el motor falla o no da propuesta, se usa la plantilla local.
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
     propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
@@ -640,9 +671,11 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
-        tareas = [{"id": id_de_tarea(p["id"]), "titulo": p["titulo"], "area": "imaginacion",
-                   "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
-                   **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
+        tareas = [_tarea_formulada(p, mem, ahora, motor_formulacion, not seco) for p in cola]
+        try:
+            recomendaciones = IR.recomendar_siguientes(mem, ahora, existe) if not seco else []
+        except Exception:
+            recomendaciones = []  # un recomendador caído no tumba el ciclo
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]
         cola_r = cola_e = flota = None
         ola_bloqueada = False
@@ -688,7 +721,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             if avisar and (tareas or esperan or reim or tareas_e or aplicadas):
                 avisar(f"Imaginación: {len(tareas)} tarea(s) encargada(s), {len(esperan)} esperando tu aprobación"
                        + (f", {len(reim)} reimaginándose" if reim else "") + (f", {len(tareas_e)} entregable(s) encargado(s)" if tareas_e else "")
-                       + (f", {aplicadas} aplicada(s) en Astraura" if aplicadas else "") + ".", bool(esperan))
+                       + (f", {aplicadas} aplicada(s) en Astraura" if aplicadas else "")
+                       + (f", {len(recomendaciones)} recomendación(es) de imaginación" if recomendaciones else "") + ".", bool(esperan))
         return {"toca_ejecutar": toca, "motivo_toca": motivo, "lanzado": lanzo, "propuestas": len(propuestas), "autodesarrolladas": len(tareas),
                 "esperando_aprobacion": len(esperan), "cola": nombre + ".json" if tareas and not seco else None,
                 "reimaginando": sum(1 for p in propuestas if p.get("estado") == "reimaginando"),
@@ -697,6 +731,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
                 "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
+                "recomendaciones": recomendaciones if not seco else [],
                 "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
 
 
