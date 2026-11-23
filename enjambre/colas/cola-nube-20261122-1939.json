@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "PET1121Cs",
+   "ola": "DIR1121",
+   "titulo": "El bot de diseño del A1 sigue con el código viejo cargado: lo publicado no llega al servicio hasta que se reinicia · lo que faltó: deploy/oracle/nodo/systemd/starseed-peticiones-telegram.service",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-peticiones-telegram.service"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de PET1121C, que ya está integrada (sha 2dbbd8df3b94). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: deploy/oracle/nodo/systemd/starseed-peticiones-telegram.service.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: El bot de diseño del A1 sigue con el código viejo cargado: lo publicado no llega al servicio hasta que se reinicia\n\n--- encargo original, como contexto ---\nURGENTE. La dirección publicó el 21-11 a las 16:43 el arreglo DIR1121B (commit 4f408dd21: un encargo sin clientes reales se atiende\ncomo petición normal en vez de contestar «petición fallida»). A las 17:06 el servicio `starseed-peticiones-telegram` del A1 seguía ACTIVO DESDE\nel 20-11 16:21 UTC: nadie lo reinicia cuando cambia el código, así que el bot @StarSeed_Design_bot sigue ejecutando lo que cargó ese día y Alex\npuede volver a recibir «petición fallida». Además la dirección no puede comprobar desde el Mac qué commit tiene el checkout del A1\n(/home/starseed/starseed-system no es legible para el usuario de entrada) y la orden `oracle_nodo.py peticiones` es la migración de una sola\nvez (su plan incluso para y deshabilita el servicio al final: revísalo, parece un error). Haz: 1) una orden `oracle_nodo.py desplegar-bots\n[--aplicar]` que, por la vía que ya usa el nodo para actualizarse, deje el checkout del A1 en el commit publicado y reinicie SOLO los servicios\ncuyos archivos cambiaron (peticiones_*.py → starseed-peticiones-telegram), espere a que estén activos y devuelva commit, hora de arranque y\nlas últimas líneas del journal sin claves; 2) que eso ocurra solo tras cada publicación que toque esos archivos (el sanador del A1 o la\nautopublicación), con aviso en el canal Audiovisual y diseño; 3) `oracle_nodo.py estado` incluye por servicio el commit que ejecuta y desde\ncuándo, y el medidor lo marca en ámbar si va por detrás de lo publicado; 4) ejecútalo ahora, comprueba que el archivo del A1 contiene\n`_clientes_de_encargo` y que el servicio arrancó después de las 22:43 UTC del 21-11, vuelve a poner en `reintentar` la petición fallida de\nAlex de la noche del 20-11 y confirma en el journal que termina en «hecha». Nunca imprimas la dirección del A1, tokens ni claves. Pruebas que\nfallen sin tu cambio; en el informe, qué comprobaste de verdad.",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "PET1121Cs"
+  ]
+ }
+}
