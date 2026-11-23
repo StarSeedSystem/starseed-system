@@ -29,7 +29,6 @@ import { useEffect, useRef, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   resolveQuantumOrbTheme,
-  mergeQuantumOrbParams,
   DEFAULT_QUANTUM_ORB_PARAMS,
   type QuantumOrbParams,
 } from "@/lib/aurora/quantum-orb-theme";
@@ -134,10 +133,6 @@ export function QuantumOrbAvatar({
 
   // Rastrea el último vector emitido para evitar re-emisiones idénticas (previene bucles).
   const lastEmittedRef = useRef<QuantumOrbParams | null>(null);
-  // Bandera para saber si el último cambio vino del bus (evita re-emitir params del bus).
-  const busOriginRef = useRef(false);
-  // Guardia de montaje: no emitir en el primer render para evitar race condition con params del bus.
-  const mountedRef = useRef(false);
 
   // Comparación profunda de params (solo claves relevantes).
   function paramsEqual(a: QuantumOrbParams, b: QuantumOrbParams): boolean {
@@ -164,10 +159,9 @@ export function QuantumOrbAvatar({
   const liveRef = useRef({ personaId, state, params: mergedParams });
   liveRef.current = { personaId, state, params: mergedParams };
 
-  // Suscripción al bus `params`: actualiza estado visual y marca origen-bus para no re-emitir.
+  // Suscripción al bus `params`: actualiza el estado visual en cada tick del bus.
   useEffect(() => {
     const unsub = onQuantumOrbParams((p) => {
-      busOriginRef.current = true; // Marcar que el siguiente cambio viene del bus.
       setBusParams(p);
     });
     return unsub;
@@ -179,13 +173,10 @@ export function QuantumOrbAvatar({
     emitQuantumOrbParams(effectiveParams);
   }, []);
 
-  // Publica los parámetros en el bus `params` solo si cambiaron localmente (onda 1.58b).
+  // Publica el vector local en el bus `params` cuando cambian persona, estado o props.
+  // Los ticks del bus solo tocan `busParams` (no `effectiveParams`), así que este efecto
+  // no puede re-emitir lo que llegó del bus: no hay bucle y el canal no se queda mudo.
   useEffect(() => {
-    // Si el cambio vino del bus, no re-emitir: cortar posible bucle.
-    if (busOriginRef.current) {
-      busOriginRef.current = false;
-      return;
-    }
     // Evitar emitir el mismo vector dos veces seguidas.
     if (lastEmittedRef.current && paramsEqual(lastEmittedRef.current, effectiveParams)) {
       return;

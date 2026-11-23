@@ -202,6 +202,29 @@ describe("QuantumOrbAvatar — auto-publica vector visual en bus params", () => 
     unsub2();
   });
 
+  it("tras un tick del bus, un cambio local vuelve a publicar su vector", async () => {
+    const received: Partial<QuantumOrbParams>[] = [];
+    const unsub = onQuantumOrbParams((p) => received.push(p));
+
+    const { rerender } = render(<QuantumOrbAvatar personaId="aurora" size={36} state="idle" />);
+    await waitFor(() => expect(received.length).toBeGreaterThan(0));
+    const inicial = received[0];
+
+    // Un tick del bus (backend 1.58b) no debe dejar el canal mudo para siempre.
+    quantumOrbBus.emit("params", { turbulence: 0.8, symmetry: 0.9 });
+    await waitFor(() => {});
+
+    const despues: Partial<QuantumOrbParams>[] = [];
+    const unsub2 = onQuantumOrbParams((p) => despues.push(p));
+    rerender(<QuantumOrbAvatar personaId="aurora" size={36} state="thinking" />);
+
+    await waitFor(() => expect(despues.length).toBeGreaterThan(0));
+    expect(despues[0]).not.toEqual(inicial);
+
+    unsub();
+    unsub2();
+  });
+
   it("no re-emite params idénticos (deduplicación)", async () => {
     const received: Partial<QuantumOrbParams>[] = [];
     const unsub = onQuantumOrbParams((p) => received.push(p));
