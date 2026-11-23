@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CTL1123E",
+   "ola": "control-avanzado-1123",
+   "titulo": "Diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE",
+   "importancia": "alta",
+   "archivos": [
+    "native/src-tauri/src/ble_enlace_diagnostico.rs"
+   ],
+   "depende": [],
+   "prompt": "Contexto medido en Ronda 1 (22-11, 0.5.1-prueba.57): Maggabox Linux registra `org.bluez.Error.Failed: le-connection-abort-by-local` al conectar a Maggaboard Android (mientras escanea o justo tras parar escaneo sin espera suficiente) y MaggaBook macOS registra `listo-tarde (sin listo para escribir en 400 ms)` + `Bluetooth directo: sin acuse por Bluetooth tras 4 intentos`. Crea el módulo puro `native/src-tauri/src/ble_enlace_diagnostico.rs` (con sus tests en Rust, sin cambios a `Cargo.toml`) que calcule el tiempo de asentamiento recomendado entre parar escaneo BlueZ y `Connect()`, y el backoff / reintentos de acuse GATT antes de castigar el enlace b1/b2. Declara `mod ble_enlace_diagnostico;` en `native/src-tauri/src/lib.rs` (solo si el módulo queda compilado sin warnings bajo `#![allow(dead_code)]` hasta su cableado). Verifica `cargo test --lib ble_enlace_diagnostico`."
+  },
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "ola": "ALM1118",
+   "id": "ALM1118A-d2",
+   "titulo": "Contrato del almacén de neurona por la malla (capas de capacidades locales y funciones de nodo, privadas y públicas) (parte 2 de 2)",
+   "archivos": [
+    "starseed_memory_root/olas/cola-almacen-neurona-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): lo planeado para el disco Maggabit se hace con la neurona Maggabox (Debian, 500 GB, ~425 GB libres) a través de las capas de conciencia de capacidades locales mesh P2P y de las funciones de nodo de las neuronas de StarSeed OS, privadas y públicas: respaldos de los sistemas y sus versiones; todo el código con reflejo de GitHub autoactualizado; archivos y carpetas pesados de la producción y el desarrollo a través de MetaGenesis; capas de conciencia colectivas privadas de la cuenta y públicas; medios de producción, contenedor en la nube de MetaGenesis y funciones de nodo de las neuronas públicas. Nunca medio único de lo principal. En el nodo ya hay (o habrá al pasar el guion del nodo) ~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas/privadas,capas/publicas,nube} con temporizadores de espejo (15 min) y versiones (1 h). Tarea: escribe docs/contratos/almacen-de-neurona.md con (1) «Lo que ya existe»: dónde está hoy en el código el elegir medio de almacenamiento por neurona, el enjambre de datos (semillas, imanes, espejos), las capas de capacidades de la neurona, el servidor de capas y las funciones de nodo público (rutas y funciones exactas, con grep); (2) el diseño: una neurona anuncia capacidad de almacén (GB libres, cuota que fija su dueño), espacio privado de la cuenta cifrado de punta a punta y solo para neuronas de la misma cuenta, espacio público direccionado por contenido para las capas colectivas, réplica obligatoria de lo principal en otro medio, y cómo lo usa MetaGenesis (respaldos, datos pesados, contenedor en la nube); (3) los riesgos y lo que nunca se sirve en público. Y una cola de 3 a 6 tareas pequeñas en starseed_memory_root/olas/cola-almacen-neurona-1118.json (mismo formato que esta cola) para construirlo por partes con sus pruebas. No escribas código de producto en esta tarea. Reglas: nunca imprimas claves ni variables de entorno; nada de borrar sin copia comprobada; la Maggabox nunca es el medio único de nada principal; la lógica pura va con pruebas unitarias (sin red ni aparatos reales en las pruebas). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió ALM1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/olas/cola-almacen-neurona-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "ALM1118A-d1"
+   ]
+  },
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  },
+  {
+   "id": "ALM1121A",
+   "ola": "ALM1121",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox.py",
+    "deploy/launchd/com.starseed.respaldo-maggabox.plist",
+    "scripts/puente/recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después)."
+  },
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "PRU1118A-d3",
+   "ALM1121A",
+   "CTL1119A",
+   "CTL1123E",
+   "PRU1123A",
+   "ALM1118A-d2"
+  ]
+ }
+}
