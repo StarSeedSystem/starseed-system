@@ -512,6 +512,10 @@ function GrupoPageContent() {
     // al final; se referencian, no se duplican. Con error o cargando no se añade nada.
     const refEspacio = useMemo(() => entityRef ?? { kind: "group" as const, id: "" }, [entityRef]);
     const espacio = usarEspacio(refEspacio, { rango: isOwner ? 4 : 0, roles: SIN_ROLES_ESPACIO });
+    // SES1115Q · Pestañas del espacio (P1-B): leídas de la clave `espacio` y añadidas
+    // al final; se referencian, no se duplican. Con error o cargando no se añade nada.
+    const refEspacio = useMemo(() => entityRef ?? { kind: "group" as const, id: "" }, [entityRef]);
+    const espacio = usarEspacio(refEspacio, { rango: isOwner ? 4 : 0, roles: SIN_ROLES_ESPACIO });
     const pestanasEspacio = useMemo(() => {
         if (espacio.error || espacio.cargando) return [];
         const idsBase = new Set(baseTabs.map((t) => t.id));
