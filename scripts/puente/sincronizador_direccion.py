@@ -1110,6 +1110,163 @@ def publicar_en_canal_especializado(
     }
 
 
+def _extraer_timestamp(m: Dict[str, Any]) -> float:
+    """Extrae timestamp comparable del mensaje (campo 't' en ISO o epoch)."""
+    t = m.get("t")
+    if t is None:
+        return 0.0
+    if isinstance(t, (int, float)):
+        return float(t) if t > 1e11 else float(t) * 1000
+    if isinstance(t, str):
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000
+        except Exception:
+            pass
+    return 0.0
+
+
+def _leer_log_bot_a1(
+    estado: Dict[str, Any],
+    cfg: Optional[Dict[str, Any]] = None,
+    raiz: Optional[Path] = None,
+    puerta_fn: Optional[Callable[[], List[Dict[str, Any]]]] = None,
+) -> List[Dict[str, Any]]:
+    """Lee el log del bot del A1 desde la puerta de datos (latidos clase 'peticiones-telegram').
+
+    Devuelve lista de mensajes nuevos (entrada y salida del bot @StarSeed_Design_bot).
+    Mantiene cursor en `estado['a1_bot_log_ultimo_ts']` (timestamp ms) para no duplicar.
+    En la primera ejecución (sin cursor) solo fija el cursor al máximo actual y devuelve [].
+    """
+    sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
+    if not sync_cfg.get("a1_bot_log", True):
+        return []
+
+    if puerta_fn is None:
+        if director_chat.en_pruebas() or raiz is not None:
+            return []
+        try:
+            from puerta_datos_cliente import Puerta
+            puerta = Puerta.desde_entorno(rol="enjambre")
+            if not (puerta.configurada() and puerta.disponible()):
+                return []
+
+            def _leer_puerta() -> List[Dict[str, Any]]:
+                estado_http, j = puerta._pedir(
+                    "GET", "/v1/latidos?clase=peticiones-telegram&vivos_s=86400"
+                )
+                if estado_http != 200:
+                    return []
+                latidos = (j or {}).get("latidos") or []
+                mensajes = []
+                for l in latidos:
+                    if not isinstance(l, dict):
+                        continue
+                    datos = l.get("datos")
+                    if not isinstance(datos, dict):
+                        continue
+                    mensajes.append(datos)
+                return mensajes
+
+            puerta_fn = _leer_puerta
+        except Exception:
+            return []
+
+    mensajes = puerta_fn()
+    if not mensajes:
+        return []
+
+    # Primera ejecución: sembrar cursor sin importar
+    if "a1_bot_log_ultimo_ts" not in estado:
+        max_ts = 0.0
+        for m in mensajes:
+            ts = _extraer_timestamp(m)
+            if ts > max_ts:
+                max_ts = ts
+        if max_ts > 0:
+            estado["a1_bot_log_ultimo_ts"] = max_ts
+        return []
+
+    ultimo_ts = float(estado.get("a1_bot_log_ultimo_ts") or 0.0)
+    nuevos = []
+    max_ts = ultimo_ts
+    for m in mensajes:
+        ts = _extraer_timestamp(m)
+        if ts <= ultimo_ts:
+            continue
+        nuevos.append(m)
+        if ts > max_ts:
+            max_ts = ts
+
+    if max_ts > ultimo_ts:
+        estado["a1_bot_log_ultimo_ts"] = max_ts
+
+    return nuevos
+
+
+def _escribir_log_bot_local(mensajes: List[Dict[str, Any]], raiz: Optional[Path] = None) -> int:
+    """Escribe mensajes del bot del A1 en el log local `audiovisual.jsonl` con dedupe por id y origen.
+
+    Solo escribe mensajes de `direccion == 'entrada'` (Alex -> bot) y `direccion == 'salida'`
+    (bot -> Alex). Marca `origen: 'a1-bot'` para evitar eco.
+    """
+    if not mensajes:
+        return 0
+
+    ruta = _archivo_canal_jsonl("audiovisual", raiz=raiz)
+    existentes = _leer_jsonl_canal(ruta, limite=200)
+    ids_vistos = {str(r.get("id") or "") for r in existentes if isinstance(r, dict)}
+    origenes_vistos = {(str(r.get("id") or ""), str(r.get("origen") or "")) for r in existentes if isinstance(r, dict)}
+
+    escritos = 0
+    for m in mensajes:
+        if not isinstance(m, dict):
+            continue
+        mid = str(m.get("id") or "")
+        if not mid or mid in ids_vistos:
+            continue
+        direccion = str(m.get("direccion") or "")
+        if direccion not in ("entrada", "salida"):
+            continue
+        texto = str(m.get("texto") or "").strip()
+        if not texto:
+            continue
+        origen = "a1-bot"
+        clave_dedupe = (mid, origen)
+        if clave_dedupe in origenes_vistos:
+            continue
+
+        rol = "alex" if direccion == "entrada" else "director"
+        tipo = "mensaje" if rol == "alex" else "respuesta"
+        reg = {
+            "id": mid,
+            "t": m.get("t") or round(time.time(), 3),
+            "de": "alex" if direccion == "entrada" else "peticiones-telegram",
+            "rol": rol,
+            "tipo": tipo,
+            "canal": "telegram",
+            "origen": origen,
+            "texto": director_chat.tachar(texto),
+        }
+        _escribir_jsonl_canal("audiovisual", reg, raiz=raiz)
+        ids_vistos.add(mid)
+        origenes_vistos.add(clave_dedupe)
+        escritos += 1
+
+    return escritos
+
+
+def sincronizar_desde_a1_bot(
+    estado: Dict[str, Any],
+    cfg: Optional[Dict[str, Any]] = None,
+    raiz: Optional[Path] = None,
+    puerta_fn: Optional[Callable[[], List[Dict[str, Any]]]] = None,
+) -> int:
+    """Sincroniza mensajes nuevos del bot del A1 (@StarSeed_Design_bot) hacia `audiovisual.jsonl`."""
+    mensajes = _leer_log_bot_a1(estado, cfg, raiz, puerta_fn)
+    return _escribir_log_bot_local(mensajes, raiz)
+
+
 def sincronizar_todos_los_canales(
     estado: Dict[str, Any],
     cfg: Optional[Dict[str, Any]] = None,
@@ -1148,7 +1305,8 @@ def sincronizar_todos_los_canales(
         enviar_tg=False,
     )
 
-    # Canal 3 (`audiovisual`): Hermes dedicado; respuestas se envían por sendMessage a @StarSeed_Design_bot.
+    # Canal 3 (`audiovisual`): Hermes dedicado + bot del A1 (@StarSeed_Design_bot); respuestas se envían por sendMessage.
+    n_a1_bot = sincronizar_desde_a1_bot(estado, cfg, raiz=raiz)
     n_audiovisual = sincronizar_canal_secundario_hermes(
         "audiovisual",
         ses_audiovisual,
@@ -1163,6 +1321,7 @@ def sincronizar_todos_los_canales(
         "principal_hermes": n_hermes_prin,
         "principal_maggacortex": n_magga,
         "general": n_general,
+        "a1_bot_log": n_a1_bot,
         "audiovisual": n_audiovisual,
     }
 

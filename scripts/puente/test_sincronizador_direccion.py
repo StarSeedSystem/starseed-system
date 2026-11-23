@@ -320,6 +320,181 @@ class TestTresCanalesEspecializados(unittest.TestCase):
                 con.close()
 
 
+class TestSincronizacionA1BotLog(unittest.TestCase):
+    """Pruebas para la sincronización del log del bot del A1 (@StarSeed_Design_bot)."""
+
+    def test_leer_log_bot_a1_siembra_cursor_y_trae_nuevos(self):
+        """Primera llamada siembra cursor, siguientes traen solo nuevos."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            estado = {}
+            cfg = {"sincronizar_canales": {"a1_bot_log": True}}
+
+            # Simular latidos de la puerta con mensajes del bot
+            latidos_1 = [
+                {"id": "bot-in-1000-abc123", "t": "2024-01-01T10:00:00", "direccion": "entrada", "texto": "Hola bot", "origen": "telegram"},
+                {"id": "bot-out-1001-def456", "t": "2024-01-01T10:00:01", "direccion": "salida", "texto": "Hola Alex", "origen": "peticiones_telegram"},
+            ]
+            latidos_2 = latidos_1 + [
+                {"id": "bot-in-1002-ghi789", "t": "2024-01-01T10:01:00", "direccion": "entrada", "texto": "¿Cómo estás?", "origen": "telegram"},
+                {"id": "bot-out-1003-jkl012", "t": "2024-01-01T10:01:01", "direccion": "salida", "texto": "Bien, gracias", "origen": "peticiones_telegram"},
+            ]
+
+            def puerta_fn_1():
+                return latidos_1
+
+            def puerta_fn_2():
+                return latidos_2
+
+            # Primera llamada: siembra cursor, no importa nada
+            n0 = SD._leer_log_bot_a1(estado, cfg, raiz=raiz, puerta_fn=puerta_fn_1)
+            self.assertEqual(n0, [])
+            self.assertIn("a1_bot_log_ultimo_ts", estado)
+
+            # Segunda llamada: trae los 2 nuevos
+            n1 = SD._leer_log_bot_a1(estado, cfg, raiz=raiz, puerta_fn=puerta_fn_2)
+            self.assertEqual(len(n1), 2)
+            self.assertEqual(n1[0]["id"], "bot-in-1002-ghi789")
+            self.assertEqual(n1[1]["id"], "bot-out-1003-jkl012")
+
+    def test_escribir_log_bot_local_dedupe_por_id_y_origen(self):
+        """Escribe en audiovisual.jsonl con dedupe por (id, origen='a1-bot')."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            mensajes = [
+                {"id": "msg-1", "t": 1000.0, "direccion": "entrada", "texto": "Mensaje 1", "origen": "telegram"},
+                {"id": "msg-2", "t": 1001.0, "direccion": "salida", "texto": "Respuesta 1", "origen": "peticiones_telegram"},
+                {"id": "msg-1", "t": 1000.0, "direccion": "entrada", "texto": "Mensaje 1 duplicado", "origen": "telegram"},  # mismo id
+                {"id": "msg-3", "t": 1002.0, "direccion": "entrada", "texto": "Mensaje 3", "origen": "telegram"},
+            ]
+
+            n = SD._escribir_log_bot_local(mensajes, raiz=raiz)
+            self.assertEqual(n, 3)  # msg-1 duplicado no se escribe
+
+            ruta = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 3)
+            self.assertEqual(lineas[0]["id"], "msg-1")
+            self.assertEqual(lineas[0]["origen"], "a1-bot")
+            self.assertEqual(lineas[0]["rol"], "alex")
+            self.assertEqual(lineas[1]["id"], "msg-2")
+            self.assertEqual(lineas[1]["origen"], "a1-bot")
+            self.assertEqual(lineas[1]["rol"], "director")
+            self.assertEqual(lineas[2]["id"], "msg-3")
+
+            # Segunda escritura con los mismos mensajes: no debe duplicar
+            n2 = SD._escribir_log_bot_local(mensajes, raiz=raiz)
+            self.assertEqual(n2, 0)
+            lineas2 = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas2), 3)
+
+    def test_escribir_log_bot_local_ignora_direccion_invalida(self):
+        """Ignora mensajes con direccion no reconocida."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            mensajes = [
+                {"id": "msg-1", "t": 1000.0, "direccion": "entrada", "texto": "Válido", "origen": "telegram"},
+                {"id": "msg-2", "t": 1001.0, "direccion": "invalida", "texto": "Ignorado", "origen": "telegram"},
+                {"id": "msg-3", "t": 1002.0, "direccion": "salida", "texto": "Válido 2", "origen": "peticiones_telegram"},
+            ]
+
+            n = SD._escribir_log_bot_local(mensajes, raiz=raiz)
+            self.assertEqual(n, 2)
+
+            ruta = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+
+    def test_sincronizar_desde_a1_bot_integra_flujo_completo(self):
+        """Prueba de integración: leer de puerta -> escribir en audiovisual.jsonl."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            estado = {}
+            cfg = {"sincronizar_canales": {"a1_bot_log": True}}
+
+            # Primera llamada: puerta devuelve mensajes antiguos
+            latidos_1 = [
+                {"id": "bot-in-1", "t": "2024-01-01T10:00:00", "direccion": "entrada", "texto": "Alex dice hola", "origen": "telegram"},
+                {"id": "bot-out-1", "t": "2024-01-01T10:00:01", "direccion": "salida", "texto": "Bot responde", "origen": "peticiones_telegram"},
+            ]
+            # Segunda llamada: puerta devuelve los mismos + nuevos
+            latidos_2 = latidos_1 + [
+                {"id": "bot-in-2", "t": "2024-01-01T10:01:00", "direccion": "entrada", "texto": "Otro mensaje", "origen": "telegram"},
+                {"id": "bot-out-2", "t": "2024-01-01T10:01:01", "direccion": "salida", "texto": "Otra respuesta", "origen": "peticiones_telegram"},
+            ]
+
+            llamada = {"n": 0}
+
+            def puerta_fn():
+                llamada["n"] += 1
+                return latidos_1 if llamada["n"] == 1 else latidos_2
+
+            # Primera pasada: siembra cursor
+            n0 = SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, puerta_fn=puerta_fn)
+            self.assertEqual(n0, 0)
+
+            # Segunda pasada: importa los 2 nuevos
+            n1 = SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, puerta_fn=puerta_fn)
+            self.assertEqual(n1, 2)
+
+            ruta = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 2)
+            self.assertEqual(lineas[0]["texto"], "Otro mensaje")
+            self.assertEqual(lineas[0]["rol"], "alex")
+            self.assertEqual(lineas[1]["texto"], "Otra respuesta")
+            self.assertEqual(lineas[1]["rol"], "director")
+            self.assertEqual(lineas[0]["origen"], "a1-bot")
+            self.assertEqual(lineas[1]["origen"], "a1-bot")
+
+            # Tercera pasada: no debe duplicar
+            n2 = SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, puerta_fn=puerta_fn)
+            self.assertEqual(n2, 0)
+
+    def test_sincronizar_todos_los_canales_incluye_a1_bot_log(self):
+        """La función principal incluye la sincronización del bot del A1."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            db_path = Path(tmp) / "state.db"
+            con = _crear_db_hermes(db_path)
+            con.execute(
+                "INSERT INTO sessions VALUES (?, 'local', ?, 'auto', 'Audiovisual')",
+                ("local-av", "local-av"),
+            )
+            con.commit()
+
+            estado = {}
+            cfg = {"sincronizar_canales": {"hermes": True, "telegram": True, "a1_bot_log": True}}
+
+            latidos_bot_1 = [
+                {"id": "bot-in-old", "t": "2024-01-01T09:00:00", "direccion": "entrada", "texto": "Antiguo", "origen": "telegram"},
+            ]
+            latidos_bot_2 = latidos_bot_1 + [
+                {"id": "bot-in-x", "t": "2024-01-01T10:00:00", "direccion": "entrada", "texto": "Desde bot A1", "origen": "telegram"},
+            ]
+
+            llamada = {"n": 0}
+
+            def puerta_fn():
+                llamada["n"] += 1
+                return latidos_bot_1 if llamada["n"] == 1 else latidos_bot_2
+
+            # Primera pasada: siembra cursor
+            n0 = SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, puerta_fn=puerta_fn)
+            self.assertEqual(n0, 0)
+
+            # Segunda pasada: importa el mensaje nuevo
+            n1 = SD.sincronizar_desde_a1_bot(estado, cfg, raiz=raiz, puerta_fn=puerta_fn)
+            self.assertEqual(n1, 1)
+
+            ruta = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lineas), 1)
+            self.assertEqual(lineas[0]["texto"], "Desde bot A1")
+            self.assertEqual(lineas[0]["origen"], "a1-bot")
+            con.close()
+
+
 class TestNombresCanales(unittest.TestCase):
     def test_nombre_de_canal_lee_registro_y_cae_en_canonicos(self):
         self.assertEqual(SD.nombre_de_canal("principal", {}), "Principal")

@@ -73,6 +73,8 @@ ESTADO = os.path.join(DIR, "estado.json")
 COLA = os.path.join(DIR, "cola.json")
 ORDENES_MAC = os.path.join(DIR, "ordenes-mac.json")
 SALIDAS = NB_SALIDAS
+BOT_LOG = os.path.join(DIR, "bot-mensajes.jsonl")
+BOT_LOG_MAX_LINEAS = 600
 
 # Rutas del sanador de sesiones (SES1113C)
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -149,6 +151,44 @@ def escribir_json(ruta: str, datos: Any) -> None:
     with open(tmp, "w") as f:
         json.dump(datos, f, ensure_ascii=False, indent=1)
     os.replace(tmp, ruta)
+
+
+def _escribir_log_bot(registro: dict[str, Any]) -> None:
+    """Escribe un registro en el log del bot (jsonl, máx 600 líneas, id estable)."""
+    try:
+        os.makedirs(os.path.dirname(BOT_LOG), exist_ok=True)
+        lineas = []
+        if os.path.exists(BOT_LOG):
+            with open(BOT_LOG, "r", encoding="utf-8") as f:
+                lineas = f.readlines()
+        lineas.append(json.dumps(registro, ensure_ascii=False) + "\n")
+        if len(lineas) > BOT_LOG_MAX_LINEAS:
+            lineas = lineas[-BOT_LOG_MAX_LINEAS:]
+        with open(BOT_LOG, "w", encoding="utf-8") as f:
+            f.writelines(lineas)
+    except OSError:
+        pass
+
+
+def _leer_log_bot(limite: int = 100) -> list[dict[str, Any]]:
+    """Lee las últimas entradas del log del bot."""
+    if not os.path.exists(BOT_LOG):
+        return []
+    try:
+        with open(BOT_LOG, "r", encoding="utf-8") as f:
+            lineas = f.readlines()[-limite:]
+        salida = []
+        for linea in lineas:
+            linea = linea.strip()
+            if not linea:
+                continue
+            try:
+                salida.append(json.loads(linea))
+            except json.JSONDecodeError:
+                continue
+        return salida
+    except OSError:
+        return []
 
 
 # --- Preferencias y rutinas permanentes (PSF1113B) ---
@@ -354,11 +394,25 @@ def tg(metodo: str, datos: dict[str, Any] | None = None, timeout: int = 70) -> d
     return _respuesta_http(lambda: urllib.request.urlopen(url, cuerpo, timeout=timeout))
 
 
+def _generar_id_mensaje(prefijo: str = "bot") -> str:
+    """Genera un ID estable para mensajes del bot."""
+    return f"{prefijo}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
+
+
 def decir(texto: str) -> None:
+    mensaje_id = _generar_id_mensaje("bot-out")
     for i in range(0, max(len(texto), 1), 3900):
-        r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
+        trozo = texto[i:i + 3900]
+        r = tg("sendMessage", {"chat_id": CHAT, "text": trozo, "disable_web_page_preview": "true"})
         if not r.get("ok"):
             log("sendMessage falló:", r.get("description"))
+    _escribir_log_bot({
+        "id": mensaje_id,
+        "t": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "direccion": "salida",
+        "texto": texto,
+        "origen": "peticiones_telegram",
+    })
 
 
 def subir(ruta: str, nombre: str) -> str:
@@ -1524,6 +1578,16 @@ def recibir(upd: dict[str, Any]) -> None:
         return
     
     update_id = upd["update_id"]
+    mensaje_id = _generar_id_mensaje("bot-in")
+    _escribir_log_bot({
+        "id": mensaje_id,
+        "t": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "direccion": "entrada",
+        "texto": texto,
+        "origen": "telegram",
+        "update_id": update_id,
+        "from_id": str((m.get("from") or {}).get("id") or ""),
+    })
     
     # Comandos directos: responden inmediatamente, SIN encolar ni "Recibido ✓"
     if texto.startswith("/estado"):
