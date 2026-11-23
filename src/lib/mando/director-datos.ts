@@ -1,6 +1,20 @@
 // Modelo de datos puro del Director de Genesis: la verdad calculada desde las
 // fuentes reales (latidos, progreso, salud de proveedores, launchctl y canal).
 
+/** (DIR1121I) Frases con las que una pasarela pide pagar para seguir. El estado sigue siendo
+ *  `sin_cupo`, pero no es verdad que se reponga sola: hay que decidir si se recarga o se retira. */
+export const PISTAS_RECARGA = [
+  "top-up", "top up", "topup", "recharge", "insufficient balance", "balance is insufficient",
+  "pre-paid credits", "purchase credits", "buy credits", "add credits", "used all available credits",
+] as const;
+
+export const ACCION_RECARGA = "Sin saldo: pide una recarga de pago; no se repone sola (decide Alex)";
+
+export function pideRecarga(mensaje: string | null | undefined): boolean {
+  const limpio = (mensaje ?? "").toLowerCase();
+  return PISTAS_RECARGA.some((pista) => limpio.includes(pista));
+}
+
 export interface TareaLatido {
   fase: string;
   avance: number;

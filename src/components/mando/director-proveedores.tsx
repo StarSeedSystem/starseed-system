@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { Power, PowerOff } from "lucide-react";
-import type { ResumenProveedor } from "@/lib/mando/director-datos";
+import { ACCION_RECARGA, pideRecarga, type ResumenProveedor } from "@/lib/mando/director-datos";
 import { MarcoWidget } from "@/components/dashboard/kit/marco-widget";
 
 function calcularSinCupoHasta(value: number | string | undefined): string {
@@ -51,6 +51,7 @@ function FilaProveedor({ proveedor }: { proveedor: ResumenProveedor }) {
   };
 
   const sinCupoHasta = calcularSinCupoHasta(proveedor.sinCupoHasta);
+  const pidePago = proveedor.estado === "sin_cupo" && pideRecarga(proveedor.motivo);
   const estadoTexto =
     proveedor.vivo ? "vivo" : sinCupoHasta ? `sin cupo hasta ${sinCupoHasta}` : "caído";
   const estadoColor = proveedor.vivo ? "text-emerald-400" : "text-rose-400";
@@ -65,6 +66,10 @@ function FilaProveedor({ proveedor }: { proveedor: ResumenProveedor }) {
         <span>{proveedor.modelos} modelo{proveedor.modelos !== 1 ? "s" : ""}</span>
         {proveedor.motivo ? <span>{proveedor.motivo}</span> : null}
       </div>
+
+      {pidePago ? (
+        <p className="text-[10px] font-semibold text-amber-300">{ACCION_RECARGA}</p>
+      ) : null}
 
       {proveedor.estado === "fichaje" ? (
         <a
