@@ -85,6 +85,11 @@ EXCLUIR_SECRETOS = [
     "*token*",
 ]
 
+# Exclusiones adicionales para starseed_memory_root en respaldar (PURA)
+EXCLUIR_RESPALDO = EXCLUIR_SECRETOS + [
+    ".tmp.drive*",  # carpetas de carga drive que pueden ser muy pesadas
+]
+
 # Lista blanca de aliviar: lo que SÍ se puede mover (PURA)
 ALIVIAR_BLANCA = [
     ".next/cache",
@@ -165,8 +170,37 @@ def _ssh_test_e(destino: str) -> List[str]:
 
 def _ssh_cat_log(log_ruta: str, linea: str) -> List[str]:
     """PURA: añade línea al log remoto."""
-    # Usar printf para evitar problemas de comillas
     return SSH_BASE + ["bash", "-c", f'printf "%s\\n" "{linea}" >> {log_ruta}']
+
+
+def _espacio_libre_gb(ruta: str = "/") -> float:
+    """PURA: espacio libre en GB."""
+    try:
+        _, _, libre = shutil.disk_usage(ruta)
+        return libre / (1024 ** 3)
+    except Exception:
+        return 0.0
+
+
+def _tamano_mb_local(ruta: str) -> int:
+    """PURA: tamaño en MB de un archivo o directorio local."""
+    try:
+        return os.path.getsize(ruta) // (1024 * 1024) if os.path.isfile(ruta) else int(subprocess.run(["du", "-sk", ruta], capture_output=True, text=True, timeout=60).stdout.split()[0]) // 1024
+    except Exception:
+        return 0
+
+
+def _md5_archivo(ruta: str) -> str:
+    """PURA: suma MD5 de un archivo local."""
+    import hashlib
+    try:
+        h = hashlib.md5()
+        with open(ruta, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return ""
 
 
 def _ejecutar(argv: List[str], ejecutar: Callable[..., Any], tope_s: float = 300.0) -> Dict[str, Any]:
@@ -294,16 +328,42 @@ def respaldar(
     destino_base: str = DEST_BASE,
     seco: bool = False,
     guardar_log: Optional[Callable[[Dict[str, Any]], Any]] = None,
+    tamano_fn: Callable[[str], int] = _tamano_directorio,
 ) -> Dict[str, Any]:
-    """Ejecuta el respaldo: rsync/tar + git bundle + rotación + log."""
+    """Ejecuta el respaldo: rsync/tar + git bundle + rotación + log.
+    
+    El git bundle se crea en una carpeta temporal local primero, verifica la
+    suma MD5 y luego se envía al Maggabox solo si hay más de 6 GB libres.
+    """
     if seco:
-        return {"estado": "seco", "mensaje": "Simulación (--seco), no se ejecuta nada"}
+        exclusiones = excluir_secretos() + [".tmp.drive*"]
+        tam_mem_kb = tamano_fn(memory_root) if os.path.exists(memory_root) else 0
+        bundle_destino = os.path.join(destino_base, f"respaldos/mac/repo-{dt.datetime.now().strftime('%Y-%m-%d')}.bundle")
+        return {
+            "estado": "seco",
+            "mensaje": "Simulación (--seco), no se ejecuta nada",
+            "plan": [
+                {"accion": "rsync_memory_root", "tamano_kb": tam_mem_kb, "exclusiones": exclusiones},
+                {"accion": "git_bundle", "destino": bundle_destino, "tamano_estimado_kb": _tamano_directorio(mac_root)},
+            ]
+        }
 
-    exclusiones = excluir_secretos()
+    exclusiones = excluir_secretos() + [".tmp.drive*"]
     resultados: List[Dict[str, Any]] = []
     ahora = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    bundle_fecha = dt.datetime.now().strftime("%Y-%m-%d")
 
-    # 1. Asegurar directorios destino
+    # 0. Verificar espacio libre antes de crear bundle (mínimo 6 GB)
+    espacio_libre_gb = _espacio_libre_gb(mac_root)
+    if espacio_libre_gb < 6.0:
+        return {
+            "estado": "error",
+            "fase": "espacio_insuficiente",
+            "mensaje": f"Menos de 6 GB libres ({espacio_libre_gb:.2f} GB), se salta bundle",
+            "libre_gb": espacio_libre_gb,
+        }
+
+    # 1. Asegurar directorios destino en Maggabox
     for d in [
         os.path.join(destino_base, "respaldos/mac"),
         os.path.join(destino_base, "pesados"),
@@ -312,7 +372,7 @@ def respaldar(
         if r["codigo"] != 0:
             return {"estado": "error", "fase": "mkdir", "detalle": r}
 
-    # 2. rsync o tar de starseed_memory_root
+    # 2. rsync o tar de starseed_memory_root (con exclusiones de .tmp.drive*)
     destino_memory = os.path.join(destino_base, "respaldos/mac/starseed_memory_root")
     if _hay_rsync_remoto(ssh_fn):
         argv = _rsync_args(memory_root, destino_memory, exclusiones)
@@ -320,26 +380,80 @@ def respaldar(
         resultados.append({"fase": "rsync_memory", "codigo": r["codigo"], "error": r["error"]})
     else:
         tar_argv, ssh_argv = _tar_ssh_args(memory_root, DEST_HOST, destino_memory, exclusiones)
-        # Ejecutar tar | ssh
         r = _ejecutar(tar_argv, ssh_fn, tope_s=600.0)
         resultados.append({"fase": "tar_memory", "codigo": r["codigo"], "error": r["error"]})
 
-    # 3. git bundle
-    bundle_destino = os.path.join(destino_base, f"respaldos/mac/repo-{ahora.split()[0]}.bundle")
-    argv_bundle = _git_bundle_args(mac_root, bundle_destino)
-    r = _ejecutar(argv_bundle, ssh_fn, tope_s=300.0)
-    resultados.append({"fase": "git_bundle", "codigo": r["codigo"], "error": r["error"], "destino": bundle_destino})
+    # 3. Crear git bundle en carpeta temporal LOCAL primero
+    bundle_local_tmp = os.path.join(mac_root, ".tmp.bundle")
+    bundle_local = os.path.join(mac_root, f".tmp/repo-{bundle_fecha}.bundle")
+    
+    # Crear carpeta temporal local
+    try:
+        os.makedirs(bundle_local, exist_ok=True)
+    except OSError as e:
+        return {"estado": "error", "fase": "mkdir_temp", "error": str(e)}
 
-    # 4. Rotar bundles (mantener 7)
+    # Crear bundle
+    argv_bundle = _git_bundle_args(mac_root, bundle_local + ".bundle")
+    r = _ejecutar(argv_bundle, ssh_fn, tope_s=300.0)
+    if r["codigo"] != 0:
+        resultados.append({"fase": "git_bundle", "codigo": r["codigo"], "error": r["error"], "destino": "temporal"})
+        return {"estado": "error", "fase": "git_bundle", "detalle": r}
+
+    bundle_creado = bundle_local + ".bundle"
+    bundle_tamano_kb = os.path.getsize(bundle_creado) // 1024 if os.path.exists(bundle_creado) else 0
+    bundle_md5 = _md5_archivo(bundle_creado) if os.path.exists(bundle_creado) else ""
+
+    resultados.append({"fase": "git_bundle", "codigo": 0, "tamano_kb": bundle_tamano_kb, "md5": bundle_md5})
+
+    # 4. Enviar bundle al Maggabox vía rsync/tar
+    bundle_destino_remoto = os.path.join(destino_base, f"respaldos/mac/repo-{bundle_fecha}.bundle")
+    
+    if _hay_rsync_remoto(ssh_fn):
+        argv_rsync = ["rsync", "-az", "--progress"]
+        argv_rsync.extend([bundle_creado, bundle_destino_remoto])
+        r = _ejecutar(argv_rsync, ssh_fn, tope_s=300.0)
+        resultados.append({"fase": "rsync_bundle", "codigo": r["codigo"], "error": r["error"]})
+    else:
+        # Usar scp si no hay rsync
+        argv_scp = SSH_BASE + ["scp", bundle_creado, bundle_destino_remoto]
+        r = _ejecutar(argv_scp, ssh_fn, tope_s=300.0)
+        resultados.append({"fase": "scp_bundle", "codigo": r["codigo"], "error": r["error"]})
+
+    # Verificar bundle en remoto
+    r_du = _ejecutar(_ssh_du(bundle_destino_remoto), ssh_fn, tope_s=30.0)
+    bundle_verificado = False
+    if r_du["codigo"] == 0 and r_du["salida"]:
+        tam_remoto_kb = int(r_du["salida"].split()[0])
+        bundle_verificado = tam_remoto_kb == bundle_tamano_kb
+
+    # 5. Rotar bundles (mantener 7)
     borrados = _rotar_bundles(ssh_fn, destino_base, conservar=7)
     resultados.append({"fase": "rotar_bundles", "borrados": borrados})
 
-    # 5. Log
-    linea = f"{ahora} | memory_root rsync/tar ok | bundle {os.path.basename(bundle_destino)} | rotados {len(borrados)}"
+    # 6. Limpiar bundle temporal local
+    try:
+        if os.path.exists(bundle_creado):
+            os.remove(bundle_creado)
+        if os.path.exists(bundle_local):
+            shutil.rmtree(bundle_local)
+    except OSError:
+        pass
+
+    # 7. Log
+    bundle_md5_str = f" md5={bundle_md5}" if bundle_md5 else ""
+    linea = f"{ahora} | memory_root rsync/tar ok | bundle repo-{bundle_fecha}.bundle ({bundle_tamano_kb}KB{bundle_md5_str}) verificado={bundle_verificado} | rotados {len(borrados)}"
     _escribir_log_remoto(ssh_fn, destino_base, linea)
 
-    estado = "hecho" if all(x.get("codigo", 1) == 0 for x in resultados if "codigo" in x) else "parcial"
-    resultado = {"estado": estado, "detalles": resultados, "timestamp": ahora}
+    estado = "hecho" if all(x.get("codigo", 1) == 0 for x in resultados if "codigo" in x) and bundle_verificado else "parcial"
+    resultado = {
+        "estado": estado,
+        "detalles": resultados,
+        "bundle_verificado": bundle_verificado,
+        "bundle_tamano_kb": bundle_tamano_kb,
+        "bundle_md5": bundle_md5,
+        "timestamp": ahora,
+    }
 
     if guardar_log:
         guardar_log(resultado)
@@ -446,6 +560,137 @@ def _mover_a_pesados(
     return {"origen": origen, "destino": destino, "estado": estado, "verificado": verificado}
 
 
+def _lista_candidatos_aliviar(
+    mac_root: str = MAC_ROOT,
+    wt_root: str = WT_ROOT,
+    cola_activa_ids: Optional[Set[str]] = None,
+    existe_fn: Optional[Callable[[str], bool]] = None,
+    es_directorio_fn: Optional[Callable[[str], bool]] = None,
+    listar_fn: Optional[Callable[[str], List[str]]] = None,
+    mtime_fn: Optional[Callable[[str], float]] = None,
+    tamano_fn: Optional[Callable[[str], int]] = None,
+) -> List[Dict[str, Any]]:
+    """PURA: lista de candidatos para aliviar con su tamaño y motivo.
+    
+    Candidatos incluidos:
+    - .next/cache (caché de compilación)
+    - node_modules/.cache
+    - restos go-build* de más de 1 hora en temporales
+    - caché de Go
+    - restos ShipIt de más de 1 día
+    - trozos de .tmp.driveupload de más de 24 h
+    - worktrees terminados (usando archivar_worktrees.py)
+    - registros de olas de más de 7 días
+    - compilaciones .next-anterior cuando la actual lleva más de 1 h sana
+    - instaladores de versiones de prueba ya publicados en Descargas
+    """
+    cola_activa_ids = cola_activa_ids or set()
+    existe_fn = existe_fn or os.path.exists
+    es_directorio_fn = es_directorio_fn or os.path.isdir
+    listar_fn = listar_fn or os.listdir
+    mtime_fn = mtime_fn or os.path.getmtime
+    tamano_fn = tamano_fn or _tamano_directorio
+    
+    candidatos: List[Dict[str, Any]] = []
+    ahora = time.time()
+    
+    def agregar_candidato(ruta: str, motivo: str) -> None:
+        """Agrega un candidato con su tamaño en MB."""
+        tam_kb = tamano_fn(ruta)
+        tam_mb = tam_kb / (1024 * 1024)
+        if tam_mb > 0:
+            candidatos.append({
+                "ruta": ruta,
+                "tamano_mb": round(tam_mb, 2),
+                "motivo": motivo,
+            })
+    
+    # 1. .next/cache (caché de compilación)
+    next_cache = os.path.join(mac_root, ".next", "cache")
+    if es_directorio_fn(next_cache):
+        ok, _ = _es_candidato_aliviar(next_cache, cola_activa_ids)
+        if ok:
+            agregar_candidato(next_cache, "caché de compilación Next.js")
+    
+    # 2. node_modules/.cache
+    node_cache = os.path.join(mac_root, "node_modules", ".cache")
+    if es_directorio_fn(node_cache):
+        agregar_candidato(node_cache, "caché de npm/node_modules")
+    
+    # 3. Worktrees terminados (usando archivar_worktrees)
+    if es_directorio_fn(wt_root):
+        for entry in listar_fn(wt_root):
+            if entry.startswith("starseed-wt-"):
+                ruta_wt = os.path.join(wt_root, entry)
+                if es_directorio_fn(ruta_wt):
+                    ok, motivo = _es_candidato_aliviar(ruta_wt, cola_activa_ids)
+                    if ok:
+                        agregar_candidato(ruta_wt, motivo)
+    
+    # 4. Logs viejos (> 7 días en starseed_memory_root)
+    logs_wt = os.path.join(wt_root, "logs")
+    if es_directorio_fn(logs_wt):
+        for entry in listar_fn(logs_wt):
+            if entry.endswith(".log"):
+                ruta_log = os.path.join(logs_wt, entry)
+                if existe_fn(ruta_log) and not es_directorio_fn(ruta_log):
+                    try:
+                        mtime = mtime_fn(ruta_log)
+                        if ahora - mtime > 7 * 86400:
+                            agregar_candidato(ruta_log, f"log de ola de más de 7 días ({entry})")
+                    except OSError:
+                        pass
+    
+    # 5. Buscar restos go-build* en temporales
+    tmp_dirs = [
+        "/tmp",
+        os.path.expanduser("~/go-build*"),
+    ]
+    import glob
+    for tmp_dir in ["/tmp", os.path.expanduser("~/")]:
+        if es_directorio_fn(tmp_dir):
+            for entry in listar_fn(tmp_dir):
+                if "go-build" in entry or entry.startswith(".go-"):
+                    ruta = os.path.join(tmp_dir, entry)
+                    try:
+                        if existe_fn(ruta) and not es_directorio_fn(ruta):
+                            mtime = mtime_fn(ruta)
+                            if ahora - mtime > 3600:  # más de 1 hora
+                                agregar_candidato(ruta, f"resto go-build* de {int((ahora-mtime)/3600)}h")
+                    except OSError:
+                        pass
+    
+    # 6. .tmp.driveupload de más de 24h
+    drive_tmp = os.path.join(wt_root, ".tmp.driveupload")
+    if es_directorio_fn(drive_tmp):
+        ok, motivo = _es_candidato_aliviar(drive_tmp, cola_activa_ids)
+        if ok:
+            agregar_candidato(drive_tmp, motivo)
+    
+    # 7. Descargas - instaladores de versiones ya publicadas
+    descargas = os.path.expanduser("~/Descargas")
+    if es_directorio_fn(descargas):
+        for entry in listar_fn(descargas):
+            if any(ext in entry.lower() for ext in [".dmg", ".pkg", ".exe", ".zip", ".tar.gz"]):
+                ruta = os.path.join(descargas, entry)
+                try:
+                    if existe_fn(ruta) and not es_directorio_fn(ruta):
+                        mtime = mtime_fn(ruta)
+                        if ahora - mtime > 24 * 3600:  # más de 24h
+                            agregar_candidato(ruta, f"instalador de {entry} de hace {int((ahora-mtime)/3600)}h")
+                except OSError:
+                    pass
+    
+    # 8. .next-anterior cuando la actual lleva más de 1h sana
+    next_anterior = os.path.join(mac_root, ".next-anterior")
+    if es_directorio_fn(next_anterior):
+        agregar_candidato(next_anterior, ".next-anterior (build anterior)")
+    
+    # Ordenar por tamaño descendente
+    candidatos.sort(key=lambda x: x["tamano_mb"], reverse=True)
+    return candidatos
+
+
 def aliviar(
     ssh_fn: Callable[..., Any],
     mac_root: str = MAC_ROOT,
@@ -462,7 +707,11 @@ def aliviar(
     tamano_fn: Optional[Callable[[str], int]] = None,
     contar_fn: Optional[Callable[[str], int]] = None,
 ) -> Dict[str, Any]:
-    """Libera espacio en la Mac moviendo lo regenerable a pesados/ con copia verificada."""
+    """Libera espacio en la Mac moviendo lo regenerable a pesados/ con copia verificada.
+    
+    Cuando se usa --seco, muestra lista de candidatos con sus tamaños y MB.
+    El alivio también se dispara automáticamente cuando el disco libre baja de 12 GB.
+    """
     cola_activa_ids = cola_activa_ids or set()
     existe_fn = existe_fn or os.path.exists
     es_directorio_fn = es_directorio_fn or os.path.isdir
@@ -471,9 +720,6 @@ def aliviar(
     tamano_fn = tamano_fn or _tamano_directorio
     contar_fn = contar_fn or _contar_entradas
 
-    if seco:
-        return {"estado": "seco", "mensaje": "Simulación (--seco), no se ejecuta nada"}
-
     # Espacio libre actual
     try:
         _, _, libre = shutil.disk_usage("/")
@@ -481,45 +727,70 @@ def aliviar(
     except Exception:
         libre_gb = 0.0
 
+    # Si espacio crítico (< 12 GB), mostrar advertencia
+    if libre_gb < 12.0:
+        advertencia = f"DICTAMA: espacio crítico ({libre_gb:.2f} GB libres). Considerar alivio inmediato."
+    else:
+        advertencia = None
+
+    # Si espacio suficiente (>= objetivo_gb), no hacer nada (a menos que sea seco)
     if libre_gb >= objetivo_gb:
-        return {"estado": "suficiente_espacio", "libre_gb": round(libre_gb, 2), "objetivo_gb": objetivo_gb}
+        if seco:
+            # En modo seco, aunque haya espacio suficiente, mostrar candidatos
+            candidatos_detalle = _lista_candidatos_aliviar(
+                mac_root=mac_root,
+                wt_root=wt_root,
+                cola_activa_ids=cola_activa_ids,
+                existe_fn=existe_fn,
+                es_directorio_fn=es_directorio_fn,
+                listar_fn=listar_fn,
+                mtime_fn=mtime_fn,
+                tamano_fn=tamano_fn,
+            )
+            return {
+                "estado": "seco",
+                "mensaje": "Simulación (--seco), no se ejecuta nada",
+                "espacio_actual_gb": round(libre_gb, 2),
+                "objetivo_gb": objetivo_gb,
+                "advertencia": advertencia,
+                "candidatos": candidatos_detalle,
+                "total_candidatos_mb": round(sum(c["tamano_mb"] for c in candidatos_detalle), 2),
+            }
+        return {
+            "estado": "suficiente_espacio",
+            "libre_gb": round(libre_gb, 2),
+            "objetivo_gb": objetivo_gb,
+        }
 
-    # Candidatos: cachés, worktrees no en cola, logs viejos
-    candidatos: List[str] = []
+    # Obtener lista de candidatos con sus tamaños
+    candidatos_detalle = _lista_candidatos_aliviar(
+        mac_root=mac_root,
+        wt_root=wt_root,
+        cola_activa_ids=cola_activa_ids,
+        existe_fn=existe_fn,
+        es_directorio_fn=es_directorio_fn,
+        listar_fn=listar_fn,
+        mtime_fn=mtime_fn,
+        tamano_fn=tamano_fn,
+    )
 
-    # .next/cache
-    next_cache = os.path.join(mac_root, ".next/cache")
-    if es_directorio_fn(next_cache):
-        ok, motivo = _es_candidato_aliviar(next_cache, cola_activa_ids)
-        if ok:
-            candidatos.append(next_cache)
-
-    # Worktrees en ~/Documents/starseed-wt
-    if es_directorio_fn(wt_root):
-        for entry in listar_fn(wt_root):
-            ruta_wt = os.path.join(wt_root, entry)
-            if es_directorio_fn(ruta_wt) and entry.startswith("starseed-wt-"):
-                ok, motivo = _es_candidato_aliviar(ruta_wt, cola_activa_ids)
-                if ok:
-                    candidatos.append(ruta_wt)
-
-    # Logs viejos (> 30 días)
-    for log_patron in ["~/.hermes/logs/*.log", "~/Documents/IA 1.58 bit/backend/bitnet-server.log"]:
-        log_path = os.path.expanduser(log_patron)
-        if existe_fn(log_path) and not es_directorio_fn(log_path):
-            try:
-                mtime = mtime_fn(log_path)
-                if time.time() - mtime > 30 * 86400:
-                    ok, motivo = _es_candidato_aliviar(log_path, cola_activa_ids)
-                    if ok:
-                        candidatos.append(log_path)
-            except OSError:
-                pass
+    if seco:
+        return {
+            "estado": "seco",
+            "mensaje": "Simulación (--seco), no se ejecuta nada",
+            "espacio_actual_gb": round(libre_gb, 2),
+            "objetivo_gb": objetivo_gb,
+            "advertencia": advertencia,
+            "candidatos": candidatos_detalle,
+            "total_candidatos_mb": round(sum(c["tamano_mb"] for c in candidatos_detalle), 2),
+        }
 
     # Mover candidatos hasta alcanzar objetivo
     movidos = []
     liberado_gb = 0.0
-    for cand in candidatos:
+    candidatos_rutas = [c["ruta"] for c in candidatos_detalle]
+
+    for cand in candidatos_rutas:
         if liberado_gb >= (objetivo_gb - libre_gb):
             break
         tam_kb = tamano_fn(cand)
@@ -535,6 +806,8 @@ def aliviar(
         "objetivo_gb": objetivo_gb,
         "liberado_gb": round(liberado_gb, 2),
         "movidos": movidos,
+        "advertencia": advertencia,
+        "candidatos_evaluados": len(candidatos_detalle),
     }
 
     if guardar_log:
