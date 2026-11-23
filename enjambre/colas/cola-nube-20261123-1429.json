@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "ola": "DIR1121",
+   "id": "CAN1121B-d1",
+   "titulo": "Que el mismo mensaje llegue a TODOS los medios de su canal: puente del bot de diseño (A1) con el canal Audiovisual y verificación de punta a (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/sincronizador_direccion.py",
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/test_sincronizador_direccion.py"
+   ],
+   "depende": [],
+   "prompt": "Alex pide verificar que «se sincronicen los mismos mensajes de todos los medios conectados a los canales». Hallazgos de la dirección\n(21-11): mando/director/audiovisual.jsonl pesa 269 bytes y su último mensaje es del 20-11 14:09, pero Alex habló con\n@StarSeed_Design_bot esa noche: el bot vive en el A1 (peticiones_telegram.py) y NADA de lo que entra o sale ahí llega al canal\nAudiovisual del Mac ni a Hermes, MetaGenesis, Astraura, Antigravity, Codex o Claude. Haz: a) el bot del A1 escribe cada mensaje que\nrecibe y cada respuesta en un registro propio (jsonl 600, con id estable) y el sincronizador del Mac lo recoge por el túnel que ya existe\ny lo vuelca en audiovisual.jsonl; lo publicado en el canal desde otro medio sale por el bot (sin eco: dedupe por id y marca de origen);\nb) `verificar_canales.py`: por cada canal publica UN mensaje de prueba marcado, espera, y comprueba medio por medio (registro del canal,\nsesión de Hermes, Telegram por getUpdates o por el registro del bot, bandeja de Antigravity, Codex y Claude Cowork, panel de\nMetaGenesis) si llegó; saca una tabla canal × medio con «llega / no llega / no comprobable» y el motivo, y la guarda en\nmando/director/verificacion-canales.json para el panel; c) corrige lo que la tabla marque en rojo y que dependa de código;\nd) el canal Principal en Hermes llevaba 18 h sin actividad el 21-11 a las 16 h: averigua si el presidente dejó de responder y por qué.\nMensajes de prueba: pocos (uno por canal y pasada), con «[prueba de sincronía]» delante.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.\n\n## PARTE 1 DE 2 (la dirección dividió CAN1121B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/sincronizador_direccion.py, scripts/puente/peticiones_telegram.py, scripts/puente/test_sincronizador_direccion.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAN1121B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "CAN1121A-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAN1121B-d1"
+  ]
+ }
+}
