@@ -19,6 +19,8 @@
  * carrera y gana quien hable primero (la voz no cambia: es la misma).
  */
 
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
+
 export interface TurnoConversacion {
     rol: "usuario" | "astraura";
     texto: string;
@@ -98,10 +100,58 @@ export function trozoDeLineaSSE(linea: string): string | null {
     }
 }
 
+/**
+ * Vector visual de la orbe que el modelo publica por cláusula (BitNet 1.58b).
+ * Heurística determinista sobre la puntuación y la longitud, con todo en 0..1.
+ * PURA: la usa la ruta (servidor) y el cliente la recibe como evento `params`.
+ */
+export function paramsDeClausula(texto: string): Partial<QuantumOrbParams> {
+    if (!texto || !texto.trim()) return {};
+    const palabras = (texto.match(/\S+/g) ?? []).length;
+    if (palabras === 0) return {};
+    const pregunta = /[?¿]/.test(texto);
+    const exclama = /[!¡]/.test(texto);
+    const progreso = Math.min(palabras / 14, 1);
+    const r3 = (x: number): number => Math.round(x * 1000) / 1000;
+    return {
+        breath: r3(0.25 + 0.5 * progreso),
+        turbulence: r3(pregunta || exclama ? 0.7 : 0.35),
+        spikiness: r3(exclama ? 0.75 : pregunta ? 0.45 : 0.25),
+        symmetry: r3(exclama ? 0.35 : pregunta ? 0.5 : 0.7),
+        hueShift: r3(exclama ? 0.65 : pregunta ? 0.4 : 0.5),
+    };
+}
+
+/** ¿La posición `i` del flujo cierra una cláusula? El punto solo si le sigue espacio o el fin. */
+function cierraClausula(buffer: string, i: number): boolean {
+    const c = buffer[i];
+    if (c === "!" || c === "?" || c === "…" || c === "\n") return true;
+    if (c !== ".") return false;
+    const siguiente = buffer[i + 1];
+    return siguiente === undefined || /\s/.test(siguiente);
+}
+
+/**
+ * Separa las cláusulas YA cerradas del texto que sigue llegando. La puntuación
+ * se queda con su cláusula; `resto` es lo que aún no ha terminado. PURA.
+ */
+export function clausulasCompletas(buffer: string): { clausulas: string[]; resto: string } {
+    const clausulas: string[] = [];
+    let inicio = 0;
+    for (let i = 0; i < buffer.length; i++) {
+        if (!cierraClausula(buffer, i)) continue;
+        const trozo = buffer.slice(inicio, i + 1).trim();
+        if (trozo) clausulas.push(trozo);
+        inicio = i + 1;
+    }
+    return { clausulas, resto: buffer.slice(inicio) };
+}
+
 /** Un evento del stream de la conversación hacia el cliente. */
 export type EventoConversacion =
     | { t: "ruta"; motor: string; local: boolean }
     | { t: "token"; v: string }
+    | { t: "params"; v: Partial<QuantumOrbParams> }
     | { t: "fin"; motor: string; local: boolean; msPrimerToken: number | null; msTotal: number; caracteres: number }
     | { t: "error"; error: string };
 

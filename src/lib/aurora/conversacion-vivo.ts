@@ -21,6 +21,7 @@ import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
 import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 import { emitirVectorPorClausula } from "@/lib/aurora/vector-por-clausula";
+import { emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 
 const MULETILLA_TRAS_MS = 1200;
 const HISTORIAL_TURNOS = 12;
@@ -125,6 +126,10 @@ export async function turnoEnVivo(opts: {
                     primerToken = true;
                     clearTimeout(muletilla);
                     opts.onPrimerToken?.(e.motor, e.local);
+                } else if (e.t === "params") {
+                    // El vector que publica BitNet por cláusula llega al bus de la orbe
+                    // para que Nexus, Exocortex y los agentes lean su estado interno.
+                    emitQuantumOrbParams(e.v);
                 } else if (e.t === "token") {
                     texto += e.v;
                     // Generación degenerada (un tramo repetido 3+ veces): se corta

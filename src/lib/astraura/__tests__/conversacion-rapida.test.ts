@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
     HISTORIAL_MAX_CHARS,
+    clausulasCompletas,
     eventoDeLinea,
     mensajesConversacion,
+    paramsDeClausula,
     recortarHistorial,
     sistemaConversacion,
     trozoDeLineaSSE,
     type TurnoConversacion,
 } from "@/lib/astraura/conversacion-rapida";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 // (2026-09-22) Alex: «que responda inmediatamente con la voz en tiempo real». El sistema
 // primario local tardaba ~95 s en su primer token por un prompt enorme procesado a ~15 tok/s.
@@ -90,5 +93,81 @@ describe("eventoDeLinea", () => {
         });
         expect(eventoDeLinea("data: {}")).toBeNull();
         expect(eventoDeLinea("nada")).toBeNull();
+    });
+
+    it("lee el vector visual que BitNet publica por cláusula", () => {
+        const v: Partial<QuantumOrbParams> = {
+            turbulence: 0.7,
+            spikiness: 0.45,
+            symmetry: 0.5,
+            hueShift: 0.4,
+            breath: 0.5,
+        };
+        expect(eventoDeLinea(`data: ${JSON.stringify({ t: "params", v })}`)).toEqual({ t: "params", v });
+    });
+});
+
+describe("paramsDeClausula — vector visual que publica BitNet", () => {
+    it("devuelve las cinco claves en 0..1", () => {
+        const v = paramsDeClausula("Aurora te saluda con calma.");
+        expect(Object.keys(v).sort()).toEqual(["breath", "hueShift", "spikiness", "symmetry", "turbulence"]);
+        for (const n of Object.values(v)) {
+            expect(typeof n).toBe("number");
+            expect(n).toBeGreaterThanOrEqual(0);
+            expect(n).toBeLessThanOrEqual(1);
+        }
+    });
+
+    it("una cláusula vacía no expresa nada", () => {
+        expect(paramsDeClausula("")).toEqual({});
+        expect(paramsDeClausula("   \n\t ")).toEqual({});
+    });
+
+    it("una pregunta agita más y simetriza menos que una declaración", () => {
+        const pregunta = paramsDeClausula("¿Qué quieres explorar hoy?");
+        const declaracion = paramsDeClausula("Vamos a explorarlo hoy.");
+        expect(pregunta.turbulence).toBeGreaterThan(declaracion.turbulence as number);
+        expect(pregunta.symmetry).toBeLessThan(declaracion.symmetry as number);
+    });
+
+    it("una exclamación afila más que una declaración", () => {
+        const exclama = paramsDeClausula("¡Aquí está el resultado!");
+        const declaracion = paramsDeClausula("Aquí está el resultado.");
+        expect(exclama.spikiness).toBeGreaterThan(declaracion.spikiness as number);
+    });
+
+    it("una cláusula más larga respira más que una breve", () => {
+        const breve = paramsDeClausula("Sí.");
+        const larga = paramsDeClausula(
+            "Voy a repasar contigo cada una de las catorce palabras de este mensaje largo.",
+        );
+        expect(larga.breath).toBeGreaterThan(breve.breath as number);
+    });
+});
+
+describe("clausulasCompletas — troceo del flujo de BitNet", () => {
+    it("separa las cláusulas cerradas y deja el resto sin cerrar", () => {
+        expect(clausulasCompletas("Hola. ¿Qué tal? Estoy bie")).toEqual({
+            clausulas: ["Hola.", "¿Qué tal?"],
+            resto: " Estoy bie",
+        });
+    });
+
+    it("una cláusula sin puntuación final sigue pendiente", () => {
+        expect(clausulasCompletas("Voy a repasar")).toEqual({ clausulas: [], resto: "Voy a repasar" });
+    });
+
+    it("no parte un número decimal por su punto", () => {
+        expect(clausulasCompletas("El valor es 3.14 y sube.")).toEqual({
+            clausulas: ["El valor es 3.14 y sube."],
+            resto: "",
+        });
+    });
+
+    it("el salto de línea también cierra la cláusula", () => {
+        expect(clausulasCompletas("Primera\nSegunda.")).toEqual({
+            clausulas: ["Primera", "Segunda."],
+            resto: "",
+        });
     });
 });

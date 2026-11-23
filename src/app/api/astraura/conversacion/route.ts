@@ -17,7 +17,9 @@
  */
 import {
     PLAZO_LOCAL_MS,
+    clausulasCompletas,
     mensajesConversacion,
+    paramsDeClausula,
     trozoDeLineaSSE,
     type EventoConversacion,
     type MensajeChat,
@@ -198,6 +200,8 @@ export async function POST(req: Request): Promise<Response> {
                 const corte = new AbortController();
                 cortes.set(carril.nombre, corte);
                 req.signal.addEventListener("abort", () => corte.abort(), { once: true });
+                // Solo el carril local es BitNet: publica el vector visual por cláusula.
+                let pendiente = "";
                 for await (const t of leerTokens(carril, mensajes, corte.signal)) {
                     if (!ganador) {
                         ganador = carril;
@@ -209,11 +213,22 @@ export async function POST(req: Request): Promise<Response> {
                     if (ganador !== carril) return;
                     dicho += t;
                     enviar({ t: "token", v: t });
+                    if (carril.local) {
+                        pendiente += t;
+                        const { clausulas, resto } = clausulasCompletas(pendiente);
+                        pendiente = resto;
+                        for (const clausula of clausulas) {
+                            enviar({ t: "params", v: paramsDeClausula(clausula) });
+                        }
+                    }
                     // Generación degenerada: se corta el motor, no se sigue pagando ni leyendo.
                     if (repeticionEnTexto(dicho)) {
                         corte.abort();
                         return;
                     }
+                }
+                if (carril.local && ganador === carril && pendiente.trim()) {
+                    enviar({ t: "params", v: paramsDeClausula(pendiente) });
                 }
             };
             const lanzar = (carril: Carril) => {
