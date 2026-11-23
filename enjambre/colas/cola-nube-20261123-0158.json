@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "AST1123E",
+   "ola": "astraura-modelos-1123",
+   "titulo": "Vigía Python multi-proveedor en internet para todas las neuronas",
+   "importancia": "alta",
+   "archivos": [
+    "scripts/puente/vigia_radar_modelos.py",
+    "scripts/puente/test_vigia_radar_modelos.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `scripts/puente/vigia_modelos.py`, `config/vigia-areas.json` y `architecture/astraura-radar-modelos-1123.md`. Crea `scripts/puente/vigia_radar_modelos.py` (≤120 líneas, red/reloj inyectables) y su test `scripts/puente/test_vigia_radar_modelos.py`. Cruza puntuaciones Epoch AI, tendencias Hugging Face GGUF (Ollama `hf.co/...`), Ollama library y opciones gratuitas para generar por neurona un informe JSON explicando qué modelo nuevo o instalado gana en conversación, código, visión y capas ligeras."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "AST1123E"
+  ]
+ }
+}
