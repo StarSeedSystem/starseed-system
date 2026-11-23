@@ -458,6 +458,41 @@ def id_de_tarea(pid, tope=40):
     return ("IMG-" + s[:tope]).rstrip("-")
 
 
+def _tarea_formulada(p, mem, ahora, motor=None):
+    """Tarea de una propuesta formulada por un motor real (`formulate_task`); si el motor falla, la plantilla de
+    siempre. Conserva la forma que encola el Director (id, area, depende, aprobacion)."""
+    rol = "diseno" if p.get("tipo") in ("diseno", "contenido", "investigacion") else "codigo"
+    try:
+        import formulate_task as FT
+        t = FT.formulate_next_intelligent_task(p, mem, ahora, motor, rol)
+        archivos = t.get("archivos") or (p.get("archivos") or [])
+        return {"id": id_de_tarea(p["id"]), "titulo": t.get("titulo") or p.get("titulo", ""), "area": "imaginacion",
+                "archivos": list(archivos)[:3], "depende": [], "prompt": t["prompt"],
+                **({"aprobacion": True} if p.get("aprobacion_diff") else {})}
+    except Exception:
+        return {"id": id_de_tarea(p["id"]), "titulo": p.get("titulo", ""), "area": "imaginacion",
+                "archivos": (p.get("archivos") or [])[:3], "depende": [],
+                "prompt": PROMPT.format(t=p.get("titulo", ""), c=(p.get("cuerpo") or "")[:600]),
+                **({"aprobacion": True} if p.get("aprobacion_diff") else {})}
+
+
+def _recomendaciones(esperan, mem, ahora):
+    """Qué hacer con lo que espera decisión (tareas abiertas): el recomendador de Imaginación. Nunca rompe el ciclo."""
+    try:
+        import imaginacion_recomendador as IR
+    except Exception:
+        return []
+    salida = []
+    for p in esperan:
+        try:
+            r = IR.recomendar_para_propuesta(p, mem, ahora)
+        except Exception:
+            r = None
+        if r:
+            salida.append(r)
+    return salida
+
+
 def _canon(x):
     if isinstance(x, float) and x.is_integer():
         return int(x)

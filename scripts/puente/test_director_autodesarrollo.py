@@ -64,6 +64,28 @@ class DirectorTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.home, "dream-encargado.json")))
         self.assertEqual(self.correr(ahora=datetime(2026, 10, 23, 3, 15))["autodesarrolladas"], 0)
 
+    def test_formula_la_tarea_con_el_motor_y_no_con_la_plantilla(self):
+        vistos = []
+        def motor(prompt, rol="codigo"):
+            vistos.append({"prompt": prompt, "rol": rol})
+            return json.dumps({"propuesta": {"titulo": "Lector arreglado por el motor",
+                                             "cuerpo": "Cambiar la lectura de suenos.py:10",
+                                             "tipo": "codigo", "referencias": [],
+                                             "archivos": ["scripts/puente/suenos.py"]}})
+        r = self.correr(motor=motor)
+        cola = self.leer(self.raiz, "starseed_memory_root", "olas", r["cola"])
+        self.assertEqual(len(vistos), 1)
+        self.assertIn("Arreglar el lector", vistos[0]["prompt"])
+        self.assertEqual(cola[0]["titulo"], "Lector arreglado por el motor")
+        self.assertIn("Cambiar la lectura de suenos.py:10", cola[0]["prompt"])
+        self.assertLessEqual(len(cola[0]["archivos"]), 3)
+
+    def test_recomienda_que_hacer_con_lo_que_espera(self):
+        json.dump({"automatico": False}, open(os.path.join(self.home, "autodesarrollo.json"), "w"))
+        r = self.correr()
+        self.assertTrue(r["recomendaciones"])
+        self.assertEqual(r["recomendaciones"][0]["accion"], "revisar")
+
     def test_conserva_estado_de_alex_y_encarga_lo_aprobado(self):
         self.correr(capacidad=None)  # registra la propuesta sin encargarla
         ruta = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")

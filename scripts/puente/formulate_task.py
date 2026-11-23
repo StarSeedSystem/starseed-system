@@ -153,10 +153,15 @@ def formulate_next_intelligent_task(
     if not isinstance(archivos_finales, list):
         archivos_finales = [archivos_finales] if archivos_finales else []
 
+    # La tarea final lleva la formulación del motor (título y cuerpo), no solo la plantilla original.
+    titulo_final = str(propuesta_motor.get("titulo") or titulo)
+    cuerpo_final = str(propuesta_motor.get("cuerpo") or cuerpo)
+    prompt_tarea = PROMPT_BASE.format(titulo=titulo_final, cuerpo=cuerpo_final[:600])
+
     tarea = {
         "id": tarea_id,
         "ola": f"{prefijo_ola} {ahora.strftime('%Y-%m-%d')}",
-        "titulo": propuesta_motor.get("titulo") or titulo,
+        "titulo": titulo_final,
         "tipo": tipo_tarea,
         "modo": modo,
         "area": "imaginacion",
@@ -168,7 +173,7 @@ def formulate_next_intelligent_task(
                       "referencias", "archivos", "version", "version_de")
             if propuesta.get(k) is not None
         },
-        "prompt": prompt,
+        "prompt": prompt_tarea,
     }
 
     # Añadir rol y capacidad para diseño/investigación
