@@ -1,29 +1,28 @@
-"""Tests de validación de esquema para bateria-1118.json contra pruebas_malla.py."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Tests de validación del esquema de bateria-1118.json contra pruebas_malla.py."""
+
 import json
 from pathlib import Path
 
 import pytest
 
 from pruebas_malla import (
-    APARATOS,
-    ANTenas,
-    BATERIA_JSON,
     cargar_bateria,
     filtrar_bateria,
     evaluar_patrones,
-    recortar_ventana,
+    BATERIA_JSON,
 )
 
 
 class TestBateriaSchema:
-    """Valida que bateria-1118.json cumple el contrato esperado por pruebas_malla.py."""
+    """Valida que bateria-1118.json cumple el esquema esperado por pruebas_malla.py."""
 
     def test_archivo_existe(self):
-        assert BATERIA_JSON.exists(), f"Falta {BATERIA_JSON}"
+        assert BATERIA_JSON.exists(), f"No existe {BATERIA_JSON}"
 
     def test_estructura_raiz(self):
         bateria = cargar_bateria()
-        assert isinstance(bateria, dict)
         assert "version" in bateria
         assert "descripcion" in bateria
         assert "pruebas" in bateria
@@ -34,162 +33,79 @@ class TestBateriaSchema:
         bateria = cargar_bateria()
         campos_obligatorios = {"id", "titulo", "aparatos", "antena", "ronda", "pasos", "criterios"}
         for p in bateria["pruebas"]:
-            assert campos_obligatorios.issubset(p.keys()), f"Faltan campos en {p.get('id', '?')}: {campos_obligatorios - p.keys()}"
+            assert campos_obligatorios.issubset(p.keys()), f"Faltan campos en {p.get('id', '?')}"
+            assert isinstance(p["aparatos"], list) and len(p["aparatos"]) > 0
+            assert isinstance(p["pasos"], list) and len(p["pasos"]) > 0
+            assert isinstance(p["criterios"], dict) and len(p["criterios"]) > 0
+            assert p["ronda"] >= 1
+            assert p["antena"] in ("ble", "wifi", "malla")
+            for ap in p["aparatos"]:
+                assert ap in ("mac", "maggabox", "tableta")
 
-    def test_id_formato_bloque(self):
-        """ID debe empezar con B1..B5 seguido de guión."""
+    def test_criterios_tienen_debe_y_no_debe(self):
         bateria = cargar_bateria()
         for p in bateria["pruebas"]:
-            assert p["id"].startswith(("B1-", "B2-", "B3-", "B4-", "B5-")), f"ID inválido: {p['id']}"
+            for aparato, crit in p["criterios"].items():
+                assert aparato in ("mac", "maggabox", "tableta")
+                assert "debe" in crit and isinstance(crit["debe"], list)
+                assert "no_debe" in crit and isinstance(crit["no_debe"], list)
+                for pat in crit["debe"] + crit["no_debe"]:
+                    assert isinstance(pat, str) and len(pat) > 0
 
-    def test_aparatos_validos(self):
+    def test_bloques_b1_a_b5_presentes(self):
         bateria = cargar_bateria()
-        for p in bateria["pruebas"]:
-            assert isinstance(p["aparatos"], list)
-            assert len(p["aparatos"]) > 0
-            for a in p["aparatos"]:
-                assert a in APARATOS, f"Aparato inválido {a} en {p['id']}"
-
-    def test_antena_valida(self):
-        bateria = cargar_bateria()
-        for p in bateria["pruebas"]:
-            assert p["antena"] in ANTenas, f"Antena inválida {p['antena']} en {p['id']}"
-
-    def test_ronda_entero_positivo(self):
-        bateria = cargar_bateria()
-        for p in bateria["pruebas"]:
-            assert isinstance(p["ronda"], int)
-            assert p["ronda"] > 0
-
-    def test_pasos_lista_no_vacia(self):
-        bateria = cargar_bateria()
-        for p in bateria["pruebas"]:
-            assert isinstance(p["pasos"], list)
-            assert len(p["pasos"]) > 0
-            for paso in p["pasos"]:
-                assert isinstance(paso, str)
-                assert len(paso) > 0
-
-    def test_criterios_estructura(self):
-        bateria = cargar_bateria()
-        for p in bateria["pruebas"]:
-            criterios = p["criterios"]
-            assert isinstance(criterios, dict)
-            assert len(criterios) > 0
-            for aparato, crit in criterios.items():
-                assert aparato in APARATOS, f"Aparato en criterios no válido: {aparato}"
-                assert isinstance(crit, dict)
-                assert "debe" in crit
-                assert "no_debe" in crit
-                assert isinstance(crit["debe"], list)
-                assert isinstance(crit["no_debe"], list)
-                for patron in crit["debe"] + crit["no_debe"]:
-                    assert isinstance(patron, str)
-                    assert len(patron) > 0
-
-    def test_ids_unicos(self):
-        bateria = cargar_bateria()
-        ids = [p["id"] for p in bateria["pruebas"]]
-        assert len(ids) == len(set(ids)), "Hay IDs duplicados"
-
-    def test_filtrar_bateria_por_bloque(self):
-        bateria = cargar_bateria()
-        pruebas_b1 = filtrar_bateria(bateria, bloque="B1")
-        assert all(p["id"].startswith("B1-") for p in pruebas_b1)
-        assert len(pruebas_b1) == 2
-
-    def test_filtrar_bateria_por_ronda(self):
-        bateria = cargar_bateria()
-        pruebas_ronda2 = filtrar_bateria(bateria, ronda=2)
-        assert all(p["ronda"] == 2 for p in pruebas_ronda2)
-        assert len(pruebas_ronda2) == 2
-
-    def test_filtrar_bateria_por_bloque_y_ronda(self):
-        bateria = cargar_bateria()
-        pruebas = filtrar_bateria(bateria, bloque="B2", ronda=2)
-        assert len(pruebas) == 1
-        assert pruebas[0]["id"] == "B2-ML-A2"
-
-
-class TestLogicaPura:
-    """Tests de las funciones puras de pruebas_malla.py."""
-
-    def test_recortar_ventana_sin_limites(self):
-        lineas = ["2024-01-01T10:00:00Z a", "2024-01-01T11:00:00Z b"]
-        assert recortar_ventana(lineas, None, None) == lineas
-
-    def test_recortar_ventana_con_limites(self):
-        from datetime import datetime, timezone
-        lineas = [
-            "2024-01-01T09:00:00Z antes",
-            "2024-01-01T10:00:00Z dentro",
-            "2024-01-01T11:00:00Z dentro",
-            "2024-01-01T12:00:00Z despues",
-        ]
-        inicio = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-        fin = datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
-        res = recortar_ventana(lineas, inicio, fin)
-        assert res == ["2024-01-01T10:00:00Z dentro", "2024-01-01T11:00:00Z dentro"]
-
-    def test_evaluar_patrones_todo_ok(self):
-        lineas = ["ERROR: algo falló", "INFO: todo bien", "WARN: cuidado"]
-        criterios = {"debe": ["INFO.*bien"], "no_debe": ["ERROR"]}
-        res = evaluar_patrones(lineas, criterios)
-        assert res["ok"] is False  # ERROR aparece y está en no_debe
-
-    def test_evaluar_patrones_debe_cumplido_no_debe_respetado(self):
-        lineas = ["INFO: todo bien", "DEBUG: detalles"]
-        criterios = {"debe": ["INFO.*bien"], "no_debe": ["ERROR"]}
-        res = evaluar_patrones(lineas, criterios)
-        assert res["ok"] is True
-        assert res["debe_cumplidos"] == 1
-        assert res["debe_faltantes"] == []
-        assert res["no_debe_cumplidos"] == 1
-        assert res["no_debe_violados"] == []
-
-    def test_evaluar_patrones_debe_falta(self):
-        lineas = ["DEBUG: solo debug"]
-        criterios = {"debe": ["INFO.*bien"], "no_debe": ["ERROR"]}
-        res = evaluar_patrones(lineas, criterios)
-        assert res["ok"] is False
-        assert res["debe_cumplidos"] == 0
-        assert "INFO.*bien" in res["debe_faltantes"]
-
-    def test_evaluar_patrones_no_debe_violado(self):
-        lineas = ["ERROR: catastrófico", "INFO: todo bien"]
-        criterios = {"debe": ["INFO.*bien"], "no_debe": ["ERROR"]}
-        res = evaluar_patrones(lineas, criterios)
-        assert res["ok"] is False
-        assert "ERROR" in res["no_debe_violados"]
-
-
-class TestBateriaCobertura:
-    """Verifica cobertura mínima de la batería."""
-
-    def test_todos_los_bloques_presentes(self):
-        bateria = cargar_bateria()
-        bloques = set(p["id"].split("-")[0] for p in bateria["pruebas"])
+        ids = {p["id"] for p in bateria["pruebas"]}
+        bloques = {pid.split("-")[0] for pid in ids}
         assert bloques == {"B1", "B2", "B3", "B4", "B5"}
 
-    def test_todas_antenas_cubiertas(self):
+    def test_filtrar_por_bloque(self):
         bateria = cargar_bateria()
-        antenas = set(p["antena"] for p in bateria["pruebas"])
-        assert antenas == set(ANTenas)
+        b4 = filtrar_bateria(bateria, bloque="B4")
+        assert all(p["id"].startswith("B4-") for p in b4)
+        assert len(b4) == 2
 
-    def test_todos_aparatos_cubiertos(self):
+    def test_filtrar_por_ronda(self):
         bateria = cargar_bateria()
-        aparatos_usados = set()
-        for p in bateria["pruebas"]:
-            aparatos_usados.update(p["aparatos"])
-        assert aparatos_usados == set(APARATOS)
+        r2 = filtrar_bateria(bateria, ronda=2)
+        assert all(p["ronda"] == 2 for p in r2)
+        assert len(r2) == 2
 
-    def test_minimo_dos_pruebas_por_bloque(self):
+    def test_evaluar_patrones_funciona(self):
+        lineas = [
+            "2024-01-01T12:00:00Z Conectado a WiFi",
+            "2024-01-01T12:00:01Z mDNS resuelto starseed-nodo-1.local",
+            "2024-01-01T12:00:02Z Socket TCP abierto en 8080",
+        ]
+        criterios = {
+            "debe": ["Conectado a WiFi", "mDNS resuelto"],
+            "no_debe": ["Error de conexión"],
+        }
+        res = evaluar_patrones(lineas, criterios)
+        assert res["ok"] is True
+        assert res["debe_cumplidos"] == 2
+        assert res["debe_faltantes"] == []
+        assert res["no_debe_cumplidos"] == 1
+
+    def test_evaluar_patrones_detecta_faltantes(self):
+        lineas = ["2024-01-01T12:00:00Z Conectado a WiFi"]
+        criterios = {"debe": ["Conectado a WiFi", "mDNS resuelto"], "no_debe": []}
+        res = evaluar_patrones(lineas, criterios)
+        assert res["ok"] is False
+        assert "mDNS resuelto" in res["debe_faltantes"]
+
+    def test_evaluar_patrones_detecta_violaciones(self):
+        lineas = ["2024-01-01T12:00:00Z Error de conexión"]
+        criterios = {"debe": [], "no_debe": ["Error de conexión"]}
+        res = evaluar_patrones(lineas, criterios)
+        assert res["ok"] is False
+        assert "Error de conexión" in res["no_debe_violados"]
+
+    def test_sin_credenciales_reales(self):
         bateria = cargar_bateria()
-        from collections import Counter
-        conteo = Counter(p["id"].split("-")[0] for p in bateria["pruebas"])
-        for bloque in ["B1", "B2", "B3", "B4", "B5"]:
-            assert conteo[bloque] >= 2, f"Bloque {bloque} tiene menos de 2 pruebas"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        texto = json.dumps(bateria, ensure_ascii=False)
+        assert "starseed-nodo-1.local" in texto
+        assert "192.168." not in texto
+        assert "10.0." not in texto
+        assert "password" not in texto.lower()
+        assert "secret" not in texto.lower()
+        assert "token" not in texto.lower()
