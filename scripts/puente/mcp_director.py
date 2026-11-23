@@ -25,6 +25,22 @@ import director_chat
 import mcp_director_ordenes as ordenes
 import produccion_candidatos as pc
 
+_SKILL_CLIENTE = (
+    Path(__file__).resolve().parents[2] / ".agent" / "skills"
+    / "mcp-brave-search" / "cliente.py"
+)
+_brave = None
+if _SKILL_CLIENTE.is_file():
+    try:
+        import importlib.util
+        _espec_brave = importlib.util.spec_from_file_location("brave_cliente", _SKILL_CLIENTE)
+        assert _espec_brave is not None and _espec_brave.loader is not None
+        _brave = importlib.util.module_from_spec(_espec_brave)
+        _espec_brave.loader.exec_module(_brave)
+    except Exception:
+        _brave = None
+_BRAVE_ACTIVO = bool(_brave and _brave.configuracion()["activo"])
+
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
@@ -153,6 +169,25 @@ _HERR = [
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
 ]
+
+if _BRAVE_ACTIVO:
+    ESQUEMAS["brave_estado"] = _esquema({}, [])
+    ESQUEMAS["brave_buscar"] = _esquema(
+        {
+            "consulta": _s("string", "Texto a buscar (1-400 caracteres)."),
+            "cantidad": _s("integer", "Resultados por página (1-20, por defecto 5).",
+                           minimum=1, maximum=20),
+            "local": _s("boolean", "Buscar negocios y lugares en lugar de web."),
+        },
+        ["consulta"],
+    )
+    _HERR.extend([
+        ("brave_estado", "Estado de la conexión MCP con Brave Search."),
+        ("brave_buscar", "Busca en Brave con el servidor MCP (web o lugares)."),
+    ])
+    HERRAMIENTAS = [
+        {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
+    ]
 
 
 def _error(ident, codigo, mensaje):
@@ -415,7 +450,6 @@ def _llamar(nombre, args):
             canal=args.get("canal") or "mando", medio=args.get("medio") or "mcp",
         )
     if nombre == "metagenesis_estado":
-        import json
         from datetime import datetime, timezone, timedelta
         ahora = datetime.now(timezone.utc)
         hace_dos_min = ahora - timedelta(minutes=2)
@@ -473,6 +507,15 @@ def _llamar(nombre, args):
             "ultimo_ci": ultimo_ci,
         }
         return json.dumps(resultado, ensure_ascii=False, indent=2, sort_keys=True)
+    if nombre in ("brave_estado", "brave_buscar"):
+        if not _BRAVE_ACTIVO or _brave is None:
+            raise ValueError("Brave Search no está configurado en este servidor")
+        if nombre == "brave_estado":
+            return json.dumps(_brave.configuracion(), ensure_ascii=False, sort_keys=True)
+        texto = _brave.consultar(
+            args.get("consulta"), args.get("cantidad", 5), bool(args.get("local", False))
+        )
+        return texto or "Brave Search devolvió una respuesta vacía."
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
