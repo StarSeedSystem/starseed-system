@@ -38,6 +38,7 @@ DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, DIRECTORIO)
 import produccion_puertas as PP  # noqa: E402
 import raiz_pruebas as RAIZ_PRUEBAS  # noqa: E402  # TMP1113B
+import oracle_nodo as ON  # noqa: E402
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 CARPETA = os.path.expanduser("~/.starseed/produccion")
@@ -1084,6 +1085,35 @@ def _seguir_vercel(m, est, ahora):
     hist.append({"sha": sha, "resultado": "publicado", "dia": dia, "url": url, "commits": est.get("pendientes")})
     m.avisar("Autopublicación completa: %s en %s · %s commit(s) · Vercel listo y humo en verde (%s)."
              % (sha[:8], WEB, est.get("pendientes"), ", ".join(RUTAS_HUMO)))
+
+    # PET1121C: Desplegar bots en el A1 tras publicación exitosa
+    try:
+        r_bots = ON.desplegar_bots(aplicar=True)
+        if r_bots.get("ok"):
+            commit_bots = r_bots.get("commit", "?")
+            cambiado = r_bots.get("cambiado", False)
+            inicio_servicio = r_bots.get("inicio_servicio", "?")
+            if cambiado:
+                m.avisar("Sanador A1: bots actualizados (commit %s). Servicio reiniciado, inicio: %s" % (commit_bots[:8], inicio_servicio), tipo="informe")
+                # Avisar en canal Audiovisual y diseño
+                try:
+                    import entorno
+                    mensaje = ("🤖 Sanador A1: bots actualizados tras publicación\n"
+                               "Commit: %s\n"
+                               "Servicio starseed-peticiones-telegram reiniciado\n"
+                               "Inicio: %s" % (commit_bots, inicio_servicio))
+                    entorno.enviar_telegram(mensaje)
+                except Exception:
+                    pass
+            else:
+                m.avisar("Sanador A1: publicación procesada, sin cambios en peticiones_*.py (commit %s)" % commit_bots[:8], tipo="informe")
+        else:
+            # No avisar por Chat Director para no interferir con la publicación; el sanador tiene su propio log
+            pass
+    except Exception:
+        # No avisar por Chat Director para no interferir con la publicación
+        pass
+
     aviso_flujos = False
     motivo = ""
     try:
