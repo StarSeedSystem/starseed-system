@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "ola": "MAP1116B",
+   "id": "MRE8b-d1",
+   "titulo": "Montar el espectrómetro en el mapa: pestaña «Espectro» con vista, filtros y ficha (parte 1 de 2)",
+   "archivos": [
+    "src/components/mesh/mapa-senales/mapa-senales.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. En `src/components/mesh/mapa-senales/mapa-senales.tsx` y `src/components/mesh/mapa-senales/geo/pestana-mapa.tsx` añade una pestaña/sección «Espectro» (import dinámico) que une `useMapaVivo().red`, `espectrometro` con los adaptadores reales de cada medio (los lee de los hooks que el mapa ya usa; ninguna lectura nueva), `PanelFiltrosSenales`, `VistaEspectro` y `FichaSenalEspectro`. Encima, una línea honesta de estado: «N señales · K publicadas por otros dueños · M medios sin fuente». Sin cambiar las pestañas y capas actuales (≤60 líneas). COMPRUEBA: `NODE_ENV=test npx vitest run src/components/mesh/mapa-senales` verde, tsc acotado, y di en el commit qué pudiste ver y qué no.\n\nREGLAS DE LA CASA (valen aunque no las repita la tarea): toca SOLO los archivos de la lista `archivos`; ≤3 archivos y ≤120 líneas por archivo (si no cabe, para y di qué falta: no lo estires ni lo resumas); sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible (la interfaz dice Genesis); sin red real en las pruebas; ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves. El asunto de tu commit empieza por `MRE8b:` y dice qué comprobaste y qué NO pudiste comprobar.\n\n## PARTE 1 DE 2 (la dirección dividió MRE8b: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/mesh/mapa-senales/mapa-senales.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MRE8b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "MRE6",
+    "MRE7",
+    "MRF4b",
+    "MRA8b-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "MRE8b-d1"
+  ]
+ }
+}
