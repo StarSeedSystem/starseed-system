@@ -4,8 +4,10 @@
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
 historial, vetar, pausar y reanudar, cuatro herramientas sqlite de solo
-lectura (estado, tablas, esquema y consulta) sobre una base permitida y tres
-herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta.
+lectura (estado, tablas, esquema y consulta) sobre una base permitida, tres
+herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta, y
+tres herramientas brave-search de solo lectura (CAP1119): estado, prueba y
+búsqueda web.
 
 La base sqlite se elige con `STARSEED_SQLITE_RUTA` (por defecto
 `~/.starseed/mcp-sqlite/starseed.db`) y se confina al repo, a ese directorio
@@ -23,6 +25,7 @@ STARSEED_PRODUCCION_RAIZ (raíz del repo para `candidatos`) y
 STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 """
 
+import gzip
 import json
 import os
 import re
@@ -30,9 +33,11 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -45,7 +50,8 @@ PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
     "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada, "
-    "consulta bases sqlite locales y postgres remoto en solo lectura sin revelar credenciales."
+    "consulta bases sqlite locales y postgres remoto en solo lectura y busca en la web con "
+    "brave-search sin revelar credenciales."
 )
 
 _SQLITE_DIR = os.path.join(os.path.expanduser("~"), ".starseed", "mcp-sqlite")
@@ -81,6 +87,11 @@ _P_SQLITE_LIMITE = _s(
     "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
 )
 _P_SQL = _s("string", "Una sola consulta SELECT/CTE de solo lectura (sin ';' ni comentarios).")
+_P_BRAVE_Q = _s("string", "Qué buscar en la web (máximo 400 caracteres).")
+_P_BRAVE_PAIS = _s("string", "Código ISO de dos letras para regionalizar (ES, US…).")
+_P_BRAVE_LIMITE = _s(
+    "integer", "Máximo de resultados a devolver (por defecto 5).", minimum=1, maximum=20
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -176,6 +187,11 @@ ESQUEMAS = {
     "postgres_estado": _esquema({}, []),
     "postgres_probar": _esquema({}, []),
     "postgres_consultar": _esquema({"sql": _P_SQL, "limite": _P_SQLITE_LIMITE}, ["sql"]),
+    "brave_estado": _esquema({}, []),
+    "brave_probar": _esquema({}, []),
+    "brave_buscar": _esquema(
+        {"q": _P_BRAVE_Q, "limite": _P_BRAVE_LIMITE, "pais": _P_BRAVE_PAIS}, ["q"]
+    ),
 }
 
 _HERR = [
@@ -200,6 +216,9 @@ _HERR = [
     ("postgres_estado", "Informa si hay conexión postgres configurada, sin revelar credenciales."),
     ("postgres_probar", "Comprueba la conexión postgres con SELECT 1, en modo solo lectura."),
     ("postgres_consultar", "Consulta postgres en solo lectura (SELECT/CTE), con límite de filas."),
+    ("brave_estado", "Informa si hay clave de brave-search configurada, sin revelar su valor."),
+    ("brave_probar", "Comprueba la conexión con brave-search con una búsqueda mínima."),
+    ("brave_buscar", "Busca en la web con brave-search y devuelve título, url y descripción."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -442,7 +461,129 @@ def _postgres(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
-# --- Producción: rutas inyectables y helpers (§9, fila MCP) ---
+# --- Brave Search de solo lectura para tareas (CAP1119) ---
+# La clave se toma del NOMBRE de la variable de entorno; su valor nunca se
+# escribe en el repo, se pasa por argv ni se devuelve en un mensaje. El
+# endpoint se puede inyectar con STARSEED_BRAVE_URL (útil en pruebas).
+
+VARIABLES_BRAVE = ("BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY")
+_URL_BRAVE = "https://api.search.brave.com/res/v1/web/search"
+
+
+def _variable_brave(entorno=None):
+    """PURA: nombre de la primera variable de la clave de Brave, nunca su valor."""
+    fuente = os.environ if entorno is None else entorno
+    for nombre in VARIABLES_BRAVE:
+        if (fuente.get(nombre) or "").strip():
+            return nombre
+    return None
+
+
+def _url_brave(q, limite, pais=None, base=None):
+    """PURA: URL del endpoint web de Brave con los parámetros escapados."""
+    parametros = {"q": q, "count": str(limite)}
+    if pais:
+        parametros["country"] = str(pais).upper()
+    return "%s?%s" % (base or _URL_BRAVE, urlencode(parametros))
+
+
+def _validar_busqueda(q, limite=5, pais=None):
+    """PURA: consulta no vacía (≤400), tope 1-20 y país ISO de dos letras."""
+    texto = " ".join(str(q or "").split())
+    if not texto:
+        raise ValueError("q es obligatoria: escribe qué buscar")
+    if len(texto) > 400:
+        raise ValueError("q supera los 400 caracteres")
+    try:
+        tope = 5 if limite is None else int(limite)
+    except (TypeError, ValueError):
+        raise ValueError("limite debe ser un número entero (1-20)")
+    if not 1 <= tope <= 20:
+        raise ValueError("limite fuera de rango (1-20)")
+    codigo = None
+    if pais:
+        codigo = str(pais).strip().upper()
+        if len(codigo) != 2 or not codigo.isalpha():
+            raise ValueError("pais debe ser un código ISO de dos letras (ES, US…)")
+    return texto, tope, codigo
+
+
+def _extraer_resultados(datos, limite=5):
+    """PURA: deja solo título, url y descripción sin etiquetas de cada resultado web."""
+    if not isinstance(datos, dict):
+        raise ValueError("respuesta de Brave no válida")
+    crudos = (datos.get("web") or {}).get("results") or []
+    salida = []
+    for item in crudos[:limite]:
+        if not isinstance(item, dict):
+            continue
+        salida.append({
+            "titulo": str(item.get("title") or "").strip(),
+            "url": str(item.get("url") or "").strip(),
+            "descripcion": re.sub(r"<[^>]+>", "", str(item.get("description") or "")).strip(),
+        })
+    return salida
+
+
+def _ejecutar_brave(url, clave, abrir=None):
+    """Pide a Brave con la clave en cabecera; jamás en la URL, argv o un log."""
+    peticion = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": clave,
+        "User-Agent": "starseed-director/1.0",
+    })
+    lector = abrir or urllib.request.urlopen
+    try:
+        with lector(peticion, timeout=10) as respuesta:
+            cuerpo = respuesta.read()
+            codificacion = (respuesta.headers.get("Content-Encoding") or "").lower()
+            if codificacion == "gzip":
+                cuerpo = gzip.decompress(cuerpo)
+    except urllib.error.HTTPError as fallo:
+        codigo = getattr(fallo, "code", 0)
+        if codigo in (401, 403):
+            raise ValueError("Brave rechazó la clave (HTTP %d): revisa la variable" % codigo)
+        if codigo == 429:
+            raise ValueError("Brave sin cuota ahora (HTTP 429): espera o usa otra fuente")
+        raise ValueError("Brave respondió HTTP %d" % codigo)
+    except (urllib.error.URLError, OSError, TimeoutError) as fallo:
+        raise ValueError("sin conexión con Brave: %s" % type(fallo).__name__)
+    try:
+        return json.loads(cuerpo.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("Brave devolvió una respuesta ilegible")
+
+
+def _brave(nombre, args):
+    """Despacha las herramientas brave-search; la clave nunca sale en la respuesta."""
+    variable = _variable_brave()
+    if nombre == "brave_estado":
+        return json.dumps({
+            "configurada": bool(variable),
+            "variable": variable,
+            "variables_aceptadas": list(VARIABLES_BRAVE),
+            "endpoint": os.environ.get("STARSEED_BRAVE_URL") or _URL_BRAVE,
+            "modo": "solo-lectura",
+        }, ensure_ascii=False, indent=2, sort_keys=True)
+    if not variable:
+        raise ValueError("sin conexión: define una de %s" % ", ".join(VARIABLES_BRAVE))
+    clave = (os.environ.get(variable) or "").strip()
+    if nombre == "brave_probar":
+        consulta, tope, pais = _validar_busqueda("StarSeed OS", 1)
+        url = _url_brave(consulta, tope, pais, os.environ.get("STARSEED_BRAVE_URL"))
+        encontrados = _extraer_resultados(_ejecutar_brave(url, clave), tope)
+        return "Conexión OK con %s: %d resultado(s) para «%s»." % (
+            variable, len(encontrados), consulta)
+    if nombre == "brave_buscar":
+        consulta, tope, pais = _validar_busqueda(
+            args.get("q"), args.get("limite"), args.get("pais"))
+        url = _url_brave(consulta, tope, pais, os.environ.get("STARSEED_BRAVE_URL"))
+        return json.dumps(
+            _extraer_resultados(_ejecutar_brave(url, clave), tope),
+            ensure_ascii=False, indent=2,
+        )
+    raise ValueError("herramienta desconocida: %s" % nombre)
 
 _ESTADO_VACIO = {"lote": None, "candidatos": [], "medios": {}}
 
@@ -620,6 +761,8 @@ def _llamar(nombre, args):
         return _sqlite(nombre, args)
     if nombre.startswith("postgres_"):
         return _postgres(nombre, args)
+    if nombre.startswith("brave_"):
+        return _brave(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
