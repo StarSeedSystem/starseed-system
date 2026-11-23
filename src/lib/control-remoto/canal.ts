@@ -591,8 +591,11 @@ export async function comprobarWebRtcUtilizable(
  */
 export async function decidirViaPantalla(
     capsControlador: Awaited<ReturnType<typeof capacidadesNativas>> | null,
-    _capsControlado: unknown
+    capsControlado: unknown
 ): Promise<{ via: "webrtc" | "malla"; razon: string }> {
+    if (capsControlado && typeof capsControlado === "object" && (capsControlado as { webrtc?: unknown }).webrtc === false) {
+        return { via: "malla", razon: "Pantalla por cuadros: el aparato controlado no tiene WebRTC" };
+    }
     const { usable, faltaWebRtc, detalle } = await comprobarWebRtcUtilizable(capsControlador);
     if (usable) {
         return { via: "webrtc", razon: "WebRTC disponible en el controlador" };

@@ -118,8 +118,9 @@ fn reducir_bgra(raw: &[u8], ancho: u32, alto: u32, w: u32, h: u32) -> Vec<u8> {
 
 #[cfg(target_os = "linux")]
 fn comando_ok(programa: &str, args: &[&str]) -> bool {
-    std::process::Command::new(programa)
-        .args(args)
+    let mut cmd = std::process::Command::new(programa);
+    crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+    cmd.args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

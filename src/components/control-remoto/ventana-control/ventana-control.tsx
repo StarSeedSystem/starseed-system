@@ -249,9 +249,13 @@ function Pantalla({ p, activo, gestor }: { p: PropsVentanaControl; activo: boole
     useEffect(() => {
         const v = video.current;
         if (!v) return;
+        if (p.lienzo) {
+            v.srcObject = null;
+            return;
+        }
         v.srcObject = p.flujo;
         if (p.flujo) void v.play?.().catch?.(() => undefined);
-    }, [p.flujo]);
+    }, [p.flujo, p.lienzo]);
 
     /** Caja de la imagen en coordenadas del cliente, medida en el momento (la ventana se mueve). */
     const imagenCliente = useCallback((): Caja => {
@@ -825,7 +829,7 @@ export function VentanaControl(props: PropsVentanaControl) {
             </div>
         ) : null;
 
-    const base = "flex flex-col overflow-hidden border border-white/10 bg-[#0b0f1a]/95 text-white shadow-2xl backdrop-blur-xl";
+    const base = "flex flex-col overflow-hidden border border-white/10 bg-[#0b0f1a]/[0.97] text-white shadow-2xl";
 
     if (modo === "pagina") {
         const mostrarSelector = props.alCambiarFuente && (mandosAbiertos || nivel === "ver");
@@ -878,7 +882,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                 role="group"
                 aria-label={`Control de ${nombre}, reducido`}
                 data-testid="ventana-control-pastilla"
-                className="fixed z-[2147482000] flex h-11 max-w-[calc(100vw-16px)] items-center gap-1 rounded-full border border-white/10 bg-[#0b0f1a]/95 pl-3 pr-1 text-white shadow-2xl backdrop-blur-xl"
+                className="fixed z-[2147482000] flex h-11 max-w-[calc(100vw-16px)] items-center gap-1 rounded-full border border-white/10 bg-[#0b0f1a]/[0.97] pl-3 pr-1 text-white shadow-2xl"
                 style={{ left: lugar.x, top: lugar.y }}
             >
                 {props.color && <PuntoColor color={props.color} />}

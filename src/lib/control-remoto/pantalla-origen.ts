@@ -128,6 +128,8 @@ export interface DepsOrigen {
     ordenesServidas?: () => number;
     /** CTL1118M: vuelve a codificar un JPEG más pequeño (lado y calidad del nivel) para la pantalla por la malla. null si no se pudo. */
     reducir?: (jpeg: Uint8Array, ancho: number, alto: number, lado: number, calidad: number) => Promise<{ jpeg: Uint8Array; ancho: number; alto: number } | null>;
+    /** ¿Dispone este aparato de RTCPeerConnection? */
+    hayWebRtc?: () => boolean;
 }
 
 /** CTL1118M: mientras quien manda pida cuadros por la malla, esta página no se para por «sin oferta». */
@@ -314,6 +316,7 @@ export class OrigenPantalla {
         // RST1116A: con «proyeccion» la petición ya fue la de arriba; no se repite sola.
         if (!pedida && debePedirFluida(fuente, this.fluidaPedidas.get(a.token) ?? 0, false)) void this.buscarFluida(a, false);
         const capacidades = await inv("control_capacidades").catch(() => null);
+        const webrtc = this.d.hayWebRtc ? this.d.hayWebRtc() : typeof RTCPeerConnection === "function";
         return {
             ok: true,
             fuente,
@@ -322,6 +325,7 @@ export class OrigenPantalla {
             ancho,
             alto,
             giro,
+            webrtc,
             capacidades: esObjeto(capacidades) ? capacidades : null,
         };
     }
@@ -355,7 +359,8 @@ export class OrigenPantalla {
         const manual = args.fuente === "proyeccion";
         this.d.anotar(`control-fuente paso=mantener fuente=${a.fuente} manual=${manual ? "si" : "no"}`);
         if (manual && debePedirFluida(a.fuente, this.fluidaPedidas.get(a.token) ?? 0, true)) void this.buscarFluida(a, true);
-        return { ok: true, mantenida: true, fuente: a.fuente, ...(manual && a.fuente !== "proyeccion" ? { fuente_pedida: "proyeccion" as const } : {}), ancho: a.ancho, alto: a.alto, giro: a.giro };
+        const webrtc = this.d.hayWebRtc ? this.d.hayWebRtc() : typeof RTCPeerConnection === "function";
+        return { ok: true, mantenida: true, fuente: a.fuente, ...(manual && a.fuente !== "proyeccion" ? { fuente_pedida: "proyeccion" as const } : {}), ancho: a.ancho, alto: a.alto, giro: a.giro, webrtc };
     }
 
     private async llamarFluida(a: Activa): Promise<{ ok: boolean; r: Record<string, unknown> | null }> {
@@ -491,8 +496,10 @@ export class OrigenPantalla {
             a.recibidos += 1;
             // CTL1118M: sin conexión de vídeo y con quien manda pidiendo por la malla, el cuadro se guarda para repartirlo; no se pinta para nadie.
             if (!a.peer && this.d.ahora() <= a.mallaHasta) {
+                const jpeg = bytes.subarray(CABECERA_CUADRO);
                 a.ultimo = { numero: h.numero, jpeg: bytes.slice(CABECERA_CUADRO), ancho: h.ancho, alto: h.alto };
                 a.cuadros += 1;
+                añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
                 await this.d.esperar(25);
                 continue;
             }
@@ -920,6 +927,7 @@ export function origenGlobal(): OrigenPantalla {
         ahora: () => Date.now(),
         vigia,
         reducir: reducirReal,
+        hayWebRtc: () => typeof RTCPeerConnection === "function",
         ordenesServidas: () => puertaRegistrada?.ordenesServidas?.() ?? 0,
         anotar: (l) => {
             void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);

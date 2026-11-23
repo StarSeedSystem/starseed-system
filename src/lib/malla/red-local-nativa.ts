@@ -261,6 +261,7 @@ export interface VecinoMinimo {
   neurona: string | null;
   puerto: number;
   canal: boolean | null;
+  visto_hace_s?: number;
 }
 
 export interface QuienNativo {

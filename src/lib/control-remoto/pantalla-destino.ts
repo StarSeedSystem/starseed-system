@@ -20,10 +20,11 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { ESPERA_ICE_MS, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
+import { esLinuxEscritorio } from "./webrtc-linux";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, VENTANA_FPS_MS, INTERVALO_REGISTRO_MS } from "./calidad"; // CTL1119B
 
 export type EntradaControl =
@@ -92,6 +93,7 @@ export const MAX_ENTRADA_POR_SEGUNDO = 60;
 export const PAUSA_LOCAL_MS = 3200;
 export const REFRESCO_APARATO_MS = 5000;
 export const MEDIDA_MS = 1000;
+export const INTERVALO_CALIDAD_MS = 1500;
 export const ESPERA_CONEXION_MS = 25_000;
 export const LOTE_CANDIDATOS_MS = 150;
 /** Tamaño máximo de los argumentos de un `gesto` por orden: la orden firmada entera no pasa de 4 KB. */
@@ -402,15 +404,17 @@ export class PantallaDestino {
             ...(alcanceDeNativo(res.capacidades, res) ? { alcance: alcanceDeNativo(res.capacidades, res) } : {}), // CTL1117J · S2
         });
         this.inicioConexion = this.d.ahora();
+        const webrtcAparato = typeof res.webrtc === "boolean" ? res.webrtc : undefined;
         // CTL1119F: decidir la vía de pantalla según capacidades (WebRTC o malla).
         let viaRazon: { via: "webrtc" | "malla"; razon: string } | null = null;
         if (this.d.malla) {
             const capsControlador = await this.capacidadesControlador();
-            viaRazon = await decidirViaPantalla(capsControlador, null);
+            viaRazon = await decidirViaPantalla(capsControlador, webrtcAparato !== undefined ? { webrtc: webrtcAparato } : null);
             if (viaRazon.via === "malla") {
                 this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
-                this.cada(500, () => void this.actualizarCalidad());
-                this.pasarAMalla(this.causaCorto(viaRazon.razon));
+                this.cada(INTERVALO_CALIDAD_MS, () => void this.actualizarCalidad());
+                const causa = webrtcAparato === false ? "sin-webrtc-aparato" : this.causaCorto(viaRazon.razon);
+                this.pasarAMalla(causa);
                 void this.leerAparato();
                 return;
             }
@@ -420,7 +424,7 @@ export class PantallaDestino {
         } catch (e) {
             if (this.d.malla && !this.cerrada) {
                 this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
-                this.cada(500, () => void this.actualizarCalidad());
+                this.cada(INTERVALO_CALIDAD_MS, () => void this.actualizarCalidad());
                 this.pasarAMalla("sin-oferta");
                 void this.leerAparato();
                 return;
@@ -445,7 +449,7 @@ export class PantallaDestino {
         });
         this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
         this.cada(MEDIDA_MS, () => void this.medir());
-        this.cada(500, () => void this.actualizarCalidad()); // CTL1119B
+        this.cada(INTERVALO_CALIDAD_MS, () => void this.actualizarCalidad()); // CTL1119B
         void this.leerAparato();
     }
 
@@ -571,6 +575,11 @@ export class PantallaDestino {
             const r = await this.orden("pantalla-cuadro", { desde, pide: 0, nivel: plan.nivel }, "ver");
             if (this.cerrada) return;
             if (!r.ok) {
+                if (r.motivo === "pausa-local") {
+                    if (this.snap.estado !== "pausa-local") this.poner({ estado: "pausa-local", motivo: "pausa-local" });
+                    await m.esperar(400);
+                    continue;
+                }
                 fallos += 1;
                 if (fallos >= 5) return void (await this.cerrar(r.motivo === "sin-pantalla" ? "sin-pantalla" : "sin-cuadros", true));
                 await m.esperar(300 * fallos);
@@ -580,7 +589,8 @@ export class PantallaDestino {
             if (res.nuevo === false) {
                 fallos = 0;
                 vacios += 1;
-                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
+                if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
+                else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
                 await m.esperar(esperaSinCuadro(vacios));
                 continue;
             }
@@ -621,7 +631,8 @@ export class PantallaDestino {
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
             if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
                 cuadros += 1;
-                if (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
+                if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
+                else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
                 // CTL1119B: alimentar cuadro a calidad (malla)
                 const t = this.d.ahora();
                 añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
@@ -631,7 +642,8 @@ export class PantallaDestino {
             enMedida += 1;
             if (enMedida >= Math.min(CUADROS_POR_MEDIDA, 10)) {
                 enMedida = 0;
-                const { estado, cambio } = siguienteRitmo(ritmo, coste, UMBRALES_MALLA);
+                const umbrales = camino.camino === "directo" ? UMBRALES_MALLA_DIRECTO : UMBRALES_MALLA;
+                const { estado, cambio } = siguienteRitmo(ritmo, coste, umbrales);
                 ritmo = estado;
                 if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: (jpeg.length * 8) / Math.max(1, ms), nivel: estado.nivel }));
             }
@@ -828,6 +840,19 @@ export class PantallaDestino {
         }
     }
 
+    private static calidadIgual(a: MetricasCalidad | null, b: MetricasCalidad): boolean {
+        if (!a) return false;
+        return (
+            Math.round(a.fps) === Math.round(b.fps) &&
+            Math.round(a.rttMs) === Math.round(b.rttMs) &&
+            Math.round(a.kbps) === Math.round(b.kbps) &&
+            a.calidad === b.calidad &&
+            a.medio === b.medio &&
+            a.resolucion?.ancho === b.resolucion?.ancho &&
+            a.resolucion?.alto === b.resolucion?.alto
+        );
+    }
+
     /** CTL1119B: calcula métricas de calidad, actualiza medio y emite registro cada 10 s. */
     private actualizarCalidad(): void {
         if (this.cerrada) return;
@@ -838,8 +863,11 @@ export class PantallaDestino {
         actualizarMedio(this.calidad, medio);
         // Calcular métricas
         const metricas = calcularMetricas(this.calidad, ahora);
+        const previa = this.ultimaCalidad;
         this.ultimaCalidad = metricas;
-        this.poner({ calidad: metricas });
+        if (!PantallaDestino.calidadIgual(previa, metricas)) {
+            this.poner({ calidad: metricas });
+        }
         // Registro cada 10 s
         if (tocaRegistro(this.calidad, ahora)) {
             const linea = lineaRegistro(metricas);
@@ -1065,20 +1093,44 @@ export class PantallaDestino {
 
 // ── implementación real ──────────────────────────────────────────────────────────────────────
 
-/** CTL1118M: el lienzo donde quien manda pinta los cuadros que llegan por la malla; su flujo es el que enseña la ventana. */
+async function pintarConImagen(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    jpeg: Uint8Array,
+    ancho: number,
+    alto: number,
+): Promise<boolean> {
+    if (typeof Image !== "function" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return false;
+    const url = URL.createObjectURL(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
+    try {
+        const img = await new Promise<HTMLImageElement>((res, rej) => {
+            const el = new Image();
+            el.onload = () => res(el);
+            el.onerror = () => rej(new Error("imagen-invalida"));
+            el.src = url;
+        });
+        if (canvas.width !== ancho || canvas.height !== alto) {
+            canvas.width = ancho;
+            canvas.height = alto;
+        }
+        ctx.drawImage(img, 0, 0, ancho, alto);
+        return true;
+    } catch {
+        return false;
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+/** CTL1118M: el lienzo donde quien manda pinta los cuadros que llegan por la malla; se enseña tal cual sin captureStream. */
 function crearLienzoMalla() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    let flujo: MediaStream | null = null;
-    try {
-        flujo = typeof canvas.captureStream === "function" ? canvas.captureStream(0) : null;
-    } catch {
-        flujo = null;
-    }
-    const pista = flujo?.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
+    const preferirImagen = esLinuxEscritorio(typeof navigator === "undefined" ? undefined : navigator.userAgent) || typeof createImageBitmap !== "function";
     return {
         async pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean> {
             if (!ctx) return false;
+            if (preferirImagen) return pintarConImagen(ctx, canvas, jpeg, ancho, alto);
             let bmp: ImageBitmap | null = null;
             try {
                 bmp = await createImageBitmap(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
@@ -1087,18 +1139,16 @@ function crearLienzoMalla() {
                     canvas.height = alto;
                 }
                 ctx.drawImage(bmp, 0, 0, ancho, alto);
-                pista?.requestFrame?.();
                 return true;
             } catch {
-                return false;
+                return pintarConImagen(ctx, canvas, jpeg, ancho, alto);
             } finally {
                 bmp?.close();
             }
         },
-        flujo: () => flujo,
+        flujo: () => null,
         elemento: () => canvas,
         liberar() {
-            for (const t of flujo?.getTracks() ?? []) t.stop();
             canvas.width = 0;
             canvas.height = 0;
         },

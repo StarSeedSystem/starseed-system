@@ -107,8 +107,23 @@ fn ocultar(app: &AppHandle) {
     }
 }
 
+/// En Linux elimina el autostart duplicado creado por versiones/scripts anteriores
+/// cuando ya existe el autostart oficial de Tauri (`StarSeed OS.desktop`).
+#[cfg(target_os = "linux")]
+fn limpiar_autostart_duplicado() {
+    let Some(home) = std::env::var_os("HOME") else { return };
+    let dir = std::path::PathBuf::from(home).join(".config").join("autostart");
+    let oficial = dir.join("StarSeed OS.desktop");
+    let duplicado = dir.join("starseed-os.desktop");
+    if oficial.exists() && duplicado.exists() {
+        let _ = std::fs::remove_file(duplicado);
+    }
+}
+
 /// Crea la bandeja, lee la preferencia y, si se arrancó con el sistema, oculta.
 pub fn iniciar(app: &AppHandle) {
+    #[cfg(target_os = "linux")]
+    limpiar_autostart_duplicado();
     let pref = leer_pref(app);
     let estado = EstadoEscritorio {
         activo: AtomicBool::new(pref.activo),

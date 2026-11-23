@@ -26,7 +26,7 @@ pub const PAUSA_LOCAL_MS: u64 = crate::control_entrada_logica::PAUSA_LOCAL_MS;
 /// pausa por toque físico local está activa: abrir y cerrar la sesión, la señal y el arranque de la pantalla y las lecturas. La pausa solo
 /// frena la ENTRADA (gesto, tecla, texto, volumen, brillo) y lo que actúa sobre la neurona (llamar, colgar…): quien controla sigue viendo
 /// la pantalla y sabe que están usando el aparato. Todo lo que NO está aquí se rechaza en pausa, como siempre (lo desconocido, también).
-pub const ORDENES_QUE_PASAN_EN_PAUSA: [&str; 8] = ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla"];
+pub const ORDENES_QUE_PASAN_EN_PAUSA: [&str; 9] = ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla-cuadro", "pantalla"];
 
 /// (CTL1118H) ¿Esta orden pasa aunque haya pausa local? Ver [`ORDENES_QUE_PASAN_EN_PAUSA`].
 pub fn orden_pasa_en_pausa(nombre: &str) -> bool {
@@ -964,7 +964,7 @@ mod pruebas {
     #[test]
     fn ctl1118h_la_pausa_local_solo_frena_la_entrada() {
         // Lo que pasa en pausa: abrir/cerrar, pantalla y lecturas. Lo que no: la entrada y lo que actúa sobre la neurona.
-        for pasa in ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla"] {
+        for pasa in ["abrir-sesion", "cerrar-sesion", "leer-estado", "leer-aparato", "pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla-cuadro", "pantalla"] {
             assert!(orden_pasa_en_pausa(pasa), "{pasa}");
         }
         for frena in ["gesto", "tecla", "texto", "volumen", "brillo", "llamar", "contestar", "colgar", "micro", "camara", "abrir-ruta", "simular-corte-ip", "simular-vuelve-ip", "entrada", "algo-raro", ""] {

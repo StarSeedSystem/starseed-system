@@ -611,11 +611,11 @@ fn abrir_socket_faro() -> Result<UdpSocket, String> {
 }
 
 /// (MLL1107A) Cada cuánto, como mucho, se contesta con un faro directo a la misma IP.
-pub const RESPUESTA_DIRECTA_CADA_S: u64 = 60;
+pub const RESPUESTA_DIRECTA_CADA_S: u64 = 20;
 
 /// (MLL1107A) ¿Toca contestar con un faro DIRECTO (unicast) a quien acaba de anunciarse desde `ip`?
 /// Una vez por IP cada `RESPUESTA_DIRECTA_CADA_S`: dos aparatos que se contestan no rebotan más de
-/// una vez por minuto. Solo IPs de la red local. Recorta lo viejo para no crecer sin fin. Pura.
+/// lo debido. Solo IPs de la red local. Recorta lo viejo para no crecer sin fin. Pura.
 pub fn toca_respuesta_directa(ultimas: &mut HashMap<String, u64>, ip: &str, ahora_s: u64) -> bool {
     if crate::malla_local_trama::ip_local(ip).is_none() {
         return false;
@@ -665,9 +665,9 @@ fn arrancar_hilos(g: Arc<Guardian>) {
                                     let _ = socket.send_to(&b, difusion);
                                     let anonimo = gf.interno.lock().map(|i| i.clave.is_none()).unwrap_or(true);
                                     let motivo = if anonimo {
-                                        "Anunciando en la red local cada 15 s (anónimo: falta la clave de faro de tu cuenta).".to_string()
+                                        format!("Anunciando en la red local cada {} s (anónimo: falta la clave de faro de tu cuenta).", faro::CADA_SEGUNDOS)
                                     } else {
-                                        "Anunciando y escuchando en la red local cada 15 s, también con la app cerrada.".to_string()
+                                        format!("Anunciando y escuchando en la red local cada {} s, también con la app cerrada.", faro::CADA_SEGUNDOS)
                                     };
                                     gf.poner_wifi("viva", motivo);
                                 }
@@ -792,9 +792,9 @@ mod pruebas {
     fn respuesta_directa_una_vez_por_minuto_y_solo_en_la_red_local() {
         let mut u = HashMap::new();
         assert!(toca_respuesta_directa(&mut u, "192.168.0.12", 1_000), "primera vez: se contesta");
-        assert!(!toca_respuesta_directa(&mut u, "192.168.0.12", 1_030), "al rato: no (no rebota)");
-        assert!(toca_respuesta_directa(&mut u, "192.168.0.15", 1_030), "otra IP: sí");
-        assert!(toca_respuesta_directa(&mut u, "192.168.0.12", 1_000 + RESPUESTA_DIRECTA_CADA_S), "pasado un minuto: otra vez");
+        assert!(!toca_respuesta_directa(&mut u, "192.168.0.12", 1_010), "al rato: no (no rebota)");
+        assert!(toca_respuesta_directa(&mut u, "192.168.0.15", 1_010), "otra IP: sí");
+        assert!(toca_respuesta_directa(&mut u, "192.168.0.12", 1_000 + RESPUESTA_DIRECTA_CADA_S), "pasado el intervalo: otra vez");
         assert!(!toca_respuesta_directa(&mut u, "8.8.8.8", 1_000), "fuera de la red local: nunca");
         assert!(!toca_respuesta_directa(&mut u, "no-es-ip", 1_000));
         // Lo muy viejo se olvida (no crece sin fin).

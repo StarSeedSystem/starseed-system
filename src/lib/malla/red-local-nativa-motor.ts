@@ -34,7 +34,6 @@ import {
   PREFIJO_SESION_NATIVA,
   PUERTO_CANAL_NATIVO,
   ESPERA_LIGADURA_MS,
-  ENTRE_HOLAS_MS,
   aceptarHola,
   armarTrama,
   candidatosConIp,
@@ -702,6 +701,8 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     registrarHolaArchivo(h.de.neurona, h.ar, h.ep, { certificado: h.certificado, huella: v.huella });
     registrarLanasVecina(h.de.neurona, h.lanas, h.plataforma, { nativo: true }); // MTZ1109A: sus carriles directos (o inferidos si es una app anterior)
     delete caidas[ip];
+    const colaIp = colas.get(ip);
+    if (colaIp) colaIp.fallos = 0;
     ultimoRechazo = null;
     despertar(h.de.neurona);
     avisar();
@@ -924,6 +925,15 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     misLimites = st?.limites ?? null;
     const ahora = deps.ahora();
     ligaduras = podarLigaduras(ligaduras, ahora);
+    for (const v of vecinos) {
+      const finCaida = caidas[v.ip];
+      if (!finCaida || typeof v.visto_hace_s !== "number" || v.visto_hace_s > 12) continue;
+      if (ahora - (finCaida - CAIDA_MS) >= 5_000) {
+        delete caidas[v.ip];
+        const colaIp = colas.get(v.ip);
+        if (colaIp) colaIp.fallos = 0;
+      }
+    }
     conClaveCuenta = await hayClaveCuenta();
     if (escuchando) {
       const destinos = destinosHola({ vecinos, vinculos: deps.vinculos(), ligaduras, ultimoHola, ahora, cuenta: conClaveCuenta });
@@ -940,7 +950,8 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       esperadoMs: Math.max(0, deps.ahora() - t0),
     });
     try {
-      if (ligaduraDeNeurona(ligaduras, neurona, t0)) return diag();
+      const ligPrevia = ligaduraDeNeurona(ligaduras, neurona, t0);
+      if (ligPrevia && !caido(ligPrevia.ip)) return diag();
       let st: EstadoCanalNativo | null = null;
       try {
         st = await deps.estado();
@@ -953,13 +964,22 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
         misLimites = st.limites ?? null;
       }
       conClaveCuenta = await hayClaveCuenta();
+      const vinculo = deps.vinculos().find((v) => v.neurona === neurona);
+      const destino = ipsDeNeurona(neurona, vecinos, vinculo)[0];
+      if (destino) {
+        const vecino = vecinos.find((x) => x.ip === destino.ip);
+        if (typeof vecino?.visto_hace_s === "number" && vecino.visto_hace_s <= 15 && caidas[destino.ip]) {
+          delete caidas[destino.ip];
+          const colaIp = colas.get(destino.ip);
+          if (colaIp) colaIp.fallos = 0;
+        }
+      }
       const d0 = diag();
       if (d0.estado !== "sin-respuesta") return d0;
-      const destino = ipsDeNeurona(neurona, vecinos, deps.vinculos().find((v) => v.neurona === neurona))[0];
-      if (!destino) return d0;
+      if (!destino || caido(destino.ip)) return d0;
       const hace = deps.ahora() - (ultimoHola[destino.ip] ?? -Infinity);
       let espera = esperaMs;
-      if (hace >= ENTRE_HOLAS_MS) {
+      if (hace >= 2_000) {
         // No se espera al acuse del propio saludo (puede tardar segundos si la otra app no está): solo a la ligadura.
         void saludar(destino.ip, destino.puerto, neurona, false).catch(nadaQueHacer);
       } else {

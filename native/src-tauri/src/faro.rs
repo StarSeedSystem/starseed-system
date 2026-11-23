@@ -31,7 +31,7 @@ pub const LARGO: usize = 37;
 pub const GRUPO_MULTICAST: [u8; 4] = [239, 255, 70, 83];
 pub const PUERTO: u16 = 47070;
 /// Cada cuánto se emite un faro.
-pub const CADA_SEGUNDOS: u64 = 15;
+pub const CADA_SEGUNDOS: u64 = 8;
 /// Un vecino que no se oye en este tiempo deja de contar.
 pub const CADUCA_SEGUNDOS: u64 = 60;
 

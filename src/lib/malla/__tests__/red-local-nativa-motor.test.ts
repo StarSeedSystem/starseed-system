@@ -66,7 +66,7 @@ function app(
     huella: string;
     nombre: string;
     vinculos: VinculoMinimo[];
-    vecinos: Array<{ ip: string; neurona: string | null }>;
+    vecinos: Array<{ ip: string; neurona: string | null; visto_hace_s?: number }>;
     limites?: LimitesCanal | null;
     webrtc?: boolean;
     /** (MLL1107A) Clave de faro de la cuenta (sin ella, el saludo va sin prueba de cuenta). */
@@ -444,5 +444,30 @@ describe("(MLL1107A) asegurarLigadura — antes de mandar, saludar ya y esperar 
     const r = await a.red.asegurarLigadura("N-B", 1_500);
     expect(r).toMatchObject({ estado: "no-se-oye", esperadoMs: 0, motivo: expect.stringMatching(/faro no se oye/) });
     expect(m.envios).toEqual([]);
+  });
+
+  it("si el aparato cayó pero su faro reciente vuelve en ≤ 15 s, asegurarLigadura limpia caidas sin esperar 30 s", async () => {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set() };
+    const vecinos: Array<{ ip: string; neurona: string | null; visto_hace_s?: number }> = [{ ip: IP_B, neurona: "N-B", visto_hace_s: 2 }];
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "Mac", vinculos: [], vecinos, clave: "k", webrtc: false, dormirConCalma: true });
+    const b = app(m, { ip: IP_B, neurona: "N-B", huella: "fp-b", nombre: "Linux", vinculos: [], vecinos: [{ ip: IP_A, neurona: "N-A", visto_hace_s: 2 }], clave: "k", webrtc: false });
+    await b.red.refrescar();
+    await a.red.refrescar();
+    await calma();
+    expect(a.red.enlaces()[0]?.abierto).toBe(true);
+
+    // Simula reinicio de Linux: 6 fallos seguidos marcan caidas[IP_B] por 30 s.
+    m.falla.add(IP_B);
+    const fallo = await a.red.enviarTexto(IP_B, '{"t":"tu.msg","v":1,"id":"m1","c":"chat","b":1}');
+    expect(fallo.ok).toBe(false);
+    expect(a.red.instantanea().caidas[IP_B]).toBeGreaterThan(m.ahora);
+
+    // Linux vuelve y su faro reciente (visto_hace_s: 2) aparece de nuevo; sin esperar 30 s, asegurarLigadura limpia la caída.
+    m.falla.delete(IP_B);
+    vecinos[0].visto_hace_s = 2;
+    const rec = await a.red.asegurarLigadura("N-B", 1_500);
+    expect(rec).toMatchObject({ estado: "ligada", ip: IP_B });
+    expect(a.red.instantanea().caidas[IP_B]).toBeUndefined();
+    expect(a.red.enlaces()[0]?.abierto).toBe(true);
   });
 });

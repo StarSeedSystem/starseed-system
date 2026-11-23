@@ -16,6 +16,8 @@ export const RE_B64 = /^[A-Za-z0-9+/]*={0,2}$/;
 
 /** Umbrales del ritmo por la malla: se apunta a 4-10 cuadros/s, no a los 15-30 de WebRTC. */
 export const UMBRALES_MALLA = { alto: 250, bajo: 100 } as const;
+/** En enlace directo LAN (Wi-Fi/cable): más tolerante para conservar resolución y calidad en cuadros multiparte. */
+export const UMBRALES_MALLA_DIRECTO = { alto: 500, bajo: 180 } as const;
 /** Por un relevo, TURN o servidor: nivel mínimo y como mucho 2 cuadros/s (el dato de otra neurona no se gasta de más). */
 export const PAUSA_CAPA_MS = 500;
 

@@ -124,6 +124,8 @@ mod recursos_ia;
 #[cfg(desktop)]
 mod ollama_instalador;
 #[cfg(desktop)]
+mod instancia_unica;
+#[cfg(desktop)]
 mod segundo_plano;
 mod serie;
 // Servidor local dentro de la app (APP1107A, architecture/apps-autonomas-sin-internet.md):
@@ -413,6 +415,8 @@ mod actualizacion {
             );
         } else {
             marcar_pendiente_reinicio(&app, false);
+            crate::instancia_unica::soltar();
+            crate::servidor_local::apagar();
             app.restart(); // no retorna (reinicia el proceso).
         }
 
@@ -586,6 +590,8 @@ async fn check_update(app: tauri::AppHandle) -> Result<String, String> {
 fn reiniciar_para_actualizar(app: tauri::AppHandle) {
     #[cfg(desktop)]
     {
+        instancia_unica::soltar();
+        servidor_local::apagar();
         app.restart();
     }
     #[cfg(not(desktop))]
@@ -800,6 +806,9 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri::Manager;
+                if !instancia_unica::adquirir(app.handle()) {
+                    std::process::exit(0);
+                }
                 app.manage(actualizacion::EstadoCompartido::default());
                 actualizacion::iniciar_vigilancia_en_segundo_plano(app.handle().clone());
             }
@@ -1033,6 +1042,7 @@ pub fn run() {
             {
                 if matches!(_evento, tauri::RunEvent::Exit) {
                     prestamo_ventana::al_salir(_app); // SEG1111T
+                    instancia_unica::soltar();
                     servidor_local::apagar();
                 }
             }
