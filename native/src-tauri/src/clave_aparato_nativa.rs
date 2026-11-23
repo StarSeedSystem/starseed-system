@@ -72,7 +72,7 @@ fn guardar_en_llavero(app: &AppHandle, clave_der: &[u8], metadatos: &MetadatosCl
     use secret_service::blocking::{EncryptionType, SecretService};
     use std::collections::HashMap;
 
-    let ss = SecretService::connect(EncryptionType::Dh)
+    let ss = SecretService::connect(EncryptionType::Plain)
         .map_err(|e| format!("Secret Service no disponible: {e}"))?;
     let collection = ss
         .get_default_collection()
@@ -178,7 +178,7 @@ fn cargar_desde_llavero(app: &AppHandle) -> Result<(SigningKey, MetadatosClave),
     use secret_service::blocking::{EncryptionType, SecretService};
     use std::collections::HashMap;
 
-    let ss = SecretService::connect(EncryptionType::Dh)
+    let ss = SecretService::connect(EncryptionType::Plain)
         .map_err(|e| format!("Secret Service no disponible: {e}"))?;
     let collection = ss
         .get_default_collection()
@@ -262,7 +262,7 @@ fn borrar_clave(app: &AppHandle) -> Result<(), String> {
     {
         use secret_service::blocking::{EncryptionType, SecretService};
         use std::collections::HashMap;
-        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
+        if let Ok(ss) = SecretService::connect(EncryptionType::Plain) {
             if let Ok(collection) = ss.get_default_collection() {
                 let _ = collection.unlock();
                 if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {
@@ -482,7 +482,7 @@ fn clave_existe(app: &AppHandle) -> bool {
     {
         use secret_service::blocking::{EncryptionType, SecretService};
         use std::collections::HashMap;
-        if let Ok(ss) = SecretService::connect(EncryptionType::Dh) {
+        if let Ok(ss) = SecretService::connect(EncryptionType::Plain) {
             if let Ok(collection) = ss.get_default_collection() {
                 let _ = collection.unlock();
                 if let Ok(items) = collection.search_items(HashMap::from([("app", "starseed-os"), ("kind", "clave-aparato")])) {
