@@ -7633,3 +7633,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-referencias-diseno-agentes-referencias-diseno-6b9d9e-v1.json
 - `RST06-d3` — otra cosa: continúa como RST06b desde la rama nube/44912433621 (traer_nube)
 - `RST06b` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-11-23 10:03 · mg-oracle-1123-0227
+
+**Lo que se pidió.** Espectro
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (MRE8b-d1, AST1123B). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MRE8b-d1` — no escribió nada
+- `AST1123B` — no escribió nada
