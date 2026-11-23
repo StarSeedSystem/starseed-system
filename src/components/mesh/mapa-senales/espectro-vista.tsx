@@ -13,8 +13,9 @@ import type { FiltroSenales } from "@/components/mesh/mapa-senales/geo/panel-fil
 import { MEDIOS } from "@/components/mesh/mapa-senales/geo/panel-filtros-senales-tipos";
 import { PanelFiltrosSenales } from "@/components/mesh/mapa-senales/geo/panel-filtros-senales";
 import { VistaEspectro } from "../vista-espectro";
-import { FichaSenalEspectro } from "../ficha-senal-espectro";
-import type { MapaVivoRed, SenalEspectro, SinFuente } from "@/lib/senales/espectro/tipos";
+import { FichaSenalEspectro } from "./ficha-senal-espectro";
+import type { MapaVivoRed } from "@/lib/senales/tipos-vivo";
+import type { SenalEspectro, SinFuente } from "@/lib/senales/espectro/tipos";
 
 const FILTRO_INICIAL: FiltroSenales = {
   frecuencia: { minKhz: null, maxKhz: null },
@@ -46,7 +47,7 @@ export function EspectroVista({ red, mediosSinFuente }: EspectroVistaProps) {
 
   // Construir sinFuente: medios sin señal en red.senales
   const mediosConSenales = useMemo(
-    () => new Set(red.senales.map((s) => s.medio)),
+    () => new Set(red.senales.map((s: SenalEspectro) => s.medio)),
     [red.senales]
   );
   const sinFuente: SinFuente[] = useMemo(
@@ -92,7 +93,7 @@ export function EspectroVista({ red, mediosSinFuente }: EspectroVistaProps) {
             <VistaEspectro
               senales={senalesFiltradas}
               sinFuente={sinFuente}
-              onElegir={(id) => {
+              onElegir={(id: string) => {
                 const s = senalesFiltradas.find((x) => x.id === id) ?? null;
                 setSenalElegida(s);
               }}
