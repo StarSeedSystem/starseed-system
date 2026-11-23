@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CTL1123B",
+   "ola": "control-avanzado-1123",
+   "titulo": "Control nativo real de volumen y brillo en Linux",
+   "importancia": "alta",
+   "archivos": [
+    "native/src-tauri/src/control_entrada_linux.rs",
+    "native/src-tauri/src/control_escritorio_linux_logica.rs"
+   ],
+   "depende": [],
+   "prompt": "En `native/src-tauri/src/control_escritorio_linux_logica.rs` y `native/src-tauri/src/control_entrada_linux.rs`: añade funciones puras para calcular el porcentaje entero de volumen (`pactl set-sink-volume @DEFAULT_SINK@ N%` o `wpctl set-volume @DEFAULT_AUDIO_SINK@`) y de brillo (`brightnessctl set N%` o `xrandr --output <out> --brightness`), acotados a [0.0, 1.0]. En `control_entrada_linux.rs::ejecutar` atiende las órdenes `volumen` (flujo multimedia) y `brillo` llamando con `crate::entorno_hijos::aplicar_a_comando`, y en `capacidades_linux` expón qué capacidades están disponibles de forma honesta (`volumen: true/false`, `brillo: true/false`). Añade tests unitarios en `control_escritorio_linux_logica.rs` (conservando todos los tests existentes en verde) y verifica con `cargo test --lib control_escritorio_linux_logica`.",
+   "dependencias_ya_en_main": [
+    "CTL1123A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1123B"
+  ]
+ }
+}
