@@ -1,0 +1,32 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "CAP-opencode-zen-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar OpenCode Zen",
+   "archivos": [
+    "scripts/puente/opencode-zen_config.py"
+   ],
+   "depende": [],
+   "prompt": "configurar proveedor zen. Crear script de configuración y prueba de OpenCode Zen."
+  },
+  {
+   "id": "CAP-mcp-brave-search-conectar",
+   "ola": "CAP1119",
+   "titulo": "Conectar servidor MCP brave-search",
+   "archivos": [
+    "scripts/puente/mcp_director.py",
+    ".agent/skills/mcp-brave-search/"
+   ],
+   "depende": [],
+   "prompt": "Configurar y probar conexión MCP brave-search para uso en tareas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CAP-opencode-zen-config",
+   "CAP-mcp-brave-search-conectar"
+  ]
+ }
+}
