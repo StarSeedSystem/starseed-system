@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-quantumor",
+   "titulo": "Canal `params` de la orbe → `QuantumOrbAvatar`",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe → `QuantumOrbAvatar`. : publicar vector visual 1.58b (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en cada tick del bus; el avatar reacciona en tiempo real sin polling. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "IMG-diaria-canal-params-de-la-orbe-quantumor"
+  ]
+ }
+}
