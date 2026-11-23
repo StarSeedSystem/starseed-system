@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
+import fichas_canales
+
 # GEM1119C: integración con flota Antigravity
 try:
     from antigravity_flota import (
@@ -149,13 +151,28 @@ def ficha_permisos() -> str:
     ) % (MCP_DIRECTOR, ", ".join(MCP_DIRECTOR_PERMITIDAS), ", ".join(ORDENES_METAGENESIS))
 
 
-def prompt_con_permisos(prompt: str) -> str:
-    """PURA (ACC1121). Antepone la ficha de permisos al prompt, sin duplicarla si ya la lleva."""
+def ficha_canal(canal: str = "principal") -> str:
+    """PURA (CAN1121C). La MISMA ficha del canal que entrega la fuente única.
+
+    Hermes, Antigravity (`agy`), Codex y Claude reciben este texto, además de la ficha de
+    permisos. No amplía permisos: el canal decide lo mismo que antes, solo con su ficha
+    delante para que no invente su especialidad ni su orden de motores.
+    """
+    return fichas_canales.texto_ficha(canal)
+
+
+def prompt_con_permisos(prompt: str, canal: str = "principal") -> str:
+    """PURA (ACC1121/CAN1121C). Ficha de permisos + ficha del canal, sin duplicarlas.
+
+    La marca de permisos va primero para que la comprobación de idempotencia siga siendo
+    barata: si el prompt ya la lleva, se devuelve tal cual.
+    """
+    ficha = ficha_canal(canal)
     if not prompt:
-        return ficha_permisos()
+        return ficha_permisos() + "\n" + ficha
     if _MARCA_FICHA_PERMISOS in prompt[:200]:
         return prompt
-    return ficha_permisos() + "\n" + prompt
+    return ficha_permisos() + "\n" + ficha + "\n" + prompt
 
 
 def mcp_config_director(raiz=None) -> dict:
@@ -240,12 +257,12 @@ def direccion_motor(ruta=None) -> dict:
 
 
 def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None,
-                 con_permisos=False) -> list:
-    # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Dirección MetaGenesis»).
-    # (ACC1121) `con_permisos=True` le da la MISMA ficha que a Claude: Hermes no tiene
-    # `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
+                 con_permisos=False, canal: str = "principal") -> list:
+    # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Principal»).
+    # (ACC1121/CAN1121C) `con_permisos=True` le da la MISMA ficha de permisos y la ficha del
+    # canal que a Claude: Hermes no tiene `--allowedTools`, así que ambas van en el prompt.
     if con_permisos:
-        prompt = prompt_con_permisos(prompt)
+        prompt = prompt_con_permisos(prompt, canal=canal)
     orden = ["hermes"] + (["--resume", sesion] if sesion else []) + ["-z", prompt]
     if modelo and modelo != "predeterminado":
         orden += ["-m", modelo]
@@ -652,13 +669,15 @@ def orden_codex(modelo: str, raiz: str) -> list:
     ]
 
 
-def prompt_director(pregunta: str, historial: list, contexto: str) -> str:
+def prompt_director(pregunta: str, historial: list, contexto: str,
+                    canal: str = "principal") -> str:
     partes = [
         "Eres la dirección de Genesis de StarSeed OS. Responde en "
         "español, claro y breve.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); "
         "propones olas, verificas puertas y decides rumbo; termina siempre "
         "con un informe de uso corto.",
+        ficha_canal(canal),
     ]
     if contexto:
         partes.append("Contexto:\n" + contexto[:12000])
@@ -705,15 +724,16 @@ _AGY_PERMISOS = (
 _AGY_TOPE_FALLO = 600
 
 
-def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True) -> list:
+def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True,
+              canal: str = "principal") -> list:
     """La orden de `agy` con la sesión de Google de Alex (100 % headless sin GUI).
 
     `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
-    (ACC1121) `con_permisos` (encendido) le da la MISMA ficha que a Claude: `agy` no tiene
-    `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
+    (ACC1121/CAN1121C) `con_permisos` (encendido) le da la MISMA ficha de permisos y la ficha
+    del canal que a Claude: `agy` no tiene `--allowedTools`, así que ambas van en el prompt.
     """
     if con_permisos:
-        prompt = prompt_con_permisos(prompt)
+        prompt = prompt_con_permisos(prompt, canal=canal)
     segundos = int(segundos or SEGUNDOS_AGY)
     return [
         "agy",
