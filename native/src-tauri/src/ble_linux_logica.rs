@@ -139,6 +139,28 @@ pub fn uuid_de_anuncio(uuids: &[String]) -> Option<[u8; 16]> {
     uuids.iter().filter_map(|u| bt::uuid_bytes(u)).find(|b| bt::es_anuncio(b))
 }
 
+/// ¿Contiene algún UUID de perfil clásico Bluetooth (BR/EDR, `0x1100..=0x11FF` en el UUID base)?
+/// En BlueZ, `Device1.Connect()` sobre un aparato doble modo (p. ej. un Mac) con perfiles BR/EDR
+/// (Audio, Handsfree, AVRCP, Serial) sin emparejar dispara emparejamiento clásico (PIN de 6 dígitos).
+pub fn tiene_perfiles_clasicos(uuids: &[String]) -> bool {
+    uuids.iter().any(|u| {
+        let s = u.trim().to_ascii_lowercase();
+        let Some(pref) = s.strip_suffix("-0000-1000-8000-00805f9b34fb") else {
+            return false;
+        };
+        pref.len() == 8
+            && u32::from_str_radix(pref, 16)
+                .map(|v| (0x1100..=0x11FF).contains(&v))
+                .unwrap_or(false)
+    })
+}
+
+/// ¿Conviene evitar `Device1.Connect()` desde Linux porque es un aparato doble modo (BR/EDR + LE)
+/// sin emparejar? Si se evita, el otro aparato aún puede conectar como central BLE (o por su dirección LE aleatoria).
+pub fn evitar_connect_doble_modo(uuids: &[String], emparejado: bool) -> bool {
+    !emparejado && tiene_perfiles_clasicos(uuids)
+}
+
 /// ¿Es ese UUID el de una característica concreta? (BlueZ los da en minúsculas; se compara sin mayúsculas).
 pub fn mismo_uuid(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
@@ -675,5 +697,35 @@ mod pruebas {
         // Tras reiniciar, hay que esperar otro tramo entero.
         assert_eq!(escaneo_mudo(ESCANEO_MUDO_MS + 10_000, 0, None, Some(ESCANEO_MUDO_MS)), None);
         assert_eq!(escaneo_mudo(2 * ESCANEO_MUDO_MS, 0, None, Some(ESCANEO_MUDO_MS)), Some(120));
+    }
+
+    #[test]
+    fn evita_connect_en_doble_modo_sin_emparejar() {
+        let solo_le = vec![
+            "00001800-0000-1000-8000-00805f9b34fb".to_string(),
+            "00001801-0000-1000-8000-00805f9b34fb".to_string(),
+            "0000180a-0000-1000-8000-00805f9b34fb".to_string(),
+            "53530001-b1e0-4d2a-9c3e-537461727365".to_string(),
+            "5353b111-498f-028b-1372-b971e9bfa85c".to_string(),
+        ];
+        assert!(!tiene_perfiles_clasicos(&solo_le));
+        assert!(!evitar_connect_doble_modo(&solo_le, false));
+
+        let mac_doble_modo = vec![
+            "0000110a-0000-1000-8000-00805f9b34fb".to_string(),
+            "0000111f-0000-1000-8000-00805f9b34fb".to_string(),
+            "53530001-b1e0-4d2a-9c3e-537461727365".to_string(),
+            "5353b111-498f-028b-1372-b971e9bfa85c".to_string(),
+        ];
+        assert!(tiene_perfiles_clasicos(&mac_doble_modo));
+        assert!(evitar_connect_doble_modo(&mac_doble_modo, false));
+        assert!(!evitar_connect_doble_modo(&mac_doble_modo, true));
+
+        assert!(tiene_perfiles_clasicos(&["0000110E-0000-1000-8000-00805F9B34FB".to_string()]));
+        assert!(!tiene_perfiles_clasicos(&[
+            "00001000-0000-1000-8000-00805f9b34fb".to_string(),
+            "00001200-0000-1000-8000-00805f9b34fb".to_string(),
+            "invalido".to_string(),
+        ]));
     }
 }

@@ -562,6 +562,16 @@ fn conectado_o_perdido(c: &Connection, ruta: &str) -> Result<Option<bool>, Strin
 /// `Device1.Connect`. Un `InProgress` NO es un fallo: ya hay una conexión a medias con ese aparato y se espera a que acabe
 /// (hasta `PLAZO_EN_CURSO_MS`); `AlreadyConnected` sigue con los servicios; lo demás se devuelve clasificado.
 fn abrir_conexion(c: &Connection, ruta: &str, plat: &str) -> Result<(), (lg::ResultadoConnect, String)> {
+    if let Ok(o) = objetos(c) {
+        if let Some(p) = prop(&o, ruta, lg::IF_DISPOSITIVO) {
+            let uuids = v_textos(p, "UUIDs");
+            let emparejado = v_bool(p, "Paired") == Some(true);
+            if lg::evitar_connect_doble_modo(&uuids, emparejado) {
+                dec(Some(plat), "Connect: omitido por doble modo (BR/EDR + LE) sin emparejar para no disparar emparejamiento clásico");
+                return Err(fallo("dispositivo doble modo (BR/EDR + LE) sin emparejar"));
+            }
+        }
+    }
     let dev = proxy(c, ruta, lg::IF_DISPOSITIVO).map_err(|e| fallo(txt(e)))?;
     let e = match dev.call::<_, _, ()>("Connect", &()) {
         Ok(()) => return Ok(()),
@@ -903,6 +913,7 @@ struct Marcha {
     ultima_reexploracion: Option<u64>,
     anuncio_dicho: bool,
     ultimo_fallo_anuncio: String,
+    doble_modo_omitidos: std::collections::HashSet<String>,
 }
 
 fn hilo_principal(rx: Receiver<Orden>) {
@@ -1135,7 +1146,7 @@ fn arrancar_marcha() -> Result<Marcha, (&'static str, String)> {
     *ADAPTADOR.lock().unwrap_or_else(|e| e.into_inner()) = Some(ad.clone());
     let (estado, motivo) = lg::estado_adaptador(true, encendido);
     informar(estado, &motivo);
-    Ok(Marcha { conn, adaptador: ad, encendido, gatt: false, anunciando: false, escucha_l2cap: false, descubriendo: false, oidos: lg::Oidos::default(), desde_ms: ahora_ms(), ultima_reexploracion: None, anuncio_dicho: false, ultimo_fallo_anuncio: String::new() })
+    Ok(Marcha { conn, adaptador: ad, encendido, gatt: false, anunciando: false, escucha_l2cap: false, descubriendo: false, oidos: lg::Oidos::default(), desde_ms: ahora_ms(), ultima_reexploracion: None, anuncio_dicho: false, ultimo_fallo_anuncio: String::new(), doble_modo_omitidos: std::collections::HashSet::new() })
 }
 
 fn parar_marcha(m: &mut Marcha) {
@@ -1239,12 +1250,26 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
     for (r, ifs) in &o {
         let Some(d) = ifs.iter().find(|(i, _)| i.as_str() == lg::IF_DISPOSITIVO).map(|(_, p)| p) else { continue };
         let Some(dir) = lg::direccion_de_ruta(r.as_str()) else { continue };
-        if let (Some(uuid), Some(rssi)) = (lg::uuid_de_anuncio(&v_textos(d, "UUIDs")), v_i16(d, "RSSI")) {
-            // BlueZ guarda el último RSSI de una dirección en su caché aunque ya no se oiga (la privada vieja de una neurona
-            // convive con la nueva): solo se da por vista la que cambia. Así el núcleo elige la dirección que SÍ se oye.
-            match m.oidos.observar(&dir, uuid, rssi, ahora) {
-                lg::Frescura::Fresca => nucleo::al_ver(&dir, &uuid, rssi),
-                lg::Frescura::Caducada => {}
+        let uuids = v_textos(d, "UUIDs");
+        if let (Some(uuid), Some(rssi)) = (lg::uuid_de_anuncio(&uuids), v_i16(d, "RSSI")) {
+            let emparejado = v_bool(d, "Paired") == Some(true);
+            if lg::evitar_connect_doble_modo(&uuids, emparejado) {
+                if m.doble_modo_omitidos.insert(dir.clone()) {
+                    dec(
+                        lg::plataforma('c', &dir).as_deref(),
+                        &format!(
+                            "vecindario: {dir} tiene perfiles Bluetooth clásicos (BR/EDR) sin emparejar; omito conectar como central para no disparar emparejamiento en el otro aparato"
+                        ),
+                    );
+                }
+            } else {
+                m.doble_modo_omitidos.remove(&dir);
+                // BlueZ guarda el último RSSI de una dirección en su caché aunque ya no se oiga (la privada vieja de una neurona
+                // convive con la nueva): solo se da por vista la que cambia. Así el núcleo elige la dirección que SÍ se oye.
+                match m.oidos.observar(&dir, uuid, rssi, ahora) {
+                    lg::Frescura::Fresca => nucleo::al_ver(&dir, &uuid, rssi),
+                    lg::Frescura::Caducada => {}
+                }
             }
         }
         if v_bool(d, "Connected") == Some(false) {
