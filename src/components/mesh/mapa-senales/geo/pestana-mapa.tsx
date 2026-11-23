@@ -10,7 +10,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MapPinOff, WifiOff, SlidersHorizontal } from "lucide-react";
+import { MapPinOff, RadioTower, WifiOff, SlidersHorizontal } from "lucide-react";
 import { MapView } from "@/components/map/map-view";
 import type { EstadoBaseGeografica, MapViewExtension } from "@/components/map/map-view-extension";
 import { safeGet, safeSet } from "@/lib/safe-storage";
@@ -22,6 +22,9 @@ import { horaDe } from "@/lib/senales/geo/ficha-geo";
 import type { MarcaGeo } from "@/lib/senales/geo/marcas";
 import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
 import { useCompacto } from "../use-compacto";
+import { useMapaVivo } from "../use-mapa-vivo";
+import type { MapaVivoRed } from "@/lib/senales/tipos-vivo";
+import { MEDIOS } from "./panel-filtros-senales-tipos";
 import { EsquemaSenalesPlano } from "../vista-plana";
 import { FichaGeo } from "./ficha-geo";
 import { MarcasEnMapa } from "./marcas-en-mapa";
@@ -37,6 +40,11 @@ import { filtroEspectroASenales, filtroSenalesAEspectro } from "./panel-filtros-
 
 const PanelFiltrosSenalesDinamico = dynamic(
   () => import("./panel-filtros-senales").then((m) => m.PanelFiltrosSenales),
+  { ssr: false, loading: () => null }
+);
+
+const EspectroVistaDinamico = dynamic(
+  () => import("../espectro-vista").then((m) => m.EspectroVista),
   { ssr: false, loading: () => null }
 );
 
@@ -71,8 +79,20 @@ function useCapasSenales(): [EstadoCapas, (id: string, on: boolean) => void, (id
 /** La pestaña con sus fuentes en vivo. */
 export function PestanaMapa({ compacto }: { compacto?: boolean }) {
   const datos = useMarcasGeo();
-  const red = useEnLinea();
-  return <VistaMapa datos={datos} enLinea={red.enLinea} sinRedDesde={red.desde} compacto={compacto} />;
+  const enLinea = useEnLinea();
+  const { red } = useMapaVivo({ verPublicos: true });
+  const mediosConSenales = new Set(red.senales.map((s) => s.medio));
+  const mediosSinFuente = MEDIOS.filter((m) => !mediosConSenales.has(m)).length;
+  return (
+    <VistaMapa
+      datos={datos}
+      enLinea={enLinea.enLinea}
+      sinRedDesde={enLinea.desde}
+      compacto={compacto}
+      red={red}
+      mediosSinFuente={mediosSinFuente}
+    />
+  );
 }
 
 export interface VistaMapaProps {
@@ -80,14 +100,19 @@ export interface VistaMapaProps {
   enLinea: boolean;
   sinRedDesde?: number | null;
   compacto?: boolean;
+  red?: MapaVivoRed;
+  mediosSinFuente?: number;
 }
 
 /** La vista (sin hooks de datos en vivo): la misma que se prueba y se fotografía. */
-export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaProps) {
+export function VistaMapa({ datos, enLinea, sinRedDesde, compacto, red, mediosSinFuente }: VistaMapaProps) {
   const estrecho = useCompacto(compacto);
   const [capas, alternar, opacidad] = useCapasSenales();
   const [sel, setSel] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<"mapa" | "espectro">("mapa");
   const { marcas, ahora, permiso, presenciaConectada, senales, deviceId, medio } = datos;
+
+  const hayEspectro = red && red.senales.length > 0;
 
   // (AUD1117F4) Estado de publicación por capa: apagado de fábrica.
   const [publicacion, setPublicacion] = useState<CapasHabilitadas>({ publica: false, comunidad: false, privada: false });
@@ -207,7 +232,7 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
     (filtroSenales.texto ? 1 : 0)
   ), [filtroSenales]);
 
-  if (sinBase) {
+  if (sinBase && pestana === "mapa") {
     return (
       <section aria-label="Mapa de señales" data-testid="pestana-mapa">
         <div className="relative">
@@ -224,24 +249,62 @@ export function VistaMapa({ datos, enLinea, sinRedDesde, compacto }: VistaMapaPr
 
   return (
     <section aria-label="Mapa de señales" data-testid="pestana-mapa">
-      <MapView className="h-[calc(100svh-6rem)] min-h-[520px]" extension={extension} />
-      {estrecho && (
-        <details className="pointer-events-none absolute left-3 right-16 bottom-3 z-20 group" data-testid="panel-filtros-flotante">
-          <summary className="pointer-events-auto flex cursor-pointer list-none items-center gap-1.5 rounded-xl border border-white/10 bg-black/65 px-2.5 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-xl">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-sky-300" />
-            Filtros de señales
-            {filtrosActivos > 0 && <span className="rounded-full bg-sky-500/20 px-1.5 text-[9px] text-sky-100">{filtrosActivos} activos</span>}
-            <span className="ml-auto text-[9px] font-normal text-white/35 group-open:hidden">pulsa para desplegar</span>
-          </summary>
-          <div className="pointer-events-auto mt-2 max-h-[50vh] overflow-auto rounded-xl border border-white/10 bg-black/70 p-3 backdrop-blur-xl w-full sm:w-80">
-            <PanelFiltrosSenalesDinamico
-              filtro={filtroSenales}
-              onCambiar={guardarFiltro}
-              visibles={senalesFiltradas.length}
-              ocultasSinDato={ocultasSinDato}
-            />
-          </div>
-        </details>
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === "mapa"}
+          onClick={() => setPestana("mapa")}
+          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors duration-200 ${
+            pestana === "mapa"
+              ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+              : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/25 hover:text-white/90"
+          }`}
+          title="Mapa geográfico"
+        >
+          <MapPinOff className="h-3.5 w-3.5" /> Mapa
+        </button>
+        {hayEspectro && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pestana === "espectro"}
+            onClick={() => setPestana("espectro")}
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors duration-200 ${
+              pestana === "espectro"
+                ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
+                : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/25 hover:text-white/90"
+            }`}
+            title="Espectrómetro: frecuencias, filtros y ficha de cada señal"
+          >
+            <RadioTower className="h-3.5 w-3.5" /> Espectro
+          </button>
+        )}
+      </div>
+      {pestana === "espectro" && red ? (
+        <EspectroVistaDinamico red={red} mediosSinFuente={mediosSinFuente ?? 0} />
+      ) : (
+        <>
+          <MapView className="h-[calc(100svh-6rem)] min-h-[520px]" extension={extension} />
+          {estrecho && (
+            <details className="pointer-events-none absolute left-3 right-16 bottom-3 z-20 group" data-testid="panel-filtros-flotante">
+              <summary className="pointer-events-auto flex cursor-pointer list-none items-center gap-1.5 rounded-xl border border-white/10 bg-black/65 px-2.5 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-xl">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-sky-300" />
+                Filtros de señales
+                {filtrosActivos > 0 && <span className="rounded-full bg-sky-500/20 px-1.5 text-[9px] text-sky-100">{filtrosActivos} activos</span>}
+                <span className="ml-auto text-[9px] font-normal text-white/35 group-open:hidden">pulsa para desplegar</span>
+              </summary>
+              <div className="pointer-events-auto mt-2 max-h-[50vh] overflow-auto rounded-xl border border-white/10 bg-black/70 p-3 backdrop-blur-xl w-full sm:w-80">
+                <PanelFiltrosSenalesDinamico
+                  filtro={filtroSenales}
+                  onCambiar={guardarFiltro}
+                  visibles={senalesFiltradas.length}
+                  ocultasSinDato={ocultasSinDato}
+                />
+              </div>
+            </details>
+          )}
+        </>
       )}
     </section>
   );
