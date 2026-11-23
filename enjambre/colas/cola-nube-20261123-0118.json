@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "AST1123D",
+   "ola": "astraura-modelos-1123",
+   "titulo": "Perfiles personalizados ilimitados por agente, bot y neurona",
+   "importancia": "media",
+   "archivos": [
+    "src/lib/astraura/modelos/perfiles-personalizados.ts",
+    "src/lib/astraura/modelos/__tests__/ast1123d-perfiles-personalizados.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `src/lib/astraura/modelos/perfiles-personalizados.ts` (≤120 líneas, puro, sin `any`, sin claves secretas) y sus tests Vitest (con `import { describe, it, expect } from \"vitest\"`). Gestiona perfiles ilimitados de configuración de IA para agentes, bots, neuronas y capas: preferencias de proveedores/repos `hf.co/...`, pesos personalizados (latencia, calidad, privacidad, ahorro), límites de contexto y exportación/importación JSON validada de forma estricta."
+  },
+  {
+   "id": "AST1123E",
+   "ola": "astraura-modelos-1123",
+   "titulo": "Vigía Python multi-proveedor en internet para todas las neuronas",
+   "importancia": "alta",
+   "archivos": [
+    "scripts/puente/vigia_radar_modelos.py",
+    "scripts/puente/test_vigia_radar_modelos.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `scripts/puente/vigia_modelos.py`, `config/vigia-areas.json` y `architecture/astraura-radar-modelos-1123.md`. Crea `scripts/puente/vigia_radar_modelos.py` (≤120 líneas, red/reloj inyectables) y su test `scripts/puente/test_vigia_radar_modelos.py`. Cruza puntuaciones Epoch AI, tendencias Hugging Face GGUF (Ollama `hf.co/...`), Ollama library y opciones gratuitas para generar por neurona un informe JSON explicando qué modelo nuevo o instalado gana en conversación, código, visión y capas ligeras."
+  },
+  {
+   "id": "CTL1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Estado nativo completo de Linux para control remoto",
+   "importancia": "alta",
+   "archivos": [
+    "native/src-tauri/src/control_estado_linux_logica.rs",
+    "native/src-tauri/src/control_entrada_linux.rs"
+   ],
+   "depende": [],
+   "prompt": "Lee native/src-tauri/src/control_entrada_linux.rs (especialmente `estado_aparato` línea ~408) y `entorno_hijos::aplicar_a_comando`. Crea el módulo puro `native/src-tauri/src/control_estado_linux_logica.rs` (sin E/S, compilable y testable en cualquier OS con `cargo test --lib control_estado_linux_logica`) que parsee salidas reales de Linux X11/PulseAudio/PipeWire/sysfs: volumen (`pactl get-sink-volume` / `wpctl get-volume`), silencio (`pactl get-sink-mute`), brillo (`/sys/class/backlight/*/brightness` + `max_brightness` y salida de `brightnessctl`), batería (`/sys/class/power_supply/BAT*/capacity` + `status`), y estado de red Wi-Fi/Bluetooth (`nmcli`/`rfkill`/`ip`). Cablea ese parser en `control_entrada_linux.rs::estado_aparato()` usando `crate::entorno_hijos::aplicar_a_comando` para los subprocesos y omitiendo con honestidad cualquier métrica que falte en el sistema. Regístralo en `native/src-tauri/src/lib.rs` si hace falta solo como `mod control_estado_linux_logica;`. Verifica con `cargo check` y `cargo test --lib control_estado_linux_logica`."
+  },
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CTL1123A",
+   "AST1123D",
+   "PRU1123A",
+   "AST1123E"
+  ]
+ }
+}
