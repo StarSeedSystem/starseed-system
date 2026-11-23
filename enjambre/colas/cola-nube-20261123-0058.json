@@ -1,0 +1,56 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CTL1123E",
+   "ola": "control-avanzado-1123",
+   "titulo": "Diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE",
+   "importancia": "alta",
+   "archivos": [
+    "native/src-tauri/src/ble_enlace_diagnostico.rs"
+   ],
+   "depende": [],
+   "prompt": "Contexto medido en Ronda 1 (22-11, 0.5.1-prueba.57): Maggabox Linux registra `org.bluez.Error.Failed: le-connection-abort-by-local` al conectar a Maggaboard Android (mientras escanea o justo tras parar escaneo sin espera suficiente) y MaggaBook macOS registra `listo-tarde (sin listo para escribir en 400 ms)` + `Bluetooth directo: sin acuse por Bluetooth tras 4 intentos`. Crea el módulo puro `native/src-tauri/src/ble_enlace_diagnostico.rs` (con sus tests en Rust, sin cambios a `Cargo.toml`) que calcule el tiempo de asentamiento recomendado entre parar escaneo BlueZ y `Connect()`, y el backoff / reintentos de acuse GATT antes de castigar el enlace b1/b2. Declara `mod ble_enlace_diagnostico;` en `native/src-tauri/src/lib.rs` (solo si el módulo queda compilado sin warnings bajo `#![allow(dead_code)]` hasta su cableado). Verifica `cargo test --lib ble_enlace_diagnostico`."
+  },
+  {
+   "id": "CAP-skill-agent-reach-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use."
+  },
+  {
+   "id": "CAP-skill-coop-qa-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-qa en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-qa/README.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-qa para que el enjambre la use."
+  },
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CAP-skill-agent-reach-uso",
+   "CAP-skill-coop-qa-uso",
+   "CTL1123E",
+   "PRU1123A"
+  ]
+ }
+}
