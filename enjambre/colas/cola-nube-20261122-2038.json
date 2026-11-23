@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "id": "CAN1121C",
+   "ola": "DIR1121",
+   "titulo": "Cada canal con las mismas características, herramientas y especialidad en todos sus chats",
+   "archivos": [
+    "scripts/puente/fichas_canales.py",
+    "scripts/puente/test_fichas_canales.py",
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/chats.json"
+   ],
+   "depende": [],
+   "prompt": "Alex: «perfeccionar y refinar sus características, cualidades, herramientas y especializaciones con todo MetaGenesis en todos los\nchats de canales activos: MetaGenesis, Astraura con Genesis desde mi cuenta, Hermes, Antigravity, Telegram, Claude, Codex». Crea la FICHA\nde cada canal en una sola fuente (dentro del registro canales-direccion o junto a él): propósito, especialidad, qué decide y qué no,\nherramientas y habilidades (skills, MCP, colas, puertas), motores y modelos por orden (gratuitos primero; créditos de Antigravity y\nClaude solo donde rinden), memorias y contextos que carga siempre (fundamentos, registro de pruebas, estado de olas, acciones de Alex),\nqué puede hacer sin la palabra de Alex y qué no, y a quién releva. Propuesta de reparto: Principal = presidente: plan, prioridades,\ndecisiones largas, supervisión y verificación, relevo con Claude en Cowork; General = operación diaria: colas, salud, capacidad,\npublicación, avisos y órdenes cortas desde el móvil; Audiovisual y diseño = identidad Trinity Liquid Crystal, piezas, vídeo, NotebookLM,\nDrive y redes. Luego haz que CADA medio cargue esa misma ficha como contexto de su chat del canal (prompt de la sesión de Hermes, chat de\nAntigravity, Codex, el contexto que el cartero da al presidente, /ayuda y /estado de cada bot de Telegram, pestaña de Genesis en\nAstraura, panel de MetaGenesis) y una prueba que compare que todos entregan la misma ficha. No amplíes los permisos de escritura de\nningún agente.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "CAN1121A-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "CAN1121C",
+   "PRU1118A-d3"
+  ]
+ }
+}
