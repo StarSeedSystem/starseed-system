@@ -13,10 +13,14 @@ import time
 import pathlib
 from datetime import datetime, timezone, timedelta
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+_CARPETA = pathlib.Path(__file__).resolve().parent
+_RAIZ_MOD = _CARPETA.parent.parent
+for _ruta_sys in (str(_CARPETA), str(_RAIZ_MOD)):
+    if _ruta_sys not in sys.path:
+        sys.path.insert(0, _ruta_sys)
 
-from scripts.puente import sincronizador_direccion
-from scripts.puente import director_chat
+import sincronizador_direccion
+import director_chat
 
 
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -96,36 +100,39 @@ def _canal_leer(canal, limite):
         raise ValueError("canal no válido: %s" % canal)
     limite = limite or 20
     limite = 20 if not 1 <= int(limite) <= 200 else int(limite)
-    from scripts.puente.sincronizador_direccion import _leer_jsonl_canal
-    import pathlib
-
     if canal == "principal":
         registros = director_chat.leer(desde=None, limite=limite)
-    elif canal == "general":
-        registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("general")))
     else:
-        registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("audiovisual")))
+        registros = sincronizador_direccion._leer_jsonl_canal(_archivo_canal_jsonl(canal), limite=limite)
     return _listar(registros, "Todavía no hay mensajes.")
 
 
 def _archivo_canal_jsonl(canal_clave):
     """Devuelve la ruta JSONL del canal especializado."""
-    raiz = os.environ.get(
-        "STARSEED_PRODUCCION_RAIZ"
-    ) or str(pathlib.Path(__file__).resolve().parents[2])
-    return pathlib.Path(raiz) / "starseed_memory_root" / "mando" / f"{canal_clave}.jsonl"
+    raiz = (
+        os.environ.get("STARSEED_PRODUCCION_RAIZ")
+        or os.environ.get("STARSEED_ROOT")
+        or str(pathlib.Path(__file__).resolve().parents[2])
+    )
+    return pathlib.Path(raiz) / "starseed_memory_root" / "mando" / "director" / f"{canal_clave}.jsonl"
 
 
 def _canal_decir(canal, texto, de):
     """Publica un mensaje en un canal especializado usando sincronizador_direccion."""
     if canal not in ("principal", "general", "audiovisual"):
         raise ValueError("canal no válido: %s" % canal)
+    raiz_env = (
+        pathlib.Path(os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT"))
+        if (os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT"))
+        else None
+    )
+    en_prod = (not director_chat.en_pruebas()) and director_chat._es_chat_real(director_chat._chat(raiz_env))
     reg = sincronizador_direccion.publicar_en_canal_especializado(
-        canal, texto, de=de
+        canal, texto, de=de, enviar_telegram=en_prod, espejar_hermes=en_prod, raiz=raiz_env
     )
     if reg.get("ok"):
         return "Publicado en %s: %s" % (canal, reg.get("id"))
-    return "Error al publicar en %s: %s" % (canal, reg.get("detelle"))
+    return "Error al publicar en %s: %s" % (canal, reg.get("detalle"))
 
 
 def _metagenesis_estado():
@@ -162,7 +169,7 @@ def _metagenesis_estado():
 
     # Candidatos elegibles
     try:
-        import scripts.puente.produccion_candidatos as pc
+        import produccion_candidatos as pc
 
         vetos = pc.cargar_vetos(
             pathlib.Path(_ruta_vetos())
@@ -185,7 +192,7 @@ def _metagenesis_estado():
     # Sesiones de motores (Claude, agy, Codex, Hermes) comprobadas en el momento
     sesiones = {"claude": 0, "agy": 0, "codex": 0, "hermes": 0}
     try:
-        from scripts.puente import director_presidente
+        import director_presidente
         if hasattr(director_presidente, "listar_sesiones"):
             total = len(director_presidente.listar_sesiones())
             # Distribuir aproximadamente o contar por tipo
@@ -230,14 +237,13 @@ def _metagenesis_estado():
 
     # Publicación reciente (último mensaje en canales)
     try:
-        from scripts.puente.sincronizador_direccion import _ultima_publicacion
-        ult_pub = _ultima_publicacion()
+        ult_pub = sincronizador_direccion._ultima_publicacion()
     except Exception:
         ult_pub = ""
 
     # Olas y tareas en curso con latido vivo
     try:
-        from scripts.puente.parte_diario_metagenesis import generar_estado_onda
+        from parte_diario_metagenesis import generar_estado_onda
         estado_onda = generar_estado_onda()
     except Exception:
         estado_onda = {}
@@ -256,7 +262,7 @@ def _metagenesis_estado():
 
 
 def _ruta_vetos_default():
-    import scripts.puente.produccion_candidatos as pc
+    import produccion_candidatos as pc
     return pc.RUTA_VETOS
 
 
@@ -311,9 +317,10 @@ def atender(peticion):
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
             texto = _llamar(nombre, params.get("arguments"))
-        except (ValueError, KeyError) as e:
+        except Exception as e:
+            msg = director_chat.tachar(str(e) or type(e).__name__)
             contenido = {
-                "content": [{"type": "text", "text": "Error: %s" % e}],
+                "content": [{"type": "text", "text": "Error: %s" % msg}],
                 "isError": True,
             }
             return {"jsonrpc": "2.0", "id": ident, "result": contenido}
@@ -323,7 +330,10 @@ def atender(peticion):
 
 
 def _bucle():
-    for linea in sys.stdin:
+    while True:
+        linea = sys.stdin.readline()
+        if not linea:
+            break
         linea = linea.strip()
         if not linea:
             continue
@@ -331,6 +341,8 @@ def _bucle():
             respuesta = atender(json.loads(linea))
         except json.JSONDecodeError:
             respuesta = _error(None, -32700, "JSON no válido")
+        except Exception as err:
+            respuesta = _error(None, -32603, director_chat.tachar(str(err) or type(err).__name__))
         if respuesta is not None:
             sys.stdout.write(json.dumps(respuesta, ensure_ascii=False) + "\n")
             sys.stdout.flush()

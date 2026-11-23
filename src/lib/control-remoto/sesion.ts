@@ -267,6 +267,21 @@ export class PuertaControl {
         this.d.alCambiar?.();
     }
 
+    /**
+     * CTL1124B · «Terminar sesión» de UN controlador concreto sin cortar otras sesiones activas ni quitar el permiso.
+     */
+    terminarToken(token: string, motivo = MOTIVO_TERMINADO): boolean {
+        const s = this.sesiones.get(token);
+        if (!s) return false;
+        this.sesiones.delete(token);
+        if (this.sesiones.size === 0) this.caducadaPor = null;
+        this.terminadoPor.add(s.de);
+        void this.d.nativo.parar(motivo, token).catch(() => undefined);
+        this.d.anotar(`orden terminar de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${motivo}`);
+        this.d.alCambiar?.();
+        return true;
+    }
+
     /** CTL1118G · «Quitar permiso»: cierra la sesión Y apaga el permiso en este aparato (un toque). */
     quitarPermiso(): void {
         this.revocar("revocado");

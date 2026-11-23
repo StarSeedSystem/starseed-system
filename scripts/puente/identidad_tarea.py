@@ -7,6 +7,8 @@ Reconoce únicamente el asunto real del orquestador:
 No acepta menciones libres en commits de reparación ni en el cuerpo del mensaje.
 """
 
+from __future__ import annotations
+
 import re
 
 _RE_OLA = re.compile(r"^Ola\s+(\d+)\s*$")

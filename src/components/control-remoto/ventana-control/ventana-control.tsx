@@ -509,11 +509,11 @@ function Controles({
         setTexto("");
     };
     const hay = teclas.length > 0 || c.volumen || c.brillo || c.texto;
-    if (!hay) return <p className="px-3 py-2 text-[12px] text-white/55">Este aparato no ofrece mandos.</p>;
     const verMensaje = modoTeclado === "mensaje" || modoTeclado === "ambos";
     const verTiempoReal = modoTeclado === "tiempo-real" || modoTeclado === "ambos";
     return (
         <div data-testid="ventana-control-mandos" className="space-y-2 px-3 py-2">
+            {!hay && <p className="text-[12px] text-white/55">Este aparato no ofrece mandos.</p>}
             {teclas.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Botones del aparato">
                     {teclas.map((t) => (
@@ -626,6 +626,17 @@ function Controles({
                     )}
                 </div>
             )}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2">
+                <span className="text-[11px] text-white/55">Solo corta esta sesión; el permiso entre neuronas sigue activo.</span>
+                <button
+                    type="button"
+                    onClick={p.alCerrar}
+                    data-testid="ventana-control-mandos-terminar"
+                    className="min-h-9 cursor-pointer rounded-lg border border-[#DC143C]/60 bg-[#DC143C]/20 px-3 text-[12px] font-medium text-rose-100 transition-colors hover:bg-[#DC143C]/35"
+                >
+                    Terminar sesión de control
+                </button>
+            </div>
         </div>
     );
 }
@@ -805,6 +816,19 @@ export function VentanaControl(props: PropsVentanaControl) {
         </button>
     );
 
+    const botonTerminar = (
+        <button
+            type="button"
+            onClick={props.alCerrar}
+            data-testid="ventana-control-terminar"
+            aria-label={`Terminar control de ${nombre}`}
+            title="Terminar esta sesión (el permiso entre neuronas sigue activo)"
+            className="min-h-8 shrink-0 cursor-pointer rounded-full border border-[#DC143C]/60 bg-[#DC143C]/20 px-2.5 text-[11px] font-medium text-rose-100 transition-colors hover:bg-[#DC143C]/35"
+        >
+            Terminar control
+        </button>
+    );
+
     const botonCerrar = (
         <button type="button" onClick={props.alCerrar} aria-label={`Cerrar el control de ${nombre}`} className="min-h-10 min-w-10 cursor-pointer rounded-lg text-white/80 hover:bg-white/10">
             ✕
@@ -867,6 +891,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                     {chip}
                     {medidor}
                     {nivel === "ver" && mostrarSelector && selector}
+                    {botonTerminar}
                     {botonPantallaCompleta}
                     {botonCerrar}
                 </header>
@@ -904,6 +929,15 @@ export function VentanaControl(props: PropsVentanaControl) {
                 </button>
                 {chip}
                 {props.alCambiarFuente && selector}
+                <button
+                    type="button"
+                    onClick={props.alCerrar}
+                    data-testid="ventana-control-pastilla-terminar"
+                    aria-label={`Terminar control de ${nombre}`}
+                    className="min-h-8 shrink-0 cursor-pointer rounded-full border border-[#DC143C]/60 bg-[#DC143C]/20 px-2 text-[11px] font-medium text-rose-100 hover:bg-[#DC143C]/35"
+                >
+                    Terminar
+                </button>
                 {botonCerrar}
             </div>
         );
@@ -951,6 +985,7 @@ export function VentanaControl(props: PropsVentanaControl) {
                         Controles
                     </button>
                 )}
+                {botonTerminar}
                 {botonPantallaCompleta}
                 <button type="button" onClick={() => setMinimizada(true)} aria-label={`Reducir el control de ${nombre} a una pastilla`} className="min-h-10 min-w-10 cursor-pointer rounded-lg text-white/80 hover:bg-white/10">
                     ▁

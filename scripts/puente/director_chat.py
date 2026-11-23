@@ -161,6 +161,7 @@ def publicar(
     raiz=None,
     sintesis=False,
     eleccion=None,
+    solo_historial=False,
 ):
     """Publica un mensaje y deja copia en las bandejas que corresponda.
 
@@ -199,6 +200,8 @@ def publicar(
         mensaje["sintesis"] = True
     if eleccion:
         mensaje["eleccion"] = eleccion
+    if solo_historial:
+        mensaje["solo_historial"] = True
     entregas = []
     for destino in canales or []:
         if destino not in CANALES_BANDEJA:
@@ -447,10 +450,15 @@ def canal_de_director(de):
 
 
 def _formatear(registro):
-    try:
-        hora = datetime.fromisoformat(registro.get("t", "")).strftime("%H:%M")
-    except ValueError:
-        hora = "??:??"
+    crudo_t = registro.get("t", "")
+    if isinstance(crudo_t, (int, float)):
+        ep = float(crudo_t)
+        hora = datetime.fromtimestamp(ep / 1000.0 if ep > 1e11 else ep).strftime("%H:%M")
+    else:
+        try:
+            hora = datetime.fromisoformat(str(crudo_t)).strftime("%H:%M")
+        except (ValueError, TypeError):
+            hora = "??:??"
     modelo = " (%s)" % registro["modelo"] if registro.get("modelo") else ""
     if registro.get("tipo") == "entrega":
         return "%s entrega %s → %s: %s" % (

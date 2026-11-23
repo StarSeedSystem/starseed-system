@@ -13,6 +13,8 @@ import { usarColoresControl } from "./usar-colores-control";
 import { MedioControl } from "./ventana-control/medio"; // CTL1117B
 import { AvisoPeticionControl } from "./aviso-peticion-control"; // CTL1117J
 import { usarPantallaRemota, type PantallaRemota } from "@/lib/control-remoto/usar-pantalla-remota";
+import { registroGlobal } from "@/lib/control-remoto/registro-sesiones";
+import { actualizarVentanasActivas } from "@/lib/control-remoto/ventanas-activas";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
 import { fuentePedidaValida, type FuentePedida, FUENTE_DEFECTO } from "@/lib/control-remoto/fuente-pantalla";
 
@@ -23,7 +25,10 @@ interface Abierta {
 
 let abiertas: Abierta[] = [];
 const oyentes = new Set<() => void>();
-const avisar = () => oyentes.forEach((f) => f());
+const avisar = () => {
+    actualizarVentanasActivas(abiertas);
+    oyentes.forEach((f) => f());
+};
 const RE_ID = /^[A-Za-z0-9-]{1,100}$/;
 const CLAVE_FUENTE = "starseed.control.fuente.v1";
 
@@ -73,6 +78,33 @@ export function cerrarVentanaControl(neurona: string): void {
 
 export function ventanasAbiertas(): readonly Abierta[] {
     return abiertas;
+}
+
+export function useVentanasAbiertas(): readonly Abierta[] {
+    return useAbiertas();
+}
+
+/** CTL1124B · Termina el control saliente hacia `neurona` (ventana + sesión remota) sin revocar ningún permiso. */
+export async function terminarControlDe(neurona: string): Promise<void> {
+    const objetivo = neurona.trim();
+    if (!objetivo) return;
+    for (const a of [...abiertas]) {
+        if (a.neurona.toLowerCase() === objetivo.toLowerCase()) cerrarVentanaControl(a.neurona);
+    }
+    try {
+        const c = await import("@/lib/control-remoto/canal");
+        await c.terminarControlHacia(objetivo);
+    } catch {
+        /* el cierre local ya quedó aplicado */
+    }
+}
+
+/** CTL1124B · Termina todas las sesiones salientes activas sin revocar permisos. */
+export async function terminarTodosControles(): Promise<void> {
+    const ids = new Map<string, string>();
+    for (const a of abiertas) ids.set(a.neurona.toLowerCase(), a.neurona);
+    for (const s of registroGlobal.sesionesSalientes()) ids.set(s.para.toLowerCase(), s.para);
+    await Promise.allSettled([...ids.values()].map((id) => terminarControlDe(id)));
 }
 
 /** La dirección de la misma ventana en una pestaña propia: parámetro de consulta, no segmento (la interfaz estática de las apps nativas no tiene rutas dinámicas). */

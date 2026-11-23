@@ -13,9 +13,11 @@
  * (Rust/Kotlin) pendiente. Nada aquí pide ni concede permisos del sistema.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
+import { registroGlobal, type SesionSaliente } from "@/lib/control-remoto/registro-sesiones";
+import { leerVentanasActivas, suscribirVentanasActivas, type VentanaControlViva } from "@/lib/control-remoto/ventanas-activas";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
 import type { MetricasCalidad } from "@/lib/control-remoto/calidad";
 import { ENLACES_CONTROL, textoEnlace } from "@/lib/nativa/permisos-enlaces";
@@ -36,9 +38,9 @@ import {
 } from "@/lib/control-remoto/nativo";
 import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
 import { AJUSTES_CONTROL_DEFECTO, leerAjustesControl, type AjustesControl } from "@/lib/control-remoto/ajustes-aparato";
-import { quienControla } from "@/lib/control-remoto/quien-controla";
+import { quienControla, type QuienControla } from "@/lib/control-remoto/quien-controla";
 import { origenGlobal } from "@/lib/control-remoto/pantalla-origen";
-import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL } from "./ajustes-indicador";
+import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL, type SesionIndicador } from "./ajustes-indicador";
 import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
 import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
@@ -46,6 +48,11 @@ import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
 const abrirPaginaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirPaginaControl(neurona, nombre));
+const terminarControlDe = (neurona: string) => import("./anfitrion-control").then((m) => m.terminarControlDe(neurona));
+const terminarTodosControles = () => import("./anfitrion-control").then((m) => m.terminarTodosControles());
+const VACIO_SALIENTES: readonly SesionSaliente[] = [];
+const VACIO_VENTANAS: readonly VentanaControlViva[] = [];
+const suscribirSalientesVacio = () => () => undefined;
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -463,11 +470,22 @@ export function ControlEntreNeuronasPanel() {
     const [aceptadosNat, setAceptadosNat] = useState<{ huella: string; nombre: string; codigo: string }[] | null>(null);
     const [uso, setUso] = useState({ pantalla: false, entrada: false });
     const [sesionAct, setSesionAct] = useState<SesionActiva | null>(null); // CTL1117I: quién controla ahora (aunque el punto esté oculto)
+    const [sesionesEntrantes, setSesionesEntrantes] = useState<SesionActiva[]>([]);
     const [esperando, setEsperando] = useState<string | null>(null);
     const [alcance, setAlcance] = useState<"total" | "protegido">("total"); // CTL1117J · S2
     const [elegidas, setElegidas] = useState<Record<string, OpcionLimite>>({}); // CTL1119A
     const [horas, setHoras] = useState<Record<string, string>>({}); // CTL1119A
     const [miCuenta, setMiCuenta] = useState<string | null>(null); // CTL1119A
+    const salientesReg = useSyncExternalStore(
+        typeof registroGlobal?.suscribir === "function" ? (cb) => registroGlobal.suscribir(cb) : suscribirSalientesVacio,
+        typeof registroGlobal?.sesionesSalientes === "function" ? () => registroGlobal.sesionesSalientes() : () => VACIO_SALIENTES,
+        () => VACIO_SALIENTES,
+    );
+    const ventanasVivas = useSyncExternalStore(
+        suscribirVentanasActivas,
+        leerVentanasActivas,
+        () => VACIO_VENTANAS,
+    );
     useEffect(() => {
         let vivo = true;
         const leer = () => void leerAjustesControl().then((a) => vivo && setAlcance(a.alcance));
@@ -486,8 +504,17 @@ export function ControlEntreNeuronasPanel() {
         void (async () => {
             const c = await import("@/lib/control-remoto/canal");
             const o = await import("@/lib/control-remoto/pantalla-origen");
-            const ses = c.puertaControl()?.sesionActiva() ?? null;
-            setUso({ pantalla: o.origenGlobal().enMarcha(), entrada: ses?.nivel === "controlar" });
+            const puerta = c.puertaControl() as (ReturnType<typeof c.puertaControl> & { sesionesActivas?: () => SesionActiva[] }) | null;
+            const listaSesiones =
+                typeof puerta?.sesionesActivas === "function"
+                    ? puerta.sesionesActivas()
+                    : (() => {
+                          const s = puerta?.sesionActiva();
+                          return s ? [s] : [];
+                      })();
+            const ses = listaSesiones[0] ?? null;
+            setUso({ pantalla: o.origenGlobal().enMarcha(), entrada: listaSesiones.some((s) => s.nivel === "controlar") });
+            setSesionesEntrantes(listaSesiones);
             setSesionAct(ses);
         })().catch(() => undefined);
     }, []);
@@ -727,6 +754,70 @@ export function ControlEntreNeuronasPanel() {
         b.apagarBanco("apagar");
     }, []);
 
+    const terminarSesionEntrante = useCallback(
+        async (token?: string) => {
+            const c = await import("@/lib/control-remoto/canal");
+            const puerta = c.puertaControl() as (ReturnType<typeof c.puertaControl> & { terminarToken?: (t: string) => boolean }) | null;
+            const cortoUno = token && typeof puerta?.terminarToken === "function" ? puerta.terminarToken(token) : false;
+            if (!cortoUno) puerta?.terminar();
+            setAviso(TEXTO_TERMINADO);
+            leerPantallaEntrada();
+        },
+        [leerPantallaEntrada],
+    );
+
+    const quitarPermisoEntrante = useCallback(async () => {
+        const c = await import("@/lib/control-remoto/canal");
+        c.puertaControl()?.quitarPermiso();
+        setSesionesEntrantes([]);
+        setSesionAct(null);
+        setAviso(TEXTO_PERMISO_QUITADO);
+        leerPantallaEntrada();
+    }, [leerPantallaEntrada]);
+
+    const terminarSaliente = useCallback(
+        (id: string) => {
+            void terminarControlDe(id)
+                .then(() => setAviso("Sesión de control terminada (el permiso sigue activo)."))
+                .finally(leerPantallaEntrada);
+        },
+        [leerPantallaEntrada],
+    );
+
+    const terminarTodasSalientes = useCallback(() => {
+        void terminarTodosControles()
+            .then(() => setAviso("Se terminaron todas las sesiones salientes (el permiso sigue activo)."))
+            .finally(leerPantallaEntrada);
+    }, [leerPantallaEntrada]);
+
+    const salientesActivas = useMemo(() => {
+        const porId = new Map<string, { neurona: string; nombre: string; ventanaAbierta: boolean; token: string | null }>();
+        for (const v of ventanasVivas) {
+            porId.set(v.neurona.toLowerCase(), { neurona: v.neurona, nombre: v.nombre, ventanaAbierta: true, token: null });
+        }
+        for (const s of salientesReg) {
+            const k = s.para.toLowerCase();
+            const prev = porId.get(k);
+            porId.set(k, {
+                neurona: prev?.neurona ?? s.para,
+                nombre: prev?.nombre ?? nombreDe(s.para),
+                ventanaAbierta: prev?.ventanaAbierta ?? false,
+                token: s.token,
+            });
+        }
+        return [...porId.values()];
+    }, [ventanasVivas, salientesReg, nombreDe]);
+
+    const sesionesIndicador = useMemo((): SesionIndicador[] => {
+        if (!permiso) return [];
+        const salida: SesionIndicador[] = [];
+        for (const s of sesionesEntrantes) {
+            const q = quienControla(s, permiso);
+            if (q) salida.push({ ...q, token: s.token });
+        }
+        return salida;
+    }, [sesionesEntrantes, permiso]);
+
     // CTL1119A: todas las decisiones del límite se calculan aquí, antes de pintar; el botón solo aplica lo elegido.
     const limiteDePendiente = (x: PermisoControl["pendientes"][number]) => {
         const ajena = !miCuenta || x.cuenta !== miCuenta;
@@ -738,6 +829,7 @@ export function ControlEntreNeuronasPanel() {
     };
 
     if (!permiso) return null;
+    const haySesionesActivas = sesionesEntrantes.length > 0 || salientesActivas.length > 0;
     return (
         <div id="control-entre-neuronas" className="mb-6 space-y-3 rounded-xl border border-[#DC143C]/30 bg-[#DC143C]/[0.04] p-4" data-testid="control-entre-neuronas">
             <div className="flex flex-wrap items-center gap-3">
@@ -751,6 +843,101 @@ export function ControlEntreNeuronasPanel() {
                     {permiso.encendido ? "Encendido en este aparato" : "Apagado en este aparato"}
                 </button>
             </div>
+            {haySesionesActivas && (
+                <section
+                    data-testid="sesiones-activas-ahora"
+                    aria-label="Sesiones de control activas ahora"
+                    className="space-y-2 rounded-lg border border-[#DC143C]/50 bg-[#DC143C]/10 p-3 text-[12px] text-white"
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-rose-100">Sesiones activas ahora</p>
+                        <span className="text-[11px] text-white/70">Terminar una sesión solo desconecta; el permiso entre neuronas sigue activo.</span>
+                    </div>
+                    {sesionesEntrantes.length > 0 && (
+                        <div className="space-y-1.5">
+                            <p className="text-[11px] font-medium text-white/80">Controlando ESTE aparato:</p>
+                            {sesionesEntrantes.map((s) => {
+                                const q = quienControla(s, permiso);
+                                const nombreCtl = q?.nombre ?? s.nombre;
+                                const colorCtl = q?.color ?? colorDe(s.de);
+                                return (
+                                    <div key={s.token} className="flex flex-wrap items-center gap-2 rounded-md border border-white/15 bg-black/30 px-2.5 py-1.5">
+                                        <PuntoColor color={colorCtl} />
+                                        <span className="min-w-0 flex-1 text-white/90">
+                                            {nombreCtl} · nivel {s.nivel} · desde {hhmm(s.inicio)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            data-testid={`terminar-sesion-entrante-${s.token}`}
+                                            onClick={() => void terminarSesionEntrante(s.token)}
+                                            className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030]"
+                                        >
+                                            Terminar sesión
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                {sesionesEntrantes.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => void terminarSesionEntrante()}
+                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C]"
+                                    >
+                                        Terminar todas (entrantes)
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => void quitarPermisoEntrante()}
+                                    className="min-h-8 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 hover:bg-white/20"
+                                >
+                                    Quitar permiso
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {salientesActivas.length > 0 && (
+                        <div className="space-y-1.5">
+                            <p className="text-[11px] font-medium text-white/80">Controlando desde aquí:</p>
+                            {salientesActivas.map((item) => (
+                                <div key={item.neurona} className="flex flex-wrap items-center gap-2 rounded-md border border-white/15 bg-black/30 px-2.5 py-1.5">
+                                    <PuntoColor color={colorPublicoDeNeurona(item.neurona)} />
+                                    <span className="min-w-0 flex-1 text-white/90">
+                                        {item.nombre} · Controlando desde aquí
+                                    </span>
+                                    {!item.ventanaAbierta && (
+                                        <button
+                                            type="button"
+                                            onClick={() => abrirVentanaControl(item.neurona, item.nombre)}
+                                            className="min-h-8 cursor-pointer rounded-md bg-white/10 px-2.5 py-1 text-[11px] text-white/90 hover:bg-white/20"
+                                        >
+                                            Abrir ventana
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        data-testid={`terminar-sesion-saliente-${item.neurona}`}
+                                        onClick={() => terminarSaliente(item.neurona)}
+                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030]"
+                                    >
+                                        Terminar control
+                                    </button>
+                                </div>
+                            ))}
+                            {salientesActivas.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={terminarTodasSalientes}
+                                    className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C]"
+                                >
+                                    Terminar todos los controles
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </section>
+            )}
             <p className="text-[12px] text-white/55">
                 Deja que otra neurona de tu cuenta, que tú aceptes aquí, opere este aparato: llamar, contestar, colgar, micrófono y cámara, abrir una sección y leer su estado; con el nivel «controlar» y la pantalla,
                 {alcance === "total" ? " también ver la pantalla y operar el aparato entero, apps, ajustes y permisos incluidos (Control total)." : " también ver la pantalla y tocarla, salvo las ventanas protegidas: permisos, instalador y ajustes (Protegido)."} Mientras alguien la opera tendrás un aviso a la vista y, si quieres, un punto de su color en la esquina; desde cualquiera de los dos puedes terminar la sesión (el permiso sigue) o quitar el permiso. Cada orden queda en el registro de llamadas.
@@ -785,7 +972,14 @@ export function ControlEntreNeuronasPanel() {
             </label>
             <FaltasIndicador estado={indicador} onPedir={(q) => void pedirFalta(q)} />
             <PantallaYEntradaEsteAparato caps={capsNat} aceptados={aceptadosNat} pantallaEnUso={uso.pantalla} entradaEnUso={uso.entrada} onAjuste={(c) => void pedirAjuste(c)} />
-            <AjustesIndicadorControl disponible={capsNat !== null} quien={quienControla(sesionAct, permiso)} onTerminar={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.terminar(); setSesionAct(null); setAviso(TEXTO_TERMINADO); })} onQuitarPermiso={() => void import("@/lib/control-remoto/canal").then((c) => { c.puertaControl()?.quitarPermiso(); setSesionAct(null); setAviso(TEXTO_PERMISO_QUITADO); })} />
+            <AjustesIndicadorControl
+                disponible={capsNat !== null}
+                quien={quienControla(sesionAct, permiso)}
+                sesiones={sesionesIndicador}
+                onTerminar={() => void terminarSesionEntrante()}
+                onTerminarUna={(token) => void terminarSesionEntrante(token)}
+                onQuitarPermiso={() => void quitarPermisoEntrante()}
+            />
             <p className="text-[12px] text-white/50">Código de este aparato: {miCodigo ?? "sin clave propia (se crea al pedir control)"}</p>
             {permiso.pendientes.map((x) => {
                 const { ajena, topeMin, permitidas, elegida } = limiteDePendiente(x);
@@ -836,35 +1030,65 @@ export function ControlEntreNeuronasPanel() {
                     </div>
                 );
             })}
-            {permiso.controladores.map((x) => (
-                <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
-                    <PuntoColor color={colorDe(x.neurona, x.color)} />
-                    <span className="flex-1">
-                        {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
-                    </span>
-                    <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
-                        Quitar
-                    </button>
-                </div>
-            ))}
-            {informe?.sesion?.estado === "aceptada" && informe.objetivo && (
-                <div className="flex flex-wrap items-center gap-2" data-testid="este-aparato-puede">
-                    <p className="min-w-0 flex-1 text-[12px] text-emerald-300/80">{quienOpera.esteAparatoPuede(nombreDe(informe.objetivo))}</p>
-                    {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
-                    <button
-                        onClick={() => informe.objetivo && abrirVentanaControl(informe.objetivo, nombreDe(informe.objetivo))}
-                        className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
-                    >
-                        Abrir ventana de control
-                    </button>
-                    <button
-                        onClick={() => informe.objetivo && abrirPaginaControl(informe.objetivo, nombreDe(informe.objetivo))}
-                        className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
-                    >
-                        Abrir en una pestaña
-                    </button>
-                </div>
-            )}
+            {permiso.controladores.map((x) => {
+                const activaCtl = sesionesEntrantes.find((s) => s.de === x.huella) ?? null;
+                return (
+                    <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2 text-[12px] text-white/70">
+                        <PuntoColor color={colorDe(x.neurona, x.color)} />
+                        <span className="flex-1">
+                            {quienOpera.puedeOperarEste(x.nombre)} · código {codigos[x.huella] ?? "…"} · desde {x.desde.slice(0, 10)}
+                        </span>
+                        {activaCtl && (
+                            <>
+                                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-300">En vivo</span>
+                                <button
+                                    type="button"
+                                    data-testid={`fila-terminar-sesion-${x.huella.slice(0, 8)}`}
+                                    onClick={() => void terminarSesionEntrante(activaCtl.token)}
+                                    className="cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 font-medium text-white hover:bg-[#b01030]"
+                                >
+                                    Terminar sesión
+                                </button>
+                            </>
+                        )}
+                        <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                            Quitar
+                        </button>
+                    </div>
+                );
+            })}
+            {informe?.sesion?.estado === "aceptada" && informe.objetivo && (() => {
+                const objetivoId = informe.objetivo;
+                const salienteActiva = salientesActivas.some((a) => a.neurona.toLowerCase() === objetivoId.toLowerCase());
+                return (
+                    <div className="flex flex-wrap items-center gap-2" data-testid="este-aparato-puede">
+                        <p className="min-w-0 flex-1 text-[12px] text-emerald-300/80">{quienOpera.esteAparatoPuede(nombreDe(objetivoId))}</p>
+                        {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
+                        <button
+                            onClick={() => abrirVentanaControl(objetivoId, nombreDe(objetivoId))}
+                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
+                        >
+                            Abrir ventana de control
+                        </button>
+                        <button
+                            onClick={() => abrirPaginaControl(objetivoId, nombreDe(objetivoId))}
+                            className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
+                        >
+                            Abrir en una pestaña
+                        </button>
+                        {salienteActiva && (
+                            <button
+                                type="button"
+                                data-testid="panel-terminar-control-saliente"
+                                onClick={() => terminarSaliente(objetivoId)}
+                                className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 text-[12px] font-medium text-white hover:bg-[#b01030]"
+                            >
+                                Terminar control
+                            </button>
+                        )}
+                    </div>
+                );
+            })()}
             {esperando && (
                 <p className="text-[12px] text-sky-200" data-testid="esperando-aceptacion">
                     Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, la ventana de control se abrirá sola.

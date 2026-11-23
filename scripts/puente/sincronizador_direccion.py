@@ -420,6 +420,16 @@ def _norm_dedupe(texto: str) -> str:
     return " ".join(str(texto or "").split()).strip()[:160].lower()
 
 
+def _quitar_prefijo_etiqueta(texto: str) -> str:
+    """Quita un prefijo `[Medio] ` para comparar contenido real al deduplicar."""
+    t = str(texto or "").lstrip()
+    if t.startswith("["):
+        cierre = t.find("]")
+        if 1 < cierre <= 42:
+            return t[cierre + 1:].lstrip()
+    return t
+
+
 def _cortar_trozos(texto: str, tope: int = 3800) -> List[str]:
     texto = str(texto or "").strip()
     if not texto:
@@ -777,6 +787,37 @@ def _archivo_canal_jsonl(canal_clave: str, raiz: Optional[Path] = None) -> Path:
     return director_chat._directorio(raiz) / nombre
 
 
+def _ultima_publicacion(raiz: Optional[Path] = None) -> str:
+    """Resumen legible de la última publicación real en canales de dirección."""
+    for clave in CANALES_ESPECIALIZADOS:
+        ruta = _archivo_canal_jsonl(clave, raiz=raiz)
+        regs = [
+            r for r in _leer_jsonl_canal(ruta, limite=10)
+            if isinstance(r, dict) and r.get("tipo") != "entrega" and r.get("texto")
+        ]
+        if regs:
+            ult = regs[-1]
+            return f"{clave}: {str(ult.get('de') or 'sistema')}: {str(ult.get('texto') or '')[:120]}"
+    return ""
+
+
+def _es_fila_espejada_hermes(platform_message_id: Any, contenido: str) -> bool:
+    pmid = str(platform_message_id or "").strip()
+    if pmid.startswith("mg-sync:"):
+        return True
+    norm = " ".join(str(contenido or "").split()).strip().lower()
+    return norm.startswith((
+        "[antigravity",
+        "[director presidente",
+        "[claude",
+        "[codex",
+        "[chatgpt",
+        "[metagenesis",
+        "[genesis",
+        "[telegram",
+    ))
+
+
 def _leer_jsonl_canal(ruta: Path, limite: int = 80) -> List[Dict[str, Any]]:
     if not ruta.exists():
         return []
@@ -873,8 +914,9 @@ def sincronizar_desde_hermes(
             if "tool_calls" in cols_msg
             else ""
         )
+        sel_pmid = ", m.platform_message_id" if "platform_message_id" in cols_msg else ""
         filas = con.execute(
-            f"SELECT m.id, m.session_id, m.role, m.content, s.source, s.model "
+            f"SELECT m.id, m.session_id, m.role, m.content{sel_pmid}, s.source, s.model "
             f"FROM messages m JOIN sessions s ON m.session_id = s.id "
             f"WHERE m.id > ? AND {where_sesiones} AND m.role IN ('user', 'assistant') "
             f"{filtro_tools}"
@@ -891,7 +933,7 @@ def sincronizar_desde_hermes(
 
     recientes = director_chat.leer(limite=50, raiz=raiz)
     huellas_recientes = {
-        (r.get("rol"), _norm_dedupe(r.get("texto") or ""))
+        (r.get("rol"), _norm_dedupe(_quitar_prefijo_etiqueta(r.get("texto") or "")))
         for r in recientes
         if isinstance(r, dict) and r.get("rol") in ("alex", "director")
     }
@@ -900,6 +942,9 @@ def sincronizar_desde_hermes(
     for f in filas:
         estado["hermes_sync_ultimo_id"] = max(int(estado.get("hermes_sync_ultimo_id") or 0), int(f["id"]))
         contenido = str(f["content"] or "").strip()
+        pmid = f["platform_message_id"] if "platform_message_id" in f.keys() else ""
+        if _es_fila_espejada_hermes(pmid, contenido):
+            continue
         if not contenido or es_eco_interno(contenido):
             continue
         es_user = f["role"] == "user"
@@ -990,8 +1035,9 @@ def sincronizar_canal_secundario_hermes(
             if "tool_calls" in cols_msg
             else ""
         )
+        sel_pmid = ", m.platform_message_id" if "platform_message_id" in cols_msg else ""
         filas = con.execute(
-            f"SELECT m.id, m.session_id, m.role, m.content, s.source, s.model "
+            f"SELECT m.id, m.session_id, m.role, m.content{sel_pmid}, s.source, s.model "
             f"FROM messages m JOIN sessions s ON m.session_id = s.id "
             f"WHERE m.id > ? AND {where_sesiones} AND m.role IN ('user', 'assistant') "
             f"{filtro_tools}"
@@ -1009,13 +1055,16 @@ def sincronizar_canal_secundario_hermes(
     ruta_jsonl = _archivo_canal_jsonl(canal_clave, raiz=raiz)
     recientes = _leer_jsonl_canal(ruta_jsonl, limite=60)
     huellas = {
-        (r.get("rol"), _norm_dedupe(r.get("texto") or ""))
+        (r.get("rol"), _norm_dedupe(_quitar_prefijo_etiqueta(r.get("texto") or "")))
         for r in recientes
     }
     importados = 0
     for f in filas:
         estado[cursor_key] = max(int(estado.get(cursor_key) or 0), int(f["id"]))
         contenido = director_chat.tachar(str(f["content"] or "").strip())
+        pmid = f["platform_message_id"] if "platform_message_id" in f.keys() else ""
+        if _es_fila_espejada_hermes(pmid, contenido):
+            continue
         if not contenido or es_eco_interno(contenido):
             continue
         es_user = f["role"] == "user"
@@ -1050,6 +1099,437 @@ def sincronizar_canal_secundario_hermes(
     return importados
 
 
+def _epoch_segundos_de_reg(reg: Dict[str, Any]) -> float:
+    try:
+        ep = float(director_chat._epoch_de(reg) or 0.0)
+    except Exception:  # noqa: BLE001
+        ep = 0.0
+    if ep > 1e11:
+        ep /= 1000.0
+    if ep > 0:
+        return ep
+    crudo_t = reg.get("t")
+    if isinstance(crudo_t, (int, float)) and crudo_t > 0:
+        return float(crudo_t) / 1000.0 if crudo_t > 1e11 else float(crudo_t)
+    return time.time()
+
+
+def _elegible_para_hermes(canal_clave: str, reg: Any) -> bool:
+    if not isinstance(reg, dict) or reg.get("tipo") == "entrega":
+        return False
+    ident = str(reg.get("id") or "").strip()
+    texto = str(reg.get("texto") or "").strip()
+    if not ident or not texto or es_eco_interno(texto):
+        return False
+    canal = str(reg.get("canal") or "").strip().lower()
+    if canal == "hermes" or ident.startswith(("md-h", "gen-h", "aud-h")):
+        return False
+    if canal_clave in ("general", "audiovisual"):
+        return True
+    tipo = str(reg.get("tipo") or "").strip().lower()
+    de = str(reg.get("de") or "").strip().lower()
+    if tipo in ("mensaje", "respuesta"):
+        return True
+    if canal in (
+        "antigravity",
+        "telegram",
+        "director-presidente",
+        "metagenesis",
+        "claude-cowork",
+        "claude-mac",
+        "codex",
+        "chatgpt",
+        "astraura",
+        "genesis-web",
+        "ide",
+        "terminal",
+    ):
+        return True
+    return de in (
+        "alex",
+        "antigravity",
+        "director-presidente",
+        "presidente",
+        "claude-cowork",
+        "claude-mac",
+        "codex",
+        "chatgpt",
+        "telegram",
+    )
+
+
+def _prefijo_origen_hermes(reg: Dict[str, Any], texto_limpio: str) -> str:
+    if texto_limpio.lstrip().startswith("["):
+        return ""
+    de = str(reg.get("de") or "").strip().lower()
+    canal = str(reg.get("canal") or "").strip().lower()
+    rol = str(reg.get("rol") or "").strip().lower()
+    if rol == "alex" or de == "alex":
+        if canal in _ETIQUETAS_CANAL:
+            return f"[{_ETIQUETAS_CANAL[canal]} · Alex] "
+        if canal == "telegram":
+            return "[Telegram · Alex] "
+        return "[MetaGenesis · Alex] "
+    if de == "telegram" or canal == "telegram":
+        return "[Telegram] "
+    etiqueta = _ETIQUETAS_CANAL.get(de) or _ETIQUETAS_CANAL.get(canal) or str(reg.get("de") or "MetaGenesis")
+    return f"[{etiqueta}] "
+
+
+def espejar_hacia_hermes(
+    canal_clave: str,
+    registros: Iterable[Dict[str, Any]],
+    estado: Dict[str, Any],
+    cfg: Optional[Dict[str, Any]] = None,
+    db_path: Optional[str] = None,
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
+    max_inicial: int = 25,
+) -> int:
+    """Espeja mensajes completos de `principal`, `general` o `audiovisual` hacia `~/.hermes/state.db`."""
+    if canal_clave not in CANALES_ESPECIALIZADOS:
+        return 0
+    sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
+    if not sync_cfg.get("hermes", True):
+        return 0
+    if db_path is None and (director_chat.en_pruebas() or raiz is not None):
+        return 0
+
+    mapa = canales_cfg if canales_cfg is not None else cargar_canales_direccion()
+    sid = str((mapa.get(canal_clave) or {}).get("hermes_sesion") or "").strip()
+    if not sid:
+        return 0
+    ruta_db = Path(os.path.expanduser(db_path or DB_HERMES_DEFECTO))
+    if not ruta_db.exists():
+        return 0
+
+    elegibles = [r for r in registros if _elegible_para_hermes(canal_clave, r)]
+    if not elegibles:
+        return 0
+
+    k_vistos = f"hermes_espejo_{canal_clave}_vistos"
+    k_epoch = f"hermes_espejo_{canal_clave}_ultimo_epoch"
+    es_inicial = k_vistos not in estado
+
+    vistos_ordenados: List[str] = []
+    vistos_set = set()
+    for x in estado.get(k_vistos) or []:
+        sx = str(x or "")
+        if sx and sx not in vistos_set:
+            vistos_set.add(sx)
+            vistos_ordenados.append(sx)
+
+    if es_inicial and max_inicial > 0 and len(elegibles) > max_inicial:
+        for antiguo in elegibles[:-max_inicial]:
+            aid = str(antiguo.get("id") or "")
+            if aid and aid not in vistos_set:
+                vistos_set.add(aid)
+                vistos_ordenados.append(aid)
+        candidatos = elegibles[-max_inicial:]
+    else:
+        candidatos = [r for r in elegibles if str(r.get("id") or "") not in vistos_set]
+
+    if not candidatos:
+        estado[k_vistos] = vistos_ordenados[-500:]
+        return 0
+
+    try:
+        con = sqlite3.connect(str(ruta_db), timeout=5.0)
+    except sqlite3.Error:
+        return 0
+
+    escritos = 0
+    max_ts = float(estado.get(k_epoch) or 0.0)
+    try:
+        con.execute("PRAGMA busy_timeout = 5000")
+        con.execute("BEGIN IMMEDIATE")
+        existe = con.execute("SELECT 1 FROM sessions WHERE id = ?", (sid,)).fetchone()
+        if not existe:
+            con.rollback()
+            return 0
+
+        cols_msg = {str(r[1]) for r in con.execute("PRAGMA table_info(messages)").fetchall()}
+        cols_ses = {str(r[1]) for r in con.execute("PRAGMA table_info(sessions)").fetchall()}
+
+        pmids_db = set()
+        if "platform_message_id" in cols_msg:
+            for row in con.execute(
+                "SELECT platform_message_id FROM messages WHERE session_id = ? AND platform_message_id LIKE 'mg-sync:%'",
+                (sid,),
+            ).fetchall():
+                if row[0]:
+                    pmids_db.add(str(row[0]))
+
+        huellas_db = set()
+        for r_role, r_content in con.execute(
+            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 40",
+            (sid,),
+        ).fetchall():
+            huellas_db.add((str(r_role or ""), _norm_dedupe(_quitar_prefijo_etiqueta(str(r_content or "")))))
+
+        for reg in candidatos:
+            ident = str(reg.get("id") or "")
+            if not ident or ident in vistos_set:
+                continue
+            pmid = f"mg-sync:{canal_clave}:{ident}"
+            if pmid in pmids_db:
+                vistos_set.add(ident)
+                vistos_ordenados.append(ident)
+                continue
+
+            limpio = director_chat.tachar(str(reg.get("texto") or "").strip())
+            if not limpio:
+                vistos_set.add(ident)
+                vistos_ordenados.append(ident)
+                continue
+
+            es_user = (
+                str(reg.get("rol") or "").lower() == "alex"
+                or str(reg.get("de") or "").lower() == "alex"
+                or (
+                    str(reg.get("tipo") or "").lower() == "mensaje"
+                    and str(reg.get("de") or "").lower() == "telegram"
+                )
+            )
+            role_sql = "user" if es_user else "assistant"
+            huella = (role_sql, _norm_dedupe(_quitar_prefijo_etiqueta(limpio)))
+            if huella in huellas_db:
+                vistos_set.add(ident)
+                vistos_ordenados.append(ident)
+                continue
+
+            contenido_final = f"{_prefijo_origen_hermes(reg, limpio)}{limpio}"
+            ts = _epoch_segundos_de_reg(reg)
+            campos = ["session_id", "role", "content"]
+            vals: List[Any] = [sid, role_sql, contenido_final]
+            if "timestamp" in cols_msg:
+                campos.append("timestamp")
+                vals.append(ts)
+            if "platform_message_id" in cols_msg:
+                campos.append("platform_message_id")
+                vals.append(pmid)
+            if "observed" in cols_msg:
+                campos.append("observed")
+                vals.append(0)
+            if "active" in cols_msg:
+                campos.append("active")
+                vals.append(1)
+
+            placeholders = ", ".join("?" for _ in campos)
+            con.execute(f"INSERT INTO messages ({', '.join(campos)}) VALUES ({placeholders})", vals)
+            escritos += 1
+            if ts > max_ts:
+                max_ts = ts
+            pmids_db.add(pmid)
+            huellas_db.add(huella)
+            vistos_set.add(ident)
+            vistos_ordenados.append(ident)
+
+        if escritos > 0:
+            sets: List[str] = []
+            uvals: List[Any] = []
+            if "message_count" in cols_ses:
+                filtro_act = " AND active = 1" if "active" in cols_msg else ""
+                sets.append(f"message_count = (SELECT COUNT(*) FROM messages WHERE session_id = ?{filtro_act})")
+                uvals.append(sid)
+            if "ended_at" in cols_ses:
+                sets.append("ended_at = NULL")
+            if "last_activity_at" in cols_ses:
+                sets.append("last_activity_at = MAX(COALESCE(last_activity_at, 0), ?)")
+                uvals.append(max_ts or time.time())
+            if "transcript_revision" in cols_ses:
+                sets.append("transcript_revision = COALESCE(transcript_revision, 0) + 1")
+            if sets:
+                uvals.append(sid)
+                con.execute(f"UPDATE sessions SET {', '.join(sets)} WHERE id = ?", uvals)
+        con.commit()
+    except sqlite3.Error:
+        try:
+            con.rollback()
+        except sqlite3.Error:
+            pass
+        return 0
+    finally:
+        con.close()
+
+    estado[k_vistos] = vistos_ordenados[-500:]
+    if max_ts > 0:
+        estado[k_epoch] = max_ts
+    return escritos
+
+
+def _limpiar_texto_antigravity(texto: str) -> str:
+    txt = str(texto or "").strip()
+    txt = re.sub(r"<CONTEXT_SUMMARY>.*?</CONTEXT_SUMMARY>", "", txt, flags=re.S)
+    txt = re.sub(r"</?USER_REQUEST>", "", txt)
+    return txt.strip()
+
+
+def _leer_contenido_completo_antigravity(linea_idx: int, registro: Dict[str, Any], lineas_full: List[str]) -> str:
+    if "content" in (registro.get("truncated_fields") or ()) and 0 <= linea_idx < len(lineas_full):
+        try:
+            full_reg = json.loads(lineas_full[linea_idx])
+            if isinstance(full_reg, dict) and isinstance(full_reg.get("content"), str):
+                return full_reg["content"]
+        except (ValueError, json.JSONDecodeError):
+            pass
+    return str(registro.get("content") or "")
+
+
+def sincronizar_desde_antigravity(
+    estado: Dict[str, Any],
+    cfg: Optional[Dict[str, Any]] = None,
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
+    raiz: Optional[Path] = None,
+    brain_dir: Optional[str] = None,
+    max_inicial: int = 12,
+    publicar_fn: Optional[Callable[..., Any]] = None,
+) -> int:
+    """Sincroniza turnos de usuario y respuestas finales del chat `antigravity_chat_id`."""
+    sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
+    if not sync_cfg.get("antigravity", True):
+        return 0
+    if brain_dir is None and (director_chat.en_pruebas() or raiz is not None):
+        return 0
+
+    mapa = canales_cfg if canales_cfg is not None else cargar_canales_direccion()
+    chat_id = str((mapa.get("principal") or {}).get("antigravity_chat_id") or "").strip()
+    if not chat_id:
+        return 0
+
+    logs_dir = Path(os.path.expanduser(brain_dir or "~/.gemini/antigravity/brain")) / chat_id / ".system_generated" / "logs"
+    ruta_compact = logs_dir / "transcript.jsonl"
+    if not ruta_compact.exists():
+        return 0
+    ruta_full = logs_dir / "transcript_full.jsonl"
+
+    try:
+        lineas_compact = ruta_compact.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return 0
+    try:
+        lineas_full = ruta_full.read_text(encoding="utf-8", errors="replace").splitlines() if ruta_full.exists() else []
+    except OSError:
+        lineas_full = []
+
+    es_inicial = (
+        "antigravity_sync_linea" not in estado
+        or str(estado.get("antigravity_sync_chat_id") or "") != chat_id
+    )
+    desde = 0 if es_inicial else max(0, min(int(estado.get("antigravity_sync_linea") or 0), len(lineas_compact)))
+    pasos_vistos = set() if es_inicial else {str(x) for x in (estado.get("antigravity_sync_steps") or [])}
+    pasos_lista = [] if es_inicial else [str(x) for x in (estado.get("antigravity_sync_steps") or [])]
+
+    turnos: List[Dict[str, Any]] = []
+    for idx in range(desde, len(lineas_compact)):
+        cruda = lineas_compact[idx].strip()
+        if not cruda:
+            continue
+        try:
+            d = json.loads(cruda)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(d, dict):
+            continue
+        paso = str(d.get("step_index") if d.get("step_index") is not None else f"l{idx}")
+        if paso in pasos_vistos:
+            continue
+        tipo_ev = str(d.get("type") or "")
+        fuente_ev = str(d.get("source") or "")
+        if tipo_ev == "USER_INPUT" and fuente_ev == "USER_EXPLICIT":
+            bruto = _leer_contenido_completo_antigravity(idx, d, lineas_full)
+            limpio = director_chat.tachar(_limpiar_texto_antigravity(bruto))
+            if not limpio or es_eco_interno(limpio):
+                continue
+            turnos.append({
+                "paso": paso,
+                "de": "alex",
+                "rol": "alex",
+                "tipo": "mensaje",
+                "sintesis": False,
+                "modelo": None,
+                "texto": limpio,
+            })
+        elif tipo_ev == "PLANNER_RESPONSE" and not d.get("tool_calls"):
+            bruto = _leer_contenido_completo_antigravity(idx, d, lineas_full)
+            limpio = director_chat.tachar(bruto.strip())
+            if not limpio or es_eco_interno(limpio):
+                continue
+            modelo_crudo = str(d.get("model") or "").strip()
+            turnos.append({
+                "paso": paso,
+                "de": "antigravity",
+                "rol": "director",
+                "tipo": "respuesta",
+                "sintesis": True,
+                "modelo": f"antigravity/{modelo_crudo}" if modelo_crudo else None,
+                "texto": limpio,
+            })
+
+    estado["antigravity_sync_chat_id"] = chat_id
+    estado["antigravity_sync_linea"] = len(lineas_compact)
+
+    if not turnos:
+        estado["antigravity_sync_steps"] = pasos_lista[-300:]
+        return 0
+
+    for t in turnos:
+        p_id = t["paso"]
+        if p_id not in pasos_vistos:
+            pasos_vistos.add(p_id)
+            pasos_lista.append(p_id)
+    estado["antigravity_sync_steps"] = pasos_lista[-300:]
+
+    if es_inicial and max_inicial > 0:
+        turnos = turnos[-max_inicial:]
+        corte_tg = max(0, len(turnos) - 2)
+        for i, t in enumerate(turnos):
+            t["solo_historial"] = i < corte_tg
+    else:
+        for t in turnos:
+            t["solo_historial"] = False
+
+    recientes = director_chat.leer(limite=80, raiz=raiz)
+    huellas = {
+        (r.get("rol"), _norm_dedupe(_quitar_prefijo_etiqueta(r.get("texto") or "")))
+        for r in recientes
+        if isinstance(r, dict) and r.get("rol") in ("alex", "director")
+    }
+    pub = publicar_fn or director_chat.publicar
+    importados = 0
+    for t in turnos:
+        h = (t["rol"], _norm_dedupe(t["texto"]))
+        if h in huellas:
+            continue
+        try:
+            pub(
+                t["texto"],
+                de=t["de"],
+                rol=t["rol"],
+                tipo=t["tipo"],
+                canal="antigravity",
+                canales=None,
+                modelo=t["modelo"],
+                raiz=raiz,
+                sintesis=t["sintesis"],
+                solo_historial=t["solo_historial"],
+            )
+        except TypeError:
+            pub(
+                t["texto"],
+                de=t["de"],
+                rol=t["rol"],
+                tipo=t["tipo"],
+                canal="antigravity",
+                canales=None,
+                modelo=t["modelo"],
+                raiz=raiz,
+                sintesis=t["sintesis"],
+            )
+        huellas.add(h)
+        importados += 1
+    return importados
+
+
 def publicar_en_canal_especializado(
     canal_clave: str,
     texto: str,
@@ -1058,8 +1538,11 @@ def publicar_en_canal_especializado(
     enviar_telegram: bool = True,
     raiz: Optional[Path] = None,
     enviar_fn: Optional[Callable[[str, str, str], Tuple[bool, str]]] = None,
+    db_path: Optional[str] = None,
+    espejar_hermes: Optional[bool] = None,
+    canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Publica un mensaje en `principal`, `general` o `audiovisual` y lo espeja al bot respectivo."""
+    """Publica un mensaje en `principal`, `general` o `audiovisual` y lo espeja al bot y Hermes."""
     if canal_clave not in CANALES_ESPECIALIZADOS:
         return {"ok": False, "canal": canal_clave, "detalle": "Canal no válido"}
     limpio = director_chat.tachar(str(texto or "").strip())
@@ -1068,18 +1551,19 @@ def publicar_en_canal_especializado(
 
     rol = "alex" if de == "alex" else "director"
     tipo = "mensaje" if rol == "alex" else "respuesta"
-    prefijo = nombre_de_canal(canal_clave, cargar_canales_direccion())
+    prefijo = nombre_de_canal(canal_clave, canales_cfg if canales_cfg is not None else cargar_canales_direccion())
 
     if canal_clave == "principal":
         canal_pub = origen if origen in director_chat.CANALES else "metagenesis"
         canal_val = canal_pub if canal_pub in director_chat.CANALES else "mando"
+        destinos_principales = ["director-presidente", "antigravity", "claude-cowork"] if rol == "alex" else ["antigravity"]
         reg = director_chat.publicar(
             limpio,
             de=de,
             rol=rol,
             tipo=tipo,
             canal=canal_val,
-            canales=["director-presidente", "antigravity", "claude-cowork"],
+            canales=destinos_principales,
             raiz=raiz,
         )
         msg_id = str((reg or {}).get("id") or "")
@@ -1101,11 +1585,21 @@ def publicar_en_canal_especializado(
     if enviar_telegram:
         tg_ok, tg_det = enviar_telegram_canal(canal_clave, limpio, prefijo=prefijo, enviar_fn=enviar_fn)
 
+    hermes_ok = False
+    debe_espejar = espejar_hermes if espejar_hermes is not None else (
+        db_path is not None or (raiz is None and not director_chat.en_pruebas())
+    )
+    if debe_espejar and isinstance(reg, dict):
+        hermes_ok = espejar_hacia_hermes(
+            canal_clave, [reg], {}, db_path=db_path, canales_cfg=canales_cfg, max_inicial=1
+        ) > 0
+
     return {
         "ok": True,
         "id": msg_id,
         "canal": canal_clave,
         "telegram_ok": tg_ok,
+        "hermes_ok": hermes_ok,
         "detalle": tg_det,
     }
 
@@ -1116,12 +1610,17 @@ def sincronizar_todos_los_canales(
     raiz: Optional[Path] = None,
     db_path: Optional[str] = None,
     canales_cfg: Optional[Dict[str, Dict[str, Any]]] = None,
+    brain_dir: Optional[str] = None,
 ) -> Dict[str, int]:
-    """Ejecuta una pasada de sincronización para `principal`, `general` y `audiovisual`."""
+    """Ejecuta una pasada bidireccional para `principal`, `general`, `audiovisual` y Antigravity."""
     mapa = canales_cfg if canales_cfg is not None else cargar_canales_direccion()
     ses_principal = (mapa.get("principal") or {}).get("hermes_sesion")
     ses_general = (mapa.get("general") or {}).get("hermes_sesion")
     ses_audiovisual = (mapa.get("audiovisual") or {}).get("hermes_sesion")
+
+    n_antigravity = sincronizar_desde_antigravity(
+        estado, cfg, canales_cfg=mapa, raiz=raiz, brain_dir=brain_dir
+    )
 
     # Canal 1 (`principal`): sesión Hermes del registro + bot del canal (polling exclusivo).
     # Pasa `chat_id_telegram=""` para no mezclar `@starseed_puente_bot` (que va en `general`).
@@ -1159,11 +1658,30 @@ def sincronizar_todos_los_canales(
         raiz=raiz,
         enviar_tg=True,
     )
+
+    # Espejo bidireccional hacia las sesiones fijadas de Hermes en ~/.hermes/state.db.
+    regs_prin = director_chat.leer(limite=120, raiz=raiz)
+    n_esp_prin = espejar_hacia_hermes(
+        "principal", regs_prin, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+    )
+    regs_gen = _leer_jsonl_canal(_archivo_canal_jsonl("general", raiz=raiz), limite=80)
+    n_esp_gen = espejar_hacia_hermes(
+        "general", regs_gen, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+    )
+    regs_av = _leer_jsonl_canal(_archivo_canal_jsonl("audiovisual", raiz=raiz), limite=80)
+    n_esp_av = espejar_hacia_hermes(
+        "audiovisual", regs_av, estado, cfg=cfg, db_path=db_path, canales_cfg=mapa
+    )
+
     return {
+        "antigravity": n_antigravity,
         "principal_hermes": n_hermes_prin,
         "principal_maggacortex": n_magga,
         "general": n_general,
         "audiovisual": n_audiovisual,
+        "hermes_espejo_principal": n_esp_prin,
+        "hermes_espejo_general": n_esp_gen,
+        "hermes_espejo_audiovisual": n_esp_av,
     }
 
 
@@ -1177,7 +1695,7 @@ def _etiqueta_origen(r: Dict[str, Any]) -> str:
 
 def es_mensaje_direccion_para_telegram(r: Dict[str, Any], por_id: Optional[Dict[str, Dict[str, Any]]] = None) -> bool:
     """PURA. True si el mensaje de dirección debe espejarse hacia Telegram dirección principal."""
-    if not isinstance(r, dict) or r.get("tipo") == "entrega":
+    if not isinstance(r, dict) or r.get("tipo") == "entrega" or r.get("solo_historial"):
         return False
     if r.get("rol") not in ("alex", "director"):
         return False

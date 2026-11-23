@@ -459,5 +459,186 @@ class TestNombresCanales(unittest.TestCase):
         )
 
 
+class TestEspejoHermesYAntigravityBidireccional(unittest.TestCase):
+    def test_espejar_hacia_hermes_es_idempotente_reactiva_sesion_y_evita_eco(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            db_path = Path(tmp) / "state.db"
+            con = sqlite3.connect(str(db_path))
+            con.execute(
+                "CREATE TABLE sessions (id TEXT PRIMARY KEY, source TEXT, chat_id TEXT, model TEXT, "
+                "title TEXT, ended_at REAL, message_count INTEGER DEFAULT 0, last_activity_at REAL, "
+                "transcript_revision INTEGER DEFAULT 0)"
+            )
+            con.execute(
+                "CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, role TEXT, "
+                "content TEXT, timestamp REAL, platform_message_id TEXT, observed INTEGER DEFAULT 0, "
+                "active INTEGER DEFAULT 1)"
+            )
+            con.execute(
+                "INSERT INTO sessions VALUES ('ses-prin', 'local', 'ses-prin', 'auto', 'Principal', NULL, 0, 100.0, 0)"
+            )
+            con.execute(
+                "INSERT INTO sessions VALUES ('ses-av', 'local', 'ses-av', 'auto', 'Audiovisual y diseño', 500.0, 1, 500.0, 0)"
+            )
+            con.commit()
+            con.close()
+
+            canales_cfg = {
+                "principal": {"nombre": "Principal", "hermes_sesion": "ses-prin"},
+                "general": {"nombre": "General", "hermes_sesion": ""},
+                "audiovisual": {"nombre": "Audiovisual y diseño", "hermes_sesion": "ses-av"},
+            }
+            estado = {}
+            regs_prin = [
+                {
+                    "id": "md-ag-1",
+                    "t": "2026-11-23T17:00:00-06:00",
+                    "de": "alex",
+                    "rol": "alex",
+                    "tipo": "mensaje",
+                    "canal": "antigravity",
+                    "texto": "Asegura todos los mensajes completos en Hermes.",
+                },
+                {
+                    "id": "md-ag-2",
+                    "t": "2026-11-23T17:00:05-06:00",
+                    "de": "antigravity",
+                    "rol": "director",
+                    "tipo": "respuesta",
+                    "canal": "antigravity",
+                    "texto": "Enlace bidireccional activado sin eco " + ("detalle " * 40),
+                },
+                {
+                    "id": "md-sis-1",
+                    "t": "2026-11-23T17:00:06-06:00",
+                    "de": "director-autocuracion",
+                    "rol": "director",
+                    "tipo": "aviso",
+                    "canal": "mando",
+                    "texto": "Ruido rutinario de sistema",
+                },
+            ]
+            os.environ["STARSEED_CHAT_EN_PRUEBAS"] = "1"
+            try:
+                n = SD.espejar_hacia_hermes(
+                    "principal", regs_prin, estado, db_path=str(db_path), canales_cfg=canales_cfg
+                )
+                self.assertEqual(n, 2)
+                # Segunda llamada incluso con estado vacío NO duplica por platform_message_id mg-sync:*
+                n_dup = SD.espejar_hacia_hermes(
+                    "principal", regs_prin, {}, db_path=str(db_path), canales_cfg=canales_cfg
+                )
+                self.assertEqual(n_dup, 0)
+
+                # Sembramos lector de Hermes y verificamos que lo espejado NO rebota de vuelta
+                estado["hermes_sync_ultimo_id"] = 0
+                n_eco = SD.sincronizar_desde_hermes(
+                    estado, "ses-prin", db_path=str(db_path), chat_id_telegram="", raiz=raiz
+                )
+                self.assertEqual(n_eco, 0)
+
+                # Canal audiovisual reactiva ended_at -> NULL y guarda texto completo
+                n_av = SD.espejar_hacia_hermes(
+                    "audiovisual",
+                    [{"id": "aud-1", "t": 1795470000.0, "de": "telegram", "rol": "alex", "tipo": "mensaje", "canal": "telegram", "texto": "Pieza audiovisual lista"}],
+                    estado,
+                    db_path=str(db_path),
+                    canales_cfg=canales_cfg,
+                )
+                self.assertEqual(n_av, 1)
+                con_ro = sqlite3.connect(str(db_path))
+                ses_av = con_ro.execute("SELECT ended_at, message_count, transcript_revision FROM sessions WHERE id='ses-av'").fetchone()
+                msg_prin = con_ro.execute("SELECT content, platform_message_id FROM messages WHERE session_id='ses-prin' ORDER BY id ASC").fetchall()
+                con_ro.close()
+                self.assertIsNone(ses_av[0])
+                self.assertGreaterEqual(ses_av[1], 1)
+                self.assertGreaterEqual(ses_av[2], 1)
+                self.assertIn("detalle detalle", msg_prin[1][0])
+                self.assertTrue(msg_prin[0][1].startswith("mg-sync:principal:"))
+            finally:
+                os.environ.pop("STARSEED_CHAT_EN_PRUEBAS", None)
+
+    def test_sincronizar_desde_antigravity_recupera_texto_completo_de_transcript_full(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            brain = Path(tmp) / "brain"
+            logs = brain / "chat-demo" / ".system_generated" / "logs"
+            logs.mkdir(parents=True)
+
+            compact_rows = [
+                {
+                    "step_index": 1,
+                    "type": "USER_INPUT",
+                    "source": "USER_EXPLICIT",
+                    "content": "<CONTEXT_SUMMARY>viejo</CONTEXT_SUMMARY>\n<USER_REQUEST>\nMensaje truncado...",
+                    "truncated_fields": ["content"],
+                },
+                {
+                    "step_index": 2,
+                    "type": "PLANNER_RESPONSE",
+                    "content": "",
+                    "tool_calls": [{"name": "read_file"}],
+                },
+                {
+                    "step_index": 3,
+                    "type": "GENERIC",
+                    "content": "salida de comando",
+                },
+                {
+                    "step_index": 4,
+                    "type": "PLANNER_RESPONSE",
+                    "model": "gemini-4",
+                    "content": "Respuesta trunc...",
+                    "truncated_fields": ["content"],
+                },
+            ]
+            full_rows = [
+                {
+                    "step_index": 1,
+                    "type": "USER_INPUT",
+                    "source": "USER_EXPLICIT",
+                    "content": "<CONTEXT_SUMMARY>viejo</CONTEXT_SUMMARY>\n<USER_REQUEST>\nMensaje completo desde Antigravity hasta el final.</USER_REQUEST>",
+                },
+                compact_rows[1],
+                compact_rows[2],
+                {
+                    "step_index": 4,
+                    "type": "PLANNER_RESPONSE",
+                    "model": "gemini-4",
+                    "content": "Respuesta completa de dirección sin recorte ninguno.",
+                },
+            ]
+            (logs / "transcript.jsonl").write_text("\n".join(json.dumps(r) for r in compact_rows) + "\n", encoding="utf-8")
+            (logs / "transcript_full.jsonl").write_text("\n".join(json.dumps(r) for r in full_rows) + "\n", encoding="utf-8")
+
+            canales_cfg = {"principal": {"antigravity_chat_id": "chat-demo"}}
+            estado = {}
+            os.environ["STARSEED_CHAT_EN_PRUEBAS"] = "1"
+            try:
+                n = SD.sincronizar_desde_antigravity(
+                    estado, canales_cfg=canales_cfg, raiz=raiz, brain_dir=str(brain)
+                )
+                self.assertEqual(n, 2)
+                leidos = director_chat.leer(limite=10, raiz=raiz)
+                textos = [r["texto"] for r in leidos if r.get("tipo") != "entrega"]
+                self.assertEqual(
+                    textos,
+                    [
+                        "Mensaje completo desde Antigravity hasta el final.",
+                        "Respuesta completa de dirección sin recorte ninguno.",
+                    ],
+                )
+                # Segunda pasada sin cambios no duplica
+                self.assertEqual(
+                    SD.sincronizar_desde_antigravity(
+                        estado, canales_cfg=canales_cfg, raiz=raiz, brain_dir=str(brain)
+                    ),
+                    0,
+                )
+            finally:
+                os.environ.pop("STARSEED_CHAT_EN_PRUEBAS", None)
+
+
 if __name__ == "__main__":
     unittest.main()

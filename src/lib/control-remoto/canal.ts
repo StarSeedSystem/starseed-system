@@ -20,7 +20,7 @@ import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } fro
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
-import { RegistroSesiones, registroGlobal, type MandarSesion } from "./registro-sesiones"; // CTL1117A
+import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente } from "./registro-sesiones"; // CTL1117A
 import { puenteNativo } from "@/lib/nativa/puente"; // CTL1119F
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
@@ -358,6 +358,32 @@ export async function crearClaveYPedirControl(
     const r = await mandarOrden(para, "presentarse", { spki, nombre, neurona: await neuronaPropia() });
     registroGlobal.liberar(para);
     return { respuesta: r, claveCreada: true };
+}
+
+/** CTL1124B · Sesiones salientes vivas hacia otras neuronas y su cierre directo sin revocar permisos. */
+export type { SesionSaliente } from "./registro-sesiones";
+
+export function sesionesSalientesActivas(): readonly SesionSaliente[] {
+    return registroGlobal.sesionesSalientes();
+}
+
+export function suscribirSesionesSalientes(cb: () => void): () => void {
+    return registroGlobal.suscribir(cb);
+}
+
+export async function terminarControlHacia(neurona: string): Promise<boolean> {
+    const objetivo = neurona.trim().toLowerCase();
+    if (!objetivo) return false;
+    const carril = registroGlobal.carrilDe(objetivo);
+    const mandarEnCarril: MandarSesion = (nombre, args, o) => {
+        const sig = carril.cola.then(
+            () => mandarOrden(objetivo, nombre, args, o),
+            () => mandarOrden(objetivo, nombre, args, o),
+        );
+        carril.cola = sig.catch(() => undefined);
+        return sig;
+    };
+    return registroGlobal.terminar(objetivo, mandarEnCarril);
 }
 
 /**

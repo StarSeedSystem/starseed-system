@@ -34,6 +34,14 @@ interface Viva {
     fuertes: number;
 }
 
+export interface SesionSaliente {
+    para: string;
+    token: string;
+    nivel: Nivel;
+    ultima: number;
+    fuertes: number;
+}
+
 export interface OpcionesAbrir {
     nivel?: Nivel;
     /** Manda otra `abrir-sesion` aunque haya una viva (el aparato la trata como la misma si lo es). Tras un «sin-sesion». */
@@ -61,11 +69,41 @@ export class RegistroSesiones {
     private vivas = new Map<string, Viva>();
     private abriendo = new Map<string, Promise<RespuestaOrden>>();
     private terminal = new Map<string, { motivo: string; hasta: number; n: number }>();
+    private oyentes = new Set<() => void>();
+    private instantanea: readonly SesionSaliente[] = [];
 
     constructor(
         private readonly ahora: () => number = () => Date.now(),
         private readonly esperar: (ms: number) => Promise<void> = (ms) => new Promise((res) => setTimeout(res, ms)),
     ) {}
+
+    private avisar(): void {
+        this.instantanea = [...this.vivas.entries()].map(([para, v]) => ({
+            para,
+            token: v.token,
+            nivel: v.nivel,
+            ultima: v.ultima,
+            fuertes: v.fuertes,
+        }));
+        for (const f of this.oyentes) {
+            try {
+                f();
+            } catch {
+                /* un oyente que falla no rompe el registro */
+            }
+        }
+    }
+
+    /** Se suscribe a los cambios en las sesiones salientes activas. */
+    suscribir(cb: () => void): () => void {
+        this.oyentes.add(cb);
+        return () => void this.oyentes.delete(cb);
+    }
+
+    /** Instantánea estable de sesiones salientes activas hacia otras neuronas. */
+    sesionesSalientes(): readonly SesionSaliente[] {
+        return this.instantanea;
+    }
 
     /**
      * CTL1118F: UN carril de órdenes por neurona para todos los que comparten esta sesión (ventana, banco…). Cada destino firmaba y mandaba por el
@@ -110,7 +148,10 @@ export class RegistroSesiones {
     olvidar(para: string, token?: string | null): void {
         const k = para.toLowerCase();
         const v = this.vivas.get(k);
-        if (v && (!token || v.token === token)) this.vivas.delete(k);
+        if (v && (!token || v.token === token)) {
+            this.vivas.delete(k);
+            this.avisar();
+        }
     }
 
     /** Algo cambió (p. ej. el dueño aceptó a este aparato): la espera por un rechazo terminal ya no vale. */
@@ -137,7 +178,10 @@ export class RegistroSesiones {
             return { tipo: "respuesta", nonce: "", ok: false, motivo: espera.motivo, resultado: { espera: espera.hasta - this.ahora() } };
         }
         if (!o.forzar && v && this.ahora() - v.ultima < REUSO_MAX_MS && rangoNivel(v.nivel) >= rangoNivel(nivel)) {
-            if (!o.debil) v.fuertes += 1;
+            if (!o.debil) {
+                v.fuertes += 1;
+                this.avisar();
+            }
             return resultadoDe(v);
         }
         const en = this.abriendo.get(k);
@@ -146,7 +190,10 @@ export class RegistroSesiones {
             if (!r.ok) return r;
             const w = this.vivas.get(k);
             if (w && rangoNivel(w.nivel) >= rangoNivel(nivel)) {
-                if (!o.debil) w.fuertes += 1;
+                if (!o.debil) {
+                    w.fuertes += 1;
+                    this.avisar();
+                }
                 return resultadoDe(w);
             }
             // Abrió con menos nivel del que éste pide: se abre de nuevo (ya sin otra en vuelo).
@@ -171,12 +218,14 @@ export class RegistroSesiones {
                 const mismo = previo?.token === s.sesion;
                 this.vivas.set(k, { token: s.sesion, nivel: s.nivel === "controlar" ? "controlar" : "ver", ultima: this.ahora(), fuertes: mismo ? previo.fuertes : 0 });
                 this.terminal.delete(k);
+                this.avisar();
             } else if (!r.ok) {
-                this.vivas.delete(k);
+                const borrada = this.vivas.delete(k);
                 if (MOTIVOS_TERMINALES.has(r.motivo)) {
                     const n = (this.terminal.get(k)?.n ?? 0) + 1;
                     this.terminal.set(k, { motivo: r.motivo, n, hasta: this.ahora() + Math.min(ESPERA_TERMINAL_MAX_MS, ESPERA_TERMINAL_MS * 2 ** (n - 1)) });
                 }
+                if (borrada) this.avisar();
             }
             return r;
         })();
@@ -184,7 +233,10 @@ export class RegistroSesiones {
         try {
             const r = await p;
             const w = this.vivas.get(k);
-            if (r.ok && w && !o.debil) w.fuertes += 1;
+            if (r.ok && w && !o.debil) {
+                w.fuertes += 1;
+                this.avisar();
+            }
             return r;
         } finally {
             if (this.abriendo.get(k) === p) this.abriendo.delete(k);
@@ -204,10 +256,29 @@ export class RegistroSesiones {
             return void (await mandar("cerrar-sesion", {}, { nivel: "ver", sesion: token, esperaMs: 3000 }).catch(() => undefined));
         }
         if (fuerte && v.fuertes > 0) v.fuertes -= 1;
-        if (v.fuertes > 0) return; // alguien más la sigue usando
+        if (v.fuertes > 0) {
+            this.avisar();
+            return; // alguien más la sigue usando
+        }
         if (!fuerte && this.abriendo.has(k)) return;
         this.vivas.delete(k);
+        this.avisar();
         await mandar("cerrar-sesion", {}, { nivel: "ver", sesion: token, esperaMs: 3000 }).catch(() => undefined);
+    }
+
+    /**
+     * CTL1124B · Termina directamente una sesión saliente hacia `para` (aunque `fuertes > 1`) parando su pantalla
+     * y mandando `cerrar-sesion`, sin revocar ningún permiso.
+     */
+    async terminar(para: string, mandar: MandarSesion): Promise<boolean> {
+        const k = para.toLowerCase();
+        const v = this.vivas.get(k);
+        if (!v) return false;
+        this.vivas.delete(k);
+        this.avisar();
+        await mandar("pantalla-parar", {}, { nivel: "ver", sesion: v.token, esperaMs: 2500 }).catch(() => undefined);
+        await mandar("cerrar-sesion", {}, { nivel: v.nivel, sesion: v.token, esperaMs: 4000 }).catch(() => undefined);
+        return true;
     }
 }
 

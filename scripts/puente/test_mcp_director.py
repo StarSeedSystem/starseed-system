@@ -663,6 +663,56 @@ class PruebaProcesoReal(unittest.TestCase):
                     respuesta["result"]["serverInfo"]["version"], "1.0.0"
                 )
             finally:
+                for canal in (proc.stdin, proc.stdout, proc.stderr):
+                    if canal is not None:
+                        canal.close()
+                proc.kill()
+                proc.wait()
+
+    def test_canal_leer_y_canal_decir_por_stdio_sin_eof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entorno = dict(os.environ, STARSEED_ROOT=tmp)
+            proc = subprocess.Popen(
+                [sys.executable, str(_CARPETA / "mcp_director.py")],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=entorno,
+                text=True,
+            )
+            try:
+                peticiones = [
+                    {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "canal_decir",
+                            "arguments": {"canal": "audiovisual", "texto": "Prueba completa MCP", "de": "antigravity"},
+                        },
+                    },
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 3,
+                        "method": "tools/call",
+                        "params": {"name": "canal_leer", "arguments": {"canal": "audiovisual", "limite": 5}},
+                    },
+                ]
+                for p in peticiones:
+                    proc.stdin.write(json.dumps(p) + "\n")
+                proc.stdin.flush()
+                resps = []
+                for _ in peticiones:
+                    listo, _, _ = select.select([proc.stdout], [], [], PLAZO_PROCESO_REAL_S)
+                    self.assertTrue(listo, "el servidor MCP no respondió a tiempo")
+                    resps.append(json.loads(proc.stdout.readline()))
+                self.assertIn("Publicado en audiovisual:", resps[1]["result"]["content"][0]["text"])
+                self.assertIn("Prueba completa MCP", resps[2]["result"]["content"][0]["text"])
+            finally:
+                for canal in (proc.stdin, proc.stdout, proc.stderr):
+                    if canal is not None:
+                        canal.close()
                 proc.kill()
                 proc.wait()
 

@@ -21,13 +21,60 @@ function hhmm(t: number): string {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function QuienControlaAhora({ quien, onTerminar, onQuitarPermiso }: { quien: QuienControla | null; onTerminar: () => void; onQuitarPermiso?: () => void }) {
+export type SesionIndicador = QuienControla & { token?: string };
+
+export function QuienControlaAhora({
+    quien,
+    sesiones,
+    onTerminar,
+    onTerminarUna,
+    onQuitarPermiso,
+}: {
+    quien: QuienControla | null;
+    sesiones?: readonly SesionIndicador[];
+    onTerminar: () => void;
+    onTerminarUna?: (token: string) => void;
+    onQuitarPermiso?: () => void;
+}) {
+    const lista: readonly SesionIndicador[] = sesiones && sesiones.length > 0 ? sesiones : quien ? [quien] : [];
+    if (lista.length > 1) {
+        return (
+            <div className="space-y-2 text-[12px]" role="status" data-testid="quien-controla-ahora">
+                <ul className="space-y-1.5">
+                    {lista.map((item, idx) => (
+                        <li key={item.token ?? `${item.neurona}-${idx}`} className="flex flex-wrap items-center gap-2">
+                            <PuntoColor color={item.color} />
+                            <span className="min-w-0 flex-1 text-white/85">{P.ahora.controla(item.nombre, item.nivel, hhmm(item.desde))}</span>
+                            <button
+                                type="button"
+                                onClick={() => (item.token && onTerminarUna ? onTerminarUna(item.token) : onTerminar())}
+                                className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-3 py-1 font-medium hover:bg-[#b01030]"
+                            >
+                                {P.ahora.terminar}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={onTerminar} className="min-h-9 cursor-pointer rounded-md bg-[#DC143C]/85 px-3 py-1 font-medium hover:bg-[#DC143C]">
+                        Terminar todas
+                    </button>
+                    {onQuitarPermiso && (
+                        <button type="button" onClick={onQuitarPermiso} data-testid="quitar-permiso" className="min-h-9 cursor-pointer rounded-md bg-white/10 px-3 py-1 font-medium hover:bg-white/20">
+                            {P.ahora.quitarPermiso}
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+    const unica = lista[0] ?? null;
     return (
         <div className="flex flex-wrap items-center gap-2 text-[12px]" role="status" data-testid="quien-controla-ahora">
-            {quien ? (
+            {unica ? (
                 <>
-                    <PuntoColor color={quien.color} />
-                    <span className="min-w-0 flex-1 text-white/85">{P.ahora.controla(quien.nombre, quien.nivel, hhmm(quien.desde))}</span>
+                    <PuntoColor color={unica.color} />
+                    <span className="min-w-0 flex-1 text-white/85">{P.ahora.controla(unica.nombre, unica.nivel, hhmm(unica.desde))}</span>
                     <button type="button" onClick={onTerminar} className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-3 py-1 font-medium hover:bg-[#b01030]">
                         {P.ahora.terminar}
                     </button>
@@ -47,7 +94,9 @@ export function QuienControlaAhora({ quien, onTerminar, onQuitarPermiso }: { qui
 export function AjustesIndicadorControl({
     disponible,
     quien,
+    sesiones,
     onTerminar,
+    onTerminarUna,
     onQuitarPermiso,
     leer = leerAjustesControl,
     poner = ponerAjustesControl,
@@ -55,7 +104,9 @@ export function AjustesIndicadorControl({
     /** ¿Este aparato tiene control de pantalla propio (app de Android)? Si no, los ajustes salen apagados con el motivo. */
     disponible: boolean;
     quien: QuienControla | null;
+    sesiones?: readonly SesionIndicador[];
     onTerminar: () => void;
+    onTerminarUna?: (token: string) => void;
     /** CTL1118G: «Quitar permiso» (cierra la sesión y apaga el permiso de este aparato), al lado de «Terminar». */
     onQuitarPermiso?: () => void;
     leer?: () => Promise<AjustesControl>;

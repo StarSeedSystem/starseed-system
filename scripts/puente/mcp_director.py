@@ -34,7 +34,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_CARPETA = Path(__file__).resolve().parent
+_RAIZ_MOD = _CARPETA.parent.parent
+for _ruta_sys in (str(_CARPETA), str(_RAIZ_MOD)):
+    if _ruta_sys not in sys.path:
+        sys.path.insert(0, _ruta_sys)
 
 import director_chat
 import mcp_director_ordenes as ordenes
@@ -211,8 +215,26 @@ def _error(ident, codigo, mensaje):
     return {"jsonrpc": "2.0", "id": ident, "error": err}
 
 
+def _es_director(de):
+    nombre = str(de or "").strip().lower()
+    return nombre.startswith("claude") or nombre in ("antigravity", "director-presidente", "presidente")
+
+
+def _espejar_registro_hermes(registro):
+    """Espeja al instante mensajes publicados por MCP al chat Principal de Hermes si aplica."""
+    if not isinstance(registro, dict) or director_chat.en_pruebas():
+        return
+    try:
+        if not director_chat._es_chat_real(director_chat._chat()):
+            return
+        import sincronizador_direccion
+        sincronizador_direccion.espejar_hacia_hermes("principal", [registro], {}, max_inicial=1)
+    except Exception:  # noqa: BLE001 — nunca tumba la herramienta MCP si Hermes está bloqueado
+        pass
+
+
 def _publicar(texto, de, tipo, canal, modelo, responde_a=None):
-    rol = "director" if de.startswith("claude") else "agente"
+    rol = "director" if _es_director(de) else "agente"
     return director_chat.publicar(
         texto,
         de=de,
@@ -448,7 +470,7 @@ _ESTADO_VACIO = {"lote": None, "candidatos": [], "medios": {}}
 
 
 def _raiz_repo():
-    return os.environ.get("STARSEED_PRODUCCION_RAIZ") or str(
+    return os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT") or str(
         Path(__file__).resolve().parents[2]
     )
 
@@ -629,9 +651,11 @@ def _llamar(nombre, args):
         return _listar(registros, "Todavía no hay mensajes.")
     if nombre == "director_decir":
         de = args.get("de") or "agente"
+        canal_defecto = "antigravity" if str(de).strip().lower() == "antigravity" else "ide"
         m = _publicar(
-            args["texto"], de, "mensaje", args.get("canal") or "ide", args.get("modelo")
+            args["texto"], de, "mensaje", args.get("canal") or canal_defecto, args.get("modelo")
         )
+        _espejar_registro_hermes(m)
         return "Publicado como %s" % m["id"]
     if nombre == "director_bandeja":
         canal = args["canal"]
@@ -647,33 +671,38 @@ def _llamar(nombre, args):
             responde_a=args["id"],
         )
         director_chat.entrega(args["id"], canal, "respondido")
+        _espejar_registro_hermes(m)
         return "Respondido a %s como %s" % (args["id"], m["id"])
     if nombre == "canal_leer":
+        import sincronizador_direccion
         canal = args["canal"]
         if canal not in ("principal", "general", "audiovisual"):
             raise ValueError("canal no válido: %s" % canal)
-        limite = args.get("limite")
-        limite = 20 if limite is None else int(limite)
-        if not 1 <= limite <= 200:
-            raise ValueError("limite fuera de rango (1-200): %d" % limite)
-        from scripts.puente.sincronizador_direccion import _leer_jsonl_canal
+        limite = _limite(args)
         if canal == "principal":
             registros = director_chat.leer(desde=args.get("desde"), limite=limite)
-        elif canal == "general":
-            import pathlib
-            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("general")))
         else:
-            import pathlib
-            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("audiovisual")))
+            ruta = sincronizador_direccion._archivo_canal_jsonl(canal)
+            registros = sincronizador_direccion._leer_jsonl_canal(ruta, limite=limite)
         return _listar(registros, "Todavía no hay mensajes.")
     if nombre == "canal_decir":
+        import sincronizador_direccion
         canal = args["canal"]
         if canal not in ("principal", "general", "audiovisual"):
             raise ValueError("canal no válido: %s" % canal)
-        from scripts.puente.sincronizador_direccion import publicar_en_canal_especializado
         texto = args["texto"]
         de = args["de"]
-        reg = publicar_en_canal_especializado(canal, texto, de=de)
+        raiz_env = Path(_raiz_repo()) if (os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT")) else None
+        en_prod = (not director_chat.en_pruebas()) and director_chat._es_chat_real(director_chat._chat(raiz_env))
+        reg = sincronizador_direccion.publicar_en_canal_especializado(
+            canal,
+            texto,
+            de=de,
+            origen="metagenesis",
+            enviar_telegram=en_prod,
+            espejar_hermes=en_prod,
+            raiz=raiz_env,
+        )
         if reg.get("ok"):
             return "Publicado en %s: %s" % (canal, reg.get("id"))
         return "Error al publicar en %s: %s" % (canal, reg.get("detalle"))
@@ -710,14 +739,13 @@ def _llamar(nombre, args):
         # Sesiones de motores (intentamos varias fuentes)
         sesiones = 0
         try:
-            from scripts.puente import director_presidente
+            import director_presidente
             if hasattr(director_presidente, 'listar_sesiones'):
                 sesiones = len(director_presidente.listar_sesiones())
         except Exception:
             pass
         # Capacidad libre (usando available memory approx)
         try:
-            import os
             memoria_total = os.sysconf("SC_AVPHYSICALPAGES") * os.sysconf("SC_PAGESIZE") / (1024 * 1024) if hasattr(os, "sysconf") else 0
             memoria_libre = os.sysinfo()[1] / (1024 * 1024) if hasattr(os, "sysinfo") else 0
             capacidad = {
@@ -776,9 +804,10 @@ def atender(peticion):
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
             texto = _llamar(nombre, params.get("arguments"))
-        except (ValueError, KeyError) as e:
+        except Exception as e:
+            msg = director_chat.tachar(str(e) or type(e).__name__)
             contenido = {
-                "content": [{"type": "text", "text": "Error: %s" % e}],
+                "content": [{"type": "text", "text": "Error: %s" % msg}],
                 "isError": True,
             }
             return {"jsonrpc": "2.0", "id": ident, "result": contenido}
@@ -788,7 +817,10 @@ def atender(peticion):
 
 
 def _bucle():
-    for linea in sys.stdin:
+    while True:
+        linea = sys.stdin.readline()
+        if not linea:
+            break
         linea = linea.strip()
         if not linea:
             continue
@@ -796,6 +828,8 @@ def _bucle():
             respuesta = atender(json.loads(linea))
         except json.JSONDecodeError:
             respuesta = _error(None, -32700, "JSON no válido")
+        except Exception as err:
+            respuesta = _error(None, -32603, director_chat.tachar(str(err) or type(err).__name__))
         if respuesta is not None:
             sys.stdout.write(json.dumps(respuesta, ensure_ascii=False) + "\n")
             sys.stdout.flush()
