@@ -353,7 +353,46 @@ fn ejecutar(app: &AppHandle, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Opti
             tecla(&mut w, t)
         }
         "texto" => texto(&mut w, o.args.get("texto").and_then(|t| t.as_str()).unwrap_or("")),
-        // Volumen y brillo por nivel no se prometen en un Linux (ver `capacidades_linux`): se dice la verdad.
+        "volumen" => {
+            let flujo = o.args.get("flujo").and_then(|c| c.as_str()).ok_or((l::Motivo::SinServicio, None))?;
+            let nivel = o.args.get("nivel").and_then(|n| n.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
+            if !l::FLUJOS.contains(&flujo) {
+                return Err((l::Motivo::SinServicio, None));
+            }
+            let mut cmd = if comando_disponible("pactl") {
+                let args = ll::volumen_pactl_args(nivel);
+                let mut c = std::process::Command::new("pactl");
+                c.args(&args);
+                c
+            } else if comando_disponible("wpctl") {
+                let args = ll::volumen_wpctl_args(nivel);
+                let mut c = std::process::Command::new("wpctl");
+                c.args(&args);
+                c
+            } else {
+                return Err((l::Motivo::SinServicio, None));
+            };
+            crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|_| ()).map_err(|_| (l::Motivo::SinServicio, None))
+        }
+        "brillo" => {
+            let nivel = o.args.get("nivel").and_then(|n| n.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
+            let mut cmd = if comando_disponible("brightnessctl") {
+                let args = ll::brillo_brightnessctl_args(nivel);
+                let mut c = std::process::Command::new("brightnessctl");
+                c.args(&args);
+                c
+            } else if comando_disponible("xrandr") {
+                let args = ll::brillo_xrandr_args("eDP-1", nivel);
+                let mut c = std::process::Command::new("xrandr");
+                c.args(&args);
+                c
+            } else {
+                return Err((l::Motivo::SinServicio, None));
+            };
+            crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|_| ()).map_err(|_| (l::Motivo::SinServicio, None))
+        }
         _ => return Err((l::Motivo::SinServicio, None)),
     };
     r.map_err(|_| (l::Motivo::SinServicio, None))
@@ -383,10 +422,24 @@ pub fn al_cerrar(app: &AppHandle) {
 
 // ─────────────────────────── Capacidades, ajustes y estado ───────────────────────────
 
+fn comando_disponible(cmd: &str) -> bool {
+    std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {}", cmd))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 pub fn capacidades(app: &AppHandle) -> Value {
     let g = grafica();
     let (conecta, xtest) = if g == ll::Grafica::X11 { sondear_x11() } else { (false, false) };
-    ll::capacidades_linux(g, conecta, xtest, alcance(app))
+    let volumen_ok = comando_disponible("pactl") || comando_disponible("wpctl");
+    let brillo_ok = comando_disponible("brightnessctl") || comando_disponible("xrandr");
+    ll::capacidades_linux(g, conecta, xtest, alcance(app), volumen_ok, brillo_ok)
 }
 
 /// En Linux no hay un panel de Ajustes donde dar estos permisos (no son permisos: es la sesión). No se abre nada.
