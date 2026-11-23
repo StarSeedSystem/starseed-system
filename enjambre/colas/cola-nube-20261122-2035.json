@@ -1,0 +1,52 @@
+{
+ "ola": "nube-20261122",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "titulo": "Publicar vector visual 1.58b por cláusula",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar vector visual 1.58b por cláusula. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en canal `params` del bus de la orbe — ya está en tasks abiertas, permitiría sincronizar avatar cuántico con estado cognitivo real. `tasks abiertas` línea \"Publicar desde el 1.58b el vector visual…\" Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "RST06",
+   "ola": "RST1116A",
+   "titulo": "Del lado del aparato controlado: la petición de fuente llega a lo nativo y se devuelve la fuente real",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/nativo-comandos.ts",
+    "src/lib/control-remoto/__tests__/pantalla-origen-fuente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. CONTEXTO COMPROBADO: hoy la persona no puede pedir la pantalla fluida (proyección): `pantalla-iniciar` solo admite `lado` y `calidad` (`niveles.ts:102-114`), `PantallaDestino.iniciar` manda `orden(\"pantalla-iniciar\", {})` sin nada (`pantalla-destino.ts:282`), `pantalla-origen.ts:186-198` llama a `control_pantalla_iniciar` sin fuente y deduce `fuente` del resultado (`accesibilidad` o `proyeccion`), `nativo-comandos.ts:11` solo deja pasar `sesion`, `lado_max` y `calidad`, y LO NATIVO (`native/src-tauri/src/control_pantalla.rs:12`, `:68`) todavía NO tiene la fuente `proyeccion` (`control_capacidades` dice `proyeccion:false`): hoy siempre contesta «accesibilidad». Por eso lo que se pide es una PETICIÓN explícita y lo que se enseña es la fuente REAL que contestó el aparato: nunca se dice «fluida» si no lo es. Esta tarea no toca Rust. Escribe primero las pruebas. (1) `nativo-comandos.ts:11`: `control_pantalla_iniciar: [\"sesion\", \"lado_max\", \"calidad\", \"fuente\"]` (la lista de claves permitidas; lee el archivo para ver cómo se valida). (2) `pantalla-origen.ts` (:161 el caso `pantalla-iniciar` y :186-198): si `args.fuente` es `\"proyeccion\"`, pásalo a `control_pantalla_iniciar` como `fuente`; si no está o es `\"auto\"`, NO lo mandes (igual que hoy). La `fuente` que se devuelve y se guarda sigue siendo la que CONTESTA lo nativo (`r.fuente`), nunca la pedida. Si se pidió `proyeccion` y lo nativo contesta otra cosa o no la ofrece, la sesión sigue con lo que haya (no se cierra) y el resultado lleva `fuente_pedida: \"proyeccion\"` además de la real, para que el otro lado pueda avisar (con `RST04`). ≤40 líneas de diferencia en cada archivo. PRUEBAS (`pantalla-origen.test.ts` como guía, `invocar` simulado): con `fuente:\"proyeccion\"` el invocador recibe `fuente`; sin ella no; si lo nativo contesta `accesibilidad`, el resultado dice `fuente:\"accesibilidad\"` y `fuente_pedida:\"proyeccion\"`; si contesta `proyeccion`, dice `proyeccion`.\n\nREGLAS DE LA CASA: SOLO ESCRIBES ARCHIVOS. No ejecutes comandos (ni vitest, ni tsc, ni git, ni node, ni npm, ni python): las pruebas y la comprobación de tipos las pasa el orquestador después; deja escritas las pruebas listadas. Toca SOLO los archivos de `archivos` (≤3; en uno existente tu cambio es ≤60 líneas, en uno nuevo ≤120 líneas; si no cabe, para y di qué falta en un comentario al inicio del archivo de pruebas). Sin `any`; español neutro con acentos; nunca escribas «Mando», «Puente de Mando» ni «Centro de Mando» en texto visible; módulos puros sin red ni `node:*` salvo que la tarea diga otra cosa (red, reloj y almacenamiento se INYECTAN); ni `git push` ni publicar ni aplicar migraciones; no imprimas ni guardes claves; nada se inventa: si algo no se puede saber, el código lo dice. Si tus pruebas necesitan un dato que no puedes leer, escríbelas con el dato inyectado.",
+   "dependencias_ya_en_main": [
+    "RST05"
+   ]
+  },
+  {
+   "id": "CAN1121C",
+   "ola": "DIR1121",
+   "titulo": "Cada canal con las mismas características, herramientas y especialidad en todos sus chats",
+   "archivos": [
+    "scripts/puente/fichas_canales.py",
+    "scripts/puente/test_fichas_canales.py",
+    "scripts/puente/cartero_director.py",
+    "scripts/puente/motores_director.py",
+    "scripts/puente/chats.json"
+   ],
+   "depende": [],
+   "prompt": "Alex: «perfeccionar y refinar sus características, cualidades, herramientas y especializaciones con todo MetaGenesis en todos los\nchats de canales activos: MetaGenesis, Astraura con Genesis desde mi cuenta, Hermes, Antigravity, Telegram, Claude, Codex». Crea la FICHA\nde cada canal en una sola fuente (dentro del registro canales-direccion o junto a él): propósito, especialidad, qué decide y qué no,\nherramientas y habilidades (skills, MCP, colas, puertas), motores y modelos por orden (gratuitos primero; créditos de Antigravity y\nClaude solo donde rinden), memorias y contextos que carga siempre (fundamentos, registro de pruebas, estado de olas, acciones de Alex),\nqué puede hacer sin la palabra de Alex y qué no, y a quién releva. Propuesta de reparto: Principal = presidente: plan, prioridades,\ndecisiones largas, supervisión y verificación, relevo con Claude en Cowork; General = operación diaria: colas, salud, capacidad,\npublicación, avisos y órdenes cortas desde el móvil; Audiovisual y diseño = identidad Trinity Liquid Crystal, piezas, vídeo, NotebookLM,\nDrive y redes. Luego haz que CADA medio cargue esa misma ficha como contexto de su chat del canal (prompt de la sesión de Hermes, chat de\nAntigravity, Codex, el contexto que el cartero da al presidente, /ayuda y /estado de cada bot de Telegram, pestaña de Genesis en\nAstraura, panel de MetaGenesis) y una prueba que compare que todos entregan la misma ficha. No amplíes los permisos de escritura de\nningún agente.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "CAN1121A-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1121-194150.json": [
+   "IMG-diaria-publicar-vector-visual-1-58b-por",
+   "RST06",
+   "CAN1121C"
+  ]
+ }
+}
