@@ -23,6 +23,7 @@ import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, per
 import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
+import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
 import { esLinuxEscritorio } from "./webrtc-linux";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, VENTANA_FPS_MS, INTERVALO_REGISTRO_MS } from "./calidad"; // CTL1119B
@@ -306,6 +307,7 @@ export class PantallaDestino {
         readonly neurona: string,
         private readonly d: DepsDestino,
         private readonly fuente: FuentePedida = FUENTE_DEFECTO,
+        private readonly ajustes: AjustesSesion = AJUSTES_DEFECTO,
     ) {
         this.registro = d.registro ?? new RegistroSesiones(d.ahora);
         this.carrilCompartido = this.registro.carrilDe(neurona);
@@ -380,9 +382,14 @@ export class PantallaDestino {
         const nivel = abierta.nivel === "controlar" ? "controlar" : "ver";
         this.poner({ nivel });
 
-        this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=envio fuente=${this.fuente}`); // CTL1118A
+        this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=envio fuente=${this.fuente} lado=${this.ajustes.ladoMaximo} calidad=${this.ajustes.calidadJpeg}`); // CTL1118A
         const t0 = this.d.ahora();
-        const p = await this.orden("pantalla-iniciar", this.fuente === "proyeccion" ? { fuente: this.fuente } : {}, "ver");
+        const argsPantallaIniciar: Record<string, unknown> = {
+            lado: this.ajustes.ladoMaximo,
+            calidad: this.ajustes.calidadJpeg,
+        };
+        if (this.fuente === "proyeccion") argsPantallaIniciar.fuente = this.fuente;
+        const p = await this.orden("pantalla-iniciar", argsPantallaIniciar, "ver");
         this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=${p.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(p.motivo)} ms=${Math.max(0, Math.min(999_999, Math.round(this.d.ahora() - t0)))}`); // CTL1118A
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
@@ -788,7 +795,7 @@ export class PantallaDestino {
     async pedirFluida(): Promise<boolean> {
         if (this.cerrada || !this.token || this.snap.fuente === "proyeccion" || (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local" && this.snap.estado !== "conectando")) return false;
         this.anotar("control-fuente lado=controlador paso=fluida-pedida-por-la-persona");
-        const r = await this.orden("pantalla-iniciar", { fuente: "proyeccion", mantener: true }, "ver");
+        const r = await this.orden("pantalla-iniciar", { fuente: "proyeccion", mantener: true, lado: this.ajustes.ladoMaximo, calidad: this.ajustes.calidadJpeg }, "ver");
         this.anotar(`control-fuente lado=controlador paso=fluida-pedida-por-la-persona resultado=${r.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}`);
         const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
         if (r.ok && real && !this.cerrada) this.poner({ fuente: real });
@@ -1231,12 +1238,19 @@ export function depsReales(neurona: string): DepsDestino {
 export interface OpcionesPantallaDestino {
     /** RST1116A: lo que pide la persona. «auto» no manda el campo (comportamiento de siempre). */
     fuente?: FuentePedida;
+    /** Ajustes de sesión (FPS, lado máximo, calidad JPEG, perfil multiantena, modo teclado). */
+    ajustes?: AjustesSesion;
     /** Piezas inyectadas (pruebas); en producción se usan las reales. */
     deps?: DepsDestino;
 }
 
 export function crearPantallaDestino(neurona: string, opciones: OpcionesPantallaDestino = {}): PantallaDestino {
-    return new PantallaDestino(neurona, opciones.deps ?? depsReales(neurona), opciones.fuente ?? FUENTE_DEFECTO);
+    return new PantallaDestino(
+        neurona,
+        opciones.deps ?? depsReales(neurona),
+        opciones.fuente ?? FUENTE_DEFECTO,
+        opciones.ajustes ?? AJUSTES_DEFECTO,
+    );
 }
 
 // Para quien quiera comprobar que el vocabulario de entrada coincide con el de la puerta.

@@ -37,18 +37,18 @@ function montar(fuente: FuentePedida | undefined, respuesta: unknown = { ok: tru
 const iniciarDe = (enviadas: { nombre: string; args: Args }[]) => enviadas.find((e) => e.nombre === "pantalla-iniciar")!;
 
 describe("RST1116A · la fuente pedida llega a la orden", () => {
-    it("con «proyeccion» la orden lleva fuente:proyeccion", async () => {
+    it("con «proyeccion» la orden lleva fuente:proyeccion y los ajustes de sesión", async () => {
         const { destino, enviadas } = montar("proyeccion");
         await destino.iniciar();
-        expect(iniciarDe(enviadas).args).toEqual({ fuente: "proyeccion" });
+        expect(iniciarDe(enviadas).args).toEqual({ fuente: "proyeccion", lado: 1280, calidad: 75 });
     });
 
-    it("con «auto» (o sin pedir nada) la orden no lleva el campo: el comportamiento de hoy no cambia", async () => {
+    it("con «auto» (o sin pedir nada) la orden lleva los ajustes de sesión por defecto", async () => {
         for (const fuente of ["auto", undefined] as const) {
             const { destino, enviadas } = montar(fuente);
             await destino.iniciar();
             const args = iniciarDe(enviadas).args;
-            expect(args).toEqual({});
+            expect(args).toEqual({ lado: 1280, calidad: 75 });
             expect("fuente" in args).toBe(false);
         }
     });

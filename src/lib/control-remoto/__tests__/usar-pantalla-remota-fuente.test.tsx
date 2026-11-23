@@ -10,6 +10,7 @@ import { usarPantallaRemota } from "../usar-pantalla-remota";
 import type { PantallaRemota } from "../usar-pantalla-remota";
 import type { InstantaneaPantalla, PantallaDestino } from "../pantalla-destino";
 import type { FuentePedida, FuenteReal, VeredictoFuente } from "../fuente-pantalla";
+import { AJUSTES_DEFECTO } from "../ajustes-sesion";
 
 const VACIA: InstantaneaPantalla = {
     estado: "cerrada",
@@ -23,6 +24,8 @@ const VACIA: InstantaneaPantalla = {
 };
 
 import type { OpcionesPantallaDestino } from "../pantalla-destino";
+
+const OPCIONES_DEFECTO: OpcionesPantallaDestino = { fuente: "auto" as FuentePedida, ajustes: AJUSTES_DEFECTO };
 
 const mockFactoryRef = { current: (neurona: string, opciones: OpcionesPantallaDestino): PantallaDestino => {
     throw new Error("crearPantallaDestino no configurado");
@@ -90,7 +93,7 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         mockFactoryRef.current = () => mock;
         const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "auto" as FuentePedida }));
 
-        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "auto" as FuentePedida });
+        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "auto" as FuentePedida, ajustes: AJUSTES_DEFECTO });
         expect(result.current.fuentePedida).toBe("auto");
         expect(result.current.veredicto.cumplida).toBe(true);
     });
@@ -100,7 +103,7 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         mockFactoryRef.current = () => mock;
         const { result } = renderHook(() => usarPantallaRemota("tableta", { fuente: "proyeccion" as FuentePedida }));
 
-        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "proyeccion" as FuentePedida });
+        expect(crearPantallaDestino).toHaveBeenCalledWith("tableta", { fuente: "proyeccion" as FuentePedida, ajustes: AJUSTES_DEFECTO });
         expect(result.current.fuentePedida).toBe("proyeccion");
     });
 
@@ -121,7 +124,7 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
 
         expect(mock1.cerrar).toHaveBeenCalledWith("fuente-cambiada", true);
         expect(crearPantallaDestino).toHaveBeenCalledTimes(2);
-        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "proyeccion" as FuentePedida });
+        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "proyeccion" as FuentePedida, ajustes: AJUSTES_DEFECTO });
         expect(result.current.fuentePedida).toBe("proyeccion");
     });
 
@@ -138,7 +141,7 @@ describe("RST1116A · usarPantallaRemota con fuente pedida", () => {
         rerender({ neurona: "tableta", opciones: { fuente: "auto" as FuentePedida } });
 
         expect(mock1.cerrar).toHaveBeenCalledWith("fuente-cambiada", true);
-        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "auto" as FuentePedida });
+        expect(crearPantallaDestino).toHaveBeenNthCalledWith(2, "tableta", { fuente: "auto" as FuentePedida, ajustes: AJUSTES_DEFECTO });
         expect(result.current.fuentePedida).toBe("auto");
     });
 

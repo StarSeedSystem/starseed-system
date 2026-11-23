@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FUENTE_DEFECTO, type FuentePedida, veredictoFuente, type VeredictoFuente } from "./fuente-pantalla";
 import { crearPantallaDestino, type EntradaControl, type InstantaneaPantalla, type PantallaDestino } from "./pantalla-destino";
+import { type AjustesSesion, AJUSTES_DEFECTO, sonIguales } from "./ajustes-sesion";
 
 const VACIA: InstantaneaPantalla = {
     estado: "cerrada",
@@ -36,31 +37,39 @@ export interface PantallaRemota extends InstantaneaPantalla {
 /** `fuente` (RST1116A): la pantalla que pide la persona; sin ella, «auto» (como siempre). Cambiarla reabre la pantalla. */
 export function usarPantallaRemota(
     neurona: string | null,
-    opciones?: { fuente?: FuentePedida },
+    opciones?: { fuente?: FuentePedida; ajustes?: AjustesSesion },
 ): PantallaRemota {
     const fuentePedida = opciones?.fuente ?? FUENTE_DEFECTO;
+    const ajustes = opciones?.ajustes ?? AJUSTES_DEFECTO;
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
     const prevFuentePedidaRef = useRef(fuentePedida);
     const currentFuentePedidaRef = useRef(fuentePedida);
     currentFuentePedidaRef.current = fuentePedida;
+    const prevAjustesRef = useRef(ajustes);
+    const currentAjustesRef = useRef(ajustes);
+    currentAjustesRef.current = ajustes;
 
     useEffect(() => {
         const prevFuentePedida = prevFuentePedidaRef.current;
+        const prevAjustes = prevAjustesRef.current;
         prevFuentePedidaRef.current = fuentePedida;
+        prevAjustesRef.current = ajustes;
 
         if (!neurona) {
             setObj(null);
             return;
         }
-        const p = crearPantallaDestino(neurona, { fuente: fuentePedida });
+        const p = crearPantallaDestino(neurona, { fuente: fuentePedida, ajustes });
         setObj(p);
         void p.iniciar();
         return () => {
-            const motivo = prevFuentePedida !== currentFuentePedidaRef.current ? "fuente-cambiada" : "desmontada";
+            const fuenteCambiada = prevFuentePedida !== currentFuentePedidaRef.current;
+            const ajustesCambiados = prevAjustes !== currentAjustesRef.current && !sonIguales(prevAjustes, currentAjustesRef.current);
+            const motivo = fuenteCambiada ? "fuente-cambiada" : ajustesCambiados ? "ajustes-cambiados" : "desmontada";
             void p.cerrar(motivo, true);
         };
-    }, [neurona, intento, fuentePedida]);
+    }, [neurona, intento, fuentePedida, ajustes]);
 
     const suscribir = useCallback((cb: () => void) => (obj ? obj.suscribir(cb) : () => undefined), [obj]);
     const snap = useSyncExternalStore(
