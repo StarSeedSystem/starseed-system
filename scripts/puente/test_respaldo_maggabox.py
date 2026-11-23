@@ -481,5 +481,135 @@ class TestPlistLaunchd(unittest.TestCase):
         self.assertIn("21600", R.__doc__ or "")  # 6 horas = 21600 segundos
 
 
+class TestExclusionesDeRespaldo(unittest.TestCase):
+    """ALM1121: el rsync no arrastra los temporales de Drive ni los secretos."""
+
+    def test_incluye_tmp_drive_y_secretos(self):
+        patrones = R.exclusiones_respaldo()
+        self.assertIn(".tmp.drive*", patrones)
+        self.assertIn("~/.starseed/env", patrones)
+        self.assertIn("*.pem", patrones)
+
+    def test_umbral_de_espacio_del_bundle(self):
+        gb = 1024 ** 3
+        self.assertFalse(R.hay_espacio_para_bundle(5 * gb))
+        self.assertTrue(R.hay_espacio_para_bundle(7 * gb))
+        self.assertFalse(R.hay_espacio_para_bundle(6 * gb))  # «más de 6 GB», no «6 justos»
+
+
+class TestRespaldarBundleTemporal(unittest.TestCase):
+    """ALM1121: el bundle se crea en local, se envía, se verifica y se borra."""
+
+    def setUp(self):
+        self.ssh = SSHSimulado()
+        self.guardados = []
+
+    def _respaldar(self, **kw):
+        base = dict(
+            ssh_fn=self.ssh,
+            mac_root=MAC_ROOT,
+            memory_root=STARSEED_MEMORY_ROOT,
+            destino_base=DEST_BASE,
+            seco=False,
+            guardar_log=self.guardados.append,
+        )
+        base.update(kw)
+        return R.respaldar(**base)
+
+    def test_sin_espacio_se_salta_el_bundle_y_lo_dice(self):
+        resultado = self._respaldar(libre_fn=lambda _ruta: 1 * 1024 ** 3)
+        bundle = [d for d in resultado["detalles"] if d.get("fase") == "git_bundle"][0]
+        self.assertTrue(bundle.get("saltado"))
+        self.assertIn("GitHub", bundle.get("motivo", ""))
+        self.assertFalse(any(c[:2] == ["git", "-C"] for c in self.ssh.llamadas))
+
+    def test_bundle_local_en_temporal_con_suma_y_limpieza(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            resultado = self._respaldar(
+                libre_fn=lambda _ruta: 20 * 1024 ** 3,
+                tmp_fn=lambda: tmp,
+                hash_local_fn=lambda _ruta: "sha-igual",
+                hash_remoto_fn=lambda _ruta: "sha-igual",
+            )
+            self.assertEqual(resultado["estado"], "hecho")
+            git = [c for c in self.ssh.llamadas if c[:2] == ["git", "-C"]][0]
+            self.assertTrue(git[4].startswith(tmp), git)
+            self.assertFalse(git[4].startswith("~"), "el bundle no puede ir a una ruta remota")
+            self.assertTrue(any(c[0] == "scp" for c in self.ssh.llamadas))
+            self.assertEqual(os.listdir(tmp), [], "el temporal se borra tras verificar")
+
+    def test_suma_distinta_conserva_el_temporal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            resultado = self._respaldar(
+                libre_fn=lambda _ruta: 20 * 1024 ** 3,
+                tmp_fn=lambda: tmp,
+                hash_local_fn=lambda _ruta: "sha-local",
+                hash_remoto_fn=lambda _ruta: "sha-remoto",
+            )
+            self.assertEqual(resultado["estado"], "parcial")
+            self.assertTrue(os.path.isdir(tmp), "sin copia comprobada no se borra nada")
+
+
+class TestCandidatosDeAlivio(unittest.TestCase):
+    """ALM1121: candidatos medidos, con su porqué y su umbral de edad."""
+
+    def test_go_build_solo_pasa_de_una_hora(self):
+        self.assertTrue(R._go_build_viejo("go-build123", 3601))
+        self.assertFalse(R._go_build_viejo("go-build123", 3599))
+        self.assertFalse(R._go_build_viejo("otra-cosa", 99999))
+
+    def test_shipit_solo_pasa_de_un_dia(self):
+        self.assertTrue(R._shipit_viejo("com.apple.ShipIt", 86401))
+        self.assertFalse(R._shipit_viejo("com.apple.ShipIt", 86399))
+        self.assertFalse(R._shipit_viejo("otra-cosa", 999999))
+
+    def test_driveupload_solo_pasa_de_24_horas(self):
+        self.assertTrue(R._driveupload_viejo(".tmp.driveupload", 86401))
+        self.assertFalse(R._driveupload_viejo(".tmp.driveupload", 86399))
+        self.assertFalse(R._driveupload_viejo("otra-cosa", 999999))
+
+    def test_next_anterior_solo_con_la_actual_sana_y_vieja(self):
+        self.assertTrue(R._next_anterior_movible(True, 7200, True))
+        self.assertFalse(R._next_anterior_movible(True, 1800, True))
+        self.assertFalse(R._next_anterior_movible(True, 7200, False))
+        self.assertFalse(R._next_anterior_movible(False, 7200, True))
+
+    def test_instalador_solo_si_la_version_ya_se_publico(self):
+        publicadas = {"0.5.1-prueba.7"}
+        self.assertTrue(R._instalador_prueba_publicado("StarSeed-0.5.1-prueba.7.dmg", publicadas))
+        self.assertFalse(R._instalador_prueba_publicado("StarSeed-0.5.1-prueba.8.dmg", publicadas))
+        self.assertFalse(R._instalador_prueba_publicado("StarSeed-0.5.1.dmg", publicadas))
+
+    def test_olas_logs_solo_pasan_de_siete_dias(self):
+        edades = {"ola-1.log": 7 * 86400 + 1, "ola-2.log": 7 * 86400 - 1, "otra.txt": 10 ** 9}
+        self.assertEqual(R._olas_logs_movibles(edades), ["ola-1.log"])
+
+
+class TestAliviarSecreto(unittest.TestCase):
+    """`--seco` enseña cada candidato con sus MB, sin tocar nada."""
+
+    def test_seco_lista_candidatos_con_mb(self):
+        resultado = R.aliviar(
+            ssh_fn=SSHSimulado(),
+            mac_root=MAC_ROOT,
+            wt_root=WT_ROOT,
+            destino_base=DEST_BASE,
+            seco=True,
+            candidatos_fn=lambda **_kw: [
+                {"ruta": "/tmp/go-build1", "clase": "go-build", "motivo": "go-build de más de 1 h", "mb": 812.4},
+                {"ruta": "/tmp/ola-1.log", "clase": "olas-logs", "motivo": "registro de ola de más de 7 días", "mb": 3.2},
+            ],
+        )
+        self.assertEqual(resultado["estado"], "seco")
+        self.assertEqual(len(resultado["candidatos"]), 2)
+        self.assertEqual(resultado["total_mb"], 815.6)
+        self.assertIn("MB", json.dumps(resultado, ensure_ascii=False))
+
+    def test_alivio_automatico_solo_bajo_12_gb(self):
+        self.assertEqual(R.UMBRAL_ALIVIO_GB, 12.0)
+
+
 if __name__ == "__main__":
     unittest.main()

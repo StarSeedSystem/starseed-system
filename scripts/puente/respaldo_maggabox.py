@@ -47,11 +47,15 @@ Instala el Director presidente tras la puerta.
 from __future__ import annotations
 
 import datetime as dt
+import glob
+import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
@@ -85,6 +89,23 @@ EXCLUIR_SECRETOS = [
     "*token*",
 ]
 
+#: Temporales que la app de Google Drive deja dentro de `starseed_memory_root`.
+#: (ALM1121) El rsync los copiaba: eran ~2 GB de 2 191 trozos que aparecen y
+#: desaparecen mientras se lee. Nunca son datos: se excluyen del respaldo.
+EXCLUIR_PESADO = [".tmp.drive*", ".tmp.driveupload", ".tmp.drivedownload"]
+
+#: El bundle solo se crea si, además de lo que va a ocupar, quedan más de 6 GB
+#: libres. Si no, se salta: el espejo de GitHub del Maggabox ya cubre el código.
+BUNDLE_MIN_LIBRE_GB = 6.0
+#: Cuántos bundles se conservan en el Maggabox.
+BUNDLE_RETENCION = 7
+#: Umbral de alivio automático: por debajo de 12 GB libres se mueve lo regenerable.
+UMBRAL_ALIVIO_GB = 12.0
+
+#: Índice legible de todo lo que salió de la Mac hacia el Maggabox.
+INDICE_REL = os.path.join("starseed_memory_root", "nodo", "indice-pesados-maggabox.md")
+RUTA_MOVIDO = os.path.expanduser("~/.starseed/almacenamiento-movido.json")
+
 # Lista blanca de aliviar: lo que SÍ se puede mover (PURA)
 ALIVIAR_BLANCA = [
     ".next/cache",
@@ -112,6 +133,33 @@ def excluir_secretos() -> List[str]:
     return list(EXCLUIR_SECRETOS)
 
 
+def exclusiones_respaldo() -> List[str]:
+    """PURA: lo secreto y los temporales de Drive que nunca viajan al Maggabox."""
+    return list(EXCLUIR_SECRETOS) + list(EXCLUIR_PESADO)
+
+
+def hay_espacio_para_bundle(libre_bytes: float, minimo_gb: float = BUNDLE_MIN_LIBRE_GB) -> bool:
+    """PURA: ¿hay MÁS de `minimo_gb` libres para crear el bundle temporal? (6 justos no)."""
+    return float(libre_bytes or 0) > float(minimo_gb) * (1024 ** 3)
+
+
+def _nombre_bundle(fecha: str) -> str:
+    """PURA: nombre del bundle del día."""
+    return "repo-%s.bundle" % fecha
+
+
+def _sha256_local(ruta: str) -> str:
+    """sha256 de un archivo local; cadena vacía si no se puede leer."""
+    h = hashlib.sha256()
+    try:
+        with open(ruta, "rb") as archivo:
+            for trozo in iter(lambda: archivo.read(1024 * 1024), b""):
+                h.update(trozo)
+        return h.hexdigest()
+    except OSError:
+        return ""
+
+
 def _rsync_args(origen: str, destino: str, exclusiones: List[str]) -> List[str]:
     """PURA: construye argv de rsync con exclusiones."""
     args = ["rsync", "-az", "--delete", "--info=progress2"]
@@ -134,8 +182,6 @@ def _tar_ssh_args(origen: str, destino_host: str, destino_ruta: str, exclusiones
 
 
 def _git_bundle_args(repo: str, destino: str) -> List[str]:
-    """PURA: argv para git bundle create --all."""
-    return ["git", "-C", repo, "bundle", "create", destino, "--all"]
 
 
 def _ssh_mkdir(destino: str) -> List[str]:
