@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "CAP-cloudroom-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar Cloudroom",
+   "archivos": [
+    "scripts/puente/cloudroom_config.py"
+   ],
+   "depende": [],
+   "prompt": "usar en próxima ola. Crear script de configuración y prueba de Cloudroom."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP-cloudroom-config"
+  ]
+ }
+}
