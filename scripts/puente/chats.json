@@ -1,6 +1,25 @@
 {
   "_lee_esto_primero": "Registro de los chats PRINCIPALES de Genesis. Uno por entorno, con nombre fijo. Los chats de tarea se llaman «ola/<id> · <titulo>» y NO se apuntan aqui: se distinguen solos por el prefijo. Abre el principal con: starseed-puente chat <entorno>",
   "nombre_canonico": "Principal",
+  "_ficha_canales": "La ficha de cada canal vive en UNA sola fuente: scripts/puente/fichas_canales.py (texto_ficha). Todos los medios —MetaGenesis, Astraura, Hermes, Antigravity, Telegram, Claude y Codex— entregan ese mismo cuerpo; aquí solo se declara qué canal carga cada entorno.",
+  "ficha_canales": {
+    "fuente": "scripts/puente/fichas_canales.py",
+    "funcion": "texto_ficha",
+    "canales": [
+      "principal",
+      "general",
+      "audiovisual"
+    ],
+    "medios": [
+      "metagenesis",
+      "astraura",
+      "hermes",
+      "antigravity",
+      "telegram",
+      "claude",
+      "codex"
+    ]
+  },
   "_nombre_canonico_fuente": "~/.starseed/canales-direccion.json · campo principal.nombre (este valor es solo el respaldo del chat principal)",
   "_canales": "Los tres canales de dirección se llaman IGUAL en todos los medios. Su nombre visible se lee de ~/.starseed/canales-direccion.json (campo nombre); aquí solo se declaran las claves y los ids. Ningún medio escribe un nombre distinto a mano.",
   "prefijo_tareas": "ola/",
@@ -25,7 +44,8 @@
           "id": "session_018RMahTwV5WCPD9iPaXmDC3",
           "nota": "Se espeja en el chat principal; Claude no tiene una sesión aparte."
         }
-      }
+      },
+      "ficha_canal": "principal"
     },
     "codex": {
       "producto": "Codex (app de escritorio)",
@@ -46,7 +66,8 @@
           "id": "01a08a31-a97c-7332-973a-32ebc5606504",
           "nota": "Se espeja en el chat principal; Codex no tiene una sesión aparte."
         }
-      }
+      },
+      "ficha_canal": "principal"
     },
     "hermes": {
       "producto": "Hermes Agent",
@@ -65,7 +86,8 @@
         "audiovisual": {
           "hermes_sesion": "local-2409461f5f521f3b8fc237f961b3e91519df2274380fabfcba6472c5dfbd940e"
         }
-      }
+      },
+      "ficha_canal": "principal"
     },
     "antigravity": {
       "producto": "Antigravity IDE",
@@ -86,7 +108,8 @@
           "id": "28bb41f9-d02c-4cf3-bca4-d1db26ce1521",
           "nota": "Se espeja en el chat principal; Antigravity no tiene una sesión aparte."
         }
-      }
+      },
+      "ficha_canal": "principal"
     },
     "telegram": {
       "producto": "Telegram (puente móvil)",
@@ -112,6 +135,12 @@
           "telegram_bot": "@StarSeed_Design_bot",
           "id": "@StarSeed_Design_bot"
         }
+      },
+      "ficha_canal": "principal",
+      "ficha_por_canal": {
+        "principal": "principal",
+        "general": "general",
+        "audiovisual": "audiovisual"
       }
     }
   }

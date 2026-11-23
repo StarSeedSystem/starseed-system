@@ -44,6 +44,7 @@ if AQUI not in sys.path:
 
 import director_chat
 import director_presidente
+import fichas_canales
 
 ARCHIVOS_ENV_DEFECTO = ("~/.starseed/env", "~/.hermes/.env")
 DB_HERMES_DEFECTO = os.path.expanduser("~/.hermes/state.db")
@@ -541,6 +542,13 @@ def _estado_por_defecto() -> str:
         return "No pude leer el estado: %s" % e
 
 
+def _con_ficha(canal: str, texto: str) -> str:
+    """PURA (CAN1121C). Antepone la ficha del canal, la MISMA que usan todos los medios."""
+    cuerpo = (fichas_canales.texto_ficha(canal)
+              if canal in fichas_canales.CANALES else "")
+    return (cuerpo + "\n\n" + str(texto or "")).strip() if cuerpo else str(texto or "")
+
+
 def atender_orden_director(
     texto: str,
     canal: str = "mando",
@@ -555,14 +563,14 @@ def atender_orden_director(
     if tipo == "desconocida":
         return None
     if tipo == "ayuda":
-        return AYUDA_ORDENES
+        return _con_ficha(canal, AYUDA_ORDENES)
     if tipo == "reservada":
         return "esto es de Alex: %s" % plan.get("motivo")
     if tipo == "estado":
         try:
-            return str((estado_fn or _estado_por_defecto)())
+            return _con_ficha(canal, str((estado_fn or _estado_por_defecto)()))
         except Exception as e:  # noqa: BLE001
-            return "No pude leer el estado: %s" % e
+            return _con_ficha(canal, "No pude leer el estado: %s" % e)
     if ejecutar_fn is None:
         import mcp_director_ordenes as O
         ejecutar_fn = O.ejecutar

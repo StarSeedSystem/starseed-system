@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
+import fichas_canales
+
 # GEM1119C: integración con flota Antigravity
 try:
     from antigravity_flota import (
@@ -149,13 +151,25 @@ def ficha_permisos() -> str:
     ) % (MCP_DIRECTOR, ", ".join(MCP_DIRECTOR_PERMITIDAS), ", ".join(ORDENES_METAGENESIS))
 
 
-def prompt_con_permisos(prompt: str) -> str:
-    """PURA (ACC1121). Antepone la ficha de permisos al prompt, sin duplicarla si ya la lleva."""
+def ficha_canal(canal: str = "principal") -> str:
+    """PURA (CAN1121C). La ficha del canal, la MISMA que entrega cualquier otro medio."""
+    return fichas_canales.texto_ficha(canal)
+
+
+def prompt_con_permisos(prompt: str, canal: str = "principal") -> str:
+    """PURA (ACC1121 · CAN1121C). Antepone la ficha del canal y la de permisos.
+
+    Hermes, `agy` y Codex no tienen `--allowedTools`: reciben escritas la ficha del canal
+    (qué es, qué decide, con qué herramientas y memorias) y la puerta MCP cerrada. No se
+    duplica lo que ya está en el prompt.
+    """
     if not prompt:
-        return ficha_permisos()
-    if _MARCA_FICHA_PERMISOS in prompt[:200]:
-        return prompt
-    return ficha_permisos() + "\n" + prompt
+        prompt = ""
+    if fichas_canales.MARCA not in prompt:
+        prompt = ficha_canal(canal) + "\n\n" + prompt
+    if _MARCA_FICHA_PERMISOS not in prompt:
+        prompt = ficha_permisos() + "\n" + prompt
+    return prompt
 
 
 def mcp_config_director(raiz=None) -> dict:
@@ -171,7 +185,8 @@ def mcp_config_director(raiz=None) -> dict:
     }
 
 
-def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> list:
+def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None,
+                 canal: str = "principal") -> list:
     permitidas, vetadas = permisos_del_presidente()
     orden = [
         "claude",
@@ -189,7 +204,7 @@ def orden_claude(prompt: str, modelo: str = MODELO_DIRECTOR, sesion=None) -> lis
         # (ACC1121) La misma ficha que reciben Hermes, `agy` y Codex, aquí en el prompt de
         # sistema: no se duplica en el mensaje del usuario y el mensaje queda tal cual.
         "--append-system-prompt",
-        ficha_permisos(),
+        ficha_canal(canal) + "\n\n" + ficha_permisos(),
         "--allowedTools",
         *permitidas,
         "--disallowedTools",
@@ -240,12 +255,12 @@ def direccion_motor(ruta=None) -> dict:
 
 
 def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None,
-                 con_permisos=False) -> list:
+                 con_permisos=False, canal: str = "principal") -> list:
     # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Dirección MetaGenesis»).
     # (ACC1121) `con_permisos=True` le da la MISMA ficha que a Claude: Hermes no tiene
     # `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
     if con_permisos:
-        prompt = prompt_con_permisos(prompt)
+        prompt = prompt_con_permisos(prompt, canal=canal)
     orden = ["hermes"] + (["--resume", sesion] if sesion else []) + ["-z", prompt]
     if modelo and modelo != "predeterminado":
         orden += ["-m", modelo]
@@ -705,7 +720,8 @@ _AGY_PERMISOS = (
 _AGY_TOPE_FALLO = 600
 
 
-def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True) -> list:
+def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True,
+              canal: str = "principal") -> list:
     """La orden de `agy` con la sesión de Google de Alex (100 % headless sin GUI).
 
     `--mode plan` (nunca `--dangerously-skip-permissions`): la dirección propone, no toca el repo.
@@ -713,7 +729,7 @@ def orden_agy(prompt: str, modelo=None, segundos=None, con_permisos=True) -> lis
     `--allowedTools`, así que la puerta MCP y la lista cerrada van escritas en el prompt.
     """
     if con_permisos:
-        prompt = prompt_con_permisos(prompt)
+        prompt = prompt_con_permisos(prompt, canal=canal)
     segundos = int(segundos or SEGUNDOS_AGY)
     return [
         "agy",

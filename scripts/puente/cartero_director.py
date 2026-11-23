@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import director_chat
 import director_presidente  # DIR1111G
+import fichas_canales  # CAN1121C
 import motores_director
 import presidente_config
 import sincronizador_direccion
@@ -255,6 +256,11 @@ def _contexto(raiz=None, ahora=None, estado=None):
     """
     ahora = time.time() if ahora is None else float(ahora)
     partes = []
+
+    # CAN1121C ── La ficha del canal va primero: es la misma en todos los medios y no se
+    # recorta si el resto del contexto crece. Dice qué es el canal, qué decide y con qué.
+    partes.append(("FICHA DEL CANAL",
+                   fichas_canales.texto_ficha("principal"), 3200))
 
     def añadir(titulo, ruta_rel, tope_parte, desde_el_final=False, ultimas_lineas=0):
         texto, escrito_en = _leer_archivo_con_fecha(ruta_rel, raiz)

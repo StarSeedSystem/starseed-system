@@ -66,6 +66,7 @@ import peticiones_llm as PLLM
 import higgsfield_aprobado as hfa
 import salud_directores as SD
 import peticiones_sintesis_respaldo as PSR
+import fichas_canales
 
 CASA = NB_CASA
 DIR = os.path.join(CASA, ".starseed", "peticiones")
@@ -1360,13 +1361,14 @@ def _formato_salud_sesiones(salud: dict[str, Any]) -> str:
 
 
 def texto_estado(cola: list[Any], notebooklm: dict[str, Any]) -> str:  # noqa: F811
+    ficha = fichas_canales.texto_ficha("audiovisual")
     base = linea_chat() + "\n" + _texto_estado_gen1113(cola, notebooklm)
     salud = _leer_salud_sesiones()
-    return base + "\n" + _formato_salud_sesiones(salud)
+    return base + "\n" + _formato_salud_sesiones(salud) + "\n\n" + ficha
 
 
 def texto_ayuda() -> str:
-    return linea_chat() + "\n" + AYUDA
+    return linea_chat() + "\n" + AYUDA + "\n\n" + fichas_canales.texto_ficha("audiovisual")
 
 
 def _registrar_mensaje_recibido(texto: str) -> None:
