@@ -13,16 +13,16 @@
  *   · «Mapa 3D» — lienzo R3F con altura que significa algo.
  *   · «Plano»   — el MISMO modelo en SVG: móviles y equipos modestos, y red de seguridad si el
  *                 navegador no puede abrir WebGL.
- *   · «Espectro» — espectrómetro: eje de frecuencias con barras por señal, filtros y ficha.
+ *   · «Espectro» — eje de frecuencias con barras por señal, filtros y ficha (MAP1116B).
  *
  * Modelo puro: `src/lib/senales/` (`modelo.ts`). Escena (único archivo con three): `escena-3d.tsx`,
  * cargada perezosa. SOP: `architecture/mapa-3d-senales-reales.md`.
  */
 
-import { useEffect, useState } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, Radar, RadioTower } from "lucide-react";
+import { useReducedMotion } from "framer-motion";
+import { Loader2, Radar, Signal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { webglDisponible } from "@/lib/senales/webgl";
 import {
@@ -33,11 +33,22 @@ import { SelectorVista } from "./barra-mapa";
 import { ContenidoMapa } from "./contenido-mapa";
 import { useCompacto } from "./use-compacto";
 import { useMapaVivo } from "./use-mapa-vivo";
-import type { MapaVivoRed } from "@/lib/senales/tipos-vivo";
-import { MEDIOS } from "./geo/panel-filtros-senales-tipos";
+import type { FiltroEspectro } from "@/lib/senales/espectro/filtros";
+import { filtrarConCuenta, FILTRO_VACIO } from "@/lib/senales/espectro/filtros";
+import { filtroEspectroASenales, filtroSenalesAEspectro } from "./geo/panel-filtros-senales-tipos";
+import type { FiltroSenales } from "./geo/panel-filtros-senales-tipos";
+import type { SenalEspectro, SinFuente, Compatibilidad } from "@/lib/senales/espectro/tipos";
 
-const EspectroVista = dynamic(
-  () => import("./espectro-vista").then((m) => m.EspectroVista),
+const PanelFiltrosSenalesDinamico = dynamic(
+  () => import("./geo/panel-filtros-senales").then((m) => m.PanelFiltrosSenales),
+  { ssr: false, loading: () => null }
+);
+const VistaEspectroDinamica = dynamic(
+  () => import("./vista-espectro").then((m) => m.VistaEspectro),
+  { ssr: false, loading: () => null }
+);
+const FichaSenalEspectroDinamica = dynamic(
+  () => import("./ficha-senal-espectro").then((m) => m.FichaSenalEspectro),
   { ssr: false, loading: () => null }
 );
 
@@ -51,8 +62,6 @@ export interface MapaSenalesProps {
   soloPlano?: boolean;
 }
 
-type VistaMapaExtendida = "3d" | "plano" | "espectro";
-
 export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, soloPlano = false }: MapaSenalesProps) {
   const reducido = useReducedMotion() ?? false;
   const compacto = useCompacto(compactoForzado);
@@ -60,10 +69,14 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
   const [hidratado, setHidratado] = useState(false);
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [fallo, setFallo] = useState<string | null>(null);
-  const [vista, setVista] = useState<VistaMapaExtendida>("3d");
+  const [vistaEspectro, setVistaEspectro] = useState(false);
+  const [filtroSenales, setFiltroSenales] = useState<FiltroSenales>(() => filtroEspectroASenales(leerPreferenciasMapa().filtroEspectro));
+  const [senalElegida, setSenalElegida] = useState<SenalEspectro | null>(null);
 
-  const { red } = useMapaVivo({ verPublicos: prefs.verPublicos });
+  const { red, senalesEspectroBluetooth } = useMapaVivo({ verPublicos: prefs.verPublicos });
 
+  // Preferencias de este dispositivo: se leen DESPUÉS de montar (el HTML del
+  // servidor no las conoce y así no hay desajuste de hidratación).
   useEffect(() => {
     setPrefs(leerPreferenciasMapa());
     setHidratado(true);
@@ -75,7 +88,22 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
 
   const cambiar = (parcial: Partial<PreferenciasMapa>) => setPrefs((p) => ({ ...p, ...parcial }));
 
-  const quiere3d = prefs.vista === "3d" && !soloPlano;
+  const guardarFiltroEspectro = useCallback((nuevo: FiltroSenales) => {
+    setFiltroSenales(nuevo);
+    cambiar({ filtroEspectro: filtroSenalesAEspectro(nuevo) });
+  }, [cambiar]);
+
+  const sinFuente = useMemo<SinFuente[]>(() => {
+    const arr: SinFuente[] = [];
+    const bt = senalesEspectroBluetooth;
+    if (bt && "medio" in bt) arr.push(bt);
+    return arr;
+  }, [senalesEspectroBluetooth]);
+
+  const senalesFiltradas = useMemo(() => filtrarConCuenta(red.senales, filtroSenales).visibles, [red.senales, filtroSenales]);
+  const ocultasSinDato = useMemo(() => filtrarConCuenta(red.senales, filtroSenales).ocultasSinDato, [red.senales, filtroSenales]);
+
+  const quiere3d = prefs.vista === "3d" && !soloPlano && !vistaEspectro;
   const aviso = quiere3d
     ? webgl === false
       ? "Este navegador no puede abrir WebGL, así que se muestra el plano con las mismas señales."
@@ -86,8 +114,9 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
   const en3d = quiere3d && webgl === true && !fallo;
   const esperando = !hidratado || (quiere3d && webgl === null);
 
-  const mediosConSenales = new Set(red.senales.map((s) => s.medio));
-  const mediosSinFuente = MEDIOS.filter((m) => !mediosConSenales.has(m)).length;
+  const totalSenales = red.senales.length;
+  const otrasCuentas = red.otrasCuentasPublicando;
+  const mediosSinFuente = sinFuente.length;
 
   return (
     <div className={cn("rounded-2xl border border-white/10 bg-black/30 p-3", className)}>
@@ -103,38 +132,63 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {soloPlano ? null : (
             <SelectorVista
               vista={en3d || (quiere3d && webgl === null) ? "3d" : "plano"}
-              onVista={(v) => {
+              onVista={(vista) => {
                 setFallo(null);
-                if (v === "3d" || v === "plano") {
-                  setVista(v);
-                  cambiar({ vista: v });
-                }
+                setVistaEspectro(false);
+                cambiar({ vista });
               }}
             />
           )}
           <button
             type="button"
-            aria-pressed={vista === "espectro"}
-            onClick={() => setVista("espectro")}
+            aria-pressed={vistaEspectro}
+            onClick={() => setVistaEspectro((v) => !v)}
             className={cn(
-              "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors duration-200",
-              vista === "espectro"
-                ? "border-sky-400/40 bg-sky-500/15 text-sky-100"
-                : "border-white/10 bg-white/[0.03] text-white/55 hover:border-white/25 hover:text-white/90"
+              "inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors duration-200",
+              vistaEspectro ? "border-sky-400/40 bg-sky-500/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/90"
             )}
-            title="Espectrómetro: frecuencias, filtros y ficha de cada señal"
+            title="Espectro de frecuencias con filtros y ficha"
           >
-            <RadioTower className="h-3.5 w-3.5" /> Espectro
+            <Signal className="h-3 w-3" /> Espectro
           </button>
         </div>
       </div>
 
-      {vista === "espectro" ? (
-        <EspectroVista red={red} mediosSinFuente={mediosSinFuente} />
+      {vistaEspectro ? (
+        <div className="space-y-3" data-testid="pestana-espectro">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/60">
+            <span className="font-mono tabular-nums text-white/80">{totalSenales}</span>
+            <span>señales ·</span>
+            <span className="font-mono tabular-nums text-white/80">{otrasCuentas}</span>
+            <span>publicadas por otros dueños ·</span>
+            <span className="font-mono tabular-nums text-white/80">{mediosSinFuente}</span>
+            <span>medios sin fuente</span>
+          </div>
+          <PanelFiltrosSenalesDinamico
+            filtro={filtroSenales}
+            onCambiar={guardarFiltroEspectro}
+            visibles={senalesFiltradas.length}
+            ocultasSinDato={ocultasSinDato}
+          />
+          <VistaEspectroDinamica
+            senales={senalesFiltradas}
+            sinFuente={sinFuente}
+            onElegir={(id) => {
+              const s = red.senales.find((x) => x.id === id) ?? null;
+              setSenalElegida(s);
+            }}
+          />
+          {senalElegida && (
+            <FichaSenalEspectroDinamica
+              senal={senalElegida}
+              onAccion={() => { /* la acción la maneja el contenedor */ }}
+            />
+          )}
+        </div>
       ) : esperando ? (
         <div className="flex h-[240px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/40 text-sm text-white/40">
           <Loader2 className="h-4 w-4 animate-spin" /> Preparando el mapa…
