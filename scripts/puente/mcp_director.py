@@ -54,6 +54,15 @@ _P_ORDEN = _s(
     enum=list(ordenes.ORDENES + tuple(ordenes.RESERVADAS)),
 )
 _P_ARGUMENTOS = _s("object", "Argumentos de la orden; se validan antes de llamar a la herramienta.")
+_P_CONSULTA = _s("string", "Consulta de búsqueda web.")
+_P_RECUENTO = _s(
+    "integer", "Número de resultados (1-20; por defecto 5).", minimum=1, maximum=20
+)
+_P_FRESCURA = _s(
+    "string",
+    "Ventana de frescura: pd (24 h), pw (7 días), pm (31 días), py (un año).",
+    enum=["pd", "pw", "pm", "py"],
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -132,6 +141,15 @@ ESQUEMAS = {
         },
         ["orden", "argumentos", "quien", "motivo"],
     ),
+    "brave_buscar": _esquema(
+        {
+            "consulta": _P_CONSULTA,
+            "recuento": _P_RECUENTO,
+            "frescura": _P_FRESCURA,
+        },
+        ["consulta"],
+    ),
+    "brave_estado": _esquema({}, []),
 }
 
 _HERR = [
@@ -149,6 +167,8 @@ _HERR = [
     ("canal_decir", "Publica un mensaje en un canal especializado (principal, general, audiovisual)."),
     ("metagenesis_estado", "Obtiene un estado fresco de MetaGenesis (< 2 min)."),
     ("metagenesis_orden", "Ejecuta una orden de MetaGenesis de la lista cerrada de la dirección."),
+    ("brave_buscar", "Busca en la web con Brave Search y devuelve título, enlace y resumen."),
+    ("brave_estado", "Comprueba si la conexión Brave Search está configurada (sin llamar a la red)."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -347,9 +367,115 @@ def _produccion(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
+# --- Brave Search: conexión MCP para búsqueda web en tareas ---
+
+BRAVE_BASE = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_FRESCURAS = ("pd", "pw", "pm", "py")
+
+
+def _brave_base():
+    """Base del API; inyectable en pruebas con STARSEED_BRAVE_BASE."""
+    return (os.environ.get("STARSEED_BRAVE_BASE") or BRAVE_BASE).rstrip("/")
+
+
+def _brave_clave():
+    """Devuelve la clave desde el entorno; nunca la escribe ni la registra."""
+    clave = (os.environ.get("BRAVE_API_KEY") or "").strip()
+    if not clave:
+        raise ValueError(
+            "falta BRAVE_API_KEY: el valor va en ~/.starseed/env y aquí solo se usa el nombre"
+        )
+    return clave
+
+
+def _brave_url(consulta, recuento=5, frescura=None, base=None):
+    """URL de búsqueda con la consulta y los filtros ya codificados."""
+    from urllib.parse import urlencode
+
+    parametros = {"q": consulta, "count": recuento}
+    if frescura:
+        parametros["freshness"] = frescura
+    return "%s?%s" % ((base or _brave_base()), urlencode(parametros))
+
+
+def _formatear_brave(datos):
+    """Convierte la respuesta de Brave en texto legible (puro, sin red)."""
+    resultados = ((datos or {}).get("web") or {}).get("results") or []
+    if not resultados:
+        return "Brave no devolvió resultados."
+    lineas = []
+    for i, r in enumerate(resultados, 1):
+        lineas.append(
+            "%d. %s\n   %s\n   %s"
+            % (
+                i,
+                r.get("title") or "(sin título)",
+                r.get("url") or "(sin enlace)",
+                r.get("description") or "",
+            )
+        )
+    return "\n".join(lineas)
+
+
+def _brave_consultar(args):
+    """Llama al API de Brave Search y devuelve los resultados en texto."""
+    import urllib.error
+    import urllib.request
+
+    consulta = str(args.get("consulta") or "").strip()
+    if not consulta:
+        raise ValueError("consulta es obligatoria")
+    recuento = 5 if args.get("recuento") is None else int(args.get("recuento"))
+    if not 1 <= recuento <= 20:
+        raise ValueError("recuento fuera de rango (1-20): %d" % recuento)
+    frescura = args.get("frescura")
+    if frescura is not None and frescura not in BRAVE_FRESCURAS:
+        raise ValueError("frescura no válida: %s" % frescura)
+    peticion = urllib.request.Request(
+        _brave_url(consulta, recuento, frescura),
+        headers={
+            "Accept": "application/json",
+            "X-Subscription-Token": _brave_clave(),
+        },
+    )
+    try:
+        with urllib.request.urlopen(peticion, timeout=15) as respuesta:
+            datos = json.loads(respuesta.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise ValueError("Brave rechazó la clave (401); revisa BRAVE_API_KEY")
+        if e.code == 429:
+            raise ValueError("Brave sin cuota ahora mismo (429); reintenta más tarde")
+        raise ValueError("Brave respondió HTTP %d" % e.code)
+    except urllib.error.URLError as e:
+        raise ValueError("no se pudo conectar con Brave: %s" % (e.reason,))
+    return _formatear_brave(datos)
+
+
+def _brave_estado():
+    """Estado de la conexión sin tocar la red; no revela la clave."""
+    tiene_clave = bool((os.environ.get("BRAVE_API_KEY") or "").strip())
+    return json.dumps(
+        {
+            "servidor": "brave-search",
+            "base": _brave_base(),
+            "clave": "configurada" if tiene_clave else "falta BRAVE_API_KEY",
+            "listo": tiene_clave,
+            "herramientas": ["brave_buscar", "brave_estado"],
+        },
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
 def _llamar(nombre, args):
     """Ejecuta una herramienta y devuelve su texto; ValueError si falla."""
     args = args or {}
+    if nombre == "brave_buscar":
+        return _brave_consultar(args)
+    if nombre == "brave_estado":
+        return _brave_estado()
     if nombre.startswith("produccion_"):
         return _produccion(nombre, args)
     if nombre == "director_leer":

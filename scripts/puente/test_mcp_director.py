@@ -8,7 +8,9 @@ import select
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 _CARPETA = Path(__file__).resolve().parent
@@ -90,7 +92,7 @@ class PruebasAtender(unittest.TestCase):
         r = mcp_director.atender(self._p("ping"))
         self.assertEqual(r, {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    def test_tools_list_diez_herramientas(self):
+    def test_tools_list_completa(self):
         r = mcp_director.atender(self._p("tools/list"))
         nombres = [h["name"] for h in r["result"]["tools"]]
         self.assertEqual(
@@ -110,6 +112,8 @@ class PruebasAtender(unittest.TestCase):
                 "canal_decir",
                 "metagenesis_estado",
                 "metagenesis_orden",
+                "brave_buscar",
+                "brave_estado",
             ],
         )
 
@@ -391,6 +395,186 @@ class PruebaProcesoReal(unittest.TestCase):
             finally:
                 proc.kill()
                 proc.wait()
+
+
+class PruebasBrave(unittest.TestCase):
+    """Conexión Brave Search: URL, formato, estado y errores sin tocar la red."""
+
+    _VARS = ("BRAVE_API_KEY", "STARSEED_BRAVE_BASE")
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self._VARS}
+        for v in self._VARS:
+            os.environ.pop(v, None)
+
+    def tearDown(self):
+        for v in self._VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+
+    def _p_call(self, nombre, argumentos):
+        return {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": nombre, "arguments": argumentos},
+        }
+
+    def _texto_error(self, nombre, argumentos):
+        r = mcp_director.atender(self._p_call(nombre, argumentos))
+        self.assertNotIn("error", r, r.get("error"))
+        self.assertTrue(r["result"].get("isError"), r["result"])
+        return r["result"]["content"][0]["text"]
+
+    def test_url_codifica_consulta_y_filtros(self):
+        url = mcp_director._brave_url(
+            "sol y mar", 3, "pw", base="https://x.test/search"
+        )
+        self.assertIn("q=sol+y+mar", url)
+        self.assertIn("count=3", url)
+        self.assertIn("freshness=pw", url)
+        self.assertTrue(url.startswith("https://x.test/search?"))
+
+    def test_formatear_brave_lista_titulo_enlace_y_resumen(self):
+        texto = mcp_director._formatear_brave(
+            {
+                "web": {
+                    "results": [
+                        {
+                            "title": "Uno",
+                            "url": "https://a.test",
+                            "description": "Resumen A",
+                        },
+                        {"title": "Dos", "url": "https://b.test"},
+                    ]
+                }
+            }
+        )
+        self.assertIn("1. Uno", texto)
+        self.assertIn("https://a.test", texto)
+        self.assertIn("Resumen A", texto)
+        self.assertIn("2. Dos", texto)
+
+    def test_formatear_brave_sin_resultados(self):
+        self.assertEqual(
+            mcp_director._formatear_brave({}), "Brave no devolvió resultados."
+        )
+
+    def test_estado_sin_clave_no_finge_ni_revela(self):
+        datos = json.loads(mcp_director._brave_estado())
+        self.assertFalse(datos["listo"])
+        self.assertEqual(datos["clave"], "falta BRAVE_API_KEY")
+        self.assertEqual(datos["herramientas"], ["brave_buscar", "brave_estado"])
+
+    def test_estado_con_clave_listo_sin_exponerla(self):
+        os.environ["BRAVE_API_KEY"] = "clave-de-prueba"
+        datos = json.loads(mcp_director._brave_estado())
+        self.assertTrue(datos["listo"])
+        self.assertEqual(datos["clave"], "configurada")
+        self.assertNotIn("clave-de-prueba", json.dumps(datos))
+
+    def test_buscar_sin_clave_es_error_claro(self):
+        texto = self._texto_error("brave_buscar", {"consulta": "x"})
+        self.assertIn("BRAVE_API_KEY", texto)
+
+    def test_buscar_exige_consulta(self):
+        os.environ["BRAVE_API_KEY"] = "clave-de-prueba"
+        texto = self._texto_error("brave_buscar", {"consulta": "  "})
+        self.assertIn("consulta es obligatoria", texto)
+
+    def test_buscar_valida_recuento(self):
+        os.environ["BRAVE_API_KEY"] = "clave-de-prueba"
+        texto = self._texto_error(
+            "brave_buscar", {"consulta": "x", "recuento": 99}
+        )
+        self.assertIn("recuento fuera de rango", texto)
+
+
+class PruebasBraveConexionLocal(unittest.TestCase):
+    """Conexión real contra un servidor local: sin red externa ni clave real."""
+
+    _VARS = ("BRAVE_API_KEY", "STARSEED_BRAVE_BASE")
+
+    def setUp(self):
+        self._guardadas = {v: os.environ.get(v) for v in self._VARS}
+        os.environ["BRAVE_API_KEY"] = "clave-de-prueba"
+        self.recibidas = []
+        recibidas = self.recibidas
+
+        class Manejador(BaseHTTPRequestHandler):
+            def do_GET(self):
+                recibidas.append(
+                    {
+                        "ruta": self.path,
+                        "clave": self.headers.get("X-Subscription-Token"),
+                        "acepta": self.headers.get("Accept"),
+                    }
+                )
+                cuerpo = json.dumps(
+                    {
+                        "web": {
+                            "results": [
+                                {
+                                    "title": "Resultado local",
+                                    "url": "https://local.test/a",
+                                    "description": "Viene del servidor de prueba",
+                                }
+                            ]
+                        }
+                    }
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(cuerpo)))
+                self.end_headers()
+                self.wfile.write(cuerpo)
+
+            def log_message(self, format, *args):
+                pass
+
+        self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), Manejador)
+        self.hilo = threading.Thread(
+            target=self.servidor.serve_forever, daemon=True
+        )
+        self.hilo.start()
+        puerto = self.servidor.server_address[1]
+        os.environ["STARSEED_BRAVE_BASE"] = (
+            "http://127.0.0.1:%d/res/v1/web/search" % puerto
+        )
+
+    def tearDown(self):
+        self.servidor.shutdown()
+        self.servidor.server_close()
+        self.hilo.join(timeout=5)
+        for v in self._VARS:
+            if self._guardadas[v] is None:
+                os.environ.pop(v, None)
+            else:
+                os.environ[v] = self._guardadas[v]
+
+    def test_buscar_conecta_envia_clave_y_devuelve_resultados(self):
+        r = mcp_director.atender(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "brave_buscar",
+                    "arguments": {"consulta": "starseed os", "recuento": 1},
+                },
+            }
+        )
+        self.assertNotIn("isError", r["result"], r["result"])
+        texto = r["result"]["content"][0]["text"]
+        self.assertIn("Resultado local", texto)
+        self.assertIn("https://local.test/a", texto)
+        self.assertEqual(len(self.recibidas), 1)
+        self.assertIn("q=starseed+os", self.recibidas[0]["ruta"])
+        self.assertIn("count=1", self.recibidas[0]["ruta"])
+        self.assertEqual(self.recibidas[0]["clave"], "clave-de-prueba")
+        self.assertEqual(self.recibidas[0]["acepta"], "application/json")
 
 
 if __name__ == "__main__":
