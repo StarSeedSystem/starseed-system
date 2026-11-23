@@ -13,6 +13,8 @@ import {
 } from "react";
 import { useAuroraEngine, type AuroraEngine, type ConversationEntry } from "@/lib/aurora/engine";
 import { AURORA_CONVERSATION_EVENT } from "@/lib/aurora/aurora-orb-bus";
+import { createClient } from "@/utils/supabase/client";
+import { inicializarCanalOrbeParams } from "@/lib/aurora/orbe-params-init";
 import {
   autonomyDisabled,
   queryMicPermission,
@@ -536,9 +538,15 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
         const upd = await import("@/lib/notifications/update-notifications");
         if (!stopped) upd.startUpdateWatch?.();
       } catch { /* */ }
+      try {
+        const cleanupCanal = inicializarCanalOrbeParams({ cliente: createClient() });
+        if (!stopped) (window as any).__STARSEED_ORBE_PARAMS_CLEANUP__ = cleanupCanal;
+      } catch { /* canal de params opcional */ }
     })();
     return () => {
       stopped = true;
+      const cleanup = (window as any).__STARSEED_ORBE_PARAMS_CLEANUP__;
+      if (cleanup) { cleanup(); delete (window as any).__STARSEED_ORBE_PARAMS_CLEANUP__; }
       void import("@/ai/astraura/autonomy").then((a) => a.stopAutonomy()).catch(() => {});
     };
   }, []);
