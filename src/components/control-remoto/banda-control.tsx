@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
+import type { LimiteSesion, PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
 import type { MetricasCalidad } from "@/lib/control-remoto/calidad";
 import { ENLACES_CONTROL, textoEnlace } from "@/lib/nativa/permisos-enlaces";
@@ -116,6 +116,15 @@ export function finElegido(opcion: OpcionLimite, hora: string, ahora: number, to
     return { ok: true, fin };
 }
 
+/** PURA. La opción de la lista como límite que se guarda al aceptar (lo que hace cumplir la puerta). */
+export function limiteElegido(opcion: OpcionLimite, hora: string): LimiteSesion | null {
+    if (opcion === "sin-limite") return { tipo: "sin-limite" };
+    if (opcion === "15-min") return { tipo: "minutos", minutos: 15 };
+    if (opcion === "1-hora") return { tipo: "minutos", minutos: 60 };
+    const limpia = hora.trim();
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(limpia) ? { tipo: "hasta", hora: limpia } : null;
+}
+
 /** PURA. Texto del punto de color mientras quede límite; «sin límite» no muestra nada. */
 export function textoRestante(fin: number | null | undefined, ahora: number): string | null {
     if (fin === null || fin === undefined) return null;
@@ -133,12 +142,13 @@ interface DatosDelDueño {
     filtro?: { maxMin?: number };
 }
 
-/** PURA. Tope que puso el dueño del aparato ajeno; `null` significa que él permite sin límite. */
+/** PURA. Tope en minutos del aparato ajeno; `null` solo para una neurona de mi cuenta (sin techo). */
 export function topeMinimos(datos: DatosDelDueño, miCuenta: string | null): number | null {
-    if (!miCuenta || datos.cuenta === miCuenta) return null;
+    if (miCuenta !== null && datos.cuenta === miCuenta) return null; // neurona de mi cuenta: sin techo
     const declarado = datos.filtro?.maxMin ?? datos.limiteMaxMin;
     if (typeof declarado === "number" && Number.isFinite(declarado)) return Math.max(1, Math.min(1440, Math.floor(declarado)));
-    return datos.publico === true || datos.visibilidad === "publica" || datos.visibilidad === "público" ? 15 : null;
+    // CTL1119A: sin filtro declarado, manda el máximo del ámbito: público 15 min y otra cuenta 60 (nunca «sin límite»).
+    return datos.publico === true || datos.visibilidad === "publica" || datos.visibilidad === "público" ? 15 : 60;
 }
 
 const CLAVE_LIMITES_CONTROL = "starseed.control-limites.v1";
@@ -413,7 +423,8 @@ export function BandaControl() {
     }, [quienBase?.neurona]);
     const quien = quienBase ? { ...quienBase, calidad: calidadAparato } : null;
     // CTL1119A: si al aceptar se puso límite, el punto de color lo dice mientras quede tiempo.
-    const finSesion = sesion ? (sesion as SesionActiva & { fin?: number | null }).fin ?? fines[sesion.de] ?? null : null;
+    // CTL1119A: `fin` null (sin límite) no cae al valor guardado; solo un `fin` ausente (sesión antigua) lo usa.
+    const finSesion = sesion ? (sesion.fin !== undefined ? sesion.fin : (fines[sesion.de] ?? null)) : null;
     const resto = sesion ? textoRestante(finSesion, Date.now()) : null;
     // Con indicador nativo (se ve en todo el aparato) la web NO pinta el suyo: solo uno. El panel de ajustes sigue diciendo quién controla.
     const verPunto = !!quien && ajustes.indicador === "punto" && hayNativo === false;
@@ -609,13 +620,26 @@ export function ControlEntreNeuronasPanel() {
                 setAviso(limite.motivo);
                 return;
             }
+            const guardado = limiteElegido(opcion, hora);
+            if (!guardado) {
+                setAviso("Escribe la hora como HH:MM.");
+                return;
+            }
             guardarFin(huella, limite.fin);
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
+            // CTL1119A: el límite elegido se guarda en la aceptación (no solo se pinta): es lo que la puerta hace cumplir.
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
-            await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
+            await cambiar((p) => ({
+                ...s.aceptarPendiente(p, huella, {
+                    limite: guardado,
+                    ambito: propia ? "propia" : "otra-cuenta",
+                    ...(propia || topeMin === null ? {} : { filtro: { maximo: { tipo: "minutos" as const, minutos: topeMin } } }),
+                }),
+                ...(encender ? { encendido: true } : {}),
+            }));
             setElegidas((m) => {
                 const r = { ...m };
                 delete r[huella];
@@ -818,7 +842,7 @@ export function ControlEntreNeuronasPanel() {
                         </label>
                         {ajena && (
                             <span className="text-white/55" data-testid={`limite-tope-${x.huella.slice(0, 8)}`}>
-                                {topeMin === null ? "Esta neurona permite sin límite, pero por defecto se pone 15 min." : `El dueño permite como máximo ${topeMin} min.`}
+                                {topeMin === null ? "El dueño permite sin límite." : `El dueño permite como máximo ${topeMin} min.`}
                             </span>
                         )}
                         <button
