@@ -52,6 +52,8 @@ mod ble_linux_logica;
 mod ble_linux;
 mod ble_muestras; // BLE1115C
 mod ble_trama;
+// (CTL1123E) Diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE.
+mod ble_enlace_diagnostico;
 // (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
 mod puerta_proxy;
 // (UBI1114K) La posición del aparato por la vía nativa: CoreLocation en macOS, LocationManager en Android.
