@@ -226,6 +226,11 @@ export class PuertaControl {
      * (una persona pulsó «Reabrir») la borra. Solo en memoria.
      */
     private terminadoPor = new Set<string>();
+    /**
+     * CTL1124F: controladores que ya recibieron el rechazo por terminado-por-el-dueno.
+     * La primera llamada a abrir-sesion después de terminar() se rechaza; la segunda (Reabrir) se permite.
+     */
+    private terminadoRechazado = new Set<string>();
     /** CTL1119A: por qué cayó la última sesión (latidos o límite cumplido), para decírselo a quien manda. */
     private caducadaPor: "latidos" | "limite" | null = null;
 
@@ -262,6 +267,8 @@ export class PuertaControl {
         this.sesiones.clear();
         this.caducadaPor = null;
         for (const x of cerradas) this.terminadoPor.add(x.de);
+        // CTL1124F: limpiar rechazados anteriores al terminar de nuevo
+        this.terminadoRechazado.clear();
         void this.d.nativo.parar(motivo).catch(() => undefined);
         this.d.anotar(`orden terminar de=${s ? s.de.slice(0, 8) : "-"} nivel=- resultado=${motivo}`);
         this.d.alCambiar?.();
@@ -276,6 +283,7 @@ export class PuertaControl {
         this.sesiones.delete(token);
         if (this.sesiones.size === 0) this.caducadaPor = null;
         this.terminadoPor.add(s.de);
+        this.terminadoRechazado.delete(s.de);
         void this.d.nativo.parar(motivo, token).catch(() => undefined);
         this.d.anotar(`orden terminar de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${motivo}`);
         this.d.alCambiar?.();
@@ -293,6 +301,7 @@ export class PuertaControl {
         this.sesiones.clear();
         this.caducadaPor = null;
         this.terminadoPor.clear();
+        this.terminadoRechazado.clear();
         void this.d.nativo.parar(motivo).catch(() => undefined); // ORD1114Q
         const p = this.d.leerPermiso();
         this.d.guardarPermiso({ ...p, encendido: false });
@@ -308,7 +317,10 @@ export class PuertaControl {
         this.caducadaPor = null;
         const limpia = /^[a-z-]{1,40}$/.test(motivo) ? motivo : "parada";
         for (const s of cerradas) {
-            if (esTerminarDeLaPersona(motivo)) this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
+            if (esTerminarDeLaPersona(motivo)) {
+                this.terminadoPor.add(s.de); // CTL1118G: «Terminar» desde el indicador, la notificación o la superposición
+                this.terminadoRechazado.delete(s.de);
+            }
             this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=parada-nativa:${limpia}`);
         }
         this.d.alCambiar?.();
@@ -321,6 +333,8 @@ export class PuertaControl {
         if (cerradas.length > 0) {
             this.sesiones.clear();
             this.caducadaPor = null;
+            this.terminadoPor.clear();
+            this.terminadoRechazado.clear();
             void this.d.nativo.parar("a-mano").catch(() => undefined);
             for (const s of cerradas) {
                 this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=a-mano:${this.aMano}`);
@@ -511,6 +525,19 @@ export class PuertaControl {
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
             const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
+
+            // CTL1124F: tras terminar(), un abrir-sesion CON sesión (latido automático) se rechaza.
+            // Un abrir-sesion SIN sesión (Reabrir manual) SÍ está permitido.
+            const traeSesion = c.sesion != null && c.sesion !== "";
+            if (this.terminadoPor.has(c.de)) {
+                if (traeSesion) {
+                    // Latido automático intentando reabrir con la sesión anterior → rechazar
+                    return this.respuesta(c.nonce, false, "parada-nativa", nombre, c.de, c.nivel, undefined, { motivo: MOTIVO_TERMINADO });
+                }
+                // Reabrir manual (sin sesión) → permitir y borrar marca
+                this.terminadoPor.delete(c.de);
+                this.terminadoRechazado.delete(c.de);
+            }
             // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token y mismo fin):
             // renovar la ventana de latidos sí, estirar el límite elegido no.
             const prev = this.sesiones.get(n.token) ?? (existenteDe && existenteDe.token === n.token ? existenteDe : null);
@@ -521,10 +548,11 @@ export class PuertaControl {
             const color = colorFirmado ?? ctl.color;
             const activa: SesionActiva = { token: n.token, de: c.de, nombre: nombreCtl, nivel, inicio, ultima: ahora, fin, ...(color ? { color } : {}) };
             this.sesiones.set(activa.token, activa);
-            this.terminadoPor.delete(c.de); // CTL1118G: una persona volvió a abrir
             this.caducadaPor = null;
             if (nombreFirmado && nombreFirmado !== ctl.nombre) this.ponerAlDiaNombre(c.de, nombreFirmado);
             this.d.alCambiar?.();
+            this.terminadoPor.delete(c.de);
+            this.terminadoRechazado.delete(c.de);
             if (!mismaSesion) this.avisar({ de: c.de, nombre: nombreCtl, tipo: "abrir-sesion", nivel: nivel === "ver" ? "ver" : "controlar", estado: "abierta", desde: inicio }); // CTL1117J · S3
             return this.respuesta(c.nonce, true, "ok", nombre, c.de, nivel, {
                 sesion: activa.token,
