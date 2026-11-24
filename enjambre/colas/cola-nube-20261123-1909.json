@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-quantumor",
+   "titulo": "Canal `params` de la orbe → `QuantumOrbAvatar`",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe → `QuantumOrbAvatar`. : publicar vector visual 1.58b (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en cada tick del bus; el avatar reacciona en tiempo real sin polling. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "AST1123C",
+   "ola": "astraura-modelos-1123",
+   "titulo": "Autoenrutamiento y autorreparación multicapa para agentes y bots",
+   "importancia": "alta",
+   "archivos": [
+    "src/ai/astraura/auto-reparacion-ruta.ts",
+    "src/ai/astraura/__tests__/ast1123c-auto-reparacion-ruta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee `src/lib/astraura/modelos/selector-contextual.ts` y `architecture/astraura-radar-modelos-1123.md`. Crea `src/ai/astraura/auto-reparacion-ruta.ts` (≤120 líneas, puro/determinista con reloj inyectable, sin `any`) y sus tests Vitest. Modela la salud por ruta y proveedor con enfriamiento exponencial (`circuit-breaker`) cuando una ruta falla o supera latencia umbral, autoenrutando agentes y bots entre local → neurona en malla → servidor propio → nube permitida, y recuperando la ruta primaria automáticamente tras el periodo de enfriamiento.",
+   "dependencias_ya_en_main": [
+    "AST1123B"
+   ]
+  },
+  {
+   "id": "AST1123F",
+   "ola": "astraura-modelos-1123",
+   "titulo": "Panel UI estético de radar y ajustes ilimitados Astraura",
+   "importancia": "media",
+   "archivos": [
+    "src/components/astraura/panel-radar-modelos.tsx",
+    "src/components/astraura/__tests__/ast1123f-panel-radar-modelos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee `src/lib/astraura/modelos/selector-contextual.ts`, `src/lib/astraura/modelos/perfiles-personalizados.ts`, `src/components/astraura/modelos-ui.tsx` y `architecture/astraura-radar-modelos-1123.md`. Crea `src/components/astraura/panel-radar-modelos.tsx` (≤120 líneas, sin `any`, textos en español con acentos, `cursor-pointer` en todo lo clicable) y su test Vitest en `@testing-library/react`. Presenta comparativa internet vs. local, selector de capa pública/privada, alta rápida de repos `hf.co/...` y ajuste de pesos de enrutamiento con UX clara.",
+   "dependencias_ya_en_main": [
+    "AST1123B",
+    "AST1123D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "AST1123C",
+   "AST1123F",
+   "IMG-diaria-canal-params-de-la-orbe-quantumor"
+  ]
+ }
+}
