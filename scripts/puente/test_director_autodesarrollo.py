@@ -29,10 +29,12 @@ class DirectorTest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
                     lanzador_diario=lambda: self.llamadas.append("diaria") or True,
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
-                    agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
-                    agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
-                    agente_buzon_encargos=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
-                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real en las pruebas
+                    agente_referencias=lambda raiz, ahora: None,
+                    agente_alcance=lambda raiz, ahora: None,
+                    agente_buzon_encargos=lambda raiz, ahora: None,
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},
+                    avisar=lambda texto, telegram: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -179,6 +181,11 @@ class DirectorTest(unittest.TestCase):
         correr = re.findall(r"(?m)^\s+(?:args\.update\(kw\); )?return D\.ciclo\(\*\*args\)$", src)
         self.assertEqual(len(correr), 4)
         self.assertEqual(src.count(aguja), len(correr))
+        # (SUP1124H) Cada `correr` inyecta agente_sintesis y avisar falsos para no tocar red ni Telegram.
+        aguja_sin = "agente_sintesis=lambda raiz, ahora:" + ' {"ok": True}'
+        self.assertEqual(src.count(aguja_sin), len(correr))
+        aguja_av = "avisar=lambda texto, telegram:" + " None"
+        self.assertEqual(src.count(aguja_av), len(correr))
 
     def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
         datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
@@ -219,7 +226,9 @@ class Imaginacion1024Test(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
-                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},
+                    avisar=lambda texto, telegram: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -451,7 +460,9 @@ class Ola1025STest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None, agente_buzon_encargos=lambda raiz, ahora: None,
-                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},
+                    avisar=lambda texto, telegram: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",
                     aplicar_astraura=self.aplicar,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
@@ -679,7 +690,9 @@ class EGMRevisionTest(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
-                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},
+                    avisar=lambda texto, telegram: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         if llamar_egm is not None:
