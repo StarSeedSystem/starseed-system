@@ -320,13 +320,29 @@ jobs:
       # a los demás (latest-prueba.json se publica sin Linux).
       - name: Dependencias de Linux (Tauri)
         if: matrix.platform == 'ubuntu-24.04'
-        timeout-minutes: 15
+        timeout-minutes: 22
         shell: bash
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
-          for INTENTO in 1 2 3; do
-            echo "apt · intento $INTENTO de 3"
-            if sudo timeout 80 apt-get $APT update && sudo timeout 210 apt-get $APT install -y \
+          APT="-o Acquire::ForceIPv4=true -o Acquire::http::Pipeline-Depth=0 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
+          ESPEJOS=("" "http://azure.archive.ubuntu.com/ubuntu/" "http://archive.ubuntu.com/ubuntu/" "http://mirrors.mit.edu/ubuntu/")
+          TOPES=(240 360 360 360)
+          for IDX in 0 1 2 3; do
+            INTENTO=$((IDX + 1))
+            ESPEJO="${ESPEJOS[$IDX]}"
+            TOPE="${TOPES[$IDX]}"
+            if [ -n "$ESPEJO" ]; then
+              echo "::warning::cambiando espejo apt a $ESPEJO (intento $INTENTO de 4)"
+              if [ -f /etc/apt/apt-mirrors.txt ]; then
+                printf '%s\n' "$ESPEJO" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+              fi
+              for F in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+                if [ -f "$F" ] && ! grep -q "mirror+file:///etc/apt/apt-mirrors.txt" "$F"; then
+                  sudo sed -i -E "s|https?://[^[:space:]]*archive\.ubuntu\.com/ubuntu/?|$ESPEJO|g" "$F" || true
+                fi
+              done
+            fi
+            echo "apt · intento $INTENTO de 4 (tope ${TOPE}s)"
+            if sudo timeout 90 apt-get $APT update && sudo timeout "$TOPE" apt-get $APT install -y \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
@@ -348,11 +364,11 @@ jobs:
             file; then
               exit 0
             fi
-            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 3)"
+            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 4)"
             sudo dpkg --configure -a || true
             sleep $((INTENTO * 10))
           done
-          echo "::error::No se pudieron instalar las dependencias de Linux tras 3 intentos."
+          echo "::error::No se pudieron instalar las dependencias de Linux tras 4 intentos."
           exit 1
 
       # ── Iconos del sistema que toca (regenera native/src-tauri/icons/) ──

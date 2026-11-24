@@ -107,7 +107,7 @@ jobs:
     # apt colgado en un espejo lo dejó 46-55 min en «Dependencias de sistema de Tauri v2» (runs 43046445511 y
     # 43055580534, 11-11): el run no terminaba y la autopublicación vetaba el candidato con «CI sin terminar en
     # 50 min» aunque `verify` ya tuviera veredicto. Con tope, el job se corta y no retiene la puerta.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       # Mismas dependencias de sistema que usa native-build.yml para su job de
@@ -119,13 +119,29 @@ jobs:
         # (SUP1111A) El mismo remedio que CI1111M en native-build.yml: cada intento con su tope (`timeout`), apt
         # reintenta y se rinde solo (Acquire::Retries/Timeout) y el paso entero tiene `timeout-minutes`. Si no hay
         # manera, el job sale en rojo en minutos (es informativo: no tumba la puerta web).
-        timeout-minutes: 15
+        timeout-minutes: 20
         shell: bash
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
-          for INTENTO in 1 2 3; do
-            echo "apt · intento $INTENTO de 3"
-            if sudo timeout 80 apt-get $APT update && sudo timeout 210 apt-get $APT install -y \
+          APT="-o Acquire::ForceIPv4=true -o Acquire::http::Pipeline-Depth=0 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dpkg::Lock::Timeout=60"
+          ESPEJOS=("" "http://azure.archive.ubuntu.com/ubuntu/" "http://archive.ubuntu.com/ubuntu/" "http://mirrors.mit.edu/ubuntu/")
+          TOPES=(240 360 360 360)
+          for IDX in 0 1 2 3; do
+            INTENTO=$((IDX + 1))
+            ESPEJO="${ESPEJOS[$IDX]}"
+            TOPE="${TOPES[$IDX]}"
+            if [ -n "$ESPEJO" ]; then
+              echo "::warning::cambiando espejo apt a $ESPEJO (intento $INTENTO de 4)"
+              if [ -f /etc/apt/apt-mirrors.txt ]; then
+                printf '%s\n' "$ESPEJO" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+              fi
+              for F in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+                if [ -f "$F" ] && ! grep -q "mirror+file:///etc/apt/apt-mirrors.txt" "$F"; then
+                  sudo sed -i -E "s|https?://[^[:space:]]*archive\.ubuntu\.com/ubuntu/?|$ESPEJO|g" "$F" || true
+                fi
+              done
+            fi
+            echo "apt · intento $INTENTO de 4 (tope ${TOPE}s)"
+            if sudo timeout 90 apt-get $APT update && sudo timeout "$TOPE" apt-get $APT install -y \
               libwebkit2gtk-4.1-dev \
               libgtk-3-dev \
               libayatana-appindicator3-dev \
@@ -145,11 +161,11 @@ jobs:
               file; then
               exit 0
             fi
-            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 3)"
+            echo "::warning::apt falló o se quedó sin respuesta (intento $INTENTO de 4)"
             sudo dpkg --configure -a || true
             sleep $((INTENTO * 10))
           done
-          echo "::error::No se pudieron instalar las dependencias de sistema de Tauri tras 3 intentos."
+          echo "::error::No se pudieron instalar las dependencias de sistema de Tauri tras 4 intentos."
           exit 1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
