@@ -21,7 +21,7 @@ import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
-import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal } from "./fuente-pantalla";
+import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
@@ -132,10 +132,12 @@ export interface DepsOrigen {
     reducir?: (jpeg: Uint8Array, ancho: number, alto: number, lado: number, calidad: number) => Promise<{ jpeg: Uint8Array; ancho: number; alto: number } | null>;
     /** ¿Dispone este aparato de RTCPeerConnection? */
     hayWebRtc?: () => boolean;
+    /** CTL1124C: sistema operativo del aparato controlado (para decidir modo malla). */
+    sistemaOperativo: () => string;
 }
 
-/** CTL1118M: mientras quien manda pida cuadros por la malla, esta página no se para por «sin oferta». */
-export const VIGENCIA_MALLA_MS = 8_000;
+/** CTL1118M: mientras quien manda pida cuadros por la malla, esta página no se para por «sin oferta». (Ahora en fuente-pantalla.ts) */
+export { VIGENCIA_MALLA_MS } from "./fuente-pantalla";
 
 interface Activa {
     token: string;
@@ -172,6 +174,8 @@ interface Activa {
     calidad: EstadoCalidad;
     ultimaCalidad: MetricasCalidad | null;
     intCalidad?: ReturnType<typeof setInterval>;
+    /** CTL1124C: si ya se registró el paso a modo malla (para no repetir). */
+    mallaModoLogado: boolean;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -322,6 +326,7 @@ export class OrigenPantalla {
             respuestas: new Map(),
             calidad: { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: medio, lado: "aparato" },
             ultimaCalidad: null,
+            mallaModoLogado: false,
         };
         const eraVacia = this.vivas().length === 0;
         this.activas.set(s.token, a);
@@ -502,8 +507,20 @@ export class OrigenPantalla {
                         continue;
                     }
                     const hayWebRtc = this.d.hayWebRtc ? this.d.hayWebRtc() : typeof RTCPeerConnection === "function";
+                    const so = this.d.sistemaOperativo ? this.d.sistemaOperativo() : "desconocido";
+                    const modoMalla = esModoMalla(so, hayWebRtc);
+                    const linuxSinOferta = so === "linux" && !a.peer && ahora - a.inicio > GRACIA_MALLA_MS;
+                    const modoMallaEfectivo = modoMalla || linuxSinOferta;
                     if (!a.peer) {
-                        if (hayWebRtc) {
+                        if (modoMallaEfectivo) {
+                            if (!a.mallaModoLogado) {
+                                this.d.anotar(`control-pantalla modo=malla so=${so} webrtc=${hayWebRtc ? "si" : "no"} gracia-ms=${GRACIA_MALLA_MS} vigencia-ms=${VIGENCIA_MALLA_MS}${linuxSinOferta && !modoMalla ? " (sin-oferta)" : ""}`);
+                                a.mallaModoLogado = true;
+                            }
+                            if (a.mallaHasta > 0 && ahora - a.inicio > GRACIA_MALLA_MS && ahora > a.mallaHasta) {
+                                await this.pararToken(a.token, "sin-malla");
+                            }
+                        } else if (hayWebRtc) {
                             if (ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
                                 await this.pararToken(a.token, "sin-oferta");
                             }
@@ -1032,6 +1049,13 @@ export function origenGlobal(): OrigenPantalla {
         vigia,
         reducir: reducirReal,
         hayWebRtc: () => typeof RTCPeerConnection === "function",
+        sistemaOperativo: () => {
+            const ua = navigator.userAgent.toLowerCase();
+            if (ua.includes("linux")) return "linux";
+            if (ua.includes("mac")) return "macos";
+            if (ua.includes("win")) return "windows";
+            return "desconocido";
+        },
         ordenesServidas: () => puertaRegistrada?.ordenesServidas?.() ?? 0,
         anotar: (l) => {
             void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, l)).catch(() => undefined);

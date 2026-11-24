@@ -264,3 +264,23 @@ pub fn parar_interno(app: &AppHandle) {
     crate::ble::nota(None, "control-pantalla", &linea);
     crate::control_neuronas::anotar_k(app, "pantalla-parada", &linea);
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn fuente_registro_linux() {
+        #[cfg(target_os = "linux")]
+        assert_eq!(FUENTE_REGISTRO, "linux-pantalla");
+        #[cfg(not(target_os = "linux"))]
+        assert_eq!(FUENTE_REGISTRO, "mac-pantalla");
+    }
+
+    #[test]
+    fn constantes_captura_existen() {
+        use crate::control_calidad_logica as q;
+        assert!(q::PERIODO_OBJETIVO_MS > 0);
+        assert!(q::PERIODO_MAX_MS > q::PERIODO_OBJETIVO_MS);
+    }
+}

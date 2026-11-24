@@ -55,8 +55,8 @@ let ahora: number;
 let lineas: string[];
 let origen: OrigenPantalla | null = null;
 
-async function montar(opts: { hayWebRtc: boolean } = { hayWebRtc: true }) {
-    const { hayWebRtc } = opts;
+async function montar(opts: { hayWebRtc: boolean; so?: string } = { hayWebRtc: true }) {
+    const { hayWebRtc, so = "linux" } = opts;
     // Parar el origen anterior si existe
     if (origen) {
         await origen.parar("test-cleanup");
@@ -84,6 +84,7 @@ async function montar(opts: { hayWebRtc: boolean } = { hayWebRtc: true }) {
         ahora: () => ahora,
         anotar: (l) => void lineas.push(l),
         hayWebRtc: () => hayWebRtc,
+        sistemaOperativo: () => so,
     } satisfies DepsOrigen);
 }
 
@@ -100,21 +101,39 @@ beforeEach(async () => {
     pintor = new PintorFalso();
     ahora = 1_000_000;
     lineas = [];
-    await montar();
+    await montar({ hayWebRtc: true, so: "linux" });
 });
 
 describe("CTL1124C · Linux sin WebRTC no se para por sin-oferta", () => {
-    it("CON WebRTC: a los 30 s sin peer y sin malla se para con sin-oferta", async () => {
-        await montar({ hayWebRtc: true });
+    it("CON WebRTC en Linux: a los 30 s sin peer entra en modo malla y NO se para por sin-oferta", async () => {
+        await montar({ hayWebRtc: true, so: "linux" });
         await origen!.ejecutar("pantalla-iniciar", {}, ctx());
         ahora += 31_000;
-        await hasta(() => !origen!.enMarcha());
-        expect(llamadas.some((l) => l.cmd === "control_pantalla_parar")).toBe(true);
-        expect(lineas.some((l) => l.includes("motivo=sin-oferta"))).toBe(true);
+        await pausa(50);
+        // No se para: entra en modo malla
+        expect(origen!.enMarcha()).toBe(true);
+        // Se registró el paso a modo malla (con marca sin-oferta)
+        expect(lineas.some((l) => l.includes("modo=malla"))).toBe(true);
+        expect(lineas.some((l) => l.includes("(sin-oferta)"))).toBe(true);
+        // NO hay sin-oferta como motivo de parada
+        expect(lineas.some((l) => l.includes("motivo=sin-oferta"))).toBe(false);
     });
 
-    it("SIN WebRTC: sin malla, cae a comportamiento original (para a los 30s con sin-oferta)", async () => {
-        await montar({ hayWebRtc: false });
+    it("SIN WebRTC en Linux: no se para a los 30s, entra en modo malla y espera peticiones", async () => {
+        await montar({ hayWebRtc: false, so: "linux" });
+        await origen!.ejecutar("pantalla-iniciar", {}, ctx());
+        ahora += 31_000;
+        await pausa(50);
+        // No se para: sigue viva en modo malla
+        expect(origen!.enMarcha()).toBe(true);
+        // Se registró el paso a modo malla
+        expect(lineas.some((l) => l.includes("modo=malla"))).toBe(true);
+        // NO hay sin-oferta
+        expect(lineas.some((l) => l.includes("motivo=sin-oferta"))).toBe(false);
+    });
+
+    it("SIN WebRTC en macOS: cae a comportamiento original (para a los 30s con sin-oferta)", async () => {
+        await montar({ hayWebRtc: false, so: "macos" });
         await origen!.ejecutar("pantalla-iniciar", {}, ctx());
         ahora += 31_000;
         await hasta(() => !origen!.enMarcha());
@@ -123,7 +142,7 @@ describe("CTL1124C · Linux sin WebRTC no se para por sin-oferta", () => {
     });
 
     it("SIN WebRTC: si el controlador pide por la malla, la pantalla sigue viva", async () => {
-        await montar({ hayWebRtc: false });
+        await montar({ hayWebRtc: false, so: "linux" });
         await origen!.ejecutar("pantalla-iniciar", {}, ctx());
         // Simular petición de cuadro por la malla (como haría el controlador)
         cuadros.push(cuadro(1));
@@ -142,7 +161,7 @@ describe("CTL1124C · Linux sin WebRTC no se para por sin-oferta", () => {
     });
 
     it("SIN WebRTC: tras 8 s sin peticiones de malla (después de los 30s de gracia), SÍ se para", async () => {
-        await montar({ hayWebRtc: false });
+        await montar({ hayWebRtc: false, so: "linux" });
         await origen!.ejecutar("pantalla-iniciar", {}, ctx());
         // Una petición de malla
         cuadros.push(cuadro(1));
@@ -159,7 +178,7 @@ describe("CTL1124C · Linux sin WebRTC no se para por sin-oferta", () => {
     });
 
     it("CON WebRTC: si hay peer, no se para por sin-oferta", async () => {
-        await montar({ hayWebRtc: true });
+        await montar({ hayWebRtc: true, so: "linux" });
         await origen!.ejecutar("pantalla-iniciar", {}, ctx());
         // Simular que se crea el peer (negociación exitosa)
         const origenInterno = origen! as unknown as { activas: Map<string, unknown> };
