@@ -395,7 +395,7 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
                 return Err((l::Motivo::SinServicio, None));
             };
             crate::entorno_hijos::aplicar_a_comando(&mut cmd);
-            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|_| ()).map_err(|_| (l::Motivo::SinServicio, None))
+            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map_err(|_| "sin-servicio").and_then(|s| if s.success() { Ok(()) } else { Err("sin-servicio") })
         }
         "brillo" => {
             let nivel = o.args.get("nivel").and_then(|n| n.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
@@ -413,7 +413,7 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
                 return Err((l::Motivo::SinServicio, None));
             };
             crate::entorno_hijos::aplicar_a_comando(&mut cmd);
-            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|_| ()).map_err(|_| (l::Motivo::SinServicio, None))
+            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map_err(|_| "sin-servicio").and_then(|s| if s.success() { Ok(()) } else { Err("sin-servicio") })
         }
         _ => return Err((l::Motivo::SinServicio, None)),
     };

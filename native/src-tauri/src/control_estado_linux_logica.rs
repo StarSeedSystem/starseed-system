@@ -62,18 +62,16 @@ pub fn parsear_pactl_silencio(salida: &str) -> Option<bool> {
 }
 
 pub fn parsear_rfkill_bluetooth(salida: &str) -> bool {
-    let mut tiene_bluetooth = false;
+    let mut visto_estado = false;
     for linea in salida.lines() {
-        if linea.contains("hci") && linea.contains("Bluetooth") {
-            tiene_bluetooth = true;
+        if linea.contains("Soft blocked: yes") || linea.contains("Hard blocked: yes") {
+            return false;
         }
-        if tiene_bluetooth {
-            if linea.contains("Soft blocked: yes") || linea.contains("Hard blocked: yes") {
-                return false;
-            }
+        if linea.contains("Soft blocked: no") || linea.contains("Hard blocked: no") {
+            visto_estado = true;
         }
     }
-    tiene_bluetooth
+    visto_estado
 }
 
 #[cfg(test)]
@@ -117,7 +115,9 @@ mod tests {
 
     #[test]
     fn test_rfkill() {
+        assert!(!parsear_rfkill_bluetooth(""));
         assert!(!parsear_rfkill_bluetooth("Soft blocked: yes"));
         assert!(parsear_rfkill_bluetooth("Soft blocked: no\nHard blocked: no"));
+        assert!(parsear_rfkill_bluetooth("0: hci0: Bluetooth\n\tSoft blocked: no\n\tHard blocked: no"));
     }
 }
