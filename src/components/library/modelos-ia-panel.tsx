@@ -15,6 +15,10 @@
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PanelRadarModelos } from "@/components/astraura/panel-radar-modelos";
+import { compararRadar, type FuenteRadar } from "@/lib/astraura/modelos/radar-internet";
+import { crearSenalesRed, type AmbitoCapa } from "@/lib/astraura/modelos/selector-contextual";
+import type { Pesos } from "@/lib/astraura/modelos/perfiles-personalizados";
 import { fechaCorta, listableSinFiltros, pierdeHerramientas } from "@/lib/astraura/modelos/catalogo";
 import { MODELOS_API } from "@/lib/astraura/modelos/modelos-api";
 import { ramasPorProveedor } from "@/lib/astraura/modelos/ramas-proveedor";
@@ -175,7 +179,57 @@ export function ModelosIaVista({ e }: { e: EstadoModelos & AccionesModelos }) {
   );
 }
 
+const PESOS_INICIALES: Pesos = { latencia: 0.25, calidad: 0.25, privacidad: 0.25, ahorro: 0.25 };
+
+function fuenteRadarDe(m: ModeloLocal, instalados: ReadonlySet<string>): FuenteRadar {
+  if (instalados.has(m.id)) return "local";
+  if (m.tipo === "capa-158" || m.tipo === "needle") return "capa-astraura";
+  return "ollama";
+}
+
 export function ModelosIaPanel() {
   const e = useModelosNeurona();
-  return <ModelosIaVista e={e} />;
+  const [ambito, setAmbito] = useState<AmbitoCapa>("privada");
+  const [pesos, setPesos] = useState<Pesos>(PESOS_INICIALES);
+  const [repos, setRepos] = useState<string[]>([]);
+  const candidatos = useMemo(
+    () =>
+      e.perfil
+        ? compararRadar(
+            e.modelos.map((m) => ({ modelo: m, fuente: fuenteRadarDe(m, e.instalados), preferido: m.preferente === true })),
+            e.perfil,
+          )
+        : [],
+    [e.modelos, e.instalados, e.perfil],
+  );
+  const senales = useMemo(
+    () =>
+      crearSenalesRed({
+        local: true,
+        internet: e.perfil?.enLinea === true,
+        mallaP2p: e.perfil?.iaMalla === true || e.pares.some((p) => p.enLinea),
+        bluetooth: false,
+      }),
+    [e.perfil, e.pares],
+  );
+  return (
+    <div className="space-y-4">
+      <ModelosIaVista e={e} />
+      {e.perfil && (
+        <PanelRadarModelos
+          candidatos={candidatos}
+          perfil={e.perfil}
+          senales={senales}
+          entidad="usuario"
+          ambito={ambito}
+          pesos={pesos}
+          repos={repos}
+          onAmbito={setAmbito}
+          onPesos={setPesos}
+          onAnadirRepo={(repo) => setRepos((prev) => (prev.includes(repo) ? prev : [...prev, repo]))}
+          onQuitarRepo={(repo) => setRepos((prev) => prev.filter((r) => r !== repo))}
+        />
+      )}
+    </div>
+  );
 }
