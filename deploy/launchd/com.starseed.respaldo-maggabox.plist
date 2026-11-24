@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.starseed.respaldo-maggabox</string>
+    <key>ProgramArguments</key><array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/alex/Documents/starseed-os-main/scripts/puente/respaldo_maggabox.py</string>
+        <string>respaldar</string>
+    </array>
+    <key>WorkingDirectory</key><string>/Users/alex/Documents/starseed-os-main</string>
+    <key>RunAtLoad</key><false/>
+    <key>StartInterval</key><integer>21600</integer>
+    <key>ThrottleInterval</key><integer>300</integer>
+    <key>StandardOutPath</key><string>/tmp/respaldo-maggabox.log</string>
+    <key>StandardErrorPath</key><string>/tmp/respaldo-maggabox.err</string>
+    <key>EnvironmentVariables</key><dict>
+        <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
