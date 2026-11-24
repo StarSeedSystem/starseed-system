@@ -541,11 +541,19 @@ export function ControlEntreNeuronasPanel() {
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    // CTL1124F: no mostrar "no te aceptó" si ya hay una sesión activa o saliente con esa neurona
-                    const yaTieneSesion = salientesActivas.some((s) => s.neurona.toLowerCase() === objetivo.toLowerCase()) ||
-                        sesionesEntrantes.some((s) => s.de.toLowerCase() === objetivo.toLowerCase());
-                    if (!yaTieneSesion) {
-                        setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                    // CTL1124F: no mostrar "no te aceptó" si ya hay una sesión activa o saliente con esa neurona,
+                    // ni si la sala está en estado terminado-por-el-dueno (el dueño cerró el control)
+                    // CTL1124F: también consideramos terminado-por-el-dueno como "no reabrir sola"
+                    const motivoRechazo = i.sesion.motivo ?? "rechazada";
+                    const terminadoPorDueno = motivoRechazo === "terminado-por-el-dueno" || motivoRechazo === "parada-nativa";
+                    // Sólo mostrar mensaje si no hay sesión viva ni está en estado terminal
+                    if (!terminadoPorDueno) {
+                        const neuronaNormalizada = objetivo.toLowerCase();
+                        const tieneSesionViva = salientesActivas.some((s) => s.neurona.toLowerCase() === neuronaNormalizada) ||
+                            sesionesEntrantes.some((s) => s.de.toLowerCase() === neuronaNormalizada);
+                        if (!tieneSesionViva) {
+                            setAviso(`${nombreRef.current(objetivo)} no te aceptó${motivoRechazo ? `: ${palabrasMotivo(motivoRechazo) ?? motivoRechazo}` : "."}`);
+                        }
                     }
                     setEsperando(null);
                 } else if (Date.now() - t0 > 5 * 60_000) {
@@ -558,7 +566,9 @@ export function ControlEntreNeuronasPanel() {
             if (reloj.current) clearInterval(reloj.current);
             reloj.current = null;
         };
-    }, [esperando, salientesActivas, sesionesEntrantes]);
+    // Nota: salientesActivas y sesionesEntrantes están definidos con useMemo después de este useEffect.
+    // No incluimos sus referencias como dependencias para evitar referencia circular.
+    }, [esperando]);
 
     // IND1115F: lo que Rust sabe del indicador de este aparato (nada fuera de la app nativa).
     const leerIndicador = useCallback(() => void estadoIndicadorNativo().then(setIndicador), []);
