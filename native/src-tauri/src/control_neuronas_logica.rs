@@ -5,14 +5,16 @@
 //! indicador nativo), pide permiso a Rust antes de ejecutar CADA orden y Rust anota la orden en un
 //! registro de solo-añadir encadenado por SHA-256. Parar (menú del indicador, atendido en Rust) cierra
 //! la sesión aunque la página no conteste: la siguiente orden ya no tiene sesión. También se cierra sola
-//! a la hora (máximo) y a los 2 min sin órdenes.
+//! por latidos: la neurona que controla manda uno firmado cada 10 s; sin latidos 45 s la sesión cae.
+//! Si al aceptar se eligió un límite de tiempo, ese límite manda (y no se reabre sola al cumplirse).
 //!
 //! Sin Tauri ni E/S: reloj y textos entran por argumento. Lo usa `control_neuronas.rs`.
 
 pub const REGISTRO: &str = "control-neuronas.log";
 pub const INICIO_CADENA: &str = "inicio";
 pub const SESION_MAX_MS: u64 = 60 * 60_000;
-pub const SESION_INACTIVA_MS: u64 = 2 * 60_000;
+/// CTL1119A: la sesión cae tras 45 s sin latidos firmados (la neurona que controla manda uno cada 10 s).
+pub const SESION_INACTIVA_MS: u64 = 45_000;
 /// Hasta cuántas neuronas de la cuenta pueden controlar/ver esta neurona a la vez.
 pub const MAX_SESIONES_ACTIVAS: usize = 8;
 const MAX_DETALLE: usize = 160;
@@ -298,7 +300,7 @@ impl Control {
             .ok_or(Rechazo::Token)
     }
 
-    /// Cierra todas las sesiones que pasaron la hora o 2 min sin órdenes. Devuelve las cerradas.
+    /// Cierra todas las sesiones que pasaron la hora (si hay límite) o 45 s sin latidos. Devuelve las cerradas.
     pub fn caducar_todas(&mut self, ahora: u64) -> Vec<Sesion> {
         let mut vivas = Vec::with_capacity(self.sesiones.len());
         let mut vencidas = Vec::new();
@@ -954,7 +956,7 @@ mod pruebas {
             c.abrir(&format!("tok{i:029}"), &format!("{i:064x}"), &format!("N{i}"), "controlar", 7_100, true).unwrap();
         }
         assert_eq!(c.negada_por_la_viva(otro, 7_200), Some(Rechazo::OtraSesion));
-        // Caducada (2 min sin órdenes) o terminada por la persona: NO resucita.
+        // Caducada (45 s sin latidos) o terminada por la persona: NO resucita.
         assert!(c.reutilizar(DE, "controlar", 7_200 + SESION_INACTIVA_MS + 1, true).is_none());
         assert!(c.activa().is_none());
         assert_eq!(c.negada_por_la_viva(DE, 9_000_000), None, "sin sesión no hay nada que negar");
@@ -1044,9 +1046,9 @@ mod pruebas {
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         assert!(c.orden(TOK, "leer-aparato", 5_000, true).is_ok());
-        // Sin lecturas: a los 2 min de la última, caducada.
+        // Sin lecturas: a los 45 s del último latido, caducada.
         assert_eq!(c.orden(TOK, "leer-aparato", 5_000 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
-        // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 2 min).
+        // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 45 s).
         // Lo que sigue sin renovar es lo que se rechaza (la entrada): una pausa sin nadie leyendo caduca como siempre.
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();

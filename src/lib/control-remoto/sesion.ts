@@ -16,8 +16,10 @@
  *  10. la acción está en la lista cerrada — si no, «accion-desconocida» (nunca se adivina);
  *  11. sus argumentos son los tipados — si no, «argumentos»;
  *  12. su nivel no pasa del concedido ni del de la sesión — si no, «nivel»;
- *  13. hay sesión abierta por ESE aparato, viva (latidos cada 10 s; cae a los 45 s sin ellos) — si no, «sin-sesion»/«sesion-caducada».
+ *  13. hay sesión abierta por ESE aparato, viva (latidos firmados cada 10 s; cae a los 45 s sin ellos) — si no, «sin-sesion»/«sesion-caducada».
  *      CTL1119A: sin límite elegido al aceptar no hay hora máxima; si se eligió uno, al cumplirse es «limite-cumplido» y no se reabre sola.
+ *      La pantalla en curso cuenta como actividad (renueva el latido). Al caer por latidos, la sesión se reabre sola
+ *      dentro de la misma aceptación mientras el permiso siga encendido, sin pedir otra aceptación.
  * Cada orden, aceptada o no, deja una línea `orden <acción> de=<8> nivel=<n> resultado=<…>`.
  * Revocar (un toque) cierra la sesión y APAGA el permiso: lo siguiente es «permiso-apagado».
  *
@@ -39,14 +41,14 @@ import type { PuenteNativoControl } from "./nativo"; // ORD1114Q
 import { abrirOrden, type AbrirSobre } from "./sellado"; // ORD1114Q
 import type { PeticionControl } from "./aviso-peticion"; // CTL1117J
 
-/** CTL1119A: la hora máxima histórica (1 h) se conserva como referencia; ya no se aplica sola: sin límite no hay techo. */
-export const SESION_MAX_MS = 60 * 60_000;
 /** CTL1119A: la neurona que controla manda un latido firmado cada 10 s. */
 export const LATIDO_CADA_MS = 10_000;
 /** CTL1119A: la sesión solo cae si faltan latidos 45 s (o si se cumplió el límite elegido al aceptar). */
 export const SIN_LATIDOS_MS = 45_000;
-/** Se conserva el nombre anterior: es el plazo sin latidos que caduca una sesión. */
+/** Plazo sin latidos que caduca una sesión (alias de SIN_LATIDOS_MS). */
 export const SESION_INACTIVA_MS = SIN_LATIDOS_MS;
+/** CTL1119A: techo histórico de 1 h; solo se aplica si al aceptar se eligió un límite de tiempo. */
+export const SESION_MAX_MS = 60 * 60_000;
 export const TOPE_SEGUNDO = 5;
 export const TOPE_MINUTO = 60;
 /** (PAN1115J) Órdenes de entrada (toque, tecla…): hasta 60 por segundo, sin tope por minuto (§2.4). */
@@ -335,7 +337,7 @@ export class PuertaControl {
         let cambio = false;
         for (const [token, s] of [...this.sesiones.entries()]) {
             const porLimite = s.fin !== null && s.fin !== undefined && t > s.fin;
-            const porLatidos = t - s.ultima > SESION_INACTIVA_MS;
+            const porLatidos = t - s.ultima > SIN_LATIDOS_MS;
             if (porLimite || porLatidos) {
                 this.sesiones.delete(token);
                 this.caducadaPor = porLimite ? "limite" : "latidos";

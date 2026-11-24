@@ -149,7 +149,7 @@ fn cuadro(app: &tauri::AppHandle, sesion: &str, desde: u32) -> Vec<u8> {
     if activa().is_none() {
         return Vec::new();
     }
-    // Ver la pantalla cuenta como actividad (como mucho una vez cada 10 s): una sesión mirada no caduca a los 2 min.
+    // Ver la pantalla cuenta como actividad (como mucho una vez cada 10 s): una sesión mirada no caduca a los 45 s (latidos).
     let ahora = crate::control_neuronas::mono_k();
     let modo = if ahora.saturating_sub(ULTIMA_ACTIVIDAD.load(Ordering::Relaxed)) >= 10_000 { ModoPuerta::Actividad } else { ModoPuerta::Lectura };
     if puerta_sesion(app, sesion, modo).is_err() {
