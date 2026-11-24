@@ -501,8 +501,23 @@ export class OrigenPantalla {
                         await this.pararToken(a.token, "sesion-cerrada");
                         continue;
                     }
-                    if (!a.peer && ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
-                        await this.pararToken(a.token, "sin-oferta");
+                    const hayWebRtc = this.d.hayWebRtc ? this.d.hayWebRtc() : typeof RTCPeerConnection === "function";
+                    if (!a.peer) {
+                        if (hayWebRtc) {
+                            if (ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
+                                await this.pararToken(a.token, "sin-oferta");
+                            }
+                        } else {
+                            if (a.mallaHasta > 0) {
+                                if (ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
+                                    await this.pararToken(a.token, "sin-malla");
+                                }
+                            } else {
+                                if (ahora - a.inicio > ESPERA_OFERTA_MS && ahora > a.mallaHasta) {
+                                    await this.pararToken(a.token, "sin-oferta");
+                                }
+                            }
+                        }
                     }
                 }
                 const vivas = this.vivas();
