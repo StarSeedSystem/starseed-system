@@ -1,0 +1,73 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-quantumor",
+   "titulo": "Canal `params` de la orbe → `QuantumOrbAvatar`",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe → `QuantumOrbAvatar`. : publicar vector visual 1.58b (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en cada tick del bus; el avatar reacciona en tiempo real sin polling. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "ola": "ALM1121",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45136124149",
+   "id": "ALM1121Ab-d1",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox.py",
+    "deploy/launchd/com.starseed.respaldo-maggabox.plist"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45136124149`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: ', '-C', '/Users/alex/Documents/starseed-os-main', 'bundle', 'create', '/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/ssp-66967-4f73/repo-2026-11-23.bundle', '--all'], capture_output=True, text=True, timeout=300.0)\n\nscripts/puente/test_respaldo_maggabox.py:249: AssertionError\n=========================== short test summary info ============================\nFAILED scripts/puente/test_respaldo_maggabox.py::TestPlan::test_plan_incluye_memory_root_y_repo\nFAILED scripts/puente/test_respaldo_maggabox.py::TestRespaldar::test_respaldar_bundle_en_temp_solo_si_6gb_libres\n2 failed, 24 passed in 27.94s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45136124149:refs/remotes/origin/nube/45136124149\"` y `git cherry-pick --no-commit f098fc39543d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: deploy/launchd/com.starseed.alivio-maggabox.plist, deploy/launchd/com.starseed.respaldo-maggabox.plist, scripts/puente/recopilar-capacidades-nodos.py, scripts/puente/respaldo_maggabox.py, scripts/puente/test_respaldo_maggabox.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió ALM1121Ab: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/respaldo_maggabox.py, scripts/puente/test_respaldo_maggabox.py, deploy/launchd/com.starseed.respaldo-maggabox.plist. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1121Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "ola": "DIR1121",
+   "id": "CAN1121B-d1",
+   "titulo": "Que el mismo mensaje llegue a TODOS los medios de su canal: puente del bot de diseño (A1) con el canal Audiovisual y verificación de punta a (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/sincronizador_direccion.py",
+    "scripts/puente/peticiones_telegram.py",
+    "scripts/puente/test_sincronizador_direccion.py"
+   ],
+   "depende": [],
+   "prompt": "Alex pide verificar que «se sincronicen los mismos mensajes de todos los medios conectados a los canales». Hallazgos de la dirección\n(21-11): mando/director/audiovisual.jsonl pesa 269 bytes y su último mensaje es del 20-11 14:09, pero Alex habló con\n@StarSeed_Design_bot esa noche: el bot vive en el A1 (peticiones_telegram.py) y NADA de lo que entra o sale ahí llega al canal\nAudiovisual del Mac ni a Hermes, MetaGenesis, Astraura, Antigravity, Codex o Claude. Haz: a) el bot del A1 escribe cada mensaje que\nrecibe y cada respuesta en un registro propio (jsonl 600, con id estable) y el sincronizador del Mac lo recoge por el túnel que ya existe\ny lo vuelca en audiovisual.jsonl; lo publicado en el canal desde otro medio sale por el bot (sin eco: dedupe por id y marca de origen);\nb) `verificar_canales.py`: por cada canal publica UN mensaje de prueba marcado, espera, y comprueba medio por medio (registro del canal,\nsesión de Hermes, Telegram por getUpdates o por el registro del bot, bandeja de Antigravity, Codex y Claude Cowork, panel de\nMetaGenesis) si llegó; saca una tabla canal × medio con «llega / no llega / no comprobable» y el motivo, y la guarda en\nmando/director/verificacion-canales.json para el panel; c) corrige lo que la tabla marque en rojo y que dependa de código;\nd) el canal Principal en Hermes llevaba 18 h sin actividad el 21-11 a las 16 h: averigua si el presidente dejó de responder y por qué.\nMensajes de prueba: pocos (uno por canal y pasada), con «[prueba de sincronía]» delante.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.\n\n## PARTE 1 DE 2 (la dirección dividió CAN1121B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/sincronizador_direccion.py, scripts/puente/peticiones_telegram.py, scripts/puente/test_sincronizador_direccion.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAN1121B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "CAN1121A-d3"
+   ]
+  },
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAN1121B-d1",
+   "ALM1121Ab-d1",
+   "CTL1119A",
+   "IMG-diaria-canal-params-de-la-orbe-quantumor"
+  ]
+ }
+}
