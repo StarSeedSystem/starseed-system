@@ -79,6 +79,8 @@
     "starseed.aurora.leader.v1", "starseed.aurora.orb.hidden.v1", "starseed.aurora.greeted.session",
     "starseed.astraura.cooldown.v1", "starseed.astraura.usage.v1", "starseed.astraura.routes.v1",
     "starseed.astraura.huggingbay.cache.v1", "starseed.sync.realtime.v1", "starseed.sync.meta.v1",
+    // (SUP1124C) Propias de cada neurona (CTL1124): viajan a la app de esta neurona, nunca a la copia del disco.
+    "starseed.perf.v1", "starseed.display.local.v1", "starseed.malla.protocolos-universales.v1",
   ];
   var SECRETAS_PREFIJOS = ["starseed.ai.key.", "starseed.connectors.cred", "starseed.integration."];
   /** Nombres que suenan a secreto (con separadores alrededor: «starseed» no es «seed»). */

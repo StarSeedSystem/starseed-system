@@ -162,6 +162,23 @@ describe("versión y versionCode del canal de pruebas (canal-pruebas.mjs)", () =
   });
 });
 
+/**
+ * (SUP1124B) Los topes de `apt-get install` de cada intento del paso de Linux: un número fijo repetido por
+ * `for INTENTO in 1 2 3` (CI1111M) o la lista `TOPES=(…)` que recorre `for IDX in 0 1 2 3` (83915481a). Vacío si
+ * falta el tope o si la lista y el bucle no dan las mismas vueltas.
+ */
+function topesDeInstalacion(run: string): number[] {
+  const lista = run.match(/^\s*TOPES=\(([\d ]+)\)\s*$/m);
+  if (lista && /timeout "\$TOPE" apt-get \$APT install/.test(run)) {
+    const topes = lista[1].trim().split(/\s+/).map(Number);
+    const vueltas = run.match(/for IDX in ([\d ]+);/);
+    return vueltas && vueltas[1].trim().split(/\s+/).length === topes.length ? topes : [];
+  }
+  const fijo = run.match(/sudo timeout (\d+) apt-get \$APT install/);
+  const bucle = run.match(/for INTENTO in ([\d ]+);/);
+  return fijo && bucle ? bucle[1].trim().split(/\s+/).map(() => Number(fijo[1])) : [];
+}
+
 describe("CI1111M · el manifiesto y el archivo detrás de su URL no discrepan", () => {
   const V = "0.5.1-prueba.37";
   const u = (n: string) => `https://github.com/o/r/releases/download/canal-pruebas/${n}`;
@@ -326,16 +343,22 @@ describe("native-build.yml · canal de pruebas", () => {
 
   it("(CI1111M) topes: apt acotado con reintentos, jobs con timeout y macOS con la versión en el nombre del paquete", () => {
     const apt = paso("build-desktop", "Dependencias de Linux (Tauri)") as Paso & { "timeout-minutes"?: number };
-    expect(apt["timeout-minutes"]).toBeLessThanOrEqual(15);
+    // (SUP1124B) Desde 83915481a (24-11) el paso rota de espejo en cada intento y le da su propio tope
+    // (`TOPES=(…)`, 4 intentos). Lo que se guarda: el paso acotado y como mucho la mitad del job (la compilación
+    // necesita el resto), un tope por intento, al menos 3 intentos y que los 3 primeros quepan en el paso.
+    const topeJob = Number((flujo.jobs["build-desktop"] as unknown as Record<string, unknown>)["timeout-minutes"]);
+    expect(apt["timeout-minutes"]).toBeLessThanOrEqual(topeJob / 2);
     expect(apt.run).toContain("Acquire::Retries=3");
     expect(apt.run).toContain("Acquire::http::Timeout=30");
-    expect(apt.run).toMatch(/for INTENTO in 1 2 3/);
-    expect(apt.run).toMatch(/sudo timeout \d+ apt-get \$APT update/);
-    expect(apt.run).toMatch(/sudo timeout \d+ apt-get \$APT install/);
-    expect(apt.run).toContain("exit 1"); // tras los 3 intentos, en rojo
-    // 3 intentos acotados caben en el tope del paso
-    const topes = [...apt.run!.matchAll(/sudo timeout (\d+) apt-get/g)].map((m) => Number(m[1]));
-    expect((topes.reduce((a, b) => a + b, 0) * 3) / 60).toBeLessThan(apt["timeout-minutes"]!);
+    const update = [...apt.run!.matchAll(/sudo timeout (\d+) apt-get \$APT update/g)].map((m) => Number(m[1]));
+    expect(update).toHaveLength(1);
+    expect(apt.run).toMatch(/sudo timeout (\d+|"\$TOPE") apt-get \$APT install/);
+    const intentos = topesDeInstalacion(apt.run!);
+    expect(intentos.length).toBeGreaterThanOrEqual(3);
+    expect(apt.run).toContain("exit 1"); // tras el último intento, en rojo
+    // los 3 primeros intentos acotados caben en el tope del paso
+    const tresPrimeros = intentos.slice(0, 3).reduce((a, t) => a + update[0] + t, 0);
+    expect(tresPrimeros / 60).toBeLessThan(apt["timeout-minutes"]!);
     for (const j of ["build-desktop", "build-android", "canal-pruebas-publicar"]) {
       expect((flujo.jobs[j] as unknown as Record<string, unknown>)["timeout-minutes"], j).toBeDefined();
     }

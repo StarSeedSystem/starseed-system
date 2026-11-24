@@ -59,7 +59,13 @@ class PruebaCiYml(unittest.TestCase):
         self.assertLess(int(tope_paso.group(1)), int(tope.group(1)))
         self.assertIn("Acquire::Retries", paso)
         self.assertRegex(paso, r"timeout \d+ apt-get \$APT update")
-        self.assertRegex(paso, r"timeout \d+ apt-get \$APT install -y")
+        # (SUP1124B) Desde 83915481a (24-11) el paso rota de espejo y cada intento usa su tope de `TOPES=(…)`:
+        # vale un número fijo o "$TOPE", siempre que la lista sea de números y dé al menos tres intentos.
+        self.assertRegex(paso, r'timeout (\d+|"\$TOPE") apt-get \$APT install -y')
+        if '"$TOPE"' in paso:
+            topes = re.search(r"(?m)^\s*TOPES=\(([\d ]+)\)\s*$", paso)
+            self.assertIsNotNone(topes, 'con "$TOPE" hace falta la lista TOPES=(…) de números')
+            self.assertGreaterEqual(len(topes.group(1).split()), 3)
         # Los paquetes no cambian: siguen los que necesita `cargo check` (tray-icon, PipeWire…).
         for paquete in ("libwebkit2gtk-4.1-dev", "libayatana-appindicator3-dev", "libpipewire-0.3-dev", "libxdo-dev"):
             self.assertIn(paquete, paso)
