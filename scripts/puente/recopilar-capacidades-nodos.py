@@ -72,6 +72,8 @@ def _ficha(nodo_id: str, medio: str, datos: Any, **medidas: Any) -> Dict[str, An
             "ramLibreMb": int(round(_numero(valor("ram", RAM)))),
             "cpu": _numero(valor("cpu", CPU)),
             "discoLibreGb": round(_numero(valor("disco", DISCO)), 1),
+            "movidoGb": round(_numero(medidas.get("movido_gb", _buscar(datos, ("movidoGb", "movido_gb", "movido")))), 2),
+            "indiceEnlace": medidas.get("indice_enlace", ""),
             "almacen": _almacen(valor("almacen", ALMACEN)),
             "capas": _capas(valor("capas", CAPAS))}
 
