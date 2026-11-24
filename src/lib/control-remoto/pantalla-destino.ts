@@ -645,14 +645,13 @@ export class PantallaDestino {
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
-            if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
-                cuadros += 1;
-                if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
-                else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
-                // CTL1119B: alimentar cuadro a calidad (malla)
-                const t = this.d.ahora();
-                añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
-            }
+            // CTL1124D: siempre medir cuadros recibidos para calidad (fps, resolución, kbps), aunque falle el pintado.
+            const t = this.d.ahora();
+            añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
+            if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
+            else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
+            const Pinto = await l.pintar(jpeg, ancho, alto).catch(() => false);
+            if (Pinto) cuadros += 1;
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
             enMedida += 1;
