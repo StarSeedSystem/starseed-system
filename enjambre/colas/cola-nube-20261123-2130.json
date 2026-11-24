@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261123",
+ "tareas": [
+  {
+   "id": "IMG-diaria-canal-params-de-la-orbe-publicado",
+   "titulo": "Canal `params` de la orbe publicado por BitNet 1.58b",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Canal `params` de la orbe publicado por BitNet 1.58b. vector visual por cláusula (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en bus de la orbe → permite que Nexus/Exocortex/agentes reaccionen al estado interno del modelo en tiempo real (tasks abiertas: \"Publicar vector visual por cláusula\"). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "IMG-diaria-canal-params-de-la-orbe-publicado"
+  ]
+ }
+}
