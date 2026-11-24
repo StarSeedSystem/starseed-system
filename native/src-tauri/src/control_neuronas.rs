@@ -204,9 +204,10 @@ fn exigir_pagina(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String
 /// IND1115F: en Android el comando es `async` (corre en el grupo de hilos de Tauri, no en el hilo que atiende la
 /// página) porque espera hasta 4 s el latido de Kotlin; un comando síncrono bloquearía ese hilo todo ese tiempo.
 /// El rechazo por falta de indicador lleva el detalle tras el código: «sin-indicador-nativo falta=… paso=… tras=…».
+/// `fin_ms`: fin absoluto del límite elegido al aceptar (ms epoch mono); None = sin límite de tiempo.
 #[cfg_attr(target_os = "android", tauri::command(async))]
 #[cfg_attr(not(target_os = "android"), tauri::command)]
-pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, sobre: Option<serde_json::Value>) -> Result<String, String> {
+pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: String, nombre: String, nivel: String, sobre: Option<serde_json::Value>, fin_ms: Option<u64>) -> Result<String, String> {
     exigir_pagina(&app, &webview)?;
     let _una_a_la_vez = cerrojo_apertura(); // CTL1117A · S1
     // FSG1116 · A2: en Android la sesión (y con ella la pantalla y los cuadros) solo la abre la orden firmada
@@ -290,7 +291,7 @@ pub fn control_neuronas_abrir(app: AppHandle, webview: tauri::Webview, de: Strin
             false
         };
     let token = token_nuevo();
-    let r = control().abrir_con_interruptor(&int, &token, &de, &nombre, &nivel, mono_ms(), visible).map(|s| (s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
+    let r = control().abrir_con_interruptor(&int, &token, &de, &nombre, &nivel, mono_ms(), visible, fin_ms).map(|s| (s.de.chars().take(8).collect::<String>(), s.nivel.clone()));
     match r {
         Ok((de8, nivel)) => {
             *ULTIMO_RECHAZO.lock().unwrap_or_else(|e| e.into_inner()) = None; // IND1115F: ya no hay nada que explicar

@@ -511,7 +511,7 @@ export class PuertaControl {
                 return this.respuesta(c.nonce, false, "limite-cumplido", nombre, c.de, c.nivel);
             }
             // ORD1114Q: la sesión la abre Rust (pone el indicador o se niega) y su token es el de Rust.
-            const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre); // FSG1116 · A2: lo nativo comprueba la firma
+            const n = await this.d.nativo.abrir(c.de, nombreCtl, nivel, sobre, fin ?? undefined); // FSG1116 · A2: lo nativo comprueba la firma
             if (!n.ok || !n.token) return this.respuesta(c.nonce, false, n.motivo ?? "sin-indicador-nativo", nombre, c.de, c.nivel, undefined, n.detalle);
             // CTL1117A · S1/S3: abrir otra vez con la sesión viva y el mismo controlador es la MISMA sesión (mismo token y mismo fin):
             // renovar la ventana de latidos sí, estirar el límite elegido no.

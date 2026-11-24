@@ -79,6 +79,8 @@ pub struct Sesion {
     pub nivel: String,
     pub inicio_ms: u64,
     pub ultima_ms: u64,
+    /// CTL1119A: fin absoluto del límite elegido al aceptar (ms epoch mono); None = sin límite de tiempo.
+    pub fin_ms: Option<u64>,
     /// (ORD1114T) En pausa por una acción local desde esta hora (None = no pausada).
     pub pausada_ms: Option<u64>,
     /// (ORD1114T) Última vez que la persona la reanudó (o que se abrió): lo local anterior no pausa.
@@ -174,7 +176,8 @@ impl Control {
 
     /// Abre la sesión (la pide la página tras aceptar «abrir-sesion»). `indicador` = Rust ya puso el
     /// indicador visible. Hasta `MAX_SESIONES_ACTIVAS` controladores simultáneos; mismo `de` renueva su sesión.
-    pub fn abrir(&mut self, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
+    /// `fin_ms`: fin absoluto del límite elegido al aceptar (ms epoch mono); None = sin límite de tiempo.
+    pub fn abrir(&mut self, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool, fin_ms: Option<u64>) -> Result<&Sesion, Rechazo> {
         if !huella_valida(de) || !nivel_valido(nivel) || token.len() < 32 {
             return Err(Rechazo::Forma);
         }
@@ -193,6 +196,7 @@ impl Control {
                 nivel: nivel.into(),
                 inicio_ms: ahora,
                 ultima_ms: ahora,
+                fin_ms,
                 pausada_ms: None,
                 reanudada_ms: ahora,
                 local_ms: 0,
@@ -215,6 +219,7 @@ impl Control {
             nivel: nivel.into(),
             inicio_ms: ahora,
             ultima_ms: ahora,
+            fin_ms,
             pausada_ms,
             reanudada_ms,
             local_ms,
@@ -227,7 +232,7 @@ impl Control {
     /// misma sesión (mismo token, mismo indicador), solo se da por activa ahora. Nada de indicador nuevo ni de token
     /// nuevo: así una apertura repetida (la Mac, dos ventanas, un reintento) no tumba lo que ya funciona. No reutiliza
     /// si ese controlador no tiene sesión viva ni si no hay indicador a la vista. Con pausa local SÍ (CTL1118H).
-    /// No alarga la hora máxima: `inicio_ms` no cambia.
+    /// No alarga la hora máxima: `inicio_ms` y `fin_ms` no cambian.
     pub fn reutilizar(&mut self, de: &str, nivel: &str, ahora: u64, indicador: bool) -> Option<&Sesion> {
         if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
             return None;
@@ -253,13 +258,15 @@ impl Control {
         }
     }
 
-    /// (ORD1114V) Abrir pasa ANTES por el interruptor nativo de este aparato (contrato §1 caso A punto 1): lo
+/// (ORD1114V) Abrir pasa ANTES por el interruptor nativo de este aparato (contrato §1 caso A punto 1): lo
     /// que diga la página no basta.
     #[allow(clippy::too_many_arguments)]
-    pub fn abrir_con_interruptor(&mut self, interruptor: &Interruptor, token: &str, de: &str, nombre: &str, nivel: &str, ahora: u64, indicador: bool) -> Result<&Sesion, Rechazo> {
+    pub fn abrir_con_interruptor(&mut self, interruptor: &Interruptor, token: &str, de: &str, nombre: &str, nivel: &str, agora: u64, indicador: bool, fin_ms: Option<u64>) -> Result<&Sesion, Rechazo> {
         if !interruptor.encendido {
             return Err(Rechazo::InterruptorApagado);
         }
+        self.abrir(token, de, nombre, nivel, agora, indicador, fin_ms)
+    }
         self.abrir(token, de, nombre, nivel, ahora, indicador)
     }
 
@@ -300,12 +307,14 @@ impl Control {
             .ok_or(Rechazo::Token)
     }
 
-    /// Cierra todas las sesiones que pasaron la hora (si hay límite) o 45 s sin latidos. Devuelve las cerradas.
-    pub fn caducar_todas(&mut self, ahora: u64) -> Vec<Sesion> {
+    /// Cierra todas las sesiones que cumplieron su límite elegido (si hay) o 45 s sin latidos. Devuelve las cerradas.
+    pub fn caducar_todas(&mut self, agora: u64) -> Vec<Sesion> {
         let mut vivas = Vec::with_capacity(self.sesiones.len());
         let mut vencidas = Vec::new();
         for s in self.sesiones.drain(..) {
-            if ahora.saturating_sub(s.inicio_ms) > SESION_MAX_MS || ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS {
+            let por_limite = s.fin_ms.is_some_and(|fin| agora > fin);
+            let por_latidos = agora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS;
+            if por_limite || por_latidos {
                 vencidas.push(s);
             } else {
                 vivas.push(s);

@@ -29,8 +29,9 @@ export interface PuenteNativoControl {
     /** ¿Hay app nativa con su lado de control? (sin ella, nada se acepta). */
     disponible(): boolean;
     /** FSG1116 · A2: `sobre` = la orden firmada `abrir-sesion` tal como llegó. En Android lo nativo la comprueba y saca
-     * de su lista aceptada el controlador y el NOMBRE del indicador; `de` y `nombre` de la página no cuentan allí. */
-    abrir(de: string, nombre: string, nivel: string, sobre?: unknown): Promise<RespuestaNativa>;
+     * de su lista aceptada el controlador y el NOMBRE del indicador; `de` y `nombre` de la página no cuentan allí.
+     * `finMs`: fin absoluto del límite elegido al aceptar (ms epoch); undefined = sin límite de tiempo. */
+    abrir(de: string, nombre: string, nivel: string, sobre?: unknown, finMs?: number): Promise<RespuestaNativa>;
     /** Permiso de Rust para ejecutar UNA orden de la sesión `token`. */
     orden(token: string, nombre: string): Promise<RespuestaNativa>;
     /** Apunta en el registro encadenado una orden que la puerta rechazó (no concede nada). */
@@ -41,7 +42,7 @@ export interface PuenteNativoControl {
 /** Sin app nativa: nada disponible (la puerta rechaza «sin-indicador-nativo»). */
 export const SIN_NATIVO: PuenteNativoControl = {
     disponible: () => false,
-    abrir: async () => ({ ok: false, motivo: "sin-indicador-nativo" }),
+    abrir: async (_de: string, _nombre: string, _nivel: string, _sobre?: unknown, _finMs?: number) => ({ ok: false, motivo: "sin-indicador-nativo" }),
     orden: async () => ({ ok: false, motivo: "sin-indicador-nativo" }),
     anotar: () => undefined,
     parar: async () => undefined,
@@ -76,9 +77,9 @@ export function crearPuenteTauri(_indicadorPosible?: boolean): PuenteNativoContr
     if (!inv) return SIN_NATIVO;
     return {
         disponible: () => true,
-        abrir: async (de, nombre, nivel, sobre) => {
+        abrir: async (de, nombre, nivel, sobre, finMs) => {
             try {
-                const token = await inv("control_neuronas_abrir", { de, nombre, nivel, sobre: sobre ?? null });
+                const token = await inv("control_neuronas_abrir", { de, nombre, nivel, sobre: sobre ?? null, fin_ms: finMs });
                 return typeof token === "string" ? { ok: true, token } : { ok: false, motivo: "nativo-fallo" };
             } catch (e) {
                 return { ok: false, ...partirErrorNativo(e) };
