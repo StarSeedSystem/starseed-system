@@ -70,6 +70,7 @@ function mundo(opts: { concedida?: boolean } = {}): Mundo {
         esperar: async (ms) => { ahora += ms; await new Promise((r) => setTimeout(r, 1)); },
         ahora: () => ahora,
         anotar: (l) => notas.push(l),
+        sistemaOperativo: () => "linux",
     } satisfies DepsOrigen);
     vivos.push(origen);
     return Object.assign(m, { origen, llamadas, notas, conceder: () => { concedida = true; }, reloj: () => ahora });

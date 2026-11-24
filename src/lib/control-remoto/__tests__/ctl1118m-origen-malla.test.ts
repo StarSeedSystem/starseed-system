@@ -50,10 +50,11 @@ function montar(conReducir = true) {
         esperar: (ms) => pausa(Math.min(ms, 3)),
         ahora: () => ahora,
         anotar: (l) => void lineas.push(l),
+        sistemaOperativo: () => "linux",
         ...(conReducir
             ? { reducir: async (j, ancho, alto, lado, calidad) => { reducciones.push({ lado, calidad }); return { jpeg: j.subarray(0, 100), ancho: Math.round(ancho / 2), alto: Math.round(alto / 2) }; } }
             : {}),
-    } as DepsOrigen);
+    } satisfies DepsOrigen);
 }
 
 beforeEach(() => {

@@ -90,3 +90,15 @@ export function ayudaFluida(real: FuenteReal | null): string | null {
     return real === "accesibilidad" ? "Va por accesibilidad (pocos cuadros por segundo). En el aparato se puede aceptar la pantalla fluida." : null;
 }
 
+/** CTL1124C: si el aparato es Linux y no tiene WebRTC utilizable, la pantalla no se para por «sin oferta»;
+ *  sigue sirviendo cuadros por la malla (misma vía que el Mac controlado). Pura: sin E/S, sin red. */
+export function esModoMalla(sistemaOperativo: string, hayWebRtc: boolean): boolean {
+    return sistemaOperativo === "linux" && !hayWebRtc;
+}
+
+/** CTL1124C: tiempo de gracia (ms) antes de exigir malla en Linux sin WebRTC. */
+export const GRACIA_MALLA_MS = 30_000;
+
+/** CTL1124C: vigencia de la malla (ms) tras la última petición; sin peticiones se para con «sin-malla». */
+export const VIGENCIA_MALLA_MS = 8_000;
+

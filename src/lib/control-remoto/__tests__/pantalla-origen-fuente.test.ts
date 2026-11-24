@@ -38,6 +38,7 @@ function montar(invocar?: (cmd: string, args?: Record<string, unknown>) => Promi
         esperar: () => new Promise<void>((r) => setTimeout(r, 1)),
         ahora: () => 1_000_000,
         anotar: () => undefined,
+        sistemaOperativo: () => "linux",
     } satisfies DepsOrigen);
 }
 const de = (cmd: string) => llamadas.filter((l) => l.cmd === cmd);

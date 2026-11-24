@@ -10,6 +10,9 @@ import {
     fuentePedidaValida,
     rotuloFuente,
     veredictoFuente,
+    esModoMalla,
+    GRACIA_MALLA_MS,
+    VIGENCIA_MALLA_MS,
 } from "../fuente-pantalla";
 
 describe("RST1116A · fuente de pantalla pedida vs real", () => {
@@ -88,6 +91,38 @@ describe("RST1116A · fuente de pantalla pedida vs real", () => {
             const a: FuenteReal = "accesibilidad";
             const b: FuenteReal = "proyeccion";
             expect([a, b]).toEqual(["accesibilidad", "proyeccion"]);
+        });
+    });
+});
+
+describe("CTL1124C · modo malla para Linux sin WebRTC", () => {
+    describe("esModoMalla", () => {
+        it("Linux sin WebRTC → true", () => {
+            expect(esModoMalla("linux", false)).toBe(true);
+        });
+        it("Linux con WebRTC → false", () => {
+            expect(esModoMalla("linux", true)).toBe(false);
+        });
+        it("macOS sin WebRTC → false", () => {
+            expect(esModoMalla("macos", false)).toBe(false);
+        });
+        it("macOS con WebRTC → false", () => {
+            expect(esModoMalla("macos", true)).toBe(false);
+        });
+        it("Windows sin WebRTC → false", () => {
+            expect(esModoMalla("windows", false)).toBe(false);
+        });
+        it("desconocido sin WebRTC → false", () => {
+            expect(esModoMalla("desconocido", false)).toBe(false);
+        });
+    });
+
+    describe("constantes de tiempo", () => {
+        it("GRACIA_MALLA_MS = 30_000", () => {
+            expect(GRACIA_MALLA_MS).toBe(30_000);
+        });
+        it("VIGENCIA_MALLA_MS = 8_000", () => {
+            expect(VIGENCIA_MALLA_MS).toBe(8_000);
         });
     });
 });

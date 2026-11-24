@@ -28,6 +28,7 @@ function origenCon(respuesta: unknown) {
         esperar: async (ms) => new Promise<void>((r) => setTimeout(r, Math.min(ms, 3))),
         ahora: () => 1,
         anotar: () => undefined,
+        sistemaOperativo: () => "linux",
     } satisfies DepsOrigen);
     return { origen, llamadas };
 }

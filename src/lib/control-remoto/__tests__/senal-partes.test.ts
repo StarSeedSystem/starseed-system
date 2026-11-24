@@ -184,6 +184,7 @@ beforeEach(() => {
         esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
         ahora: () => Date.now(),
         anotar: (l) => lineasO.push(l),
+        sistemaOperativo: () => "linux",
     } satisfies DepsOrigen);
     const deps: DepsDestino = {
         // El «canal de control»: valida con la lista cerrada de la puerta, mide la orden firmada y llama al origen.

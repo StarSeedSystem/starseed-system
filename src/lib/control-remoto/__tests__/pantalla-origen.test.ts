@@ -113,6 +113,7 @@ function montar(sinInvocar = false) {
         esperar: (ms) => pausa(Math.min(ms, 3)),
         ahora: () => ahora,
         anotar: () => undefined,
+        sistemaOperativo: () => "linux",
     } satisfies DepsOrigen);
 }
 
@@ -342,11 +343,41 @@ describe("negociación por el canal de control", () => {
         await origen.parar("fin");
         expect(canal.cerrado).toBe(true);
     });
-    it("sin oferta en 30 s se para (nadie recoge la pantalla)", async () => {
-        await conPantalla();
+    it("sin oferta en 30 s se para (nadie recoge la pantalla) — en macOS con WebRTC", async () => {
+        // Recrear origen en macOS para probar el comportamiento con WebRTC
+        const llamadasMac: { cmd: string; args?: Record<string, unknown> }[] = [];
+        const origenMac = new OrigenPantalla({
+            invocar: async (cmd, args) => {
+                llamadasMac.push({ cmd, args });
+                if (cmd === "control_pantalla_cuadro") {
+                    const c = cuadros.shift();
+                    return c ?? new Uint8Array(0);
+                }
+                if (cmd in respuestas) {
+                    const r = respuestas[cmd];
+                    if (r instanceof Error) throw r;
+                    return r;
+                }
+                return { ok: true };
+            },
+            iceServers: async () => [{ urls: "stun:x" }],
+            crearPeer: () => peer,
+            crearPintor: () => pintor,
+            sesionViva: () => viva,
+            recibirSobre: async (s) => {
+                recibidos.push(s);
+                return { tipo: "respuesta", nonce: String((s as { n?: string }).n ?? ""), ok: true, motivo: "ok" } as RespuestaOrden;
+            },
+            esperar: (ms) => pausa(Math.min(ms, 3)),
+            ahora: () => ahora,
+            anotar: () => undefined,
+            sistemaOperativo: () => "macos",
+        });
+        await origenMac.ejecutar("pantalla-iniciar", {}, ctx("ver"));
         ahora += 31_000;
-        await hasta(() => !origen.enMarcha());
-        expect(n("control_pantalla_parar")).toHaveLength(1);
+        await hasta(() => !origenMac.enMarcha());
+        expect(llamadasMac.filter((l) => l.cmd === "control_pantalla_parar")).toHaveLength(1);
+        await origenMac.parar("fin");
     });
 });
 
