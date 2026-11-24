@@ -693,6 +693,23 @@ def _n_archivos(tarea):
     return len(tarea.get("archivos") or [])
 
 
+def toca_flujos_de_github(tarea):
+    """PURA. (SUP1124D, MEDIDO el 24-11) ¿Declara algún archivo de `.github/workflows/`? El runner de la nube
+    entrega con el token de GitHub Actions (una GitHub App), que no puede subir flujos: «refusing to allow a
+    GitHub App to create or update workflow `.github/workflows/native-build.yml` without `workflows`
+    permission» (run 45374472553). LNX1118WB trabajó allí 14 min, el orquestador del runner la integró, la
+    Mac la apuntó «integrada» y la rama nube/<run> nunca llegó: el trabajo se perdió. Se queda en la Mac."""
+    if not isinstance(tarea, dict):
+        return False
+    for a in tarea.get("archivos") or []:
+        ruta = str(a).replace("\\", "/")
+        while ruta.startswith("./"):
+            ruta = ruta[2:]
+        if ruta.startswith(".github/workflows/"):
+            return True
+    return False
+
+
 #: Estados en los que una dependencia ya esta hecha y no frena a nadie.
 _HECHAS = ("commit", "hecho")
 
@@ -759,6 +776,8 @@ MOTIVOS_FUERA = (
     ("estado", "no están pendientes ni fallidas"),
     ("en-main", "ya están en main"),
     ("grande", "piden más de %d archivos y se quedan en la Mac, donde hay revisor" % MAX_ARCHIVOS_NUBE),
+    # SUP1124D: el token del runner no puede subir cambios de .github/workflows/ (se perdían al entregar).
+    ("flujos", "tocan .github/workflows/, que el runner de GitHub no puede subir, y se quedan en la Mac"),
     ("espera", "esperan a otra tarea"),
     # AUT1116A: una tarea con prioridad (URGENTE) que la Mac aún puede coger no se cede a la nube.
     ("urgente", "son urgentes y la Mac las coge antes que ninguna otra cosa"),
@@ -800,6 +819,8 @@ def motivo_fuera(tarea, progreso, asuntos_main, n_ola_actual, envios=None,
         return "en-main"
     if _n_archivos(tarea) > max_archivos:
         return "grande"
+    if toca_flujos_de_github(tarea):
+        return "flujos"
     if dependencias_pendientes(tarea, progreso, asuntos_main, mismo_lote):
         return "espera"
     # (AUT1116A, MEDIDO el 16-11) VOZ01, FRN01 y DSB01 («URGENTE») salieron a la nube a las 14:50 como

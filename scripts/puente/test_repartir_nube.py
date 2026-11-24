@@ -818,6 +818,28 @@ class Privadas(unittest.TestCase):
         self.assertEqual([t["id"] for t in r], ["P3"])
 
 
+class FlujosDeGitHub(unittest.TestCase):
+    """(SUP1124D, 24-11) Lo que toca .github/workflows/ no va a la nube de GitHub: su token no puede subir
+    flujos y el trabajo se perdía al entregar (run 45374472553, LNX1118WB)."""
+
+    def test_una_tarea_que_toca_un_flujo_se_queda_en_la_mac(self):
+        lnx = {"id": "LNX1", "ola": "x",
+               "archivos": ["native/src-tauri/tauri.conf.json", ".github/workflows/native-build.yml"]}
+        self.assertEqual(R.motivo_fuera(lnx, {}, [], None), "flujos")
+        otra = {"id": "OK1", "ola": "x", "archivos": ["src/a.ts"]}
+        r = elegir([("cola-x.json", [lnx, otra])], {}, [], ola_actual="")
+        self.assertEqual([t["id"] for t in r], ["OK1"])
+
+    def test_solo_los_flujos_y_con_cualquier_forma_de_ruta(self):
+        self.assertEqual(R.motivo_fuera({"id": "G1", "ola": "x", "archivos": ["./.github/workflows/ci.yml"]},
+                                        {}, [], None), "flujos")
+        for archivos in ([".github/ISSUE_TEMPLATE/x.md"], ["docs/.github/workflows/notas.md"], ["./src/a.ts"], []):
+            self.assertIsNone(R.motivo_fuera({"id": "G2", "ola": "x", "archivos": archivos}, {}, [], None), archivos)
+
+    def test_el_recuento_de_buscar_capacidad_tiene_frase(self):
+        self.assertIn("flujos", dict(R.MOTIVOS_FUERA))
+
+
 class PausaDeLaNube(unittest.TestCase):
     """(2026-10-04) Siete corridas con cero commits: con la pausa nadie reparte."""
 
