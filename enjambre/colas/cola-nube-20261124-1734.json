@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "SUP1124H",
+   "titulo": "Pruebas · test_director_autodesarrollo sin agentes ni avisos reales (síntesis por HTTP y Telegram)",
+   "archivos": [
+    "scripts/puente/test_director_autodesarrollo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red, git de verdad ni archivos reales de la Mac. Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nMedido el 24-11 (supervisión, 42.ª pasada): los cuatro `correr`/`_correr` de `scripts/puente/test_director_autodesarrollo.py` llaman a `D.ciclo(**args)` sin inyectar `agente_sintesis` (por defecto, el `agente_sintesis.ciclo` de verdad) ni `avisar` (por defecto, `_avisar_real`: `puente.decir` y `hermes send` a Telegram). Una prueba se quedó más de 10 min esperando a FreeLLMAPI en 127.0.0.1:3001 y el archivo entero tarda ~200 s en la Mac (y alarga las pruebas del puente de la autopublicación). SUP1124G ya hizo lo mismo con `motor_formulacion` (mira cómo, y la guardia de `test_ninguna_prueba_usa_el_home_vivo`).\n\nCambio: en los cuatro, inyecta `agente_sintesis` con una función falsa que no toque red ni disco (si alguna prueba de hoy espera «sintesis-produccion» en `lanzado`, que la falsa devuelva lo necesario para que siga igual) y `avisar=lambda texto, telegram: None` (las pruebas que pasan su propio `avisar` por `kw` lo siguen pasando). Amplía la guardia de `test_ninguna_prueba_usa_el_home_vivo` para que cada `correr` lleve los dos, contándolos SIN escribir en la guardia el mismo literal que cuenta (arma la aguja por partes, como hace la de SUP1124G). Nada más cambia. Comprueba: `python3 -m pytest scripts/puente/test_director_autodesarrollo.py -q` pasa entero y en menos de 60 s, sin ninguna conexión de red.",
+   "ola": "1124 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "SUP1124H"
+  ]
+ }
+}
