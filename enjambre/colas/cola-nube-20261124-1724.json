@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "SUP1124F",
+   "titulo": "Capacidades · revisor_capacidades no propone tareas sobre rutas que git ignora (.agent/)",
+   "archivos": [
+    "scripts/puente/revisor_capacidades.py",
+    "scripts/puente/test_revisor_capacidades.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red, git de verdad ni archivos reales de la Mac. Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nMedido el 24-11 (supervisión, 42.ª pasada): `abrir_tareas_enjambre` de `scripts/puente/revisor_capacidades.py` (CAP1119D) encola tareas CAP-skill-<x>-uso con `archivos: ['.agent/skills/<x>/README.md']` y CAP-mcp-<x>-conectar con `['scripts/puente/mcp_director.py', '.agent/skills/mcp-<x>/']`. Pero `.agent/` está en `.gitignore` (los archivos de `.agent` que hay en main se añadieron a la fuerza): un README.md o una carpeta nuevos ahí no los ve git, el agente no puede entregar nada y la tarea va y vuelve de la nube sin fin («rechazada», «sin_cambios»): CAP-skill-agent-reach-uso, CAP-skill-coop-qa-uso y CAP-mcp-brave-search-conectar-d2, varias veces cada una.\n\nCambio mínimo en `abrir_tareas_enjambre`: (1) dos parámetros nuevos opcionales al final, `ignorado=None` y `seguido=None` (funciones `ruta -> bool`). Por defecto, `ignorado` corre `git -C <RAIZ> check-ignore -q -- <ruta>` y da True solo con rc 0, y `seguido` corre `git -C <RAIZ> ls-files --error-unmatch -- <ruta>` y da True solo con rc 0; cualquier excepción o plazo agotado (timeout=10) da False. Pon esas dos funciones por defecto como `_ignorado_por_git` y `_seguido_por_git` a nivel de módulo. (2) Antes de guardar las tareas: en cada CAP-skill, si `.agent/skills/<x>/README.md` está ignorado y `.agent/skills/<x>/SKILL.md` está seguido, usa `SKILL.md` en su lugar (y añade al prompt que se amplía la sección de uso de SKILL.md); después, en TODAS las tareas, quita de `archivos` cada ruta que esté ignorada y no esté seguida; una tarea que se queda sin archivos no se encola. (3) Nada más cambia: ids, ola, títulos y las demás tareas como hoy.\n\nPruebas nuevas en `scripts/puente/test_revisor_capacidades.py` (mismo estilo que `test_abrir_tareas_enjambre`, con sus datos de ejemplo y sin git de verdad), con `ignorado=lambda r: r.startswith('.agent/')` y `seguido=lambda r: r == '.agent/skills/agent-reach/SKILL.md'`: (a) la CAP-skill de agent-reach queda con `archivos == ['.agent/skills/agent-reach/SKILL.md']`; (b) una skill sin SKILL.md seguido no se encola; (c) una CAP-mcp queda solo con `scripts/puente/mcp_director.py`; (d) con `ignorado=lambda r: False` las tareas son las mismas que hoy. `abrir_tareas_enjambre` escribe `cola-capacidades.json` en `rc.OLAS`: las pruebas nuevas, y también `test_abrir_tareas_enjambre` (que hoy escribe en el OLAS de verdad), parchean `rc.OLAS` con un directorio temporal (`tempfile.TemporaryDirectory()` + `pathlib.Path`) y lo restauran al acabar. Corre `python3 -m pytest scripts/puente/test_revisor_capacidades.py -q`.",
+   "ola": "1124 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "SUP1124F"
+  ]
+ }
+}
