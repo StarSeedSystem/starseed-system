@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "LNX1124A",
+   "ola": "control-1124",
+   "titulo": "Maggabox: aviso «Gestor de energía · GDBus…AccessDenied» en pantalla",
+   "archivos": [
+    "native/src-tauri/src/control_estado_linux_logica.rs",
+    "native/src-tauri/src/control_neuronas_linux.rs"
+   ],
+   "depende": [],
+   "prompt": "Captura del 24-11 16:28 y 16:37 en la Maggabox (Debian 13, Xfce): notificación del sistema «Gestor de energía — GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Permission denied» fija en la esquina mientras hay control. Sale de los controles nativos de CTL1123A/B (brillo/energía por D-Bus). Usa una vía que no pida privilegios o detecta el rechazo una vez, deja una línea en el registro y no vuelvas a intentarlo ni saques avisos del sistema. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  },
+  {
+   "id": "PRU1124A",
+   "ola": "control-1124",
+   "titulo": "El conductor de pruebas no arranca: falta bateria-1118.json",
+   "archivos": [
+    "scripts/puente/pruebas_malla.py",
+    "scripts/puente/test_pruebas_malla_pru1124a.py"
+   ],
+   "depende": [],
+   "prompt": "«python3 scripts/puente/pruebas_malla.py listar» y «siguiente» mueren con FileNotFoundError: starseed_memory_root/pruebas/bateria-1118.json no existe (PRU1118A entregó el conductor sin los datos). Genera la batería desde pruebas/bateria-malla-completa-1118.md (bloques B1–B10, pares, antenas, rondas, criterios debe/no_debe sobre los registros) y haz que, si el archivo falta, el conductor lo diga en una línea y explique cómo crearlo en vez de reventar. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  },
+  {
+   "id": "DIR1124A",
+   "ola": "control-1124",
+   "titulo": "Canal Principal legible: avisos de directores agrupados y una sola respuesta del presidente",
+   "archivos": [
+    "scripts/puente/director_chat.py",
+    "scripts/puente/director_presidente.py",
+    "scripts/puente/test_director_chat_dir1124a.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 24-11: desde el 22-11 el canal Principal tiene 214 mensajes de director-autocuracion y 93 de director-capacidad («Capacidad en la nube: nada que lanzar» 6 veces en 2 minutos) frente a 6 de Alex; y el 23-11 a las 17:51 el presidente publicó 7 respuestas casi iguales al mismo mensaje en un minuto. Alex: «no veo que estés siendo un canal del director presidente». Un aviso de director idéntico al anterior no se vuelve a publicar (se cuenta: «×N, último a las HH:MM»); el presidente responde UNA vez por mensaje de Alex (cerrojo por id de mensaje entre motores); la pestaña Conversación enseña solo Alex y presidente. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  },
+  {
+   "id": "CTL1124F",
+   "ola": "control-1124",
+   "titulo": "El controlador no reabre solo: «Terminar control» termina de verdad",
+   "archivos": [
+    "src/components/control-remoto/anfitrion-control.tsx",
+    "src/components/control-remoto/banda-control.tsx",
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/auto-enlace.ts",
+    "src/lib/control-remoto/__tests__/ctl1124f.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 en la Mac (24-11): «Terminar control» (ventana y página) cierra la sesión (sesion-parada motivo=cerrar-sesion 22:41:33Z y 22:42:12Z) y la misma página la reabre sola a los 3–4 s (sesion-abierta 22:41:36Z y 22:42:16Z) mientras la neurona siga elegida; además elegir una neurona en la lista abre una sesión de control sin que nadie pulse «Pedir controlarla desde aquí» (el otro aparato enseña «X controla este aparato»). Lo mismo se ve desde la Maggabox hacia la Mac (22:26:46→22:26:53Z). Alex: «no hay ninguna manera de terminar de controlar más que quitando el permiso». Regla: una sesión solo se abre cuando una persona pulsa «Pedir controlarla» o «Abrir ventana de control»; tras «Terminar control» o tras «terminado-por-el-dueno» no se reabre hasta otra pulsación; comprobar si la otra neurona te aceptó se hace con una orden de lectura que no abre sesión. Quita también el texto viejo «X no te aceptó…» cuando ya aceptó. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "LNX1124A",
+   "CTL1124F",
+   "PRU1124A",
+   "DIR1124A"
+  ]
+ }
+}
