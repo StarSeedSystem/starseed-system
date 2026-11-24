@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 RAIZ = Path(os.environ.get("STARSEED_ROOT") or Path.home() / "Documents" / "starseed-os-main")
 OLAS = RAIZ / "starseed_memory_root" / "olas"
@@ -31,6 +32,32 @@ SKILLS_DISPONIBLES = [
 MCP_DISPONIBLES = [
     "github", "filesystem", "sqlite", "postgres", "brave-search", "notion", "google-drive"
 ]
+
+
+def _ignorado_por_git(ruta: str) -> bool:
+    """True si la ruta está ignorada por git (git check-ignore rc=0)."""
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(RAIZ), "check-ignore", "-q", "--", ruta],
+            capture_output=True,
+            timeout=10,
+        )
+        return resultado.returncode == 0
+    except Exception:
+        return False
+
+
+def _seguido_por_git(ruta: str) -> bool:
+    """True si la ruta está trackeada por git (git ls-files rc=0)."""
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(RAIZ), "ls-files", "--error-unmatch", "--", ruta],
+            capture_output=True,
+            timeout=10,
+        )
+        return resultado.returncode == 0
+    except Exception:
+        return False
 
 MODELOS_AGY_POR_PAPEL = {
     "director_presidente": ["gemini-4-hydrogen-high", "claude-opus-5-5-high"],
@@ -224,17 +251,28 @@ def generar_informe(medios: dict, salud: dict, uso: dict, medidor_agy: dict,
     return "\n".join(lineas)
 
 
-def abrir_tareas_enjambre(medios: dict, salud: dict, uso: dict, medidor_agy: dict,
-                          skills: list[str], mcp: list[str]) -> list[dict]:
+def abrir_tareas_enjambre(
+    medios: dict,
+    salud: dict,
+    uso: dict,
+    medidor_agy: dict,
+    skills: list[str],
+    mcp: list[str],
+    ignorado: Callable[[str], bool] | None = None,
+    seguido: Callable[[str], bool] | None = None,
+) -> list[dict]:
     """Genera tareas para el enjambre (cosas que se pueden arreglar por código)."""
+    ignorado = ignorado or _ignorado_por_git
+    seguido = seguido or _seguido_por_git
+
     ahora = _ahora()
     infra_medios = clasificar_infrautilizados_medios(medios, uso)
     infra_provs = clasificar_infrautilizados_proveedores(salud, uso)
     infra_skills = clasificar_infrautilizados_herramientas(skills, uso)
     infra_mcp = clasificar_infrautilizados_mcp(mcp, uso)
-    
+
     tareas = []
-    
+
     # Tareas para medios configurables por el enjambre
     for r in infra_medios:
         if r["accion"] == "activar" and r["id"] in ("opencode-zen", "cloudroom"):
@@ -246,7 +284,7 @@ def abrir_tareas_enjambre(medios: dict, salud: dict, uso: dict, medidor_agy: dic
                 "depende": [],
                 "prompt": f"{r['siguiente']}. Crear script de configuración y prueba de {r['nombre']}."
             })
-    
+
     # Tareas para proveedores: añadir a rotación
     for r in infra_provs:
         if r["accion"] == "activar" and r["proveedor"] in ("llm7", "aihubmix", "tokenrouter"):
@@ -258,37 +296,59 @@ def abrir_tareas_enjambre(medios: dict, salud: dict, uso: dict, medidor_agy: dic
                 "depende": [],
                 "prompt": f"Incluir {r['proveedor']} en el catálogo gratuito y en la rotación del enjambre. {r['detalle']}"
             })
-    
+
     # Tareas para skills: documentar uso
     for r in infra_skills[:5]:  # máximo 5 skills
         if r["accion"] == "activar":
+            skill = r["herramienta"]
+            readme_path = f".agent/skills/{skill}/README.md"
+            skill_md_path = f".agent/skills/{skill}/SKILL.md"
+
+            # Si README.md está ignorado pero SKILL.md está trackeado, usar SKILL.md
+            archivos_skill = [readme_path]
+            if ignorado(readme_path) and seguido(skill_md_path):
+                archivos_skill = [skill_md_path]
+                prompt_extra = " (amplía la sección de uso basándote en SKILL.md)"
+            else:
+                prompt_extra = ""
+
             tareas.append({
-                "id": f"CAP-skill-{r['herramienta']}-uso",
+                "id": f"CAP-skill-{skill}-uso",
                 "ola": "CAP1119",
-                "titulo": f"Integrar skill {r['herramienta']} en flujo de trabajo",
-                "archivos": [f".agent/skills/{r['herramienta']}/README.md"],
+                "titulo": f"Integrar skill {skill} en flujo de trabajo",
+                "archivos": archivos_skill,
                 "depende": [],
-                "prompt": f"Documentar y crear ejemplo de uso de la skill {r['herramienta']} para que el enjambre la use."
+                "prompt": f"Documentar y crear ejemplo de uso de la skill {skill} para que el enjambre la use.{prompt_extra}"
             })
-    
+
     # Tareas para MCP: conectar
     for r in infra_mcp[:3]:  # máximo 3 MCP
         if r["accion"] == "activar":
+            servidor = r["servidor"]
             tareas.append({
-                "id": f"CAP-mcp-{r['servidor']}-conectar",
+                "id": f"CAP-mcp-{servidor}-conectar",
                 "ola": "CAP1119",
-                "titulo": f"Conectar servidor MCP {r['servidor']}",
-                "archivos": ["scripts/puente/mcp_director.py", f".agent/skills/mcp-{r['servidor']}/"],
+                "titulo": f"Conectar servidor MCP {servidor}",
+                "archivos": ["scripts/puente/mcp_director.py", f".agent/skills/mcp-{servidor}/"],
                 "depende": [],
-                "prompt": f"Configurar y probar conexión MCP {r['servidor']} para uso en tareas."
+                "prompt": f"Configurar y probar conexión MCP {servidor} para uso en tareas."
             })
-    
+
+    # Filtrar archivos ignorados y no trackeados en TODAS las tareas
+    tareas_filtradas = []
+    for t in tareas:
+        archivos_filtrados = [a for a in t["archivos"] if not (ignorado(a) and not seguido(a))]
+        if archivos_filtrados:
+            t_filtrada = dict(t)
+            t_filtrada["archivos"] = archivos_filtrados
+            tareas_filtradas.append(t_filtrada)
+
     # Guardar tareas en cola del enjambre
-    if tareas:
+    if tareas_filtradas:
         cola_path = OLAS / "cola-capacidades.json"
-        _escribir_json(cola_path, {"ola": "CAP1119", "tareas": tareas})
-    
-    return tareas
+        _escribir_json(cola_path, {"ola": "CAP1119", "tareas": tareas_filtradas})
+
+    return tareas_filtradas
 
 
 # ── Carga de datos ──────────────────────────────────────────────────────────
