@@ -32,6 +32,8 @@ class DirectorTest(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_buzon_encargos=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},  # falso: no toca red ni disco
+                    avisar=lambda texto, telegram: None,  # falso: no avisa a Telegram ni puente
                     motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
@@ -179,6 +181,11 @@ class DirectorTest(unittest.TestCase):
         correr = re.findall(r"(?m)^\s+(?:args\.update\(kw\); )?return D\.ciclo\(\*\*args\)$", src)
         self.assertEqual(len(correr), 4)
         self.assertEqual(src.count(aguja), len(correr))
+        # (SUP1124H) Y cada correr inyecta agente_sintesis y avisar falsos: sin red, sin Telegram.
+        aguja_sintesis = "agente_sintesis=lambda raiz, ahora: " + '{"ok": True}'
+        aguja_avisar = "avisar=lambda texto, telegram: " + "None"
+        self.assertEqual(src.count(aguja_sintesis), len(correr))
+        self.assertEqual(src.count(aguja_avisar), len(correr))
 
     def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
         datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
@@ -219,6 +226,8 @@ class Imaginacion1024Test(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},  # falso: no toca red ni disco
+                    avisar=lambda texto, telegram: None,  # falso: no avisa a Telegram ni puente
                     motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
@@ -451,6 +460,8 @@ class Ola1025STest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None, agente_buzon_encargos=lambda raiz, ahora: None,
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},  # falso: no toca red ni disco
+                    avisar=lambda texto, telegram: None,  # falso: no avisa a Telegram ni puente
                     motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     aplicar_astraura=self.aplicar,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
@@ -679,6 +690,8 @@ class EGMRevisionTest(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
+                    agente_sintesis=lambda raiz, ahora: {"ok": True},  # falso: no toca red ni disco
+                    avisar=lambda texto, telegram: None,  # falso: no avisa a Telegram ni puente
                     motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
