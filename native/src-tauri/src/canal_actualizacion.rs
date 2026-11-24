@@ -130,10 +130,35 @@ async fn buscar_en_endpoint(
                 continue;
             }
         };
-        let mut b = match app.updater_builder().endpoints(vec![url]) {
+        let mut b = match app.updater_builder().endpoints(vec![url.clone()]) {
             Ok(b) => b.timeout(std::time::Duration::from_secs(30)),
             Err(e) => {
                 ultimo_error = format!("Updater no disponible: {e}");
+                continue;
+            }
+        };
+        // (P1124A) Forzar refresh del manifiesto: evitar cache HTTP/CDN que puede
+        // servir un manifiesto antiguo sin las plataformas correctas (ej: sin linux-x86_64).
+        // Esto ocurre cuando el channel de pruebas se actualiza pero GitHub/CDN tiene cache.
+        b = match b
+            .header("Cache-Control", "no-cache, no-store, max-age=0") {
+            Ok(b) => b,
+            Err(e) => {
+                ultimo_error = e.to_string();
+                continue;
+            }
+        };
+        b = match b.header("Pragma", "no-cache") {
+            Ok(b) => b,
+            Err(e) => {
+                ultimo_error = e.to_string();
+                continue;
+            }
+        };
+        b = match b.header("If-None-Match", "") {
+            Ok(b) => b,
+            Err(e) => {
+                ultimo_error = e.to_string();
                 continue;
             }
         };
