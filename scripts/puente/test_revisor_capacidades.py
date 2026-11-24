@@ -196,7 +196,14 @@ def test_abrir_tareas_enjambre():
     skills = ["remotion", "claude-video-studio"]
     mcp = ["sqlite", "brave-search"]
     
-    tareas = rc.abrir_tareas_enjambre(medios, salud, uso, medidor_agy, skills, mcp)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        original_olas = rc.OLAS
+        rc.OLAS = tmp
+        try:
+            tareas = rc.abrir_tareas_enjambre(medios, salud, uso, medidor_agy, skills, mcp)
+        finally:
+            rc.OLAS = original_olas
     
     # Debe generar tareas para cosas que el enjambre puede arreglar
     # p.ej. configurar opencode-zen, activar cloudroom, etc.
@@ -205,6 +212,69 @@ def test_abrir_tareas_enjambre():
     # Verificar que hay tareas para medios configurables
     assert any("opencode-zen" in t["id"] or "zen" in t["id"] for t in tareas)
     print("✓ test_abrir_tareas_enjambre")
+
+
+def test_abrir_tareas_enjambre_filtra_ignorados():
+    """Test con funciones ignorado/seguido personalizadas que simulan .agent/ en .gitignore."""
+    medios = _ejemplo_medios_disponibles()
+    salud = _ejemplo_salud_proveedores()
+    uso = _ejemplo_uso_24h()
+    medidor_agy = {}
+    skills = ["agent-reach", "awesome-design-md", "remotion"]
+    mcp = ["brave-search", "sqlite"]
+    
+    # Simular: .agent/ está ignorado, pero SKILL.md de agent-reach SÍ está trackeado
+    def ignorado(ruta: str) -> bool:
+        return ruta.startswith(".agent/")
+    
+    def seguido(ruta: str) -> bool:
+        return ruta == ".agent/skills/agent-reach/SKILL.md"
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        original_olas = rc.OLAS
+        rc.OLAS = tmp
+        try:
+            tareas = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=ignorado, seguido=seguido
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # (a) CAP-skill de agent-reach queda con SKILL.md
+    tarea_agent_reach = next(t for t in tareas if "agent-reach" in t["id"])
+    assert tarea_agent_reach["archivos"] == [".agent/skills/agent-reach/SKILL.md"]
+    assert "amplía la sección de uso basándote en SKILL.md" in tarea_agent_reach["prompt"]
+    
+    # (b) awesome-design-md no tiene SKILL.md trackeado -> no se encola
+    ids = {t["id"] for t in tareas}
+    assert "CAP-skill-awesome-design-md-uso" not in ids
+    
+    # (c) CAP-mcp de brave-search queda solo con mcp_director.py (la carpeta .agent/ está ignorada)
+    tarea_brave = next(t for t in tareas if "brave-search" in t["id"])
+    assert tarea_brave["archivos"] == ["scripts/puente/mcp_director.py"]
+    
+    # (d) Con ignorado=lambda r: False las tareas son las mismas que hoy (sin filtrar)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        original_olas = rc.OLAS
+        rc.OLAS = tmp
+        try:
+            tareas_sin_filtro = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=lambda r: False, seguido=lambda r: False
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # Verificar que sin filtro se generan más tareas (incluyendo las que se filtrarían)
+    assert len(tareas_sin_filtro) >= len(tareas)
+    # agent-reach debería tener README.md (no SKILL.md) cuando no hay filtro
+    tarea_agent_reach_sin = next(t for t in tareas_sin_filtro if "agent-reach" in t["id"])
+    assert tarea_agent_reach_sin["archivos"] == [".agent/skills/agent-reach/README.md"]
+    
+    print("✓ test_abrir_tareas_enjambre_filtra_ignorados")
 
 
 def test_main_con_archivos_temporales():
@@ -252,5 +322,6 @@ if __name__ == "__main__":
     test_clasificar_infrautilizados_mcp()
     test_generar_informe()
     test_abrir_tareas_enjambre()
+    test_abrir_tareas_enjambre_filtra_ignorados()
     test_main_con_archivos_temporales()
     print("\n✅ TODAS LAS PRUEBAS PASARON")
