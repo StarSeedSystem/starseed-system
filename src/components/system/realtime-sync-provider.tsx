@@ -25,11 +25,24 @@
 import { useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { isRealtimeSyncEnabled, startRealtimeSync, stopRealtimeSync } from "@/lib/sync/realtime-sync";
+import { montarCanalOrbeParams } from "@/lib/aurora/orbe-params-puente";
+import type { ClienteRealtimeMin } from "@/lib/aurora/orbe-params-telemetria";
 
 export function RealtimeSyncProvider(): null {
     useEffect(() => {
         if (typeof window === "undefined") return;
         let cancelled = false;
+
+        // ── TEMA `orb_params` (IMG-diaria) ─────────────────────────────────
+        // El vector visual de la orbe (turbulence, spikiness, symmetry,
+        // hueShift, breath) sale al exterior y entra desde él: Nexus, el
+        // Exocortex y los agentes de otras neuronas reaccionan EN VIVO al
+        // estado interno del modelo (BitNet 1.58b) sin sondear nada.
+        let clienteOrbe: ClienteRealtimeMin | null = null;
+        try {
+            clienteOrbe = createClient() as unknown as ClienteRealtimeMin;
+        } catch { clienteOrbe = null; }
+        const desmontarOrbe = montarCanalOrbeParams(clienteOrbe);
 
         // ── Adenda 69 · C — ARRANQUE SIN CARRERA ────────────────────────────
         // Antes: `if (await hasStarseedSession())` → `startRealtimeSync()`. Una
@@ -82,6 +95,7 @@ export function RealtimeSyncProvider(): null {
             document.removeEventListener("visibilitychange", onHide);
             window.removeEventListener("pagehide", onHide);
             try { authSub?.unsubscribe(); } catch { /* noop */ }
+            desmontarOrbe();
             // No se detiene el motor al desmontar: este provider vive en el
             // RootLayout durante toda la sesión de la pestaña. stopRealtimeSync()
             // queda para el toggle explícito del usuario (Ajustes/Centro de Control).
