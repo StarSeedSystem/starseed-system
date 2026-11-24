@@ -10,16 +10,43 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 RAIZ = Path(os.environ.get("STARSEED_ROOT") or Path.home() / "Documents" / "starseed-os-main")
 OLAS = RAIZ / "starseed_memory_root" / "olas"
 MANDO = RAIZ / "starseed_memory_root" / "mando"
 
 ESTADOS_MEDIO = ("listo", "usable", "requiere_alex", "no_disponible")
+
+
+def _ignorado_por_git(ruta: str) -> bool:
+    """True si git ignora la ruta (rc 0 en check-ignore)."""
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(RAIZ), "check-ignore", "-q", "--", ruta],
+            capture_output=True,
+            timeout=10,
+        )
+        return resultado.returncode == 0
+    except Exception:
+        return False
+
+
+def _seguido_por_git(ruta: str) -> bool:
+    """True si git sigue la ruta (rc 0 en ls-files --error-unmatch)."""
+    try:
+        resultado = subprocess.run(
+            ["git", "-C", str(RAIZ), "ls-files", "--error-unmatch", "--", ruta],
+            capture_output=True,
+            timeout=10,
+        )
+        return resultado.returncode == 0
+    except Exception:
+        return False
 
 SKILLS_DISPONIBLES = [
     "agent-reach", "awesome-design-md", "claude-video-studio", "coop-qa",
@@ -224,9 +251,20 @@ def generar_informe(medios: dict, salud: dict, uso: dict, medidor_agy: dict,
     return "\n".join(lineas)
 
 
-def abrir_tareas_enjambre(medios: dict, salud: dict, uso: dict, medidor_agy: dict,
-                          skills: list[str], mcp: list[str]) -> list[dict]:
+def abrir_tareas_enjambre(
+    medios: dict,
+    salud: dict,
+    uso: dict,
+    medidor_agy: dict,
+    skills: list[str],
+    mcp: list[str],
+    ignorado: Callable[[str], bool] | None = None,
+    seguido: Callable[[str], bool] | None = None,
+) -> list[dict]:
     """Genera tareas para el enjambre (cosas que se pueden arreglar por código)."""
+    ignorado = ignorado or _ignorado_por_git
+    seguido = seguido or _seguido_por_git
+    
     ahora = _ahora()
     infra_medios = clasificar_infrautilizados_medios(medios, uso)
     infra_provs = clasificar_infrautilizados_proveedores(salud, uso)
@@ -238,50 +276,75 @@ def abrir_tareas_enjambre(medios: dict, salud: dict, uso: dict, medidor_agy: dic
     # Tareas para medios configurables por el enjambre
     for r in infra_medios:
         if r["accion"] == "activar" and r["id"] in ("opencode-zen", "cloudroom"):
-            tareas.append({
-                "id": f"CAP-{r['id']}-config",
-                "ola": "CAP1119",
-                "titulo": f"Configurar y activar {r['nombre']}",
-                "archivos": [f"scripts/puente/{r['id']}_config.py"],
-                "depende": [],
-                "prompt": f"{r['siguiente']}. Crear script de configuración y prueba de {r['nombre']}."
-            })
+            archivos = [f"scripts/puente/{r['id']}_config.py"]
+            archivos_filtrados = [a for a in archivos if not (ignorado(a) and not seguido(a))]
+            if archivos_filtrados:
+                tareas.append({
+                    "id": f"CAP-{r['id']}-config",
+                    "ola": "CAP1119",
+                    "titulo": f"Configurar y activar {r['nombre']}",
+                    "archivos": archivos_filtrados,
+                    "depende": [],
+                    "prompt": f"{r['siguiente']}. Crear script de configuración y prueba de {r['nombre']}."
+                })
     
     # Tareas para proveedores: añadir a rotación
     for r in infra_provs:
         if r["accion"] == "activar" and r["proveedor"] in ("llm7", "aihubmix", "tokenrouter"):
-            tareas.append({
-                "id": f"CAP-prov-{r['proveedor']}-rotacion",
-                "ola": "CAP1119",
-                "titulo": f"Añadir {r['proveedor']} a rotación de escritores/revisores",
-                "archivos": ["src/ai/astraura/free-catalog.ts", "scripts/puente/medios_disponibles.py"],
-                "depende": [],
-                "prompt": f"Incluir {r['proveedor']} en el catálogo gratuito y en la rotación del enjambre. {r['detalle']}"
-            })
+            archivos = ["src/ai/astraura/free-catalog.ts", "scripts/puente/medios_disponibles.py"]
+            archivos_filtrados = [a for a in archivos if not (ignorado(a) and not seguido(a))]
+            if archivos_filtrados:
+                tareas.append({
+                    "id": f"CAP-prov-{r['proveedor']}-rotacion",
+                    "ola": "CAP1119",
+                    "titulo": f"Añadir {r['proveedor']} a rotación de escritores/revisores",
+                    "archivos": archivos_filtrados,
+                    "depende": [],
+                    "prompt": f"Incluir {r['proveedor']} en el catálogo gratuito y en la rotación del enjambre. {r['detalle']}"
+                })
     
     # Tareas para skills: documentar uso
     for r in infra_skills[:5]:  # máximo 5 skills
         if r["accion"] == "activar":
-            tareas.append({
-                "id": f"CAP-skill-{r['herramienta']}-uso",
-                "ola": "CAP1119",
-                "titulo": f"Integrar skill {r['herramienta']} en flujo de trabajo",
-                "archivos": [f".agent/skills/{r['herramienta']}/README.md"],
-                "depende": [],
-                "prompt": f"Documentar y crear ejemplo de uso de la skill {r['herramienta']} para que el enjambre la use."
-            })
+            skill = r["herramienta"]
+            readme_path = f".agent/skills/{skill}/README.md"
+            skill_md_path = f".agent/skills/{skill}/SKILL.md"
+            
+            # Si README.md está ignorado pero SKILL.md está seguido, usar SKILL.md
+            if ignorado(readme_path) and seguido(skill_md_path):
+                archivos = [skill_md_path]
+                prompt = (f"Documentar y crear ejemplo de uso de la skill {skill} para que el enjambre la use. "
+                          f"Se amplía la sección de uso de SKILL.md.")
+            else:
+                archivos = [readme_path]
+                prompt = f"Documentar y crear ejemplo de uso de la skill {skill} para que el enjambre la use."
+            
+            archivos_filtrados = [a for a in archivos if not (ignorado(a) and not seguido(a))]
+            if archivos_filtrados:
+                tareas.append({
+                    "id": f"CAP-skill-{skill}-uso",
+                    "ola": "CAP1119",
+                    "titulo": f"Integrar skill {skill} en flujo de trabajo",
+                    "archivos": archivos_filtrados,
+                    "depende": [],
+                    "prompt": prompt,
+                })
     
     # Tareas para MCP: conectar
     for r in infra_mcp[:3]:  # máximo 3 MCP
         if r["accion"] == "activar":
-            tareas.append({
-                "id": f"CAP-mcp-{r['servidor']}-conectar",
-                "ola": "CAP1119",
-                "titulo": f"Conectar servidor MCP {r['servidor']}",
-                "archivos": ["scripts/puente/mcp_director.py", f".agent/skills/mcp-{r['servidor']}/"],
-                "depende": [],
-                "prompt": f"Configurar y probar conexión MCP {r['servidor']} para uso en tareas."
-            })
+            servidor = r["servidor"]
+            archivos = ["scripts/puente/mcp_director.py", f".agent/skills/mcp-{servidor}/"]
+            archivos_filtrados = [a for a in archivos if not (ignorado(a) and not seguido(a))]
+            if archivos_filtrados:
+                tareas.append({
+                    "id": f"CAP-mcp-{servidor}-conectar",
+                    "ola": "CAP1119",
+                    "titulo": f"Conectar servidor MCP {servidor}",
+                    "archivos": archivos_filtrados,
+                    "depende": [],
+                    "prompt": f"Configurar y probar conexión MCP {servidor} para uso en tareas."
+                })
     
     # Guardar tareas en cola del enjambre
     if tareas:

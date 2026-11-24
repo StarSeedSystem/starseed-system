@@ -244,6 +244,145 @@ def test_main_con_archivos_temporales():
         print("✓ test_main_con_archivos_temporales")
 
 
+# ── Nuevas pruebas para SUP1124F: filtrado por git ignore ────────────────────
+
+def _datos_base_para_tareas() -> tuple[dict, dict, dict, dict, list[str], list[str]]:
+    """Devuelve tuplas (medios, salud, uso, medidor_agy, skills, mcp) para tests de tareas."""
+    medios = _ejemplo_medios_disponibles()
+    salud = _ejemplo_salud_proveedores()
+    uso = _ejemplo_uso_24h()
+    medidor_agy = {}
+    skills = ["agent-reach", "awesome-design-md", "claude-video-studio"]
+    mcp = ["brave-search", "sqlite"]
+    return medios, salud, uso, medidor_agy, skills, mcp
+
+
+def test_abrir_tareas_enjambre_skill_con_skillmd_seguido():
+    """CAP-skill de agent-reach usa SKILL.md cuando README.md está ignorado y SKILL.md seguido."""
+    medios, salud, uso, medidor_agy, skills, mcp = _datos_base_para_tareas()
+    
+    # Simular: .agent/ ignorado, pero .agent/skills/agent-reach/SKILL.md seguido
+    ignorado = lambda r: r.startswith(".agent/")
+    seguido = lambda r: r == ".agent/skills/agent-reach/SKILL.md"
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_olas = rc.OLAS
+        rc.OLAS = Path(tmpdir)
+        try:
+            tareas = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=ignorado, seguido=seguido
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # Buscar la tarea CAP-skill-agent-reach-uso
+    tarea_agent_reach = next((t for t in tareas if t["id"] == "CAP-skill-agent-reach-uso"), None)
+    assert tarea_agent_reach is not None, "Debería existir tarea para agent-reach"
+    assert tarea_agent_reach["archivos"] == [".agent/skills/agent-reach/SKILL.md"], \
+        f"Archivos esperados ['.agent/skills/agent-reach/SKILL.md'], got {tarea_agent_reach['archivos']}"
+    assert "Se amplía la sección de uso de SKILL.md" in tarea_agent_reach["prompt"]
+    print("✓ test_abrir_tareas_enjambre_skill_con_skillmd_seguido")
+
+
+def test_abrir_tareas_enjambre_skill_sin_skillmd_no_se_encola():
+    """Skill sin SKILL.md seguido no se encola (README.md ignorado y sin alternativa)."""
+    medios, salud, uso, medidor_agy, skills, mcp = _datos_base_para_tareas()
+    
+    # Simular: .agent/ ignorado, y NADA seguido en .agent/
+    ignorado = lambda r: r.startswith(".agent/")
+    seguido = lambda r: False
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_olas = rc.OLAS
+        rc.OLAS = Path(tmpdir)
+        try:
+            tareas = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=ignorado, seguido=seguido
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # Ninguna tarea de skill debería encolarse porque todas sus rutas están ignoradas
+    tareas_skill = [t for t in tareas if t["id"].startswith("CAP-skill-")]
+    assert len(tareas_skill) == 0, f"Skills sin archivos seguidos no deberían encolarse, got {tareas_skill}"
+    print("✓ test_abrir_tareas_enjambre_skill_sin_skillmd_no_se_encola")
+
+
+def test_abrir_tareas_enjambre_mcp_solo_director():
+    """CAP-mcp queda solo con scripts/puente/mcp_director.py (carpeta .agent/ ignorada)."""
+    medios, salud, uso, medidor_agy, skills, mcp = _datos_base_para_tareas()
+    
+    # Simular: .agent/ ignorado, scripts/puente/ seguido
+    ignorado = lambda r: r.startswith(".agent/")
+    seguido = lambda r: not r.startswith(".agent/")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_olas = rc.OLAS
+        rc.OLAS = Path(tmpdir)
+        try:
+            tareas = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=ignorado, seguido=seguido
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # Buscar tarea MCP brave-search
+    tarea_mcp = next((t for t in tareas if t["id"] == "CAP-mcp-brave-search-conectar"), None)
+    assert tarea_mcp is not None, "Debería existir tarea para brave-search"
+    assert tarea_mcp["archivos"] == ["scripts/puente/mcp_director.py"], \
+        f"Archivos esperados ['scripts/puente/mcp_director.py'], got {tarea_mcp['archivos']}"
+    print("✓ test_abrir_tareas_enjambre_mcp_solo_director")
+
+
+def test_abrir_tareas_enjambre_sin_ignorado_mismo_comportamiento():
+    """Con ignorado=lambda r: False las tareas son las mismas que hoy (sin filtrado)."""
+    medios, salud, uso, medidor_agy, skills, mcp = _datos_base_para_tareas()
+    
+    # Sin ignorar nada
+    ignorado = lambda r: False
+    seguido = lambda r: True
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_olas = rc.OLAS
+        rc.OLAS = Path(tmpdir)
+        try:
+            tareas = rc.abrir_tareas_enjambre(
+                medios, salud, uso, medidor_agy, skills, mcp,
+                ignorado=ignorado, seguido=seguido
+            )
+        finally:
+            rc.OLAS = original_olas
+    
+    # Verificar que las tareas esperadas existen con sus archivos originales
+    ids_esperados = {
+        "CAP-cloudroom-config",
+        "CAP-opencode-zen-config",
+        "CAP-prov-llm7-rotacion",
+        "CAP-prov-aihubmix-rotacion",
+        "CAP-prov-tokenrouter-rotacion",
+        "CAP-skill-agent-reach-uso",
+        "CAP-skill-awesome-design-md-uso",
+        "CAP-skill-claude-video-studio-uso",
+        "CAP-mcp-brave-search-conectar",
+        "CAP-mcp-sqlite-conectar",
+    }
+    ids_obtenidos = {t["id"] for t in tareas}
+    assert ids_esperados.issubset(ids_obtenidos), f"Faltan tareas: {ids_esperados - ids_obtenidos}"
+    
+    # Verificar archivos de una skill (README.md)
+    tarea_skill = next(t for t in tareas if t["id"] == "CAP-skill-agent-reach-uso")
+    assert tarea_skill["archivos"] == [".agent/skills/agent-reach/README.md"]
+    
+    # Verificar archivos de MCP (ambos)
+    tarea_mcp = next(t for t in tareas if t["id"] == "CAP-mcp-brave-search-conectar")
+    assert tarea_mcp["archivos"] == ["scripts/puente/mcp_director.py", ".agent/skills/mcp-brave-search/"]
+    
+    print("✓ test_abrir_tareas_enjambre_sin_ignorado_mismo_comportamiento")
+
+
 if __name__ == "__main__":
     test_clasificar_infrautilizados_medios()
     test_clasificar_infrautilizados_proveedores()
@@ -253,4 +392,9 @@ if __name__ == "__main__":
     test_generar_informe()
     test_abrir_tareas_enjambre()
     test_main_con_archivos_temporales()
+    # Nuevas pruebas SUP1124F
+    test_abrir_tareas_enjambre_skill_con_skillmd_seguido()
+    test_abrir_tareas_enjambre_skill_sin_skillmd_no_se_encola()
+    test_abrir_tareas_enjambre_mcp_solo_director()
+    test_abrir_tareas_enjambre_sin_ignorado_mismo_comportamiento()
     print("\n✅ TODAS LAS PRUEBAS PASARON")
