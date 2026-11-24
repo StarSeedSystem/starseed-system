@@ -151,6 +151,47 @@ def escribir_json(ruta: str, datos: Any) -> None:
     os.replace(tmp, ruta)
 
 
+# --- Registro de mensajes del canal Audiovisual (DIR1121B) ---
+
+AUDIOVISUAL_LOG_MAX = 600
+
+
+def _audiovisual_log_path() -> str:
+    """Ruta dinámica al log del canal Audiovisual (usa DIR actual)."""
+    return os.path.join(DIR, "audiovisual-sync.jsonl")
+
+
+def _registrar_mensaje_audiovisual(direccion: str, msg: dict[str, Any], texto: str) -> None:
+    """Registra un mensaje entrante o saliente del bot @StarSeed_Design_bot en el log JSONL.
+    
+    Args:
+        direccion: "entrante" para mensajes recibidos, "saliente" para respuestas enviadas.
+        msg: Diccionario con datos del mensaje (entrante: update de Telegram; saliente: dict con "texto").
+        texto: Texto plano del mensaje para almacenar.
+    """
+    os.makedirs(DIR, exist_ok=True)
+    registro = {
+        "id": f"a1-{direccion}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}",
+        "t": round(time.time(), 3),
+        "direccion": direccion,
+        "de": "alex" if direccion == "entrante" else "bot",
+        "texto": str(texto or "").strip(),
+    }
+    log_path = _audiovisual_log_path()
+    # Append al archivo
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    # Rotar manteniendo solo las últimas AUDIOVISUAL_LOG_MAX entradas
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            lineas = f.readlines()
+        if len(lineas) > AUDIOVISUAL_LOG_MAX:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.writelines(lineas[-AUDIOVISUAL_LOG_MAX:])
+    except OSError:
+        pass
+
+
 # --- Preferencias y rutinas permanentes (PSF1113B) ---
 
 def _leer_preferencias() -> dict[str, Any]:
@@ -359,6 +400,9 @@ def decir(texto: str) -> None:
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
             log("sendMessage falló:", r.get("description"))
+    # Registrar mensaje saliente en log del canal Audiovisual (DIR1121B)
+    if texto.strip():
+        _registrar_mensaje_audiovisual("saliente", {"texto": texto}, texto)
 
 
 def subir(ruta: str, nombre: str) -> str:
@@ -1631,6 +1675,8 @@ def recibir(upd: dict[str, Any]) -> None:
     
     # Registrar texto del mensaje (sin claves) en archivo privado
     _registrar_mensaje_recibido(texto)
+    # Registrar mensaje entrante en log del canal Audiovisual (DIR1121B)
+    _registrar_mensaje_audiovisual("entrante", upd, texto)
     
     # Procesar reglas permanentes en try/except: un fallo NO pierde el mensaje
     try:
