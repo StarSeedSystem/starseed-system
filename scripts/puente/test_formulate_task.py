@@ -3,15 +3,61 @@
 """Pruebas de formulate_next_intelligent_task y recomendador de imaginación (IMG-des-simular)."""
 import json
 import os
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import formulate_task as FT
 import imaginacion_recomendador as IR
+
+
+class MotorRealSinRepoNiHuerfanos(unittest.TestCase):
+    """(SUP1124G) `starseed-sub codigo` es un agente de código: corre en una carpeta vacía y en su propia sesión, y al
+    vencer el plazo se corta su grupo entero (el 24-11 se quedó vivo, con un vitest entero, en un árbol de pruebas)."""
+
+    def test_corre_en_una_carpeta_vacia_y_en_su_propia_sesion(self):
+        vistos = {}
+
+        class Proc:
+            pid, returncode = 999999, 0
+
+            def communicate(self, timeout=None):
+                return ('{"propuesta": {"titulo": "t"}}', "")
+
+        def popen(cmd, **kw):
+            vistos.update(kw, cmd=cmd, vacia=os.listdir(kw["cwd"]) == [])
+            return Proc()
+
+        salida = FT._llamar_starseed_sub("p", "codigo", popen=popen)
+        self.assertEqual(json.loads(salida)["propuesta"]["titulo"], "t")
+        self.assertEqual(vistos["cmd"], ["starseed-sub", "codigo", "p"])
+        self.assertTrue(vistos["start_new_session"])
+        self.assertTrue(vistos["vacia"])
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.assertFalse(os.path.realpath(vistos["cwd"]).startswith(os.path.realpath(repo)))
+        self.assertFalse(os.path.exists(vistos["cwd"]))  # la carpeta temporal no se queda
+
+    def test_al_vencer_el_plazo_corta_el_grupo_entero(self):
+        cortes = []
+
+        class Proc:
+            pid, returncode = 4242, None
+
+            def communicate(self, timeout=None):
+                if not cortes:
+                    raise subprocess.TimeoutExpired("starseed-sub", timeout)
+                return ("", "")
+
+        with mock.patch.object(FT.os, "killpg", lambda pid, sig: cortes.append((pid, sig))):
+            salida = FT._llamar_starseed_sub("p", popen=lambda cmd, **kw: Proc(), plazo_s=0.01)
+        self.assertEqual(cortes, [(4242, signal.SIGTERM)])
+        self.assertEqual(json.loads(salida)["propuesta"]["titulo"], "")
 
 
 class TestFormulateNextIntelligentTask(unittest.TestCase):

@@ -173,6 +173,12 @@ class DirectorTest(unittest.TestCase):
         self.assertTrue(llamadas)
         self.assertEqual([a for a in llamadas if a != "**args"], [])
         self.assertEqual(src.count("home=self.home, raiz=self.raiz"), src.count("return D.ciclo(**args)"))
+        # (SUP1124G) Y ninguno deja el motor real de formulación: `starseed-sub codigo` es un agente de código
+        # (opencode) que el 24-11 se quedó vivo, con un vitest entero, en el árbol de pruebas de la autopublicación.
+        aguja = "motor_formulacion=lambda prompt, rol=" + '"codigo": "{}"'
+        correr = re.findall(r"(?m)^\s+(?:args\.update\(kw\); )?return D\.ciclo\(\*\*args\)$", src)
+        self.assertEqual(len(correr), 4)
+        self.assertEqual(src.count(aguja), len(correr))
 
     def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
         datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
@@ -213,6 +219,7 @@ class Imaginacion1024Test(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -444,6 +451,7 @@ class Ola1025STest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None, agente_buzon_encargos=lambda raiz, ahora: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     aplicar_astraura=self.aplicar,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
@@ -671,6 +679,7 @@ class EGMRevisionTest(unittest.TestCase):
                     agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None,
                     agente_buzon_encargos=lambda raiz, ahora: None,
+                    motor_formulacion=lambda prompt, rol="codigo": "{}",  # sin starseed-sub real (SUP1124G)
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         if llamar_egm is not None:

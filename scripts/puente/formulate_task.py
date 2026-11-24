@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
+import tempfile
 import unicodedata
 from datetime import datetime
 from typing import Callable, Dict, Optional
@@ -51,21 +53,37 @@ def _extraer_json(texto: str) -> Optional[Dict]:
         return None
 
 
-def _llamar_starseed_sub(prompt: str, rol: str = "codigo") -> str:
-    """Llama a starseed-sub como motor de fallback (gratuito, local)."""
+def _llamar_starseed_sub(prompt: str, rol: str = "codigo", popen=None, plazo_s: float = 120) -> str:
+    """Llama a starseed-sub como motor de fallback (gratuito, local).
+
+    (SUP1124G, MEDIDO el 24-11) `starseed-sub codigo` es un agente de código (`opencode run`): con el repo como
+    carpeta de trabajo editaba ese árbol, y al vencer el plazo `subprocess.run` cortaba solo al hijo directo, así que
+    el agente seguía vivo con un vitest entero. Una prueba del puente (sin motor inyectado) lo lanzó en el árbol de
+    pruebas de la autopublicación y la swap dejó la Mac con 0,4 GB de disco. Ahora corre en una carpeta temporal
+    vacía y en su propia sesión, y al vencer el plazo se corta su grupo entero. `popen` se inyecta en las pruebas."""
+    vacio = json.dumps({"propuesta": {"titulo": "", "cuerpo": "", "tipo": "codigo", "referencias": [], "archivos": []}})
+    popen = popen or subprocess.Popen
     try:
-        resultado = subprocess.run(
-            ["starseed-sub", rol, prompt],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            cwd=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        )
-        if resultado.returncode == 0 and resultado.stdout.strip():
-            return resultado.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        with tempfile.TemporaryDirectory(prefix="starseed-formular-") as carpeta:
+            proc = popen(["starseed-sub", rol, prompt], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                         cwd=carpeta, start_new_session=True)
+            try:
+                salida, _ = proc.communicate(timeout=plazo_s)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)  # el grupo entero: el agente y lo que lanzó
+                except OSError:
+                    pass
+                try:
+                    proc.communicate(timeout=10)
+                except Exception:  # noqa: BLE001
+                    pass
+                return vacio
+            if proc.returncode == 0 and (salida or "").strip():
+                return salida.strip()
+    except (FileNotFoundError, OSError):
         pass
-    return json.dumps({"propuesta": {"titulo": "", "cuerpo": "", "tipo": "codigo", "referencias": [], "archivos": []}})
+    return vacio
 
 
 def formulate_next_intelligent_task(
