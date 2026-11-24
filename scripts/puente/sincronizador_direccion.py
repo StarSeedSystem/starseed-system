@@ -1099,6 +1099,112 @@ def sincronizar_canal_secundario_hermes(
     return importados
 
 
+# ─── DIR1121B: Sincronización desde log del bot A1 (@StarSeed_Design_bot) ──────────────
+
+
+def sincronizar_desde_a1_audiovisual(
+    estado: Dict[str, Any],
+    log_a1_path: str,
+    raiz: Optional[Path] = None,
+    cfg: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Lee el log JSONL del bot A1 y vuelca mensajes nuevos a `director/audiovisual.jsonl`.
+
+    El log del A1 se genera en `peticiones_telegram.py` y se accede vía el túnel SSH
+    (puerto reenviado) o copiando el archivo. Cada entrada tiene un `id` estable.
+    """
+    sync_cfg = (cfg or {}).get("sincronizar_canales") or {}
+    if not sync_cfg.get("a1_audiovisual", True):
+        return 0
+
+    ruta_log = Path(os.path.expanduser(log_a1_path))
+    if not ruta_log.exists():
+        return 0
+
+    try:
+        lineas = ruta_log.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return 0
+
+    if not lineas:
+        return 0
+
+    # Cursor de mensajes ya importados
+    k_vistos = "a1_audiovisual_vistos"
+    vistos: set[str] = set(estado.get(k_vistos) or [])
+
+    # Leer mensajes existentes en audiovisual.jsonl para deduplicar también por huella
+    ruta_av = _archivo_canal_jsonl("audiovisual", raiz=raiz)
+    existentes = _leer_jsonl_canal(ruta_av, limite=200)
+    huellas_existentes = {
+        (r.get("de"), _norm_dedupe(r.get("texto") or ""))
+        for r in existentes
+        if isinstance(r, dict) and r.get("texto")
+    }
+
+    importados = 0
+    nuevos_vistos: List[str] = []
+
+    for linea in lineas:
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            reg = json.loads(linea)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(reg, dict):
+            continue
+
+        msg_id = str(reg.get("id") or "").strip()
+        if not msg_id or msg_id in vistos:
+            continue
+
+        texto = str(reg.get("texto") or "").strip()
+        if not texto:
+            vistos.add(msg_id)
+            nuevos_vistos.append(msg_id)
+            continue
+
+        de = str(reg.get("de") or "").strip().lower()
+        direccion = str(reg.get("direccion") or "").strip().lower()
+
+        # Dedupe por huella (origen + texto)
+        huella = (de, _norm_dedupe(texto))
+        if huella in huellas_existentes:
+            vistos.add(msg_id)
+            nuevos_vistos.append(msg_id)
+            continue
+
+        # Determinar rol y tipo según dirección
+        if direccion == "entrante":
+            rol = "alex"
+            tipo = "mensaje"
+        else:
+            rol = "director"
+            tipo = "respuesta"
+
+        registro = {
+            "id": f"av-a1-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}",
+            "t": round(time.time(), 3),
+            "de": de,
+            "rol": rol,
+            "tipo": tipo,
+            "canal": "telegram-a1",
+            "texto": director_chat.tachar(texto),
+        }
+        _escribir_jsonl_canal("audiovisual", registro, raiz=raiz)
+        huellas_existentes.add(huella)
+        vistos.add(msg_id)
+        nuevos_vistos.append(msg_id)
+        importados += 1
+
+    if nuevos_vistos:
+        estado[k_vistos] = list(vistos)[-1000:]
+
+    return importados
+
+
 def _epoch_segundos_de_reg(reg: Dict[str, Any]) -> float:
     try:
         ep = float(director_chat._epoch_de(reg) or 0.0)
@@ -1581,10 +1687,29 @@ def publicar_en_canal_especializado(
         }
         _escribir_jsonl_canal(canal_clave, reg, raiz=raiz)
 
+    # DIR1121B: Dedupe para canal Audiovisual - si el mensaje ya vino del bot A1 (canal "telegram-a1"),
+    # no reenviar por Telegram para evitar eco.
     tg_ok = False
     tg_det = "envío a Telegram desactivado"
     if enviar_telegram:
-        tg_ok, tg_det = enviar_telegram_canal(canal_clave, limpio, prefijo=prefijo, enviar_fn=enviar_fn)
+        if canal_clave == "audiovisual":
+            # Verificar si ya existe en audiovisual.jsonl con canal="telegram-a1" y mismo texto
+            ruta_av = _archivo_canal_jsonl("audiovisual", raiz=raiz)
+            existentes = _leer_jsonl_canal(ruta_av, limite=100)
+            huella_nueva = _norm_dedupe(limpio)
+            ya_existe = any(
+                isinstance(r, dict)
+                and r.get("canal") == "telegram-a1"
+                and _norm_dedupe(r.get("texto") or "") == huella_nueva
+                for r in existentes
+            )
+            if ya_existe:
+                tg_ok = True
+                tg_det = "deduplicado: ya existe en log del bot A1"
+            else:
+                tg_ok, tg_det = enviar_telegram_canal(canal_clave, limpio, prefijo=prefijo, enviar_fn=enviar_fn)
+        else:
+            tg_ok, tg_det = enviar_telegram_canal(canal_clave, limpio, prefijo=prefijo, enviar_fn=enviar_fn)
 
     hermes_ok = False
     debe_espejar = espejar_hermes if espejar_hermes is not None else (

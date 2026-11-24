@@ -5,6 +5,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -659,6 +660,156 @@ class TestEspejoHermesYAntigravityBidireccional(unittest.TestCase):
             finally:
                 if prev is not None:
                     os.environ["STARSEED_CHAT_EN_PRUEBAS"] = prev
+
+
+class TestA1AudiovisualSync(unittest.TestCase):
+    """DIR1121B: Sincronización del bot A1 (@StarSeed_Design_bot) con canal Audiovisual."""
+
+    def test_peticiones_telegram_escribe_log_audiovisual_con_id_estable(self):
+        """El bot A1 escribe cada mensaje entrante y respuesta saliente en jsonl con id estable."""
+        import peticiones_telegram as PT
+        with tempfile.TemporaryDirectory() as tmp:
+            # Monkeypatch the log path
+            original_casa = PT.CASA
+            PT.CASA = tmp
+            PT.DIR = os.path.join(tmp, ".starseed", "peticiones")
+            os.makedirs(PT.DIR, exist_ok=True)
+            log_path = Path(PT.DIR) / "audiovisual-sync.jsonl"
+            try:
+                # Simular mensaje entrante
+                msg_in = {"id": "tg-msg-1", "from": {"id": 123, "is_bot": False}, "chat": {"id": PT.CHAT}, "text": "Hola desde Telegram", "date": int(time.time())}
+                PT._registrar_mensaje_audiovisual("entrante", msg_in, "Hola desde Telegram")
+                # Simular respuesta saliente
+                PT._registrar_mensaje_audiovisual("saliente", {"texto": "Respuesta del bot"}, "Respuesta del bot")
+                
+                lineas = log_path.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(len(lineas), 2)
+                reg1 = json.loads(lineas[0])
+                reg2 = json.loads(lineas[1])
+                self.assertEqual(reg1["direccion"], "entrante")
+                self.assertEqual(reg1["texto"], "Hola desde Telegram")
+                self.assertIn("id", reg1)
+                self.assertEqual(reg2["direccion"], "saliente")
+                self.assertEqual(reg2["texto"], "Respuesta del bot")
+                self.assertIn("id", reg2)
+                # IDs deben ser estables (basados en contenido + timestamp)
+                self.assertNotEqual(reg1["id"], reg2["id"])
+            finally:
+                PT.CASA = original_casa
+
+    def test_sincronizador_lee_log_a1_y_escribe_en_audiovisual_jsonl(self):
+        """El sincronizador lee el log del A1 y vuelca mensajes nuevos a audiovisual.jsonl."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            # Crear log simulado del A1 (como si viniera por el túnel)
+            log_a1 = Path(tmp) / "a1-audiovisual-sync.jsonl"
+            log_a1.write_text(
+                '{"id": "a1-1", "t": 1700000000.0, "direccion": "entrante", "de": "alex", "texto": "Mensaje de Alex al bot"}\n'
+                '{"id": "a1-2", "t": 1700000001.0, "direccion": "saliente", "de": "bot", "texto": "Respuesta del bot"}\n',
+                encoding="utf-8"
+            )
+            
+            estado = {}
+            importados = SD.sincronizar_desde_a1_audiovisual(
+                estado, log_a1_path=str(log_a1), raiz=raiz
+            )
+            self.assertEqual(importados, 2)
+            
+            # Verificar en audiovisual.jsonl
+            audiovisual_path = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = audiovisual_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lineas), 2)
+            reg1 = json.loads(lineas[0])
+            reg2 = json.loads(lineas[1])
+            self.assertEqual(reg1["texto"], "Mensaje de Alex al bot")
+            self.assertEqual(reg2["texto"], "Respuesta del bot")
+            self.assertEqual(reg1["canal"], "telegram-a1")
+            self.assertEqual(reg2["canal"], "telegram-a1")
+            self.assertIn("id", reg1)
+            self.assertIn("id", reg2)
+
+    def test_sincronizador_no_duplica_mensajes_ya_importados(self):
+        """Segunda pasada no reimporta mensajes ya vistos (id estable)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            log_a1 = Path(tmp) / "a1-audiovisual-sync.jsonl"
+            log_a1.write_text(
+                '{"id": "a1-1", "t": 1700000000.0, "direccion": "entrante", "de": "alex", "texto": "Mensaje único"}\n',
+                encoding="utf-8"
+            )
+            
+            estado = {}
+            n1 = SD.sincronizar_desde_a1_audiovisual(estado, log_a1_path=str(log_a1), raiz=raiz)
+            self.assertEqual(n1, 1)
+            
+            # Añadir mensaje nuevo al log
+            log_a1.write_text(
+                '{"id": "a1-1", "t": 1700000000.0, "direccion": "entrante", "de": "alex", "texto": "Mensaje único"}\n'
+                '{"id": "a1-2", "t": 1700000001.0, "direccion": "saliente", "de": "bot", "texto": "Nuevo mensaje"}\n',
+                encoding="utf-8"
+            )
+            n2 = SD.sincronizar_desde_a1_audiovisual(estado, log_a1_path=str(log_a1), raiz=raiz)
+            self.assertEqual(n2, 1)  # Solo el nuevo
+            
+            audiovisual_path = director_chat._directorio(raiz) / "audiovisual.jsonl"
+            lineas = audiovisual_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lineas), 2)
+
+    def test_publicar_en_audiovisual_desde_otro_medio_sale_por_bot_sin_eco(self):
+        """Mensaje publicado en canal Audiovisual desde otro medio (Metagenesis) se envía por el bot sin eco."""
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp) / "repo"
+            raiz.mkdir(parents=True)
+            
+            # Simular log del A1 ya teniendo el mensaje (como si hubiera venido del bot)
+            log_a1 = Path(tmp) / "a1-audiovisual-sync.jsonl"
+            msg_id = "a1-msg-123"
+            log_a1.write_text(
+                f'{{"id": "{msg_id}", "t": 1700000000.0, "direccion": "saliente", "de": "bot", "texto": "Mensaje desde Metagenesis"}}\n',
+                encoding="utf-8"
+            )
+            estado = {}
+            SD.sincronizar_desde_a1_audiovisual(estado, log_a1_path=str(log_a1), raiz=raiz)
+            
+            # Ahora publicar desde Metagenesis el mismo mensaje
+            enviados = []
+            res = SD.publicar_en_canal_especializado(
+                "audiovisual",
+                "Mensaje desde Metagenesis",
+                de="metagenesis",
+                origen="metagenesis",
+                enviar_telegram=True,
+                raiz=raiz,
+                enviar_fn=lambda t, c, body: (enviados.append((t, c, body)) or True, "ok"),
+            )
+            # No debe enviar por Telegram porque ya existe en el log del A1 (dedupe por id/origen)
+            self.assertEqual(len(enviados), 0)
+            self.assertTrue(res["ok"])
+
+    def test_log_a1_mantiene_máximo_600_entradas(self):
+        """El log del A1 rota manteniendo solo las últimas 600 entradas."""
+        import peticiones_telegram as PT
+        with tempfile.TemporaryDirectory() as tmp:
+            original_casa = PT.CASA
+            PT.CASA = tmp
+            PT.DIR = os.path.join(tmp, ".starseed", "peticiones")
+            os.makedirs(PT.DIR, exist_ok=True)
+            try:
+                for i in range(650):
+                    PT._registrar_mensaje_audiovisual("entrante", {"id": f"msg-{i}"}, f"Mensaje {i}")
+                
+                log_path = Path(PT.DIR) / "audiovisual-sync.jsonl"
+                lineas = log_path.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(len(lineas), 600)
+                # Debe contener los últimos 600 (50-649)
+                primera = json.loads(lineas[0])
+                self.assertEqual(primera["texto"], "Mensaje 50")
+                ultima = json.loads(lineas[-1])
+                self.assertEqual(ultima["texto"], "Mensaje 649")
+            finally:
+                PT.CASA = original_casa
 
 
 if __name__ == "__main__":
