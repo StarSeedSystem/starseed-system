@@ -4,8 +4,10 @@
 Además de las herramientas del Chat Director, suma las de producción de
 `architecture/director-produccion.md` §9 (fila MCP): estado, candidatos,
 historial, vetar, pausar y reanudar, cuatro herramientas sqlite de solo
-lectura (estado, tablas, esquema y consulta) sobre una base permitida y tres
-herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta.
+lectura (estado, tablas, esquema y consulta) sobre una base permitida, tres
+herramientas postgres de solo lectura (CAP1119): estado, prueba y consulta, y
+tres herramientas brave-search de solo lectura (CAP1119): estado, prueba y
+búsqueda web.
 
 La base sqlite se elige con `STARSEED_SQLITE_RUTA` (por defecto
 `~/.starseed/mcp-sqlite/starseed.db`) y se confina al repo, a ese directorio
@@ -16,6 +18,11 @@ La conexión postgres se toma de la primera variable definida entre
 `POSTGRES_PRISMA_URL`; su valor nunca se escribe en el repo, se pasa por argv ni
 se devuelve en un mensaje. Las consultas son SELECT/CTE con tope de filas.
 
+La clave de Brave Search se toma de `BRAVE_API_KEY` o `BRAVE_SEARCH_API_KEY` y
+solo viaja en la cabecera `X-Subscription-Token`; su valor nunca se escribe en el
+repo, se pasa por argv ni se devuelve en un mensaje. El endpoint se puede inyectar
+con `STARSEED_BRAVE_URL` (útil para probar con un servidor local).
+
 Las rutas se pueden inyectar con variables de entorno (útil en pruebas):
 STARSEED_PRODUCCION_ESTADO, STARSEED_PRODUCCION_HISTORIAL,
 STARSEED_PRODUCCION_VETOS, STARSEED_PRODUCCION_PAUSA,
@@ -23,6 +30,7 @@ STARSEED_PRODUCCION_RAIZ (raíz del repo para `candidatos`) y
 STARSEED_PRODUCCION_CANDIDATOS (JSON de candidatas, en vez de git).
 """
 
+import gzip
 import json
 import os
 import re
@@ -30,15 +38,13 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
-_CARPETA = Path(__file__).resolve().parent
-_RAIZ_MOD = _CARPETA.parent.parent
-for _ruta_sys in (str(_CARPETA), str(_RAIZ_MOD)):
-    if _ruta_sys not in sys.path:
-        sys.path.insert(0, _ruta_sys)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import director_chat
 import mcp_director_ordenes as ordenes
@@ -49,7 +55,8 @@ PROTOCOLO = PROTOCOLOS[0]
 INSTRUCCIONES = (
     "Lee y escribe en el Chat Director de Genesis de StarSeed, consulta, veta, pausa o "
     "reanuda la producción, ejecuta las órdenes de MetaGenesis de la lista cerrada, "
-    "consulta bases sqlite locales y postgres remoto en solo lectura sin revelar credenciales."
+    "consulta bases sqlite locales y postgres remoto en solo lectura y busca en la web con "
+    "brave-search sin revelar credenciales."
 )
 
 _SQLITE_DIR = os.path.join(os.path.expanduser("~"), ".starseed", "mcp-sqlite")
@@ -85,6 +92,11 @@ _P_SQLITE_LIMITE = _s(
     "integer", "Máximo de filas a devolver (por defecto 50).", minimum=1, maximum=200
 )
 _P_SQL = _s("string", "Una sola consulta SELECT/CTE de solo lectura (sin ';' ni comentarios).")
+_P_BRAVE_Q = _s("string", "Qué buscar en la web (máximo 400 caracteres).")
+_P_BRAVE_PAIS = _s("string", "Código ISO de dos letras para regionalizar (ES, US…).")
+_P_BRAVE_LIMITE = _s(
+    "integer", "Máximo de resultados a devolver (por defecto 5).", minimum=1, maximum=20
+)
 
 
 def _esquema(propiedades, requeridos):
@@ -180,6 +192,11 @@ ESQUEMAS = {
     "postgres_estado": _esquema({}, []),
     "postgres_probar": _esquema({}, []),
     "postgres_consultar": _esquema({"sql": _P_SQL, "limite": _P_SQLITE_LIMITE}, ["sql"]),
+    "brave_estado": _esquema({}, []),
+    "brave_probar": _esquema({}, []),
+    "brave_buscar": _esquema(
+        {"q": _P_BRAVE_Q, "limite": _P_BRAVE_LIMITE, "pais": _P_BRAVE_PAIS}, ["q"]
+    ),
 }
 
 _HERR = [
@@ -204,6 +221,9 @@ _HERR = [
     ("postgres_estado", "Informa si hay conexión postgres configurada, sin revelar credenciales."),
     ("postgres_probar", "Comprueba la conexión postgres con SELECT 1, en modo solo lectura."),
     ("postgres_consultar", "Consulta postgres en solo lectura (SELECT/CTE), con límite de filas."),
+    ("brave_estado", "Informa si hay clave de brave-search configurada, sin revelar su valor."),
+    ("brave_probar", "Comprueba la conexión con brave-search con una búsqueda mínima."),
+    ("brave_buscar", "Busca en la web con brave-search y devuelve título, url y descripción."),
 ]
 HERRAMIENTAS = [
     {"name": n, "description": d, "inputSchema": ESQUEMAS[n]} for n, d in _HERR
@@ -215,26 +235,8 @@ def _error(ident, codigo, mensaje):
     return {"jsonrpc": "2.0", "id": ident, "error": err}
 
 
-def _es_director(de):
-    nombre = str(de or "").strip().lower()
-    return nombre.startswith("claude") or nombre in ("antigravity", "director-presidente", "presidente")
-
-
-def _espejar_registro_hermes(registro):
-    """Espeja al instante mensajes publicados por MCP al chat Principal de Hermes si aplica."""
-    if not isinstance(registro, dict) or director_chat.en_pruebas():
-        return
-    try:
-        if not director_chat._es_chat_real(director_chat._chat()):
-            return
-        import sincronizador_direccion
-        sincronizador_direccion.espejar_hacia_hermes("principal", [registro], {}, max_inicial=1)
-    except Exception:  # noqa: BLE001 — nunca tumba la herramienta MCP si Hermes está bloqueado
-        pass
-
-
 def _publicar(texto, de, tipo, canal, modelo, responde_a=None):
-    rol = "director" if _es_director(de) else "agente"
+    rol = "director" if de.startswith("claude") else "agente"
     return director_chat.publicar(
         texto,
         de=de,
@@ -464,13 +466,148 @@ def _postgres(nombre, args):
     raise ValueError("herramienta desconocida: %s" % nombre)
 
 
-# --- Producción: rutas inyectables y helpers (§9, fila MCP) ---
+# --- Brave Search de solo lectura para tareas (CAP1119) ---
+# La clave se toma del NOMBRE de la variable de entorno; su valor nunca se
+# escribe en el repo, se pasa por argv ni se devuelve en un mensaje. El
+# endpoint se puede inyectar con STARSEED_BRAVE_URL (útil en pruebas).
+
+VARIABLES_BRAVE = ("BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY")
+_URL_BRAVE = "https://api.search.brave.com/res/v1/web/search"
+
+
+def _variable_brave(entorno=None):
+    """PURA: nombre de la primera variable de la clave de Brave, nunca su valor."""
+    fuente = os.environ if entorno is None else entorno
+    for nombre in VARIABLES_BRAVE:
+        if (fuente.get(nombre) or "").strip():
+            return nombre
+    return None
+
+
+def _url_brave(q, limite, pais=None, base=None):
+    """PURA: URL del endpoint web de Brave con los parámetros escapados."""
+    parametros = {"q": q, "count": str(limite)}
+    if pais:
+        parametros["country"] = str(pais).upper()
+    return "%s?%s" % (base or _URL_BRAVE, urlencode(parametros))
+
+
+def _validar_busqueda(q, limite=5, pais=None):
+    """PURA: consulta no vacía (≤400), tope 1-20 y país ISO de dos letras."""
+    texto = " ".join(str(q or "").split())
+    if not texto:
+        raise ValueError("q es obligatoria: escribe qué buscar")
+    if len(texto) > 400:
+        raise ValueError("q supera los 400 caracteres")
+    try:
+        tope = 5 if limite is None else int(limite)
+    except (TypeError, ValueError):
+        raise ValueError("limite debe ser un número entero (1-20)")
+    if not 1 <= tope <= 20:
+        raise ValueError("limite fuera de rango (1-20)")
+    codigo = None
+    if pais:
+        codigo = str(pais).strip().upper()
+        if len(codigo) != 2 or not codigo.isalpha():
+            raise ValueError("pais debe ser un código ISO de dos letras (ES, US…)")
+    return texto, tope, codigo
+
+
+def _extraer_resultados(datos, limite=5):
+    """PURA: deja solo título, url y descripción sin etiquetas de cada resultado web."""
+    if not isinstance(datos, dict):
+        raise ValueError("respuesta de Brave no válida")
+    web = datos.get("web")
+    crudos = (web.get("results") if isinstance(web, dict) else None) or []
+    salida = []
+    for item in crudos[:limite]:
+        if not isinstance(item, dict):
+            continue
+        salida.append({
+            "titulo": str(item.get("title") or "").strip(),
+            "url": str(item.get("url") or "").strip(),
+            "descripcion": re.sub(r"<[^>]+>", "", str(item.get("description") or "")).strip(),
+        })
+    return salida
+
+
+def _ejecutar_brave(url, clave, abrir=None):
+    """Pide a Brave con la clave en cabecera; jamás en la URL, argv o un log."""
+    secretos = (clave,)
+    peticion = urllib.request.Request(url, headers={
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": clave,
+        "User-Agent": "starseed-director/1.0",
+    })
+    lector = abrir or urllib.request.urlopen
+    try:
+        with lector(peticion, timeout=10) as respuesta:
+            cuerpo = respuesta.read()
+            cabeceras = getattr(respuesta, "headers", None)
+            codificacion = ""
+            if cabeceras is not None:
+                codificacion = (cabeceras.get("Content-Encoding") or "").lower()
+            if codificacion == "gzip":
+                cuerpo = gzip.decompress(cuerpo)
+    except urllib.error.HTTPError as fallo:
+        codigo = getattr(fallo, "code", 0)
+        if codigo in (401, 403):
+            raise ValueError("Brave rechazó la clave (HTTP %d): revisa la variable" % codigo)
+        if codigo == 429:
+            raise ValueError("Brave sin cuota ahora (HTTP 429): espera o usa otra fuente")
+        detalle = getattr(fallo, "reason", "") or ""
+        mensaje = "Brave respondió HTTP %d %s" % (codigo, detalle)
+        raise ValueError(_sin_secreto(mensaje, secretos).rstrip())
+    except (urllib.error.URLError, OSError, TimeoutError) as fallo:
+        raise ValueError("sin conexión con Brave: %s" % type(fallo).__name__)
+    try:
+        datos = json.loads(cuerpo.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("Brave devolvió una respuesta ilegible")
+    if isinstance(datos, dict) and isinstance(datos.get("error"), dict):
+        error = datos["error"]
+        detalle = error.get("detail") or error.get("message") or "error de Brave"
+        raise ValueError(_sin_secreto(str(detalle), secretos))
+    return datos
+
+
+def _brave(nombre, args):
+    """Despacha las herramientas brave-search; la clave nunca sale en la respuesta."""
+    variable = _variable_brave()
+    if nombre == "brave_estado":
+        return json.dumps({
+            "configurada": bool(variable),
+            "variable": variable,
+            "variables_aceptadas": list(VARIABLES_BRAVE),
+            "endpoint": os.environ.get("STARSEED_BRAVE_URL") or _URL_BRAVE,
+            "modo": "solo-lectura",
+        }, ensure_ascii=False, indent=2, sort_keys=True)
+    if not variable:
+        raise ValueError("sin conexión: define una de %s" % ", ".join(VARIABLES_BRAVE))
+    clave = (os.environ.get(variable) or "").strip()
+    if nombre == "brave_probar":
+        consulta, tope, pais = _validar_busqueda("StarSeed OS", 1)
+        url = _url_brave(consulta, tope, pais, os.environ.get("STARSEED_BRAVE_URL"))
+        encontrados = _extraer_resultados(_ejecutar_brave(url, clave), tope)
+        return "Conexión OK con %s: %d resultado(s) para «%s»." % (
+            variable, len(encontrados), consulta)
+    if nombre == "brave_buscar":
+        consulta, tope, pais = _validar_busqueda(
+            args.get("q"), args.get("limite"), args.get("pais"))
+        url = _url_brave(consulta, tope, pais, os.environ.get("STARSEED_BRAVE_URL"))
+        return json.dumps(
+            _extraer_resultados(_ejecutar_brave(url, clave), tope),
+            ensure_ascii=False, indent=2,
+        )
+    raise ValueError("herramienta desconocida: %s" % nombre)
+
 
 _ESTADO_VACIO = {"lote": None, "candidatos": [], "medios": {}}
 
 
 def _raiz_repo():
-    return os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT") or str(
+    return os.environ.get("STARSEED_PRODUCCION_RAIZ") or str(
         Path(__file__).resolve().parents[2]
     )
 
@@ -642,6 +779,8 @@ def _llamar(nombre, args):
         return _sqlite(nombre, args)
     if nombre.startswith("postgres_"):
         return _postgres(nombre, args)
+    if nombre.startswith("brave_"):
+        return _brave(nombre, args)
     if nombre == "director_leer":
         limite = args.get("limite")
         limite = 20 if limite is None else int(limite)
@@ -651,11 +790,9 @@ def _llamar(nombre, args):
         return _listar(registros, "Todavía no hay mensajes.")
     if nombre == "director_decir":
         de = args.get("de") or "agente"
-        canal_defecto = "antigravity" if str(de).strip().lower() == "antigravity" else "ide"
         m = _publicar(
-            args["texto"], de, "mensaje", args.get("canal") or canal_defecto, args.get("modelo")
+            args["texto"], de, "mensaje", args.get("canal") or "ide", args.get("modelo")
         )
-        _espejar_registro_hermes(m)
         return "Publicado como %s" % m["id"]
     if nombre == "director_bandeja":
         canal = args["canal"]
@@ -671,38 +808,33 @@ def _llamar(nombre, args):
             responde_a=args["id"],
         )
         director_chat.entrega(args["id"], canal, "respondido")
-        _espejar_registro_hermes(m)
         return "Respondido a %s como %s" % (args["id"], m["id"])
     if nombre == "canal_leer":
-        import sincronizador_direccion
         canal = args["canal"]
         if canal not in ("principal", "general", "audiovisual"):
             raise ValueError("canal no válido: %s" % canal)
-        limite = _limite(args)
+        limite = args.get("limite")
+        limite = 20 if limite is None else int(limite)
+        if not 1 <= limite <= 200:
+            raise ValueError("limite fuera de rango (1-200): %d" % limite)
+        from scripts.puente.sincronizador_direccion import _leer_jsonl_canal
         if canal == "principal":
             registros = director_chat.leer(desde=args.get("desde"), limite=limite)
+        elif canal == "general":
+            import pathlib
+            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("general")))
         else:
-            ruta = sincronizador_direccion._archivo_canal_jsonl(canal)
-            registros = sincronizador_direccion._leer_jsonl_canal(ruta, limite=limite)
+            import pathlib
+            registros = _leer_jsonl_canal(pathlib.Path(_archivo_canal_jsonl("audiovisual")))
         return _listar(registros, "Todavía no hay mensajes.")
     if nombre == "canal_decir":
-        import sincronizador_direccion
         canal = args["canal"]
         if canal not in ("principal", "general", "audiovisual"):
             raise ValueError("canal no válido: %s" % canal)
+        from scripts.puente.sincronizador_direccion import publicar_en_canal_especializado
         texto = args["texto"]
         de = args["de"]
-        raiz_env = Path(_raiz_repo()) if (os.environ.get("STARSEED_PRODUCCION_RAIZ") or os.environ.get("STARSEED_ROOT")) else None
-        en_prod = (not director_chat.en_pruebas()) and director_chat._es_chat_real(director_chat._chat(raiz_env))
-        reg = sincronizador_direccion.publicar_en_canal_especializado(
-            canal,
-            texto,
-            de=de,
-            origen="metagenesis",
-            enviar_telegram=en_prod,
-            espejar_hermes=en_prod,
-            raiz=raiz_env,
-        )
+        reg = publicar_en_canal_especializado(canal, texto, de=de)
         if reg.get("ok"):
             return "Publicado en %s: %s" % (canal, reg.get("id"))
         return "Error al publicar en %s: %s" % (canal, reg.get("detalle"))
@@ -739,13 +871,14 @@ def _llamar(nombre, args):
         # Sesiones de motores (intentamos varias fuentes)
         sesiones = 0
         try:
-            import director_presidente
+            from scripts.puente import director_presidente
             if hasattr(director_presidente, 'listar_sesiones'):
                 sesiones = len(director_presidente.listar_sesiones())
         except Exception:
             pass
         # Capacidad libre (usando available memory approx)
         try:
+            import os
             memoria_total = os.sysconf("SC_AVPHYSICALPAGES") * os.sysconf("SC_PAGESIZE") / (1024 * 1024) if hasattr(os, "sysconf") else 0
             memoria_libre = os.sysinfo()[1] / (1024 * 1024) if hasattr(os, "sysinfo") else 0
             capacidad = {
@@ -804,10 +937,9 @@ def atender(peticion):
             return _error(ident, -32602, "herramienta desconocida: %s" % nombre)
         try:
             texto = _llamar(nombre, params.get("arguments"))
-        except Exception as e:
-            msg = director_chat.tachar(str(e) or type(e).__name__)
+        except (ValueError, KeyError) as e:
             contenido = {
-                "content": [{"type": "text", "text": "Error: %s" % msg}],
+                "content": [{"type": "text", "text": "Error: %s" % e}],
                 "isError": True,
             }
             return {"jsonrpc": "2.0", "id": ident, "result": contenido}
@@ -817,10 +949,7 @@ def atender(peticion):
 
 
 def _bucle():
-    while True:
-        linea = sys.stdin.readline()
-        if not linea:
-            break
+    for linea in sys.stdin:
         linea = linea.strip()
         if not linea:
             continue
@@ -828,8 +957,6 @@ def _bucle():
             respuesta = atender(json.loads(linea))
         except json.JSONDecodeError:
             respuesta = _error(None, -32700, "JSON no válido")
-        except Exception as err:
-            respuesta = _error(None, -32603, director_chat.tachar(str(err) or type(err).__name__))
         if respuesta is not None:
             sys.stdout.write(json.dumps(respuesta, ensure_ascii=False) + "\n")
             sys.stdout.flush()
