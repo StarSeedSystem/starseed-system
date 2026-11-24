@@ -157,6 +157,8 @@ export function calcularMetricas(e: EstadoCalidad, ahora: number): MetricasCalid
         perdidaPct = Math.round((conPerdida / enVentana.length) * 1000) / 10;
     } else if (enVentana.length === 1) {
         const c = enVentana[0];
+        fps = Math.round((1000 / VENTANA_FPS_MS) * 10) / 10;
+        kbps = Math.round((c.bytes * 8) / VENTANA_FPS_MS);
         resolucion = { ancho: c.ancho, alto: c.alto };
         codec = c.codec ?? null;
         calidad = c.calidad ?? null;

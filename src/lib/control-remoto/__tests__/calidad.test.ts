@@ -85,12 +85,14 @@ describe("CTL1119B · cálculo de métricas", () => {
         expect(m.acusesEnVentana).toBe(0);
     });
 
-    it("un solo cuadro: fps=0, kbps=0, pero hay resolución y codec", () => {
+    it("un solo cuadro: fps y kbps según ventana de 3 s, hay resolución y codec", () => {
         const e = estadoInicial("aparato");
         añadirCuadro(e, cuadro(AHORA - 500, 50_000, 1280, 720, { codec: "vp8", calidad: 60 }));
         const m = calcularMetricas(e, AHORA);
-        expect(m.fps).toBe(0);
-        expect(m.kbps).toBe(0);
+        // 1 cuadro en 3000 ms = 0.33 fps → 0.3
+        expect(m.fps).toBeCloseTo(0.3, 0);
+        // 50000 bytes * 8 / 3000 = 133 kbps
+        expect(m.kbps).toBe(133);
         expect(m.resolucion).toEqual({ ancho: 1280, alto: 720 });
         expect(m.codec).toBe("vp8");
         expect(m.calidad).toBe(60);
