@@ -184,15 +184,20 @@ MAX_CADENA_CEDIBLE = 6
 _CERRADAS = ("commit", "sustituida", "descartada", "rechazada", "informe")
 
 
-def calcular_rondas_reserva(tope_mac: int, disco_gb: float | None) -> int:
+def calcular_rondas_reserva(tope_mac: int, disco_gb: float | None, retiene_arranques: bool = False) -> int:
     """PURA (AUT1121C). Rondas de reserva dinámicas para la Mac.
 
     Reglas:
+    - (SUP1124E) Si el freno de disco del orquestador retiene los arranques (`retiene_arranques`: por debajo de
+      STARSEED_DISCO_LIBRE_AVISO_GB, 10 GB, no arranca ninguna tarea nueva) → 0 rondas (cede todo). El 24-11, con
+      4–6 GB libres, la Mac se guardaba sus primeras listas sin poder arrancarlas y la nube y el A1 no las veían.
     - Si tope_mac ≤ 2: la Mac solo puede correr 2 agentes a la vez → 1 ronda (tope_mac × 1).
     - Si disco_gb < DISCO_BLOQUEA_GB (2 GB): guardia de disco activo → 1 ronda.
     - Si disco_gb < 1 GB: la Mac no puede arrancar nada → 0 rondas (cede todo).
     - En caso normal (tope ≥ 3 y disco OK): 2 rondas (comportamiento anterior).
     """
+    if retiene_arranques:
+        return 0  # (SUP1124E) el freno de disco del orquestador no deja arrancar nada: cede todo
     if disco_gb is not None and disco_gb < 1.0:
         return 0  # La Mac no arranca nada: cede todo
     if (tope_mac is not None and tope_mac <= 2) or (disco_gb is not None and disco_gb < DISCO_BLOQUEA_GB):
@@ -268,7 +273,7 @@ def cedibles_de_la_tanda(tanda_ids, listas_mac, tope_mac, esperadas=(), rondas=R
     0 si disco < 1 GB (Mac no arranca nada)."""
     tanda = set(str(t) for t in tanda_ids or ())
     en_tanda = [str(t) for t in listas_mac or () if str(t) in tanda]
-    reserva = max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))
+    reserva = max(0, int(tope_mac or 0)) * max(0, int(RONDAS_RESERVA_MAC if rondas is None else rondas))
     esperadas = set(str(t) for t in esperadas or ())
     return [t for t in en_tanda[reserva:] if t not in esperadas]
 
@@ -294,7 +299,7 @@ def cadenas_cedibles(tareas_tanda, listas_mac, tope_mac, esperadas_por,
     0 si disco < 1 GB (Mac no arranca nada)."""
     tareas = {str(k): v for k, v in (tareas_tanda or {}).items() if isinstance(v, dict)}
     en_tanda = [str(t) for t in listas_mac or ()]
-    reserva = set(en_tanda[: max(0, int(tope_mac or 0)) * max(1, int(rondas or 1))])
+    reserva = set(en_tanda[: max(0, int(tope_mac or 0)) * max(0, int(RONDAS_RESERVA_MAC if rondas is None else rondas))])
     esperadas_por = {str(k): set(map(str, v or ())) for k, v in (esperadas_por or {}).items()}
     salida, vistas = [], set()
     for cabeza in en_tanda:
@@ -347,7 +352,8 @@ def cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas=()):
     tope_mac = estado_mac.get("tope") or 0
     disco_gb = estado_mac.get("disco_gb")
     # Reserva dinámica (AUT1121C): 1 ronda si tope ≤ 2 o disco < 2 GB; 0 si disco < 1 GB.
-    rondas = calcular_rondas_reserva(tope_mac, disco_gb)
+    # (SUP1124E) 0 también si el freno de disco del orquestador retiene los arranques (`asignar_huecos.reunir`).
+    rondas = calcular_rondas_reserva(tope_mac, disco_gb, bool(estado_mac.get("retiene_arranques")))
     # Solo frena lo que espera una tarea que SE QUEDA en la tanda de la Mac (2026-10-13).
     esperadas = esperadas_por_otras(colas, progreso, solo_de=tanda)
     sueltas = [t for t in cedibles_de_la_tanda(tanda, listas_mac, tope_mac, esperadas, rondas=rondas)

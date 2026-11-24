@@ -315,6 +315,39 @@ class ReservaDinamica(unittest.TestCase):
         self.assertEqual(R.calcular_rondas_reserva(3, None), 2)
         self.assertEqual(R.calcular_rondas_reserva(2, None), 1)
 
+    def test_freno_de_disco_del_orquestador_cero_rondas(self):
+        # (SUP1124E) Por debajo de 10 GB el orquestador no arranca nada: no se le guarda nada.
+        self.assertEqual(R.calcular_rondas_reserva(3, 4.8, True), 0)
+        self.assertEqual(R.calcular_rondas_reserva(2, None, True), 0)
+        self.assertEqual(R.calcular_rondas_reserva(3, 4.8, False), 2)
+
+    def test_cero_rondas_cede_toda_la_tanda(self):
+        # (SUP1124E) «0 rondas (cede todo)» cedía igual tope × 1: `int(rondas or 1)` convertía el 0 en 1.
+        tanda = ["A", "B", "C"]
+        colas = [("cola-auto-x.json", [{"id": t, "archivos": [t.lower()]} for t in tanda])]
+        mac = {"listas": tanda, "tope": 2, "disco_gb": 4.8}
+        self.assertEqual(R.cedibles_y_lote(tanda, mac, colas, {})[0], ["C"])
+        self.assertEqual(R.cedibles_y_lote(tanda, dict(mac, retiene_arranques=True), colas, {})[0], ["A", "B", "C"])
+        self.assertEqual(R.cedibles_y_lote(tanda, dict(mac, disco_gb=0.5), colas, {})[0], ["A", "B", "C"])
+        self.assertEqual(R.cedibles_de_la_tanda(tanda, tanda, 2, rondas=0), ["A", "B", "C"])
+
+    def test_el_freno_se_lee_del_orquestador(self):
+        import asignar_huecos as AH
+
+        class Freno:
+            def __init__(self, retiene):
+                self.retiene = retiene
+
+            def estado(self, ruta="/"):
+                return {"retiene_arranques": self.retiene, "libre_gb": 4.8, "umbral_aviso_gb": 10}
+
+        def sin_enjambre():
+            raise FileNotFoundError("en el A1 no está scripts/enjambre")
+
+        self.assertTrue(AH.retiene_arranques_por_disco(lambda: Freno(True)))
+        self.assertFalse(AH.retiene_arranques_por_disco(lambda: Freno(False)))
+        self.assertFalse(AH.retiene_arranques_por_disco(sin_enjambre))
+
 
 class ExplicarSimular(unittest.TestCase):
     """(AUT1121C) `repartir-a-nube.py --simular --explicar` muestra por qué cada

@@ -486,7 +486,35 @@ def reunir(ahora=None):
         "pausado": pausado,
         "conversando": conversando,
         "disco_gb": disco_gb,
+        "retiene_arranques": retiene_arranques_por_disco(),
     }
+
+
+_GD = None
+
+
+def retiene_arranques_por_disco(cargar=None) -> bool:
+    """(SUP1124E) ¿Retiene ahora los arranques el freno de disco del orquestador (`scripts/enjambre/guardia_disco.py`,
+    GUA1113A, con su histéresis)? Por debajo de STARSEED_DISCO_LIBRE_AVISO_GB (10 GB) la Mac no arranca ninguna tarea
+    nueva, pero el reparto solo miraba < 2 GB y < 1 GB y le seguía guardando sus primeras listas. False si no se
+    puede saber (en el A1 no está scripts/enjambre): no se inventa ningún freno."""
+    global _GD
+    try:
+        if cargar is not None:
+            modulo = cargar()
+        else:
+            if _GD is None:
+                import importlib.util
+
+                ruta = os.path.join(os.path.dirname(DIRECTORIO), "enjambre", "guardia_disco.py")
+                spec = importlib.util.spec_from_file_location("guardia_disco_huecos", ruta)
+                m = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(m)
+                _GD = m
+            modulo = _GD
+        return bool((modulo.estado("/") or {}).get("retiene_arranques"))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 # ─────────────────────────────── efectos ───────────────────────────────
