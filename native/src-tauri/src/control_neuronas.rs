@@ -15,7 +15,7 @@
 //!   Sin interruptor nativo, notificaciones o superposición, se niega con «sin-indicador-nativo».
 //! · (ORD1114T) Windows, Linux e iOS: falta el borde, el atajo o la pausa local que pide §2.4, así que allí la
 //!   sesión se NIEGA («sin-indicador-nativo»): no se rebaja la condición.
-//! · Vigía: cada segundo cierra la sesión vencida (1 h) o inactiva (2 min) y quita el indicador.
+//! · Vigía: cada segundo cierra la sesión inactiva (45 s sin latidos) y quita el indicador.
 //! · Registro: `control-neuronas.log` (macOS: ~/Library/Logs/app.starseed.os; otros: datos de la app),
 //!   solo-añadir y encadenado por SHA-256; guarda nombre de orden, aparato (8) y resultado, nunca contenido.
 
@@ -637,7 +637,7 @@ pub fn parar(app: &AppHandle, motivo: &str) {
     }
 }
 
-/// Vigía de caducidad (1 h, 2 min sin órdenes) e indicador perdido. Una vez por proceso.
+/// Vigía de caducidad (45 s sin latidos) e indicador perdido. Una vez por proceso.
 pub fn iniciar(app: &AppHandle) {
     static EN_MARCHA: AtomicBool = AtomicBool::new(false);
     if EN_MARCHA.swap(true, Ordering::SeqCst) {
