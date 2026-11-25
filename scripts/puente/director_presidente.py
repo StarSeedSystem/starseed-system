@@ -856,7 +856,12 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     pres = estado.setdefault("presidente", {})
     cola = pres.setdefault("cola", {})
     enfriados = pres.setdefault("enfriados", {})
+    respondidos = pres.setdefault("respondidos", {})
     idm = mensaje["id"]
+
+    # (DIR1124A) Cerrojo: si ya respondimos a este mensaje de Alex, no volver a contestar.
+    if idm in respondidos:
+        return "respondido"
 
     previo = cola.get(idm) or {}
     huella = huella_proveedores(datos_limites, sesion_hermes)
@@ -980,6 +985,7 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         )
         director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
         cola.pop(idm, None)
+        respondidos[idm] = True
         despertar_cola(estado, ahora)
         _sincronizar_respuesta_unificada(texto, modelo_publicado, cfg)
         return "respondido"
@@ -1005,6 +1011,7 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
             )
             director_chat.entrega(idm, CANAL, "respondido", raiz=raiz)
             cola.pop(idm, None)
+            respondidos[idm] = True
             despertar_cola(estado, ahora)
             _sincronizar_respuesta_unificada(txt_f, modelo_pub, cfg)
             return "respondido"

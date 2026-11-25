@@ -233,7 +233,8 @@ export function filtrarFeed(
     }
     return mensajes.filter((m) => {
         if (filtro === "conversacion") {
-            return m.rol === "alex" || (m.id.startsWith("md-") && (m.tipo === "mensaje" || m.tipo === "respuesta"));
+            // DIR1124A: solo Alex y respuestas del Director presidente
+            return m.rol === "alex" || (m.canal === "director-presidente" && m.tipo === "respuesta");
         }
         if (filtro === "informes") return m.tipo === "informe" || m.tipo === "aviso";
         if (filtro === "enjambre") return m.tipo === "actualizacion";

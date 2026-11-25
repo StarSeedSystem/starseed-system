@@ -147,6 +147,45 @@ def _anadir(ruta, registros):
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def _es_mensaje_duplicado(mensaje_nuevo, mensaje_anterior):
+    """PURA. True si el mensaje nuevo es idéntico al anterior (mismo autor, texto, tipo, rol)."""
+    return (
+        mensaje_nuevo.get("de") == mensaje_anterior.get("de")
+        and mensaje_nuevo.get("texto") == mensaje_anterior.get("texto")
+        and mensaje_nuevo.get("tipo") == mensaje_anterior.get("tipo")
+        and mensaje_nuevo.get("rol") == mensaje_anterior.get("rol")
+        and mensaje_nuevo.get("canal") == mensaje_anterior.get("canal")
+        and mensaje_anterior.get("rol") == "director"
+    )
+
+
+def _leer_ultimo_mensaje(raiz=None):
+    """Lee el último mensaje (no entrega) del chat."""
+    registros = _leer_lineas(_chat(raiz))
+    for r in reversed(registros):
+        if r.get("tipo") != "entrega":
+            return r
+    return None
+
+
+def _reescribir_ultimo_mensaje(mensaje_actualizado, raiz=None):
+    """Reescribe el archivo de chat reemplazando el último mensaje no-entrega."""
+    ruta = _chat(raiz)
+    if not ruta.exists():
+        return
+    lineas = ruta.read_text(encoding="utf-8").splitlines()
+    # Buscar la última línea que no sea entrega
+    for i in range(len(lineas) - 1, -1, -1):
+        try:
+            reg = json.loads(lineas[i])
+            if reg.get("tipo") != "entrega":
+                lineas[i] = json.dumps(mensaje_actualizado, ensure_ascii=False)
+                break
+        except json.JSONDecodeError:
+            continue
+    ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+
 def publicar(
     texto,
     de,
@@ -168,40 +207,66 @@ def publicar(
     (DIR1111G) `sintesis=True` marca la respuesta principal de un director (destaca en la
     pestaña «Dirección»); `eleccion` solo la pone el Director presidente: quién contestó y
     por qué. Los dos son opcionales: las líneas sin ellos se leen igual que siempre.
+
+    (DIR1124A) Si el mensaje es idéntico al anterior del mismo director (mismo de, texto,
+    tipo, canal), no se crea uno nuevo: se incrementa el contador `repeticiones` del
+    mensaje anterior y se devuelve ese mismo mensaje.
     """
     if rol not in ("alex", "director", "agente", "sistema"):
         raise ValueError("rol no válido: %s" % rol)
     if canal not in CANALES:
         raise ValueError("canal no válido: %s" % canal)
-    mensaje = {
-        "id": _nuevo_id(),
-        "t": _ahora_iso(),
+
+    texto_limpio = tachar(texto or "")[:MAX_TEXTO]
+    mensaje_nuevo = {
         "de": de,
         "rol": rol,
         "tipo": tipo,
-        "texto": tachar(texto or "")[:MAX_TEXTO],
+        "texto": texto_limpio,
         "canal": canal,
     }
     if canales:
-        mensaje["canales"] = list(canales)
+        mensaje_nuevo["canales"] = list(canales)
     if modelo:
-        mensaje["modelo"] = modelo
+        mensaje_nuevo["modelo"] = modelo
     if responde_a:
-        mensaje["respondeA"] = responde_a
+        mensaje_nuevo["respondeA"] = responde_a
     if tarea:
-        mensaje["tarea"] = tarea
+        mensaje_nuevo["tarea"] = tarea
     if uso:
-        mensaje["uso"] = {
+        mensaje_nuevo["uso"] = {
             k: v
             for k, v in uso.items()
             if k in ("tokensEntrada", "tokensSalida", "segundos", "coste", "via")
         }
     if sintesis:
-        mensaje["sintesis"] = True
+        mensaje_nuevo["sintesis"] = True
     if eleccion:
-        mensaje["eleccion"] = eleccion
+        mensaje_nuevo["eleccion"] = eleccion
     if solo_historial:
-        mensaje["solo_historial"] = True
+        mensaje_nuevo["solo_historial"] = True
+
+    # (DIR1124A) Verificar si es duplicado del último mensaje
+    if not en_pruebas() or not _es_chat_real(_chat(raiz)):
+        ultimo = _leer_ultimo_mensaje(raiz)
+        if ultimo and _es_mensaje_duplicado(mensaje_nuevo, ultimo):
+            # Incrementar contador y reescribir el último mensaje
+            repeticiones = (ultimo.get("repeticiones") or 1) + 1
+            ultimo_actualizado = dict(ultimo, repeticiones=repeticiones, t=_ahora_iso())
+            _reescribir_ultimo_mensaje(ultimo_actualizado, raiz)
+            # Actualizar también en bandejas si aplica
+            for destino in canales or []:
+                if destino not in CANALES_BANDEJA:
+                    continue
+                _reescribir_ultimo_mensaje_bandeja(destino, ultimo_actualizado, raiz)
+            return ultimo_actualizado
+
+    # No es duplicado: crear mensaje nuevo
+    mensaje = {
+        "id": _nuevo_id(),
+        "t": _ahora_iso(),
+        **mensaje_nuevo,
+    }
     entregas = []
     for destino in canales or []:
         if destino not in CANALES_BANDEJA:
@@ -218,9 +283,25 @@ def publicar(
         )
     _anadir(_chat(raiz), [mensaje] + entregas)
     if toca_la_puerta(raiz):
-        # (IND1029H) Copia del feed al chat compartido; el archivo local manda y nunca lanza.
         publicar_en_puerta(mensaje)
     return mensaje
+
+
+def _reescribir_ultimo_mensaje_bandeja(destino, mensaje_actualizado, raiz=None):
+    """Reescribe el último mensaje en la bandeja de un canal."""
+    ruta = _bandejas(raiz) / ("%s.jsonl" % destino)
+    if not ruta.exists():
+        return
+    lineas = ruta.read_text(encoding="utf-8").splitlines()
+    for i in range(len(lineas) - 1, -1, -1):
+        try:
+            reg = json.loads(lineas[i])
+            if reg.get("id") == mensaje_actualizado.get("id"):
+                lineas[i] = json.dumps(mensaje_actualizado, ensure_ascii=False)
+                break
+        except json.JSONDecodeError:
+            continue
+    ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
 
 
 def entrega(de_id, canal, estado, detalle=None, raiz=None):

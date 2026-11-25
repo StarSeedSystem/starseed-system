@@ -134,7 +134,7 @@ describe("fusionarFeed", () => {
 describe("filtrarFeed", () => {
     const lista = [
         mensaje({ id: "md-1-aaaa", rol: "alex", tipo: "mensaje", de: "alex" }),
-        mensaje({ id: "md-2-bbbb", tipo: "respuesta" }),
+        mensaje({ id: "md-2-bbbb", tipo: "respuesta", canal: "director-presidente" }),
         mensaje({ id: "ev-3", rol: "agente", tipo: "actualizacion", de: "enjambre" }),
         mensaje({ id: "rb-4", rol: "agente", tipo: "informe" }),
         mensaje({ id: "cn-5-x", tipo: "uso" }),
