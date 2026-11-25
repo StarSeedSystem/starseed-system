@@ -160,7 +160,8 @@ describe("contrato web ↔ app nativa", () => {
     expect(cap.remote.urls).toHaveLength(10);
     for (const u of cap.remote.urls) expect(u).toMatch(/^http:\/\/127\.0\.0\.1:476[01]\d$/);
     // La firma se verifica con la clave del updater (la misma que firma el CI).
-    expect(rust("servidor_capas.rs")).toContain('get("updater")?.get("pubkey")');
+    // Sin espacios ni saltos: rustfmt parte la cadena en varias líneas y sigue siendo la misma (DIR1125K).
+    expect(rust("servidor_capas.rs").replace(/\s+/g, "")).toContain('get("updater")?.get("pubkey")');
   });
 
   it("(VER1107B) info_neurona y buscar_actualizacion: Rust ↔ info-neurona.ts, registrados y con permiso", () => {
