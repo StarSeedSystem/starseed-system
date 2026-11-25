@@ -258,6 +258,8 @@ def _ejecutar_ssh(comando: str) -> list[str]:
         "-o",
         "ConnectTimeout=8",
         "-o",
+        "AddressFamily=inet",
+        "-o",
         f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}",
         MAGGABOX_HOST,
         comando,

@@ -66,7 +66,7 @@ def mensaje_error(aparato, modo, salida, herramienta=None):
         return "tableta: no hay aparato adb emparejado; empareja la tableta antes de capturar"
     return ""
 def _ssh(comando):
-    return subprocess.run(["ssh", "-i", str(MAGGABOX_KEY), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}", MAGGABOX_HOST, comando], capture_output=True, text=True, timeout=40)
+    return subprocess.run(["ssh", "-i", str(MAGGABOX_KEY), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "AddressFamily=inet", "-o", f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}", MAGGABOX_HOST, comando], capture_output=True, text=True, timeout=40)
 def _herramientas():
     orden = " ".join(FOTO_MAGGABOX + VIDEO_MAGGABOX)
     return set(_ssh(f'for h in {orden}; do command -v "$h" >/dev/null 2>&1 && echo "$h"; done').stdout.split())
