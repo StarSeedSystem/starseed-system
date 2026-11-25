@@ -1,0 +1,56 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "PRU1123Abs",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py · lo que faltó: starseed_memory_root/pruebas/bateria-1118.json",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de PRU1123Ab, que ya está integrada. Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: starseed_memory_root/pruebas/bateria-1118.json.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py\n\n--- encargo original, como contexto ---\nLee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45530755520`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 45538905859) falla «pruebas del puente»: system/starseed-system/starseed_memory_root/pruebas/bateria-1118.json').exists\n2026-11-25T03:23:09.0389625Z ERROR scripts/puente/test_pruebas_malla_bateria.py::test_listar_y_siguiente_no_fallan - AssertionError: falta /home/runner/work/starseed-system/starseed-system/starseed_memory_root/pruebas/bateria-1118.json\n2026-11-25T03:23:09.0390486Z assert False\n2026-11-25T03:23:09.0390693Z  +  where False = exists()\n2026-11-25T03:23:09.0391733Z  +    where exists = PosixPath('/home/runner/work/starseed-system/starseed-system/starseed_memory_root/pruebas/bateria-1118.json').exists\n2026-11-25T03:23:09.0392462Z 7 errors in 0.14s\n2026-11-25T03:23:09.0708568Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45530755520:refs/remotes/origin/nube/45530755520\"` y `git cherry-pick --no-commit 27e8b9a4bfd1 816a80b2ea95 0d0498cd4ef9`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/45530755520",
+   "depende_de": []
+  },
+  {
+   "ola": "ALM1118",
+   "id": "ALM1118A-d2",
+   "titulo": "Contrato del almacén de neurona por la malla (capas de capacidades locales y funciones de nodo, privadas y públicas) (parte 2 de 2)",
+   "archivos": [
+    "starseed_memory_root/olas/cola-almacen-neurona-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11-2026): lo planeado para el disco Maggabit se hace con la neurona Maggabox (Debian, 500 GB, ~425 GB libres) a través de las capas de conciencia de capacidades locales mesh P2P y de las funciones de nodo de las neuronas de StarSeed OS, privadas y públicas: respaldos de los sistemas y sus versiones; todo el código con reflejo de GitHub autoactualizado; archivos y carpetas pesados de la producción y el desarrollo a través de MetaGenesis; capas de conciencia colectivas privadas de la cuenta y públicas; medios de producción, contenedor en la nube de MetaGenesis y funciones de nodo de las neuronas públicas. Nunca medio único de lo principal. En el nodo ya hay (o habrá al pasar el guion del nodo) ~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas/privadas,capas/publicas,nube} con temporizadores de espejo (15 min) y versiones (1 h). Tarea: escribe docs/contratos/almacen-de-neurona.md con (1) «Lo que ya existe»: dónde está hoy en el código el elegir medio de almacenamiento por neurona, el enjambre de datos (semillas, imanes, espejos), las capas de capacidades de la neurona, el servidor de capas y las funciones de nodo público (rutas y funciones exactas, con grep); (2) el diseño: una neurona anuncia capacidad de almacén (GB libres, cuota que fija su dueño), espacio privado de la cuenta cifrado de punta a punta y solo para neuronas de la misma cuenta, espacio público direccionado por contenido para las capas colectivas, réplica obligatoria de lo principal en otro medio, y cómo lo usa MetaGenesis (respaldos, datos pesados, contenedor en la nube); (3) los riesgos y lo que nunca se sirve en público. Y una cola de 3 a 6 tareas pequeñas en starseed_memory_root/olas/cola-almacen-neurona-1118.json (mismo formato que esta cola) para construirlo por partes con sus pruebas. No escribas código de producto en esta tarea. Reglas: nunca imprimas claves ni variables de entorno; nada de borrar sin copia comprobada; la Maggabox nunca es el medio único de nada principal; la lógica pura va con pruebas unitarias (sin red ni aparatos reales en las pruebas). Español neutro.\n\n## PARTE 2 DE 2 (la dirección dividió ALM1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/olas/cola-almacen-neurona-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "ALM1118A-d1"
+   ]
+  },
+  {
+   "id": "CAP1125A",
+   "ola": "capas-1125",
+   "titulo": "Relevo de capa: la app calienta el servidor antes de recargar la página",
+   "archivos": [
+    "native/src-tauri/src/servidor_local.rs",
+    "native/src-tauri/src/servidor_local_logica.rs",
+    "native/src-tauri/src/servidor_local_android.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (02:05Z) en la Maggabox (Debian 13, Core i5-2520M): tras «relevo hecho … -> web=…/0d0498cd4e» `recargar_ventana` hizo `location.reload()` nada más estar listo el Node; el Node recién arrancado tardó más de 10 s en dar la primera página, el service worker entregó a los 10 s la copia guardada de la capa ANTERIOR y la página se quedó con `mia=mwvcv6xv-gpzi8z` (e55edbf853) hasta cerrar la app. La parte web ya está arreglada en `6a812998d` (DIR1125C: `topeNavegacion` en public/sw-logica.js y `mirarPaginaAlDia` en src/lib/nativa/relevo-capa-cliente.ts; NO tocar esos archivos). Falta la parte nativa, para la .64. PIDE: 1) En `servidor_local.rs`, antes de `v.eval(\"location.reload()\")` en `recargar_ventana`, pedir por HTTP al propio servidor local (mismo puerto, con el pase de la app como lo manda la ventana; mirar cómo lo hace `url_entrada` y la comprobación de salud) la ruta que la ventana tiene abierta (`v.url()`; si no se puede leer, `/`), esperando hasta 60 s a que conteste con un estado menor que 500; después recargar. Si la petición falla o vence, recargar igualmente (nunca dejar de recargar) y dejar una línea en servidor-local.log: `[servidor-local] recarga tras relevo caliente=si|no ms=<n>`. La espera va en el hilo que ya lleva el bucle del servidor (no en el hilo de la interfaz) y no retrasa `con_estado`/`avisar`. 2) La decisión (qué ruta pedir a partir de la URL de la ventana y el puerto, cuánto esperar, qué estados valen) en una función PURA en `servidor_local_logica.rs` con pruebas unitarias: URL local con ruta y consulta → esa ruta y consulta; URL de otro origen o ilegible → `/`; nunca una URL fuera de 127.0.0.1 ni con el pase dentro de la ruta. 3) Lo mismo en `servidor_local_android.rs` si allí hay una recarga equivalente tras el relevo; si no la hay, decirlo en el informe y no inventarla. NO cambiar el protocolo del pase, ni la cookie, ni `navegar_si_hace_falta`. Verificación: `cargo test` de la lógica en verde y `cargo check` del crate en macOS; pegar en el informe la salida de las pruebas nuevas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP1125A",
+   "ALM1118A-d2",
+   "PRU1123Abs"
+  ]
+ }
+}
