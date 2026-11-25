@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CAP1125B",
+   "ola": "capas-1125",
+   "titulo": "Descarga de capas: si el proxy de la puerta de internet no contesta, bajar sin él",
+   "archivos": [
+    "native/src-tauri/src/servidor_capas.rs",
+    "native/src-tauri/src/puerta_proxy_logica.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 a las 02:03:55Z en la Mac (registro enlaces.log): `[capas] no se pudo actualizar la capa: curl terminó con exit status: 7 (curl: (7) Failed to connect to 127.0.0.1 port 50133 after 0 ms: Couldn't connect to server)` y `la web publicada web=…/f48835501d NO se pudo traer`. `servidor_capas.rs::curl` añade los argumentos de `puerta_proxy_logica::argumentos_curl(proxy_url(), url)` (PTA1108B): con el proxy de la puerta de internet anotado como encendido pero sin nadie escuchando en su puerto, la descarga de la capa falla entera y se queda sin actualizar hasta la siguiente mirada. PIDE: 1) Si la descarga (manifiesto, firma o .tar.gz) falla con el proxy puesto y el fallo es de conexión con el proxy (códigos de salida de curl 5, 7, 28 o 56, o el texto nombra 127.0.0.1 y el puerto del proxy), repetir UNA vez la misma descarga sin proxy, en el mismo intento, y dejar una línea `[capas] el proxy de la puerta no contesta (<motivo corto>): se baja sin él`. 2) La decisión «¿este fallo es del proxy y merece el reintento directo?» en una función PURA en `puerta_proxy_logica.rs` con pruebas: salida 7 con proxy → sí; salida 22 (HTTP 404) → no; sin proxy configurado → no; el reintento nunca se repite más de una vez. 3) No cambiar la verificación de firma ni de SHA-256, ni el canal, ni las URL permitidas (`permitir_local`). Verificación: `cargo test` de la lógica en verde y `cargo check`; pegar en el informe la salida de las pruebas nuevas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP1125B"
+  ]
+ }
+}
