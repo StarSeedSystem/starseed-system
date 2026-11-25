@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "CTL1124G",
+   "ola": "control-1124",
+   "titulo": "Android controlado: pantalla a 0 cuadros/s por accesibilidad con WebRTC ya negociado",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/fuente-pantalla.ts",
+    "native/src-tauri/src/control_neuronas_android.rs",
+    "src/lib/control-remoto/__tests__/ctl1124g.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Mac→Maggaboard, 24-11 22:42:56–22:44:20Z): sesión y estado por red local a 26–52 ms; oferta y respuesta WebRTC «ok» (22:43:02–03Z), «pantalla=directo:red-local», pero la ventana dice «Maggaboard no enseña su pantalla · El aparato no está dando imágenes nuevas», «Pantalla por accesibilidad · 0,0 cuadros/s». Debe haber al menos un cuadro inicial y cuadros cuando la pantalla cambia; si la vía de accesibilidad no da, el aviso para aceptar la pantalla fluida (MediaProjection) debe salir en la tableta al abrir la ventana de control, con texto claro, y quedar anotado en el registro si la persona no lo acepta. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "dependencias_ya_en_main": [
+    "CTL1124C"
+   ]
+  },
+  {
+   "id": "RES1121A",
+   "ola": "DIR1121",
+   "titulo": "Mac, A1 de Oracle y Maggabox enlazados, cada uno con su especialidad, y relevo automático si cae un medio principal",
+   "archivos": [
+    "scripts/puente/relevo_medios.py",
+    "scripts/puente/test_relevo_medios.py",
+    "deploy/oracle/nodo/systemd/starseed-relevo-medios.service",
+    "starseed_memory_root/fundamentos/relevo-de-medios.md"
+   ],
+   "depende": [],
+   "prompt": "Alex: «que estén vinculados todos los contenedores en la nube incluyendo la Mac, el A1 de Oracle, la neurona nodo Maggabox Linux, cada\nuna con su especialidad y con los respaldos necesarios para que funcione autónomamente aun si falla o se desconecta o pierde algún medio\nprincipal». Aplica la memoria fundamental resiliencia-seguridad-y-respaldos (ninguna dependencia única; 3 copias, 2 medios, 1 fuera del\nMac). Haz: a) registro `relevo-de-medios` con cada medio, su especialidad y quién lo releva — Mac: orquestador, puertas, cartero y\npresidente, bot Principal; A1: siempre encendido, bot de diseño, guardián de main, cola de respaldo y nube; Maggabox: almacén (espejo\nde GitHub cada 15 min, versiones, respaldos cifrados), sin claves en claro por ser nodo público; nubes efímeras (GitHub Actions,\nCloudroom): solo trabajo sin secretos de Alex; b) los registros de los tres canales y el estado de olas se replican cada pocos minutos\nal A1 y al Maggabox (este último sin secretos); c) latido entre medios: si el Mac lleva N minutos sin latido, el A1 toma el relevo con\nARRENDAMIENTO (un solo lector por bot de Telegram: el que tiene el arriendo hace el polling; al volver el Mac lo recupera sin duplicar ni\nperder mensajes) y sigue atendiendo los tres canales con motores gratuitos y la cola; d) las claves que el A1 necesite para relevar\nviajan SOLO por `oracle_nodo.py claves` (archivo 600 del servicio), nunca al Maggabox ni a nubes efímeras; e) simulacro documentado:\nparar el latido del Mac en una prueba y ver que el A1 responde en el canal General en menos de N+2 min, y la vuelta. Deja el paso que\nsolo Alex pueda hacer como acción suya, no lo hagas por él.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "CAN1121B-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124G",
+   "RES1121A"
+  ]
+ }
+}
