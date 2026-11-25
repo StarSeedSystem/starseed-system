@@ -645,13 +645,14 @@ export class PantallaDestino {
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
-            if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
-                cuadros += 1;
+            const pintado = await l.pintar(jpeg, ancho, alto).catch(() => false);
+            // CTL1124D: contar cuadros para fps y calidad aunque el lienzo falle (p. ej. Mac/WebKit sin GStreamer)
+            cuadros += 1;
+            const t = this.d.ahora();
+            añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
+            if (pintado) {
                 if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
                 else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
-                // CTL1119B: alimentar cuadro a calidad (malla)
-                const t = this.d.ahora();
-                añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
             }
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
