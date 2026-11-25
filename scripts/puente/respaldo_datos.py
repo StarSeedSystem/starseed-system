@@ -34,6 +34,8 @@ TOPE_S = 1800.0
 HOST_MAGGABOX = os.environ.get("STARSEED_MAGGABOX_HOST", "maggasukha@starseed-nodo-1.local")
 HOST_A1 = (os.environ.get("STARSEED_A1_SSH") or os.environ.get("STARSEED_A1_HOST")
            or "a1")
+LLAVE_NODO = os.path.expanduser("~/.ssh/starseed_nodo1")
+CONOCIDOS_NODO = os.path.expanduser("~/.ssh/known_hosts_starseed_nodo")
 
 
 def nombre_archivo(tipo: str, fecha: str) -> str:
@@ -112,15 +114,28 @@ GDRIVE = f"gdrive:{REMOTO}"
 def _ssh(destino: str, *orden: str) -> List[str]:
     """PURA: argv ssh no interactivo contra el nodo que toque."""
     host = HOST_MAGGABOX if destino == "maggabox" else HOST_A1
-    return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, *orden]
+    args = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+            "-o", "AddressFamily=inet"]
+    if host.endswith("starseed-nodo-1.local"):
+        args += ["-i", LLAVE_NODO, "-o", "IdentitiesOnly=yes",
+                 "-o", "UserKnownHostsFile=" + CONOCIDOS_NODO]
+    args.append(host)
+    args.extend(orden)
+    return args
 
 
 def comando_subida(destino: str, local: str, nombre: str) -> List[str]:
     """PURA: argv de subida al medio; Google Drive usa rclone, los nodos usan rsync."""
     if destino == "gdrive":
         return ["rclone", "copyto", local, f"{GDRIVE}/{nombre}"]
-    return ["rsync", "-az", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=8",
-            local, f"{HOST_MAGGABOX if destino == 'maggabox' else HOST_A1}:{REMOTO}/{nombre}"]
+    host = HOST_MAGGABOX if destino == "maggabox" else HOST_A1
+    ssh_opts = ["BatchMode=yes", "ConnectTimeout=8", "AddressFamily=inet"]
+    if host.endswith("starseed-nodo-1.local"):
+        ssh_opts += [f"IdentityFile={LLAVE_NODO}", "IdentitiesOnly=yes",
+                     f"UserKnownHostsFile={CONOCIDOS_NODO}"]
+    ssh = "ssh -o " + " -o ".join(ssh_opts)
+    return ["rsync", "-az", "-e", ssh,
+            local, f"{host}:{REMOTO}/{nombre}"]
 
 
 def comando_huella(destino: str, nombre: str) -> List[str]:
