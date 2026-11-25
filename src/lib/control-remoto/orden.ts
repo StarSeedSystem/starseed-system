@@ -56,6 +56,8 @@ export interface RespuestaOrden {
     ok: boolean;
     motivo: string;
     resultado?: unknown;
+    /** Detalle adicional del motivo (p. ej. { motivo: "terminado-por-el-dueno" }). */
+    detalle?: Record<string, string>;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {

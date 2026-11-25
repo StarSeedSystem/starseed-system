@@ -20,7 +20,7 @@ import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } fro
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
-import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente } from "./registro-sesiones"; // CTL1117A
+import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente, SesionHacia } from "./registro-sesiones"; // CTL1117A
 import { puenteNativo } from "@/lib/nativa/puente"; // CTL1119F
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
@@ -361,7 +361,9 @@ export async function crearClaveYPedirControl(
 }
 
 /** CTL1124B · Sesiones salientes vivas hacia otras neuronas y su cierre directo sin revocar permisos. */
-export type { SesionSaliente } from "./registro-sesiones";
+export type { SesionSaliente, MandarSesion } from "./registro-sesiones";
+export { RegistroSesiones } from "./registro-sesiones";
+export { SesionHacia };
 
 export function sesionesSalientesActivas(): readonly SesionSaliente[] {
     return registroGlobal.sesionesSalientes();
@@ -396,7 +398,7 @@ export async function terminarControlHacia(neurona: string): Promise<boolean> {
  * CTL1117A · S1/S2/S4: comparte la sesión con la ventana de control (`registroGlobal`): no manda una segunda
  * `abrir-sesion` si ya hay una viva o en vuelo, y su `cerrar` solo cierra si nadie más la usa.
  */
-export class SesionHacia {
+class SesionHacia {
     private token: string | null = null;
     /** CTL1119A: el latido firmado que mantiene viva la sesión aceptada (cada 10 s). */
     private latido: ReturnType<typeof setInterval> | null = null;
@@ -444,7 +446,8 @@ export class SesionHacia {
 
     /**
      * CTL1119A: un latido firmado cada 10 s. Si la sesión ya no existe (45 s sin latidos), se reabre sola: la
-     * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió, se para.
+     * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió o el dueño
+     * terminó la sesión ("terminado-por-el-dueno"), no se reabre.
      */
     async latir(): Promise<boolean> {
         const t = this.token;
@@ -461,7 +464,14 @@ export class SesionHacia {
                 this.registro.olvidar(this.para, t);
                 return (await this.abrir(true)).ok;
             }
-            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+            // CTL1124F: el dueño terminó la sesión, se cumplió el límite o se apagó el permiso → no reabrir
+            const terminoPorDueno = r.motivo === "parada-nativa" && r.detalle?.motivo === "terminado-por-el-dueno";
+            if (r.motivo === "limite-cumplido" || terminoPorDueno || r.motivo === "permiso-apagado") {
+                this.pararLatido();
+                this.token = null;
+                this.registro.olvidar(this.para, t);
+                return false;
+            }
         } catch {
             /* un latido que falla no rompe nada: el siguiente lo reintenta */
         }
@@ -486,15 +496,14 @@ export class SesionHacia {
         this.pararLatido();
     }
 
-    /**
-     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
+/**
+     * DIR1125B: mirar si la otra neurona nos tienen aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
      * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
      * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     * CTL1124F: usa «leer-aceptacion» que no abre sesión en el lado controlado.
      */
     async sondear(): Promise<RespuestaOrden> {
-        const laAbreElSondeo = this.token === null;
-        const r = await this.orden("leer-estado");
-        if (laAbreElSondeo) await this.cerrar();
+        const r = await this.mandar(this.para, "leer-aceptacion", {}, { nivel: "ver" });
         return r;
     }
 

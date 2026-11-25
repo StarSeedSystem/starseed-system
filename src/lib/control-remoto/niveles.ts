@@ -191,6 +191,7 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     "abrir-sesion": { nivel: "ver", sinSesion: true, validar: conColorOpcional, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
     "cerrar-sesion": { nivel: "ver", validar: sinArgs, que: "cierra la sesión" },
     "leer-estado": { nivel: "ver", validar: sinArgs, que: "ruta, llamada y sus números, enlaces y su medio, versión y build" },
+    "leer-aceptacion": { nivel: "ver", validar: sinArgs, que: "comprueba si este controlador está aceptado sin abrir sesión" },
     llamar: {
         nivel: "controlar",
         validar: (a) =>

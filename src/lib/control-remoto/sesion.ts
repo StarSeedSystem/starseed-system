@@ -451,6 +451,9 @@ export class PuertaControl {
         // «presentarse»: un aparato de la cuenta pide que el dueño lo acepte AQUÍ. Nunca concede nada.
         if (nombre === "presentarse") return this.presentarse(o);
 
+        // «leer-aceptacion»: comprueba si este controlador está aceptado sin abrir sesión (CTL1124F).
+        if (nombre === "leer-aceptacion") return this.leerAceptacion(o);
+
         if (!permiso.encendido) {
             // CTL1117J · S3: la persona de este aparato se entera de que alguien lo pidió, y quien manda sabe que se avisó (`aviso`).
             const aviso = nombre === "abrir-sesion" ? await this.avisoDeAperturaApagada(o, permiso) : null;
@@ -616,6 +619,32 @@ export class PuertaControl {
         } catch {
             return null;
         }
+    }
+
+    /** CTL1124F: comprueba si un controlador está aceptado sin abrir sesión. */
+    private async leerAceptacion(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {
+        const c = o.carga;
+        const permiso = this.d.leerPermiso();
+        const cuenta = this.d.cuentaPropia();
+        if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "otra-cuenta", "leer-aceptacion", c.de, "-");
+        const ctl = permiso.controladores.find((x) => x.huella === c.de);
+        if (!ctl || ctl.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "no-autorizado", "leer-aceptacion", c.de, "-");
+        if (!(await verificarFirma(this.d.subtle, ctl.spki, o.bytes, o.firma))) return this.respuesta(c.nonce, false, "firma", "leer-aceptacion", c.de, "-");
+        if (c.para !== this.d.neuronaPropia()) return this.respuesta(c.nonce, false, "otro-destino", "leer-aceptacion", c.de, "-");
+        const ahora = this.d.ahora();
+        const t = Date.parse(c.t);
+        const cad = Date.parse(c.caduca);
+        if (Math.abs(ahora - t) > DESFASE_MAX_MS || cad <= ahora || cad - t > VIDA_ORDEN_MS || cad < t) return this.respuesta(c.nonce, false, "caducada", "leer-aceptacion", c.de, "-");
+        if (!this.tope(c.de)) return this.respuesta(c.nonce, false, "limite", "leer-aceptacion", c.de, "-");
+        // Controlador aceptado: devolvemos ok con información de aceptación
+        return this.respuesta(c.nonce, true, "ok", "leer-aceptacion", c.de, "ver", {
+            aceptado: true,
+            nombre: ctl.nombre,
+            nivel: permiso.nivel,
+            desde: ctl.desde,
+            ...(ctl.limite ? { limite: ctl.limite } : {}),
+            ...(ctl.aceptadoEn ? { aceptadoEn: ctl.aceptadoEn } : {}),
+        });
     }
 
     private async presentarse(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {

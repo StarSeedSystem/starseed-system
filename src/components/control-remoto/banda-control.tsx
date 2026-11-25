@@ -541,7 +541,11 @@ export function ControlEntreNeuronasPanel() {
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                    // Si ya está aceptado en este aparato, no mostramos el rechazo (CTL1124F)
+                    const yaAceptado = permiso?.controladores.some((c) => c.huella === objetivo) ?? false;
+                    if (!yaAceptado) {
+                        setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                    }
                     setEsperando(null);
                 } else if (Date.now() - t0 > 5 * 60_000) {
                     setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
@@ -553,7 +557,7 @@ export function ControlEntreNeuronasPanel() {
             if (reloj.current) clearInterval(reloj.current);
             reloj.current = null;
         };
-    }, [esperando]);
+    }, [esperando, permiso]);
 
     // IND1115F: lo que Rust sabe del indicador de este aparato (nada fuera de la app nativa).
     const leerIndicador = useCallback(() => void estadoIndicadorNativo().then(setIndicador), []);
