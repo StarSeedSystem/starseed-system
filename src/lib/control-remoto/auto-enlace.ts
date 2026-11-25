@@ -152,6 +152,20 @@ export function tocaReevaluar(ultima: number, ahora: number, fallo: boolean): bo
     return fallo || ahora - ultima >= REEVALUAR_MS;
 }
 
+/**
+ * CTL1124F · quién pide abrir una sesión de control. Solo una pulsación de la persona («Pedir controlarla desde
+ * aquí» o «Abrir ventana de control») abre o reabre; latidos, sondeos, reintentos y eventos automáticos no.
+ */
+export type QuienPideAbrir = "persona" | "automatico";
+
+/**
+ * CTL1124F · tras una parada terminal (la persona terminó, la otra neurona terminó por el dueño, se apagó el
+ * permiso…) nada automático reabre la sesión: hace falta otra pulsación de la persona.
+ */
+export function puedeAbrirSesion(quien: QuienPideAbrir, paradaTerminal: boolean): boolean {
+    return quien === "persona" || !paradaTerminal;
+}
+
 /** `control-medio cambio de=… a=… causa=… ms=N kbps=N` (mismo estilo clave=valor que el resto de líneas `control-*`). */
 export function lineaCambioMedio(p: { de: EnlaceAuto | MedioReal | null; a: EnlaceAuto | null; causa: string; ms: number | null; kbps: number | null; uso?: "ordenes" | "pantalla" }): string {
     const ficha = (x: EnlaceAuto | MedioReal | null): string => {

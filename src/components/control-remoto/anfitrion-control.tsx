@@ -17,6 +17,7 @@ import { registroGlobal } from "@/lib/control-remoto/registro-sesiones";
 import { actualizarVentanasActivas } from "@/lib/control-remoto/ventanas-activas";
 import { palabrasMotivo } from "@/lib/control-remoto/palabras";
 import { fuentePedidaValida, type FuentePedida, FUENTE_DEFECTO } from "@/lib/control-remoto/fuente-pantalla";
+import { puedeAbrirSesion, type QuienPideAbrir } from "@/lib/control-remoto/auto-enlace"; // CTL1124F
 import {
     type AjustesSesion,
     AJUSTES_DEFECTO,
@@ -32,6 +33,9 @@ interface Abierta {
 }
 
 let abiertas: Abierta[] = [];
+/** CTL1124F: neuronas cuyo control terminó la persona: ningún evento automático las reabre hasta otra pulsación. */
+const terminadas = new Set<string>();
+const claveNeurona = (neurona: string) => neurona.trim().toLowerCase();
 const oyentes = new Set<() => void>();
 const avisar = () => {
     actualizarVentanasActivas(abiertas);
@@ -106,8 +110,12 @@ function guardarAjustes(neuronaId: string, ajustes: AjustesSesion): void {
 }
 
 /** Abre la ventana flotante de esa neurona (si ya estaba abierta, no hace nada). */
-export function abrirVentanaControl(neurona: string, nombre: string): boolean {
+export function abrirVentanaControl(neurona: string, nombre: string, quien: QuienPideAbrir = "persona"): boolean {
     if (!RE_ID.test(neurona)) return false;
+    const clave = claveNeurona(neurona);
+    // CTL1124F: solo una pulsación de la persona vuelve a abrir; un evento automático no resucita lo terminado.
+    if (!puedeAbrirSesion(quien, terminadas.has(clave))) return false;
+    if (quien === "persona") terminadas.delete(clave);
     if (abiertas.some((a) => a.neurona === neurona)) return true;
     abiertas = [...abiertas, { neurona, nombre: (nombre || "otra neurona").slice(0, 40) }];
     avisar();
@@ -133,6 +141,7 @@ export function useVentanasAbiertas(): readonly Abierta[] {
 export async function terminarControlDe(neurona: string): Promise<void> {
     const objetivo = neurona.trim();
     if (!objetivo) return;
+    terminadas.add(claveNeurona(objetivo));
     for (const a of [...abiertas]) {
         if (a.neurona.toLowerCase() === objetivo.toLowerCase()) cerrarVentanaControl(a.neurona);
     }
@@ -160,6 +169,8 @@ export function direccionPaginaControl(neurona: string, nombre: string): string 
 /** Abre la pestaña propia; si el aparato no deja abrir pestañas, navega en la misma. */
 export function abrirPaginaControl(neurona: string, nombre: string): void {
     if (typeof window === "undefined" || !RE_ID.test(neurona)) return;
+    // CTL1124F: abrir la pestaña es una pulsación de la persona: vuelve a permitir su sesión.
+    terminadas.delete(claveNeurona(neurona));
     const url = direccionPaginaControl(neurona, nombre);
     const w = window.open(url, "_blank");
     if (!w) window.location.assign(url);
@@ -252,6 +263,9 @@ export function VentanaRemota({
             alEnviar={(e) => void p.enviar(e)}
             alCerrar={() => {
                 p.cerrar();
+                // CTL1124F: «Terminar control» termina de verdad: corta también los latidos y cualquier otra
+                // sesión saliente hacia esa neurona, para que no la reabran solos a los pocos segundos.
+                void terminarControlDe(neurona);
                 alCerrada?.();
             }}
         />
@@ -265,7 +279,7 @@ export function AnfitrionControl() {
         const f = (e: Event) => {
             const d = (e as CustomEvent<{ neurona?: string; nombre?: string }>).detail;
             if (d && typeof d.neurona === "string")
-                abrirVentanaControl(d.neurona, typeof d.nombre === "string" ? d.nombre : "");
+                abrirVentanaControl(d.neurona, typeof d.nombre === "string" ? d.nombre : "", "automatico");
         };
         window.addEventListener("starseed:control-ventana-abrir", f);
         return () => window.removeEventListener("starseed:control-ventana-abrir", f);

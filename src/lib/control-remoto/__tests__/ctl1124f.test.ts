@@ -13,6 +13,7 @@ import {
     permisoDeFabrica,
     type PermisoControl,
 } from "../sesion";
+import { puedeAbrirSesion } from "../auto-enlace";
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
 const CUENTA = "cuenta-alex";
@@ -89,6 +90,13 @@ describe("CTL1124F · reglas puras", () => {
         for (const motivo of ["sin-sesion", "sesion-caducada", "repetida", "limite", "ok"]) {
             expect(noReabreSola(motivo)).toBe(false);
         }
+    });
+
+    it("solo una pulsación de la persona reabre tras una parada terminal", () => {
+        expect(puedeAbrirSesion("persona", true)).toBe(true);
+        expect(puedeAbrirSesion("persona", false)).toBe(true);
+        expect(puedeAbrirSesion("automatico", false)).toBe(true);
+        expect(puedeAbrirSesion("automatico", true)).toBe(false);
     });
 });
 
