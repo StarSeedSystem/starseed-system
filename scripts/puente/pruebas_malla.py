@@ -43,8 +43,7 @@ ANTenas = ("ble", "wifi", "malla")
 
 MAC_LOGS = Path.home() / "Library/Logs/app.starseed.os"
 MAGGABOX_HOST = "maggasukha@starseed-nodo-1.local"
-MAGGABOX_KEY = Path.home() / ".ssh/starseed_nodo1"
-MAGGABOX_LOGS = Path("~/.local/share/app.starseed.os").expanduser()
+MAGGABOX_LOGS = "$HOME/.local/share/app.starseed.os"
 TABLETA_PKG = "app.starseed.os"
 
 
@@ -245,25 +244,33 @@ def _leer_archivo_log(ruta: Path) -> list[str]:
         return []
 
 
+def opciones_ssh(casa=None):
+    """PURA. Opciones de ssh a la Maggabox: IPv4 y rutas del host expandidas."""
+    hogar = Path.home() if casa is None else Path(casa)
+    return [
+        "-o", "AddressFamily=inet",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=8",
+        "-o", "UserKnownHostsFile=" + str(hogar / ".ssh" / "known_hosts_starseed_nodo"),
+    ]
+
+
+def comando_ssh(comando: str, casa=None) -> list[str]:
+    """PURA. argv de ssh a la Maggabox con la clave y el known_hosts expandidos."""
+    hogar = Path.home() if casa is None else Path(casa)
+    return ["ssh", "-i", str(hogar / ".ssh" / "starseed_nodo1"), *opciones_ssh(casa), MAGGABOX_HOST, comando]
+
+
+def ruta_logs_maggabox() -> str:
+    """PURA. `$HOME` lo expande el shell del nodo; aquí sería la casa equivocada."""
+    return MAGGABOX_LOGS
+
+
 def _ejecutar_ssh(comando: str) -> list[str]:
     """Ejecuta comando por SSH en Maggabox. Devuelve líneas de stdout."""
-    cmd = [
-        "ssh",
-        "-i",
-        str(MAGGABOX_KEY),
-        "-o",
-        "IdentitiesOnly=yes",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=8",
-        "-o",
-        f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}",
-        MAGGABOX_HOST,
-        comando,
-    ]
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        res = subprocess.run(comando_ssh(comando), capture_output=True, text=True, timeout=15)
         if res.returncode != 0:
             return [f"SSH_ERROR: {res.stderr.strip()}"]
         return res.stdout.splitlines()
