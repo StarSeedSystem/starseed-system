@@ -20,8 +20,8 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
-import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { CUADROS_POR_MEDIDA, EMPUJE_TOPE_MS, FPS_OBJETIVO_MALLA, RITMO_INICIAL, fpsDesdeIntervalo, intervaloEmpujeMs, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
@@ -295,6 +295,8 @@ export class PantallaDestino {
     private readonly carrilCompartido: { cola: Promise<unknown> };
     private reintentadas = new WeakSet<object>();
     private enMalla = false; // CTL1118M
+    /** CTL1124E: true mientras una orden `pantalla-cuadro` está en vuelo (las lecturas le ceden el carril). */
+    private pantallaEnCurso = false;
     private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void } | null = null;
     private inicioConexion = 0;
     /** CTL1119B: estado de calidad (cuadros, acuses, métricas). */
@@ -577,6 +579,7 @@ export class PantallaDestino {
         let t0fps = this.d.ahora();
         let ultimaLinea = t0fps;
         let pintados = 0; // DIR1125B
+        let descartados = 0; // CTL1124E: cuadros viejos que el empuje deja atrás
         const tInicioMalla = t0fps;
         while (!this.cerrada && this.enMalla) {
             if (this.cola.length > 0) await m.esperar(0);
@@ -590,7 +593,13 @@ export class PantallaDestino {
                 ? { desde, pide: 0, nivel: plan.nivel, maxParte }
                 : { desde, pide: 0, nivel: plan.nivel };
             const t0 = this.d.ahora();
-            const r = await this.orden("pantalla-cuadro", argsP0, "ver", 4000);
+            this.pantallaEnCurso = true;
+            let r: RespuestaOrden;
+            try {
+                r = await this.orden("pantalla-cuadro", argsP0, "ver", 4000);
+            } finally {
+                this.pantallaEnCurso = false;
+            }
             if (this.cerrada) return;
             if (!r.ok) {
                 if (r.motivo === "pausa-local") {
@@ -613,6 +622,11 @@ export class PantallaDestino {
                 continue;
             }
             vacios = 0;
+            // CTL1124E: si el cuadro que llegó ya no es más nuevo que el pintado, es viejo: se descarta y se pide el último.
+            if (Number(res.num) <= desde) {
+                descartados += 1;
+                continue;
+            }
             const p0 = leerParte(res);
             if (!p0) {
                 fallos += 1;
@@ -677,6 +691,9 @@ export class PantallaDestino {
                 if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: (jpeg.length * 8) / Math.max(1, ms), nivel: estado.nivel }));
             }
             const ahora = this.d.ahora();
+            // CTL1124E: el empuje adapta el intervalo al retardo medido (con suelo y tope); con el enlace directo a 44 ms y base de 5 fps salen 5 cuadros/s.
+            const retardo = this.medidaLatencia ?? 0;
+            const intervalo = intervaloEmpujeMs(retardo, 1000 / FPS_OBJETIVO_MALLA, EMPUJE_TOPE_MS);
             if (ahora - t0fps >= 1000) {
                 const fps = (cuadros * 1000) / (ahora - t0fps);
                 cuadros = 0;
@@ -685,9 +702,11 @@ export class PantallaDestino {
                 if (ahora - ultimaLinea >= 5000) {
                     ultimaLinea = ahora;
                     this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: fps, kbps: (jpeg.length * 8) / Math.max(1, ms) }));
+                    this.anotar(lineaEmpuje({ intervaloMs: intervalo, retardoMs: retardo, descartados, fps: fpsDesdeIntervalo(intervalo) }));
                 }
             }
-            if (plan.pausaMs) await m.esperar(plan.pausaMs);
+            // CTL1124E: se espera el intervalo del empuje (nunca menos que la pausa del camino), no una orden por cuadro.
+            await m.esperar(Math.max(intervalo, plan.pausaMs));
         }
     }
 
@@ -777,6 +796,8 @@ export class PantallaDestino {
 
     private async leerAparato(): Promise<void> {
         if (this.cerrada || !this.token) return;
+        // CTL1124E: la pantalla manda; la lectura cede su turno si un cuadro está en vuelo (no compite con el empuje).
+        if (this.enMalla && this.pantallaEnCurso && debeCederOrden("leer-aparato", "pantalla-cuadro")) return;
         const r = await this.orden("leer-aparato", {}, "ver");
         if (this.cerrada || !r.ok) return;
         // CTL1118F: la fuente REAL ahora (si la fluida se aceptó o se cortó a media sesión, la ventana lo sabe sin reabrir nada).

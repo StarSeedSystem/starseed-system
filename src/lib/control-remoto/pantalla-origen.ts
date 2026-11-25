@@ -19,7 +19,7 @@ import type { RespuestaOrden } from "./orden";
 import { Reensamblador, leerParte, trocear, type ParteSenal } from "./senal-partes";
 import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
-import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
+import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, descartarCuadroViejo, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
 import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS, debeAvisarPantallaFluida, estadoCuadros, lineaProyeccionNoAceptada, lineaSinCuadros } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
@@ -698,9 +698,14 @@ export class OrigenPantalla {
         a.mallaHasta = this.d.ahora() + VIGENCIA_MALLA_MS;
         const pide = Number(args.pide);
         if (pide > 0) {
+            // CTL1124E: si el cuadro congelado ya no es el último (llegó uno nuevo por el empuje), se descarta el viejo:
+            // el que manda tendrá que volver a pedir la parte 0 con el número nuevo en vez de completar un cuadro atrasado.
             const e = a.envio;
-            if (!e || e.num !== Number(args.num) || !e.partes[pide]) throw new Error("cuadro-cambiado");
-            return { ...e.partes[pide] };
+            const u = this.ultimoCompartido ?? a.ultimo;
+            if (e && u && descartarCuadroViejo(true, u.numero > e.num)) a.envio = null;
+            const e2 = a.envio;
+            if (!e2 || e2.num !== Number(args.num) || !e2.partes[pide]) throw new Error("cuadro-cambiado");
+            return { ...e2.partes[pide] };
         }
         const u = this.ultimoCompartido ?? a.ultimo;
         if (!u || u.numero <= Number(args.desde)) return { nuevo: false, numero: u?.numero ?? 0 };
