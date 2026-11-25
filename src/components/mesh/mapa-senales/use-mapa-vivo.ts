@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLatido } from "@/lib/perf/latido-compartido"; // DIR1125L
 import { useMeshState } from "@/ai/astraura/mesh";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
@@ -60,21 +61,8 @@ const MEDIDA_MS = 30_000;
 
 /** Un reloj que se detiene mientras la pestaña está oculta (nada late para nadie). */
 export function useAhora(cadaMs = REFRESCO_MS): number {
-  const [ahora, setAhora] = useState(() => Date.now());
-  useEffect(() => {
-    let t: ReturnType<typeof setInterval> | null = null;
-    const parar = () => { if (t) { clearInterval(t); t = null; } };
-    const arrancar = () => {
-      parar();
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      t = setInterval(() => setAhora(Date.now()), cadaMs);
-    };
-    const alCambiar = () => { if (document.visibilityState === "visible") setAhora(Date.now()); arrancar(); };
-    arrancar();
-    document.addEventListener("visibilitychange", alCambiar);
-    return () => { parar(); document.removeEventListener("visibilitychange", alCambiar); };
-  }, [cadaMs]);
-  return ahora;
+  // DIR1125L: un solo reloj por periodo para toda la página (antes, uno por cada componente que usa el mapa).
+  return useLatido(cadaMs);
 }
 
 export interface MapaVivo {

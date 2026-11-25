@@ -6,8 +6,9 @@
  * `ble://cambio`; fuera de la app nativa devuelve null (en el navegador no hay Bluetooth directo).
  */
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { esAppNativa, puenteNativo } from "@/lib/nativa/puente";
+import { suscribirLatido } from "@/lib/perf/latido-compartido"; // DIR1125L
 import {
   COMANDO_ABRIR_BLE,
   COMANDO_ACTIVAR_BLE,
@@ -21,37 +22,71 @@ import {
 } from "./bluetooth-directo";
 import { CLAVE_CANAL_RAPIDO_BLE, fijarCanalRapido, leerAjusteCanalRapido, type DepsAjusteCanalRapido } from "./canal-rapido-ajuste"; // BLE1109B
 
+// DIR1125L: un solo sondeo y una sola escucha del Bluetooth directo para todas las copias del gancho. Antes cada copia
+// (4-5 en /senales) llamaba a `ble_estado` cada 15 s por su cuenta y se pintaba aparte; el estado es el mismo para todas.
+let estadoBleCompartido: EstadoBleNativo | null = null;
+const oyentesBle = new Set<() => void>();
+let apagarBle: (() => void) | null = null;
+
+function publicarBle(e: EstadoBleNativo | null): void {
+  if (e === estadoBleCompartido) return;
+  estadoBleCompartido = e;
+  for (const o of Array.from(oyentesBle)) {
+    try {
+      o();
+    } catch {
+      /* un oyente roto no para a los demás */
+    }
+  }
+}
+
+function encenderBle(): () => void {
+  let vivo = true;
+  let baja: (() => void) | null = null;
+  const p = puenteNativo();
+  const leer = () => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    void p.llamar<unknown>(COMANDO_ESTADO_BLE).then((r) => {
+      if (vivo && r.ok) publicarBle(leerEstadoBle(r.valor));
+    });
+  };
+  leer();
+  const dejarLatido = suscribirLatido(15_000, leer);
+  void p
+    .escuchar(EVENTO_CAMBIO_BLE, (x) => {
+      const e = leerEstadoBle(x);
+      if (vivo && e) publicarBle(e);
+    })
+    .then((q) => {
+      if (vivo) baja = q;
+      else q();
+    });
+  return () => {
+    vivo = false;
+    dejarLatido();
+    baja?.();
+  };
+}
+
+function suscribirBle(oyente: () => void): () => void {
+  oyentesBle.add(oyente);
+  if (oyentesBle.size === 1 && apagarBle === null && esAppNativa()) apagarBle = encenderBle();
+  return () => {
+    oyentesBle.delete(oyente);
+    if (oyentesBle.size === 0 && apagarBle) {
+      const a = apagarBle;
+      apagarBle = null;
+      a();
+    }
+  };
+}
+
+const estadoBleActual = (): EstadoBleNativo | null => estadoBleCompartido;
+const estadoBleServidor = (): EstadoBleNativo | null => null;
+
+/** El estado del Bluetooth directo (null fuera de la app nativa). Lee `ble_estado` al montar el primero y cada 15 s, y escucha `ble://cambio`. */
 export function useEstadoBluetooth(): EstadoBleNativo | null {
-  const [estado, setEstado] = useState<EstadoBleNativo | null>(null);
-  useEffect(() => {
-    if (!esAppNativa()) return;
-    let vivo = true;
-    let baja: (() => void) | null = null;
-    const p = puenteNativo();
-    const leer = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      void p.llamar<unknown>(COMANDO_ESTADO_BLE).then((r) => {
-        if (vivo && r.ok) setEstado(leerEstadoBle(r.valor));
-      });
-    };
-    leer();
-    const t = setInterval(leer, 15_000);
-    void p
-      .escuchar(EVENTO_CAMBIO_BLE, (x) => {
-        const e = leerEstadoBle(x);
-        if (vivo && e) setEstado(e);
-      })
-      .then((q) => {
-        if (vivo) baja = q;
-        else q();
-      });
-    return () => {
-      vivo = false;
-      clearInterval(t);
-      baja?.();
-    };
-  }, []);
-  return estado;
+  return useSyncExternalStore(suscribirBle, estadoBleActual, estadoBleServidor);
 }
 
 /** Encender o apagar el Bluetooth directo (se guarda en la app). */

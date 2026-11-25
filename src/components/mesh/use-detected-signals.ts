@@ -54,6 +54,7 @@ import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
 // (BLE1108A) Vecinos oídos por el Bluetooth directo de la app nativa, como señales reales con su RSSI.
 import { senalesBluetoothDirecto } from "@/lib/malla/bluetooth-directo";
 import { useEstadoBluetooth } from "@/lib/malla/bluetooth-directo-estado";
+import { suscribirLatido } from "@/lib/perf/latido-compartido"; // DIR1125L
 // (WFD1108A) El enlace Wi-Fi directo activo con una neurona, en su señal del Radar y de Señales.
 import { enriquecerConEnlaceWifi } from "@/ai/astraura/mesh/senales-enlace-wifi";
 import { enlacesWifiActivos, suscribirEnlacesWifi } from "@/lib/malla/enlace-wifi-orquestacion";
@@ -293,11 +294,10 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
     return () => { vivo = false; clearInterval(t); };
   }, []);
 
-  /* Latido lento: refresca "hace X" y la calidad por frescura sin re-render loco. */
-  useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 15_000);
-    return () => clearInterval(t);
-  }, []);
+  /* Latido lento: refresca "hace X" y la calidad por frescura sin re-render loco.
+     DIR1125L: en el reloj compartido de 15 s, todas las copias de este gancho (4-5 en /senales) laten en el mismo
+     instante y React las pinta en UNA pasada, no en 4-5 seguidas. Con la pestaña oculta no late. */
+  useEffect(() => suscribirLatido(15_000, () => setTick((n) => n + 1)), []);
 
   const now = Date.now();
   const freshBle = useMemo(
