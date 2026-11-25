@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "ALM1125B",
+   "ola": "almacen-1125",
+   "titulo": "Informe: la Maggabox como medio de trabajo de MetaGenesis (como el nodo del A1)",
+   "archivos": [
+    "architecture/almacenamiento-distribuido.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` y regla `memory/orquestacion-economica.md` §24 (léelos antes). La Maggabox se alcanza por ssh `maggasukha@starseed-nodo-1.local` con `os.path.expanduser('~/.ssh/starseed_nodo1')`, `-o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o AddressFamily=inet` y `-o UserKnownHostsFile=` + `os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')` (modelo: `scripts/puente/sonda_maggabox.py`).\n\nSolo informe, sin código: lee `scripts/puente/oracle_a1.py`, `oracle_nodo.py`, `repartir_nube.py` y `asignar_huecos.py` y añade al contrato una sección «Maggabox como medio de trabajo» con los cambios exactos (archivos, funciones, servicio de usuario systemd SIN root en la Maggabox, colas `colas/maggabox-*`, cómo el guardián del disco presta ahí cuando la Mac está baja). Máximo 60 líneas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "ALM1125B"
+  ]
+ }
+}
