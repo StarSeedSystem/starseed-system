@@ -54,7 +54,7 @@ CATALOGO = {
     "google":     {"nombre": "Google AI Studio (Gemini)", "enlace": "https://aistudio.google.com/apikey",
                    "humano": True, "nota": "Gemini gratis con cupo diario (GEMINI_API_KEY). Escribe con herramientas y 1M de contexto."},
 "huggingface": {"nombre": "Hugging Face", "enlace": "https://huggingface.co/settings/tokens",
-                    "humano": True, "nota": "Inference API con cuota mensual gratuita."},
+                    "humano": True, "nota": "Inference Providers con créditos MENSUALES gratuitos (0,10 $/mes en cuenta gratuita, 2 $ con PRO). Un 402 «Purchase pre-paid credits» es ese crédito agotado: se repone al empezar el mes; no hay fichaje. Pagar PRO o créditos es decisión de Alex."},
     "freellmapi": {"nombre": "FreeLLMAPI (local :3001)", "enlace": "https://github.com/tashfeenahmed/freellmapi",
                      "humano": True, "nota": "Pasarela unificada local; la clave freellmapi-… se crea en su panel y se guarda como FREELLMAPI_KEY."},
     "abliteration": {"nombre": "abliteration.ai", "enlace": "https://abliteration.ai/",
@@ -91,6 +91,13 @@ _PISTAS = (
     ("daily check-in required", FICHAJE),
     ("check-in required", FICHAJE),
     ("checkin required", FICHAJE),
+    # (DIR1125Q, 25-11) Hugging Face contesta 402 «Purchase pre-paid credits to continue using Inference
+    # Providers. Alternatively, subscribe to PRO to get monthly included credits»: son los créditos MENSUALES
+    # gratuitos agotados (0,10 $/mes en cuenta gratuita), no un fichaje. Sin estas pistas el 402 caía en
+    # FICHAJE y «Te toca a ti» le pedía a Alex pulsar un botón que no existe.
+    ("pre-paid credits", SIN_CUPO),
+    ("monthly included credits", SIN_CUPO),
+    ("depleted your monthly", SIN_CUPO),
     # (CAP1119A, 19-11) apinex contestó 402 «sin crédito» y el informe lo archivó
     # como «modelo fuera», así que acciones-de-alex.json no pedía el fichaje.
     # Un 402 (payment required), una verificación humana o un «sin crédito»
