@@ -19,6 +19,7 @@ vi.mock("@/lib/control-remoto/canal", () => ({
     guardarPermisoLocal: () => undefined,
     puertaControl: () => null,
     presentarmeA: async () => ({ ok: true }),
+    sondearAceptacion: async () => ({ ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Maggaboard", sinLimite: true } }),
 }));
 vi.mock("@/lib/chats-genesis/firma-aparato", () => ({
     aparatoLocal: async () => ({ codigo: "A1B2" }),

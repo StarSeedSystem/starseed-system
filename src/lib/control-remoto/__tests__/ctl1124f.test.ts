@@ -116,18 +116,15 @@ describe("CTL1124F · sondear: comprueba aceptación SIN abrir sesión", () => {
         registro = new RegistroSesiones(() => ++t, async () => undefined);
     });
 
-    it("sondear() usa 'leer-estado' y cierra la sesión si la abrió el sondeo", async () => {
+    it("sondear() usa 'sondear-aceptacion' y NO abre sesión", async () => {
         await emparejar();
         const sesion = await abrirSesion();
 
         const enviadas: string[] = [];
         const mandar = vi.fn(async (_para: string, nombre: string, _args: unknown, o: { sesion?: string | null } = {}) => {
             enviadas.push(nombre);
-            if (nombre === "abrir-sesion") {
-                return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { sesion: "tok-sondeo-1234", nivel: "controlar" } };
-            }
-            if (nombre === "cerrar-sesion") {
-                return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok" };
+            if (nombre === "sondear-aceptacion") {
+                return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Mac", sinLimite: true } };
             }
             return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { ruta: "/mensajes" } };
         });
@@ -136,24 +133,25 @@ describe("CTL1124F · sondear: comprueba aceptación SIN abrir sesión", () => {
         const r = await sesionHacia.sondear();
 
         expect(r.ok).toBe(true);
-        // Abre, lee-estado, cierra
-        expect(enviadas).toEqual(["abrir-sesion", "leer-estado", "cerrar-sesion"]);
+        expect(r.resultado).toMatchObject({ aceptado: true, nombre: "Mac", sinLimite: true });
+        // Solo envía sondear-aceptacion, no abre ni cierra sesión
+        expect(enviadas).toEqual(["sondear-aceptacion"]);
         // No queda sesión viva en el registro
         expect(sesionHacia["token"]).toBeNull();
     });
 
-    it("sondear() NO cierra la sesión si ya estaba tomada (p. ej. por la ventana de control)", async () => {
+    it("sondear() NO afecta la sesión si ya estaba tomada (p. ej. por la ventana de control)", async () => {
         await emparejar();
         const sesion = await abrirSesion();
 
         const enviadas: string[] = [];
         const mandar = vi.fn(async (_para: string, nombre: string, _args: unknown, o: { sesion?: string | null } = {}) => {
             enviadas.push(nombre);
+            if (nombre === "sondear-aceptacion") {
+                return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Mac", sinLimite: true } };
+            }
             if (nombre === "abrir-sesion") {
                 return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { sesion: "tok-existente-5678", nivel: "controlar" } };
-            }
-            if (nombre === "cerrar-sesion") {
-                return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok" };
             }
             return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { ruta: "/mensajes" } };
         });
@@ -169,10 +167,32 @@ describe("CTL1124F · sondear: comprueba aceptación SIN abrir sesión", () => {
         const r = await sesionHacia.sondear();
 
         expect(r.ok).toBe(true);
-        // Solo hace leer-estado, no abre ni cierra
-        expect(enviadas).toEqual(["leer-estado"]);
+        expect(r.resultado).toMatchObject({ aceptado: true, nombre: "Mac", sinLimite: true });
+        // Solo envía sondear-aceptacion, no toca la sesión existente
+        expect(enviadas).toEqual(["sondear-aceptacion"]);
         // La sesión original sigue viva
         expect(sesionHacia["token"]).toBe("tok-existente-5678");
+    });
+
+    it("sondear() devuelve no-autorizado si el controlador no está aceptado", async () => {
+        await emparejar();
+        // No aceptar al controlador, solo presentarse
+
+        const enviadas: string[] = [];
+        const mandar = vi.fn(async (_para: string, nombre: string, _args: unknown, o: { sesion?: string | null } = {}) => {
+            enviadas.push(nombre);
+            if (nombre === "sondear-aceptacion") {
+                return { tipo: "respuesta" as const, nonce: "", ok: false, motivo: "no-autorizado" };
+            }
+            return { tipo: "respuesta" as const, nonce: "", ok: true, motivo: "ok", resultado: { ruta: "/mensajes" } };
+        });
+
+        const sesionHacia = new SesionHacia("mac-test-3", mandar, registro);
+        const r = await sesionHacia.sondear();
+
+        expect(r.ok).toBe(false);
+        expect(r.motivo).toBe("no-autorizado");
+        expect(enviadas).toEqual(["sondear-aceptacion"]);
     });
 });
 

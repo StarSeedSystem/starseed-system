@@ -371,12 +371,10 @@ export function suscribirSesionesSalientes(cb: () => void): () => void {
     return registroGlobal.suscribir(cb);
 }
 
-/** CTL1124F: comprueba si la otra neurona nos tienen aceptados SIN abrir una sesión de control permanente.
- *  Usa `sondear()` que abre, lee-estado, y cierra si la abrió el sondeo. */
+/** CTL1124F: comprueba si la otra neurona nos tiene aceptados SIN abrir una sesión de control.
+ *  Usa la acción `sondear-aceptacion` que no requiere sesión. */
 export async function sondearAceptacion(para: string): Promise<RespuestaOrden> {
-    const { registroGlobal } = await import("./registro-sesiones");
-    const sesion = new SesionHacia(para, mandarOrden, registroGlobal);
-    return sesion.sondear();
+    return mandarOrden(para, "sondear-aceptacion", {}, { nivel: "ver" });
 }
 
 /** DIR1125B: las sesiones «hacia» vivas en esta página (las del banco): al terminar el control hay que parar también su latido. */
@@ -503,16 +501,7 @@ export class SesionHacia {
      * CTL1124F: abre explícitamente si hace falta, lee, y cierra solo si la abrió el sondeo.
      */
     async sondear(): Promise<RespuestaOrden> {
-        const yaHabiaToken = this.token !== null;
-        if (!yaHabiaToken) {
-            const a = await this.abrir();
-            if (!a.ok) return a;
-        }
-        try {
-            return await this.orden("leer-estado");
-        } finally {
-            if (!yaHabiaToken) await this.cerrar();
-        }
+        return this.mandar(this.para, "sondear-aceptacion", {}, { nivel: "ver" });
     }
 
     async cerrar(): Promise<void> {

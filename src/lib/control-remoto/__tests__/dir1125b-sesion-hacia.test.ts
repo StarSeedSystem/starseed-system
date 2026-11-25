@@ -23,6 +23,9 @@ function aparato() {
             abiertas.delete(String(o.sesion));
             return resp(true, "ok");
         }
+        if (nombre === "sondear-aceptacion") {
+            return resp(true, "ok", { aceptado: true, nombre: "Test", sinLimite: true });
+        }
         if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
         return resp(true, "ok", {});
     };
@@ -35,13 +38,13 @@ afterEach(async () => {
 });
 
 describe("DIR1125B · SesionHacia", () => {
-    it("sondear abre, pregunta y cierra: no queda ninguna sesión de control abierta", async () => {
+    it("sondear usa sondear-aceptacion y NO abre sesión de control", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.sondear()).ok).toBe(true);
-        expect(a.vistas).toEqual(["abrir-sesion", "leer-estado", "cerrar-sesion"]);
+        expect(a.vistas).toEqual(["sondear-aceptacion"]);
         expect(a.abiertas.size).toBe(0);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
@@ -51,24 +54,28 @@ describe("DIR1125B · SesionHacia", () => {
         const vistas: string[] = [];
         const mandar = (async (_p: string, nombre: string) => {
             vistas.push(nombre);
-            return resp(false, "no-autorizado");
+            if (nombre === "sondear-aceptacion") {
+                return resp(false, "no-autorizado");
+            }
+            return resp(true, "ok");
         }) as unknown as ConstructorParameters<typeof SesionHacia>[1];
         const s = new SesionHacia(NEURONA, mandar, reg);
         vivas.push(s);
         const r = await s.sondear();
         expect(r.ok).toBe(false);
         expect(r.motivo).toBe("no-autorizado");
-        expect(vistas).toEqual(["abrir-sesion"]);
+        expect(vistas).toEqual(["sondear-aceptacion"]);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
 
-    it("con la sesión ya tomada aquí (serie armada), sondear no la cierra", async () => {
+    it("con la sesión ya tomada aquí (serie armada), sondear no la toca", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.orden("leer-estado")).ok).toBe(true);
         expect((await s.sondear()).ok).toBe(true);
+        // sondear no envía cerrar-sesion
         expect(a.vistas.includes("cerrar-sesion")).toBe(false);
         expect(a.abiertas.size).toBe(1);
     });
@@ -79,10 +86,14 @@ describe("DIR1125B · SesionHacia", () => {
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.orden("leer-estado")).ok).toBe(true);
+        // Limpiar vistas para solo medir lo que pasa en latir()
+        a.vistas.length = 0;
         s.detener();
         a.abiertas.clear(); // el aparato ya la cerró
-        expect(await s.latir()).toBe(false);
-        expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(1);
+        const result = await s.latir();
+        expect(result).toBe(false);
+        // latir no debe intentar reabrir (no debe enviar abrir-sesion ni sondear-aceptacion)
+        expect(a.vistas.filter((x) => x === "abrir-sesion" || x === "sondear-aceptacion").length).toBe(0);
     });
 });
 

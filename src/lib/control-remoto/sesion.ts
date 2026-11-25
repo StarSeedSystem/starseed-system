@@ -534,6 +534,17 @@ export class PuertaControl {
             });
         }
 
+        if (nombre === "sondear-aceptacion") {
+            this.caducarSesion();
+            const fin = ctl.limite ? finDeLimite(ctl.limite, ctl.aceptadoEn ? Date.parse(ctl.aceptadoEn) : ahora) : null;
+            return this.respuesta(c.nonce, true, "ok", nombre, c.de, c.nivel, {
+                aceptado: true,
+                nombre: ctl.nombre,
+                nivel: ctl.limite ? "controlar" : "ver",
+                ...(fin !== null ? { caduca: new Date(fin).toISOString() } : { sinLimite: true }),
+            });
+        }
+
         this.caducarSesion();
         const s = c.sesion ? this.sesiones.get(c.sesion) : undefined;
         if (!s && this.terminadoPor.has(c.de)) {

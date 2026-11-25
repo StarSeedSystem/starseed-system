@@ -249,6 +249,7 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     brillo: { nivel: "controlar", entrada: true, validar: (a) => (soloClaves(a, ["nivel"]) && unidad(a.nivel) ? { nivel: redondear(a.nivel) } : null), que: "pone el brillo del aparato (0 a 1)" },
     texto: { nivel: "controlar", entrada: true, validar: validarTexto, que: "escribe un texto (hasta 512 caracteres) en el campo con foco" },
     "simular-vuelve-ip": { nivel: "controlar", simulacion: true, validar: sinArgs, que: "SIMULACIÓN: deshace «simular-corte-ip»" },
+    "sondear-aceptacion": { nivel: "ver", sinSesion: true, validar: sinArgs, que: "comprueba si este aparato está aceptado para controlar el destino (sin abrir sesión)" },
 };
 
 export function definicion(nombre: unknown): DefAccion | null {
