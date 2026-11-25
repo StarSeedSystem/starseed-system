@@ -858,6 +858,12 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
     enfriados = pres.setdefault("enfriados", {})
     idm = mensaje["id"]
 
+    # Cerrojo por id de mensaje: si ya fue respondido en el canal director-presidente, no volver a contestar.
+    ultimas_entregas = director_chat._ultimas_entregas(raiz)
+    if ultimas_entregas.get((idm, CANAL)) == "respondido":
+        cola.pop(idm, None)
+        return "respondido"
+
     previo = cola.get(idm) or {}
     huella = huella_proveedores(datos_limites, sesion_hermes)
     if previo:

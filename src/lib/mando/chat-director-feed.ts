@@ -233,7 +233,7 @@ export function filtrarFeed(
     }
     return mensajes.filter((m) => {
         if (filtro === "conversacion") {
-            return m.rol === "alex" || (m.id.startsWith("md-") && (m.tipo === "mensaje" || m.tipo === "respuesta"));
+            return m.rol === "alex" || m.de === "director-presidente";
         }
         if (filtro === "informes") return m.tipo === "informe" || m.tipo === "aviso";
         if (filtro === "enjambre") return m.tipo === "actualizacion";

@@ -233,6 +233,28 @@ class TestAtender(Base):
         self.assertEqual([self.alex["id"]], [m["id"] for m in P.fuera_de_vista(self.estado, [])])
         self.assertEqual([], P.fuera_de_vista(self.estado, [self.alex["id"]]))
 
+    def test_cerrojo_por_id_mensaje_no_vuelve_a_contestar_si_ya_respondido(self):
+        """Si el mensaje ya fue respondido (entrega=respondido), no se vuelve a contestar."""
+        # Primera vez: se responde y se marca como respondido
+        falso = Falso(claude=claude_ok())
+        self.assertEqual("respondido", self.atender(falso))
+        self.assertEqual(1, len(falso.llamadas))
+        self.assertEqual(["claude"], falso.llamadas)
+
+        # Segunda vez: el mensaje ya tiene entrega=respondido, no debe volver a llamar a proveedores
+        # Simulamos que el chat ya tiene la entrega marcada como respondido
+        # (en la prueba real, el cartero actualizaría la entrega tras la primera respuesta)
+        # Aquí verificamos que el cerrojo funciona leyendo _ultimas_entregas
+        # Pero en el test actual, el estado se mantiene, así que el cerrojo se activa
+        # porque la entrega se marca en el chat
+        # Volvemos a llamar atender para el mismo mensaje
+        r = P.atender(self.alex, self.estado, raiz=self.raiz, correr=falso, existe=lambda n: True,
+                      limites=limites(), ahora=AHORA + 60, tope_opus=40)
+        # Debe devolver "respondido" sin volver a llamar a proveedores
+        self.assertEqual("respondido", r)
+        # No se debe haber llamado a ningún proveedor nuevo
+        self.assertEqual(1, len(falso.llamadas))
+
 
 class TestCartero(Base):
     def test_pasada_del_cartero_lleva_al_presidente(self):

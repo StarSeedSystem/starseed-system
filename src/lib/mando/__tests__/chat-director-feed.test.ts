@@ -135,13 +135,14 @@ describe("filtrarFeed", () => {
     const lista = [
         mensaje({ id: "md-1-aaaa", rol: "alex", tipo: "mensaje", de: "alex" }),
         mensaje({ id: "md-2-bbbb", tipo: "respuesta" }),
+        mensaje({ id: "md-3-cccc", rol: "director", tipo: "respuesta", de: "director-presidente" }),
         mensaje({ id: "ev-3", rol: "agente", tipo: "actualizacion", de: "enjambre" }),
         mensaje({ id: "rb-4", rol: "agente", tipo: "informe" }),
         mensaje({ id: "cn-5-x", tipo: "uso" }),
     ];
     it("cada filtro deja pasar lo suyo", () => {
-        expect(filtrarFeed(lista, "todo")).toHaveLength(5);
-        expect(filtrarFeed(lista, "conversacion").map((m) => m.id)).toEqual(["md-1-aaaa", "md-2-bbbb"]);
+        expect(filtrarFeed(lista, "todo")).toHaveLength(6);
+        expect(filtrarFeed(lista, "conversacion").map((m) => m.id)).toEqual(["md-1-aaaa", "md-3-cccc"]);
         expect(filtrarFeed(lista, "informes").map((m) => m.id)).toEqual(["rb-4"]);
         expect(filtrarFeed(lista, "enjambre").map((m) => m.id)).toEqual(["ev-3"]);
         expect(filtrarFeed(lista, "usos").map((m) => m.id)).toEqual(["cn-5-x"]);
