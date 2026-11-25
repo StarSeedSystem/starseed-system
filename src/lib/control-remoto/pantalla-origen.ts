@@ -21,7 +21,7 @@ import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
-import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS } from "./fuente-pantalla";
+import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS, debeAvisarPantallaFluida, estadoCuadros, lineaProyeccionNoAceptada, lineaSinCuadros } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
@@ -161,6 +161,9 @@ interface Activa {
     enMedida: number;
     ritmo: EstadoRitmo;
     cuadros: number;
+    /** CTL1124G: ms del último cuadro pintado (null = ninguno) y si ya se anotó que no llegan cuadros. */
+    ultimoCuadroMs: number | null;
+    sinCuadrosLogado: boolean;
     /** CTL1117C: cuadros nuevos que Rust dio a la página (los pintados son `cuadros`). */
     recibidos: number;
     cola: Promise<void>;
@@ -317,6 +320,8 @@ export class OrigenPantalla {
             enMedida: 0,
             ritmo: RITMO_INICIAL,
             cuadros: 0,
+            ultimoCuadroMs: null,
+            sinCuadrosLogado: false,
             recibidos: 0,
             cola: Promise.resolve(),
             ultimo: this.ultimoCompartido,
@@ -348,10 +353,7 @@ export class OrigenPantalla {
         }
         // CTL1119B: actualización de calidad cada 500 ms por sesión
         a.intCalidad = setInterval(() => void this.actualizarCalidad(a), 500);
-        if (!this.capturaEnMarcha) {
-            this.capturaGen += 1;
-            void this.bucleCompartido(this.capturaGen);
-        }
+        this.asegurarBucle();
         this.d.anotar(`control-fuente paso=inicio fuente=${fuente} pedida=${pedida ?? "auto"}`);
         // CTL1118F: si no se pidió explícita, la pantalla ya sale y lo fluido se busca UNA vez sin cerrar nada.
         // RST1116A: con «proyeccion» la petición ya fue la de arriba; no se repite sola.
@@ -388,6 +390,28 @@ export class OrigenPantalla {
             this.d.anotar(linea);
             marcarRegistro(a.calidad, ahora);
         }
+        this.vigilarCuadros(a, ahora);
+    }
+
+    /** CTL1124G: si la accesibilidad no da ni un cuadro, se anota y se repite UNA vez el aviso de la fluida (en el aparato). */
+    private vigilarCuadros(a: Activa, ahora: number): void {
+        if (a.parado) return;
+        // Con imagen ya recibida no se grita «sin cuadros» por una pausa local (que también la detiene a propósito).
+        if (a.cuadros > 0) {
+            a.sinCuadrosLogado = false;
+            return;
+        }
+        const estado = estadoCuadros({
+            fuente: a.fuente,
+            cuadros: a.cuadros,
+            desdeInicioMs: ahora - a.inicio,
+            desdeUltimoMs: a.ultimoCuadroMs === null ? null : ahora - a.ultimoCuadroMs,
+        });
+        if (estado !== "parada" || a.sinCuadrosLogado) return;
+        a.sinCuadrosLogado = true;
+        this.d.anotar(lineaSinCuadros(estado, a.fuente, a.cuadros));
+        const yaPedida = (this.fluidaPedidas.get(a.token) ?? 0) > 0;
+        if (debeAvisarPantallaFluida(a.fuente, estado, yaPedida)) void this.buscarFluida(a, false);
     }
 
     /** CTL1118F: `pantalla-iniciar` con `mantener`: no reabre nada (ni conexión ni canal); si la persona pide la fluida, la busca; contesta lo que hay ahora. */
@@ -450,7 +474,9 @@ export class OrigenPantalla {
                 }
             }
             if (!ok || !r || a.parado) {
-                this.d.anotar(`control-fuente paso=fluida resultado=sin-respuesta-de-la-persona esperado-ms=${Math.max(0, Math.round(this.d.ahora() - t0))} sigue=${a.fuente}`);
+                const ahora = this.d.ahora();
+                const estado = estadoCuadros({ fuente: a.fuente, cuadros: a.cuadros, desdeInicioMs: ahora - a.inicio, desdeUltimoMs: a.ultimoCuadroMs === null ? null : ahora - a.ultimoCuadroMs });
+                this.d.anotar(`${lineaProyeccionNoAceptada(a.cuadros, estado)} esperado-ms=${Math.max(0, Math.round(ahora - t0))}`);
                 return;
             }
             this.cambiarFuente(a, "proyeccion", r, `pedida`, this.d.ahora() - t0);
@@ -483,12 +509,23 @@ export class OrigenPantalla {
             act.coste = null;
             act.enMedida = 0;
             act.ritmo = RITMO_INICIAL;
+            act.ultimoCuadroMs = null;
+            act.sinCuadrosLogado = false;
             if (r) {
                 if (Number(r.ancho) > 0) act.ancho = Number(r.ancho);
                 if (Number(r.alto) > 0) act.alto = Number(r.alto);
             }
         }
         this.d.anotar(`control-fuente paso=cambio de=${antes} a=${nueva} causa=${causa} ms=${Math.max(0, Math.round(ms))} cuadros-hasta-ahora=${a.cuadros}`);
+    }
+
+    /** CTL1124G: arranca el bucle si hay alguna pantalla viva y no hay uno corriendo. Nunca lo deja «en marcha» sin bucle. */
+    private asegurarBucle(): void {
+        const r = bucleAlAbrir({ enMarcha: this.capturaEnMarcha, gen: this.capturaGen }, this.vivas().length);
+        if (!r.arrancar) return;
+        this.capturaGen = r.gen;
+        this.capturaEnMarcha = true;
+        void this.bucleCompartido(r.gen);
     }
 
     /** Bucle compartido: captura UN cuadro por tick y lo entrega a todos los controladores simultáneos. */
@@ -585,6 +622,7 @@ export class OrigenPantalla {
                     // CTL1118M: sin conexión WebRTC y con quien manda pidiendo por la malla, se entrega directo en partes sin pintar.
                     if (!a.peer && tEnv <= a.mallaHasta) {
                         a.cuadros += 1;
+                        a.ultimoCuadroMs = tEnv;
                         añadirCuadro(a.calidad, { t: tEnv, bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
                         continue;
                     }
@@ -595,6 +633,7 @@ export class OrigenPantalla {
                             .then((ok) => {
                                 if (!ok) return;
                                 a.cuadros += 1;
+                                a.ultimoCuadroMs = this.d.ahora();
                                 añadirCuadro(a.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho: h.ancho, alto: h.alto, codec: "jpeg", completo: true });
                                 if (a.token === primero.token && a.fuente === "proyeccion") {
                                     this.medirRitmo(a, this.d.ahora() - tPide);
@@ -609,9 +648,9 @@ export class OrigenPantalla {
                 }
             }
         } finally {
-            if (this.capturaGen === gen) {
-                this.capturaEnMarcha = false;
-            }
+            const r = bucleAlCerrar({ enMarcha: this.capturaEnMarcha, gen: this.capturaGen }, gen, this.vivas().length);
+            this.capturaEnMarcha = r.enMarcha;
+            if (r.rearmar) this.asegurarBucle();
         }
     }
 
@@ -847,8 +886,9 @@ export class OrigenPantalla {
             clearInterval(a.intCalidad);
             a.intCalidad = undefined;
         }
+        // CTL1124G: NO se invalida la generación aquí. Si se hiciera, el bucle saldría sin limpiar «en marcha»
+        // y la siguiente pantalla se quedaría a 0 cuadros/s; el propio bucle termina al ver que no quedan vivas.
         if (this.vivas().length === 0) {
-            this.capturaGen += 1;
             this.desdeCaptura = 0;
             this.ultimoCompartido = null;
             this.soltarOcupado?.();
@@ -889,6 +929,30 @@ export class OrigenPantalla {
 }
 
 // ── implementación real (navegador + Tauri) ──────────────────────────────────────────────────
+
+// ── CTL1124G · ciclo del bucle de captura ───────────────────────────────────────────────────────
+
+export interface EstadoBucle {
+    /** Hay un bucle de captura corriendo. */
+    enMarcha: boolean;
+    /** Generación del bucle que corre (0 = ninguno). */
+    gen: number;
+}
+
+/** Al abrir una pantalla: arrancar solo si no hay bucle y hay alguna pantalla viva; la generación sube al arrancar. */
+export function bucleAlAbrir(estado: EstadoBucle, vivas: number): { arrancar: boolean; gen: number } {
+    if (estado.enMarcha || !(vivas > 0)) return { arrancar: false, gen: estado.gen };
+    return { arrancar: true, gen: estado.gen + 1 };
+}
+
+/**
+ * Al salir un bucle: solo el dueño de la generación limpia «en marcha»; si sigue habiendo pantallas, se rearma.
+ * Un bucle viejo nunca toca el estado del actual. Así cerrar la última pantalla no deja el siguiente a 0 cuadros/s.
+ */
+export function bucleAlCerrar(estado: EstadoBucle, gen: number, vivas: number): { enMarcha: boolean; rearmar: boolean } {
+    if (estado.gen !== gen) return { enMarcha: estado.enMarcha, rearmar: false };
+    return { enMarcha: false, rearmar: vivas > 0 };
+}
 
 /** CTL1117A · S8: con la pantalla quieta no llegan cuadros nuevos y el controlador lo leía como «Sin pantalla». Si pasa `cadaMs` sin pintar, se vuelve a pedir el último cuadro (señal de vida, no imagen nueva). */
 export const LATIDO_CUADROS_MS = 1500;
