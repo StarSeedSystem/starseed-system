@@ -8,9 +8,13 @@
  * Sin tope (alto, o auto en un equipo capaz) esto ES `requestAnimationFrame`. Con tope (eco 30, eficiente 10) espera lo
  * que falte y dice cuántos pasos de 1/60 s representa el cuadro, para que la animación no vaya a cámara lenta.
  * Solo cambia el RITMO en tiempo de ejecución: no toca diseños, ajustes ni opciones guardadas.
+ *
+ * CAP1125D · un nodo Linux sin monitor conectado sigue con `document.visibilityState` en `visible`, así que la página
+ * seguiría pintando adornos que nadie ve. Además del tope del modo, aquí se aplica el tope de 1 cuadro/s por falta de
+ * pantalla. Se ignora si hay control remoto o transmisión viva: quien mira la pantalla SÍ la ve aunque no haya monitor.
  */
-import { fpsObjetivoModo, PERF_CHANGED_EVENT } from "./device-tier";
-import { MODO_CHANGED_EVENT } from "./modo-rendimiento";
+import { fpsObjetivoModo, energiaActualMedida, PERF_CHANGED_EVENT } from "./device-tier";
+import { MODO_CHANGED_EVENT, aplicarTopeFpsSinPantalla, type EstadoEnergia } from "./modo-rendimiento";
 
 export interface DepsRitmo {
   raf: (cb: FrameRequestCallback) => number;
@@ -20,6 +24,8 @@ export interface DepsRitmo {
   ahora: () => number;
   /** Cuadros por segundo que permite el modo de rendimiento; 0 = sin tope. */
   fps: () => number;
+  /** Estado de energía para el tope por falta de pantalla; sin esta función no se consulta. */
+  energia?: () => EstadoEnergia | null;
 }
 
 export interface RitmoCuadros {
@@ -74,6 +80,7 @@ function depsReales(): DepsRitmo {
     quitar: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
     ahora: () => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now()),
     fps: fpsDelModo,
+    energia: energiaActualMedida,
   };
 }
 
@@ -93,7 +100,7 @@ export function crearRitmoCuadros(deps: DepsRitmo = depsReales()): RitmoCuadros 
 
   return {
     pedir(cb) {
-      const fps = deps.fps();
+      const fps = aplicarTopeFpsSinPantalla(deps.fps(), deps.energia ? deps.energia() : undefined);
       if (!(fps > 0)) {
         idRaf = deps.raf(entrar(cb, false));
         return;
