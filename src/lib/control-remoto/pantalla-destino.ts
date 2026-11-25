@@ -443,8 +443,38 @@ export class PantallaDestino {
             if (!this.cerrada) await this.cerrar(m, true);
             return;
         }
-        if (this.cerrada) return;
-        if (this.d.malla) this.despues(ESPERA_ICE_MS, () => this.snap.estado === "conectando" && !this.enMalla && this.pasarAMalla("ice-sin-conexion"));
+if (this.cerrada) return;
+            if (this.d.malla) this.despues(ESPERA_ICE_MS, () => this.snap.estado === "conectando" && !this.enMalla && this.pasarAMalla("ice-sin-conexion"));
+            // CTL1119F: a los 10 s en "conectando" sin pantalla, avisar la causa y la vía intentada.
+            this.despues(10_000, () => {
+                if (this.snap.estado === "conectando" && !this.enMalla && !this.snap.motivo) {
+                    const causa = viaRazon?.razon ?? (this.d.malla ? "negociación WebRTC" : "sin WebRTC");
+                    this.poner({ motivo: `Conectando… (${causa}). Se intentará pantalla por cuadros.` });
+                }
+            });
+            this.despues(ESPERA_CONEXION_MS, () => {
+                if (this.snap.estado === "conectando" && !this.enMalla) void this.cerrar("sin-conexion", true);
+            });
+            this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
+            this.cada(MEDIDA_MS, () => void this.medir());
+            this.cada(INTERVALO_CALIDAD_MS, () => void this.actualizarCalidad()); // CTL1119B
+            void this.leerAparato();
+            // CTL1118M: actualizar el contador de cuadros/s y resolución para la malla
+            this.cada(VENTANA_FPS_MS, () => {
+                const ahora = this.d.ahora();
+                const dt = (ahora - this.ultimosCuadros.t) / 1000;
+                if (dt > 0) {
+                    const fps = Math.max(0, (this.ultimosCuadros.n - this.ultimosCuadrosAnteriores.n) / dt);
+                    this.poner({ fps: Math.round(fps * 10) / 10 });
+                    this.ultimosCuadrosAnteriores = { ...this.ultimosCuadros };
+                }
+            });
+            // CTL1118M: actualizar la resolución cuando se recibe un cuadro
+            this.cada(VENTANA_FPS_MS, () => {
+                if (this.ultimaResolucion && (this.snap.pantalla?.ancho !== this.ultimaResolucion.ancho || this.snap.pantalla?.alto !== this.ultimaResolucion.alto)) {
+                    this.poner({ pantalla: { ancho: this.ultimaResolucion.ancho, alto: this.ultimaResolucion.alto, giro: 0 } });
+                }
+            });
         // CTL1119F: a los 10 s en "conectando" sin pantalla, avisar la causa y la vía intentada.
         this.despues(10_000, () => {
             if (this.snap.estado === "conectando" && !this.enMalla && !this.snap.motivo) {
