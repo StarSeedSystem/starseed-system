@@ -533,21 +533,23 @@ export function ControlEntreNeuronasPanel() {
         if (!esperando) return;
         const objetivo = esperando;
         const t0 = Date.now();
-        reloj.current = setInterval(() => {
-            void import("@/lib/banco-llamadas/app").then((b) => {
-                b.informarBanco(objetivo);
-                const i = b.ultimoInforme();
-                if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    abrirVentanaControl(objetivo, nombreRef.current(objetivo));
-                    setEsperando(null);
-                } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
-                    setEsperando(null);
-                } else if (Date.now() - t0 > 5 * 60_000) {
-                    setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
-                    setEsperando(null);
-                }
-            });
+        reloj.current = setInterval(async () => {
+            const { default: b } = await import("@/lib/banco-llamadas/app");
+            // informarBanco lanza actor.comprobar() que es async; esperamos un tick para que publique el estado fresco
+            b.informarBanco(objetivo);
+            await new Promise((r) => setTimeout(r, 150));
+            const i = b.ultimoInforme();
+            if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+                abrirVentanaControl(objetivo, nombreRef.current(objetivo));
+                setEsperando(null);
+                setAviso(null); // CTL1124F: limpia aviso de rechazo previo
+            } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+                setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                setEsperando(null);
+            } else if (Date.now() - t0 > 5 * 60_000) {
+                setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
+                setEsperando(null);
+            }
         }, 6000);
         return () => {
             if (reloj.current) clearInterval(reloj.current);
@@ -761,6 +763,8 @@ export function ControlEntreNeuronasPanel() {
             const cortoUno = token && typeof puerta?.terminarToken === "function" ? puerta.terminarToken(token) : false;
             if (!cortoUno) puerta?.terminar();
             setAviso(TEXTO_TERMINADO);
+            // CTL1124F: limpia esperando para que no reabra la ventana automáticamente
+            setEsperando(null);
             leerPantallaEntrada();
         },
         [leerPantallaEntrada],
@@ -772,6 +776,8 @@ export function ControlEntreNeuronasPanel() {
         setSesionesEntrantes([]);
         setSesionAct(null);
         setAviso(TEXTO_PERMISO_QUITADO);
+        // CTL1124F: limpia esperando para que no reabra la ventana automáticamente
+        setEsperando(null);
         leerPantallaEntrada();
     }, [leerPantallaEntrada]);
 
@@ -779,7 +785,11 @@ export function ControlEntreNeuronasPanel() {
         (id: string) => {
             void terminarControlDe(id)
                 .then(() => setAviso("Sesión de control terminada (el permiso sigue activo)."))
-                .finally(leerPantallaEntrada);
+                .finally(() => {
+                    // CTL1124F: limpia esperando para que no reabra la ventana automáticamente
+                    setEsperando(null);
+                    leerPantallaEntrada();
+                });
         },
         [leerPantallaEntrada],
     );
@@ -787,7 +797,11 @@ export function ControlEntreNeuronasPanel() {
     const terminarTodasSalientes = useCallback(() => {
         void terminarTodosControles()
             .then(() => setAviso("Se terminaron todas las sesiones salientes (el permiso sigue activo)."))
-            .finally(leerPantallaEntrada);
+            .finally(() => {
+                // CTL1124F: limpia esperando para que no reabra la ventana automáticamente
+                setEsperando(null);
+                leerPantallaEntrada();
+            });
     }, [leerPantallaEntrada]);
 
     const salientesActivas = useMemo(() => {
