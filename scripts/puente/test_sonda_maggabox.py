@@ -105,3 +105,24 @@ class TestSondaMaggaBox:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_dir1125o_rutas_de_ssh_expandidas():
+    """Sin shell, ssh no expande `$HOME`: con la ruta literal fallaba la clave del host y la sonda daba ceros."""
+    import os
+    from sonda_maggabox import SSH_BASE
+    texto = " ".join(SSH_BASE)
+    assert "$HOME" not in texto and "~/" not in texto
+    assert "UserKnownHostsFile=" + os.path.expanduser("~/.ssh/known_hosts_starseed_nodo") in SSH_BASE
+    assert "AddressFamily=inet" in SSH_BASE and "-n" in SSH_BASE
+
+
+def test_dir1125o_disco_total_y_usado():
+    from sonda_maggabox import sonda_maggabox
+    df = "Filesystem     1G-blocks   Used Available Use% Mounted on\n/dev/sda1       500G   82G   418G   17% /"
+
+    def run(argv, *args, **kwargs):
+        return MockCompletedProcess(0, stdout=df if ("df" in argv and "-BG" in argv) else "")
+
+    r = sonda_maggabox(ssh_fn=run)
+    assert (r["discoLibreGb"], r["discoTotalGb"], r["discoUsadoGb"]) == (418, 500, 82)

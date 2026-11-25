@@ -49,6 +49,9 @@ RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starse
 MANDO = os.environ.get("STARSEED_MANDO_URL", "http://localhost:9002")
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "vigia-medidores.json")
 INTERVALO_S = int(os.environ.get("STARSEED_VIGIA_S", "120"))
+#: DIR1125O: cada cuánto se recoge el almacenamiento de todos los medios (Mac, Maggabox, A1, Drive).
+RECOGER_ALMACEN_S = int(os.environ.get("STARSEED_ALMACEN_S", "600"))
+_ULTIMA_RECOGIDA_ALMACEN = 0.0
 
 #: Los medidores que se leen enteros en cada pasada. Son los mismos que ve Alex.
 MEDIDORES = ("agentes", "en-curso", "listas", "bloqueadas", "contenedores", "proveedores", "tokens")
@@ -574,6 +577,15 @@ def main() -> int:
             una_pasada()
         except Exception as e:
             print("vigia-medidores: %s: %s" % (type(e).__name__, e), flush=True)
+        # DIR1125O: el medidor de almacenamiento solo lee `~/.starseed/capacidades-nodos.json`, y nadie lo escribía desde el 23-11.
+        global _ULTIMA_RECOGIDA_ALMACEN
+        if time.time() - _ULTIMA_RECOGIDA_ALMACEN >= RECOGER_ALMACEN_S:
+            _ULTIMA_RECOGIDA_ALMACEN = time.time()
+            try:
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "recopilar-capacidades-nodos.py")],
+                               capture_output=True, timeout=120)
+            except Exception as e:
+                print("vigia-medidores: almacenamiento: %s: %s" % (type(e).__name__, e), flush=True)
         # Entre pasadas: si cambió el código de algo que ya importó, se vuelve a ejecutar a sí
         # mismo (mismo PID para launchd, mismo python con su permiso de disco) con el código nuevo.
         ahora = huellas_del_puente()

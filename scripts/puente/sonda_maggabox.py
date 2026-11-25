@@ -4,16 +4,22 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from typing import Any, Callable, Dict, List, Optional
 
 SSH_BASE = [
     "ssh",
-    "-i", "~/.ssh/starseed_nodo1",
+    "-i", os.path.expanduser("~/.ssh/starseed_nodo1"),
+    # DIR1125O: `starseed-nodo-1.local` resuelve antes a una IPv6 de enlace local que no contesta: cada ssh tardaba 8,5 s y la
+    # sonda (tope 8 s) daba ceros. Por IPv4, 0,6 s. `-n`: sin entrada estándar.
+    "-o", "AddressFamily=inet",
+    "-n",
     "-o", "IdentitiesOnly=yes",
     "-o", "BatchMode=yes",
     "-o", "ConnectTimeout=8",
-    "-o", "UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo",
+    # DIR1125O: sin shell, ssh no expande `$HOME` («Host key verification failed» y la sonda daba ceros).
+    "-o", "UserKnownHostsFile=" + os.path.expanduser("~/.ssh/known_hosts_starseed_nodo"),
     "maggasukha@starseed-nodo-1.local",
 ]
 
@@ -39,6 +45,18 @@ def _parsedf_bg(output: str) -> int:
         parts = line.split()
         if len(parts) >= 4:
             return int(parts[3].rstrip("G"))
+    return 0
+
+
+def _parsedf_campo(output: str, i: int) -> int:
+    """DIR1125O: la columna `i` de `df -BG` (1 = total, 2 = usado, 3 = libre), en GB. 0 si no se lee."""
+    for line in output.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) > i:
+            try:
+                return int(parts[i].rstrip("G"))
+            except ValueError:
+                return 0
     return 0
 
 
@@ -95,6 +113,8 @@ def _consultar_estado(ssh_fn: Callable[..., Any]) -> Dict[str, Any]:
 
     return {
         "discoLibreGb": _parsedf_bg(df_out),
+        "discoTotalGb": _parsedf_campo(df_out, 1),
+        "discoUsadoGb": _parsedf_campo(df_out, 2),
         "ramLibreMb": _parsefree_mb(free_out),
         "cpu": int(cpu_out) if cpu_out.isdigit() else 2,
         "contenedores": has_docker or has_podman,

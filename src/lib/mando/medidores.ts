@@ -180,7 +180,7 @@ export interface FilaMedidor {
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
     /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
-    detalle?: { discoLibres?: number; origen?: string; almacen?: string[] };
+    detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string };
     desde?: string;
     quien?: string;
     enlace?: string;
@@ -1486,8 +1486,13 @@ export interface NodoAlmacenamiento {
     id: string;
     nombre: string;
     medio: string;
+    /** NaN cuando el medio no tiene «libre» propio que se pueda leer (Drive: solo se sabe lo que ocupa StarSeed). */
     discoLibreGb: number;
     almacen: string[];
+    /** DIR1125O: capacidad total, para qué es ese medio y cuánto ocupa StarSeed en él (si se sabe). */
+    discoTotalGb?: number;
+    rol?: string;
+    usoGb?: number;
 }
 
 export interface DatosMedidores {
@@ -2377,7 +2382,7 @@ function filasDeImaginacion(propuestas: PropuestaImaginacion[]): FilaMedidor[] {
 }
 
 /** El detalle completo de un medidor: filas, porqués y acciones. */
-const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, a1: 2 };
+const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, a1: 2, drive: 3 };
 
 /** Un GB medido: 0 es un dato (disco lleno), no «sin dato». PURA. */
 function discoMedido(valor: unknown): number | null {
@@ -2387,6 +2392,7 @@ function discoMedido(valor: unknown): number | null {
 /** (MAG1120) «mac-local» → «Mac», «maggabox» → «Maggabox», «a1-oracle» → «A1». PURA. */
 export function nombreDeNodoAlmacenamiento(nodoId: string, medio?: string): string {
     const id = nodoId.toLowerCase();
+    if (id.includes("drive")) return "Drive"; // DIR1125O
     if (id.includes("maggabox")) return "Maggabox";
     if (/(^|[-_])a1|oracle/.test(id)) return "A1";
     if (id.includes("mac") || medio === "mac") return "Mac";
@@ -2414,14 +2420,41 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             discoMedido(n.disco_libre_gb) ??
             discoMedido(n.discoLibreGB) ??
             discoMedido(n.disco_gb);
-        if (disco === null) continue;
+        // DIR1125O: un medio sin «libre» propio (Drive) entra si dice cuánto ocupa StarSeed en él.
+        const uso = discoMedido(n.usoGb);
+        if (disco === null && uso === null) continue;
         const almacen = Array.isArray(n.almacen)
             ? n.almacen.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim())
             : [];
-        salida.push({ id: id.trim(), nombre: nombreDeNodoAlmacenamiento(id, medio), medio, discoLibreGb: disco, almacen });
+        const total = discoMedido(n.discoTotalGb);
+        const rol = typeof n.rol === "string" && n.rol.trim() ? n.rol.trim() : undefined;
+        salida.push({
+            id: id.trim(),
+            nombre: nombreDeNodoAlmacenamiento(id, medio),
+            medio,
+            discoLibreGb: disco ?? Number.NaN,
+            almacen,
+            ...(total !== null ? { discoTotalGb: total } : {}),
+            ...(rol ? { rol } : {}),
+            ...(uso !== null ? { usoGb: uso } : {}),
+        });
     }
     const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
     return salida.sort((a, b) => rango(a) - rango(b) || a.id.localeCompare(b.id));
+}
+
+/** DIR1125O: «10.6 GB de 228 GB», o en el Drive «StarSeed usa 1.2 GB de 2048 GB». PURA. */
+export function textoDiscoAlmacenamiento(n: NodoAlmacenamiento): string {
+    const de = n.discoTotalGb !== undefined ? ` de ${n.discoTotalGb} GB` : "";
+    if (Number.isFinite(n.discoLibreGb)) return `${n.discoLibreGb} GB${de}`;
+    return n.usoGb !== undefined ? `StarSeed usa ${n.usoGb} GB${de}` : "sin dato";
+}
+
+/** DIR1125O: el porqué de la fila: cuánto queda, de cuánto y para qué es ese medio. Sin datos nuevos, el texto de siempre. PURA. */
+function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
+    if (n.discoTotalGb === undefined && n.usoGb === undefined && !n.rol) return `disco libre en ${n.nombre} (${n.medio})`;
+    const cifra = Number.isFinite(n.discoLibreGb) ? `${textoDiscoAlmacenamiento(n)} libres` : textoDiscoAlmacenamiento(n);
+    return n.rol ? `${cifra} · ${n.rol}` : `${cifra} en ${n.nombre}`;
 }
 
 /** (MAG1120) Una fila por nodo con disco libre; estado según lo que le queda. PURA. */
@@ -2429,9 +2462,16 @@ export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): Fil
     return nodos.map((n) => ({
         id: n.id,
         titulo: n.nombre,
-        estado: n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
-        porque: `disco libre en ${n.nombre} (${n.medio})`,
-        detalle: { discoLibres: n.discoLibreGb, origen: n.medio, almacen: n.almacen },
+        estado: !Number.isFinite(n.discoLibreGb) ? "libre" : n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
+        porque: porqueDeAlmacenamiento(n),
+        detalle: {
+            ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
+            origen: n.medio,
+            almacen: n.almacen,
+            ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
+            ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
+            ...(n.rol ? { rol: n.rol } : {}),
+        },
         acciones: [],
     }));
 }
@@ -2439,7 +2479,7 @@ export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): Fil
 /** (MAG1120) «Nodos con disco libre: Mac (X GB), …». Sin nodos, «sin dato». PURA. */
 export function resumenDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): string {
     if (!nodos.length) return "sin dato";
-    return `Nodos con disco libre: ${nodos.map((n) => `${n.nombre} (${n.discoLibreGb} GB)`).join(", ")}`;
+    return `Nodos con disco libre: ${nodos.map((n) => `${n.nombre} (${textoDiscoAlmacenamiento(n)})`).join(", ")}`;
 }
 
 /** (MAG1120) Aviso cuando todos los nodos medidos son del MISMO medio. PURA. */

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 HOME = os.path.expanduser("~")
@@ -93,22 +94,111 @@ def _fuente(leer: Optional[Callable[[str], Any]], ruta: str) -> Dict[str, Any]:
         return valor if isinstance(valor, dict) else {}
     except Exception: return {}
 
+#: DIR1125O · el A1 publica su disco en su latido (`oracle.json` → nodo.disco_libre_gb); `a1-autocuracion.json` no lo trae.
+RUTA_ORACLE = os.path.join(HOME, ".starseed", "oracle.json")
+#: DIR1125O · cuota total del Drive de la cuenta (dato de Alex, 25-11: 2 TB). La app de escritorio de Google no la publica.
+DRIVE_TOTAL_GB = float(os.environ.get("STARSEED_DRIVE_TOTAL_GB", "2048"))
+BASE_CLOUD = os.path.join(HOME, "Library", "CloudStorage")
+#: Qué guarda cada medio (lo que el medidor explica junto al disco).
+ROLES = {
+    "mac-local": "neurona de desarrollo: repo completo, memorias y servicios de MetaGenesis",
+    "maggabox": "neurona nodo: espejo de GitHub, versiones, respaldos, pesados y capas",
+    "a1-oracle": "nodo de MetaGenesis en Oracle: orquestador del préstamo y guardián de main",
+    "drive": "Google Drive: memoria y contextos de las neuronas (StarSeed_Memory_Root)",
+}
+
+
+def medir_mac(ruta: str = HOME) -> Dict[str, float]:
+    """DIR1125O · el disco de esta Mac medido de verdad (statvfs), en GB de 1024³. Nunca lanza."""
+    try:
+        s = os.statvfs(ruta)
+        return {"discoLibreGb": round(s.f_bavail * s.f_frsize / 1024 ** 3, 1),
+                "discoTotalGb": round(s.f_blocks * s.f_frsize / 1024 ** 3, 1)}
+    except Exception:
+        return {}
+
+
+def _unidad_drive() -> Optional[str]:
+    """El Drive montado (el que no lleva fecha en el nombre: los otros son de sesiones viejas)."""
+    try:
+        vivos = sorted(e for e in os.listdir(BASE_CLOUD) if e.startswith("GoogleDrive-") and "(" not in e)
+    except OSError:
+        return None
+    return os.path.join(BASE_CLOUD, vivos[0]) if vivos else None
+
+
+def medir_drive(tope_s: float = 20.0) -> Optional[Dict[str, Any]]:
+    """DIR1125O · lo que ocupa StarSeed en el Drive: tamaño lógico de `My Drive/StarSeed_Memory_Root` (lee metadatos, no
+    descarga nada) y la cuota total declarada. None si el Drive no está montado. Con tope: si no acaba, `aproximado`."""
+    unidad = _unidad_drive()
+    if not unidad:
+        return None
+    raiz = os.path.join(unidad, "My Drive", "StarSeed_Memory_Root")
+    total, aproximado, fin = 0, False, time.time() + tope_s
+    for base, _dirs, archivos in os.walk(raiz):
+        for nombre in archivos:
+            try:
+                total += os.lstat(os.path.join(base, nombre)).st_size
+            except OSError:
+                pass
+        if time.time() > fin:
+            aproximado = True
+            break
+    return {"usoGb": round(total / 1024 ** 3, 2), "discoTotalGb": DRIVE_TOTAL_GB, "aproximado": aproximado,
+            "almacen": ["My Drive/StarSeed_Memory_Root"]}
+
+
 def recopilar(read_fn: Optional[Callable[[str], Any]] = None,
               sonda_fn: Optional[Callable[[], Any]] = None,
               movido_gb: Optional[float] = None,
-              indice_enlace: Optional[str] = None) -> Dict[str, Any]:
-    """Fichas de los tres nodos; `read_fn` y `sonda_fn` se inyectan en pruebas."""
+              indice_enlace: Optional[str] = None,
+              mac_fn: Optional[Callable[[], Any]] = None,
+              drive_fn: Optional[Callable[[], Any]] = None) -> Dict[str, Any]:
+    """Fichas de los nodos; `read_fn`, `sonda_fn`, `mac_fn` y `drive_fn` se inyectan en pruebas. En la pasada real
+    (sin `read_fn`) la Mac se mide con statvfs y el Drive se mira en su carpeta montada; en pruebas, solo si se inyectan."""
+    real = read_fn is None
     if sonda_fn is None: from sonda_maggabox import sonda_maggabox as sonda_fn
     try: sonda = sonda_fn()
     except Exception: sonda = {}
+    sonda = sonda if isinstance(sonda, dict) else {}
     medidas: Dict[str, Any] = {}
     if movido_gb is not None: medidas["movido_gb"] = movido_gb
     if indice_enlace is not None: medidas["indice_enlace"] = indice_enlace
-    return {"nodos": [
-        _ficha("mac-local", "mac", _fuente(read_fn, RUTA_ORQUESTADOR), **medidas),
-        _ficha_maggabox(sonda, **medidas),
-        _ficha("a1-oracle", "nube", _fuente(read_fn, RUTA_A1), **medidas),
-    ]}
+
+    mac_datos = _fuente(read_fn, RUTA_ORQUESTADOR)
+    mac_fn = mac_fn or (medir_mac if real else None)
+    mac_medida: Dict[str, Any] = {}
+    if mac_fn is not None:
+        try: mac_medida = mac_fn() or {}
+        except Exception: mac_medida = {}
+    extra_mac = {"disco": mac_medida["discoLibreGb"]} if (_buscar(mac_datos, DISCO) is None and "discoLibreGb" in mac_medida) else {}
+    mac = _ficha("mac-local", "mac", mac_datos, **extra_mac, **medidas)
+    if mac_medida.get("discoTotalGb"): mac["discoTotalGb"] = mac_medida["discoTotalGb"]
+
+    maggabox = _ficha_maggabox(sonda, **medidas)
+    if sonda.get("discoTotalGb"): maggabox["discoTotalGb"] = sonda["discoTotalGb"]
+
+    a1_datos = _fuente(read_fn, RUTA_A1)
+    extra_a1: Dict[str, Any] = {}
+    if _buscar(a1_datos, DISCO) is None:
+        nodo = _fuente(read_fn, RUTA_ORACLE).get("nodo")
+        if isinstance(nodo, dict) and _buscar(nodo, DISCO) is not None:
+            extra_a1["disco"] = _buscar(nodo, DISCO)
+    a1 = _ficha("a1-oracle", "nube", a1_datos, **extra_a1, **medidas)
+
+    nodos = [mac, maggabox, a1]
+    for n in nodos:
+        n["rol"] = ROLES.get(n["nodoId"], "")
+
+    drive_fn = drive_fn or (medir_drive if real else None)
+    if drive_fn is not None:
+        try: drive = drive_fn()
+        except Exception: drive = None
+        if isinstance(drive, dict):
+            nodos.append({"nodoId": "drive", "medio": "nube", "usoGb": drive.get("usoGb", 0.0),
+                          "discoTotalGb": drive.get("discoTotalGb"), "aproximado": bool(drive.get("aproximado")),
+                          "almacen": list(drive.get("almacen") or []), "capas": [], "rol": ROLES["drive"]})
+    return {"nodos": nodos}
 
 def guardar(datos: Dict[str, Any], write_fn: Optional[Callable[[str, str], Any]] = None) -> Dict[str, Any]:
     """Escribe el JSON; en pruebas se inyecta `write_fn(ruta, texto)`."""

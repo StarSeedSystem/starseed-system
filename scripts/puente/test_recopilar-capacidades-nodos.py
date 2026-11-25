@@ -129,3 +129,32 @@ class Recopilar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DIR1125O(unittest.TestCase):
+    """DIR1125O · la Mac medida de verdad, el A1 desde oracle.json, el total de la Maggabox y el Drive como cuarto medio."""
+
+    def test_mac_medida_con_total_y_rol(self):
+        n = R.recopilar(lambda r: {}, lambda: {}, mac_fn=lambda: {"discoLibreGb": 10.6, "discoTotalGb": 228.3})["nodos"][0]
+        self.assertEqual((n["discoLibreGb"], n["discoTotalGb"]), (10.6, 228.3))
+        self.assertIn("desarrollo", n["rol"])
+
+    def test_a1_desde_su_latido_en_oracle(self):
+        datos = {R.RUTA_ORACLE: {"nodo": {"disco_libre_gb": 9.6}}}
+        n = R.recopilar(lambda r: datos.get(r, {}), lambda: {})["nodos"][2]
+        self.assertEqual((n["nodoId"], n["discoLibreGb"]), ("a1-oracle", 9.6))
+
+    def test_maggabox_con_total_de_la_sonda(self):
+        n = R.recopilar(lambda r: {}, lambda: {"discoLibreGb": 418, "discoTotalGb": 500})["nodos"][1]
+        self.assertEqual((n["discoLibreGb"], n["discoTotalGb"]), (418, 500))
+
+    def test_drive_como_cuarto_medio_sin_inventar_libre(self):
+        nodos = R.recopilar(lambda r: {}, lambda: {}, drive_fn=lambda: {
+            "usoGb": 1.25, "discoTotalGb": 2048.0, "aproximado": False, "almacen": ["My Drive/StarSeed_Memory_Root"]})["nodos"]
+        self.assertEqual([n["nodoId"] for n in nodos], ["mac-local", "maggabox", "a1-oracle", "drive"])
+        d = nodos[3]
+        self.assertEqual((d["usoGb"], d["discoTotalGb"]), (1.25, 2048.0))
+        self.assertNotIn("discoLibreGb", d)
+
+    def test_sin_drive_montado_no_aparece(self):
+        self.assertEqual(len(R.recopilar(lambda r: {}, lambda: {}, drive_fn=lambda: None)["nodos"]), 3)
