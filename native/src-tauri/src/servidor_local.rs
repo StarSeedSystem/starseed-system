@@ -296,7 +296,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -560,10 +560,82 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
 
 /// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
 /// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
-    if let Some(v) = app.get_webview_window("main") {
-        let _ = v.eval("location.reload()");
+///
+/// (CAP1125A) Antes de recargar, se calienta el servidor pidiéndole por HTTP la misma ruta que la
+/// ventana tiene abierta. El Node recién relevado puede tardar más de 10 s en dar la primera
+/// página; si la ventana recargaba con el Node «listo» pero frío, el service worker le entregaba
+/// la copia de la capa ANTERIOR. La espera (hasta `ESPERA_CALIENTE_MS`) va en este hilo, el del
+/// bucle del servidor: no retrasa `con_estado` ni `avisar`. Pase lo que pase, se recarga.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let Some(v) = app.get_webview_window("main") else { return };
+    let url = v.url().map(|u| u.to_string()).unwrap_or_default();
+    let ruta = l::ruta_caliente(&url, puerto);
+    let desde = Instant::now();
+    let caliente = esperar_caliente(puerto, &interno().pase, &ruta);
+    escribir_registro(
+        registro,
+        &format!(
+            "[servidor-local] recarga tras relevo caliente={} ms={}",
+            if caliente { "si" } else { "no" },
+            desde.elapsed().as_millis()
+        ),
+    );
+    let _ = v.eval("location.reload()");
+}
+
+/// (CAP1125A) Insiste con la petición de calentamiento hasta que el servidor contesta con un estado
+/// menor que 500 o vence el tope. Si la app se cierra o el Node muere, deja de esperar (se recarga
+/// igual: la decisión de recargar no depende de esto).
+fn esperar_caliente(puerto: u16, pase: &str, ruta: &str) -> bool {
+    let tope = Instant::now() + Duration::from_millis(l::ESPERA_CALIENTE_MS);
+    loop {
+        if interno().apagando.load(Ordering::SeqCst) || proceso_termino().is_some() {
+            return false;
+        }
+        if pedir_caliente(puerto, pase, ruta, tope) {
+            return true;
+        }
+        if Instant::now() >= tope {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(l::PASO_CALIENTE_MS));
     }
+}
+
+/// (CAP1125A) Una petición de calentamiento por TCP al propio servidor local. Devuelve `true` solo
+/// si llegó una respuesta HTTP con estado menor que 500. Se lee la respuesta entera (hasta un tope)
+/// para que el Node termine de rendir la página; los tiempos de espera no pasan del `tope`.
+fn pedir_caliente(puerto: u16, pase: &str, ruta: &str, tope: Instant) -> bool {
+    let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+    let Ok(mut s) = TcpStream::connect_timeout(&dir, Duration::from_millis(800)) else { return false };
+    let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
+    if s.write_all(l::peticion_caliente(puerto, pase, ruta).as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = Vec::with_capacity(4096);
+    let mut trozo = [0u8; 8192];
+    loop {
+        let ahora = Instant::now();
+        if ahora >= tope || buf.len() >= 4 * 1024 * 1024 {
+            break;
+        }
+        let restante = tope.saturating_duration_since(ahora).min(Duration::from_secs(2));
+        let _ = s.set_read_timeout(Some(restante.max(Duration::from_millis(50))));
+        match s.read(&mut trozo) {
+            Ok(0) => break,
+            Ok(n) => buf.extend_from_slice(&trozo[..n]),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
+                ) =>
+            {
+                continue
+            }
+            Err(_) => break,
+        }
+    }
+    !buf.is_empty() && l::respuesta_caliente_lista(&String::from_utf8_lossy(&buf))
 }
 
 fn volver_a_arranque(app: &AppHandle) {
