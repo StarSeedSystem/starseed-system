@@ -69,7 +69,8 @@ describe("DIR1125B · SesionHacia", () => {
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
-        expect((await s.orden("leer-estado")).ok).toBe(true);
+        // "llamar" requiere sesión, así que la abre
+        expect((await s.orden("llamar", {})).ok).toBe(true);
         expect((await s.sondear()).ok).toBe(true);
         expect(a.vistas.includes("cerrar-sesion")).toBe(false);
         expect(a.abiertas.size).toBe(1);
@@ -80,10 +81,12 @@ describe("DIR1125B · SesionHacia", () => {
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
-        expect((await s.orden("leer-estado")).ok).toBe(true);
+        // "llamar" requiere sesión, así que la abre
+        expect((await s.orden("llamar", {})).ok).toBe(true);
         s.detener();
         a.abiertas.clear(); // el aparato ya la cerró
         expect(await s.latir()).toBe(false);
+        // latir no abre sesión (detener() puso token a null y para el latido)
         expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(1);
     });
 });
