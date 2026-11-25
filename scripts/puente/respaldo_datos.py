@@ -15,6 +15,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -34,6 +35,9 @@ TOPE_S = 1800.0
 HOST_MAGGABOX = os.environ.get("STARSEED_MAGGABOX_HOST", "maggasukha@starseed-nodo-1.local")
 HOST_A1 = (os.environ.get("STARSEED_A1_SSH") or os.environ.get("STARSEED_A1_HOST")
            or "a1")
+NODO_MAGGABOX = "starseed-nodo-1.local"
+LLAVE_NODO = os.path.expanduser("~/.ssh/starseed_nodo1")
+KNOWN_HOSTS_NODO = os.path.expanduser("~/.ssh/known_hosts_starseed_nodo")
 
 
 def nombre_archivo(tipo: str, fecha: str) -> str:
@@ -109,18 +113,32 @@ REMOTO = "StarSeed-respaldos/datos"
 GDRIVE = f"gdrive:{REMOTO}"
 
 
+def _opciones_ssh(host: str) -> List[str]:
+    """PURA: opciones SSH; la identidad local es solo para el nodo conocido."""
+    opciones = ["-o", "AddressFamily=inet", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+    nombre_host = host.rsplit("@", 1)[-1]
+    if nombre_host.endswith(NODO_MAGGABOX):
+        opciones[0:0] = [
+            "-i", LLAVE_NODO,
+            "-o", "IdentitiesOnly=yes",
+            "-o", "UserKnownHostsFile=" + KNOWN_HOSTS_NODO,
+        ]
+    return opciones
+
+
 def _ssh(destino: str, *orden: str) -> List[str]:
     """PURA: argv ssh no interactivo contra el nodo que toque."""
     host = HOST_MAGGABOX if destino == "maggabox" else HOST_A1
-    return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, *orden]
+    return ["ssh", *_opciones_ssh(host), host, *orden]
 
 
 def comando_subida(destino: str, local: str, nombre: str) -> List[str]:
     """PURA: argv de subida al medio; Google Drive usa rclone, los nodos usan rsync."""
     if destino == "gdrive":
         return ["rclone", "copyto", local, f"{GDRIVE}/{nombre}"]
-    return ["rsync", "-az", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=8",
-            local, f"{HOST_MAGGABOX if destino == 'maggabox' else HOST_A1}:{REMOTO}/{nombre}"]
+    host = HOST_MAGGABOX if destino == "maggabox" else HOST_A1
+    transporte = shlex.join(["ssh", *_opciones_ssh(host)])
+    return ["rsync", "-az", "-e", transporte, local, f"{host}:{REMOTO}/{nombre}"]
 
 
 def comando_huella(destino: str, nombre: str) -> List[str]:
