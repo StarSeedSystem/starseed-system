@@ -19,6 +19,9 @@
 
 use serde::Serialize;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+
+use crate::control_estado_linux_logica::{MetodoControl, RechazosDbus};
 
 /// Lo que la web recibe de `energia_estado` (camelCase, como `EstadoEnergia` en TS).
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -83,6 +86,14 @@ fn comando(programa: &str, args: &[&str]) -> Option<String> {
         return None;
     }
     Some(String::from_utf8_lossy(&salida.stdout).to_string())
+}
+
+/// Estado global para recordar si powerprofilesctl fue rechazado por AccessDenied.
+fn rechazos_energia() -> MutexGuard<'static, RechazosDbus> {
+    static R: OnceLock<Mutex<RechazosDbus>> = OnceLock::new();
+    R.get_or_init(|| Mutex::new(RechazosDbus::default()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 // ───────────────────────────── Lecturas comunes ─────────────────────────────
@@ -270,10 +281,31 @@ fn estado_linux() -> EstadoEnergia {
     estado.bateria_pct = nivel;
     estado.cargando = cargando;
     estado.temperatura_c = leer_temperatura_sysfs();
-    if let Some(texto) = comando("powerprofilesctl", &["get"]) {
-        estado.perfil_energia = parse_perfil_linux(&texto);
-        estado.ahorro_sistema = estado.perfil_energia.as_deref() == Some("ahorro");
-        estado.fuente = "power-profiles-daemon".to_string();
+    let mut rechazos = rechazos_energia();
+    if !rechazos.esta_rechazado(MetodoControl::Powerprofilesctl) {
+        let mut cmd = Command::new("powerprofilesctl");
+        cmd.args(["get"]);
+        if let Ok(out) = cmd
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+        {
+            if out.status.success() {
+                let texto = String::from_utf8_lossy(&out.stdout);
+                estado.perfil_energia = parse_perfil_linux(&texto);
+                estado.ahorro_sistema = estado.perfil_energia.as_deref() == Some("ahorro");
+                estado.fuente = "power-profiles-daemon".to_string();
+            } else {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                if crate::control_estado_linux_logica::es_error_dbus_access_denied(&stderr) {
+                    let primera_vez = rechazos.rechazar(MetodoControl::Powerprofilesctl);
+                    if primera_vez {
+                        crate::ble::nota(None, "energia", "powerprofilesctl rechazado por AccessDenied, se usa fallback sysfs/upower");
+                    }
+                }
+            }
+        }
     }
     estado
 }

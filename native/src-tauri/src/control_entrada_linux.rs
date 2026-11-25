@@ -16,6 +16,7 @@ use crate::control_entrada_logica as l;
 use crate::control_entrada_macos_logica as m;
 use crate::control_escritorio_linux_logica as ll;
 use crate::control_estado_linux_logica as st;
+use crate::control_estado_linux_logica::{MetodoControl, RechazosDbus};
 use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
@@ -29,7 +30,11 @@ use x11rb::rust_connection::RustConnection;
 
 pub fn grafica() -> ll::Grafica {
     let v = |k: &str| std::env::var(k).ok();
-    ll::grafica_de(v("WAYLAND_DISPLAY").as_deref(), v("XDG_SESSION_TYPE").as_deref(), v("DISPLAY").as_deref())
+    ll::grafica_de(
+        v("WAYLAND_DISPLAY").as_deref(),
+        v("XDG_SESSION_TYPE").as_deref(),
+        v("DISPLAY").as_deref(),
+    )
 }
 
 /// ¿Se conecta al servidor X? y ¿tiene XTEST (lo que enigo usa para inyectar)? Solo mira; no cambia nada.
@@ -47,14 +52,54 @@ pub fn sondear_x11() -> (bool, bool) {
 pub fn falta_para_ver() -> Option<(&'static str, &'static str)> {
     let g = grafica();
     let conecta = g == ll::Grafica::X11 && sondear_x11().0;
-    ll::falta_pantalla(g, conecta).map(|f| (if f == ll::FALTA_WAYLAND { "sin-soporte" } else { "sin-servicio" }, f))
+    ll::falta_pantalla(g, conecta).map(|f| {
+        (
+            if f == ll::FALTA_WAYLAND {
+                "sin-soporte"
+            } else {
+                "sin-servicio"
+            },
+            f,
+        )
+    })
 }
 
 fn ejecutar_texto(prog: &str, args: &[&str]) -> Option<String> {
     let mut cmd = std::process::Command::new(prog);
     crate::entorno_hijos::aplicar_a_comando(&mut cmd);
-    let o = cmd.args(args).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).output().ok()?;
-    o.status.success().then(|| String::from_utf8_lossy(&o.stdout).to_string())
+    let o = cmd
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    o.status
+        .success()
+        .then(|| String::from_utf8_lossy(&o.stdout).to_string())
+}
+
+/// Escribe el brillo directamente en sysfs (fallback que nunca usa D-Bus).
+/// Devuelve Ok(()) si tuvo éxito, Err("sin-servicio") si falló.
+fn escribir_brillo_sysfs(nivel: f64) -> Result<(), &'static str> {
+    let nivel = nivel.clamp(0.0, 1.0);
+    let paths = [
+        "/sys/class/backlight/intel_backlight",
+        "/sys/class/backlight/amdgpu_bl0",
+        "/sys/class/backlight/acpi_video0",
+    ];
+    for p in paths {
+        let max_path = format!("{}/max_brightness", p);
+        let brightness_path = format!("{}/brightness", p);
+        if let Ok(max_str) = std::fs::read_to_string(&max_path) {
+            if let Ok(max_val) = max_str.trim().parse::<u64>() {
+                let val = ((nivel * max_val as f64).round() as u64).clamp(0, max_val);
+                if std::fs::write(&brightness_path, val.to_string()).is_ok() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+    Err("sin-servicio")
 }
 
 /// ¿El equipo está bloqueado? logind (`LockedHint`) y el salvapantallas de Xfce/XScreenSaver; bloqueado si CUALQUIERA lo dice.
@@ -68,12 +113,16 @@ pub fn bloqueada() -> bool {
             return g.1;
         }
     }
-    let logind = ejecutar_texto("loginctl", &["show-session", "-p", "LockedHint", "--value"]).and_then(|s| ll::bloqueo_de_logind(&s));
-    let xfce = ejecutar_texto("xfce4-screensaver-command", &["--query"]).and_then(|s| ll::bloqueo_de_salvapantallas(&s));
-    let xscr = ejecutar_texto("xscreensaver-command", &["-time"]).and_then(|s| ll::bloqueo_de_salvapantallas(&s));
+    let logind = ejecutar_texto("loginctl", &["show-session", "-p", "LockedHint", "--value"])
+        .and_then(|s| ll::bloqueo_de_logind(&s));
+    let xfce = ejecutar_texto("xfce4-screensaver-command", &["--query"])
+        .and_then(|s| ll::bloqueo_de_salvapantallas(&s));
+    let xscr = ejecutar_texto("xscreensaver-command", &["-time"])
+        .and_then(|s| ll::bloqueo_de_salvapantallas(&s));
     let fuentes = [logind, xfce, xscr];
     let r = ll::bloqueada_de(&fuentes);
-    static CONOCIDO_ANOTADO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    static CONOCIDO_ANOTADO: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
     if !ll::bloqueo_conocido(&fuentes) && !CONOCIDO_ANOTADO.swap(true, Ordering::SeqCst) {
         crate::ble::nota(None, "control-entrada", "bloqueo=desconocido (ni logind ni el salvapantallas dicen nada: se cuenta como no bloqueado)");
     }
@@ -96,10 +145,23 @@ fn clase_ventana_activa() -> Option<String> {
     let r = (|| {
         let (con, n) = RustConnection::connect(None).ok()?;
         let raiz = con.setup().roots.get(n)?.root;
-        let atomo = con.intern_atom(false, b"_NET_ACTIVE_WINDOW").ok()?.reply().ok()?.atom;
-        let p = con.get_property(false, raiz, atomo, AtomEnum::WINDOW, 0, 1).ok()?.reply().ok()?;
+        let atomo = con
+            .intern_atom(false, b"_NET_ACTIVE_WINDOW")
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        let p = con
+            .get_property(false, raiz, atomo, AtomEnum::WINDOW, 0, 1)
+            .ok()?
+            .reply()
+            .ok()?;
         let ventana = p.value32()?.next().filter(|w| *w != 0)?;
-        let wc = con.get_property(false, ventana, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 256).ok()?.reply().ok()?;
+        let wc = con
+            .get_property(false, ventana, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 256)
+            .ok()?
+            .reply()
+            .ok()?;
         ll::clase_de_wm_class(&wc.value)
     })();
     if let Ok(mut g) = c.lock() {
@@ -131,7 +193,24 @@ struct Mundo {
 
 fn mundo() -> MutexGuard<'static, Mundo> {
     static M: OnceLock<Mutex<Mundo>> = OnceLock::new();
-    M.get_or_init(|| Mutex::new(Mundo { enigo: None, manos: std::collections::HashMap::new(), propias: m::Propias::default(), dejado: None })).lock().unwrap_or_else(|e| e.into_inner())
+    M.get_or_init(|| {
+        Mutex::new(Mundo {
+            enigo: None,
+            manos: std::collections::HashMap::new(),
+            propias: m::Propias::default(),
+            dejado: None,
+        })
+    })
+    .lock()
+    .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Estado global para recordar qué métodos de control fueron rechazados por AccessDenied.
+fn rechazos_dbus() -> MutexGuard<'static, RechazosDbus> {
+    static R: OnceLock<Mutex<RechazosDbus>> = OnceLock::new();
+    R.get_or_init(|| Mutex::new(RechazosDbus::default()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 /// Para el sondeo de reserva de la vigilancia: cuándo inyectamos por última vez y dónde dejamos el puntero.
@@ -145,10 +224,18 @@ fn ahora() -> u64 {
 }
 
 fn abrir_enigo() -> Result<Enigo, &'static str> {
-    Enigo::new(&Settings { release_keys_when_dropped: true, ..Settings::default() }).map_err(|_| "sin-servicio")
+    Enigo::new(&Settings {
+        release_keys_when_dropped: true,
+        ..Settings::default()
+    })
+    .map_err(|_| "sin-servicio")
 }
 
-fn inyectar(w: &mut Mundo, clase: m::Clase, f: impl FnOnce(&mut Enigo) -> Result<(), enigo::InputError>) -> Result<(), &'static str> {
+fn inyectar(
+    w: &mut Mundo,
+    clase: m::Clase,
+    f: impl FnOnce(&mut Enigo) -> Result<(), enigo::InputError>,
+) -> Result<(), &'static str> {
     w.propias.marcar(clase, ahora());
     let r = f(w.enigo.as_mut().ok_or("sin-servicio")?);
     w.propias.marcar(clase, ahora());
@@ -160,13 +247,23 @@ fn aplicar(w: &mut Mundo, a: &m::Accion, ancho: f64, alto: f64) -> Result<(), &'
     match a {
         Mover(x, y) => {
             let (px, py) = ((x * (ancho - 1.0)).round(), (y * (alto - 1.0)).round());
-            inyectar(w, m::Clase::Raton, |e| e.move_mouse(px as i32, py as i32, Coordinate::Abs))?;
+            inyectar(w, m::Clase::Raton, |e| {
+                e.move_mouse(px as i32, py as i32, Coordinate::Abs)
+            })?;
             w.dejado = Some((px, py));
         }
-        Pulsar => inyectar(w, m::Clase::Boton, |e| e.button(Button::Left, Direction::Press))?,
-        Soltar => inyectar(w, m::Clase::Boton, |e| e.button(Button::Left, Direction::Release))?,
-        ClicIzq => inyectar(w, m::Clase::Boton, |e| e.button(Button::Left, Direction::Click))?,
-        ClicDer => inyectar(w, m::Clase::Boton, |e| e.button(Button::Right, Direction::Click))?,
+        Pulsar => inyectar(w, m::Clase::Boton, |e| {
+            e.button(Button::Left, Direction::Press)
+        })?,
+        Soltar => inyectar(w, m::Clase::Boton, |e| {
+            e.button(Button::Left, Direction::Release)
+        })?,
+        ClicIzq => inyectar(w, m::Clase::Boton, |e| {
+            e.button(Button::Left, Direction::Click)
+        })?,
+        ClicDer => inyectar(w, m::Clase::Boton, |e| {
+            e.button(Button::Right, Direction::Click)
+        })?,
         Rueda { v, h } => {
             if *v != 0 {
                 inyectar(w, m::Clase::Rueda, |e| e.scroll(*v, Axis::Vertical))?;
@@ -203,9 +300,15 @@ fn tecla(w: &mut Mundo, t: ll::TeclaLinux) -> Result<(), &'static str> {
     match t {
         Recientes => combo(w, &[Key::Alt], Key::Tab),
         Bloquear => combo(w, &[Key::Control, Key::Alt], Key::Unicode('l')),
-        VolumenSubir => inyectar(w, m::Clase::Tecla, |e| e.key(Key::VolumeUp, Direction::Click)),
-        VolumenBajar => inyectar(w, m::Clase::Tecla, |e| e.key(Key::VolumeDown, Direction::Click)),
-        Silencio => inyectar(w, m::Clase::Tecla, |e| e.key(Key::VolumeMute, Direction::Click)),
+        VolumenSubir => inyectar(w, m::Clase::Tecla, |e| {
+            e.key(Key::VolumeUp, Direction::Click)
+        }),
+        VolumenBajar => inyectar(w, m::Clase::Tecla, |e| {
+            e.key(Key::VolumeDown, Direction::Click)
+        }),
+        Silencio => inyectar(w, m::Clase::Tecla, |e| {
+            e.key(Key::VolumeMute, Direction::Click)
+        }),
     }
 }
 
@@ -213,10 +316,18 @@ fn texto(w: &mut Mundo, t: &str) -> Result<(), &'static str> {
     for p in m::partir_texto(t) {
         match p {
             m::ParteTexto::Texto(s) => inyectar(w, m::Clase::Tecla, |e| e.text(&s))?,
-            m::ParteTexto::Intro => inyectar(w, m::Clase::Tecla, |e| e.key(Key::Return, Direction::Click))?,
-            m::ParteTexto::Tabulador => inyectar(w, m::Clase::Tecla, |e| e.key(Key::Tab, Direction::Click))?,
-            m::ParteTexto::Borrar => inyectar(w, m::Clase::Tecla, |e| e.key(Key::Backspace, Direction::Click))?,
-            m::ParteTexto::Escape => inyectar(w, m::Clase::Tecla, |e| e.key(Key::Escape, Direction::Click))?,
+            m::ParteTexto::Intro => {
+                inyectar(w, m::Clase::Tecla, |e| e.key(Key::Return, Direction::Click))?
+            }
+            m::ParteTexto::Tabulador => {
+                inyectar(w, m::Clase::Tecla, |e| e.key(Key::Tab, Direction::Click))?
+            }
+            m::ParteTexto::Borrar => inyectar(w, m::Clase::Tecla, |e| {
+                e.key(Key::Backspace, Direction::Click)
+            })?,
+            m::ParteTexto::Escape => {
+                inyectar(w, m::Clase::Tecla, |e| e.key(Key::Escape, Direction::Click))?
+            }
         }
     }
     Ok(())
@@ -225,7 +336,9 @@ fn texto(w: &mut Mundo, t: &str) -> Result<(), &'static str> {
 /// Suelta lo que hubiera pulsado una sesión concreta sin afectar al resto. Nunca falla hacia fuera.
 pub fn soltar_sesion(sesion: &str) {
     let mut w = mundo();
-    let Some(mut mano) = w.manos.remove(sesion) else { return };
+    let Some(mut mano) = w.manos.remove(sesion) else {
+        return;
+    };
     let acciones = mano.soltar_todo();
     if w.enigo.is_some() {
         for a in &acciones {
@@ -261,18 +374,26 @@ fn rechazo(m: l::Motivo) -> Value {
 
 fn vistos() -> MutexGuard<'static, l::Vistos> {
     static V: OnceLock<Mutex<l::Vistos>> = OnceLock::new();
-    V.get_or_init(|| Mutex::new(l::Vistos::default())).lock().unwrap_or_else(|e| e.into_inner())
+    V.get_or_init(|| Mutex::new(l::Vistos::default()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 pub fn contadores() -> MutexGuard<'static, Option<l::Contadores>> {
     static C: OnceLock<Mutex<Option<l::Contadores>>> = OnceLock::new();
-    C.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner())
+    C.get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 fn anotar_resultado(app: &AppHandle, sesion: &str, r: Result<(), l::Motivo>) {
     let mut c = contadores();
     if c.as_ref().is_none_or(|c| !sesion.starts_with(&c.sesion)) {
-        crate::ble::nota(None, "control-entrada", &ll::linea_inicio_entrada(sesion, alcance(app)));
+        crate::ble::nota(
+            None,
+            "control-entrada",
+            &ll::linea_inicio_entrada(sesion, alcance(app)),
+        );
         *c = Some(l::Contadores::nueva(sesion));
     }
     if let Some(c) = c.as_mut() {
@@ -283,13 +404,20 @@ fn anotar_resultado(app: &AppHandle, sesion: &str, r: Result<(), l::Motivo>) {
 /// Seam 1 en Linux. Todo lo que puede decir que no lo dice ANTES de tocar el sistema.
 pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
     use crate::control_neuronas::{puerta_sesion, ModoPuerta};
-    let Ok(nivel) = puerta_sesion(app, sesion, ModoPuerta::Lectura) else { return rechazo(l::Motivo::Sesion) };
+    let Ok(nivel) = puerta_sesion(app, sesion, ModoPuerta::Lectura) else {
+        return rechazo(l::Motivo::Sesion);
+    };
     let aceptados = crate::control_aceptados_escritorio::leer(app);
-    let ahora_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+    let ahora_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
     let v = l::verificar_sobre(sobre, &aceptados, sesion, &nivel, ahora_ms, &mut vistos());
     // La orden la firma el MISMO controlador que abrió la sesión, y esa apertura se verificó aquí (no solo la página).
     let v = v.and_then(|o| {
-        if crate::control_neuronas::de_de_sesion(sesion).as_deref() == Some(o.de.as_str()) && crate::control_aceptados_escritorio::sesion_verificada(&o.de) {
+        if crate::control_neuronas::de_de_sesion(sesion).as_deref() == Some(o.de.as_str())
+            && crate::control_aceptados_escritorio::sesion_verificada(&o.de)
+        {
             Ok(o)
         } else {
             Err((l::Motivo::NoAutorizado, "otro-controlador"))
@@ -303,7 +431,11 @@ pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
         }
     };
     if let Err(mo) = puerta_sesion(app, sesion, ModoPuerta::Orden) {
-        let mo = if mo == "pausa-local" { l::Motivo::PausaLocal } else { l::Motivo::Sesion };
+        let mo = if mo == "pausa-local" {
+            l::Motivo::PausaLocal
+        } else {
+            l::Motivo::Sesion
+        };
         anotar_resultado(app, sesion, Err(mo));
         return rechazo(mo);
     }
@@ -323,12 +455,27 @@ pub fn entrada(app: &AppHandle, sesion: &str, sobre: &Value) -> Value {
     }
 }
 
-fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l::Motivo, Option<&'static str>)> {
+fn ejecutar(
+    app: &AppHandle,
+    sesion: &str,
+    o: &l::OrdenEntrada,
+) -> Result<(), (l::Motivo, Option<&'static str>)> {
     // Solo X11: en Wayland (o sin pantalla) no se intenta nada y se dice la falta con verdad.
     let g = grafica();
-    let (conecta, xtest) = if g == ll::Grafica::X11 { sondear_x11() } else { (false, false) };
+    let (conecta, xtest) = if g == ll::Grafica::X11 {
+        sondear_x11()
+    } else {
+        (false, false)
+    };
     if let Some(f) = ll::falta_entrada(g, conecta, xtest) {
-        return Err((if f == ll::FALTA_WAYLAND { l::Motivo::SinSoporte } else { l::Motivo::SinServicio }, Some(f)));
+        return Err((
+            if f == ll::FALTA_WAYLAND {
+                l::Motivo::SinSoporte
+            } else {
+                l::Motivo::SinServicio
+            },
+            Some(f),
+        ));
     }
     // Un equipo bloqueado no recibe nada, en ningún alcance.
     if bloqueada() {
@@ -348,9 +495,15 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
     }
     let mut w = mundo();
     if w.enigo.is_none() {
-        w.enigo = Some(abrir_enigo().map_err(|_| (l::Motivo::SinServicio, Some(ll::FALTA_ENTRADA)))?);
+        w.enigo =
+            Some(abrir_enigo().map_err(|_| (l::Motivo::SinServicio, Some(ll::FALTA_ENTRADA)))?);
     }
-    let (ancho, alto) = w.enigo.as_ref().and_then(|e| e.main_display().ok()).map(|(a, b)| (f64::from(a), f64::from(b))).unwrap_or((0.0, 0.0));
+    let (ancho, alto) = w
+        .enigo
+        .as_ref()
+        .and_then(|e| e.main_display().ok())
+        .map(|(a, b)| (f64::from(a), f64::from(b)))
+        .unwrap_or((0.0, 0.0));
     if ancho < 2.0 || alto < 2.0 {
         return Err((l::Motivo::SinServicio, None));
     }
@@ -360,7 +513,11 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
             if w.manos.len() > 16 && !w.manos.contains_key(sesion) {
                 w.manos.retain(|_, m| m.hay_dedo());
             }
-            let acciones = w.manos.entry(sesion.to_string()).or_default().avanzar(&g, ancho, alto);
+            let acciones = w
+                .manos
+                .entry(sesion.to_string())
+                .or_default()
+                .avanzar(&g, ancho, alto);
             let mut r = Ok(());
             for a in &acciones {
                 r = aplicar(&mut w, a, ancho, alto);
@@ -371,13 +528,29 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
             r
         }
         "tecla" => {
-            let t = o.args.get("cual").and_then(|c| c.as_str()).and_then(ll::tecla_de).ok_or((l::Motivo::SinServicio, None))?;
+            let t = o
+                .args
+                .get("cual")
+                .and_then(|c| c.as_str())
+                .and_then(ll::tecla_de)
+                .ok_or((l::Motivo::SinServicio, None))?;
             tecla(&mut w, t)
         }
-        "texto" => texto(&mut w, o.args.get("texto").and_then(|t| t.as_str()).unwrap_or("")),
+        "texto" => texto(
+            &mut w,
+            o.args.get("texto").and_then(|t| t.as_str()).unwrap_or(""),
+        ),
         "volumen" => {
-            let flujo = o.args.get("flujo").and_then(|c| c.as_str()).ok_or((l::Motivo::SinServicio, None))?;
-            let nivel = o.args.get("nivel").and_then(|n| n.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
+            let flujo = o
+                .args
+                .get("flujo")
+                .and_then(|c| c.as_str())
+                .ok_or((l::Motivo::SinServicio, None))?;
+            let nivel = o
+                .args
+                .get("nivel")
+                .and_then(|n| n.as_f64())
+                .ok_or((l::Motivo::SinServicio, None))?;
             if !l::FLUJOS.contains(&flujo) {
                 return Err((l::Motivo::SinServicio, None));
             }
@@ -395,25 +568,80 @@ fn ejecutar(app: &AppHandle, sesion: &str, o: &l::OrdenEntrada) -> Result<(), (l
                 return Err((l::Motivo::SinServicio, None));
             };
             crate::entorno_hijos::aplicar_a_comando(&mut cmd);
-            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map_err(|_| "sin-servicio").and_then(|s| if s.success() { Ok(()) } else { Err("sin-servicio") })
+            cmd.stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map_err(|_| "sin-servicio")
+                .and_then(|s| {
+                    if s.success() {
+                        Ok(())
+                    } else {
+                        Err("sin-servicio")
+                    }
+                })
         }
         "brillo" => {
-            let nivel = o.args.get("nivel").and_then(|n| n.as_f64()).ok_or((l::Motivo::SinServicio, None))?;
-            let mut cmd = if comando_disponible("brightnessctl") {
-                let args = ll::brillo_brightnessctl_args(nivel);
-                let mut c = std::process::Command::new("brightnessctl");
-                c.args(&args);
-                c
-            } else if comando_disponible("xrandr") {
-                let args = ll::brillo_xrandr_args("eDP-1", nivel);
-                let mut c = std::process::Command::new("xrandr");
-                c.args(&args);
-                c
-            } else {
+            let nivel = o
+                .args
+                .get("nivel")
+                .and_then(|n| n.as_f64())
+                .ok_or((l::Motivo::SinServicio, None))?;
+            let tiene_brightnessctl = comando_disponible("brightnessctl");
+            let tiene_xrandr = comando_disponible("xrandr");
+            let mut rechazos = rechazos_dbus();
+            let metodo = ll::elegir_metodo_brillo(tiene_brightnessctl, tiene_xrandr, &rechazos);
+            let Some(metodo) = metodo else {
                 return Err((l::Motivo::SinServicio, None));
             };
+            let (cmd, metodo_usado) = match metodo {
+                MetodoControl::Brightnessctl => {
+                    let args = ll::brillo_brightnessctl_args(nivel);
+                    let mut c = std::process::Command::new("brightnessctl");
+                    c.args(&args);
+                    (c, MetodoControl::Brightnessctl)
+                }
+                MetodoControl::Xrandr => {
+                    let args = ll::brillo_xrandr_args("eDP-1", nivel);
+                    let mut c = std::process::Command::new("xrandr");
+                    c.args(&args);
+                    (c, MetodoControl::Xrandr)
+                }
+                MetodoControl::Sysfs => {
+                    return escribir_brillo_sysfs(nivel);
+                }
+                MetodoControl::Powerprofilesctl => {
+                    return Err((l::Motivo::SinServicio, None));
+                }
+            };
             crate::entorno_hijos::aplicar_a_comando(&mut cmd);
-            cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map_err(|_| "sin-servicio").and_then(|s| if s.success() { Ok(()) } else { Err("sin-servicio") })
+            let salida = cmd
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .output();
+            match salida {
+                Ok(out) if out.status.success() => Ok(()),
+                Ok(out) => {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    if st::es_error_dbus_access_denied(&stderr) {
+                        let primera_vez = rechazos.rechazar(metodo_usado);
+                        if primera_vez {
+                            crate::ble::nota(
+                                None,
+                                "control-entrada",
+                                &format!(
+                                    "brillo: {:?} rechazado por AccessDenied, se usa fallback",
+                                    metodo_usado
+                                ),
+                            );
+                        }
+                        return Err((l::Motivo::SinServicio, None));
+                    }
+                    Err("sin-servicio")
+                }
+                Err(_) => Err("sin-servicio"),
+            }
         }
         _ => return Err((l::Motivo::SinServicio, None)),
     };
@@ -458,7 +686,11 @@ fn comando_disponible(cmd: &str) -> bool {
 
 pub fn capacidades(app: &AppHandle) -> Value {
     let g = grafica();
-    let (conecta, xtest) = if g == ll::Grafica::X11 { sondear_x11() } else { (false, false) };
+    let (conecta, xtest) = if g == ll::Grafica::X11 {
+        sondear_x11()
+    } else {
+        (false, false)
+    };
     let volumen_ok = comando_disponible("pactl") || comando_disponible("wpctl");
     let brillo_ok = comando_disponible("brightnessctl") || comando_disponible("xrandr");
     ll::capacidades_linux(g, conecta, xtest, alcance(app), volumen_ok, brillo_ok)
@@ -479,38 +711,100 @@ pub fn estado_aparato() -> Value {
     });
 
     if let Some(s) = ejecutar_texto("pactl", &["get-sink-volume", "@DEFAULT_SINK@"]) {
-        if let Some(v) = st::parsear_pactl_volumen(&s) { res["volumen"] = json!(v); }
+        if let Some(v) = st::parsear_pactl_volumen(&s) {
+            res["volumen"] = json!(v);
+        }
     } else if let Some(s) = ejecutar_texto("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"]) {
         let (v, m) = st::parsear_wpctl_volumen(&s);
-        if let Some(v) = v { res["volumen"] = json!(v); }
-        if let Some(m) = m { res["silencio"] = json!(m); }
+        if let Some(v) = v {
+            res["volumen"] = json!(v);
+        }
+        if let Some(m) = m {
+            res["silencio"] = json!(m);
+        }
     }
     if res["silencio"].is_null() {
         if let Some(s) = ejecutar_texto("pactl", &["get-sink-mute", "@DEFAULT_SINK@"]) {
-            if let Some(m) = st::parsear_pactl_silencio(&s) { res["silencio"] = json!(m); }
+            if let Some(m) = st::parsear_pactl_silencio(&s) {
+                res["silencio"] = json!(m);
+            }
         }
     }
 
-    if let (Some(actual), Some(max)) = (ejecutar_texto("brightnessctl", &["g"]), ejecutar_texto("brightnessctl", &["m"])) {
-        if let Some(b) = st::calcular_brillo(&actual, &max) { res["brillo"] = json!(b); }
+    if let (Some(actual), Some(max)) = (
+        ejecutar_texto("brightnessctl", &["g"]),
+        ejecutar_texto("brightnessctl", &["m"]),
+    ) {
+        if let Some(b) = st::calcular_brillo(&actual, &max) {
+            res["brillo"] = json!(b);
+        }
     } else {
-        let leer = |p: &str| std::fs::read_to_string(p).ok();
-        let paths = ["/sys/class/backlight/intel_backlight", "/sys/class/backlight/amdgpu_bl0", "/sys/class/backlight/acpi_video0"];
-        for p in paths {
-            if let (Some(a), Some(m)) = (leer(&format!("{}/brightness", p)), leer(&format!("{}/max_brightness", p))) {
-                if let Some(b) = st::calcular_brillo(&a, &m) {
-                    res["brillo"] = json!(b);
-                    break;
+        let mut rechazos = rechazos_dbus();
+        if !rechazos.esta_rechazado(MetodoControl::Brightnessctl) {
+            let mut cmd = std::process::Command::new("brightnessctl");
+            cmd.args(["g", "m"]);
+            crate::entorno_hijos::aplicar_a_comando(&mut cmd);
+            if let Ok(out) = cmd
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .output()
+            {
+                if out.status.success() {
+                    let stdout = String::from_utf8_lossy(&out.stdout);
+                    let mut lines = stdout.lines();
+                    if let (Some(actual), Some(max)) = (lines.next(), lines.next()) {
+                        if let Some(b) = st::calcular_brillo(actual, max) {
+                            res["brillo"] = json!(b);
+                        }
+                    }
+                } else {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    if st::es_error_dbus_access_denied(&stderr) {
+                        let primera_vez = rechazos.rechazar(MetodoControl::Brightnessctl);
+                        if primera_vez {
+                            crate::ble::nota(None, "control-entrada", "brillo lectura: brightnessctl rechazado por AccessDenied, se usa fallback sysfs");
+                        }
+                    }
+                }
+            }
+        }
+        if res["brillo"].is_null() {
+            let leer = |p: &str| std::fs::read_to_string(p).ok();
+            let paths = [
+                "/sys/class/backlight/intel_backlight",
+                "/sys/class/backlight/amdgpu_bl0",
+                "/sys/class/backlight/acpi_video0",
+            ];
+            for p in paths {
+                if let (Some(a), Some(m)) = (
+                    leer(&format!("{}/brightness", p)),
+                    leer(&format!("{}/max_brightness", p)),
+                ) {
+                    if let Some(b) = st::calcular_brillo(&a, &m) {
+                        res["brillo"] = json!(b);
+                        break;
+                    }
                 }
             }
         }
     }
 
     let leer = |p: &str| std::fs::read_to_string(p).ok();
-    if let (Some(c), Some(s)) = (leer("/sys/class/power_supply/BAT0/capacity"), leer("/sys/class/power_supply/BAT0/status")) {
-        if let Some(bat) = st::parsear_bateria(&c, &s) { res["bateria"] = json!(bat); }
-    } else if let (Some(c), Some(s)) = (leer("/sys/class/power_supply/BAT1/capacity"), leer("/sys/class/power_supply/BAT1/status")) {
-        if let Some(bat) = st::parsear_bateria(&c, &s) { res["bateria"] = json!(bat); }
+    if let (Some(c), Some(s)) = (
+        leer("/sys/class/power_supply/BAT0/capacity"),
+        leer("/sys/class/power_supply/BAT0/status"),
+    ) {
+        if let Some(bat) = st::parsear_bateria(&c, &s) {
+            res["bateria"] = json!(bat);
+        }
+    } else if let (Some(c), Some(s)) = (
+        leer("/sys/class/power_supply/BAT1/capacity"),
+        leer("/sys/class/power_supply/BAT1/status"),
+    ) {
+        if let Some(bat) = st::parsear_bateria(&c, &s) {
+            res["bateria"] = json!(bat);
+        }
     }
 
     let mut red = json!({});
@@ -520,7 +814,9 @@ pub fn estado_aparato() -> Value {
         red["wifi_conectado"] = json!(con);
     }
     if let Some(s) = ejecutar_texto("nmcli", &["-t", "-f", "active,ssid", "dev", "wifi"]) {
-        if let Some(ssid) = st::parsear_nmcli_ssid(&s) { red["wifi_ssid"] = json!(ssid); }
+        if let Some(ssid) = st::parsear_nmcli_ssid(&s) {
+            red["wifi_ssid"] = json!(ssid);
+        }
     }
     if let Some(s) = ejecutar_texto("rfkill", &["list", "bluetooth"]) {
         red["bluetooth_encendido"] = json!(st::parsear_rfkill_bluetooth(&s));
@@ -545,43 +841,109 @@ mod pruebas {
     #[test]
     #[ignore = "necesita un servidor X (Xvfb) en DISPLAY"]
     fn humo_xvfb_captura_inyeccion_y_dispositivos() {
-        assert_eq!(grafica(), ll::Grafica::X11, "falta DISPLAY (o hay WAYLAND_DISPLAY)");
+        assert_eq!(
+            grafica(),
+            ll::Grafica::X11,
+            "falta DISPLAY (o hay WAYLAND_DISPLAY)"
+        );
         let (conecta, xtest) = sondear_x11();
         assert!(conecta && xtest, "conecta={conecta} xtest={xtest}");
         assert!(falta_para_ver().is_none());
         // Captura real.
-        let (jpeg, w, h) = crate::control_captura::capturar_jpeg(640, 60, 1).expect("captura con xcap");
-        assert!(w > 0 && h > 0 && jpeg.len() > 12 + 200, "{w}x{h} {} bytes", jpeg.len());
-        assert_eq!(&jpeg[12..14], &[0xFF, 0xD8], "tras la cabecera de 12 bytes va un JPEG");
+        let (jpeg, w, h) =
+            crate::control_captura::capturar_jpeg(640, 60, 1).expect("captura con xcap");
+        assert!(
+            w > 0 && h > 0 && jpeg.len() > 12 + 200,
+            "{w}x{h} {} bytes",
+            jpeg.len()
+        );
+        assert_eq!(
+            &jpeg[12..14],
+            &[0xFF, 0xD8],
+            "tras la cabecera de 12 bytes va un JPEG"
+        );
         println!("humo: captura {w}x{h} {} bytes", jpeg.len());
         // XInput2: eventos crudos y nombres de dispositivos.
         let (con, n) = RustConnection::connect(None).unwrap();
         let raiz = con.setup().roots[n].root;
-        assert!(con.xinput_xi_query_version(2, 0).unwrap().reply().unwrap().major_version >= 2);
-        let masc = [xinput::EventMask { deviceid: 1, mask: vec![XIEventMask::RAW_KEY_PRESS | XIEventMask::RAW_BUTTON_PRESS | XIEventMask::RAW_MOTION] }];
-        con.xinput_xi_select_events(raiz, &masc).unwrap().check().unwrap();
-        let (propios, conocidos) = crate::control_vigia_linux::propios_y_conocidos(&con).expect("lista de dispositivos");
-        println!("humo: dispositivos={} propios(XTEST)={}", conocidos.len(), propios.len());
-        assert!(!propios.is_empty() && conocidos.len() > propios.len(), "hay dispositivos XTEST y otros");
+        assert!(
+            con.xinput_xi_query_version(2, 0)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .major_version
+                >= 2
+        );
+        let masc = [xinput::EventMask {
+            deviceid: 1,
+            mask: vec![
+                XIEventMask::RAW_KEY_PRESS
+                    | XIEventMask::RAW_BUTTON_PRESS
+                    | XIEventMask::RAW_MOTION,
+            ],
+        }];
+        con.xinput_xi_select_events(raiz, &masc)
+            .unwrap()
+            .check()
+            .unwrap();
+        let (propios, conocidos) =
+            crate::control_vigia_linux::propios_y_conocidos(&con).expect("lista de dispositivos");
+        println!(
+            "humo: dispositivos={} propios(XTEST)={}",
+            conocidos.len(),
+            propios.len()
+        );
+        assert!(
+            !propios.is_empty() && conocidos.len() > propios.len(),
+            "hay dispositivos XTEST y otros"
+        );
         // Inyección real: mover el puntero y escribir.
         let mut mu = mundo();
         mu.enigo = Some(abrir_enigo().expect("enigo"));
         let (ancho, alto) = mu.enigo.as_ref().unwrap().main_display().unwrap();
-        aplicar(&mut mu, &m::Accion::Mover(0.25, 0.5), f64::from(ancho), f64::from(alto)).expect("mover");
-        aplicar(&mut mu, &m::Accion::ClicIzq, f64::from(ancho), f64::from(alto)).expect("clic");
+        aplicar(
+            &mut mu,
+            &m::Accion::Mover(0.25, 0.5),
+            f64::from(ancho),
+            f64::from(alto),
+        )
+        .expect("mover");
+        aplicar(
+            &mut mu,
+            &m::Accion::ClicIzq,
+            f64::from(ancho),
+            f64::from(alto),
+        )
+        .expect("clic");
         texto(&mut mu, "ab").expect("texto");
         tecla(&mut mu, ll::TeclaLinux::VolumenSubir).expect("tecla");
         drop(mu);
         let p = con.query_pointer(raiz).unwrap().reply().unwrap();
-        let (ex, ey) = ((0.25 * f64::from(ancho - 1)).round() as i16, (0.5 * f64::from(alto - 1)).round() as i16);
-        assert_eq!((p.root_x, p.root_y), (ex, ey), "el puntero llegó donde se pidió");
+        let (ex, ey) = (
+            (0.25 * f64::from(ancho - 1)).round() as i16,
+            (0.5 * f64::from(alto - 1)).round() as i16,
+        );
+        assert_eq!(
+            (p.root_x, p.root_y),
+            (ex, ey),
+            "el puntero llegó donde se pidió"
+        );
         let mut vistos = 0;
         let t0 = std::time::Instant::now();
         while t0.elapsed() < std::time::Duration::from_secs(2) {
             match con.poll_for_event().unwrap() {
-                Some(Event::XinputRawKeyPress(e)) => { vistos += 1; assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios)); }
-                Some(Event::XinputRawButtonPress(e)) => { vistos += 1; assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios)); }
-                Some(Event::XinputRawMotion(e)) => { vistos += 1; assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios)); }
+                Some(Event::XinputRawKeyPress(e)) => {
+                    vistos += 1;
+                    assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios));
+                }
+                Some(Event::XinputRawButtonPress(e)) => {
+                    vistos += 1;
+                    assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios));
+                }
+                Some(Event::XinputRawMotion(e)) => {
+                    vistos += 1;
+                    assert!(ll::dispositivo_es_propio_id(e.sourceid, &propios));
+                }
                 Some(_) => {}
                 None => std::thread::sleep(std::time::Duration::from_millis(20)),
             }

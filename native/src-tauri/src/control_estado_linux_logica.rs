@@ -17,13 +17,24 @@ pub struct Red {
 }
 
 pub fn parsear_pactl_volumen(salida: &str) -> Option<f64> {
-    salida.split('%').next()?.split_whitespace().last()?.parse::<f64>().ok().map(|v| v / 100.0)
+    salida
+        .split('%')
+        .next()?
+        .split_whitespace()
+        .last()?
+        .parse::<f64>()
+        .ok()
+        .map(|v| v / 100.0)
 }
 
 pub fn parsear_wpctl_volumen(salida: &str) -> (Option<f64>, Option<bool>) {
     let mut parts = salida.split_whitespace();
     let vol = parts.nth(1).and_then(|s| s.parse::<f64>().ok());
-    let mute = if salida.contains("[MUTED]") { Some(true) } else { Some(false) };
+    let mute = if salida.contains("[MUTED]") {
+        Some(true)
+    } else {
+        Some(false)
+    };
     (vol, mute)
 }
 
@@ -36,7 +47,10 @@ pub fn calcular_brillo(actual: &str, max: &str) -> Option<f64> {
 pub fn parsear_bateria(capacidad: &str, estado: &str) -> Option<Bateria> {
     let nivel = capacidad.trim().parse::<f64>().ok()? / 100.0;
     let cargando = estado.trim().to_lowercase() == "charging";
-    Some(Bateria { nivel: nivel.clamp(0.0, 1.0), cargando })
+    Some(Bateria {
+        nivel: nivel.clamp(0.0, 1.0),
+        cargando,
+    })
 }
 
 pub fn parsear_nmcli_wifi(salida: &str) -> (bool, bool) {
@@ -47,7 +61,10 @@ pub fn parsear_nmcli_wifi(salida: &str) -> (bool, bool) {
 }
 
 pub fn parsear_nmcli_ssid(salida: &str) -> Option<String> {
-    salida.lines().find(|l| l.starts_with("yes:")).map(|l| l[4..].to_string())
+    salida
+        .lines()
+        .find(|l| l.starts_with("yes:"))
+        .map(|l| l[4..].to_string())
 }
 
 pub fn parsear_pactl_silencio(salida: &str) -> Option<bool> {
@@ -74,13 +91,59 @@ pub fn parsear_rfkill_bluetooth(salida: &str) -> bool {
     visto_estado
 }
 
+/// Métodos de control de brillo/energía que pueden usar D-Bus internamente.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MetodoControl {
+    Brightnessctl,
+    Powerprofilesctl,
+    Xrandr,
+    Sysfs,
+}
+
+/// Detecta si una salida de error contiene un error D-Bus AccessDenied.
+/// El error típico es: "GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Permission denied"
+pub fn es_error_dbus_access_denied(salida_error: &str) -> bool {
+    let s = salida_error.to_lowercase();
+    s.contains("org.freedesktop.dbus.error.accessdenied")
+        || s.contains("gdbus.error:org.freedesktop.dbus.error.accessdenied")
+        || (s.contains("accessdenied") && s.contains("permission denied"))
+}
+
+/// Estado para recordar qué métodos han sido rechazados por AccessDenied.
+/// Se usa para no reintentarlos y no mostrar avisos del sistema repetidos.
+#[derive(Debug, Default)]
+pub struct RechazosDbus {
+    rechazados: std::collections::HashSet<MetodoControl>,
+}
+
+impl RechazosDbus {
+    /// Marca un método como rechazado por AccessDenied.
+    /// Devuelve `true` si es la primera vez que se rechaza (para loguear una vez).
+    pub fn rechazar(&mut self, metodo: MetodoControl) -> bool {
+        self.rechazados.insert(metodo)
+    }
+
+    /// Comprueba si un método ya fue rechazado.
+    pub fn esta_rechazado(&self, metodo: MetodoControl) -> bool {
+        self.rechazados.contains(&metodo)
+    }
+
+    /// Lista de métodos rechazados (para registro).
+    pub fn lista_rechazados(&self) -> Vec<MetodoControl> {
+        self.rechazados.iter().copied().collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_pactl_volumen() {
-        assert_eq!(parsear_pactl_volumen("Volume: front-left: 32768 /  50%"), Some(0.5));
+        assert_eq!(
+            parsear_pactl_volumen("Volume: front-left: 32768 /  50%"),
+            Some(0.5)
+        );
     }
 
     #[test]
@@ -91,8 +154,14 @@ mod tests {
 
     #[test]
     fn test_wpctl() {
-        assert_eq!(parsear_wpctl_volumen("Volume: 0.50"), (Some(0.5), Some(false)));
-        assert_eq!(parsear_wpctl_volumen("Volume: 0.85 [MUTED]"), (Some(0.85), Some(true)));
+        assert_eq!(
+            parsear_wpctl_volumen("Volume: 0.50"),
+            (Some(0.5), Some(false))
+        );
+        assert_eq!(
+            parsear_wpctl_volumen("Volume: 0.85 [MUTED]"),
+            (Some(0.85), Some(true))
+        );
     }
 
     #[test]
@@ -117,7 +186,50 @@ mod tests {
     fn test_rfkill() {
         assert!(!parsear_rfkill_bluetooth(""));
         assert!(!parsear_rfkill_bluetooth("Soft blocked: yes"));
-        assert!(parsear_rfkill_bluetooth("Soft blocked: no\nHard blocked: no"));
-        assert!(parsear_rfkill_bluetooth("0: hci0: Bluetooth\n\tSoft blocked: no\n\tHard blocked: no"));
+        assert!(parsear_rfkill_bluetooth(
+            "Soft blocked: no\nHard blocked: no"
+        ));
+        assert!(parsear_rfkill_bluetooth(
+            "0: hci0: Bluetooth\n\tSoft blocked: no\n\tHard blocked: no"
+        ));
+    }
+
+    #[test]
+    fn test_es_error_dbus_access_denied() {
+        assert!(es_error_dbus_access_denied(
+            "GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Permission denied"
+        ));
+        assert!(es_error_dbus_access_denied(
+            "gdbus.error:org.freedesktop.dbus.error.accessdenied: permission denied"
+        ));
+        assert!(es_error_dbus_access_denied(
+            "Error: org.freedesktop.DBus.Error.AccessDenied"
+        ));
+        assert!(es_error_dbus_access_denied(
+            "accessdenied: permission denied"
+        ));
+        assert!(!es_error_dbus_access_denied(
+            "GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown"
+        ));
+        assert!(!es_error_dbus_access_denied("Error: command not found"));
+        assert!(!es_error_dbus_access_denied(""));
+    }
+
+    #[test]
+    fn test_rechazos_dbus() {
+        let mut rechazos = RechazosDbus::default();
+        assert!(!rechazos.esta_rechazado(MetodoControl::Brightnessctl));
+        assert!(rechazos.rechazar(MetodoControl::Brightnessctl));
+        assert!(rechazos.esta_rechazado(MetodoControl::Brightnessctl));
+        assert!(!rechazos.rechazar(MetodoControl::Brightnessctl));
+        assert_eq!(
+            rechazos.lista_rechazados(),
+            vec![MetodoControl::Brightnessctl]
+        );
+        rechazos.rechazar(MetodoControl::Powerprofilesctl);
+        let lista = rechazos.lista_rechazados();
+        assert_eq!(lista.len(), 2);
+        assert!(lista.contains(&MetodoControl::Brightnessctl));
+        assert!(lista.contains(&MetodoControl::Powerprofilesctl));
     }
 }

@@ -13,6 +13,7 @@
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))] // la usa Linux; en el resto solo se prueba
 
 use crate::control_entrada_macos_logica as m;
+use crate::control_estado_linux_logica::{MetodoControl, RechazosDbus};
 use serde_json::{json, Value};
 
 // ─────────────────────────── Sesión gráfica ───────────────────────────
@@ -33,8 +34,14 @@ fn lleno(v: Option<&str>) -> bool {
 
 /// De las variables de entorno → qué hay. Wayland manda sobre `DISPLAY`: bajo Wayland suele haber un `DISPLAY` de XWayland
 /// que solo ve las apps X11 (no el escritorio), y capturar o inyectar ahí daría un control engañoso.
-pub fn grafica_de(wayland_display: Option<&str>, xdg_session_type: Option<&str>, display: Option<&str>) -> Grafica {
-    if lleno(wayland_display) || xdg_session_type.is_some_and(|t| t.trim().eq_ignore_ascii_case("wayland")) {
+pub fn grafica_de(
+    wayland_display: Option<&str>,
+    xdg_session_type: Option<&str>,
+    display: Option<&str>,
+) -> Grafica {
+    if lleno(wayland_display)
+        || xdg_session_type.is_some_and(|t| t.trim().eq_ignore_ascii_case("wayland"))
+    {
         return Grafica::Wayland;
     }
     if lleno(display) {
@@ -72,7 +79,13 @@ pub fn falta_entrada(g: Grafica, conecta_x11: bool, xtest: bool) -> Option<&'sta
 /// El vocabulario cerrado que un Linux de escritorio (Xfce y parecidos) tiene. Mismas palabras que en el Mac: la ventana de
 /// quien manda ya las conoce. `recientes` es Alt+Tab (cambiar de ventana); `bloquear` es Ctrl+Alt+L (el atajo de bloqueo de
 /// Xfce y de casi todos los escritorios); el volumen y el silencio son las teclas multimedia estándar.
-pub const TECLAS_LINUX: [&str; 5] = ["recientes", "bloquear", "volumen-subir", "volumen-bajar", "silencio"];
+pub const TECLAS_LINUX: [&str; 5] = [
+    "recientes",
+    "bloquear",
+    "volumen-subir",
+    "volumen-bajar",
+    "silencio",
+];
 /// Marca adicional: distingue un Linux de un Mac entre los aparatos «de escritorio» (para rotular `recientes`).
 pub const MARCA_LINUX: &str = "linux";
 
@@ -128,16 +141,26 @@ pub const CLASES_PROTEGIDAS: [&str; 19] = [
 /// `es_texto`: la orden escribe. En Linux (X11) NO se puede saber si el foco está en un campo de contraseña (no hay un
 /// equivalente de la «entrada segura» del Mac): por eso en `protegido` el texto se niega siempre. Esto se dice en el
 /// diálogo de aceptar. `total` no rechaza nada aquí (el aparato bloqueado se mira aparte, en los dos alcances).
-pub fn permite(alcance: m::Alcance, clase: Option<&str>, es_texto: bool) -> Result<(), &'static str> {
+pub fn permite(
+    alcance: m::Alcance,
+    clase: Option<&str>,
+    es_texto: bool,
+) -> Result<(), &'static str> {
     if alcance == m::Alcance::Total {
         return Ok(());
     }
-    let Some(c) = clase else { return Err("app-desconocida") };
+    let Some(c) = clase else {
+        return Err("app-desconocida");
+    };
     let c = c.trim().to_lowercase();
     if c.is_empty() {
         return Err("app-desconocida");
     }
-    if CLASES_PROTEGIDAS.contains(&c.as_str()) || c.contains("polkit") || c.contains("authentication") || c.contains("starseed") {
+    if CLASES_PROTEGIDAS.contains(&c.as_str())
+        || c.contains("polkit")
+        || c.contains("authentication")
+        || c.contains("starseed")
+    {
         return Err("app-protegida");
     }
     if es_texto {
@@ -160,8 +183,16 @@ pub fn clase_de_wm_class(crudo: &[u8]) -> Option<String> {
 /// Lo que dice el diálogo nativo al aceptar un controlador en un Linux. Dice la verdad de `alcance` y de lo que `protegido`
 /// puede y no puede proteger aquí.
 pub fn texto_aceptar(nombre: &str, codigo: &str, alcance: m::Alcance) -> String {
-    let nombre: String = nombre.chars().filter(|c| !c.is_control()).take(40).collect();
-    let nombre = if nombre.trim().is_empty() { "otra neurona".to_string() } else { nombre.trim().to_string() };
+    let nombre: String = nombre
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(40)
+        .collect();
+    let nombre = if nombre.trim().is_empty() {
+        "otra neurona".to_string()
+    } else {
+        nombre.trim().to_string()
+    };
     let alcance_txt = match alcance {
         m::Alcance::Total => "Control TOTAL: podrá ver tu pantalla y mover el ratón, pulsar y escribir en cualquier ventana de este equipo, \
             también StarSeed OS, los ajustes, los instaladores y los campos de contraseña. Solo se niega con la pantalla bloqueada.",
@@ -197,7 +228,11 @@ pub fn capacidades_linux(
     if let Some(f) = falta_entrada(g, conecta_x11, xtest) {
         falta.push(f);
     }
-    let mut teclas: Vec<&str> = if entrada_ok { TECLAS_LINUX.to_vec() } else { Vec::new() };
+    let mut teclas: Vec<&str> = if entrada_ok {
+        TECLAS_LINUX.to_vec()
+    } else {
+        Vec::new()
+    };
     teclas.push(m::MARCA_ESCRITORIO);
     teclas.push(MARCA_LINUX);
     json!({
@@ -219,13 +254,21 @@ pub fn capacidades_linux(
 /// Argumentos para `pactl set-sink-volume @DEFAULT_SINK@ N%` a partir de un nivel en [0.0, 1.0].
 pub fn volumen_pactl_args(nivel: f64) -> Vec<String> {
     let p = (nivel.clamp(0.0, 1.0) * 100.0).round() as u32;
-    vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("{p}%")]
+    vec![
+        "set-sink-volume".into(),
+        "@DEFAULT_SINK@".into(),
+        format!("{p}%"),
+    ]
 }
 
 /// Argumentos para `wpctl set-volume @DEFAULT_AUDIO_SINK@ N` a partir de un nivel en [0.0, 1.0].
 pub fn volumen_wpctl_args(nivel: f64) -> Vec<String> {
     let v = (nivel.clamp(0.0, 1.0) * 100.0).round() / 100.0;
-    vec!["set-volume".into(), "@DEFAULT_AUDIO_SINK@".into(), format!("{v}")]
+    vec![
+        "set-volume".into(),
+        "@DEFAULT_AUDIO_SINK@".into(),
+        format!("{v}"),
+    ]
 }
 
 /// Argumentos para `brightnessctl set N%` a partir de un nivel en [0.0, 1.0].
@@ -237,7 +280,45 @@ pub fn brillo_brightnessctl_args(nivel: f64) -> Vec<String> {
 /// Argumentos para `xrandr --output <out> --brightness N` a partir de un nivel en [0.0, 1.0].
 pub fn brillo_xrandr_args(salida: &str, nivel: f64) -> Vec<String> {
     let v = nivel.clamp(0.0, 1.0);
-    vec!["--output".into(), salida.into(), "--brightness".into(), format!("{:.1}", v)]
+    vec![
+        "--output".into(),
+        salida.into(),
+        "--brightness".into(),
+        format!("{:.1}", v),
+    ]
+}
+
+/// Método preferido para controlar el brillo, ordenado por prioridad:
+/// 1. `brightnessctl` (si no rechazado) - usa sysfs o D-Bus según configuración
+/// 2. `xrandr` (si no rechazado) - solo X11, no usa D-Bus
+/// 3. `sysfs` (escritura directa) - nunca usa D-Bus, siempre disponible si hay backlight
+/// Devuelve `None` si todos los métodos disponibles están rechazados.
+pub fn elegir_metodo_brillo(
+    tiene_brightnessctl: bool,
+    tiene_xrandr: bool,
+    rechazos: &RechazosDbus,
+) -> Option<MetodoControl> {
+    if tiene_brightnessctl && !rechazos.esta_rechazado(MetodoControl::Brightnessctl) {
+        return Some(MetodoControl::Brightnessctl);
+    }
+    if tiene_xrandr && !rechazos.esta_rechazado(MetodoControl::Xrandr) {
+        return Some(MetodoControl::Xrandr);
+    }
+    if !rechazos.esta_rechazado(MetodoControl::Sysfs) {
+        return Some(MetodoControl::Sysfs);
+    }
+    None
+}
+
+/// Método preferido para leer el perfil de energía, ordenado por prioridad:
+/// 1. `powerprofilesctl` (si no rechazado) - usa D-Bus
+/// 2. Ninguno - fallback a sysfs/UPower sin D-Bus
+pub fn elegir_metodo_perfil_energia(rechazos: &RechazosDbus) -> Option<MetodoControl> {
+    if !rechazos.esta_rechazado(MetodoControl::Powerprofilesctl) {
+        Some(MetodoControl::Powerprofilesctl)
+    } else {
+        None
+    }
 }
 
 // ─────────────────────────── Pausa local: mano de verdad o evento propio ───────────────────────────
@@ -280,7 +361,8 @@ pub fn sondeo_mano(
     if puntero_movido_por_mano {
         return true;
     }
-    let propio_reciente = ultima_propia_ms != 0 && ahora_ms.saturating_sub(ultima_propia_ms) <= RECIENTE_PROPIO_MS;
+    let propio_reciente =
+        ultima_propia_ms != 0 && ahora_ms.saturating_sub(ultima_propia_ms) <= RECIENTE_PROPIO_MS;
     (botones_cambiaron || teclas_cambiaron) && !propio_reciente
 }
 
@@ -322,7 +404,11 @@ pub fn bloqueo_conocido(fuentes: &[Option<bool>]) -> bool {
 
 /// Líneas del registro de enlaces con las mismas claves que macOS y Android (`control-entrada`).
 pub fn linea_inicio_entrada(sesion: &str, alcance: m::Alcance) -> String {
-    format!("inicio sesion={} plataforma=linux alcance={}", sesion.chars().take(8).collect::<String>(), alcance.codigo())
+    format!(
+        "inicio sesion={} plataforma=linux alcance={}",
+        sesion.chars().take(8).collect::<String>(),
+        alcance.codigo()
+    )
 }
 
 /// La línea de `control-pantalla` cuando no se puede iniciar, con el motivo y lo que falta.
@@ -346,18 +432,36 @@ mod pruebas {
 
     #[test]
     fn wayland_manda_sobre_display_y_se_dice_wayland() {
-        assert_eq!(grafica_de(Some("wayland-0"), None, Some(":0")), Grafica::Wayland);
-        assert_eq!(grafica_de(None, Some("wayland"), Some(":0")), Grafica::Wayland);
+        assert_eq!(
+            grafica_de(Some("wayland-0"), None, Some(":0")),
+            Grafica::Wayland
+        );
+        assert_eq!(
+            grafica_de(None, Some("wayland"), Some(":0")),
+            Grafica::Wayland
+        );
         assert_eq!(grafica_de(None, Some("Wayland"), None), Grafica::Wayland);
         assert_eq!(grafica_de(None, Some("x11"), Some(":0")), Grafica::X11);
-        assert_eq!(grafica_de(Some("  "), Some("tty"), Some(":1")), Grafica::X11);
+        assert_eq!(
+            grafica_de(Some("  "), Some("tty"), Some(":1")),
+            Grafica::X11
+        );
         assert_eq!(grafica_de(None, None, None), Grafica::SinPantalla);
         assert_eq!(grafica_de(None, None, Some("")), Grafica::SinPantalla);
         assert_eq!(falta_pantalla(Grafica::Wayland, true), Some("wayland"));
-        assert_eq!(falta_pantalla(Grafica::SinPantalla, false), Some("sin-pantalla-x11"));
-        assert_eq!(falta_pantalla(Grafica::X11, false), Some("sin-pantalla-x11"));
+        assert_eq!(
+            falta_pantalla(Grafica::SinPantalla, false),
+            Some("sin-pantalla-x11")
+        );
+        assert_eq!(
+            falta_pantalla(Grafica::X11, false),
+            Some("sin-pantalla-x11")
+        );
         assert_eq!(falta_pantalla(Grafica::X11, true), None);
-        assert_eq!(falta_entrada(Grafica::X11, true, false), Some("entrada-x11"));
+        assert_eq!(
+            falta_entrada(Grafica::X11, true, false),
+            Some("entrada-x11")
+        );
         assert_eq!(falta_entrada(Grafica::X11, true, true), None);
         assert_eq!(falta_entrada(Grafica::Wayland, true, true), Some("wayland"));
     }
@@ -372,18 +476,41 @@ mod pruebas {
         assert_eq!(c["entrada"]["volumen"], true);
         assert_eq!(c["entrada"]["brillo"], true);
         assert_eq!(c["falta"], json!([]));
-        let teclas: Vec<&str> = c["entrada"]["teclas"].as_array().unwrap().iter().filter_map(|t| t.as_str()).collect();
-        assert!(teclas.contains(&"escritorio") && teclas.contains(&"linux") && teclas.contains(&"recientes"));
+        let teclas: Vec<&str> = c["entrada"]["teclas"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|t| t.as_str())
+            .collect();
+        assert!(
+            teclas.contains(&"escritorio")
+                && teclas.contains(&"linux")
+                && teclas.contains(&"recientes")
+        );
         // El vocabulario es un subconjunto del cerrado de la web.
         for t in TECLAS_LINUX {
             assert!(crate::control_entrada_logica::TECLAS.contains(&t), "{t}");
         }
-        let w = capacidades_linux(Grafica::Wayland, false, false, m::Alcance::Total, false, false);
+        let w = capacidades_linux(
+            Grafica::Wayland,
+            false,
+            false,
+            m::Alcance::Total,
+            false,
+            false,
+        );
         assert_eq!(w["falta"], json!(["wayland"]));
         assert_eq!(w["pantalla"]["proyeccion"], false);
         assert_eq!(w["entrada"]["gestos"], false);
         assert_eq!(w["entrada"]["teclas"], json!(["escritorio", "linux"]));
-        let sx = capacidades_linux(Grafica::X11, true, false, m::Alcance::Protegido, false, false);
+        let sx = capacidades_linux(
+            Grafica::X11,
+            true,
+            false,
+            m::Alcance::Protegido,
+            false,
+            false,
+        );
         assert_eq!(sx["falta"], json!(["entrada-x11"]));
         assert_eq!(sx["pantalla"]["proyeccion"], true, "sin XTEST aún se ve");
         assert_eq!(sx["alcance"], "protegido");
@@ -392,19 +519,52 @@ mod pruebas {
     #[test]
     fn total_no_rechaza_y_protegido_si_ante_la_duda() {
         assert!(permite(m::Alcance::Total, None, true).is_ok());
-        assert!(permite(m::Alcance::Total, Some("polkit-gnome-authentication-agent-1"), true).is_ok());
-        assert_eq!(permite(m::Alcance::Protegido, None, false), Err("app-desconocida"));
-        assert_eq!(permite(m::Alcance::Protegido, Some("  "), false), Err("app-desconocida"));
-        assert_eq!(permite(m::Alcance::Protegido, Some("Xfce4-settings-manager"), false), Err("app-protegida"));
-        assert_eq!(permite(m::Alcance::Protegido, Some("Polkit-gnome-authentication-agent-1"), false), Err("app-protegida"));
-        assert_eq!(permite(m::Alcance::Protegido, Some("StarSeed-OS"), false), Err("app-protegida"));
-        assert_eq!(permite(m::Alcance::Protegido, Some("Firefox"), false), Ok(()));
-        assert_eq!(permite(m::Alcance::Protegido, Some("Firefox"), true), Err("texto-sin-campo-seguro"));
+        assert!(permite(
+            m::Alcance::Total,
+            Some("polkit-gnome-authentication-agent-1"),
+            true
+        )
+        .is_ok());
+        assert_eq!(
+            permite(m::Alcance::Protegido, None, false),
+            Err("app-desconocida")
+        );
+        assert_eq!(
+            permite(m::Alcance::Protegido, Some("  "), false),
+            Err("app-desconocida")
+        );
+        assert_eq!(
+            permite(m::Alcance::Protegido, Some("Xfce4-settings-manager"), false),
+            Err("app-protegida")
+        );
+        assert_eq!(
+            permite(
+                m::Alcance::Protegido,
+                Some("Polkit-gnome-authentication-agent-1"),
+                false
+            ),
+            Err("app-protegida")
+        );
+        assert_eq!(
+            permite(m::Alcance::Protegido, Some("StarSeed-OS"), false),
+            Err("app-protegida")
+        );
+        assert_eq!(
+            permite(m::Alcance::Protegido, Some("Firefox"), false),
+            Ok(())
+        );
+        assert_eq!(
+            permite(m::Alcance::Protegido, Some("Firefox"), true),
+            Err("texto-sin-campo-seguro")
+        );
     }
 
     #[test]
     fn wm_class_lee_la_clase_y_no_inventa() {
-        assert_eq!(clase_de_wm_class(b"navigator\0Firefox\0").as_deref(), Some("Firefox"));
+        assert_eq!(
+            clase_de_wm_class(b"navigator\0Firefox\0").as_deref(),
+            Some("Firefox")
+        );
         assert_eq!(clase_de_wm_class(b"xterm\0").as_deref(), Some("xterm"));
         assert_eq!(clase_de_wm_class(b""), None);
         assert_eq!(clase_de_wm_class(b"\0\0"), None);
@@ -413,9 +573,18 @@ mod pruebas {
     #[test]
     fn el_dialogo_dice_la_verdad_de_cada_alcance_y_no_nombra_al_mando() {
         let t = texto_aceptar("Mi Mac", "123-456", m::Alcance::Total);
-        assert!(t.contains("Mi Mac") && t.contains("123-456") && t.contains("TOTAL") && t.contains("Terminar"));
+        assert!(
+            t.contains("Mi Mac")
+                && t.contains("123-456")
+                && t.contains("TOTAL")
+                && t.contains("Terminar")
+        );
         let p = texto_aceptar("  ", "9", m::Alcance::Protegido);
-        assert!(p.contains("otra neurona") && p.contains("NO se puede saber") && p.contains("tampoco se escribe texto"));
+        assert!(
+            p.contains("otra neurona")
+                && p.contains("NO se puede saber")
+                && p.contains("tampoco se escribe texto")
+        );
         assert!(!t.contains("Mando") && !p.contains("Mando"));
         assert!(!t.contains("Mac de") && !t.contains("este Mac"));
     }
@@ -429,15 +598,30 @@ mod pruebas {
         assert!(!dispositivo_es_propio("Virtual core pointer"));
         assert!(!evento_pausa(7, &[7, 8], &[2, 3, 7, 8, 9]));
         assert!(evento_pausa(9, &[7, 8], &[2, 3, 7, 8, 9]));
-        assert!(evento_pausa(42, &[7, 8], &[2, 3, 7, 8, 9]), "dispositivo que no se conoce: pausa");
+        assert!(
+            evento_pausa(42, &[7, 8], &[2, 3, 7, 8, 9]),
+            "dispositivo que no se conoce: pausa"
+        );
     }
 
     #[test]
     fn el_sondeo_de_reserva_es_conservador_pero_no_toma_lo_propio_por_una_mano() {
-        assert!(sondeo_mano(true, false, false, 1000, 1010), "el puntero se apartó: mano, aunque inyectáramos hace poco");
-        assert!(!sondeo_mano(false, true, false, 1000, 1100), "botón que cambió justo tras inyectar: es nuestro");
-        assert!(sondeo_mano(false, true, false, 1000, 1400), "botón que cambió sin inyectar: mano");
-        assert!(sondeo_mano(false, false, true, 0, 5000), "tecla sin haber inyectado nunca: mano");
+        assert!(
+            sondeo_mano(true, false, false, 1000, 1010),
+            "el puntero se apartó: mano, aunque inyectáramos hace poco"
+        );
+        assert!(
+            !sondeo_mano(false, true, false, 1000, 1100),
+            "botón que cambió justo tras inyectar: es nuestro"
+        );
+        assert!(
+            sondeo_mano(false, true, false, 1000, 1400),
+            "botón que cambió sin inyectar: mano"
+        );
+        assert!(
+            sondeo_mano(false, false, true, 0, 5000),
+            "tecla sin haber inyectado nunca: mano"
+        );
         assert!(!sondeo_mano(false, false, false, 0, 5000));
     }
 
@@ -447,10 +631,19 @@ mod pruebas {
         assert_eq!(bloqueo_de_logind("no\n"), Some(false));
         assert_eq!(bloqueo_de_logind(""), None);
         assert_eq!(bloqueo_de_logind("n/a"), None);
-        assert_eq!(bloqueo_de_salvapantallas("The screensaver is active\n"), Some(true));
-        assert_eq!(bloqueo_de_salvapantallas("The screensaver is inactive"), Some(false));
+        assert_eq!(
+            bloqueo_de_salvapantallas("The screensaver is active\n"),
+            Some(true)
+        );
+        assert_eq!(
+            bloqueo_de_salvapantallas("The screensaver is inactive"),
+            Some(false)
+        );
         assert_eq!(bloqueo_de_salvapantallas("screen non-blanked"), Some(false));
-        assert_eq!(bloqueo_de_salvapantallas("screen locked since Tue"), Some(true));
+        assert_eq!(
+            bloqueo_de_salvapantallas("screen locked since Tue"),
+            Some(true)
+        );
         assert_eq!(bloqueo_de_salvapantallas("no se que"), None);
         assert!(bloqueada_de(&[Some(false), Some(true), None]));
         assert!(!bloqueada_de(&[Some(false), None]));
@@ -470,20 +663,50 @@ mod pruebas {
 
     #[test]
     fn volumen_pactl_desde_porcentaje_acotado() {
-        assert_eq!(volumen_pactl_args(0.0), vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]);
-        assert_eq!(volumen_pactl_args(0.5), vec!["set-sink-volume", "@DEFAULT_SINK@", "50%"]);
-        assert_eq!(volumen_pactl_args(1.0), vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]);
-        assert_eq!(volumen_pactl_args(-0.1), vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]);
-        assert_eq!(volumen_pactl_args(1.1), vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]);
+        assert_eq!(
+            volumen_pactl_args(0.0),
+            vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]
+        );
+        assert_eq!(
+            volumen_pactl_args(0.5),
+            vec!["set-sink-volume", "@DEFAULT_SINK@", "50%"]
+        );
+        assert_eq!(
+            volumen_pactl_args(1.0),
+            vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]
+        );
+        assert_eq!(
+            volumen_pactl_args(-0.1),
+            vec!["set-sink-volume", "@DEFAULT_SINK@", "0%"]
+        );
+        assert_eq!(
+            volumen_pactl_args(1.1),
+            vec!["set-sink-volume", "@DEFAULT_SINK@", "100%"]
+        );
     }
 
     #[test]
     fn volumen_wpctl_desde_porcentaje_acotado() {
-        assert_eq!(volumen_wpctl_args(0.0), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]);
-        assert_eq!(volumen_wpctl_args(0.5), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0.5"]);
-        assert_eq!(volumen_wpctl_args(1.0), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]);
-        assert_eq!(volumen_wpctl_args(-0.1), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]);
-        assert_eq!(volumen_wpctl_args(1.1), vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]);
+        assert_eq!(
+            volumen_wpctl_args(0.0),
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]
+        );
+        assert_eq!(
+            volumen_wpctl_args(0.5),
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0.5"]
+        );
+        assert_eq!(
+            volumen_wpctl_args(1.0),
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]
+        );
+        assert_eq!(
+            volumen_wpctl_args(-0.1),
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "0"]
+        );
+        assert_eq!(
+            volumen_wpctl_args(1.1),
+            vec!["set-volume", "@DEFAULT_AUDIO_SINK@", "1"]
+        );
     }
 
     #[test]
@@ -497,10 +720,89 @@ mod pruebas {
 
     #[test]
     fn brillo_xrandr_desde_porcentaje_acotado() {
-        assert_eq!(brillo_xrandr_args("eDP-1", 0.0), vec!["--output", "eDP-1", "--brightness", "0.0"]);
-        assert_eq!(brillo_xrandr_args("eDP-1", 0.5), vec!["--output", "eDP-1", "--brightness", "0.5"]);
-        assert_eq!(brillo_xrandr_args("eDP-1", 1.0), vec!["--output", "eDP-1", "--brightness", "1.0"]);
-        assert_eq!(brillo_xrandr_args("eDP-1", -0.1), vec!["--output", "eDP-1", "--brightness", "0.0"]);
-        assert_eq!(brillo_xrandr_args("eDP-1", 1.1), vec!["--output", "eDP-1", "--brightness", "1.0"]);
+        assert_eq!(
+            brillo_xrandr_args("eDP-1", 0.0),
+            vec!["--output", "eDP-1", "--brightness", "0.0"]
+        );
+        assert_eq!(
+            brillo_xrandr_args("eDP-1", 0.5),
+            vec!["--output", "eDP-1", "--brightness", "0.5"]
+        );
+        assert_eq!(
+            brillo_xrandr_args("eDP-1", 1.0),
+            vec!["--output", "eDP-1", "--brightness", "1.0"]
+        );
+        assert_eq!(
+            brillo_xrandr_args("eDP-1", -0.1),
+            vec!["--output", "eDP-1", "--brightness", "0.0"]
+        );
+        assert_eq!(
+            brillo_xrandr_args("eDP-1", 1.1),
+            vec!["--output", "eDP-1", "--brightness", "1.0"]
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_brillo_prefiere_brightnessctl_si_disponible() {
+        let rechazos = RechazosDbus::default();
+        assert_eq!(
+            elegir_metodo_brillo(true, true, &rechazos),
+            Some(MetodoControl::Brightnessctl)
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_brillo_usa_xrandr_si_brightnessctl_rechazado() {
+        let mut rechazos = RechazosDbus::default();
+        rechazos.rechazar(MetodoControl::Brightnessctl);
+        assert_eq!(
+            elegir_metodo_brillo(true, true, &rechazos),
+            Some(MetodoControl::Xrandr)
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_brillo_usa_sysfs_si_todos_rechazados() {
+        let mut rechazos = RechazosDbus::default();
+        rechazos.rechazar(MetodoControl::Brightnessctl);
+        rechazos.rechazar(MetodoControl::Xrandr);
+        assert_eq!(
+            elegir_metodo_brillo(true, true, &rechazos),
+            Some(MetodoControl::Sysfs)
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_brillo_none_si_todos_rechazados_incluyendo_sysfs() {
+        let mut rechazos = RechazosDbus::default();
+        rechazos.rechazar(MetodoControl::Brightnessctl);
+        rechazos.rechazar(MetodoControl::Xrandr);
+        rechazos.rechazar(MetodoControl::Sysfs);
+        assert_eq!(elegir_metodo_brillo(true, true, &rechazos), None);
+    }
+
+    #[test]
+    fn elegir_metodo_brillo_sin_brightnessctl_usa_xrandr() {
+        let rechazos = RechazosDbus::default();
+        assert_eq!(
+            elegir_metodo_brillo(false, true, &rechazos),
+            Some(MetodoControl::Xrandr)
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_perfil_energia_usa_powerprofilesctl_si_no_rechazado() {
+        let rechazos = RechazosDbus::default();
+        assert_eq!(
+            elegir_metodo_perfil_energia(&rechazos),
+            Some(MetodoControl::Powerprofilesctl)
+        );
+    }
+
+    #[test]
+    fn elegir_metodo_perfil_energia_none_si_rechazado() {
+        let mut rechazos = RechazosDbus::default();
+        rechazos.rechazar(MetodoControl::Powerprofilesctl);
+        assert_eq!(elegir_metodo_perfil_energia(&rechazos), None);
     }
 }
