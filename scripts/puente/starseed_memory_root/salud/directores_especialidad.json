@@ -1,0 +1,47 @@
+{
+ "interfaz": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {
+   "d4e46a7ec884248c": {
+    "fallo": "Token hex",
+    "causa": "No usó tokens",
+    "arreglo": "Usar palette",
+    "timestamp": 1795588388.9856515,
+    "tarea_id": "manual",
+    "archivo": null,
+    "veces_usado": 0
+   }
+  },
+  "fallos_por_tarea": {}
+ },
+ "puente": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ },
+ "rust": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ },
+ "malla": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ },
+ "datos": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ },
+ "pruebas": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ },
+ "audiovisual": {
+  "ultima_asignacion": 0.0,
+  "aprendizajes": {},
+  "fallos_por_tarea": {}
+ }
+}
