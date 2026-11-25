@@ -125,7 +125,9 @@ fn interno() -> &'static Interno {
 }
 
 fn leer<T: Clone>(m: &Mutex<T>) -> T {
-    m.lock().map(|g| g.clone()).unwrap_or_else(|p| p.into_inner().clone())
+    m.lock()
+        .map(|g| g.clone())
+        .unwrap_or_else(|p| p.into_inner().clone())
 }
 
 fn poner<T>(m: &Mutex<T>, v: T) {
@@ -154,7 +156,10 @@ pub fn hay_pendiente() -> bool {
 /// La build de la web que lleva una carpeta de servidor (instalador o capa): su `public/version.json`.
 /// Sin ese archivo (paquetes viejos), la build queda «desconocida»: nunca se inventa.
 fn web_de_dir(dir: &Path) -> r::WebId {
-    fs::read_to_string(dir.join("public").join("version.json")).ok().and_then(|t| r::de_version_json(&t)).unwrap_or_default()
+    fs::read_to_string(dir.join("public").join("version.json"))
+        .ok()
+        .and_then(|t| r::de_version_json(&t))
+        .unwrap_or_default()
 }
 
 /// Escribe en `Publico` lo que se sabe (para la pastilla y para la web, que decide si es momento de relevar).
@@ -171,7 +176,11 @@ fn refrescar_publico() {
 
 /// Una línea de relevo que no se repite seguida (la mirada es cada 5 min).
 fn registrar_una_vez(linea: &str) {
-    let nuevo = interno().ultimo_aviso.lock().map(|mut u| r::nuevo_mensaje(&mut u, linea)).unwrap_or(true);
+    let nuevo = interno()
+        .ultimo_aviso
+        .lock()
+        .map(|mut u| r::nuevo_mensaje(&mut u, linea))
+        .unwrap_or(true);
     if nuevo {
         registrar(linea);
     }
@@ -198,7 +207,11 @@ pub fn registrar_sirve() {
 pub fn al_pedir_relevo() {
     let w = leer(&interno().webs);
     let destino = w.nueva.clone().unwrap_or_default();
-    registrar(&r::linea_relevo_pedido(&w.corre, &destino, w.publicada.as_ref()));
+    registrar(&r::linea_relevo_pedido(
+        &w.corre,
+        &destino,
+        w.publicada.as_ref(),
+    ));
     guardar_relevo_desde(&w.corre); // AND1114L
     poner(&interno().relevo_desde, Some(w.corre));
 }
@@ -207,7 +220,8 @@ pub fn al_pedir_relevo() {
 
 #[cfg(not(desktop))]
 fn archivo_relevo() -> Option<PathBuf> {
-    leer(&interno().dir).map(|d| crate::capas_http_android::carpeta_puente(&d).join("relevo-desde.txt"))
+    leer(&interno().dir)
+        .map(|d| crate::capas_http_android::carpeta_puente(&d).join("relevo-desde.txt"))
 }
 
 #[cfg(not(desktop))]
@@ -227,7 +241,11 @@ fn guardar_relevo_desde(_w: &r::WebId) {}
 fn cargar_relevo_desde() {
     let Some(f) = archivo_relevo() else { return };
     if let Ok(t) = fs::read_to_string(&f) {
-        let (b, sha) = t.trim().split_once('/').map(|(b, s)| (b, Some(s))).unwrap_or((t.trim(), None));
+        let (b, sha) = t
+            .trim()
+            .split_once('/')
+            .map(|(b, s)| (b, Some(s)))
+            .unwrap_or((t.trim(), None));
         let id = r::WebId::de_campos(Some(b).filter(|x| *x != "?"), sha);
         if id.conocida() {
             poner(&interno().relevo_desde, Some(id));
@@ -264,8 +282,10 @@ pub fn dir_servida() -> Option<PathBuf> {
 /// Lee `/version.json` de la web PUBLICADA y dice si hay que mirar el canal ya. Nunca lanza.
 fn mirar_publicada(ahora: u64) -> bool {
     let url = format!("{}/version.json", l::WEB_PUBLICADA);
-    let leida = bajar_bytes(&url, r::TOPE_VERSION_JSON)
-        .and_then(|b| r::de_version_json(&String::from_utf8_lossy(&b)).ok_or_else(|| "respuesta sin build reconocible".to_string()));
+    let leida = bajar_bytes(&url, r::TOPE_VERSION_JSON).and_then(|b| {
+        r::de_version_json(&String::from_utf8_lossy(&b))
+            .ok_or_else(|| "respuesta sin build reconocible".to_string())
+    });
     let corre = leer(&interno().webs).corre;
     match leida {
         Ok(p) => {
@@ -311,19 +331,30 @@ fn apagando() -> bool {
 }
 
 fn ahora_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// (AND1114L) Las líneas `[capas]` recientes (las más nuevas al final).
 pub fn lineas_recientes() -> Vec<LineaCapas> {
-    interno().lineas.lock().map(|g| g.1.iter().cloned().collect()).unwrap_or_default()
+    interno()
+        .lineas
+        .lock()
+        .map(|g| g.1.iter().cloned().collect())
+        .unwrap_or_default()
 }
 
 fn guardar_en_anillo(t: u64, linea: &str) {
     if let Ok(mut g) = interno().lineas.lock() {
         g.0 += 1;
         let n = g.0;
-        g.1.push_back(LineaCapas { n, t, texto: linea.chars().take(400).collect() });
+        g.1.push_back(LineaCapas {
+            n,
+            t,
+            texto: linea.chars().take(400).collect(),
+        });
         while g.1.len() > ANILLO_LINEAS {
             g.1.pop_front();
         }
@@ -347,7 +378,10 @@ fn permitir_local() -> bool {
 /// Primera mirada al canal (en depuración, `STARSEED_CAPAS_PRIMERA_MS` la adelanta para las pruebas).
 fn primera_mirada_ms() -> u64 {
     if permitir_local() {
-        if let Some(ms) = std::env::var("STARSEED_CAPAS_PRIMERA_MS").ok().and_then(|v| v.trim().parse().ok()) {
+        if let Some(ms) = std::env::var("STARSEED_CAPAS_PRIMERA_MS")
+            .ok()
+            .and_then(|v| v.trim().parse().ok())
+        {
             return ms;
         }
     }
@@ -368,7 +402,11 @@ fn url_canal() -> String {
 // ───────────────────────────── JSON ─────────────────────────────
 
 fn texto(v: &Value, k: &str) -> Option<String> {
-    v.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
+    v.get(k)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 fn num(v: &Value, k: &str) -> Option<u64> {
@@ -376,7 +414,9 @@ fn num(v: &Value, k: &str) -> Option<u64> {
 }
 
 fn n32(v: &Value, k: &str) -> Result<u32, String> {
-    num(v, k).and_then(|n| u32::try_from(n).ok()).ok_or_else(|| format!("falta «{k}»"))
+    num(v, k)
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or_else(|| format!("falta «{k}»"))
 }
 
 fn exigir(v: Option<String>, k: &str) -> Result<String, String> {
@@ -403,10 +443,16 @@ pub fn canal_de_json(v: &Value) -> Result<c::Canal, String> {
 pub fn manifiesto_de_json(v: &Value) -> Result<c::Manifiesto, String> {
     let archivo = v.get("archivo").ok_or("falta «archivo»")?;
     let total = v.get("total").ok_or("falta «total»")?;
-    let lista = v.get("archivos").and_then(Value::as_array).ok_or("falta «archivos»")?;
+    let lista = v
+        .get("archivos")
+        .and_then(Value::as_array)
+        .ok_or("falta «archivos»")?;
     let mut archivos = Vec::with_capacity(lista.len());
     for x in lista {
-        let t = x.as_array().filter(|t| t.len() == 3).ok_or("entrada de «archivos» mal formada")?;
+        let t = x
+            .as_array()
+            .filter(|t| t.len() == 3)
+            .ok_or("entrada de «archivos» mal formada")?;
         archivos.push(c::ArchivoCapa {
             ruta: t[0].as_str().ok_or("ruta no válida")?.to_string(),
             bytes: t[1].as_u64().ok_or("tamaño no válido")?,
@@ -421,7 +467,9 @@ pub fn manifiesto_de_json(v: &Value) -> Result<c::Manifiesto, String> {
         creado_ms: num(v, "creado_ms").ok_or("falta «creado_ms»")?,
         app_minima: exigir(texto(v, "app_minima"), "app_minima")?,
         protocolo: n32(v, "protocolo")?,
-        node_mayor: num(v, "node_mayor").and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
+        node_mayor: num(v, "node_mayor")
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(0),
         archivo_nombre: exigir(texto(archivo, "nombre"), "archivo.nombre")?,
         archivo_bytes: num(archivo, "bytes").ok_or("falta «archivo.bytes»")?,
         archivo_sha256: exigir(texto(archivo, "sha256"), "archivo.sha256")?,
@@ -434,7 +482,13 @@ pub fn manifiesto_de_json(v: &Value) -> Result<c::Manifiesto, String> {
 fn lista_de(v: &Value, k: &str) -> Vec<String> {
     v.get(k)
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).filter(|s| c::build_id_seguro(s)).map(str::to_string).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .filter(|s| c::build_id_seguro(s))
+                .map(str::to_string)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -447,7 +501,9 @@ pub fn estado_de_json(v: &Value) -> c::EstadoCapas {
         activa: build_de(v, "activa"),
         anterior: build_de(v, "anterior"),
         pendiente: build_de(v, "pendiente"),
-        intentos: num(v, "intentos").and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
+        intentos: num(v, "intentos")
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(0),
         malas: lista_de(v, "malas"),
         aviso: texto(v, "aviso"),
     }
@@ -479,7 +535,11 @@ fn escribir_estado(dir: &Path, e: &c::EstadoCapas) {
     let tmp = dir.join(format!("{}.tmp", c::ESTADO));
     let ok = serde_json::to_vec_pretty(&estado_a_json(e))
         .ok()
-        .and_then(|b| File::create(&tmp).and_then(|mut f| f.write_all(&b).and_then(|_| f.sync_all())).ok());
+        .and_then(|b| {
+            File::create(&tmp)
+                .and_then(|mut f| f.write_all(&b).and_then(|_| f.sync_all()))
+                .ok()
+        });
     if ok.is_some() {
         if let Err(err) = fs::rename(&tmp, dir.join(c::ESTADO)) {
             registrar(&format!("no se pudo guardar el estado de las capas: {err}"));
@@ -503,13 +563,24 @@ fn cambiar_estado(f: impl FnOnce(&c::EstadoCapas) -> c::EstadoCapas) -> Option<c
 
 /// La clave pública del updater (base64 del texto minisign), de tauri.conf.json.
 fn clave_publica(app: &AppHandle) -> Option<String> {
-    app.config().plugins.0.get("updater")?.get("pubkey")?.as_str().map(str::to_string)
+    app.config()
+        .plugins
+        .0
+        .get("updater")?
+        .get("pubkey")?
+        .as_str()
+        .map(str::to_string)
 }
 
 /// Verifica `datos` con la firma (contenido de un `.sig` de `tauri signer sign`: base64 del texto
 /// minisign) y la clave del updater; además la firma debe ser de ESE archivo (`file:` del comentario
 /// firmado). Igual que tauri-plugin-updater, pero sin aceptar firmas «legacy» sin prehash.
-pub fn verificar_firma(datos: &[u8], firma_b64: &str, clave_b64: &str, nombre: &str) -> Result<(), String> {
+pub fn verificar_firma(
+    datos: &[u8],
+    firma_b64: &str,
+    clave_b64: &str,
+    nombre: &str,
+) -> Result<(), String> {
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD;
     let clave = b64
@@ -517,14 +588,17 @@ pub fn verificar_firma(datos: &[u8], firma_b64: &str, clave_b64: &str, nombre: &
         .ok()
         .and_then(|b| String::from_utf8(b).ok())
         .ok_or("la clave pública del updater no es válida")?;
-    let pk = minisign_verify::PublicKey::decode(&clave).map_err(|e| format!("la clave pública del updater no es válida: {e}"))?;
+    let pk = minisign_verify::PublicKey::decode(&clave)
+        .map_err(|e| format!("la clave pública del updater no es válida: {e}"))?;
     let firma = b64
         .decode(firma_b64.trim())
         .ok()
         .and_then(|b| String::from_utf8(b).ok())
         .ok_or("la firma no es el base64 de un .sig de minisign")?;
-    let sig = minisign_verify::Signature::decode(&firma).map_err(|e| format!("firma ilegible: {e}"))?;
-    pk.verify(datos, &sig, false).map_err(|e| format!("la firma del manifiesto no es válida: {e}"))?;
+    let sig =
+        minisign_verify::Signature::decode(&firma).map_err(|e| format!("firma ilegible: {e}"))?;
+    pk.verify(datos, &sig, false)
+        .map_err(|e| format!("la firma del manifiesto no es válida: {e}"))?;
     if !c::comentario_firmado_ok(sig.trusted_comment(), nombre) {
         return Err(format!("la firma es buena pero no es la de {nombre}"));
     }
@@ -568,17 +642,28 @@ fn leer_capa(dir: &Path, build: &str, clave: &str) -> Option<c::Manifiesto> {
 
 /// Contexto de esta app: su versión, el Node que trae y el paquete del instalador.
 fn contexto(app: &AppHandle, instalador: &l::RutasPaquete) -> c::Contexto {
-    let m = fs::read(&instalador.manifiesto).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);
+    let m = fs::read(&instalador.manifiesto)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null);
     c::Contexto {
         version_app: app.package_info().version.to_string(),
         // (AND1114L) En Android el Node es el de nodejs-mobile (24) y las capas las compila el CI para el Node de escritorio
         // (22): la capa es JavaScript sin complementos nativos para Android, así que la comprobación de «mayor» no aplica
         // (lo que sí aplica sigue igual: app mínima, protocolo, firma, SHA-256 y la prueba de salud con vuelta atrás).
-        node_mayor: if cfg!(desktop) { texto(&m, "node").and_then(|n| c::mayor_de(&n)) } else { None },
+        node_mayor: if cfg!(desktop) {
+            texto(&m, "node").and_then(|n| c::mayor_de(&n))
+        } else {
+            None
+        },
         instalador_build: texto(&m, "buildId").or_else(|| {
-            fs::read_to_string(instalador.dir.join(".next").join("BUILD_ID")).ok().map(|s| s.trim().to_string())
+            fs::read_to_string(instalador.dir.join(".next").join("BUILD_ID"))
+                .ok()
+                .map(|s| s.trim().to_string())
         }),
-        instalador_creado_ms: num(&m, "creadoMs").or_else(|| num(&m, "creado_ms")).unwrap_or(0),
+        instalador_creado_ms: num(&m, "creadoMs")
+            .or_else(|| num(&m, "creado_ms"))
+            .unwrap_or(0),
     }
 }
 
@@ -596,7 +681,12 @@ pub fn preparar(app: &AppHandle, instalador: &l::RutasPaquete, registro: Option<
 /// (AND1114L) Lo mismo con la carpeta de las capas elegida por quien llama (Android: `noBackupFilesDir/servidor-capas`,
 /// fuera de `servidor-local/`, cuyas carpetas ajenas borra Kotlin al extraer una APK nueva: las capas deben sobrevivirla).
 #[cfg(not(desktop))]
-pub fn preparar_android(app: &AppHandle, capas: PathBuf, instalador: &l::RutasPaquete, registro: Option<File>) {
+pub fn preparar_android(
+    app: &AppHandle,
+    capas: PathBuf,
+    instalador: &l::RutasPaquete,
+    registro: Option<File>,
+) {
     poner(&interno().registro, registro);
     preparar_en(app, capas, instalador);
 }
@@ -613,7 +703,10 @@ fn preparar_en(app: &AppHandle, dir: PathBuf, instalador: &l::RutasPaquete) {
     // Restos de una extracción cortada (la app se cerró a medias).
     if let Ok(lector) = fs::read_dir(&dir) {
         for e in lector.flatten() {
-            if e.file_name().to_string_lossy().ends_with(c::SUFIJO_EXTRAYENDO) {
+            if e.file_name()
+                .to_string_lossy()
+                .ends_with(c::SUFIJO_EXTRAYENDO)
+            {
                 let _ = fs::remove_dir_all(e.path());
             }
         }
@@ -636,14 +729,25 @@ pub fn elegir(instalador: &l::RutasPaquete) -> (c::Eleccion, l::RutasPaquete) {
         servida(&instalador.dir); // ACT1114H
         (c::Eleccion::Instalador, instalador.clone())
     };
-    let (Some(dir), Some(ctx), Some(clave)) = (leer(&interno().dir), leer(&interno().ctx), leer(&interno().clave)) else {
+    let (Some(dir), Some(ctx), Some(clave)) = (
+        leer(&interno().dir),
+        leer(&interno().ctx),
+        leer(&interno().clave),
+    ) else {
         return instalador_solo();
     };
-    let Ok(_g) = interno().cerrojo.lock() else { return instalador_solo() };
+    let Ok(_g) = interno().cerrojo.lock() else {
+        return instalador_solo();
+    };
     let estado = leer_estado(&dir);
     let mut cache: HashMap<String, Option<c::ResumenCapa>> = HashMap::new();
-    for b in [&estado.pendiente, &estado.activa, &estado.anterior].into_iter().flatten() {
-        cache.entry(b.clone()).or_insert_with(|| leer_capa(&dir, b, &clave).map(|m| c::ResumenCapa::from(&m)));
+    for b in [&estado.pendiente, &estado.activa, &estado.anterior]
+        .into_iter()
+        .flatten()
+    {
+        cache
+            .entry(b.clone())
+            .or_insert_with(|| leer_capa(&dir, b, &clave).map(|m| c::ResumenCapa::from(&m)));
     }
     let eleccion = c::elegir(&estado, |b| cache.get(b).cloned().flatten(), &ctx);
     let nuevo = c::al_intentar(&estado, &eleccion);
@@ -662,7 +766,10 @@ pub fn elegir(instalador: &l::RutasPaquete) -> (c::Eleccion, l::RutasPaquete) {
         p.nueva_version = pendiente_valida.as_ref().map(version_corta);
     });
     // (ACT1114H) La web de la capa pendiente y la de lo que va a servir este arranque.
-    let web_pendiente = pendiente_valida.as_ref().map(|x| web_de_dir(&dir.join(&x.build_id))).filter(r::WebId::conocida);
+    let web_pendiente = pendiente_valida
+        .as_ref()
+        .map(|x| web_de_dir(&dir.join(&x.build_id)))
+        .filter(r::WebId::conocida);
     if let Ok(mut w) = interno().webs.lock() {
         w.nueva = web_pendiente;
     }
@@ -693,12 +800,24 @@ fn version_corta(r: &c::ResumenCapa) -> String {
 pub fn tras_lista(el: &c::Eleccion) {
     if el.a_prueba() {
         if let Some(e) = cambiar_estado(|e| c::tras_lista(e, el)) {
-            registrar(&format!("capa {} activa (anterior: {:?})", el.build().unwrap_or("?"), e.anterior));
+            registrar(&format!(
+                "capa {} activa (anterior: {:?})",
+                el.build().unwrap_or("?"),
+                e.anterior
+            ));
             // (ACT1114H) Si venía de un relevo pedido: la build de antes y la de ahora, en el registro.
-            let antes = interno().relevo_desde.lock().ok().and_then(|mut g| g.take());
+            let antes = interno()
+                .relevo_desde
+                .lock()
+                .ok()
+                .and_then(|mut g| g.take());
             let w = leer(&interno().webs);
             if let Some(antes) = antes {
-                registrar(&r::linea_relevo_hecho(&antes, &w.corre, w.publicada.as_ref()));
+                registrar(&r::linea_relevo_hecho(
+                    &antes,
+                    &w.corre,
+                    w.publicada.as_ref(),
+                ));
             } else {
                 registrar(&r::linea_sirve(&w.corre, w.publicada.as_ref()));
             }
@@ -722,7 +841,11 @@ pub fn tras_fallo(el: &c::Eleccion, motivo: &str) {
     if let Some(e) = cambiar_estado(|e| c::tras_fallo(e, el, motivo)) {
         registrar(e.aviso.as_deref().unwrap_or("capa mala"));
         // (ACT1114H) Un relevo pedido que no se pudo aplicar: sigue lo de antes y se dice por qué.
-        let antes = interno().relevo_desde.lock().ok().and_then(|mut g| g.take());
+        let antes = interno()
+            .relevo_desde
+            .lock()
+            .ok()
+            .and_then(|mut g| g.take());
         if let Some(antes) = antes {
             let destino = leer(&interno().webs).corre.etiqueta();
             registrar(&r::linea_relevo_fallido(&antes, &destino, motivo));
@@ -745,7 +868,9 @@ pub fn tras_fallo(el: &c::Eleccion, motivo: &str) {
 
 /// Borra las capas que sobran (nunca la activa, la anterior, la pendiente ni la que sirve).
 fn limpiar(dir: &Path) {
-    let Ok(_g) = interno().cerrojo.lock() else { return };
+    let Ok(_g) = interno().cerrojo.lock() else {
+        return;
+    };
     let e = leer_estado(dir);
     let presentes: Vec<String> = fs::read_dir(dir)
         .map(|l| {
@@ -768,59 +893,140 @@ fn limpiar(dir: &Path) {
 // ───────────────────────────── Descarga ─────────────────────────────
 
 #[cfg(desktop)]
-fn curl(url: &str) -> std::process::Command {
+fn curl(url: &str, con_proxy: bool) -> std::process::Command {
     let mut cmd = crate::disco::orden("curl");
-    cmd.args(["-L", "--fail", "--silent", "--show-error", "--retry", "3", "--connect-timeout", "20"]);
+    cmd.args([
+        "-L",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--retry",
+        "3",
+        "--connect-timeout",
+        "20",
+    ]);
     if !(permitir_local() && url.starts_with("http://127.0.0.1:")) {
         // Solo https, también en las redirecciones (GitHub → objects.githubusercontent.com).
         cmd.args(["--proto", "=https", "--proto-redir", "=https"]);
     }
-    // (PTA1108B) Con el proxy de la puerta de internet encendido, la descarga sale por la malla; sin él, igual que siempre.
-    cmd.args(crate::puerta_proxy_logica::argumentos_curl(crate::puerta_proxy::proxy_url().as_deref(), url));
+    if con_proxy {
+        // (PTA1108B) Con el proxy de la puerta de internet encendido, la descarga sale por la malla; sin él, igual que siempre.
+        cmd.args(crate::puerta_proxy_logica::argumentos_curl(
+            crate::puerta_proxy::proxy_url().as_deref(),
+            url,
+        ));
+    }
     cmd
 }
 
 #[cfg(desktop)]
 fn salida_curl(o: &std::process::Output) -> String {
     let e = String::from_utf8_lossy(&o.stderr);
-    format!("curl terminó con {} ({})", o.status, e.trim().chars().take(200).collect::<String>())
+    format!(
+        "curl terminó con {} ({})",
+        o.status,
+        e.trim().chars().take(200).collect::<String>()
+    )
+}
+
+#[cfg(desktop)]
+fn codigo_y_stderr(o: &std::process::Output) -> (i32, String) {
+    let codigo = o.status.code().unwrap_or(-1);
+    let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+    (codigo, stderr)
 }
 
 #[cfg(desktop)]
 fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
-    let o = curl(url)
-        .args(["--max-filesize", &tope.to_string(), "--max-time", "120"])
-        .arg(url)
-        .output()
-        .map_err(|e| format!("no se pudo lanzar curl: {e}"))?;
-    if !o.status.success() {
-        return Err(salida_curl(&o));
+    let proxy_url = crate::puerta_proxy::proxy_url();
+    let con_proxy = proxy_url.is_some();
+    let mut ya_reintentado = false;
+
+    loop {
+        let o = curl(url, con_proxy && !ya_reintentado)
+            .args(["--max-filesize", &tope.to_string(), "--max-time", "120"])
+            .arg(url)
+            .output()
+            .map_err(|e| format!("no se pudo lanzar curl: {e}"))?;
+        if o.status.success() {
+            if o.stdout.len() as u64 > tope {
+                return Err("respuesta demasiado grande".into());
+            }
+            return Ok(o.stdout);
+        }
+        let (codigo, stderr) = codigo_y_stderr(&o);
+        let err = salida_curl(&o);
+
+        if con_proxy
+            && !ya_reintentado
+            && crate::puerta_proxy_logica::merece_reintento_sin_proxy(codigo, &stderr, true, false)
+        {
+            let motivo = if CURL_PROXY_CONEXION_MOTIVOS.contains(&codigo) {
+                format!("curl {}", codigo)
+            } else if stderr.contains("127.0.0.1") && stderr.contains("port") {
+                "conexión rechazada".into()
+            } else {
+                "proxy sin respuesta".into()
+            };
+            registrar(&format!(
+                "[capas] el proxy de la puerta no contesta ({motivo}): se baja sin él"
+            ));
+            ya_reintentado = true;
+            continue;
+        }
+        return Err(err);
     }
-    if o.stdout.len() as u64 > tope {
-        return Err("respuesta demasiado grande".into());
-    }
-    Ok(o.stdout)
 }
 
 #[cfg(desktop)]
 fn bajar_archivo(url: &str, destino: &Path, tope: u64) -> Result<(), String> {
-    let o = curl(url)
-        .args(["-C", "-", "--max-filesize", &tope.to_string(), "-o"])
-        .arg(destino)
-        .arg(url)
-        .output()
-        .map_err(|e| format!("no se pudo lanzar curl: {e}"))?;
-    if o.status.success() {
-        Ok(())
-    } else {
-        Err(format!("{} · se reanudará en el siguiente intento", salida_curl(&o)))
+    let proxy_url = crate::puerta_proxy::proxy_url();
+    let con_proxy = proxy_url.is_some();
+    let mut ya_reintentado = false;
+
+    loop {
+        let o = curl(url, con_proxy && !ya_reintentado)
+            .args(["-C", "-", "--max-filesize", &tope.to_string(), "-o"])
+            .arg(destino)
+            .arg(url)
+            .output()
+            .map_err(|e| format!("no se pudo lanzar curl: {e}"))?;
+        if o.status.success() {
+            return Ok(());
+        }
+        let (codigo, stderr) = codigo_y_stderr(&o);
+        let err = format!("{} · se reanudará en el siguiente intento", salida_curl(&o));
+
+        if con_proxy
+            && !ya_reintentado
+            && crate::puerta_proxy_logica::merece_reintento_sin_proxy(codigo, &stderr, true, false)
+        {
+            let motivo = if CURL_PROXY_CONEXION_MOTIVOS.contains(&codigo) {
+                format!("curl {}", codigo)
+            } else if stderr.contains("127.0.0.1") && stderr.contains("port") {
+                "conexión rechazada".into()
+            } else {
+                "proxy sin respuesta".into()
+            };
+            registrar(&format!(
+                "[capas] el proxy de la puerta no contesta ({motivo}): se baja sin él"
+            ));
+            ya_reintentado = true;
+            continue;
+        }
+        return Err(err);
     }
 }
+
+#[cfg(desktop)]
+const CURL_PROXY_CONEXION_MOTIVOS: [i32; 4] = [5, 7, 28, 56];
 
 // (AND1114L) Android: la descarga la hace Kotlin (capas_http_android.rs); aquí solo se pide y se lee lo bajado.
 #[cfg(not(desktop))]
 fn puente_dir() -> Result<PathBuf, String> {
-    leer(&interno().dir).map(|d| crate::capas_http_android::carpeta_puente(&d)).ok_or_else(|| "sin carpeta de capas".to_string())
+    leer(&interno().dir)
+        .map(|d| crate::capas_http_android::carpeta_puente(&d))
+        .ok_or_else(|| "sin carpeta de capas".to_string())
 }
 
 #[cfg(not(desktop))]
@@ -829,7 +1035,16 @@ fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
     let puente = puente_dir()?;
     let tmp = puente.join(format!("bytes-{}.tmp", ahora_ms()));
     let _ = fs::create_dir_all(&puente);
-    let r = h::bajar(&puente, url, &tmp, tope, false, h::ESPERA_PEQUENA, h::PASO_ESPERA).and_then(|_| fs::read(&tmp).map_err(|e| e.to_string()));
+    let r = h::bajar(
+        &puente,
+        url,
+        &tmp,
+        tope,
+        false,
+        h::ESPERA_PEQUENA,
+        h::PASO_ESPERA,
+    )
+    .and_then(|_| fs::read(&tmp).map_err(|e| e.to_string()));
     let _ = fs::remove_file(&tmp);
     let v = r?;
     if v.len() as u64 > tope {
@@ -841,9 +1056,17 @@ fn bajar_bytes(url: &str, tope: u64) -> Result<Vec<u8>, String> {
 #[cfg(not(desktop))]
 fn bajar_archivo(url: &str, destino: &Path, tope: u64) -> Result<(), String> {
     use crate::capas_http_android as h;
-    h::bajar(&puente_dir()?, url, destino, tope, true, h::ESPERA_GRANDE, h::PASO_ESPERA)
-        .map(|_| ())
-        .map_err(|e| format!("{e} · se reanudará en el siguiente intento"))
+    h::bajar(
+        &puente_dir()?,
+        url,
+        destino,
+        tope,
+        true,
+        h::ESPERA_GRANDE,
+        h::PASO_ESPERA,
+    )
+    .map(|_| ())
+    .map_err(|e| format!("{e} · se reanudará en el siguiente intento"))
 }
 
 /// Escribe y calcula el SHA-256 a la vez.
@@ -866,14 +1089,25 @@ impl Write for EscritorConHash {
 /// Extrae el .tar.gz en `destino` comprobando CADA archivo contra el manifiesto firmado. Los archivos
 /// idénticos a los de `previa` (misma ruta, tamaño y SHA-256) se enlazan (enlace duro) en vez de
 /// escribirse otra vez: una capa nueva ocupa solo lo que cambió. Devuelve cuántos se enlazaron.
-pub fn extraer(gz: &Path, destino: &Path, m: &c::Manifiesto, previa: Option<(&Path, &c::Manifiesto)>) -> Result<usize, String> {
-    let esperados: HashMap<&str, &c::ArchivoCapa> = m.archivos.iter().map(|a| (a.ruta.as_str(), a)).collect();
-    let previos: HashMap<&str, &c::ArchivoCapa> =
-        previa.map(|(_, pm)| pm.archivos.iter().map(|a| (a.ruta.as_str(), a)).collect()).unwrap_or_default();
+pub fn extraer(
+    gz: &Path,
+    destino: &Path,
+    m: &c::Manifiesto,
+    previa: Option<(&Path, &c::Manifiesto)>,
+) -> Result<usize, String> {
+    let esperados: HashMap<&str, &c::ArchivoCapa> =
+        m.archivos.iter().map(|a| (a.ruta.as_str(), a)).collect();
+    let previos: HashMap<&str, &c::ArchivoCapa> = previa
+        .map(|(_, pm)| pm.archivos.iter().map(|a| (a.ruta.as_str(), a)).collect())
+        .unwrap_or_default();
     let mut vistos: HashSet<String> = HashSet::with_capacity(esperados.len());
-    fs::create_dir_all(destino).map_err(|e| format!("no se pudo crear {}: {e}", destino.display()))?;
+    fs::create_dir_all(destino)
+        .map_err(|e| format!("no se pudo crear {}: {e}", destino.display()))?;
     let f = File::open(gz).map_err(|e| format!("no se pudo abrir la capa: {e}"))?;
-    let mut tar = c::LectorTar::new(flate2::read::GzDecoder::new(BufReader::with_capacity(1 << 20, f)));
+    let mut tar = c::LectorTar::new(flate2::read::GzDecoder::new(BufReader::with_capacity(
+        1 << 20,
+        f,
+    )));
     let mut enlazados = 0usize;
     while let Some(e) = tar.siguiente()? {
         let ruta = ruta_local(destino, &e.ruta);
@@ -881,7 +1115,9 @@ pub fn extraer(gz: &Path, destino: &Path, m: &c::Manifiesto, previa: Option<(&Pa
             fs::create_dir_all(&ruta).map_err(|x| format!("no se pudo crear {}: {x}", e.ruta))?;
             continue;
         }
-        let a = esperados.get(e.ruta.as_str()).ok_or_else(|| format!("«{}» no está en el manifiesto firmado", e.ruta))?;
+        let a = esperados
+            .get(e.ruta.as_str())
+            .ok_or_else(|| format!("«{}» no está en el manifiesto firmado", e.ruta))?;
         if a.bytes != e.bytes {
             return Err(format!("«{}» no tiene el tamaño del manifiesto", e.ruta));
         }
@@ -889,10 +1125,14 @@ pub fn extraer(gz: &Path, destino: &Path, m: &c::Manifiesto, previa: Option<(&Pa
             return Err(format!("«{}» viene dos veces", e.ruta));
         }
         if let Some(padre) = ruta.parent() {
-            fs::create_dir_all(padre).map_err(|x| format!("no se pudo crear la carpeta de {}: {x}", e.ruta))?;
+            fs::create_dir_all(padre)
+                .map_err(|x| format!("no se pudo crear la carpeta de {}: {x}", e.ruta))?;
         }
         if let (Some((dir_previa, _)), Some(p)) = (previa, previos.get(e.ruta.as_str())) {
-            if p.sha256 == a.sha256 && p.bytes == a.bytes && fs::hard_link(ruta_local(dir_previa, &e.ruta), &ruta).is_ok() {
+            if p.sha256 == a.sha256
+                && p.bytes == a.bytes
+                && fs::hard_link(ruta_local(dir_previa, &e.ruta), &ruta).is_ok()
+            {
                 enlazados += 1;
                 continue;
             }
@@ -903,15 +1143,25 @@ pub fn extraer(gz: &Path, destino: &Path, m: &c::Manifiesto, previa: Option<(&Pa
             .create_new(true)
             .open(&ruta)
             .map_err(|x| format!("no se pudo escribir {}: {x}", e.ruta))?;
-        let mut w = EscritorConHash { f, h: Sha256::new() };
+        let mut w = EscritorConHash {
+            f,
+            h: Sha256::new(),
+        };
         tar.copiar_datos(&mut w)?;
-        w.flush().map_err(|x| format!("no se pudo escribir {}: {x}", e.ruta))?;
+        w.flush()
+            .map_err(|x| format!("no se pudo escribir {}: {x}", e.ruta))?;
         if hex(&w.h.finalize()) != a.sha256 {
-            return Err(format!("«{}» no casa con su SHA-256 del manifiesto", e.ruta));
+            return Err(format!(
+                "«{}» no casa con su SHA-256 del manifiesto",
+                e.ruta
+            ));
         }
     }
     if vistos.len() != esperados.len() {
-        return Err(format!("a la capa le faltan {} archivos del manifiesto", esperados.len() - vistos.len()));
+        return Err(format!(
+            "a la capa le faltan {} archivos del manifiesto",
+            esperados.len() - vistos.len()
+        ));
     }
     Ok(enlazados)
 }
@@ -923,7 +1173,9 @@ fn buscar() -> Result<(), String> {
     let clave = leer(&interno().clave).ok_or("sin clave pública del updater")?;
     con_publico(|p| p.fase = Some("buscando".into()));
     let texto_canal = bajar_bytes(&url_canal(), c::TOPE_CANAL)?;
-    let canal = canal_de_json(&serde_json::from_slice(&texto_canal).map_err(|e| format!("canal ilegible: {e}"))?)?;
+    let canal = canal_de_json(
+        &serde_json::from_slice(&texto_canal).map_err(|e| format!("canal ilegible: {e}"))?,
+    )?;
     let estado = leer_estado(&dir);
     let mas_reciente = [estado.activa.as_deref(), estado.pendiente.as_deref()]
         .into_iter()
@@ -944,13 +1196,19 @@ fn buscar() -> Result<(), String> {
     }
     let bytes_m = bajar_bytes(&canal.manifiesto, c::TOPE_MANIFIESTO)?;
     verificar_firma(&bytes_m, &canal.firma, &clave, &nombre_m)?;
-    let m = manifiesto_de_json(&serde_json::from_slice(&bytes_m).map_err(|e| format!("manifiesto ilegible: {e}"))?)?;
+    let m = manifiesto_de_json(
+        &serde_json::from_slice(&bytes_m).map_err(|e| format!("manifiesto ilegible: {e}"))?,
+    )?;
     c::validar_manifiesto(&m, &canal, &ctx, permitir_local())?;
     let version = version_corta(&c::ResumenCapa::from(&m));
-    registrar(&format!("capa nueva {b} ({version}): manifiesto firmado y válido, {} archivos", m.total_archivos));
+    registrar(&format!(
+        "capa nueva {b} ({version}): manifiesto firmado y válido, {} archivos",
+        m.total_archivos
+    ));
 
     let descargas = dir.join(c::DIR_DESCARGAS);
-    fs::create_dir_all(&descargas).map_err(|e| format!("no se pudo crear {}: {e}", descargas.display()))?;
+    fs::create_dir_all(&descargas)
+        .map_err(|e| format!("no se pudo crear {}: {e}", descargas.display()))?;
     let parcial = descargas.join(format!("{}.parcial", m.archivo_nombre));
     // Solo una descarga a medias: la de esta capa.
     if let Ok(l) = fs::read_dir(&descargas) {
@@ -965,7 +1223,8 @@ fn buscar() -> Result<(), String> {
         let _ = fs::remove_file(&parcial);
         ya = 0;
     }
-    let libre = crate::disco::espacio_libre(&dir).ok_or("no se pudo medir el disco libre: no se baja a ciegas")?;
+    let libre = crate::disco::espacio_libre(&dir)
+        .ok_or("no se pudo medir el disco libre: no se baja a ciegas")?;
     if !c::cabe(libre, &m, ya) {
         return Err(format!(
             "no cabe: la capa necesita {} MB y quedan {} MB libres",
@@ -981,16 +1240,27 @@ fn buscar() -> Result<(), String> {
         bajar_archivo(&canal.archivo, &parcial, c::TOPE_ARCHIVO)?;
     }
     con_publico(|p| p.fase = Some("verificando".into()));
-    let (sha, n) = sha256_archivo(&parcial).map_err(|e| format!("no se pudo leer la descarga: {e}"))?;
+    let (sha, n) =
+        sha256_archivo(&parcial).map_err(|e| format!("no se pudo leer la descarga: {e}"))?;
     if n != m.archivo_bytes || sha != m.archivo_sha256 {
         let _ = fs::remove_file(&parcial);
-        return Err("el archivo bajado no casa con el SHA-256 del manifiesto firmado: se borró".into());
+        return Err(
+            "el archivo bajado no casa con el SHA-256 del manifiesto firmado: se borró".into(),
+        );
     }
     let tmp = dir.join(format!("{b}{}", c::SUFIJO_EXTRAYENDO));
     let _ = fs::remove_dir_all(&tmp);
     let previa_build = leer(&interno().en_uso).or(estado.activa.clone());
-    let previa = previa_build.as_deref().and_then(|p| leer_capa(&dir, p, &clave).map(|pm| (dir.join(p), pm)));
-    let resultado = extraer(&parcial, &tmp, &m, previa.as_ref().map(|(d, pm)| (d.as_path(), pm))).and_then(|enlazados| {
+    let previa = previa_build
+        .as_deref()
+        .and_then(|p| leer_capa(&dir, p, &clave).map(|pm| (dir.join(p), pm)));
+    let resultado = extraer(
+        &parcial,
+        &tmp,
+        &m,
+        previa.as_ref().map(|(d, pm)| (d.as_path(), pm)),
+    )
+    .and_then(|enlazados| {
         fs::write(tmp.join(c::MANIFIESTO_EN_CAPA), &bytes_m).map_err(|e| e.to_string())?;
         fs::write(tmp.join(c::FIRMA_EN_CAPA), canal.firma.as_bytes()).map_err(|e| e.to_string())?;
         let final_ = dir.join(&b);
@@ -1008,7 +1278,10 @@ fn buscar() -> Result<(), String> {
     };
     let _ = fs::remove_file(&parcial);
     cambiar_estado(|e| c::al_verificar(e, &b));
-    registrar(&format!("capa {b} lista ({} archivos, {enlazados} reutilizados de la anterior)", m.total_archivos));
+    registrar(&format!(
+        "capa {b} lista ({} archivos, {enlazados} reutilizados de la anterior)",
+        m.total_archivos
+    ));
     con_publico(|p| {
         p.fase = Some("lista".into());
         p.nueva = Some(b.clone());
@@ -1033,71 +1306,75 @@ pub fn iniciar_vigia(app: &AppHandle) {
         return;
     }
     let _ = app;
-    let _ = std::thread::Builder::new().name("servidor-capas".into()).spawn(move || {
-        // (ACT1114H) Dos relojes: el del canal (primera mirada y luego cada 6 h) y el de la web PUBLICADA (cada 5 min,
-        // como ACT1113F). Si la publicada no es lo que corre y no hay capa lista, se mira el canal ya, sin esperar 6 h.
-        let mut prox_capas = ahora_ms() + primera_mirada_ms();
-        let mut prox_web = ahora_ms() + r::MIRAR_WEB_PRIMERA_MS;
-        loop {
-            if !dormir(1000) {
-                return;
-            }
-            let ahora = ahora_ms();
-            // (En depuración, con un canal propio en 127.0.0.1, no hace falta internet.)
-            let canal_local = permitir_local() && url_canal().starts_with("http://127.0.0.1:");
-            let mut ya = false;
-            let forzada = BUSCAR_YA.swap(false, Ordering::SeqCst); // AND1114L
-            if forzada {
-                prox_web = ahora;
-            }
-            if ahora >= prox_web {
-                prox_web = ahora + r::MIRAR_WEB_MS;
-                if !canal_local && hay_internet() {
-                    ya = mirar_publicada(ahora);
+    let _ = std::thread::Builder::new()
+        .name("servidor-capas".into())
+        .spawn(move || {
+            // (ACT1114H) Dos relojes: el del canal (primera mirada y luego cada 6 h) y el de la web PUBLICADA (cada 5 min,
+            // como ACT1113F). Si la publicada no es lo que corre y no hay capa lista, se mira el canal ya, sin esperar 6 h.
+            let mut prox_capas = ahora_ms() + primera_mirada_ms();
+            let mut prox_web = ahora_ms() + r::MIRAR_WEB_PRIMERA_MS;
+            loop {
+                if !dormir(1000) {
+                    return;
                 }
-            }
-            if forzada {
-                ya = true;
-            }
-            if !ya && ahora < prox_capas {
-                continue;
-            }
-            poner(&interno().ultima_busqueda, ahora);
-            let espera = if !canal_local && !hay_internet() {
-                con_publico(|p| {
-                    if p.fase.as_deref() != Some("lista") {
-                        p.fase = Some("sin-red".into());
+                let ahora = ahora_ms();
+                // (En depuración, con un canal propio en 127.0.0.1, no hace falta internet.)
+                let canal_local = permitir_local() && url_canal().starts_with("http://127.0.0.1:");
+                let mut ya = false;
+                let forzada = BUSCAR_YA.swap(false, Ordering::SeqCst); // AND1114L
+                if forzada {
+                    prox_web = ahora;
+                }
+                if ahora >= prox_web {
+                    prox_web = ahora + r::MIRAR_WEB_MS;
+                    if !canal_local && hay_internet() {
+                        ya = mirar_publicada(ahora);
                     }
-                });
-                c::REINTENTO_MS
-            } else {
-                match buscar() {
-                    Ok(()) => c::CADA_MS,
-                    Err(e) => {
-                        registrar(&format!("no se pudo actualizar la capa: {e}"));
-                        // (ACT1114H) Si la publicada no se puede aplicar, queda dicho una vez con su motivo.
-                        let w = leer(&interno().webs);
-                        if let Some(p) = &w.publicada {
-                            if !r::misma(p, &w.corre) {
-                                registrar_una_vez(&format!(
+                }
+                if forzada {
+                    ya = true;
+                }
+                if !ya && ahora < prox_capas {
+                    continue;
+                }
+                poner(&interno().ultima_busqueda, ahora);
+                let espera = if !canal_local && !hay_internet() {
+                    con_publico(|p| {
+                        if p.fase.as_deref() != Some("lista") {
+                            p.fase = Some("sin-red".into());
+                        }
+                    });
+                    c::REINTENTO_MS
+                } else {
+                    match buscar() {
+                        Ok(()) => c::CADA_MS,
+                        Err(e) => {
+                            registrar(&format!("no se pudo actualizar la capa: {e}"));
+                            // (ACT1114H) Si la publicada no se puede aplicar, queda dicho una vez con su motivo.
+                            let w = leer(&interno().webs);
+                            if let Some(p) = &w.publicada {
+                                if !r::misma(p, &w.corre) {
+                                    registrar_una_vez(&format!(
                                     "la web publicada web={} NO se pudo traer: sigue web={}: {e}",
                                     p.etiqueta(),
                                     w.corre.etiqueta()
                                 ));
+                                }
                             }
+                            con_publico(|p| {
+                                p.fase = Some("error".into());
+                                p.aviso = Some(format!(
+                                    "No se pudo traer la capa nueva del servidor: {e}"
+                                ));
+                            });
+                            c::REINTENTO_MS
                         }
-                        con_publico(|p| {
-                            p.fase = Some("error".into());
-                            p.aviso = Some(format!("No se pudo traer la capa nueva del servidor: {e}"));
-                        });
-                        c::REINTENTO_MS
                     }
-                }
-            };
-            prox_capas = ahora_ms() + espera;
-            refrescar_publico();
-        }
-    });
+                };
+                prox_capas = ahora_ms() + espera;
+                refrescar_publico();
+            }
+        });
 }
 
 /// Duerme `ms` a pasos de 1 s; false si la app se está cerrando.
@@ -1134,8 +1411,18 @@ mod pruebas {
         )
         .unwrap();
         let canal = canal_de_json(&v).unwrap();
-        assert_eq!((canal.build_id.as_str(), canal.creado_ms, canal.protocolo, canal.bytes), ("B1", 5, 1, 9));
-        assert!(canal_de_json(&json!({"formato": 1})).unwrap_err().contains("build_id"));
+        assert_eq!(
+            (
+                canal.build_id.as_str(),
+                canal.creado_ms,
+                canal.protocolo,
+                canal.bytes
+            ),
+            ("B1", 5, 1, 9)
+        );
+        assert!(canal_de_json(&json!({"formato": 1}))
+            .unwrap_err()
+            .contains("build_id"));
         let m: Value = serde_json::from_str(
             r#"{"formato":1,"build_id":"B1","creado_ms":5,"app_minima":"0.5.0","protocolo":1,"node_mayor":22,
                 "archivo":{"nombre":"servidor-capa-B1.tar.gz","bytes":9,"sha256":"aa"},"total":{"archivos":1,"bytes":3},
@@ -1143,8 +1430,18 @@ mod pruebas {
         )
         .unwrap();
         let m = manifiesto_de_json(&m).unwrap();
-        assert_eq!(m.archivos, vec![c::ArchivoCapa { ruta: "server.js".into(), bytes: 3, sha256: "bb".into() }]);
-        assert_eq!((m.node_mayor, m.total_archivos, m.archivo_bytes), (22, 1, 9));
+        assert_eq!(
+            m.archivos,
+            vec![c::ArchivoCapa {
+                ruta: "server.js".into(),
+                bytes: 3,
+                sha256: "bb".into()
+            }]
+        );
+        assert_eq!(
+            (m.node_mayor, m.total_archivos, m.archivo_bytes),
+            (22, 1, 9)
+        );
         assert!(manifiesto_de_json(&json!({"formato": 1, "archivos": [["a", 1]]})).is_err());
         let e = c::EstadoCapas {
             activa: Some("A".into()),
@@ -1165,10 +1462,23 @@ mod pruebas {
         // Firmado con la clave de prueba: `tauri signer sign servidor-capa-B1.json`.
         let datos = b"{\"formato\":1,\"build_id\":\"B1\"}\n";
         let firma = FIRMA_PRUEBA;
-        assert_eq!(verificar_firma(datos, firma, CLAVE_PRUEBA, "servidor-capa-B1.json"), Ok(()));
+        assert_eq!(
+            verificar_firma(datos, firma, CLAVE_PRUEBA, "servidor-capa-B1.json"),
+            Ok(())
+        );
         // Otro contenido, otro nombre, otra clave o basura: no.
-        assert!(verificar_firma(b"{\"formato\":1,\"build_id\":\"B2\"}\n", firma, CLAVE_PRUEBA, "servidor-capa-B1.json").is_err());
-        assert!(verificar_firma(datos, firma, CLAVE_PRUEBA, "servidor-capa-B2.json").unwrap_err().contains("no es la de"));
+        assert!(verificar_firma(
+            b"{\"formato\":1,\"build_id\":\"B2\"}\n",
+            firma,
+            CLAVE_PRUEBA,
+            "servidor-capa-B1.json"
+        )
+        .is_err());
+        assert!(
+            verificar_firma(datos, firma, CLAVE_PRUEBA, "servidor-capa-B2.json")
+                .unwrap_err()
+                .contains("no es la de")
+        );
         let clave_app = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGNzA5QzREOUMzOTFDRTUKUldUbEhEbWNUWnh3N3dCUlpQNmtIM05NOUs3Mmt0TkRzRXFleHdzYmlIaUVHd2poWDluM1JsVFQK";
         assert!(verificar_firma(datos, firma, clave_app, "servidor-capa-B1.json").is_err());
         assert!(verificar_firma(datos, "no!", CLAVE_PRUEBA, "servidor-capa-B1.json").is_err());
@@ -1204,14 +1514,26 @@ mod pruebas {
     fn manifiesto(entradas: &[(&str, &[u8])]) -> c::Manifiesto {
         let mut archivos: Vec<c::ArchivoCapa> = entradas
             .iter()
-            .map(|(r, d)| c::ArchivoCapa { ruta: r.to_string(), bytes: d.len() as u64, sha256: hex(&crate::sha256::sha256(d)) })
+            .map(|(r, d)| c::ArchivoCapa {
+                ruta: r.to_string(),
+                bytes: d.len() as u64,
+                sha256: hex(&crate::sha256::sha256(d)),
+            })
             .collect();
         archivos.sort_by(|a, b| a.ruta.cmp(&b.ruta));
-        c::Manifiesto { total_archivos: archivos.len(), archivos, ..Default::default() }
+        c::Manifiesto {
+            total_archivos: archivos.len(),
+            archivos,
+            ..Default::default()
+        }
     }
 
     fn carpeta(nombre: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("ss-capas-{nombre}-{}-{}", std::process::id(), ahora_ms()));
+        let d = std::env::temp_dir().join(format!(
+            "ss-capas-{nombre}-{}-{}",
+            std::process::id(),
+            ahora_ms()
+        ));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
@@ -1220,37 +1542,64 @@ mod pruebas {
     #[test]
     fn extrae_verificando_cada_archivo_y_reutiliza_la_anterior() {
         let base = carpeta("extraer");
-        let v1: Vec<(&str, &[u8])> = vec![("server.js", b"uno"), (".next/BUILD_ID", b"B1"), ("node_modules/x/index.js", b"igual")];
+        let v1: Vec<(&str, &[u8])> = vec![
+            ("server.js", b"uno"),
+            (".next/BUILD_ID", b"B1"),
+            ("node_modules/x/index.js", b"igual"),
+        ];
         let gz1 = base.join("1.tar.gz");
         fs::write(&gz1, tar_gz(&v1)).unwrap();
         let m1 = manifiesto(&v1);
         let d1 = base.join("B1");
         assert_eq!(extraer(&gz1, &d1, &m1, None), Ok(0));
-        assert_eq!(fs::read(d1.join("node_modules").join("x").join("index.js")).unwrap(), b"igual");
+        assert_eq!(
+            fs::read(d1.join("node_modules").join("x").join("index.js")).unwrap(),
+            b"igual"
+        );
 
         // La segunda reutiliza lo que no cambió (enlace duro) y escribe lo nuevo.
-        let v2: Vec<(&str, &[u8])> = vec![("server.js", b"dos"), (".next/BUILD_ID", b"B2"), ("node_modules/x/index.js", b"igual")];
+        let v2: Vec<(&str, &[u8])> = vec![
+            ("server.js", b"dos"),
+            (".next/BUILD_ID", b"B2"),
+            ("node_modules/x/index.js", b"igual"),
+        ];
         let gz2 = base.join("2.tar.gz");
         fs::write(&gz2, tar_gz(&v2)).unwrap();
         let m2 = manifiesto(&v2);
         let d2 = base.join("B2");
         assert_eq!(extraer(&gz2, &d2, &m2, Some((&d1, &m1))), Ok(1));
         assert_eq!(fs::read(d2.join("server.js")).unwrap(), b"dos");
-        assert_eq!(fs::read(d2.join("node_modules").join("x").join("index.js")).unwrap(), b"igual");
+        assert_eq!(
+            fs::read(d2.join("node_modules").join("x").join("index.js")).unwrap(),
+            b"igual"
+        );
         // Borrar la anterior no rompe la nueva.
         fs::remove_dir_all(&d1).unwrap();
-        assert_eq!(fs::read(d2.join("node_modules").join("x").join("index.js")).unwrap(), b"igual");
+        assert_eq!(
+            fs::read(d2.join("node_modules").join("x").join("index.js")).unwrap(),
+            b"igual"
+        );
 
         // Un archivo que no casa con su SHA-256, uno que no está en la lista o uno que falta: fuera.
         let mut malo = m2.clone();
         malo.archivos[0].sha256 = "0".repeat(64);
-        assert!(extraer(&gz2, &base.join("x1"), &malo, None).unwrap_err().contains("SHA-256"));
+        assert!(extraer(&gz2, &base.join("x1"), &malo, None)
+            .unwrap_err()
+            .contains("SHA-256"));
         let mut corto = m2.clone();
         corto.archivos.retain(|a| a.ruta != "server.js");
-        assert!(extraer(&gz2, &base.join("x2"), &corto, None).unwrap_err().contains("no está en el manifiesto"));
+        assert!(extraer(&gz2, &base.join("x2"), &corto, None)
+            .unwrap_err()
+            .contains("no está en el manifiesto"));
         let mut largo = m2.clone();
-        largo.archivos.push(c::ArchivoCapa { ruta: "zz.js".into(), bytes: 1, sha256: "0".repeat(64) });
-        assert!(extraer(&gz2, &base.join("x3"), &largo, None).unwrap_err().contains("faltan 1"));
+        largo.archivos.push(c::ArchivoCapa {
+            ruta: "zz.js".into(),
+            bytes: 1,
+            sha256: "0".repeat(64),
+        });
+        assert!(extraer(&gz2, &base.join("x3"), &largo, None)
+            .unwrap_err()
+            .contains("faltan 1"));
         // No es un gzip.
         fs::write(base.join("no.tar.gz"), b"hola").unwrap();
         assert!(extraer(&base.join("no.tar.gz"), &base.join("x4"), &m2, None).is_err());
@@ -1261,7 +1610,10 @@ mod pruebas {
     fn estado_atomico_en_disco() {
         let d = carpeta("estado");
         assert_eq!(leer_estado(&d), c::EstadoCapas::default());
-        let e = c::EstadoCapas { activa: Some("A".into()), ..Default::default() };
+        let e = c::EstadoCapas {
+            activa: Some("A".into()),
+            ..Default::default()
+        };
         escribir_estado(&d, &e);
         assert_eq!(leer_estado(&d), e);
         assert!(!d.join(format!("{}.tmp", c::ESTADO)).exists());

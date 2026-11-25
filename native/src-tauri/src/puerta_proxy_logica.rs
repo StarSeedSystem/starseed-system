@@ -30,7 +30,8 @@ pub const VARIABLE_APAGADO: &str = "STARSEED_SIN_PROXY_PUERTA";
 /// `local` (mDNS) tampoco: la puerta rechaza `.local` de todos modos, así que va directo o no va.
 pub const DOMINIOS_DIRECTOS: [&str; 4] = ["localhost", "127.0.0.1", "::1", "local"];
 /// Las reglas de Chromium/WebView de Android para lo mismo (`ProxyConfig.Builder.addBypassRule`).
-pub const REGLAS_DIRECTAS_ANDROID: [&str; 5] = ["127.0.0.1", "localhost", "*.localhost", "[::1]", "<local>"];
+pub const REGLAS_DIRECTAS_ANDROID: [&str; 5] =
+    ["127.0.0.1", "localhost", "*.localhost", "[::1]", "<local>"];
 
 /// (LNX1109B) `ignore_hosts` de `WebKitNetworkProxySettings` (GProxyResolver: «localhost» ya cubre sus subdominios;
 /// «*.localhost» lo deja explícito). Nunca se proxifica el bucle local.
@@ -54,6 +55,488 @@ pub fn url_proxy(puerto: u16) -> String {
     format!("http://127.0.0.1:{puerto}")
 }
 
+/// Códigos de salida de curl que indican fallo de conexión con el proxy.
+const CURL_PROXY_CONEXION: [i32; 4] = [5, 7, 28, 56];
+
+/// Decide si un fallo de curl merece reintentar la misma descarga SIN proxy.
+/// - `codigo`: código de salida de curl (0 = éxito).
+/// - `stderr`: lo que escribió curl en stderr (puede estar vacío).
+/// - `proxy_configurado`: si la descarga se hizo con proxy (argumento `-x`).
+/// - `ya_reintentado`: si ya se hizo el reintento sin proxy (para no repetirlo).
+///
+/// Devuelve `true` solo si:
+///   1. Hubo proxy configurado.
+///   2. Aún no se reintentó.
+///   3. El código está en {5, 7, 28, 56} O el stderr menciona "127.0.0.1" y el puerto del proxy.
+/// Código 22 (HTTP 404) → false. Sin proxy → false. Ya reintentado → false.
+pub fn merece_reintento_sin_proxy(
+    codigo: i32,
+    stderr: &str,
+    proxy_configurado: bool,
+    ya_reintentado: bool,
+) -> bool {
+    if !proxy_configurado || ya_reintentado {
+        return false;
+    }
+    if CURL_PROXY_CONEXION.contains(&codigo) {
+        return true;
+    }
+    if codigo == 22 {
+        return false;
+    }
+    // Buscar "127.0.0.1" seguido del puerto en el stderr (curl: (7) Failed to connect to 127.0.0.1 port 50133)
+    if stderr.contains("127.0.0.1") && stderr.contains("port") {
+        return true;
+    }
+    false
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    fn pide(est: &mut EstadoProxy, p: Option<u32>) -> Accion {
+        solicitar(
+            est,
+            p,
+            Some("Mac de Alex".into()),
+            Some("Bluetooth directo, 1 salto".into()),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn maquina_de_estados_aplicar_repetir_quitar() {
+        let mut e = EstadoProxy::default();
+        assert_eq!(
+            pide(&mut e, None),
+            Accion::Nada,
+            "apagado y sin nada que quitar"
+        );
+        let a = pide(&mut e, Some(50123));
+        assert_eq!(a, Accion::Aplicar(50123));
+        resultado(&mut e, a, Ok(()));
+        assert!(e.aplicado && e.error.is_none());
+        assert_eq!(
+            pide(&mut e, Some(50123)),
+            Accion::Nada,
+            "mismo puerto y aplicado: solo rótulos"
+        );
+        let b = pide(&mut e, Some(50124));
+        assert_eq!(
+            b,
+            Accion::Aplicar(50124),
+            "puerto nuevo = aplicar de nuevo, sin recrear nada"
+        );
+        resultado(&mut e, b, Ok(()));
+        let q = pide(&mut e, None);
+        assert_eq!(q, Accion::Quitar);
+        assert_eq!(e.puerto, None);
+        assert!(
+            e.neurona.is_none() && e.via.is_none(),
+            "al apagar se olvidan los rótulos"
+        );
+        resultado(&mut e, q, Ok(()));
+        assert!(!e.aplicado);
+        assert_eq!(
+            pide(&mut e, None),
+            Accion::Nada,
+            "quitar dos veces no hace nada"
+        );
+    }
+
+    #[test]
+    fn transitar_solo_toca_el_webview_si_la_plataforma_puede() {
+        let buena = capacidad_estatica("macos", Some(14), false);
+        let mala = capacidad_estatica("windows", None, false);
+        let mut llamadas: Vec<Accion> = Vec::new();
+        let mut e = EstadoProxy::default();
+        transitar(&mut e, &buena, Some(50123), None, None, |a| {
+            llamadas.push(a);
+            Ok(())
+        })
+        .unwrap();
+        assert!(e.aplicado);
+        transitar(&mut e, &buena, Some(50123), None, None, |a| {
+            llamadas.push(a);
+            Ok(())
+        })
+        .unwrap();
+        transitar(&mut e, &buena, None, None, None, |a| {
+            llamadas.push(a);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            llamadas,
+            vec![Accion::Aplicar(50123), Accion::Quitar],
+            "la repetición no vuelve a tocar el webview"
+        );
+        assert!(!e.aplicado);
+        // Plataforma sin soporte: el puerto se recuerda (descargas) y el webview no se toca.
+        let mut w = EstadoProxy::default();
+        let r = transitar(&mut w, &mala, Some(50123), Some("x".into()), None, |_| {
+            panic!("no debe tocar el webview")
+        });
+        assert_eq!(r, Ok(Accion::Aplicar(50123)));
+        assert_eq!(w.puerto, Some(50123));
+        assert!(!w.aplicado);
+        assert_eq!(
+            transitar(&mut w, &mala, None, None, None, |_| panic!(
+                "tampoco al quitar"
+            )),
+            Ok(Accion::Quitar)
+        );
+        assert_eq!(w.puerto, None);
+        // Un puerto malo no llama a nadie.
+        assert!(transitar(&mut w, &buena, Some(22), None, None, |_| panic!("no")).is_err());
+        // Un fallo queda anotado y no marca aplicado.
+        let mut f = EstadoProxy::default();
+        transitar(&mut f, &buena, Some(50123), None, None, |_| {
+            Err("sin WKWebView".into())
+        })
+        .unwrap();
+        assert!(!f.aplicado && f.error.is_some());
+    }
+
+    #[test]
+    fn un_fallo_se_reintenta_en_la_siguiente_peticion() {
+        let mut e = EstadoProxy::default();
+        let a = pide(&mut e, Some(50123));
+        resultado(&mut e, a, Err("WKWebView no respondió".into()));
+        assert!(!e.aplicado);
+        assert_eq!(e.error.as_deref(), Some("WKWebView no respondió"));
+        assert_eq!(
+            pide(&mut e, Some(50123)),
+            Accion::Aplicar(50123),
+            "no aplicado = se reintenta"
+        );
+        // Quitar que falla: sigue contando como pendiente de quitar.
+        let mut f = EstadoProxy::default();
+        let a = pide(&mut f, Some(50123));
+        resultado(&mut f, a, Ok(()));
+        let q = pide(&mut f, None);
+        resultado(&mut f, q, Err("x".into()));
+        assert!(f.aplicado, "no se pudo quitar: se sigue marcando aplicado");
+        assert_eq!(pide(&mut f, None), Accion::Quitar, "y se reintenta quitar");
+    }
+
+    #[test]
+    fn puertos_validos_y_rotulos_limpios() {
+        assert_eq!(validar_puerto(None), Ok(None));
+        assert_eq!(validar_puerto(Some(1024)), Ok(Some(1024)));
+        assert_eq!(validar_puerto(Some(65535)), Ok(Some(65535)));
+        for malo in [0, 80, 1023, 65536, 1_000_000] {
+            assert!(validar_puerto(Some(malo)).is_err(), "{malo}");
+        }
+        let mut e = EstadoProxy::default();
+        assert!(solicitar(&mut e, Some(80), None, None).is_err());
+        assert_eq!(
+            e,
+            EstadoProxy::default(),
+            "una petición mala no cambia nada"
+        );
+        assert_eq!(
+            limpiar(Some("  a\u{7}b\n".into()), 10).as_deref(),
+            Some("ab")
+        );
+        assert_eq!(limpiar(Some("   ".into()), 10), None);
+        assert_eq!(
+            limpiar(Some("x".repeat(500)), 80).unwrap().chars().count(),
+            80
+        );
+        let mut e = EstadoProxy::default();
+        solicitar(&mut e, Some(50000), Some("\u{1b}[31mMac".into()), None).unwrap();
+        assert_eq!(e.neurona.as_deref(), Some("[31mMac"));
+    }
+
+    #[test]
+    fn url_y_reglas_del_proxy() {
+        assert_eq!(url_proxy(50123), "http://127.0.0.1:50123");
+        assert_eq!(regla_proxy_android(50123), "127.0.0.1:50123");
+        // El proxy es SIEMPRE el de loopback: la página no elige a dónde apunta, solo el puerto.
+        assert!(url_proxy(65535).starts_with("http://127.0.0.1:"));
+    }
+
+    #[test]
+    fn el_bucle_local_nunca_va_por_el_proxy() {
+        for h in [
+            "localhost",
+            "LOCALHOST",
+            "127.0.0.1",
+            "127.0.0.2",
+            "app.localhost",
+            "[::1]",
+            "::1",
+            "impresora.local",
+            "0.0.0.0",
+            "localhost.",
+        ] {
+            assert!(es_destino_directo(h), "{h}");
+        }
+        for h in [
+            "starseed-os.vercel.app",
+            "example.com",
+            "8.8.8.8",
+            "localhost.example.com",
+            "notlocal",
+            "",
+        ] {
+            assert_eq!(es_destino_directo(h), h.is_empty(), "{h}");
+        }
+        for d in ["localhost", "127.0.0.1", "::1"] {
+            assert!(DOMINIOS_DIRECTOS.contains(&d), "{d}");
+        }
+        for r in ["127.0.0.1", "localhost", "<local>"] {
+            assert!(REGLAS_DIRECTAS_ANDROID.contains(&r), "{r}");
+        }
+        assert!(REGLAS_DIRECTAS_ANDROID.contains(&"*.localhost"));
+    }
+
+    #[test]
+    fn curl_y_hosts_de_las_descargas() {
+        assert_eq!(
+            host_de_url("https://github.com/o/r/releases/x.tar.gz"),
+            "github.com"
+        );
+        assert_eq!(host_de_url("http://127.0.0.1:47610/a?b=c"), "127.0.0.1");
+        assert_eq!(
+            host_de_url("https://usuario:clave@huggingface.co:443/x"),
+            "huggingface.co"
+        );
+        assert_eq!(host_de_url("http://[::1]:8080/x"), "::1");
+        assert_eq!(host_de_url("https://a.b/c#d"), "a.b");
+        let p = "http://127.0.0.1:50123";
+        let con = argumentos_curl(Some(p), "https://huggingface.co/x.cact");
+        assert_eq!(con, vec!["-x", p, "--noproxy", "localhost,127.0.0.1"]);
+        assert!(
+            argumentos_curl(None, "https://huggingface.co/x").is_empty(),
+            "sin proxy, curl como siempre"
+        );
+        assert!(
+            argumentos_curl(Some(p), "http://127.0.0.1:47610/x").is_empty(),
+            "el bucle local va directo"
+        );
+        assert!(argumentos_curl(Some(p), "http://localhost:3000/x").is_empty());
+    }
+
+    #[test]
+    fn capacidad_por_plataforma() {
+        assert!(capacidad_estatica("macos", Some(14), false).soportado);
+        assert!(capacidad_estatica("macos", Some(15), false).soportado);
+        let viejo = capacidad_estatica("macos", Some(13), false);
+        assert!(!viejo.soportado && viejo.motivo.unwrap().contains("macOS 14"));
+        assert!(!capacidad_estatica("macos", None, false).soportado);
+        assert!(capacidad_estatica("android", None, false).soportado);
+        for os in ["windows", "ios", "otro"] {
+            let c = capacidad_estatica(os, None, false);
+            assert!(!c.soportado && c.motivo.is_some(), "{os}");
+        }
+        // LNX1109B: Linux sí (WebKitGTK), y el interruptor de emergencia lo apaga como en el resto.
+        assert!(capacidad_estatica("linux", None, false).soportado);
+        assert!(!capacidad_estatica("linux", None, true).soportado);
+        assert_eq!(
+            IGNORAR_WEBKIT,
+            ["localhost", "127.0.0.1", "::1", "*.localhost"]
+        );
+        for d in IGNORAR_WEBKIT {
+            assert!(es_destino_directo(&d.replace("*.", "x.")), "{d}");
+        }
+        assert_eq!(url_proxy_webkit(50123), "http://127.0.0.1:50123");
+        let apagada = capacidad_estatica("macos", Some(15), true);
+        assert!(!apagada.soportado && apagada.motivo.unwrap().contains(VARIABLE_APAGADO));
+    }
+
+    #[test]
+    fn interruptor_de_emergencia() {
+        assert!(!apagado(None));
+        assert!(!apagado(Some("")));
+        assert!(!apagado(Some("0")));
+        assert!(!apagado(Some("false")));
+        assert!(apagado(Some("1")));
+        assert!(apagado(Some("si")));
+    }
+
+    #[test]
+    fn estado_publico_y_descargas() {
+        let mut e = EstadoProxy::default();
+        let cap = capacidad_estatica("windows", None, false);
+        assert!(
+            !publico(&e, &cap, false).descargas,
+            "sin puerto no hay descargas por el proxy"
+        );
+        pide(&mut e, Some(50123));
+        let p = publico(&e, &cap, false);
+        assert!(
+            p.descargas && !p.soportado && !p.aplicado,
+            "Windows: las descargas sí, el webview no"
+        );
+        assert_eq!(p.puerto, Some(50123));
+        assert!(
+            !publico(&e, &cap, true).descargas,
+            "apagado: ni las descargas"
+        );
+        let j = serde_json::to_value(&p).unwrap();
+        for campo in [
+            "puerto",
+            "neurona",
+            "via",
+            "aplicado",
+            "soportado",
+            "plataforma",
+            "motivo",
+            "error",
+            "descargas",
+        ] {
+            assert!(j.get(campo).is_some(), "falta {campo}");
+        }
+    }
+
+    #[test]
+    fn cola_de_peticiones_hacia_kotlin() {
+        assert_eq!(nombre_peticion(7), "peticion-00000000000000000007.json");
+        assert!(
+            nombre_peticion(9) < nombre_peticion(10),
+            "el orden de nombres es el orden numérico"
+        );
+        assert_eq!(texto_peticion(3, Some(50123)), r#"{"n":3,"puerto":50123}"#);
+        assert_eq!(texto_peticion(4, None), r#"{"n":4,"puerto":null}"#);
+        let dir = std::env::temp_dir().join(format!("ss-proxy-puerta-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let f = escribir_peticion(&dir, 1, &texto_peticion(1, Some(50123))).unwrap();
+        assert!(f.is_file() && std::fs::read_to_string(&f).unwrap().contains("50123"));
+        assert!(
+            !dir.join(format!(".{}.tmp", nombre_peticion(1))).exists(),
+            "sin temporales"
+        );
+        assert!(leer_estado(&dir).is_none());
+        std::fs::write(
+            dir.join(ESTADO),
+            r#"{"version":1,"n":1,"soportado":true,"aplicado":true}"#,
+        )
+        .unwrap();
+        let k = leer_estado(&dir).unwrap();
+        assert!(k.soportado && k.aplicado && k.n == 1 && k.error.is_none());
+        std::fs::write(dir.join(ESTADO), "no es json").unwrap();
+        assert!(leer_estado(&dir).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_codigo_7_con_proxy() {
+        // Código 7 (Failed to connect to proxy) con proxy configurado y sin reintentar → sí
+        assert!(merece_reintento_sin_proxy(
+            7,
+            "curl: (7) Failed to connect to 127.0.0.1 port 50133",
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_codigo_22_http_404_no() {
+        // Código 22 (HTTP 404) → no, aunque haya proxy
+        assert!(!merece_reintento_sin_proxy(
+            22,
+            "curl: (22) The requested URL returned error: 404",
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_sin_proxy_configurado_no() {
+        // Sin proxy configurado → nunca reintenta
+        assert!(!merece_reintento_sin_proxy(
+            7,
+            "curl: (7) Failed to connect",
+            false,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            5,
+            "curl: (5) Couldn't resolve proxy",
+            false,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            28,
+            "curl: (28) Operation timeout",
+            false,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            56,
+            "curl: (56) Failure in receiving network data",
+            false,
+            false
+        ));
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_ya_reintentado_no() {
+        // Ya se reintentó → no vuelve a hacerlo
+        assert!(!merece_reintento_sin_proxy(
+            7,
+            "curl: (7) Failed to connect",
+            true,
+            true
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            5,
+            "curl: (5) Couldn't resolve proxy",
+            true,
+            true
+        ));
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_stderr_con_puerto() {
+        // Stderr menciona 127.0.0.1 y port → sí (aunque el código no esté en la lista)
+        assert!(merece_reintento_sin_proxy(
+            1,
+            "curl: (1) Failed to connect to 127.0.0.1 port 50133",
+            true,
+            false
+        ));
+        assert!(merece_reintento_sin_proxy(
+            99,
+            "Failed to connect to 127.0.0.1 port 50133 after 0 ms",
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn merece_reintento_sin_proxy_otros_codigos_no() {
+        // Códigos no relacionados con proxy → no
+        assert!(!merece_reintento_sin_proxy(
+            1,
+            "curl: (1) Unsupported protocol",
+            true,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            6,
+            "curl: (6) Couldn't resolve host",
+            true,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            28,
+            "curl: (28) Connection timed out to github.com",
+            true,
+            false
+        ));
+        assert!(!merece_reintento_sin_proxy(
+            56,
+            "curl: (56) Failure in receiving network data from github.com",
+            true,
+            false
+        ));
+    }
+}
+
 /// `127.0.0.1:<puerto>`: la regla de proxy de Android.
 pub fn regla_proxy_android(puerto: u16) -> String {
     format!("127.0.0.1:{puerto}")
@@ -62,8 +545,20 @@ pub fn regla_proxy_android(puerto: u16) -> String {
 /// ¿Es un destino que nunca va por el proxy? (el mismo criterio que las listas de arriba, para pruebas y para
 /// los clientes de Rust que deciden por URL).
 pub fn es_destino_directo(host: &str) -> bool {
-    let h = host.trim().trim_start_matches('[').trim_end_matches(']').trim_end_matches('.').to_lowercase();
-    if h.is_empty() || h == "localhost" || h.ends_with(".localhost") || h == "::1" || h == "0.0.0.0" || h == "local" || h.ends_with(".local") {
+    let h = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.')
+        .to_lowercase();
+    if h.is_empty()
+        || h == "localhost"
+        || h.ends_with(".localhost")
+        || h == "::1"
+        || h == "0.0.0.0"
+        || h == "local"
+        || h.ends_with(".local")
+    {
         return true;
     }
     h.starts_with("127.")
@@ -86,7 +581,12 @@ pub fn host_de_url(url: &str) -> String {
 /// el servidor de la propia app y las pruebas con 127.0.0.1 van siempre directos).
 pub fn argumentos_curl(proxy: Option<&str>, url: &str) -> Vec<String> {
     match proxy {
-        Some(p) if !es_destino_directo(&host_de_url(url)) => vec!["-x".into(), p.into(), "--noproxy".into(), "localhost,127.0.0.1".into()],
+        Some(p) if !es_destino_directo(&host_de_url(url)) => vec![
+            "-x".into(),
+            p.into(),
+            "--noproxy".into(),
+            "localhost,127.0.0.1".into(),
+        ],
         _ => Vec::new(),
     }
 }
@@ -136,10 +636,23 @@ pub enum Accion {
 
 /// Aplica la petición de la página al estado y dice qué hacer. Mismo puerto y ya aplicado = nada (solo cambian
 /// los rótulos); mismo puerto sin aplicar = reintenta; `null` con algo aplicado (o pedido) = quitar.
-pub fn solicitar(est: &mut EstadoProxy, puerto: Option<u32>, neurona: Option<String>, via: Option<String>) -> Result<Accion, String> {
+pub fn solicitar(
+    est: &mut EstadoProxy,
+    puerto: Option<u32>,
+    neurona: Option<String>,
+    via: Option<String>,
+) -> Result<Accion, String> {
     let nuevo = validar_puerto(puerto)?;
-    est.neurona = if nuevo.is_some() { limpiar(neurona, 80) } else { None };
-    est.via = if nuevo.is_some() { limpiar(via, 120) } else { None };
+    est.neurona = if nuevo.is_some() {
+        limpiar(neurona, 80)
+    } else {
+        None
+    };
+    est.via = if nuevo.is_some() {
+        limpiar(via, 120)
+    } else {
+        None
+    };
     Ok(match nuevo {
         Some(p) => {
             let igual = est.puerto == Some(p) && est.aplicado;
@@ -218,9 +731,15 @@ pub struct Capacidad {
 
 /// La capacidad que se sabe SIN preguntar al sistema (versión de macOS ya leída; Android la confirma Kotlin).
 pub fn capacidad_estatica(os: &str, macos_mayor: Option<u32>, desactivado: bool) -> Capacidad {
-    let no = |m: &str| Capacidad { soportado: false, plataforma: os.to_string(), motivo: Some(m.to_string()) };
+    let no = |m: &str| Capacidad {
+        soportado: false,
+        plataforma: os.to_string(),
+        motivo: Some(m.to_string()),
+    };
     if desactivado {
-        return no("El proxy de la puerta está apagado en esta instalación (STARSEED_SIN_PROXY_PUERTA).");
+        return no(
+            "El proxy de la puerta está apagado en esta instalación (STARSEED_SIN_PROXY_PUERTA).",
+        );
     }
     match os {
         "macos" => match macos_mayor {
@@ -311,7 +830,8 @@ pub struct EstadoKotlin {
 }
 
 pub fn leer_estado(dir: &Path) -> Option<EstadoKotlin> {
-    let e: EstadoKotlin = serde_json::from_str(&std::fs::read_to_string(dir.join(ESTADO)).ok()?).ok()?;
+    let e: EstadoKotlin =
+        serde_json::from_str(&std::fs::read_to_string(dir.join(ESTADO)).ok()?).ok()?;
     (e.version > 0).then_some(e)
 }
 
@@ -320,28 +840,53 @@ mod pruebas {
     use super::*;
 
     fn pide(est: &mut EstadoProxy, p: Option<u32>) -> Accion {
-        solicitar(est, p, Some("Mac de Alex".into()), Some("Bluetooth directo, 1 salto".into())).unwrap()
+        solicitar(
+            est,
+            p,
+            Some("Mac de Alex".into()),
+            Some("Bluetooth directo, 1 salto".into()),
+        )
+        .unwrap()
     }
 
     #[test]
     fn maquina_de_estados_aplicar_repetir_quitar() {
         let mut e = EstadoProxy::default();
-        assert_eq!(pide(&mut e, None), Accion::Nada, "apagado y sin nada que quitar");
+        assert_eq!(
+            pide(&mut e, None),
+            Accion::Nada,
+            "apagado y sin nada que quitar"
+        );
         let a = pide(&mut e, Some(50123));
         assert_eq!(a, Accion::Aplicar(50123));
         resultado(&mut e, a, Ok(()));
         assert!(e.aplicado && e.error.is_none());
-        assert_eq!(pide(&mut e, Some(50123)), Accion::Nada, "mismo puerto y aplicado: solo rótulos");
+        assert_eq!(
+            pide(&mut e, Some(50123)),
+            Accion::Nada,
+            "mismo puerto y aplicado: solo rótulos"
+        );
         let b = pide(&mut e, Some(50124));
-        assert_eq!(b, Accion::Aplicar(50124), "puerto nuevo = aplicar de nuevo, sin recrear nada");
+        assert_eq!(
+            b,
+            Accion::Aplicar(50124),
+            "puerto nuevo = aplicar de nuevo, sin recrear nada"
+        );
         resultado(&mut e, b, Ok(()));
         let q = pide(&mut e, None);
         assert_eq!(q, Accion::Quitar);
         assert_eq!(e.puerto, None);
-        assert!(e.neurona.is_none() && e.via.is_none(), "al apagar se olvidan los rótulos");
+        assert!(
+            e.neurona.is_none() && e.via.is_none(),
+            "al apagar se olvidan los rótulos"
+        );
         resultado(&mut e, q, Ok(()));
         assert!(!e.aplicado);
-        assert_eq!(pide(&mut e, None), Accion::Nada, "quitar dos veces no hace nada");
+        assert_eq!(
+            pide(&mut e, None),
+            Accion::Nada,
+            "quitar dos veces no hace nada"
+        );
     }
 
     #[test]
@@ -366,21 +911,35 @@ mod pruebas {
             Ok(())
         })
         .unwrap();
-        assert_eq!(llamadas, vec![Accion::Aplicar(50123), Accion::Quitar], "la repetición no vuelve a tocar el webview");
+        assert_eq!(
+            llamadas,
+            vec![Accion::Aplicar(50123), Accion::Quitar],
+            "la repetición no vuelve a tocar el webview"
+        );
         assert!(!e.aplicado);
         // Plataforma sin soporte: el puerto se recuerda (descargas) y el webview no se toca.
         let mut w = EstadoProxy::default();
-        let r = transitar(&mut w, &mala, Some(50123), Some("x".into()), None, |_| panic!("no debe tocar el webview"));
+        let r = transitar(&mut w, &mala, Some(50123), Some("x".into()), None, |_| {
+            panic!("no debe tocar el webview")
+        });
         assert_eq!(r, Ok(Accion::Aplicar(50123)));
         assert_eq!(w.puerto, Some(50123));
         assert!(!w.aplicado);
-        assert_eq!(transitar(&mut w, &mala, None, None, None, |_| panic!("tampoco al quitar")), Ok(Accion::Quitar));
+        assert_eq!(
+            transitar(&mut w, &mala, None, None, None, |_| panic!(
+                "tampoco al quitar"
+            )),
+            Ok(Accion::Quitar)
+        );
         assert_eq!(w.puerto, None);
         // Un puerto malo no llama a nadie.
         assert!(transitar(&mut w, &buena, Some(22), None, None, |_| panic!("no")).is_err());
         // Un fallo queda anotado y no marca aplicado.
         let mut f = EstadoProxy::default();
-        transitar(&mut f, &buena, Some(50123), None, None, |_| Err("sin WKWebView".into())).unwrap();
+        transitar(&mut f, &buena, Some(50123), None, None, |_| {
+            Err("sin WKWebView".into())
+        })
+        .unwrap();
         assert!(!f.aplicado && f.error.is_some());
     }
 
@@ -391,7 +950,11 @@ mod pruebas {
         resultado(&mut e, a, Err("WKWebView no respondió".into()));
         assert!(!e.aplicado);
         assert_eq!(e.error.as_deref(), Some("WKWebView no respondió"));
-        assert_eq!(pide(&mut e, Some(50123)), Accion::Aplicar(50123), "no aplicado = se reintenta");
+        assert_eq!(
+            pide(&mut e, Some(50123)),
+            Accion::Aplicar(50123),
+            "no aplicado = se reintenta"
+        );
         // Quitar que falla: sigue contando como pendiente de quitar.
         let mut f = EstadoProxy::default();
         let a = pide(&mut f, Some(50123));
@@ -412,10 +975,20 @@ mod pruebas {
         }
         let mut e = EstadoProxy::default();
         assert!(solicitar(&mut e, Some(80), None, None).is_err());
-        assert_eq!(e, EstadoProxy::default(), "una petición mala no cambia nada");
-        assert_eq!(limpiar(Some("  a\u{7}b\n".into()), 10).as_deref(), Some("ab"));
+        assert_eq!(
+            e,
+            EstadoProxy::default(),
+            "una petición mala no cambia nada"
+        );
+        assert_eq!(
+            limpiar(Some("  a\u{7}b\n".into()), 10).as_deref(),
+            Some("ab")
+        );
         assert_eq!(limpiar(Some("   ".into()), 10), None);
-        assert_eq!(limpiar(Some("x".repeat(500)), 80).unwrap().chars().count(), 80);
+        assert_eq!(
+            limpiar(Some("x".repeat(500)), 80).unwrap().chars().count(),
+            80
+        );
         let mut e = EstadoProxy::default();
         solicitar(&mut e, Some(50000), Some("\u{1b}[31mMac".into()), None).unwrap();
         assert_eq!(e.neurona.as_deref(), Some("[31mMac"));
@@ -431,10 +1004,28 @@ mod pruebas {
 
     #[test]
     fn el_bucle_local_nunca_va_por_el_proxy() {
-        for h in ["localhost", "LOCALHOST", "127.0.0.1", "127.0.0.2", "app.localhost", "[::1]", "::1", "impresora.local", "0.0.0.0", "localhost."] {
+        for h in [
+            "localhost",
+            "LOCALHOST",
+            "127.0.0.1",
+            "127.0.0.2",
+            "app.localhost",
+            "[::1]",
+            "::1",
+            "impresora.local",
+            "0.0.0.0",
+            "localhost.",
+        ] {
             assert!(es_destino_directo(h), "{h}");
         }
-        for h in ["starseed-os.vercel.app", "example.com", "8.8.8.8", "localhost.example.com", "notlocal", ""] {
+        for h in [
+            "starseed-os.vercel.app",
+            "example.com",
+            "8.8.8.8",
+            "localhost.example.com",
+            "notlocal",
+            "",
+        ] {
             assert_eq!(es_destino_directo(h), h.is_empty(), "{h}");
         }
         for d in ["localhost", "127.0.0.1", "::1"] {
@@ -448,16 +1039,28 @@ mod pruebas {
 
     #[test]
     fn curl_y_hosts_de_las_descargas() {
-        assert_eq!(host_de_url("https://github.com/o/r/releases/x.tar.gz"), "github.com");
+        assert_eq!(
+            host_de_url("https://github.com/o/r/releases/x.tar.gz"),
+            "github.com"
+        );
         assert_eq!(host_de_url("http://127.0.0.1:47610/a?b=c"), "127.0.0.1");
-        assert_eq!(host_de_url("https://usuario:clave@huggingface.co:443/x"), "huggingface.co");
+        assert_eq!(
+            host_de_url("https://usuario:clave@huggingface.co:443/x"),
+            "huggingface.co"
+        );
         assert_eq!(host_de_url("http://[::1]:8080/x"), "::1");
         assert_eq!(host_de_url("https://a.b/c#d"), "a.b");
         let p = "http://127.0.0.1:50123";
         let con = argumentos_curl(Some(p), "https://huggingface.co/x.cact");
         assert_eq!(con, vec!["-x", p, "--noproxy", "localhost,127.0.0.1"]);
-        assert!(argumentos_curl(None, "https://huggingface.co/x").is_empty(), "sin proxy, curl como siempre");
-        assert!(argumentos_curl(Some(p), "http://127.0.0.1:47610/x").is_empty(), "el bucle local va directo");
+        assert!(
+            argumentos_curl(None, "https://huggingface.co/x").is_empty(),
+            "sin proxy, curl como siempre"
+        );
+        assert!(
+            argumentos_curl(Some(p), "http://127.0.0.1:47610/x").is_empty(),
+            "el bucle local va directo"
+        );
         assert!(argumentos_curl(Some(p), "http://localhost:3000/x").is_empty());
     }
 
@@ -476,7 +1079,10 @@ mod pruebas {
         // LNX1109B: Linux sí (WebKitGTK), y el interruptor de emergencia lo apaga como en el resto.
         assert!(capacidad_estatica("linux", None, false).soportado);
         assert!(!capacidad_estatica("linux", None, true).soportado);
-        assert_eq!(IGNORAR_WEBKIT, ["localhost", "127.0.0.1", "::1", "*.localhost"]);
+        assert_eq!(
+            IGNORAR_WEBKIT,
+            ["localhost", "127.0.0.1", "::1", "*.localhost"]
+        );
         for d in IGNORAR_WEBKIT {
             assert!(es_destino_directo(&d.replace("*.", "x.")), "{d}");
         }
@@ -499,14 +1105,33 @@ mod pruebas {
     fn estado_publico_y_descargas() {
         let mut e = EstadoProxy::default();
         let cap = capacidad_estatica("windows", None, false);
-        assert!(!publico(&e, &cap, false).descargas, "sin puerto no hay descargas por el proxy");
+        assert!(
+            !publico(&e, &cap, false).descargas,
+            "sin puerto no hay descargas por el proxy"
+        );
         pide(&mut e, Some(50123));
         let p = publico(&e, &cap, false);
-        assert!(p.descargas && !p.soportado && !p.aplicado, "Windows: las descargas sí, el webview no");
+        assert!(
+            p.descargas && !p.soportado && !p.aplicado,
+            "Windows: las descargas sí, el webview no"
+        );
         assert_eq!(p.puerto, Some(50123));
-        assert!(!publico(&e, &cap, true).descargas, "apagado: ni las descargas");
+        assert!(
+            !publico(&e, &cap, true).descargas,
+            "apagado: ni las descargas"
+        );
         let j = serde_json::to_value(&p).unwrap();
-        for campo in ["puerto", "neurona", "via", "aplicado", "soportado", "plataforma", "motivo", "error", "descargas"] {
+        for campo in [
+            "puerto",
+            "neurona",
+            "via",
+            "aplicado",
+            "soportado",
+            "plataforma",
+            "motivo",
+            "error",
+            "descargas",
+        ] {
             assert!(j.get(campo).is_some(), "falta {campo}");
         }
     }
@@ -514,16 +1139,26 @@ mod pruebas {
     #[test]
     fn cola_de_peticiones_hacia_kotlin() {
         assert_eq!(nombre_peticion(7), "peticion-00000000000000000007.json");
-        assert!(nombre_peticion(9) < nombre_peticion(10), "el orden de nombres es el orden numérico");
+        assert!(
+            nombre_peticion(9) < nombre_peticion(10),
+            "el orden de nombres es el orden numérico"
+        );
         assert_eq!(texto_peticion(3, Some(50123)), r#"{"n":3,"puerto":50123}"#);
         assert_eq!(texto_peticion(4, None), r#"{"n":4,"puerto":null}"#);
         let dir = std::env::temp_dir().join(format!("ss-proxy-puerta-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let f = escribir_peticion(&dir, 1, &texto_peticion(1, Some(50123))).unwrap();
         assert!(f.is_file() && std::fs::read_to_string(&f).unwrap().contains("50123"));
-        assert!(!dir.join(format!(".{}.tmp", nombre_peticion(1))).exists(), "sin temporales");
+        assert!(
+            !dir.join(format!(".{}.tmp", nombre_peticion(1))).exists(),
+            "sin temporales"
+        );
         assert!(leer_estado(&dir).is_none());
-        std::fs::write(dir.join(ESTADO), r#"{"version":1,"n":1,"soportado":true,"aplicado":true}"#).unwrap();
+        std::fs::write(
+            dir.join(ESTADO),
+            r#"{"version":1,"n":1,"soportado":true,"aplicado":true}"#,
+        )
+        .unwrap();
         let k = leer_estado(&dir).unwrap();
         assert!(k.soportado && k.aplicado && k.n == 1 && k.error.is_none());
         std::fs::write(dir.join(ESTADO), "no es json").unwrap();
