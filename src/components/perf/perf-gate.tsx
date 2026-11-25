@@ -19,6 +19,10 @@ import {
   PERF_CHANGED_EVENT,
   type PerfApplied,
 } from "@/lib/perf/device-tier";
+import { arrancarCensoSiNativa } from "@/lib/perf/censo-arranque";
+
+// DIR1125H: en la app nativa el censo de tiempo se pone al cargar este módulo, antes de montar nada. En la web no hace nada.
+arrancarCensoSiNativa();
 
 /** Fija data-perf y lo re-evalúa al cambiar el modo o el tamaño de ventana. */
 export function PerfController() {

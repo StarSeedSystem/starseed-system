@@ -22,6 +22,7 @@ import type {
   ClaveAparatoNativaEstado,
 } from "./tipos";
 import { EVENTO_ANTENAS, EVENTO_SERIE, EVENTO_SERIE_CERRADA } from "./tipos";
+import { marcarEnHilo, medirEnHilo } from "../perf/medidor-hilo";
 
 export const SOLO_NATIVA = "Solo en la app nativa de StarSeed OS.";
 
@@ -105,7 +106,9 @@ export function crearPuente(tauri: TauriMinimo | null | undefined): PuenteNativo
   async function llamar<T>(cmd: string, args?: Record<string, unknown>): Promise<Resultado<T>> {
     if (!invoke) return { ok: false, motivo: SOLO_NATIVA };
     try {
-      return { ok: true, valor: (await invoke(cmd, args)) as T };
+      const valor = (await invoke(cmd, args)) as T;
+      marcarEnHilo(`inv:${cmd}`); // DIR1125H: para saber tras qué orden vino un parón (solo si el censo de tiempo está puesto)
+      return { ok: true, valor };
     } catch (e) {
       return { ok: false, motivo: motivoDe(e) };
     }
@@ -114,7 +117,8 @@ export function crearPuente(tauri: TauriMinimo | null | undefined): PuenteNativo
   async function escuchar(evento: string, cb: (payload: unknown) => void): Promise<Desuscribir> {
     if (!listen) return () => {};
     try {
-      return await listen(evento, (e) => cb(e?.payload));
+      // DIR1125H: lo que se tarda en atender cada evento nativo se apunta a su nombre (sin censo puesto, pasa tal cual).
+      return await listen(evento, (e) => medirEnHilo(`ev:${evento}`, () => cb(e?.payload)));
     } catch {
       return () => {};
     }
