@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-vector-visual-de-la-orbe",
+   "ola": "Imaginación · autodesarrollo 2026-11-25",
+   "titulo": "Publicar vector visual de la orbe 1.58b",
+   "tipo": "analisis",
+   "modo": "libre",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar vector visual de la orbe 1.58b. (`turbulence`, `spikiness`, `symmetry`, `hueShift`, `breath`) en canal `params` del bus de la orbe (pendiente en `tasks abiertas`). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-convertir-modelo-a-disperso-2-4",
+   "ola": "Imaginación · autodesarrollo 2026-11-25",
+   "titulo": "Convertir modelo a disperso 2:4",
+   "tipo": "analisis",
+   "modo": "libre",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Convertir modelo a disperso 2:4. y probar `spbitnet` en neurona con GPU NVIDIA (pendiente). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "ALM1125E3",
+   "ola": "almacen-1125",
+   "titulo": "ssh a la Maggabox: rutas expandidas e IPv4 en captura_aparatos.py y pruebas_malla.py",
+   "archivos": [
+    "scripts/puente/captura_aparatos.py",
+    "scripts/puente/pruebas_malla.py",
+    "scripts/puente/test_ssh_maggabox_e3_1125.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` y regla `memory/orquestacion-economica.md` §24 (léelos antes). La Maggabox se alcanza por ssh `maggasukha@starseed-nodo-1.local` con `os.path.expanduser('~/.ssh/starseed_nodo1')`, `-o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o AddressFamily=inet` y `-o UserKnownHostsFile=` + `os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')` (modelo: `scripts/puente/sonda_maggabox.py`).\n\nIgual que ALM1125E1 en estos dos archivos. Solo las opciones de ssh hacia `starseed-nodo-1.local`. Pruebas (sin red) en `test_ssh_maggabox_e3_1125.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "ALM1125E3",
+   "IMG-diaria-convertir-modelo-a-disperso-2-4",
+   "IMG-diaria-publicar-vector-visual-de-la-orbe"
+  ]
+ }
+}
