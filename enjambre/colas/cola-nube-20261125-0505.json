@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "CAP1125Db",
+   "ola": "capas-1125",
+   "titulo": "Linux sin monitor conectado: la app se lo dice a la web y la web deja de pintar adornos",
+   "archivos": [
+    "native/src-tauri/src/arranque_linux.rs",
+    "native/src-tauri/src/arranque_linux_logica.rs",
+    "src/lib/perf/device-tier.ts",
+    "src/lib/perf/ritmo-cuadros.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (07:42Z) en la Maggabox (Debian 13, Xfce sobre X11, Radeon HD 6570, WebKitGTK 2.54.3): con el monitor apagado TODOS los conectores están en `disconnected` (/sys/class/drm/card0-*/status; `xrandr` dice lo mismo) y el servidor X presenta 1 cuadro por segundo, pero la página sigue pintando a su ritmo (el orbe de Aurora 10 veces/s en «eficiente») porque `document.visibilityState` sigue en `visible`. Resultado: el proceso web al 64-69 % de un núcleo sin que nadie pueda verlo. La parte web ya bajó ese coste (DIR1125E y DIR1125G), pero lo correcto en un nodo sin pantalla es no pintar adornos.\n\nQué hacer (nativo .64 + web): (1) en Linux, la app mira cada 30 s si hay algún conector `connected` (leer /sys/class/drm/card*-*/status; sin dependencias nuevas ni procesos externos) y publica el estado en el canal de energía que ya lee `leerEnergiaNativa()` (un campo nuevo `sinPantalla: boolean`; ausente = se desconoce = como hoy). (2) En la web, `fpsObjetivoModo()`/`ritmo-cuadros` tratan `sinPantalla` como tope 1 cuadro/s para los bucles gobernados, SOLO en tiempo de ejecución (no se guarda ni cambia el modo elegido). (3) Excepción obligatoria: si esta neurona está siendo controlada o compartiendo pantalla (hay sesión de control o transmisión viva), `sinPantalla` se ignora: quien controla SÍ ve la pantalla aunque no haya monitor. (4) Pruebas de la lógica pura (decidir con la lista de conectores) y de la web (tope con y sin sesión de control). No tocar diseños, ajustes guardados ni el modo de rendimiento elegido. No cerrar ni reiniciar nada.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45589348061`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45589348061:refs/remotes/origin/nube/45589348061\"` y `git cherry-pick --no-commit 7ed602b6b803 830a4421b15c 816a80b2ea95 0d0498cd4ef9 6a812998d1ff 4c81b8e49493 6ec259f44f28 29a5da81753b e06e67cdf9d5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: native/servidor-local/__tests__/estaticos-capas-anteriores.test.cjs, native/servidor-local/starseed-arranque.cjs, native/src-tauri/src/arranque_linux.rs, native/src-tauri/src/arranque_linux_logica.rs, native/src-tauri/src/energia.rs, public/sw-logica.js, public/sw-v8.js, src/components/aurora/__tests__/dir1125e-orbe-ritmo.test.tsx, src/components/aurora/__tests__/dir1125g-hoja-del-orbe.test.ts, src/components/aurora/__tests__/dir1125g-orbe-en-reposo.test.tsx, src/components/aurora/aurora-orb.module.css, src/components/aurora/aurora-orb.tsx, src/components/aurora/quantum-orb.tsx, src/components/protomolecula/orbe-protomolecula.tsx, src/components/ui/SplineWatermarkCover.tsx, src/lib/banco-llamadas/actor.ts, src/lib/control-remoto/__tests__/ctl1118m-destino-malla.test.ts, src/lib/control-remoto/__tests__/dir1125b-sesion-hacia.test.ts, src/lib/control-remoto/canal.ts, src/lib/control-remoto/pantalla-destino.ts, src/lib/nativa/__tests__/dir1125c-pagina-al-dia.test.ts, src/lib/nativa/relevo-capa-cliente.ts, src/lib/nativa/relevo-capa.ts, src/lib/perf/__tests__/censo-cuadros.test.ts, src/lib/perf/__tests__/device-tier.test.ts, src/lib/perf/__tests__/purga-marca-spline.test.ts, src/lib/perf/__tests__/ritmo-cuadros.test.ts, src/lib/perf/censo-cuadros.ts, src/lib/perf/device-tier.ts, src/lib/perf/modo-rendimiento.ts, src/lib/perf/purga-marca-spline.ts, src/lib/perf/ritmo-cuadros.ts, src/lib/protomolecula/orbe4d/motor.ts, src/lib/pwa/__tests__/sw-entorno-prueba.ts, src/lib/pwa/__tests__/sw-logica.test.ts, src/lib/pwa/__tests__/sw-v8.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45589348061"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP1125Db"
+  ]
+ }
+}
