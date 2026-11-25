@@ -32,6 +32,9 @@ pub struct EstadoEnergia {
     pub perfil_energia: Option<String>,
     pub temperatura_c: Option<f32>,
     pub fuente: String,
+    /// Linux: no hay ningún monitor conectado. `None` = se desconoce (no se envía).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sin_pantalla: Option<bool>,
 }
 
 impl EstadoEnergia {
@@ -45,6 +48,7 @@ impl EstadoEnergia {
             perfil_energia: None,
             temperatura_c: None,
             fuente: fuente.to_string(),
+            sin_pantalla: None,
         }
     }
 }
@@ -274,6 +278,11 @@ fn estado_linux() -> EstadoEnergia {
         estado.perfil_energia = parse_perfil_linux(&texto);
         estado.ahorro_sistema = estado.perfil_energia.as_deref() == Some("ahorro");
         estado.fuente = "power-profiles-daemon".to_string();
+    }
+    // CAP1125D: la app nativa mide los conectores cada 30 s; aquí solo se publica.
+    #[cfg(target_os = "linux")]
+    {
+        estado.sin_pantalla = crate::arranque_linux::sin_pantalla_actual();
     }
     estado
 }

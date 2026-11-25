@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, beforeAll } from "vitest";
+import type { EstadoEnergia } from "../modo-rendimiento";
 
 // Set up window and document BEFORE any imports
 beforeAll(() => {
@@ -427,5 +428,121 @@ describe("EFI1119B — energía y decisión de «auto» (sin tocar ajustes)", ()
     const terminada = actualizarTareasPesadas([]);
     expect(terminada.temporal).toBe(false);
     expect(terminada.modo).toBe("alto");
+  });
+});
+describe("CAP1125D — sin monitor conectado: tope de 1 cuadro/s en ejecución", () => {
+  const estadoLinux = (extra: Record<string, unknown> = {}): EstadoEnergia =>
+    ({
+      sistema: "linux",
+      bateriaPct: null,
+      cargando: null,
+      ahorroSistema: false,
+      modoBajoConsumo: false,
+      perfilEnergia: null,
+      temperaturaC: null,
+      tareasPesadas: [],
+      ...extra,
+    }) as EstadoEnergia;
+
+  async function importModule() {
+    return await import("../device-tier");
+  }
+
+  it("normaliza sinPantalla y distingue el campo ausente (desconocido) del falso", async () => {
+    const { normalizarEstadoEnergia } = await importModule();
+    expect(normalizarEstadoEnergia(estadoLinux({ sinPantalla: true }))?.sinPantalla).toBe(true);
+    expect(normalizarEstadoEnergia(estadoLinux({ sinPantalla: false }))?.sinPantalla).toBe(false);
+    expect(normalizarEstadoEnergia(estadoLinux())?.sinPantalla).toBeUndefined();
+    expect(normalizarEstadoEnergia(estadoLinux({ sinPantalla: "sí" }))?.sinPantalla).toBeUndefined();
+  });
+
+  it("con sinPantalla y el modo «alto» (sin tope) baja a 1 cuadro/s", async () => {
+    const { setPerfMode, actualizarEnergia, fpsObjetivoModo } = await importModule();
+    setPerfMode("alto");
+    expect(fpsObjetivoModo()).toBe(0);
+    actualizarEnergia(estadoLinux({ sinPantalla: true }));
+    expect(fpsObjetivoModo()).toBe(1);
+  });
+
+  it("con sinPantalla y el modo «eficiente» (10) baja a 1 cuadro/s", async () => {
+    const { setPerfMode, actualizarEnergia, fpsObjetivoModo } = await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia(estadoLinux({ sinPantalla: true }));
+    expect(fpsObjetivoModo()).toBe(1);
+  });
+
+  it("una sesión de control remoto anula el tope: quien controla sí ve la pantalla", async () => {
+    const { setPerfMode, actualizarEnergia, fpsObjetivoModo } = await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia(estadoLinux({ sinPantalla: true, tareasPesadas: ["control-remoto"] }));
+    expect(fpsObjetivoModo()).toBe(10);
+  });
+
+  it("una transmisión viva anula el tope", async () => {
+    const { setPerfMode, actualizarEnergia, fpsObjetivoModo } = await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia(estadoLinux({ sinPantalla: true, tareasPesadas: ["transmision"] }));
+    expect(fpsObjetivoModo()).toBe(10);
+  });
+
+  it("una llamada sola no anula el tope; sin dato o con pantalla tampoco se toca", async () => {
+    const { setPerfMode, actualizarEnergia, fpsObjetivoModo } = await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia(estadoLinux({ sinPantalla: true, tareasPesadas: ["llamada"] }));
+    expect(fpsObjetivoModo()).toBe(1);
+    actualizarEnergia(estadoLinux({ sinPantalla: false }));
+    expect(fpsObjetivoModo()).toBe(10);
+    actualizarEnergia(estadoLinux());
+    expect(fpsObjetivoModo()).toBe(10);
+  });
+
+  it("al terminar el control vuelve el tope de 1 cuadro/s, conservando sinPantalla", async () => {
+    const { setPerfMode, actualizarEnergia, actualizarTareasPesadas, fpsObjetivoModo } = await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia(estadoLinux({ sinPantalla: true }));
+    actualizarTareasPesadas(["control-remoto"]);
+    expect(fpsObjetivoModo()).toBe(10);
+    actualizarTareasPesadas([]);
+    expect(fpsObjetivoModo()).toBe(1);
+  });
+
+  it("no cambia el modo guardado ni escribe en localStorage", async () => {
+    const { setPerfMode, actualizarEnergia, getPerfMode, fpsObjetivoModo } = await importModule();
+    setPerfMode("alto");
+    (globalThis.window.localStorage.setItem as any).mockClear();
+    actualizarEnergia(estadoLinux({ sinPantalla: true }));
+    expect(getPerfMode()).toBe("alto");
+    expect(fpsObjetivoModo()).toBe(1);
+    expect(globalThis.window.localStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("con un modo elegido, inicializarAutoRendimiento conoce sinPantalla sin pisar el ajuste", async () => {
+    const { setPerfMode, inicializarAutoRendimiento, getPerfMode, fpsObjetivoModo } = await importModule();
+    setPerfMode("alto");
+    (globalThis.window as unknown as { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke: async () => estadoLinux({ sinPantalla: true }) },
+    };
+    try {
+      await inicializarAutoRendimiento();
+      expect(getPerfMode()).toBe("alto");
+      expect(fpsObjetivoModo()).toBe(1);
+    } finally {
+      delete (globalThis.window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    }
+  });
+
+  it("con un modo elegido, la carga normal lee sinPantalla sin pisar el ajuste", async () => {
+    const { setPerfMode, inicializarRendimiento, getPerfMode, fpsObjetivoModo } = await importModule();
+    (globalThis.window as unknown as { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke: async () => estadoLinux({ sinPantalla: true }) },
+    };
+    try {
+      setPerfMode("eficiente");
+      inicializarRendimiento();
+      await vi.waitFor(() => expect(fpsObjetivoModo()).toBe(1));
+      expect(getPerfMode()).toBe("eficiente");
+    } finally {
+      delete (globalThis.window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    }
   });
 });

@@ -6,7 +6,8 @@
 //   · si la GPU es «vieja» a partir del texto de /sys/class/drm o lspci;
 //   · si hay que poner WEBKIT_DISABLE_DMABUF_RENDERER=1 (cuando no está definido y la GPU es vieja o desconocida);
 //   · política de reintentos de carga del webview: cuántos, cuánto esperar y cuándo cargar la interfaz incluida;
-//   · la línea que se escribe en enlaces.log al caer al respaldo.
+//   · la línea que se escribe en enlaces.log al caer al respaldo;
+//   · si no queda ninguna pantalla conectada, a partir de la lista de conectores (CAP1125D).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #![allow(dead_code)]
@@ -184,7 +185,7 @@ impl Default for PoliticaReintentos {
 }
 
 /// Qué hacer tras un fallo de carga.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccionTrasFallo {
     /// Reintentar después de `espera_ms` milisegundos.
     Reintentar { intento: u32, espera_ms: u64 },
@@ -229,6 +230,33 @@ pub fn decidir_reintento(
 /// Formato: `arranque webview-fallo intento=N causa=…`
 pub fn linea_log_fallo(intento: u32, causa: &str) -> String {
     format!("arranque webview-fallo intento={intento} causa={causa}")
+}
+
+/// Decide si el nodo NO tiene ninguna pantalla conectada a partir de los estados
+/// leídos de `/sys/class/drm/card*-*/status` (uno por conector).
+///
+/// - `Some(false)` si al menos un conector está `connected` (hay pantalla);
+/// - `Some(true)` si hay conectores y TODOS están `disconnected` (monitor apagado/desconectado);
+/// - `None` si no hay estados o alguno no se entiende: se desconoce, como hasta hoy.
+///
+/// No toca el sistema: solo interpreta la lista que le pasan (puro y probado).
+pub fn decidir_sin_pantalla<S: AsRef<str>>(estados: &[S]) -> Option<bool> {
+    let limpios: Vec<&str> = estados
+        .iter()
+        .map(|e| e.as_ref().trim())
+        .filter(|e| !e.is_empty())
+        .collect();
+
+    if limpios.is_empty() {
+        return None;
+    }
+    if limpios.iter().any(|e| e.eq_ignore_ascii_case("connected")) {
+        return Some(false);
+    }
+    if limpios.iter().all(|e| e.eq_ignore_ascii_case("disconnected")) {
+        return Some(true);
+    }
+    None
 }
 
 #[cfg(test)]
@@ -377,5 +405,41 @@ mod pruebas {
         assert_eq!(p.max_intentos, 3);
         assert_eq!(p.espera_base_ms, 1_000);
         assert_eq!(p.espera_tope_ms, 30_000);
+    }
+
+    #[test]
+    fn sin_pantalla_cuando_todos_los_conectores_estan_desconectados() {
+        // Maggabox con el monitor apagado: /sys/class/drm/card0-*/status.
+        assert_eq!(
+            decidir_sin_pantalla(&["disconnected\n", "disconnected", "  disconnected  "]),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn hay_pantalla_si_al_menos_un_conector_esta_conectado() {
+        assert_eq!(
+            decidir_sin_pantalla(&["disconnected", "connected\n"]),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn sin_conectores_o_vacio_se_desconoce() {
+        assert_eq!(decidir_sin_pantalla::<&str>(&[]), None);
+        assert_eq!(decidir_sin_pantalla(&["", "   \n"]), None);
+    }
+
+    #[test]
+    fn estados_que_no_se_entienden_no_se_inventan() {
+        assert_eq!(decidir_sin_pantalla(&["unknown"]), None);
+        assert_eq!(decidir_sin_pantalla(&["disabled"]), None);
+        assert_eq!(decidir_sin_pantalla(&["disconnected", "unknown"]), None);
+    }
+
+    #[test]
+    fn mayusculas_y_espacios_no_importan() {
+        assert_eq!(decidir_sin_pantalla(&["DISCONNECTED\n"]), Some(true));
+        assert_eq!(decidir_sin_pantalla(&[" Connected \n"]), Some(false));
     }
 }
