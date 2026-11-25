@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CAP1125B",
+   "ola": "capas-1125",
+   "titulo": "Descarga de capas: si el proxy de la puerta de internet no contesta, bajar sin él",
+   "archivos": [
+    "native/src-tauri/src/servidor_capas.rs",
+    "native/src-tauri/src/puerta_proxy_logica.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 a las 02:03:55Z en la Mac (registro enlaces.log): `[capas] no se pudo actualizar la capa: curl terminó con exit status: 7 (curl: (7) Failed to connect to 127.0.0.1 port 50133 after 0 ms: Couldn't connect to server)` y `la web publicada web=…/f48835501d NO se pudo traer`. `servidor_capas.rs::curl` añade los argumentos de `puerta_proxy_logica::argumentos_curl(proxy_url(), url)` (PTA1108B): con el proxy de la puerta de internet anotado como encendido pero sin nadie escuchando en su puerto, la descarga de la capa falla entera y se queda sin actualizar hasta la siguiente mirada. PIDE: 1) Si la descarga (manifiesto, firma o .tar.gz) falla con el proxy puesto y el fallo es de conexión con el proxy (códigos de salida de curl 5, 7, 28 o 56, o el texto nombra 127.0.0.1 y el puerto del proxy), repetir UNA vez la misma descarga sin proxy, en el mismo intento, y dejar una línea `[capas] el proxy de la puerta no contesta (<motivo corto>): se baja sin él`. 2) La decisión «¿este fallo es del proxy y merece el reintento directo?» en una función PURA en `puerta_proxy_logica.rs` con pruebas: salida 7 con proxy → sí; salida 22 (HTTP 404) → no; sin proxy configurado → no; el reintento nunca se repite más de una vez. 3) No cambiar la verificación de firma ni de SHA-256, ni el canal, ni las URL permitidas (`permitir_local`). Verificación: `cargo test` de la lógica en verde y `cargo check`; pegar en el informe la salida de las pruebas nuevas."
+  },
+  {
+   "id": "CAP1125A",
+   "ola": "capas-1125",
+   "titulo": "Relevo de capa: la app calienta el servidor antes de recargar la página",
+   "archivos": [
+    "native/src-tauri/src/servidor_local.rs",
+    "native/src-tauri/src/servidor_local_logica.rs",
+    "native/src-tauri/src/servidor_local_android.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (02:05Z) en la Maggabox (Debian 13, Core i5-2520M): tras «relevo hecho … -> web=…/0d0498cd4e» `recargar_ventana` hizo `location.reload()` nada más estar listo el Node; el Node recién arrancado tardó más de 10 s en dar la primera página, el service worker entregó a los 10 s la copia guardada de la capa ANTERIOR y la página se quedó con `mia=mwvcv6xv-gpzi8z` (e55edbf853) hasta cerrar la app. La parte web ya está arreglada en `6a812998d` (DIR1125C: `topeNavegacion` en public/sw-logica.js y `mirarPaginaAlDia` en src/lib/nativa/relevo-capa-cliente.ts; NO tocar esos archivos). Falta la parte nativa, para la .64. PIDE: 1) En `servidor_local.rs`, antes de `v.eval(\"location.reload()\")` en `recargar_ventana`, pedir por HTTP al propio servidor local (mismo puerto, con el pase de la app como lo manda la ventana; mirar cómo lo hace `url_entrada` y la comprobación de salud) la ruta que la ventana tiene abierta (`v.url()`; si no se puede leer, `/`), esperando hasta 60 s a que conteste con un estado menor que 500; después recargar. Si la petición falla o vence, recargar igualmente (nunca dejar de recargar) y dejar una línea en servidor-local.log: `[servidor-local] recarga tras relevo caliente=si|no ms=<n>`. La espera va en el hilo que ya lleva el bucle del servidor (no en el hilo de la interfaz) y no retrasa `con_estado`/`avisar`. 2) La decisión (qué ruta pedir a partir de la URL de la ventana y el puerto, cuánto esperar, qué estados valen) en una función PURA en `servidor_local_logica.rs` con pruebas unitarias: URL local con ruta y consulta → esa ruta y consulta; URL de otro origen o ilegible → `/`; nunca una URL fuera de 127.0.0.1 ni con el pase dentro de la ruta. 3) Lo mismo en `servidor_local_android.rs` si allí hay una recarga equivalente tras el relevo; si no la hay, decirlo en el informe y no inventarla. NO cambiar el protocolo del pase, ni la cookie, ni `navegar_si_hace_falta`. Verificación: `cargo test` de la lógica en verde y `cargo check` del crate en macOS; pegar en el informe la salida de las pruebas nuevas."
+  },
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP1125A",
+   "CTL1119A",
+   "CAP1125B"
+  ]
+ }
+}
