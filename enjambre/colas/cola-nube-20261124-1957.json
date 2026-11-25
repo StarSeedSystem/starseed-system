@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CTL1124D",
+   "ola": "control-1124",
+   "titulo": "Mac controla Linux: los cuadros llegan «ok» y la ventana queda negra",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/cuadro-malla.ts",
+    "src/lib/control-remoto/usar-pantalla-remota.ts",
+    "src/lib/control-remoto/__tests__/ctl1124d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Mac→Maggabox, 24-11 22:38:40–22:40Z): «control-fuente paso=via via=malla enlace=directo:red-local causa=sin-webrtc-aparato»; la Maggabox contesta 36 órdenes pantalla-cuadro con resultado=ok en 77 s, pero la ventana de control de la Mac sigue negra con «Pantalla: sin determinar», Cuadros/s «—» y control-calidad fps=0 resolucion=desconocida todo el rato. Con la .55–.59 esos cuadros JPEG sí se veían: es una regresión de CTL1124/def9be7a7. Encuentra dónde se pierde el cuadro (respuesta vacía mientras la fuente es «proyeccion», o el destino no pinta/mide) y arréglalo; el medidor de cuadros/s y la resolución deben contar también los cuadros por la malla. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "importancia": "capacidad"
+  },
+  {
+   "id": "CTL1119A",
+   "ola": "CTL1119",
+   "titulo": "Control entre neuronas estable y sin límite de tiempo (salvo el que se elija al aceptar)",
+   "archivos": [
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/canal.ts",
+    "src/lib/control-remoto/palabras.ts",
+    "src/components/control-remoto/banda-control.tsx"
+   ],
+   "depende": [],
+   "prompt": "Alex (18-11): la sesión debe ser estable y sin límite de tiempo, a menos que al aceptar el control se elija un límite, con los filtros de seguridad y de permisos privados o públicos para neuronas y nodos. Evidencia (18-11, .55): Maggabox (Linux X11, Mac mini 2011) fuente=linux-pantalla da 2,7–2,9 fps (control-neuronas.log: pantalla-parada fps=2.9/2.8/2.7); la Mac controlada desde la tableta rechaza órdenes con «sesion-caducada» y la sesión se corta (palabras.ts: «2 minutos sin órdenes o 1 hora de duración»). Alex: «se desconecta solo después de un rato lo cual debería ser estable y sin límite de tiempo». Tarea: (1) la vida de la sesión pasa de «2 min sin órdenes / 1 h máximo» a latidos: la neurona que controla manda un latido firmado cada 10 s y la pantalla en curso cuenta como actividad; la sesión solo cae si faltan latidos 45 s, y entonces se reabre sola dentro de la misma sesión aceptada sin pedir otra aceptación mientras el permiso siga encendido. Busca y cambia la caducidad en todos los lados (TS y nativo de Android, macOS y Linux: grep «caducada», «1 hora», VIDA_). (2) Al aceptar, la persona elige «Límite de tiempo»: sin límite (por defecto en neuronas de su cuenta), 15 min, 1 h u «hasta las HH:MM»; en neuronas o nodos de otras cuentas o públicos, el valor por defecto y el máximo salen del filtro de permisos del dueño (privado/público) y nunca lo superan. El punto de color muestra el tiempo que queda si hay límite. (3) Textos en palabras.ts acordes. Pruebas: latidos, reapertura, límites por tipo de neurona. Reglas fijas: la firma, la protección contra repetición (cada orden vive 2 min), los topes de órdenes, el aviso (punto de color con el nombre) y «Terminar»/«Quitar permiso» no se debilitan; el permiso de control sigue apagado por defecto y solo la persona dueña acepta; un voto de comunidad nunca anula el permiso del dueño de un aparato personal. Lógica pura con pruebas (vitest en src/, cargo test en native/src-tauri). Español neutro."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124D",
+   "CTL1119A"
+  ]
+ }
+}
