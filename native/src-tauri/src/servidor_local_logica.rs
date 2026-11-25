@@ -39,6 +39,9 @@ pub const PAUSA_PREFERIDO_MS: u64 = 300;
 pub const ESPERA_LISTO_MS: u64 = 60_000;
 /// Cada cuánto se pregunta por la salud mientras arranca.
 pub const PASO_SONDEO_MS: u64 = 250;
+/// (CAP1125A) Tope de espera, tras un relevo caliente, a que el Node recién arrancado entregue la
+/// página que la ventana tiene abierta (el service worker, si no, sirve la copia de la capa anterior).
+pub const ESPERA_RECARGA_MS: u64 = 60_000;
 
 /// Ruta de salud que responde el envoltorio `starseed-arranque.cjs` (no Next).
 pub const RUTA_SALUD: &str = "/__starseed/salud";
@@ -278,6 +281,86 @@ pub fn url_entrada(puerto: u16, pase: &str, ruta: &str) -> String {
         codificar_componente(pase),
         codificar_componente(ruta)
     )
+}
+
+// ──────────────────── Recarga tras relevo caliente (CAP1125A) ────────────────────
+
+/// Lo que hay que pedir y cuánto esperar antes de recargar la ventana tras un relevo de capa.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlanRecarga {
+    /// Ruta local (con su consulta, sin fragmento) que la ventana tiene abierta; `/` si no se pudo leer.
+    pub ruta: String,
+    /// Tope de espera a que esa página conteste con un estado menor que 500.
+    pub tope_ms: u64,
+}
+
+/// Decide la recarga: misma ruta y consulta de la ventana si es del MISMO origen local; `/` en
+/// cualquier otro caso (otro origen, otro puerto, `localhost`, ilegible o la entrada con el pase).
+pub fn plan_recarga(url_ventana: Option<&str>, puerto: u16) -> PlanRecarga {
+    PlanRecarga { ruta: ruta_para_recarga(url_ventana, puerto), tope_ms: ESPERA_RECARGA_MS }
+}
+
+/// La ruta que se pide al servidor local a partir de la URL abierta. Nunca devuelve una URL
+/// absoluta, una ruta fuera de 127.0.0.1 ni la entrada (`RUTA_ENTRAR`, que lleva el pase en `t=`).
+pub fn ruta_para_recarga(url_ventana: Option<&str>, puerto: u16) -> String {
+    let Some(url) = url_ventana else { return "/".into() };
+    let Some(resto) = url.strip_prefix(&origen_local(puerto)) else { return "/".into() };
+    // El puerto debe coincidir exacto: `/x`, `?x`, `#x` o nada; `476100/x` no vale.
+    if !resto.is_empty() && !resto.starts_with(['/', '?', '#']) {
+        return "/".into();
+    }
+    let sin_fragmento = resto.split('#').next().unwrap_or("");
+    // Nada de `//otro` (parecería otro origen) ni de la entrada con el pase.
+    if sin_fragmento.starts_with("//") {
+        return "/".into();
+    }
+    let ruta = if sin_fragmento.is_empty() {
+        "/".to_string()
+    } else if let Some(consulta) = sin_fragmento.strip_prefix('?') {
+        format!("/?{consulta}")
+    } else {
+        sin_fragmento.to_string()
+    };
+    if ruta == RUTA_ENTRAR
+        || ruta.starts_with(&format!("{RUTA_ENTRAR}?"))
+        || ruta.starts_with(&format!("{RUTA_ENTRAR}/"))
+        || !ruta.starts_with('/')
+        || ruta.starts_with("//")
+        || ruta.contains(['\r', '\n'])
+    {
+        return "/".into();
+    }
+    ruta
+}
+
+/// Petición HTTP/1.1 mínima a la página abierta: el pase va en la cookie (nunca en la ruta), como
+/// lo manda la ventana. `Host` es siempre el del servidor local en ese puerto.
+pub fn peticion_pagina(puerto: u16, ruta: &str, pase: &str) -> String {
+    let ruta = if ruta.starts_with('/')
+        && !ruta.starts_with("//")
+        && !ruta.contains(['\r', '\n'])
+    {
+        ruta
+    } else {
+        "/"
+    };
+    format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nAccept: text/html\r\nCookie: starseed_pase={pase}\r\nConnection: close\r\n\r\n"
+    )
+}
+
+/// Código de estado de la primera línea de una respuesta HTTP, si se puede leer.
+pub fn estado_http(respuesta: &str) -> Option<u16> {
+    let mut partes = respuesta.lines().next()?.split_whitespace();
+    if !partes.next()?.starts_with("HTTP/1.") {
+        return None;
+    }
+    partes.next()?.parse::<u16>().ok()
+}
+
+/// ¿La página ya contesta como para recargar? Menos de 500: el Node ya sirve (aunque la ruta no exista).
+pub fn estado_caliente_vale(codigo: u16) -> bool {
+    codigo < 500
 }
 
 // ─────────────────────────────── Salud ───────────────────────────────
@@ -670,5 +753,4 @@ mod pruebas {
         assert!(!estado_caliente_vale(500));
         assert!(!estado_caliente_vale(503));
     }
-}
 }

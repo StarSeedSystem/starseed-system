@@ -296,7 +296,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -560,10 +560,73 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
 
 /// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
 /// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
-    if let Some(v) = app.get_webview_window("main") {
-        let _ = v.eval("location.reload()");
+/// (CAP1125A) Antes de recargar, pide al propio servidor local la ruta que la ventana tiene abierta
+/// y espera (en este hilo, el del bucle del servidor) hasta 60 s a que conteste con un estado menor
+/// que 500: si recarga nada más estar «listo», el service worker entrega la copia de la capa
+/// anterior. Si la petición falla o vence, se recarga igual: nunca se deja de recargar.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let Some(v) = app.get_webview_window("main") else { return };
+    let url = v.url().ok().map(|u| u.to_string());
+    let plan = l::plan_recarga(url.as_deref(), puerto);
+    let desde = Instant::now();
+    let caliente = esperar_pagina_caliente(puerto, &plan.ruta, plan.tope_ms);
+    escribir_registro(
+        registro,
+        &format!(
+            "[servidor-local] recarga tras relevo caliente={} ms={}",
+            if caliente { "si" } else { "no" },
+            desde.elapsed().as_millis()
+        ),
+    );
+    let _ = v.eval("location.reload()");
+}
+
+/// Pregunta a la página (misma ruta y pase que la ventana) hasta que conteste con un estado menor
+/// que 500 o venza el tope. Devuelve si llegó «caliente».
+fn esperar_pagina_caliente(puerto: u16, ruta: &str, tope_ms: u64) -> bool {
+    let peticion = l::peticion_pagina(puerto, ruta, &interno().pase);
+    let tope = Instant::now() + Duration::from_millis(tope_ms);
+    loop {
+        if interno().apagando.load(Ordering::SeqCst) {
+            return false;
+        }
+        if let Some(codigo) = pedir_pagina(puerto, &peticion) {
+            if l::estado_caliente_vale(codigo) {
+                return true;
+            }
+        }
+        if Instant::now() >= tope {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(l::PASO_SONDEO_MS));
     }
+}
+
+/// Una petición a la página local; solo interesa la primera línea (el estado).
+fn pedir_pagina(puerto: u16, peticion: &str) -> Option<u16> {
+    let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+    let mut s = TcpStream::connect_timeout(&dir, Duration::from_millis(800)).ok()?;
+    let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
+    s.write_all(peticion.as_bytes()).ok()?;
+    let mut buf = Vec::with_capacity(1024);
+    let mut trozo = [0u8; 1024];
+    loop {
+        match s.read(&mut trozo) {
+            Ok(0) => break,
+            Ok(n) => {
+                buf.extend_from_slice(&trozo[..n]);
+                if buf.contains(&b'\n') || buf.len() >= 8192 {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    if buf.is_empty() {
+        return None;
+    }
+    l::estado_http(&String::from_utf8_lossy(&buf))
 }
 
 fn volver_a_arranque(app: &AppHandle) {
