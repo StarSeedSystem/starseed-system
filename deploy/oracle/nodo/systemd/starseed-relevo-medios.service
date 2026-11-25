@@ -1,0 +1,39 @@
+[Unit]
+Description=StarSeed · relevo de medios en el A1 (RES1121A): late, toma el arriendo de cada bot y replica canales y olas
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/starseed-system/scripts/puente/relevo_medios.py
+# requiere: /usr/bin/python3
+# requiere: /usr/bin/git
+#
+# (RES1121A · DIR1121) Si la Mac lleva N = 5 min sin latir, el A1 toma el arriendo de los tres
+# bots de Telegram (un solo lector por bot) y sigue con motores gratuitos y la cola. Al volver
+# la Mac lo recupera sin duplicar ni perder mensajes porque el `offset` viaja en el estado
+# replicado. Los canales y las olas se replican cada 3 min al A1 y al Maggabox (sin secretos).
+# Las claves que el A1 necesita para relevar viajan SOLO por `oracle_nodo.py claves` al
+# archivo 600 de esta unidad; nunca al Maggabox ni a nubes efímeras. La unidad no imprime
+# tokens: solo nombres de variable en `/etc/starseed/direccion.env`.
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+Environment=STARSEED_RELEVO_ESTADO=/home/starseed/.starseed/relevo-medios.json
+# 600 root: lo lee PID 1 antes de cambiar de usuario. Lo rellena `oracle_nodo.py claves`.
+EnvironmentFile=-/etc/starseed/direccion.env
+ExecStart=/usr/bin/python3 -u /home/starseed/starseed-system/scripts/puente/relevo_medios.py bucle --medio oracle-a1 --intervalo 30
+Restart=always
+RestartSec=20
+# Trabajo de fondo ligero: late, renueva arriendos y replica; no compite con BitNet ni el enjambre.
+MemoryMax=400M
+CPUWeight=40
+IOWeight=40
+Nice=10
+NoNewPrivileges=yes
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
