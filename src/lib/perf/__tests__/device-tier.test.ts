@@ -429,3 +429,67 @@ describe("EFI1119B — energía y decisión de «auto» (sin tocar ajustes)", ()
     expect(terminada.modo).toBe("alto");
   });
 });
+
+describe("CAP1125D — nodo sin pantalla: tope de 1 cuadro/s sin tocar el modo", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function importModule() {
+    return await import("../device-tier");
+  }
+
+  const base = {
+    sistema: "linux" as const,
+    bateriaPct: null,
+    cargando: null,
+    ahorroSistema: false,
+    modoBajoConsumo: false,
+    perfilEnergia: null,
+    temperaturaC: null,
+    tareasPesadas: [],
+  };
+
+  it("normaliza sinPantalla y lo deja desconocido cuando falta o no es booleano", async () => {
+    const { normalizarEstadoEnergia } = await importModule();
+    expect(normalizarEstadoEnergia({ ...base, sinPantalla: true })?.sinPantalla).toBe(true);
+    expect(normalizarEstadoEnergia({ ...base, sinPantalla: false })?.sinPantalla).toBe(false);
+    expect(normalizarEstadoEnergia({ ...base })?.sinPantalla).toBeNull();
+    expect(normalizarEstadoEnergia({ ...base, sinPantalla: "sí" })?.sinPantalla).toBeNull();
+  });
+
+  it("sin pantalla baja a 1 cuadro/s cualquier tope, también el de «alto» (0)", async () => {
+    const { fpsConSinPantalla } = await importModule();
+    expect(fpsConSinPantalla(0, true, [])).toBe(1);
+    expect(fpsConSinPantalla(30, true, [])).toBe(1);
+    expect(fpsConSinPantalla(10, true, [])).toBe(1);
+    expect(fpsConSinPantalla(10, false, [])).toBe(10);
+    expect(fpsConSinPantalla(0, null, [])).toBe(0);
+    expect(fpsConSinPantalla(10, undefined, [])).toBe(10);
+  });
+
+  it("con control remoto o transmisión viva se ignora sinPantalla: quien controla sí ve", async () => {
+    const { fpsConSinPantalla } = await importModule();
+    expect(fpsConSinPantalla(30, true, ["control-remoto"])).toBe(30);
+    expect(fpsConSinPantalla(10, true, ["transmision"])).toBe(10);
+    expect(fpsConSinPantalla(0, true, ["control-remoto", "transmision"])).toBe(0);
+    expect(fpsConSinPantalla(30, true, ["llamada"])).toBe(1);
+  });
+
+  it("fpsObjetivoModo aplica el tope sin cambiar el modo guardado y lo suelta al terminar el control", async () => {
+    const { setPerfMode, getPerfMode, actualizarEnergia, actualizarTareasPesadas, fpsObjetivoModo } =
+      await importModule();
+    setPerfMode("eficiente");
+    actualizarEnergia({ ...base, sinPantalla: true });
+    expect(fpsObjetivoModo()).toBe(1);
+    expect(getPerfMode()).toBe("eficiente");
+    expect(globalThis.window.localStorage.getItem("starseed.perf.v1")).toBe("eficiente");
+
+    actualizarTareasPesadas(["control-remoto"]);
+    expect(fpsObjetivoModo()).toBe(10);
+
+    actualizarTareasPesadas([]);
+    expect(fpsObjetivoModo()).toBe(1);
+    expect(getPerfMode()).toBe("eficiente");
+  });
+});

@@ -19,6 +19,29 @@
 
 use serde::Serialize;
 use std::process::Command;
+use std::sync::atomic::{AtomicI8, Ordering};
+
+/// CAP1125D · -1 = no se sabe, 0 = hay pantalla, 1 = ningún conector conectado.
+static SIN_PANTALLA: AtomicI8 = AtomicI8::new(-1);
+
+/// Aviso que publica `arranque_linux` cada 30 s al mirar los conectores.
+pub fn publicar_sin_pantalla(sin_pantalla: Option<bool>) {
+    let valor = match sin_pantalla {
+        Some(true) => 1,
+        Some(false) => 0,
+        None => -1,
+    };
+    SIN_PANTALLA.store(valor, Ordering::Relaxed);
+}
+
+/// `None` = se desconoce (se actúa como siempre); `Some(true)` = ningún conector.
+pub fn sin_pantalla_actual() -> Option<bool> {
+    match SIN_PANTALLA.load(Ordering::Relaxed) {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
 
 /// Lo que la web recibe de `energia_estado` (camelCase, como `EstadoEnergia` en TS).
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -32,6 +55,9 @@ pub struct EstadoEnergia {
     pub perfil_energia: Option<String>,
     pub temperatura_c: Option<f32>,
     pub fuente: String,
+    /// Linux: `Some(true)` si ningún conector está conectado. Ausente = se desconoce.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sin_pantalla: Option<bool>,
 }
 
 impl EstadoEnergia {
@@ -45,6 +71,7 @@ impl EstadoEnergia {
             perfil_energia: None,
             temperatura_c: None,
             fuente: fuente.to_string(),
+            sin_pantalla: None,
         }
     }
 }
@@ -258,6 +285,7 @@ fn parse_upower(texto: &str) -> (Option<u8>, Option<bool>) {
 
 fn estado_linux() -> EstadoEnergia {
     let mut estado = EstadoEnergia::vacio("linux", "sysfs");
+    estado.sin_pantalla = sin_pantalla_actual();
     let (mut nivel, mut cargando) = leer_bateria_sysfs();
     if nivel.is_none() || cargando.is_none() {
         if let Some(texto) = comando("upower", &["-i"]) {

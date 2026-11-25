@@ -6,7 +6,8 @@
 //   · si la GPU es «vieja» a partir del texto de /sys/class/drm o lspci;
 //   · si hay que poner WEBKIT_DISABLE_DMABUF_RENDERER=1 (cuando no está definido y la GPU es vieja o desconocida);
 //   · política de reintentos de carga del webview: cuántos, cuánto esperar y cuándo cargar la interfaz incluida;
-//   · la línea que se escribe en enlaces.log al caer al respaldo.
+//   · la línea que se escribe en enlaces.log al caer al respaldo;
+//   · si el nodo no tiene ninguna pantalla conectada (CAP1125D), a partir de los estados de los conectores.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #![allow(dead_code)]
@@ -184,7 +185,7 @@ impl Default for PoliticaReintentos {
 }
 
 /// Qué hacer tras un fallo de carga.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccionTrasFallo {
     /// Reintentar después de `espera_ms` milisegundos.
     Reintentar { intento: u32, espera_ms: u64 },
@@ -229,6 +230,19 @@ pub fn decidir_reintento(
 /// Formato: `arranque webview-fallo intento=N causa=…`
 pub fn linea_log_fallo(intento: u32, causa: &str) -> String {
     format!("arranque webview-fallo intento={intento} causa={causa}")
+}
+
+/// Decide si el nodo no tiene ninguna pantalla conectada a partir de los estados
+/// de `/sys/class/drm/card*-*/status` (uno por conector).
+/// `None` = no se leyó ningún conector: se desconoce y se actúa como hoy.
+pub fn decidir_sin_pantalla(estados: &[&str]) -> Option<bool> {
+    if estados.is_empty() {
+        return None;
+    }
+    let hay_pantalla = estados
+        .iter()
+        .any(|estado| estado.trim().eq_ignore_ascii_case("connected"));
+    Some(!hay_pantalla)
 }
 
 #[cfg(test)]
@@ -369,6 +383,25 @@ mod pruebas {
     fn linea_log_formato_correcto() {
         let linea = linea_log_fallo(3, "WebKit internal error");
         assert_eq!(linea, "arranque webview-fallo intento=3 causa=WebKit internal error");
+    }
+
+    #[test]
+    fn sin_conectores_leidos_se_desconoce() {
+        assert_eq!(decidir_sin_pantalla(&[]), None);
+    }
+
+    #[test]
+    fn todos_los_conectores_desconectados_es_sin_pantalla() {
+        assert_eq!(decidir_sin_pantalla(&["disconnected"]), Some(true));
+        assert_eq!(decidir_sin_pantalla(&["disconnected", "disconnected"]), Some(true));
+        assert_eq!(decidir_sin_pantalla(&["unknown", "disconnected"]), Some(true));
+    }
+
+    #[test]
+    fn un_conector_conectado_es_pantalla() {
+        assert_eq!(decidir_sin_pantalla(&["connected"]), Some(false));
+        assert_eq!(decidir_sin_pantalla(&["disconnected", "connected"]), Some(false));
+        assert_eq!(decidir_sin_pantalla(&[" CONNECTED\n"]), Some(false));
     }
 
     #[test]
