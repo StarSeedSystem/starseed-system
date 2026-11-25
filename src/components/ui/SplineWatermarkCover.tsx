@@ -11,6 +11,8 @@
  *      runtime a veces aloja el logo dentro de un shadow DOM), ocultando y
  *      retirando cualquier <a>/elemento que apunte a spline o cuyo texto sea
  *      "Built with Spline". Observador permanente + intervalo de respaldo.
+ *      (DIR1125A) La purga vive en `@/lib/perf/purga-marca-spline`: coste lineal y
+ *      mutaciones agrupadas; antes saturaba el hilo principal en equipos modestos.
  *
  *   2) Tapones visuales garantizados — degradados pequeños fijos en AMBAS
  *      esquinas inferiores (izquierda y derecha), con pointer-events:none,
@@ -20,6 +22,7 @@
  */
 
 import React, { useEffect } from "react";
+import { RESPALDO_MS, crearPurgador } from "@/lib/perf/purga-marca-spline";
 
 // Parche a NIVEL DE MÓDULO (se ejecuta al importar, antes de que monte Spline):
 // fuerza que cualquier shadow root se cree en modo "open". El runtime de Spline
@@ -35,90 +38,23 @@ if (typeof window !== "undefined" && !(window as any).__ssAttachShadowOpen) {
     } catch { /* noop */ }
 }
 
-function hide(el: Element | null) {
-    if (!el) return;
-    const h = el as HTMLElement;
-    try {
-        h.style.setProperty("display", "none", "important");
-        h.style.setProperty("opacity", "0", "important");
-        h.style.setProperty("visibility", "hidden", "important");
-        h.style.setProperty("pointer-events", "none", "important");
-    } catch { /* noop */ }
-    try { h.parentNode?.removeChild(h); } catch { /* noop */ }
-}
-
-// Normaliza texto para comparar: colapsa espacios/nbsp y pasa a minúsculas.
-function norm(s: string | null | undefined): string {
-    return (s || "").replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-// ¿El texto corresponde al rótulo del watermark? Cubre "Built with Spline" y
-// variantes con espaciados/nodos partidos ("built with" + "spline").
-function isWatermarkText(t: string): boolean {
-    if (!t) return false;
-    return t.includes("built with spline") || (t.includes("spline") && t.includes("built"));
-}
-
-function purge(root: ParentNode) {
-    // 1) Selectores directos del watermark del runtime de Spline: por href,
-    //    aria y clase/id, todos case-insensitive (flag `i`).
-    const sels = [
-        'a[href*="spline.design" i]',
-        'a[href*="spline" i]',
-        '[aria-label*="spline" i]',
-        '[aria-label*="built" i]',
-        '[class*="spline-watermark" i]',
-        '#spline-watermark',
-    ];
-    sels.forEach((sel) => {
-        try { root.querySelectorAll(sel).forEach(hide); } catch { /* selector no soportado */ }
-    });
-
-    // 2) CUALQUIER elemento (no solo <a>) cuyo texto normalizado delate el
-    //    rótulo. El runtime lo inyecta como <a>/<div>/<span> con un SVG +
-    //    texto, en CUALQUIERA de las esquinas inferiores. Buscamos el nodo
-    //    pequeño que contiene la frase y subimos hasta el contenedor de la
-    //    píldora (pocos hijos) para retirarla entera.
-    try {
-        root.querySelectorAll("a,div,span,button,p,small").forEach((el) => {
-            const t = norm(el.textContent);
-            if (!isWatermarkText(t) || t.length > 60) return;
-            // Sube al ancestro "píldora": el último ancestro cuyo texto sigue siendo
-            // solo el watermark (pocos hijos) → así retiramos el fondo redondeado.
-            let target: HTMLElement = el as HTMLElement;
-            for (let i = 0; i < 4; i++) {
-                const p = target.parentElement;
-                if (!p) break;
-                const pt = norm(p.textContent);
-                if (isWatermarkText(pt) && pt.length < 40 && p.childElementCount <= 3) {
-                    target = p;
-                } else break;
-            }
-            hide(target);
-        });
-    } catch { /* noop */ }
-}
-
-// Recorre el documento y todos los shadow roots accesibles.
-function purgeDeep() {
-    purge(document);
-    try {
-        const all = document.querySelectorAll("*");
-        all.forEach((el) => {
-            const sr = (el as HTMLElement).shadowRoot;
-            if (sr) purge(sr);
-        });
-    } catch { /* noop */ }
-}
-
 export function SplineWatermarkCover() {
     useEffect(() => {
-        purgeDeep();
-        [200, 700, 1500, 3000, 6000].forEach((ms) => window.setTimeout(purgeDeep, ms));
-        const obs = new MutationObserver(() => purgeDeep());
-        try { obs.observe(document.documentElement, { childList: true, subtree: true }); } catch { /* noop */ }
-        const iv = window.setInterval(purgeDeep, 2500);
-        return () => { obs.disconnect(); clearInterval(iv); };
+        const purgador = crearPurgador(document);
+        purgador.completa();
+        const unaVez = [200, 700, 1500, 3000, 6000].map((ms) => window.setTimeout(() => purgador.completa(), ms));
+        const obs = typeof MutationObserver === "undefined" ? null : new MutationObserver((registros) => purgador.alMutar(registros));
+        try { obs?.observe(document.documentElement, { childList: true, subtree: true }); } catch { /* noop */ }
+        // Respaldo lento, y solo si hay algún <canvas>: sin escena de Spline no hay marca que quitar.
+        const iv = window.setInterval(() => {
+            if (document.getElementsByTagName("canvas").length > 0) purgador.completa();
+        }, RESPALDO_MS);
+        return () => {
+            obs?.disconnect();
+            clearInterval(iv);
+            unaVez.forEach((t) => clearTimeout(t));
+            purgador.parar();
+        };
     }, []);
 
     // Tres capas de defensa:
