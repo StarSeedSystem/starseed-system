@@ -49,6 +49,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import { crearRitmoCuadros } from "@/lib/perf/ritmo-cuadros";
 import {
   resolveQuantumOrbTheme,
   themeToRgb,
@@ -862,7 +863,7 @@ export function QuantumOrb({
       document.addEventListener("visibilitychange", onVisibility);
     }
 
-    let raf = 0;
+    const ritmo = crearRitmoCuadros(); // DIR1125E: el modo de rendimiento pone el tope de cuadros (eficiente 10, eco 30)
     let running = true;
     let last = typeof performance !== "undefined" ? performance.now() : Date.now();
 
@@ -884,13 +885,13 @@ export function QuantumOrb({
           reduced,
         });
       }
-      raf = requestAnimationFrame(tick);
+      ritmo.pedir(tick);
     };
-    raf = requestAnimationFrame(tick);
+    ritmo.pedir(tick);
 
     return () => {
       running = false;
-      if (raf) cancelAnimationFrame(raf);
+      ritmo.cancelar();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibility);
       }

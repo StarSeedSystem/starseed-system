@@ -61,6 +61,8 @@ export interface OpcionesMotor {
   tamano: number;
   /** `false` fija la calidad completa (vistas de presentación, XR): no baja aunque los cuadros vayan lentos. */
   adaptarCalidad?: boolean;
+  /** DIR1125E: tope de cuadros por segundo que pide el modo de rendimiento (0 o sin dar = el ritmo de siempre). */
+  fpsMaximo?: () => number;
   /**
    * `carga`: acabado de la pantalla de carga («Abriendo StarSeed…», CAR1025A), que lleva el símbolo oficial en el
    * centro. El motor dibuja solo lo que es 3D —la esfera de puntos y el cubo de Metatrón, este a media intensidad
@@ -481,12 +483,15 @@ export function crearMotor(canvas: HTMLCanvasElement, op: OpcionesMotor): MotorO
     acumulado += dtReal;
     ultimo = ahora;
     if (document.hidden) return;
-    if (!vivo && acumulado < 1 / 30) return;
+    // DIR1125E: con tope del modo de rendimiento (eco 30, eficiente 10) manda el tope; sin él, 60 con interacción y 30 en reposo.
+    const tope = op.fpsMaximo ? op.fpsMaximo() : 0;
+    if (tope > 0 ? acumulado < Math.max(vivo ? 1 / 60 : 1 / 30, 1 / tope) - 0.002 : !vivo && acumulado < 1 / 30) return;
     const dt = reducido ? 0 : acumulado;
     acumulado = 0;
     // Rendimiento: solo cuenta el intervalo entre cuadros PINTADOS seguidos a 60 cps (con interacción);
     // los de reposo (30 cps a propósito) no dicen nada del aparato.
-    if (vivo && pintadoVivo) intervalos.push(ahora - ultimoPintado);
+    // Con tope los intervalos largos son a propósito: no dicen nada del aparato y no deben bajar la calidad.
+    if (vivo && pintadoVivo && !(tope > 0)) intervalos.push(ahora - ultimoPintado);
     pintadoVivo = vivo;
     ultimoPintado = ahora;
     if (intervalos.length > 90) {

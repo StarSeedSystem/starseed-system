@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Power } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fpsDelModo } from "@/lib/perf/ritmo-cuadros";
 import {
   PROTO_ORB_ABRIR_EVENT,
   PROTO_ORB_FAB_EVENT,
@@ -121,7 +122,7 @@ export function OrbeProtomolecula() {
     import("@/lib/protomolecula/orbe4d/motor")
       .then(({ crearMotor }) => {
         if (!vivo || !lienzo.current) return;
-        const m = crearMotor(lienzo.current, { estilo: leerEstilo(window.localStorage), registro: registroPorRuta(window.location.pathname), reducido, tamano: medidasRef.current.lienzo });
+        const m = crearMotor(lienzo.current, { estilo: leerEstilo(window.localStorage), registro: registroPorRuta(window.location.pathname), reducido, tamano: medidasRef.current.lienzo, fpsMaximo: fpsDelModo });
         if (!m) { setSinWebGL(true); return; }
         motor.current = m;
         if (fijadaRef.current) m.fijarForma(fijadaRef.current);

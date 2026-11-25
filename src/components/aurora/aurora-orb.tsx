@@ -38,6 +38,7 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
+import { crearRitmoCuadros } from "@/lib/perf/ritmo-cuadros";
 import {
   subscribeAuroraSpeak,
   acquireMicAnalyser,
@@ -429,7 +430,6 @@ export function AuroraOrb({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const reduce = prefersReducedMotion();
-    let raf = 0;
     let running = false;
     // El bucle SÓLO corre cuando la pestaña está visible Y el orbe está en
     // pantalla. En Android un rAF de canvas oculto (Exocórtex cerrado, pestaña
@@ -443,7 +443,9 @@ export function AuroraOrb({
     let prevLvl = 0;
     let tintW = 0;              // peso suavizado del tinte de ruta (0..MAX)
 
-    const draw = () => {
+    // DIR1125E: un paso de 1/60 s de la animación. Con `pintar` en false solo avanza el estado (sin tocar el DOM ni el lienzo):
+    // así, cuando el modo de rendimiento limita los cuadros, la animación sigue a su velocidad en vez de ir a cámara lenta.
+    const paso = (pintar: boolean) => {
       const { speaking: sp, listening: li, paused: pa, supported: su, unavailable: un } = modeRef.current;
 
       // Decaimiento del latido por voz (TTS).
@@ -514,6 +516,8 @@ export function AuroraOrb({
       tintW = reduce ? tintTarget : tintW + (tintTarget - tintW) * 0.05;
       if (tint && tintW > 0.001) dom = mix(dom, tint, tintW);
 
+      if (!pintar) return;
+
       // → CSS vars para glow/halo/estrella (sin re-render de React).
       root.style.setProperty("--aurora-energy", e.toFixed(3));
       root.style.setProperty("--aurora-flux", flux.toFixed(3));
@@ -583,19 +587,27 @@ export function AuroraOrb({
         ctx.stroke();
       }
       ctx.globalCompositeOperation = "source-over";
+    };
 
-      raf = requestAnimationFrame(draw);
+    // DIR1125E: el ritmo lo pone el modo de rendimiento (eficiente 10 cuadros/s, eco 30, alto sin tope). Medido en la Maggabox
+    // el 25-11: en «eficiente» este bucle pintaba todo lo que daba el equipo (22,5 cuadros/s) y él solo llenaba el núcleo.
+    const ritmo = crearRitmoCuadros();
+    const draw = () => {
+      const pasos = ritmo.pasos();
+      for (let i = 1; i < pasos; i++) paso(false);
+      paso(true);
+      if (running) ritmo.pedir(draw);
     };
 
     // ── Arranque/parada del bucle según visibilidad ──
     const startLoop = () => {
       if (running) return;
       running = true;
-      raf = requestAnimationFrame(draw);
+      ritmo.pedir(draw);
     };
     const stopLoop = () => {
       running = false;
-      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      ritmo.cancelar();
     };
     const sync = () => {
       if (docVisible && onScreen) startLoop();
