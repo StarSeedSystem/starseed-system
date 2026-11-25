@@ -495,8 +495,8 @@ export class SesionHacia {
         this.pararLatido();
     }
 
-    /**
-     * CTL1124F: mirar si la otra neurona nos tiene aceptados SIN abrir una sesión de control. La lectura sale sin
+/**
+     * CTL1124F: mirar si la otra neurona nos tienen aceptados SIN abrir una sesión de control. La lectura sale sin
      * sesión cuando no hay una tomada aquí; si ya hay una (serie armada), se usa esa y no se cierra.
      */
     async sondear(): Promise<RespuestaOrden> {
