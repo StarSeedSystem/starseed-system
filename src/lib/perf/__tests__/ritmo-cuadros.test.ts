@@ -1,11 +1,28 @@
 /** DIR1125E · el ritmo común de los bucles de animación: sin tope es rAF tal cual; con tope no pasa de él ni va a cámara lenta. */
 import { describe, expect, it } from "vitest";
 import { PASOS_MAX, crearRitmoCuadros, type DepsRitmo } from "../ritmo-cuadros";
+import type { EstadoEnergia } from "../modo-rendimiento";
+
+/** Estado de energía mínimo, con lo que cambie en cada prueba. */
+function energia(extra: Partial<EstadoEnergia> = {}): EstadoEnergia {
+  return {
+    sistema: "linux",
+    bateriaPct: null,
+    cargando: null,
+    ahorroSistema: false,
+    modoBajoConsumo: false,
+    perfilEnergia: null,
+    temperaturaC: null,
+    tareasPesadas: [],
+    ...extra,
+  };
+}
 
 /** Un reloj con pantalla de 60 Hz: en cada refresco vencen primero las esperas y luego corren los cuadros pedidos. */
-function banco(fpsInicial: number) {
+function banco(fpsInicial: number, energiaInicial?: EstadoEnergia | null) {
   let t = 0;
   let fps = fpsInicial;
+  let energiaActual: EstadoEnergia | null = energiaInicial ?? null;
   let n = 0;
   const rafs: Array<{ id: number; cb: FrameRequestCallback }> = [];
   const esperas: Array<{ id: number; f: () => void; en: number }> = [];
@@ -31,6 +48,7 @@ function banco(fpsInicial: number) {
     ahora: () => t,
     fps: () => fps,
   };
+  if (energiaInicial !== undefined) deps.energia = () => energiaActual;
   const avanzar = (ms: number) => {
     const fin = t + ms;
     while (t < fin - 1e-6) {
@@ -42,7 +60,14 @@ function banco(fpsInicial: number) {
       for (const r of rafs.splice(0)) r.cb(t);
     }
   };
-  return { deps, avanzar, saltar: (ms: number) => { t += ms; }, fijarFps: (x: number) => { fps = x; }, pendientes: () => rafs.length + esperas.length };
+  return {
+    deps,
+    avanzar,
+    saltar: (ms: number) => { t += ms; },
+    fijarFps: (x: number) => { fps = x; },
+    fijarEnergia: (e: EstadoEnergia | null) => { energiaActual = e; },
+    pendientes: () => rafs.length + esperas.length,
+  };
 }
 
 function bucle(b: ReturnType<typeof banco>) {
@@ -130,6 +155,15 @@ describe("DIR1125E · ritmo de cuadros según el modo de rendimiento", () => {
     }
   });
 
+  it("un tope de 1 cuadro/s (sin monitor) deja un cuadro por segundo", () => {
+    const b = banco(1);
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(2);
+    expect(pasos.length).toBeLessThanOrEqual(4);
+    expect(pasos.slice(1).every((p) => p === PASOS_MAX)).toBe(true);
+  });
+
   it("tras una pausa larga no da un salto: como mucho PASOS_MAX pasos de golpe", () => {
     const b = banco(10);
     const r = crearRitmoCuadros(b.deps);
@@ -141,5 +175,59 @@ describe("DIR1125E · ritmo de cuadros según el modo de rendimiento", () => {
     b.avanzar(200);
     expect(pasos).toEqual([1, PASOS_MAX]);
     expect(PASOS_MAX).toBe(12);
+  });
+
+  it("CAP1125D · sin monitor conectado el ritmo baja a 1 cuadro/s aunque el modo no tenga tope", () => {
+    const b = banco(0, energia({ sinPantalla: true }));
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(2);
+    expect(pasos.length).toBeLessThanOrEqual(4);
+    expect(pasos.slice(1).every((p) => p === PASOS_MAX)).toBe(true);
+  });
+
+  it("CAP1125D · una sesión de control remoto anula el tope: quien controla sí ve la pantalla", () => {
+    const b = banco(10, energia({ sinPantalla: true, tareasPesadas: ["control-remoto"] }));
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(29);
+    expect(pasos.length).toBeLessThanOrEqual(31);
+  });
+
+  it("CAP1125D · una transmisión viva anula el tope; una llamada sola no", () => {
+    const transmision = banco(10, energia({ sinPantalla: true, tareasPesadas: ["transmision"] }));
+    const { pasos: conTransmision } = bucle(transmision);
+    transmision.avanzar(3000);
+    expect(conTransmision.length).toBeGreaterThanOrEqual(29);
+
+    const llamada = banco(10, energia({ sinPantalla: true, tareasPesadas: ["llamada"] }));
+    const { pasos: conLlamada } = bucle(llamada);
+    llamada.avanzar(3000);
+    expect(conLlamada.length).toBeGreaterThanOrEqual(2);
+    expect(conLlamada.length).toBeLessThanOrEqual(4);
+  });
+
+  it("CAP1125D · sin dato de pantalla o con pantalla conectada el ritmo no cambia", () => {
+    const desconocido = banco(10, energia());
+    const { pasos: sinDato } = bucle(desconocido);
+    desconocido.avanzar(3000);
+    expect(sinDato.length).toBeGreaterThanOrEqual(29);
+
+    const conPantalla = banco(10, energia({ sinPantalla: false }));
+    const { pasos: conMonitor } = bucle(conPantalla);
+    conPantalla.avanzar(3000);
+    expect(conMonitor.length).toBeGreaterThanOrEqual(29);
+  });
+
+  it("CAP1125D · al terminar el control vuelve el tope de 1 cuadro/s sin cambiar el modo", () => {
+    const b = banco(10, energia({ sinPantalla: true, tareasPesadas: ["control-remoto"] }));
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(29);
+    b.fijarEnergia(energia({ sinPantalla: true }));
+    const antes = pasos.length;
+    b.avanzar(3000);
+    expect(pasos.length - antes).toBeGreaterThanOrEqual(2);
+    expect(pasos.length - antes).toBeLessThanOrEqual(4);
   });
 });

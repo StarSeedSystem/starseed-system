@@ -6,8 +6,10 @@
  * `<PerfController/>` fija `data-perf` en <html> al montar y cuando cambia el
  * modo. `<PerfHeavyOnly>` solo renderiza sus hijos (fondos WebGL/Spline/iframe)
  * cuando el dispositivo NO está en modo eco → los móviles de gama baja dejan de
- * montar 6 capas pesadas. `<PerfStaticBackdrop/>` es el fondo cristalino estático
- * (bonito, del tema StarSeed) que se muestra siempre por debajo.
+ * montar 6 capas pesadas. Tampoco los monta en un nodo sin pantalla mientras
+ * nadie la esté controlando o compartiendo (CAP1125D).
+ * `<PerfStaticBackdrop/>` es el fondo cristalino estático (bonito, del tema
+ * StarSeed) que se muestra siempre por debajo.
  */
 
 import { usePathname } from "next/navigation";
@@ -16,10 +18,12 @@ import {
   applyPerf,
   aplicarModoElegidoAlArrancar,
   allowHeavyFx,
+  energiaActualMedida,
   inicializarAutoRendimiento,
   PERF_CHANGED_EVENT,
   type PerfApplied,
 } from "@/lib/perf/device-tier";
+import { topeFpsSinPantalla } from "@/lib/perf/modo-rendimiento";
 import { arrancarCensoSiNativa } from "@/lib/perf/censo-arranque";
 
 // DIR1125H: en la app nativa el censo de tiempo se pone al cargar este módulo, antes de montar nada. En la web no hace nada.
@@ -59,11 +63,17 @@ export function PerfController() {
  */
 const RUTAS_CONSOLA = ["/genesis", "/metagenesis", "/mando"];
 
+/**
+ * CAP1125D · en un nodo Linux sin monitor conectado no se montan adornos pesados:
+ * nadie los ve y gastan GPU/CPU. Se exceptúa cuando hay control remoto o
+ * transmisión viva (quien mira SÍ ve la pantalla), la misma regla que aplica el
+ * tope de 1 cuadro/s. Solo tiempo de ejecución: no toca diseños ni ajustes.
+ */
 export function PerfHeavyOnly({ children }: { children: React.ReactNode }) {
   const ruta = usePathname();
   const [heavy, setHeavy] = useState(false); // SSR/primer paint: nada pesado
   useEffect(() => {
-    const evaluate = () => setHeavy(allowHeavyFx());
+    const evaluate = () => setHeavy(allowHeavyFx() && topeFpsSinPantalla(energiaActualMedida()) <= 0);
     evaluate();
     window.addEventListener(PERF_CHANGED_EVENT, evaluate);
     return () => window.removeEventListener(PERF_CHANGED_EVENT, evaluate);
