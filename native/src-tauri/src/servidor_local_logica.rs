@@ -46,6 +46,9 @@ pub const RUTA_SALUD: &str = "/__starseed/salud";
 /// `starseed_pase` (HttpOnly; SameSite=Strict) y redirige a la ruta pedida. Sin esa cookie, el
 /// servidor local no atiende /api/* ni nada que cambie estado (`native/servidor-local/guarda.cjs`).
 pub const RUTA_ENTRAR: &str = "/__starseed/entrar";
+/// Nombre de la cookie que lleva ese pase (lo pone `/__starseed/entrar`; `guarda.cjs` la exige
+/// para /api y para lo que cambie estado). Rust la repite al calentar la página antes de recargar.
+pub const NOMBRE_COOKIE: &str = "starseed_pase";
 /// Nombre que el envoltorio pone en su respuesta de salud.
 pub const NOMBRE_SERVIDOR: &str = "starseed-os-local";
 
@@ -277,6 +280,77 @@ pub fn url_entrada(puerto: u16, pase: &str, ruta: &str) -> String {
         origen_local(puerto),
         codificar_componente(pase),
         codificar_componente(ruta)
+    )
+}
+
+// ────────────────────── Calentamiento antes de recargar ──────────────────────
+
+/// (CAP1125A) Tras un relevo de capa, la página se recarga cuando el Node nuevo ya dice «listo»,
+/// pero la PRIMERA página puede tardar bastante más (compilar/renderizar en frío). Si el service
+/// worker contesta antes con la copia guardada, la ventana se queda en la capa anterior. Por eso,
+/// antes de recargar, la app pide por HTTP la ruta que tiene abierta y espera a que el servidor
+/// conteste con un estado menor que 500, hasta este tope.
+pub const ESPERA_CALIENTE_MS: u64 = 60_000;
+
+/// Primera petición de la página tras el relevo: qué código contesta (None si no es HTTP).
+pub fn estado_http(respuesta: &str) -> Option<u16> {
+    let linea = respuesta.lines().next()?;
+    if !linea.starts_with("HTTP/1.") {
+        return None;
+    }
+    linea.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// El servidor ya contestó la página: cualquier estado por debajo de 500 (aunque sea un 403 del
+/// pase o un 304). Un 5xx es «aún no»: se sigue esperando.
+pub fn vale_estado(codigo: u16) -> bool {
+    codigo < 500
+}
+
+/// (CAP1125A) Qué ruta pedir para calentar el servidor a partir de la URL que tiene abierta la
+/// ventana: su ruta y su consulta. De otro origen, de otro puerto, ilegible o con el pase dentro →
+/// `/`. Nunca devuelve una URL con host: solo ruta (y consulta) del propio 127.0.0.1.
+pub fn ruta_para_calentar(url_ventana: Option<&str>, puerto: u16, pase: &str) -> String {
+    let raiz = "/".to_string();
+    let Some(url) = url_ventana else { return raiz };
+    let Some(resto) = url.strip_prefix("http://") else { return raiz };
+    let corte = resto.find(|c| matches!(c, '/' | '?' | '#')).unwrap_or(resto.len());
+    let (autoridad, cola) = resto.split_at(corte);
+    if autoridad != format!("{HOST}:{puerto}") {
+        return raiz;
+    }
+    let mut ruta = if cola.starts_with('/') {
+        cola.to_string()
+    } else if cola.starts_with('?') {
+        format!("/{cola}")
+    } else {
+        "/".to_string()
+    };
+    if let Some(i) = ruta.find('#') {
+        ruta.truncate(i);
+    }
+    if ruta.is_empty() || ruta.contains('\r') || ruta.contains('\n') {
+        return raiz;
+    }
+    if ruta.starts_with(RUTA_ENTRAR) {
+        return raiz;
+    }
+    // `//otro.host/...` se leería como autoridad en algunos clientes: nunca.
+    if ruta.starts_with("//") {
+        return raiz;
+    }
+    if !pase.is_empty() && ruta.contains(pase) {
+        return raiz;
+    }
+    ruta
+}
+
+/// (CAP1125A) La petición HTTP/1.1 mínima de esa ruta, con la cookie del pase tal como la manda la
+/// ventana (`starseed_pase`). Sin dependencias: va por un TcpStream.
+pub fn peticion_caliente(puerto: u16, ruta: &str, pase: &str) -> String {
+    let ruta = if ruta.starts_with('/') && !ruta.contains('\r') && !ruta.contains('\n') { ruta } else { "/" };
+    format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nCookie: {NOMBRE_COOKIE}={pase}\r\nAccept: text/html\r\nConnection: close\r\n\r\n"
     )
 }
 
@@ -599,5 +673,63 @@ mod pruebas {
         let s = script_aviso("local", "Listo en «127.0.0.1»");
         assert!(s.starts_with("window.__starseedUltimo=[\"local\",\"Listo en «127.0.0.1»\"];"));
         assert!(s.contains("window.__starseedArranque(\"local\""));
+    }
+
+    #[test]
+    fn ruta_para_calentar_toma_la_ruta_y_la_consulta_local() {
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610/escritorios?x=1"), 47610, "abc"), "/escritorios?x=1");
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610/"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610/a/b?q=1#frag"), 47610, "abc"), "/a/b?q=1");
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610/?tab=chat"), 47610, "abc"), "/?tab=chat");
+    }
+
+    #[test]
+    fn ruta_para_calentar_nunca_sale_de_loopback_ni_lleva_el_pase() {
+        // Otro origen, otro puerto, host ajeno, con credenciales o ilegible: raíz.
+        assert_eq!(ruta_para_calentar(Some("https://starseed-os.vercel.app/x"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47611/x"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("http://192.168.1.5:47610/x"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("http://usuario@127.0.0.1:47610/x"), 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(None, 47610, "abc"), "/");
+        assert_eq!(ruta_para_calentar(Some("basura"), 47610, "abc"), "/");
+        // El pase nunca viaja en la ruta, ni por la entrada ni por una consulta.
+        let p = "0123456789abcdef".repeat(4);
+        let entrada = format!("http://127.0.0.1:47610/__starseed/entrar?t={p}&a=%2F");
+        assert_eq!(ruta_para_calentar(Some(&entrada), 47610, &p), "/");
+        let con_pase = format!("http://127.0.0.1:47610/pagina?t={p}");
+        assert_eq!(ruta_para_calentar(Some(&con_pase), 47610, &p), "/");
+        // Un salto de línea no se cuela en la petición.
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610/a\r\nX: y"), 47610, "abc"), "/");
+        // `//otro.host` no se convierte en autoridad.
+        assert_eq!(ruta_para_calentar(Some("http://127.0.0.1:47610//otro.host/x"), 47610, "abc"), "/");
+    }
+
+    #[test]
+    fn peticion_caliente_lleva_la_cookie_del_pase_y_la_ruta() {
+        let p = "0123456789abcdef".repeat(4);
+        assert_eq!(
+            peticion_caliente(47610, "/escritorios?x=1", &p),
+            format!(
+                "GET /escritorios?x=1 HTTP/1.1\r\nHost: 127.0.0.1:47610\r\nCookie: starseed_pase={p}\r\nAccept: text/html\r\nConnection: close\r\n\r\n"
+            )
+        );
+        // Una ruta vacía, sin barra inicial o con salto de línea cae a "/" (defensa).
+        assert!(peticion_caliente(47610, "", &p).starts_with("GET / HTTP/1.1\r\n"));
+        assert!(peticion_caliente(47610, "sin-barra", &p).starts_with("GET / HTTP/1.1\r\n"));
+        assert!(peticion_caliente(47610, "/a\r\nX: y", &p).starts_with("GET / HTTP/1.1\r\n"));
+    }
+
+    #[test]
+    fn estados_calientes_son_los_que_contestan_menos_de_500() {
+        assert_eq!(estado_http("HTTP/1.1 200 OK\r\n\r\n"), Some(200));
+        assert_eq!(estado_http("HTTP/1.1 304 Not Modified\r\n\r\n"), Some(304));
+        assert_eq!(estado_http("HTTP/1.1 403 Forbidden\r\n\r\n"), Some(403));
+        assert_eq!(estado_http("HTTP/1.1 500 Internal Server Error\r\n\r\n"), Some(500));
+        assert_eq!(estado_http("basura"), None);
+        assert_eq!(estado_http(""), None);
+        assert!(vale_estado(200) && vale_estado(304) && vale_estado(403));
+        assert!(!vale_estado(500) && !vale_estado(503));
+        assert_eq!(ESPERA_CALIENTE_MS, 60_000);
     }
 }
