@@ -108,6 +108,8 @@ function guardarAjustes(neuronaId: string, ajustes: AjustesSesion): void {
 /** Abre la ventana flotante de esa neurona (si ya estaba abierta, no hace nada). */
 export function abrirVentanaControl(neurona: string, nombre: string): boolean {
     if (!RE_ID.test(neurona)) return false;
+    // CTL1124F: abrir la ventana ES la pulsación de una persona: vuelve a permitirse que su sesión se abra.
+    void import("@/lib/control-remoto/canal").then((m) => m.olvidarTerminadaPorLaPersona(neurona)).catch(() => undefined);
     if (abiertas.some((a) => a.neurona === neurona)) return true;
     abiertas = [...abiertas, { neurona, nombre: (nombre || "otra neurona").slice(0, 40) }];
     avisar();
@@ -160,6 +162,8 @@ export function direccionPaginaControl(neurona: string, nombre: string): string 
 /** Abre la pestaña propia; si el aparato no deja abrir pestañas, navega en la misma. */
 export function abrirPaginaControl(neurona: string, nombre: string): void {
     if (typeof window === "undefined" || !RE_ID.test(neurona)) return;
+    // CTL1124F: esta pulsación también vuelve a permitir la apertura; no, en cambio, la lectura ni el latido.
+    void import("@/lib/control-remoto/canal").then((m) => m.olvidarTerminadaPorLaPersona(neurona)).catch(() => undefined);
     const url = direccionPaginaControl(neurona, nombre);
     const w = window.open(url, "_blank");
     if (!w) window.location.assign(url);

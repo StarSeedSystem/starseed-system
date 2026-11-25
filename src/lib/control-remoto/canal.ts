@@ -16,7 +16,7 @@
  */
 
 import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type RespuestaOrden } from "./orden";
-import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } from "./sesion";
+import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, MOTIVO_TERMINADO, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
@@ -374,9 +374,32 @@ export function suscribirSesionesSalientes(cb: () => void): () => void {
 /** DIR1125B: las sesiones «hacia» vivas en esta página (las del banco): al terminar el control hay que parar también su latido. */
 const sesionesHacia = new Set<SesionHacia>();
 
+/**
+ * CTL1124F: neuronas cuyo control terminó una persona EN ESTA página. Mientras la marca siga, ninguna sesión
+ * automática (banco, lectura, latido) las reabre: solo otra pulsación de una persona (`olvidarTerminadaPorLaPersona`).
+ */
+const terminadasPorLaPersona = new Set<string>();
+
+/** CTL1124F: una persona pulsó «Terminar control»: desde aquí no se reabre sola. */
+export function marcarTerminadaPorLaPersona(neurona: string): void {
+    const k = neurona.trim().toLowerCase();
+    if (k) terminadasPorLaPersona.add(k);
+}
+
+/** CTL1124F: otra pulsación de una persona («Abrir ventana de control» / «Pedir controlarla»): vuelve a permitirse. */
+export function olvidarTerminadaPorLaPersona(neurona: string): void {
+    terminadasPorLaPersona.delete(neurona.trim().toLowerCase());
+}
+
+/** CTL1124F: ¿la persona terminó el control hacia esa neurona en esta página? */
+export function controlTerminadoPorLaPersona(neurona: string): boolean {
+    return terminadasPorLaPersona.has(neurona.trim().toLowerCase());
+}
+
 export async function terminarControlHacia(neurona: string): Promise<boolean> {
     const objetivo = neurona.trim().toLowerCase();
     if (!objetivo) return false;
+    marcarTerminadaPorLaPersona(objetivo); // CTL1124F: ni el latido ni una lectura la reabren a los 3–4 s
     // DIR1125B: sin esto el latido de 10 s veía «sin-sesion» y la reabría sola a los pocos segundos (medido: 3–4 s).
     for (const s of sesionesHacia) if (s.para.toLowerCase() === objetivo) s.detener();
     const carril = registroGlobal.carrilDe(objetivo);
@@ -413,6 +436,10 @@ export class SesionHacia {
     private porAqui: MandarSesion = (nombre, args, o) => this.mandar(this.para, nombre, args, o);
 
     async abrir(forzar = false): Promise<RespuestaOrden> {
+        // CTL1124F: tras «Terminar control» (o «terminado-por-el-dueno») no se reabre hasta otra pulsación de una persona.
+        if (terminadasPorLaPersona.has(this.para.toLowerCase())) {
+            return { tipo: "respuesta", nonce: "", ok: false, motivo: MOTIVO_TERMINADO };
+        }
         const r = await this.registro.abrir(this.para, this.porAqui, { nivel: "controlar", debil: true, auto: true, forzar });
         const token = r.ok ? ((r.resultado as { sesion?: string } | undefined)?.sesion ?? null) : null;
         if (this.cerrando) {
@@ -459,6 +486,10 @@ export class SesionHacia {
             if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") {
                 if (this.cerrando) return false;
                 this.registro.olvidar(this.para, t);
+                if (terminadasPorLaPersona.has(this.para.toLowerCase())) {
+                    this.pararLatido(); // CTL1124F: la persona la terminó; el latido no la resucita
+                    return false;
+                }
                 return (await this.abrir(true)).ok;
             }
             if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
@@ -487,15 +518,11 @@ export class SesionHacia {
     }
 
     /**
-     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
-     * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
-     * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     * CTL1124F: mirar si la otra neurona nos tiene aceptados con una LECTURA que no abre sesión (ni deja latido).
+     * Antes, solo elegir una neurona en la lista bastaba para que el otro aparato enseñara «X controla este aparato».
      */
     async sondear(): Promise<RespuestaOrden> {
-        const laAbreElSondeo = this.token === null;
-        const r = await this.orden("leer-estado");
-        if (laAbreElSondeo) await this.cerrar();
-        return r;
+        return this.mandar(this.para, "consultar-aceptacion", {}, { nivel: "ver" });
     }
 
     async cerrar(): Promise<void> {

@@ -540,6 +540,9 @@ export function ControlEntreNeuronasPanel() {
                 if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
+                    // CTL1124F: si antes se dijo «X no te aceptó…», ya no es verdad; se quita el texto viejo.
+                    const nombre = nombreRef.current(objetivo);
+                    setAviso((a) => (a && a.startsWith(`${nombre} no te aceptó`) ? null : a));
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
                     setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
                     setEsperando(null);
@@ -698,6 +701,8 @@ export function ControlEntreNeuronasPanel() {
         ]);
         const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreNeuronaPropia());
         if (r.ok) {
+            // CTL1124F: esta pulsación de una persona vuelve a permitir que se abra la sesión cuando acepten.
+            c.olvidarTerminadaPorLaPersona(destino.trim().toLowerCase());
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
             setAviso(

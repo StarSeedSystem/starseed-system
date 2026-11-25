@@ -376,7 +376,7 @@ export class PuertaControl {
         this.d.anotar(`orden ${marca} de=${de ? de.slice(0, 8) : "-"} nivel=${nivel} resultado=${ok ? "ok" : `rechazo:${motivo}`}${extra}${sim}`);
         if (!ok) this.d.nativo.anotar(marca, de, `rechazo:${motivo}`); // ORD1114Q: también en el registro encadenado
         const cuerpo = resultado !== undefined ? resultado : !ok && detalle ? { detalle } : undefined;
-        if (ok && nombre !== "abrir-sesion" && nombre !== "cerrar-sesion") this.servidas += 1; // CTL1117C: para el diagnóstico de segundo plano
+        if (ok && nombre !== "abrir-sesion" && nombre !== "cerrar-sesion" && nombre !== "consultar-aceptacion") this.servidas += 1; // CTL1117C: para el diagnóstico de segundo plano
         return { tipo: "respuesta", nonce, ok, motivo, ...(cuerpo !== undefined ? { resultado: cuerpo } : {}) };
     }
 
@@ -450,6 +450,8 @@ export class PuertaControl {
 
         // «presentarse»: un aparato de la cuenta pide que el dueño lo acepte AQUÍ. Nunca concede nada.
         if (nombre === "presentarse") return this.presentarse(o);
+        // CTL1124F: una lectura de si ya lo aceptaron; no abre sesión ni cambia el permiso.
+        if (nombre === "consultar-aceptacion") return this.consultarAceptacion(o);
 
         if (!permiso.encendido) {
             // CTL1117J · S3: la persona de este aparato se entera de que alguien lo pidió, y quien manda sabe que se avisó (`aviso`).
@@ -616,6 +618,45 @@ export class PuertaControl {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * CTL1124F: dice si este aparato ya tiene aceptado a quien pregunta, SIN abrir sesión, sin pedir token al lado
+     * nativo y sin tocar el permiso. La firma se comprueba con la clave fijada (aceptado o pendiente): nadie que no
+     * sea de la cuenta y no se haya presentado puede preguntar. La antirrepetición y el tope son los de siempre.
+     */
+    private async consultarAceptacion(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {
+        const c = o.carga;
+        if (c.para !== this.d.neuronaPropia()) return this.respuesta(c.nonce, false, "otro-destino", "consultar-aceptacion", c.de, c.nivel);
+        const cuenta = this.d.cuentaPropia();
+        if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "otra-cuenta", "consultar-aceptacion", c.de, c.nivel);
+        const ahora = this.d.ahora();
+        const t = Date.parse(c.t);
+        const cad = Date.parse(c.caduca);
+        if (Math.abs(ahora - t) > DESFASE_MAX_MS || cad <= ahora || cad - t > VIDA_ORDEN_MS || cad < t) {
+            return this.respuesta(c.nonce, false, "caducada", "consultar-aceptacion", c.de, c.nivel);
+        }
+        const permiso = this.d.leerPermiso();
+        const aceptado = permiso.controladores.find((x) => x.huella === c.de) ?? null;
+        const pendiente = aceptado ? null : permiso.pendientes.find((x) => x.huella === c.de) ?? null;
+        const fijado = aceptado ?? pendiente;
+        if (!fijado) return this.respuesta(c.nonce, false, "no-autorizado", "consultar-aceptacion", c.de, c.nivel);
+        if (!(await verificarFirma(this.d.subtle, fijado.spki, o.bytes, o.firma))) return this.respuesta(c.nonce, false, "firma", "consultar-aceptacion", c.de, c.nivel);
+        if (!this.aceptarSeqYNonce(c.de, c.seq, c.nonce)) return this.respuesta(c.nonce, false, "repetida", "consultar-aceptacion", c.de, c.nivel);
+        this.recordarNonce(c.nonce);
+        if (!this.tope(c.de)) return this.respuesta(c.nonce, false, "limite", "consultar-aceptacion", c.de, c.nivel);
+        if (!aceptado) return this.respuesta(c.nonce, false, "no-autorizado", "consultar-aceptacion", c.de, c.nivel);
+        const aceptadoEn = aceptado.aceptadoEn ? Date.parse(aceptado.aceptadoEn) : ahora;
+        const fin = finDeLimite(aceptado.limite ?? { tipo: "sin-limite" }, Number.isFinite(aceptadoEn) ? aceptadoEn : ahora);
+        if (fin !== null && ahora >= fin) return this.respuesta(c.nonce, false, "limite-cumplido", "consultar-aceptacion", c.de, c.nivel);
+        if (!permiso.encendido) return this.respuesta(c.nonce, false, "permiso-apagado", "consultar-aceptacion", c.de, c.nivel);
+        const nivel = NIVELES_CONCEDIBLES_FASE1.includes(permiso.nivel) ? permiso.nivel : "ver";
+        return this.respuesta(c.nonce, true, "ok", "consultar-aceptacion", c.de, c.nivel, {
+            aceptada: true,
+            encendido: true,
+            nivel,
+            ...(fin !== null ? { caduca: new Date(fin).toISOString() } : {}),
+        });
     }
 
     private async presentarse(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {

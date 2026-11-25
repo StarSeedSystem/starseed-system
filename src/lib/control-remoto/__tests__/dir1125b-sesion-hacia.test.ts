@@ -23,6 +23,7 @@ function aparato() {
             abiertas.delete(String(o.sesion));
             return resp(true, "ok");
         }
+        if (nombre === "consultar-aceptacion") return resp(true, "ok"); // CTL1124F: lectura sin sesión
         if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
         return resp(true, "ok", {});
     };
@@ -35,13 +36,13 @@ afterEach(async () => {
 });
 
 describe("DIR1125B · SesionHacia", () => {
-    it("sondear abre, pregunta y cierra: no queda ninguna sesión de control abierta", async () => {
+    it("CTL1124F: sondear es SOLO una lectura; no abre ni cierra ninguna sesión", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.sondear()).ok).toBe(true);
-        expect(a.vistas).toEqual(["abrir-sesion", "leer-estado", "cerrar-sesion"]);
+        expect(a.vistas).toEqual(["consultar-aceptacion"]);
         expect(a.abiertas.size).toBe(0);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
@@ -58,11 +59,11 @@ describe("DIR1125B · SesionHacia", () => {
         const r = await s.sondear();
         expect(r.ok).toBe(false);
         expect(r.motivo).toBe("no-autorizado");
-        expect(vistas).toEqual(["abrir-sesion"]);
+        expect(vistas).toEqual(["consultar-aceptacion"]);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
 
-    it("con la sesión ya tomada aquí (serie armada), sondear no la cierra", async () => {
+    it("con la sesión ya tomada aquí (serie armada), sondear la deja como estaba", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);

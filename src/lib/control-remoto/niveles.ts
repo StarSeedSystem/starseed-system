@@ -190,6 +190,8 @@ function validarTexto(a: Args): Args | null {
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     "abrir-sesion": { nivel: "ver", sinSesion: true, validar: conColorOpcional, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
     "cerrar-sesion": { nivel: "ver", validar: sinArgs, que: "cierra la sesión" },
+    // CTL1124F: comprobar si el aparato ya te aceptó es una LECTURA: no abre sesión, no deja latido y no cambia nada.
+    "consultar-aceptacion": { nivel: "ver", sinSesion: true, validar: sinArgs, que: "dice si este aparato ya te aceptó para controlarlo, sin abrir sesión" },
     "leer-estado": { nivel: "ver", validar: sinArgs, que: "ruta, llamada y sus números, enlaces y su medio, versión y build" },
     llamar: {
         nivel: "controlar",
