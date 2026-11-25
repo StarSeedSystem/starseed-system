@@ -1,0 +1,26 @@
+[Unit]
+Description=StarSeed · Relevo de medios (RES1121A) — vigilancia de latidos y failover automático
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=STARSEED_WT=/home/starseed/starseed-wt NODE_OPTIONS=--max-old-space-size=4096 NEEDLE_TELEMETRY=0
+Environment=PYTHONUNBUFFERED=1
+# Relevo de medios: cada 30 s revisa latidos, umbral 10 min por defecto (STARSEED_RELEVO_MEDIOS_MIN)
+ExecStart=/usr/bin/python3 -u /home/starseed/starseed-system/scripts/puente/relevo_medios.py daemon
+Restart=always
+RestartSec=30
+MemoryHigh=512M
+MemoryMax=1G
+CPUWeight=10
+IOWeight=10
+Nice=15
+KillMode=control-group
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
