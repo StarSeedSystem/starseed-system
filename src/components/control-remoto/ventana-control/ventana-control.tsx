@@ -16,7 +16,15 @@ import { GestorToque } from "./gestor-toque";
 import { trocear } from "./texto";
 import { SelectorFuente } from "./selector-fuente";
 import { rotuloVia } from "@/lib/control-remoto/cuadro-malla";
-import { ayudaFluida, rotuloFuenteMedida } from "@/lib/control-remoto/fuente-pantalla";
+import {
+    ESPERA_PRIMER_CUADRO_MS,
+    SILENCIO_CUADRO_MS,
+    ayudaFluida,
+    estadoCuadros,
+    rotuloFuenteMedida,
+    textoCuadros,
+    type EstadoCuadros,
+} from "@/lib/control-remoto/fuente-pantalla";
 import { estiloSeleccionUsuario } from "@/lib/seleccion/colores-seleccion";
 import { CapaSeleccionCompartida } from "@/components/seleccion/capa-seleccion-compartida";
 import { MedidorPresentacional } from "../medidor-calidad";
@@ -399,7 +407,22 @@ function AvisoOrden({ p }: { p: PropsVentanaControl }) {
     );
 }
 
+/** CTL1124G: la ventana traduce su estado a la salud de cuadros que ya usa el aparato (sin inventar medidas). */
+function estadoCuadrosVentana(p: PropsVentanaControl): EstadoCuadros {
+    if (p.estado === "cerrada" || !p.fuenteReal) return "sin-fuente";
+    const enVivo = p.estado === "en-vivo";
+    return estadoCuadros({
+        fuente: p.fuenteReal,
+        cuadros: enVivo ? 1 : 0,
+        desdeInicioMs: p.estado === "conectando" ? 0 : ESPERA_PRIMER_CUADRO_MS,
+        desdeUltimoMs: enVivo ? 0 : p.estado === "sin-pantalla" ? SILENCIO_CUADRO_MS : null,
+        pausada: p.estado === "pausa-local",
+    });
+}
+
 function mensajeSobrePantalla(p: PropsVentanaControl): string | null {
+    const avisoCuadros = textoCuadros(p.fuenteReal ?? null, estadoCuadrosVentana(p));
+    if (avisoCuadros) return avisoCuadros;
     const por = p.motivo ? ` · ${p.motivo}` : "";
     switch (p.estado) {
         case "conectando": return `Conectando con ${p.nombre}…${por}`;
