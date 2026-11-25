@@ -31,6 +31,9 @@
   var ESPERA_COMPLETO_MS = 30 * 60 * 1000; // con todo guardado, como mucho una comprobación cada 30 min
   var ESPERA_INCOMPLETO_MS = 2 * 60 * 1000; // a medias, se sigue a los 2 min
   var TOPE_NAVEGACION_MS = 10000; // red lenta («lie-fi»): a los 10 s, la copia guardada si la hay
+  // (DIR1125C) En el servidor propio de la app (127.0.0.1) no hay «mala red»: si tarda es que acaba de arrancar con una capa nueva.
+  // Dar a los 10 s la copia guardada dejaba la app una versión atrás tras cada relevo de capa (medido en la Maggabox el 25-11).
+  var TOPE_NAVEGACION_LOCAL_MS = 60000;
   var MARGEN_ESPACIO = 1.25; // la precarga usa como mucho libre/1,25 …
   var RESERVA_BYTES = 50 * 1000 * 1000; // … menos 50 MB que se dejan siempre libres
   var BYTES_RUTA_POR_DEFECTO = 600000; // HTML + RSC de una página sin medida (mediana medida: ≈ 0,5 MB cada uno)
@@ -132,6 +135,11 @@
     if (h === "localhost" || h === "::1" || h === "0.0.0.0") return true;
     if (/\.localhost$/.test(h)) return true;
     return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+  }
+
+  /** (DIR1125C) Cuánto se espera a la red en una navegación antes de dar la copia guardada. */
+  function topeNavegacion(host) {
+    return esLoopback(host) ? TOPE_NAVEGACION_LOCAL_MS : TOPE_NAVEGACION_MS;
   }
 
   function esEstaticoNext(pathname) {
@@ -628,6 +636,8 @@
     CONCURRENCIA: CONCURRENCIA,
     TOPE_RUN_MS: TOPE_RUN_MS,
     TOPE_NAVEGACION_MS: TOPE_NAVEGACION_MS,
+    TOPE_NAVEGACION_LOCAL_MS: TOPE_NAVEGACION_LOCAL_MS,
+    topeNavegacion: topeNavegacion,
     ESPERA_COMPLETO_MS: ESPERA_COMPLETO_MS,
     ESPERA_INCOMPLETO_MS: ESPERA_INCOMPLETO_MS,
     ESPERA_MINIMA_MS: ESPERA_MINIMA_MS,

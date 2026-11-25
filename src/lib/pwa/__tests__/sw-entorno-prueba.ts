@@ -170,8 +170,9 @@ export function montarSW(op: { servidor: Servidor; host?: string; conexion?: Rec
       },
     },
   };
-  // Relojes «rápidos»: el tope de 10 s de la navegación salta en 5 ms (la lógica no cambia).
-  const relojRapido = (f: () => void) => setTimeout(f, 5);
+  // Relojes «rápidos», a escala 1:2000: el tope de 10 s de la navegación salta en 5 ms y el de 60 s del servidor propio de la
+  // app (DIR1125C) en 30 ms (la lógica no cambia).
+  const relojRapido = (f: () => void, ms?: number) => setTimeout(f, Math.max(1, Math.round((ms ?? 10000) / 2000)));
   const importScripts = () => {
     new Function("self", "module", codigoLogica)(self, undefined);
   };

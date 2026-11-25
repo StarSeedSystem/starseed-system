@@ -322,7 +322,9 @@ async function paginaSinConexion() {
 
 // Navegación: red primero SIN caché del edge (cada despliegue llega al momento). La copia buena se
 // guarda para después. Sin red → la página guardada → /offline.html. Red lenta (10 s) → la guardada si
-// existe, y la de la red sigue llegando a la caché para la próxima vez.
+// existe, y la de la red sigue llegando a la caché para la próxima vez. En el servidor propio de la app
+// (127.0.0.1) se espera 60 s: ahí «lento» es el servidor recién arrancado con una capa nueva, y la copia
+// guardada sería la de la capa anterior (DIR1125C).
 async function navegacion(event) {
   const req = event.request;
   const red = fetch(req, { cache: "no-store" }).then((res) => {
@@ -333,7 +335,9 @@ async function navegacion(event) {
   event.waitUntil(red.then(() => {}, () => {}));
   let reloj = null;
   const tope = new Promise((resolver) => {
-    reloj = setTimeout(() => resolver(AGOTADO), L.TOPE_NAVEGACION_MS);
+    // (DIR1125C) 10 s en la web; 60 s en el servidor propio de la app. Si la lógica cargada fuera una copia anterior, lo de siempre.
+    const espera = typeof L.topeNavegacion === "function" ? L.topeNavegacion(self.location.hostname) : L.TOPE_NAVEGACION_MS;
+    reloj = setTimeout(() => resolver(AGOTADO), espera);
   });
   try {
     const primero = await Promise.race([red, tope]);

@@ -71,3 +71,57 @@ export function decidirRelevoNativo(e: EstadoServidorLocal | null, ctx: Contexto
 
 /** Cada cuánto se pregunta a la app mientras la página está abierta (barato: un comando local). */
 export const MIRAR_RELEVO_CADA_MS = 30 * 1000;
+
+// ── (DIR1125C) La página corre una build y el servidor local sirve otra ───────────────────────────────────────────
+// Medido el 25-11 en la Maggabox: tras un relevo de capa la app recargó la página, el Node recién arrancado tardó más de
+// 10 s en dar la primera y el service worker entregó la copia guardada de la capa ANTERIOR. El servidor decía «sirvo la
+// nueva», la página corría la vieja y nadie comparaba las dos: la app se quedaba una versión atrás hasta cerrarla.
+
+export type AccionAlDia = "nada" | "recargar" | "esperar" | "rendirse";
+
+export interface ResultadoAlDia {
+  accion: AccionAlDia;
+  motivo: string;
+  /** «<la de la página>><la que sirve>»: la clave del tope de intentos; null si no hay diferencia. */
+  clave: string | null;
+}
+
+export interface ContextoAlDia {
+  enLlamada: boolean;
+  escribiendo: boolean;
+  /** Recargas ya hechas en esta ventana por ESTA misma diferencia. */
+  intentos: number;
+}
+
+/** Recargas como mucho por una misma diferencia: si tras dos sigue igual, no es cosa de recargar (nunca un bucle). */
+export const MAX_INTENTOS_AL_DIA = 2;
+
+function partesWeb(etiqueta: string | null | undefined): { build: string | null; sha: string | null } {
+  const [b, s] = String(etiqueta ?? "").trim().split("/");
+  return {
+    build: b && b !== "?" && b !== "desconocida" ? b : null,
+    sha: s && /^[0-9a-f]{7,40}$/i.test(s) ? s.toLowerCase() : null,
+  };
+}
+
+/**
+ * ¿La página corre otra web que la que sirve el servidor local de la app? Pura. `propia` es la etiqueta del código que
+ * corre («<compilación>/<sha>», `etiquetaBuild()`); `e.web_corre`, la de la capa que sirve el Node. Es la misma web si
+ * coincide el id de compilación o el sha (uno puede venir más corto que el otro). Sin datos comparables no se adivina.
+ */
+export function decidirPonerseAlDia(propia: string | null | undefined, e: EstadoServidorLocal | null, ctx: ContextoAlDia): ResultadoAlDia {
+  const nada = (motivo: string): ResultadoAlDia => ({ accion: "nada", motivo, clave: null });
+  if (!e) return nada("sin estado de la app");
+  if (e.fase !== "local") return nada(`el servidor local no sirve (${e.fase})`);
+  const mia = partesWeb(propia);
+  const sirve = partesWeb(e.web_corre);
+  const mismoSha = !!(mia.sha && sirve.sha && (mia.sha.startsWith(sirve.sha) || sirve.sha.startsWith(mia.sha)));
+  const mismaBuild = !!(mia.build && sirve.build && mia.build === sirve.build);
+  if (!((mia.sha && sirve.sha) || (mia.build && sirve.build))) return nada("falta la build de la página o la del servidor: no se adivina");
+  if (mismoSha || mismaBuild) return nada("la página corre lo que sirve el servidor");
+  const clave = `${String(propia).trim()}>${String(e.web_corre).trim()}`;
+  if (ctx.intentos >= MAX_INTENTOS_AL_DIA) return { accion: "rendirse", motivo: "ya se recargó dos veces y sigue igual", clave };
+  if (ctx.enLlamada) return { accion: "esperar", motivo: "en llamada", clave };
+  if (ctx.escribiendo) return { accion: "esperar", motivo: "escribiendo", clave };
+  return { accion: "recargar", motivo: "la página corre una capa y el servidor sirve otra", clave };
+}

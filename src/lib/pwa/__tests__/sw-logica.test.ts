@@ -361,3 +361,14 @@ describe("cachés", () => {
     });
   });
 });
+
+describe("DIR1125C · cuánto se espera a la red en una navegación", () => {
+  it("en la web, 10 s (red lenta: sale la copia guardada); en el servidor propio de la app, 60 s (lento = recién arrancado)", () => {
+    expect(L.topeNavegacion("starseed-os.vercel.app")).toBe(10000);
+    expect(L.topeNavegacion("127.0.0.1")).toBe(60000);
+    expect(L.topeNavegacion("localhost")).toBe(60000);
+    expect(L.topeNavegacion("")).toBe(10000);
+    expect(L.topeNavegacion(undefined)).toBe(10000);
+    expect(L.TOPE_NAVEGACION_LOCAL_MS).toBeGreaterThan(L.TOPE_NAVEGACION_MS);
+  });
+});

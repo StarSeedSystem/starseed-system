@@ -237,6 +237,29 @@ describe("sw-v8 · con red", () => {
     const r = await sw.pedir("/escritorios", { modo: "navigate" });
     expect(r?.status).toBe(500);
   });
+
+  it("DIR1125C · servidor propio de la app (127.0.0.1): una primera página lenta se ESPERA; en la web, a los 10 s sale la guardada", async () => {
+    for (const [host, esperado] of [["127.0.0.1:47610", "v3"], [undefined, "v2"]] as const) {
+      let version = "v2";
+      let lento = false;
+      const base = servidorBase({ versionHtml: () => version });
+      const sw = montarSW({
+        host,
+        servidor: (ruta, c) => {
+          const r = base(ruta, c);
+          if (!lento || r === "colgar" || ruta !== "/escritorios") return r;
+          // 14 ms = 28 s a la escala del entorno: más que los 10 s de la web, menos que los 60 s del servidor propio.
+          return new Promise<Response>((ok) => setTimeout(() => ok(r), 14));
+        },
+      });
+      await sw.ciclo("install");
+      await sw.ciclo("activate");
+      expect(await (await sw.pedir("/escritorios", { modo: "navigate" }))?.text()).toBe("<p>/escritorios v2</p>"); // queda guardada
+      version = "v3"; // el servidor arranca con la capa nueva y tarda en dar la primera página
+      lento = true;
+      expect(await (await sw.pedir("/escritorios", { modo: "navigate" }))?.text()).toBe(`<p>/escritorios ${esperado}</p>`);
+    }
+  });
 });
 
 describe("sw-v8 · cerrar sesión", () => {
