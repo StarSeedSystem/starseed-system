@@ -73,6 +73,17 @@ _DIRECTORIOS_REALES = tuple(
     }
 )
 
+#: Caché en memoria para agrupación de avisos de directores idénticos (DIR1124A).
+#: Clave: (raiz_norm, de, canal, texto) -> {id, agrupado, ultimo_texto, ultima_hora}
+_ULTIMO_DIRECTOR = {}
+
+
+def _normalizar_raiz(raiz):
+    """Normaliza la raíz para usarla en claves de caché."""
+    if raiz is None:
+        return "default"
+    return os.path.abspath(str(raiz))
+
 
 def en_pruebas():
     """True si este proceso es una prueba (pytest o un runner de unittest en marcha).
@@ -168,20 +179,81 @@ def publicar(
     (DIR1111G) `sintesis=True` marca la respuesta principal de un director (destaca en la
     pestaña «Dirección»); `eleccion` solo la pone el Director presidente: quién contestó y
     por qué. Los dos son opcionales: las líneas sin ellos se leen igual que siempre.
+
+    (DIR1124A) Avisos de director idénticos (mismo `de`, `rol=director`, `tipo=informe`,
+    `canal`, `texto`) no se vuelven a publicar: se agrupan devolviendo el mismo `id` con
+    contador `agrupado` y texto «×N, último a las HH:MM».
     """
     if rol not in ("alex", "director", "agente", "sistema"):
         raise ValueError("rol no válido: %s" % rol)
     if canal not in CANALES:
         raise ValueError("canal no válido: %s" % canal)
+
+    # DIR1124A: Agrupación de avisos de directores idénticos
+    texto_limpio = tachar(texto or "")[:MAX_TEXTO]
+    raiz_norm = _normalizar_raiz(raiz)
+    clave = (raiz_norm, de, canal, texto_limpio) if rol == "director" and tipo == "informe" else None
+    if clave is not None:
+        ahora_iso = _ahora_iso()
+        hora_corta = datetime.fromisoformat(ahora_iso).strftime("%H:%M")
+        previo = _ULTIMO_DIRECTOR.get(clave)
+        if previo is not None:
+            # Mismo aviso: incrementar contador y devolver mensaje actualizado (sin escribir en chat)
+            nuevo_agrupado = previo["agrupado"] + 1
+            mensaje_actualizado = {
+                "id": previo["id"],
+                "t": ahora_iso,
+                "de": de,
+                "rol": rol,
+                "tipo": tipo,
+                "texto": "×%d, último a las %s" % (nuevo_agrupado, hora_corta),
+                "canal": canal,
+                "agrupado": nuevo_agrupado,
+                "texto_original": texto_limpio,
+            }
+            if canales:
+                mensaje_actualizado["canales"] = list(canales)
+            if modelo:
+                mensaje_actualizado["modelo"] = modelo
+            if responde_a:
+                mensaje_actualizado["respondeA"] = responde_a
+            if tarea:
+                mensaje_actualizado["tarea"] = tarea
+            if uso:
+                mensaje_actualizado["uso"] = {
+                    k: v
+                    for k, v in uso.items()
+                    if k in ("tokensEntrada", "tokensSalida", "segundos", "coste", "via")
+                }
+            if sintesis:
+                mensaje_actualizado["sintesis"] = True
+            if eleccion:
+                mensaje_actualizado["eleccion"] = eleccion
+            if solo_historial:
+                mensaje_actualizado["solo_historial"] = True
+            _ULTIMO_DIRECTOR[clave] = {
+                "id": previo["id"],
+                "agrupado": nuevo_agrupado,
+                "ultimo_texto": mensaje_actualizado["texto"],
+                "ultima_hora": ahora_iso,
+            }
+            return mensaje_actualizado
+        # Primer aviso de este tipo: guardar en caché
+        _ULTIMO_DIRECTOR[clave] = {"id": None, "agrupado": 1, "ultimo_texto": texto_limpio, "ultima_hora": None}
+
     mensaje = {
         "id": _nuevo_id(),
         "t": _ahora_iso(),
         "de": de,
         "rol": rol,
         "tipo": tipo,
-        "texto": tachar(texto or "")[:MAX_TEXTO],
+        "texto": texto_limpio,
         "canal": canal,
     }
+    # Actualizar caché con el id real asignado
+    if clave is not None:
+        _ULTIMO_DIRECTOR[clave]["id"] = mensaje["id"]
+
     if canales:
         mensaje["canales"] = list(canales)
     if modelo:
