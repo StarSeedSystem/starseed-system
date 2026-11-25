@@ -324,6 +324,83 @@ pub fn interpretar_salud(respuesta: &str, firma: &str) -> Salud {
     }
 }
 
+// ─────────────────────── Recarga caliente tras relevo ───────────────────────
+
+/// (CAP1125A) Tope que se espera a que el servidor local dé la primera página tras un relevo de
+/// capa antes de recargar la ventana. El Node puede decir «listo» y tardar en servir Next.
+pub const ESPERA_RECARGA_MS: u64 = 60_000;
+/// Cada cuánto se vuelve a pedir la página mientras se calienta.
+pub const PASO_RECARGA_MS: u64 = 500;
+/// Cookie con la que la ventana demuestra que es de este arranque de la app (`guarda.cjs`).
+pub const COOKIE_PASE: &str = "starseed_pase";
+
+/// Qué pedir antes de recargar y cuánto esperar como mucho.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Calentado {
+    /// Ruta con su consulta, siempre dentro de `127.0.0.1:<puerto>` (nunca con el pase dentro).
+    pub ruta: String,
+    pub espera_ms: u64,
+}
+
+/// La parte de `url` que va detrás del origen local, o `None` si no es de este puerto.
+fn resto_local(url: &str, puerto: u16) -> Option<String> {
+    let origen = origen_local(puerto);
+    let resto = url.strip_prefix(&origen)?;
+    match resto.chars().next() {
+        None => Some("/".to_string()),
+        Some('/') => Some(resto.to_string()),
+        Some('?') | Some('#') => Some(format!("/{resto}")),
+        // Otro puerto que empieza por el mismo texto (476100) o basura: no es nuestro origen.
+        _ => None,
+    }
+}
+
+/// La ruta (con su consulta) que la ventana tiene abierta, para pedírsela al servidor local antes
+/// de recargar. URL de otro origen o ilegible → `/`; el fragmento no se pide; si la ruta trajera
+/// el pase (p. ej. la URL de entrada) o saltos de línea → `/`. Nunca sale de `127.0.0.1`.
+pub fn ruta_recarga(url_ventana: Option<&str>, puerto: u16, pase: &str) -> String {
+    let raiz = "/".to_string();
+    let Some(mut ruta) = url_ventana.and_then(|u| resto_local(u, puerto)) else { return raiz };
+    if let Some((antes, _)) = ruta.split_once('#') {
+        ruta = antes.to_string();
+    }
+    if ruta.is_empty() || !ruta.starts_with('/') || ruta.starts_with("//") {
+        return raiz;
+    }
+    if ruta.contains('\r') || ruta.contains('\n') || (!pase.is_empty() && ruta.contains(pase)) {
+        return raiz;
+    }
+    ruta
+}
+
+/// La decisión completa: qué ruta pedir y cuánto esperar a que conteste antes de recargar.
+pub fn calentar_antes_de_recargar(url_ventana: Option<&str>, puerto: u16, pase: &str) -> Calentado {
+    Calentado { ruta: ruta_recarga(url_ventana, puerto, pase), espera_ms: ESPERA_RECARGA_MS }
+}
+
+/// ¿Un estado HTTP ya sirve para recargar? El Node recién arrancado puede dar 5xx mientras
+/// compila; cualquier cosa por debajo de 500 sí tiene página. Por encima no.
+pub fn estado_vale(codigo: u16) -> bool {
+    codigo < 500
+}
+
+/// El código de estado de la primera línea de una respuesta HTTP/1.x (`None` si no lo es).
+pub fn codigo_respuesta(respuesta: &str) -> Option<u16> {
+    let linea = respuesta.lines().next()?;
+    if !linea.starts_with("HTTP/1.") {
+        return None;
+    }
+    linea.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// Petición HTTP/1.1 mínima a la ruta de la ventana, con la cookie del pase (como la manda la
+/// ventana). El pase nunca va en la ruta de la petición.
+pub fn peticion_recarga(puerto: u16, ruta: &str, pase: &str) -> String {
+    format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nAccept: text/html,application/xhtml+xml\r\nCookie: {COOKIE_PASE}={pase}\r\nConnection: close\r\n\r\n"
+    )
+}
+
 // ─────────────────────────────── Reinicios ───────────────────────────────
 
 /// Si el servidor muere, se reinicia con pausas crecientes; más de `max_en_ventana` caídas en
@@ -569,6 +646,68 @@ mod pruebas {
         assert!(matches!(interpretar_salud(&resp("404", "no"), "f1"), Salud::Ajena(_)));
         assert!(matches!(interpretar_salud("basura", "f1"), Salud::Ajena(_)));
         assert!(matches!(interpretar_salud(&resp("200", r#"{"hola":1}"#), "f1"), Salud::Ajena(_)));
+    }
+
+    #[test]
+    fn ruta_de_recarga_solo_del_servidor_local() {
+        // URL local con ruta y consulta → esa ruta y consulta.
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610/escritorios?x=1"), 47610, "abc"), "/escritorios?x=1");
+        // Solo origen o barra → raíz.
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610"), 47610, "abc"), "/");
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610/"), 47610, "abc"), "/");
+        // La consulta sin ruta se sirve bajo `/`; el fragmento no viaja al servidor.
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610?x=1"), 47610, "abc"), "/?x=1");
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610/a?b=1#frag"), 47610, "abc"), "/a?b=1");
+        // Otro origen, otro puerto, prefijo de puerto, ilegible o ausente → raíz (nunca fuera de 127.0.0.1).
+        for u in [
+            None,
+            Some("https://starseed-os.vercel.app/x"),
+            Some("http://127.0.0.1:47611/x"),
+            Some("http://127.0.0.1:476100/x"),
+            Some("http://127.0.0.1:47610x/y"),
+            Some("basura"),
+        ] {
+            assert_eq!(ruta_recarga(u, 47610, "abc"), "/", "{u:?}");
+        }
+        // Ni el pase dentro de la ruta ni saltos de línea (inyección de cabeceras): raíz.
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610/__starseed/entrar?t=secreto&a=%2F"), 47610, "secreto"), "/");
+        assert_eq!(ruta_recarga(Some("http://127.0.0.1:47610/a\r\nX: y"), 47610, "abc"), "/");
+        // La URL de entrada de la propia app (que lleva el pase) nunca se pide como ruta.
+        let pase = "0123456789abcdef0123456789abcdef";
+        let entrada = url_entrada(47610, pase, "/escritorios");
+        assert_eq!(ruta_recarga(Some(&entrada), 47610, pase), "/");
+    }
+
+    #[test]
+    fn calentado_espera_hasta_sesenta_segundos() {
+        let c = calentar_antes_de_recargar(Some("http://127.0.0.1:47610/x"), 47610, "abc");
+        assert_eq!(c.ruta, "/x");
+        assert_eq!(c.espera_ms, 60_000);
+        assert!(PASO_RECARGA_MS > 0 && PASO_RECARGA_MS < ESPERA_RECARGA_MS);
+    }
+
+    #[test]
+    fn peticion_de_recarga_lleva_el_pase_en_la_cookie_no_en_la_ruta() {
+        let p = peticion_recarga(47610, "/escritorios?x=1", "abc123");
+        assert!(p.starts_with("GET /escritorios?x=1 HTTP/1.1\r\n"));
+        assert!(p.contains("Host: 127.0.0.1:47610\r\n"));
+        assert!(p.contains("Cookie: starseed_pase=abc123\r\n"));
+        assert!(!p.lines().next().unwrap().contains("abc123"));
+        assert!(p.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn estados_que_valen_para_recargar() {
+        for c in [200u16, 204, 302, 404, 499] {
+            assert!(estado_vale(c), "{c}");
+        }
+        for c in [500u16, 502, 503, 504] {
+            assert!(!estado_vale(c), "{c}");
+        }
+        assert_eq!(codigo_respuesta("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"), Some(200));
+        assert_eq!(codigo_respuesta("HTTP/1.1 503 Service Unavailable\r\n\r\n"), Some(503));
+        assert_eq!(codigo_respuesta("basura"), None);
+        assert_eq!(codigo_respuesta(""), None);
     }
 
     #[test]

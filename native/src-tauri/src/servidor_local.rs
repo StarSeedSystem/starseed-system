@@ -24,6 +24,11 @@
 // (`servidor_local_actualizar`) reinicia SOLO el Node en el mismo puerto y recarga la página: misma
 // ventana, mismo origen y mismo pase.
 //
+// (CAP1125A) Antes de recargar tras un relevo se le pide al servidor local la ruta que la ventana
+// tiene abierta (con la cookie del pase) y se espera hasta 60 s a que dé un estado < 500: el Node
+// recién arrancado puede tardar en servir la primera página y el service worker entregaba la copia
+// de la capa anterior. Si falla o vence, se recarga igual; queda `recarga tras relevo caliente=…`.
+//
 // Nada de dependencias nuevas: procesos con std::process, salud con un TcpStream.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -296,7 +301,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -558,12 +563,63 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
         .is_some_and(|u| l::es_url_local(u.as_str(), puerto))
 }
 
-/// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
-/// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
-    if let Some(v) = app.get_webview_window("main") {
-        let _ = v.eval("location.reload()");
+/// (CAP1107A · CAP1125A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts
+/// eran de la capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
+///
+/// Antes de recargar se le pide al propio servidor local la misma ruta que la ventana tiene abierta
+/// (con la cookie del pase, como lo manda la ventana) y se espera hasta 60 s a que conteste con un
+/// estado menor que 500: el Node recién arrancado puede tardar más de 10 s en dar la primera página,
+/// y recargar antes de tiempo dejaba a la ventana con la copia vieja del service worker. Si la
+/// petición falla o vence, se recarga IGUAL: nunca se deja de recargar. La espera va en este hilo
+/// (el del bucle del servidor), no en el de la interfaz, y no toca `con_estado`/`avisar`.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let Some(v) = app.get_webview_window("main") else { return };
+    let url = v.url().map(|u| u.to_string()).ok();
+    let pase = interno().pase.as_str();
+    let plan = l::calentar_antes_de_recargar(url.as_deref(), puerto, pase);
+    let desde = Instant::now();
+    let caliente = esperar_pagina(puerto, &plan.ruta, pase, plan.espera_ms);
+    escribir_registro(
+        registro,
+        &format!(
+            "[servidor-local] recarga tras relevo caliente={} ms={}",
+            if caliente { "si" } else { "no" },
+            desde.elapsed().as_millis()
+        ),
+    );
+    let _ = v.eval("location.reload()");
+}
+
+/// Pide `ruta` al servidor local hasta que conteste con un estado menor que 500 o venza `espera_ms`.
+/// Devuelve si llegó a calentar (para el registro). Se llama solo desde el hilo del servidor.
+fn esperar_pagina(puerto: u16, ruta: &str, pase: &str, espera_ms: u64) -> bool {
+    let tope = Instant::now() + Duration::from_millis(espera_ms);
+    loop {
+        if let Some(codigo) = pedir_pagina(puerto, ruta, pase) {
+            if l::estado_vale(codigo) {
+                return true;
+            }
+        }
+        if Instant::now() >= tope {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(l::PASO_RECARGA_MS));
     }
+}
+
+/// Una petición HTTP/1.1 a la ruta de la ventana; devuelve el código de estado (o None si no contesta).
+fn pedir_pagina(puerto: u16, ruta: &str, pase: &str) -> Option<u16> {
+    let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+    let mut s = TcpStream::connect_timeout(&dir, Duration::from_millis(800)).ok()?;
+    let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(5)));
+    s.write_all(l::peticion_recarga(puerto, ruta, pase).as_bytes()).ok()?;
+    let mut buf = Vec::with_capacity(512);
+    let _ = s.take(4096).read_to_end(&mut buf);
+    if buf.is_empty() {
+        return None;
+    }
+    l::codigo_respuesta(&String::from_utf8_lossy(&buf))
 }
 
 fn volver_a_arranque(app: &AppHandle) {
