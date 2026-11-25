@@ -12,6 +12,8 @@
 //      enlaces.log.
 //   3. Todo lo que no es E/S (decisión de GPU, política de reintentos, línea de log)
 //      vive en arranque_linux_logica y se prueba allí.
+//   4. (CAP1125D) Cada 30 s mira si queda algún conector `connected` y publica
+//      `sinPantalla` en el canal de energía; sin conectores, la web deja de pintar adornos.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #![allow(dead_code)]
@@ -19,7 +21,7 @@
 use std::env;
 use std::fs;
 use std::process::Command;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI8, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -31,6 +33,13 @@ use tauri::{AppHandle, Manager};
 const VAR_DMABUF: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 const LOG_ENLACES: &str = "enlaces.log";
 const HTML_RESPALDO: &str = include_str!("../respaldo/arranque_fallo.html");
+
+/// CAP1125D · conectores del servidor gráfico y su estado (`/sys/class/drm/card*-*/status`).
+const DIR_DRM: &str = "/sys/class/drm";
+const INTERVALO_PANTALLA: Duration = Duration::from_secs(30);
+
+/// -1 = no se sabe, 0 = hay pantalla, 1 = ningún conector conectado.
+static SIN_PANTALLA: AtomicI8 = AtomicI8::new(-1);
 
 /// Lee el texto relevante para detectar la GPU.
 /// Intenta primero /sys/class/drm (más fiable en contenedores/AppImage) y cae a lspci.
@@ -61,6 +70,64 @@ fn leer_info_gpu() -> String {
     }
 
     partes.join("\n")
+}
+
+/// Lee el estado de cada conector (`/sys/class/drm/card0-HDMI-A-1/status`, …).
+/// Solo std: sin dependencias nuevas ni procesos externos.
+fn leer_estados_conectores() -> Vec<String> {
+    let mut estados = Vec::new();
+    let Ok(entradas) = fs::read_dir(DIR_DRM) else {
+        return estados;
+    };
+    for entrada in entradas.flatten() {
+        let nombre = entrada.file_name();
+        let nombre = nombre.to_string_lossy();
+        // Los conectores llevan guion (`card0-DP-1`); `card0` a secas no es uno.
+        if !nombre.starts_with("card") || !nombre.contains('-') {
+            continue;
+        }
+        if let Ok(estado) = fs::read_to_string(entrada.path().join("status")) {
+            estados.push(estado);
+        }
+    }
+    estados
+}
+
+/// Revisa ahora los conectores y guarda el resultado en el canal de energía.
+fn revisar_pantalla() {
+    let estados = leer_estados_conectores();
+    let refs: Vec<&str> = estados.iter().map(|s| s.as_str()).collect();
+    match logica::decidir_sin_pantalla(&refs) {
+        Some(sin) => {
+            let valor = if sin { 1 } else { 0 };
+            let antes = SIN_PANTALLA.swap(valor, Ordering::Relaxed);
+            if antes != valor {
+                let texto = if sin { "sin conectores" } else { "conectada" };
+                eprintln!("[arranque_linux] pantalla {texto}");
+            }
+        }
+        None => {
+            // No se pudo leer ningún conector: se deja como desconocido, no se inventa.
+            SIN_PANTALLA.store(-1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// `None` = se desconoce (como hoy); `Some(true)` = ningún conector conectado.
+pub fn sin_pantalla_actual() -> Option<bool> {
+    match SIN_PANTALLA.load(Ordering::Relaxed) {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
+/// Mira los conectores al arrancar y cada 30 s, en un hilo propio.
+fn vigilar_pantalla() {
+    thread::spawn(|| loop {
+        revisar_pantalla();
+        thread::sleep(INTERVALO_PANTALLA);
+    });
 }
 
 /// Configura WEBKIT_DISABLE_DMABUF_RENDERER si procede (antes de crear cualquier webview).
@@ -235,4 +302,7 @@ pub fn iniciar(app: &AppHandle) {
 
     // 2. Registrar manejador de fallos de carga.
     registrar_manejador_carga(app);
+
+    // 3. (CAP1125D) Avisar a la web si el nodo se queda sin ninguna pantalla conectada.
+    vigilar_pantalla();
 }

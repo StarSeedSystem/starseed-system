@@ -142,4 +142,12 @@ describe("DIR1125E · ritmo de cuadros según el modo de rendimiento", () => {
     expect(pasos).toEqual([1, PASOS_MAX]);
     expect(PASOS_MAX).toBe(12);
   });
+
+  it("CAP1125D · un nodo sin pantalla (tope 1) pinta un cuadro por segundo, no sesenta", () => {
+    const b = banco(1);
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(2);
+    expect(pasos.length).toBeLessThanOrEqual(4);
+  });
 });

@@ -39,6 +39,32 @@ export type PerfApplied = "high" | "mid" | "eco";
 
 export const PERF_CHANGED_EVENT = "starseed:perf-changed";
 
+/**
+ * CAP1125D · aviso de pantalla física. En Linux la app mira los conectores cada
+ * 30 s; `true` = ninguno conectado, `null`/ausente = se desconoce (como hoy).
+ */
+export interface EstadoEnergiaConPantalla extends EstadoEnergia {
+  sinPantalla: boolean | null;
+}
+
+/** Tareas en las que alguien SÍ está viendo esta neurona aunque no haya monitor. */
+const TAREAS_VEN_PANTALLA: readonly TareaPesada[] = ["control-remoto", "transmision"];
+
+/**
+ * Tope de cuadros en un nodo sin pantalla: 1/s. Se ignora mientras alguien
+ * controla o comparte esta neurona, porque esa persona sí ve la pantalla.
+ * `fps` 0 = sin tope; en ese caso el aviso impone igualmente el 1/s.
+ */
+export function fpsConSinPantalla(
+  fps: number,
+  sinPantalla: boolean | null | undefined,
+  tareasPesadas: readonly TareaPesada[] = [],
+): number {
+  if (sinPantalla !== true) return fps;
+  if (tareasPesadas.some((t) => TAREAS_VEN_PANTALLA.includes(t))) return fps;
+  return fps > 0 ? Math.min(fps, 1) : 1;
+}
+
 /* ── (EFI1119B) Energía del aparato ─────────────────────────────────────────
  * La app nativa (Rust `energia.rs`) y la Battery API de la web entregan el
  * estado; aquí solo se normaliza y se decide. Nada de esto toca el ajuste
@@ -50,7 +76,7 @@ const PERFILES: readonly PerfilEnergiaSistema[] = ["ahorro", "equilibrado", "ren
 const TAREAS: readonly TareaPesada[] = ["control-remoto", "llamada", "transmision"];
 
 /** Valida y recorta lo que llega de Rust, de la Battery API o de un ajuste. */
-export function normalizarEstadoEnergia(datos: unknown): EstadoEnergia | null {
+export function normalizarEstadoEnergia(datos: unknown): EstadoEnergiaConPantalla | null {
   if (!datos || typeof datos !== "object") return null;
   const d = datos as Record<string, unknown>;
   const sistema = SISTEMAS.includes(d.sistema as SistemaEnergia) ? (d.sistema as SistemaEnergia) : "desconocido";
@@ -75,6 +101,7 @@ export function normalizarEstadoEnergia(datos: unknown): EstadoEnergia | null {
     perfilEnergia: perfil,
     temperaturaC: temperatura !== null && temperatura >= -40 && temperatura <= 150 ? temperatura : null,
     tareasPesadas: tareas,
+    sinPantalla: typeof d.sinPantalla === "boolean" ? d.sinPantalla : null,
   };
 }
 
@@ -147,12 +174,22 @@ interface TauriEnergia {
   core?: { invoke?: (cmd: string) => Promise<unknown> };
 }
 
-let energiaActual: EstadoEnergia | null = null;
+let energiaActual: EstadoEnergiaConPantalla | null = null;
 let energiaSolicitada = false;
 let bateriaVigilada = false;
+let pantallaVigilada = false;
+
+/** Conserva `sinPantalla` venga o no en el objeto; ausente = desconocido. */
+function conSinPantalla(
+  estado: (EstadoEnergia & { sinPantalla?: boolean | null }) | null,
+): EstadoEnergiaConPantalla | null {
+  if (!estado) return null;
+  const s = estado.sinPantalla;
+  return { ...estado, sinPantalla: typeof s === "boolean" ? s : null };
+}
 
 /** Battery API de la web, cuando existe. */
-export async function leerEnergiaWeb(): Promise<EstadoEnergia | null> {
+export async function leerEnergiaWeb(): Promise<EstadoEnergiaConPantalla | null> {
   if (typeof navigator === "undefined") return null;
   const nav = navigator as NavigatorConBateria;
   if (typeof nav.getBattery !== "function") return null;
@@ -174,7 +211,7 @@ export async function leerEnergiaWeb(): Promise<EstadoEnergia | null> {
 }
 
 /** Comando nativo `energia_estado` de la app (macOS, Android, Linux, Windows). */
-export async function leerEnergiaNativa(): Promise<EstadoEnergia | null> {
+export async function leerEnergiaNativa(): Promise<EstadoEnergiaConPantalla | null> {
   if (typeof window === "undefined") return null;
   try {
     const invoke = (window as unknown as { __TAURI__?: TauriEnergia }).__TAURI__?.core?.invoke;
@@ -194,9 +231,11 @@ export function decidirAutoActual(energia: EstadoEnergia | null = energiaActual)
  * Actualiza el estado de energía y re-aplica el modo efectivo. NUNCA guarda el
  * modo: la persona conserva «auto» (o el que haya elegido) en `starseed.perf.v1`.
  */
-export function actualizarEnergia(estado: EstadoEnergia | null): DecisionAuto {
-  energiaActual = estado;
-  const decision = decidirAutoActual(estado);
+export function actualizarEnergia(
+  estado: (EstadoEnergia & { sinPantalla?: boolean | null }) | null,
+): DecisionAuto {
+  energiaActual = conSinPantalla(estado);
+  const decision = decidirAutoActual(energiaActual);
   applyPerf();
   applyRendimiento();
   try {
@@ -212,7 +251,7 @@ export function actualizarEnergia(estado: EstadoEnergia | null): DecisionAuto {
  * perder el resto del estado medido. Al vaciar la lista, «auto» vuelve solo.
  */
 export function actualizarTareasPesadas(tareas: readonly TareaPesada[]): DecisionAuto {
-  const estado: EstadoEnergia = energiaActual
+  const estado: EstadoEnergiaConPantalla = energiaActual
     ? { ...energiaActual, tareasPesadas: tareas }
     : {
         sistema: "desconocido",
@@ -223,6 +262,7 @@ export function actualizarTareasPesadas(tareas: readonly TareaPesada[]): Decisio
         perfilEnergia: null,
         temperaturaC: null,
         tareasPesadas: tareas,
+        sinPantalla: null,
       };
   return actualizarEnergia(estado);
 }
@@ -246,13 +286,46 @@ function vigilarBateria(nav: NavigatorConBateria): void {
   }).catch(() => { bateriaVigilada = false; });
 }
 
-/** Lee la energía (nativa o web) y aplica la decisión de «auto» una vez. */
+/** Relee el estado nativo sin tocar el modo elegido; sirve al aviso de pantalla. */
+async function refrescarPantalla(): Promise<void> {
+  const medido = await leerEnergiaNativa();
+  if (!medido) return;
+  actualizarEnergia({ ...medido, tareasPesadas: energiaActual?.tareasPesadas ?? [] });
+}
+
+/** En la app nativa, relee los conectores cada 30 s (la app los mira en ese ritmo). */
+function vigilarPantallaNativa(): void {
+  if (pantallaVigilada || typeof window === "undefined") return;
+  const invoke = (window as unknown as { __TAURI__?: TauriEnergia }).__TAURI__?.core?.invoke;
+  if (typeof invoke !== "function") return;
+  pantallaVigilada = true;
+  try {
+    window.setInterval(() => { void refrescarPantalla(); }, 30_000);
+  } catch {
+    pantallaVigilada = false;
+  }
+}
+
+/**
+ * Lee la energía (nativa o web) y aplica la decisión de «auto» una vez. Con un
+ * modo elegido a mano NO se toca: solo se recuerda si el nodo no tiene pantalla.
+ */
 export async function inicializarAutoRendimiento(): Promise<DecisionAuto | null> {
-  if (getPerfMode() !== "auto") return null;
+  const auto = getPerfMode() === "auto";
   const medido = (await leerEnergiaNativa()) ?? (await leerEnergiaWeb());
   if (!medido) return null;
   // Lo medido no sabe de tareas pesadas: se conservan las que ya se marcaron.
-  const estado: EstadoEnergia = { ...medido, tareasPesadas: energiaActual?.tareasPesadas ?? [] };
+  const estado = { ...medido, tareasPesadas: energiaActual?.tareasPesadas ?? [] };
+  vigilarPantallaNativa();
+  if (!auto) {
+    energiaActual = conSinPantalla(estado);
+    try {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(PERF_CHANGED_EVENT));
+    } catch {
+      /* noop */
+    }
+    return null;
+  }
   const decision = actualizarEnergia(estado);
   if (typeof navigator !== "undefined") vigilarBateria(navigator as NavigatorConBateria);
   return decision;
@@ -341,7 +414,8 @@ export function faseActivaModo(fase: FasePotenciacion): boolean {
 
 /** Obtiene el FPS objetivo para canvas/WebGL/rAF según el modo efectivo. */
 export function fpsObjetivoModo(): number {
-  return configDeModo(modoEfectivo()).fpsObjetivo;
+  const fps = configDeModo(modoEfectivo()).fpsObjetivo;
+  return fpsConSinPantalla(fps, energiaActual?.sinPantalla ?? null, energiaActual?.tareasPesadas ?? []);
 }
 
 /** Obtiene la escala de fondo según el modo efectivo. */

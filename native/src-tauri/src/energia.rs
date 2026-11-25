@@ -32,6 +32,10 @@ pub struct EstadoEnergia {
     pub perfil_energia: Option<String>,
     pub temperatura_c: Option<f32>,
     pub fuente: String,
+    /// CAP1125D · Linux: `Some(true)` si ningún conector está conectado.
+    /// Ausente = se desconoce (se actúa como siempre).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sin_pantalla: Option<bool>,
 }
 
 impl EstadoEnergia {
@@ -45,6 +49,7 @@ impl EstadoEnergia {
             perfil_energia: None,
             temperatura_c: None,
             fuente: fuente.to_string(),
+            sin_pantalla: None,
         }
     }
 }
@@ -256,8 +261,21 @@ fn parse_upower(texto: &str) -> (Option<u8>, Option<bool>) {
     (nivel, cargando)
 }
 
+/// CAP1125D · aviso de pantalla física que mantiene `arranque_linux` cada 30 s.
+fn sin_pantalla_linux() -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        crate::arranque_linux::sin_pantalla_actual()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 fn estado_linux() -> EstadoEnergia {
     let mut estado = EstadoEnergia::vacio("linux", "sysfs");
+    estado.sin_pantalla = sin_pantalla_linux();
     let (mut nivel, mut cargando) = leer_bateria_sysfs();
     if nivel.is_none() || cargando.is_none() {
         if let Some(texto) = comando("upower", &["-i"]) {
