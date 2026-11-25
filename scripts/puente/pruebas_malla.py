@@ -44,6 +44,9 @@ ANTenas = ("ble", "wifi", "malla")
 MAC_LOGS = Path.home() / "Library/Logs/app.starseed.os"
 MAGGABOX_HOST = "maggasukha@starseed-nodo-1.local"
 MAGGABOX_KEY = Path.home() / ".ssh/starseed_nodo1"
+# ALM1125E3: `starseed-nodo-1.local` resuelve antes a una IPv6 de enlace local que no contesta (8,5 s por
+# llamada); por IPv4 va en 0,6 s. Rutas locales expandidas: sin shell, ssh no expande `~` ni `$HOME`.
+SSH_BASE = ["ssh", "-i", str(MAGGABOX_KEY), "-o", "AddressFamily=inet", "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}", MAGGABOX_HOST]
 MAGGABOX_LOGS = Path("~/.local/share/app.starseed.os").expanduser()
 TABLETA_PKG = "app.starseed.os"
 
@@ -247,21 +250,7 @@ def _leer_archivo_log(ruta: Path) -> list[str]:
 
 def _ejecutar_ssh(comando: str) -> list[str]:
     """Ejecuta comando por SSH en Maggabox. Devuelve líneas de stdout."""
-    cmd = [
-        "ssh",
-        "-i",
-        str(MAGGABOX_KEY),
-        "-o",
-        "IdentitiesOnly=yes",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=8",
-        "-o",
-        f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}",
-        MAGGABOX_HOST,
-        comando,
-    ]
+    cmd = SSH_BASE + [comando]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if res.returncode != 0:
