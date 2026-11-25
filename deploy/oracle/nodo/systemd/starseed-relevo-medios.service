@@ -1,0 +1,47 @@
+[Unit]
+Description=StarSeed · relevo de medios, réplica de canales y arriendo de los tres bots (RES1121A)
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=10
+# requiere: /home/starseed/starseed-system/scripts/puente/relevo_medios.py
+# requiere: /home/starseed/starseed-system/starseed_memory_root/olas/ (espejo de la Mac)
+# requiere: /usr/bin/python3
+#
+# (RES1121A) El A1 es el respaldo del Mac para la dirección: late, decide el ARRIENDO
+# de cada bot (un solo lector de Telegram por canal) y replica al Maggabox lo que ya
+# tiene del Mac, siempre saneado (nombre visible y @bot, nunca tokens ni sesiones).
+# Las claves que el A1 necesite para atender los canales NO están aquí: viajan SOLO
+# por `oracle_nodo.py claves` al archivo 600 de `direccion.env`.
+#
+# Se instala con `oracle_nodo.py` cuando el A1 lleva el paquete del nodo. Sin destinos
+# configurados el servicio sigue vivo: late y decide, y la réplica se salta sin romper.
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+Environment=STARSEED_RELEVO_MIN=5 STARSEED_RELEVO_ARRIENDO_S=180
+# El arriendo y los latidos viven en la carpeta replicada: Mac y A1 leen y escriben
+# la misma, y de ahí sale también lo que se copia al Maggabox (sin secretos).
+Environment=STARSEED_RELEVO_DIR=/home/starseed/starseed-system/starseed_memory_root/relevo-medios
+Environment=STARSEED_OLAS=/home/starseed/starseed-system/starseed_memory_root/espejo-mac
+Environment=STARSEED_CANALES=/home/starseed/starseed-system/starseed_memory_root/relevo-medios/canales.json
+# Destinos de la réplica (carpetas locales o puntos de montaje). Sin valor, se salta.
+EnvironmentFile=-/etc/starseed/relevo-medios.env
+ExecStart=/usr/bin/python3 -u /home/starseed/starseed-system/scripts/puente/relevo_medios.py bucle --medio a1 --cada 60 --replicar-cada 180
+Restart=always
+RestartSec=20
+# Pieza ligera: no compite con BitNet, Genesis ni el medio del enjambre.
+MemoryHigh=128M
+MemoryMax=256M
+CPUWeight=20
+IOWeight=20
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
