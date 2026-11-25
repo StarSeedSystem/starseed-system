@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "PRU1118B",
+   "ola": "PRU1118",
+   "titulo": "Capturas y vídeo de evidencia en los tres aparatos para el conductor de pruebas",
+   "archivos": [
+    "scripts/puente/captura_aparatos.py",
+    "scripts/puente/test_captura_aparatos.py"
+   ],
+   "depende": [],
+   "prompt": "Para la batería del 18-11 Hermes/MetaGenesis debe grabar y capturar la pantalla de los aparatos como lo hace Claude. Tarea: scripts/puente/captura_aparatos.py con `captura <aparato>` y `grabar <aparato> --segundos N` para mac, maggabox y tableta, que guarda en starseed_memory_root/pruebas/evidencias/<id>/ cuando se pasa `--prueba <id>`. Mac: `screencapture -x` y `screencapture -v -V N` (si sale «could not create image from display» di que faltan los permisos de «StarSeed Hermes», HERL1118A/B, y no intentes concederlos). Maggabox por la misma orden SSH que PRU1118A con DISPLAY=:0: usa lo que exista en este orden — `ffmpeg -f x11grab` para vídeo, `xfce4-screenshooter -f -s`, `import -window root` o `xwd -root` para foto — y trae el archivo con scp; si falta todo, dilo con el paquete que haría falta (ffmpeg). Tableta: `adb exec-out screencap -p` y `adb shell screenrecord --time-limit N` solo si `adb devices` muestra un aparato emparejado. Elegir herramienta y leer errores en funciones puras con pruebas en scripts/puente/test_captura_aparatos.py. Engánchalo a pruebas_malla.py (`recoger <id> --captura`). Verificación: python3 -m pytest -q scripts/puente/test_captura_aparatos.py. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.",
+   "dependencias_ya_en_main": [
+    "PRU1118A-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "PRU1118B"
+  ]
+ }
+}
