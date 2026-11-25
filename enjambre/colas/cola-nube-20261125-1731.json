@@ -1,0 +1,42 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "ALM1125E3",
+   "ola": "almacen-1125",
+   "titulo": "ssh a la Maggabox: rutas expandidas e IPv4 en captura_aparatos.py y pruebas_malla.py",
+   "archivos": [
+    "scripts/puente/captura_aparatos.py",
+    "scripts/puente/pruebas_malla.py",
+    "scripts/puente/test_ssh_maggabox_e3_1125.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` y regla `memory/orquestacion-economica.md` §24 (léelos antes). La Maggabox se alcanza por ssh `maggasukha@starseed-nodo-1.local` con `os.path.expanduser('~/.ssh/starseed_nodo1')`, `-o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o AddressFamily=inet` y `-o UserKnownHostsFile=` + `os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')` (modelo: `scripts/puente/sonda_maggabox.py`).\n\nIgual que ALM1125E1 en estos dos archivos. Solo las opciones de ssh hacia `starseed-nodo-1.local`. Pruebas (sin red) en `test_ssh_maggabox_e3_1125.py`."
+  },
+  {
+   "id": "CTL1124E",
+   "ola": "control-1124",
+   "titulo": "Cuadros por la malla a ritmo útil (≥5 por segundo en red local)",
+   "archivos": [
+    "src/lib/control-remoto/cuadro-malla.ts",
+    "src/lib/control-remoto/ritmo-pantalla.ts",
+    "native/src-tauri/src/control_pantalla_escritorio.rs",
+    "src/lib/control-remoto/__tests__/ctl1124e.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Maggabox→Mac, 45 min): 493 cuadros = 0,18 cuadros/s, mediana 5,2 s entre cuadros, con el enlace directo a 44 ms. El canal de órdenes despacha ~0,4 órdenes/s (pantalla-cuadro, leer-estado y leer-aparato se turnan y cada una tarda ~2,5 s). Cuando no hay WebRTC (Linux), la pantalla debe ir por EMPUJE: el aparato manda cuadros JPEG seguidos por el enlace directo (ritmo adaptado al retardo medido, con tope y descarte del cuadro viejo), no una orden por cuadro; leer-estado/leer-aparato no deben competir con la pantalla. Objetivo de la batería: ≥15 en WebRTC y ≥5 por cuadros en red local, con fps real en la ventana. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "revisor_quitadas": [
+    "CTL1124D"
+   ],
+   "dependencias_ya_en_main": [
+    "CTL1124C"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124E",
+   "ALM1125E3"
+  ]
+ }
+}
