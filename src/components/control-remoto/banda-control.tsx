@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
+import type { LimiteSesion, PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
 import { registroGlobal, type SesionSaliente } from "@/lib/control-remoto/registro-sesiones";
 import { leerVentanasActivas, suscribirVentanasActivas, type VentanaControlViva } from "@/lib/control-remoto/ventanas-activas";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
@@ -36,7 +36,7 @@ import {
     type CosaQueFalta,
     type EstadoIndicador,
 } from "@/lib/control-remoto/nativo";
-import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo } from "@/lib/control-remoto/palabras";
+import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo, palabrasTopeLimite, textoOpcionLimite } from "@/lib/control-remoto/palabras";
 import { AJUSTES_CONTROL_DEFECTO, leerAjustesControl, type AjustesControl } from "@/lib/control-remoto/ajustes-aparato";
 import { quienControla, type QuienControla } from "@/lib/control-remoto/quien-controla";
 import { origenGlobal } from "@/lib/control-remoto/pantalla-origen";
@@ -62,7 +62,7 @@ function useCambios(): number {
         const f = () => setN((x) => x + 1);
         if (typeof window === "undefined" || typeof window.addEventListener !== "function") return; // entornos sin eventos (pruebas)
         window.addEventListener("starseed:control-neuronas-cambio", f);
-        const t = setInterval(f, 10_000); // CTL1119A: latido de la neurona que controla; la sesión ya no caduca por 2 min sin órdenes
+        const t = setInterval(f, 10_000); // CTL1119A: latido de la neurona que controla; la sesión cae a los 45 s sin latidos
         return () => {
             window.removeEventListener("starseed:control-neuronas-cambio", f);
             clearInterval(t);
@@ -80,10 +80,10 @@ function hhmm(t: number): string {
 export type OpcionLimite = "sin-limite" | "15-min" | "1-hora" | "hasta";
 
 export const OPCIONES_LIMITE: ReadonlyArray<{ valor: OpcionLimite; texto: string }> = [
-    { valor: "sin-limite", texto: "Sin límite" },
-    { valor: "15-min", texto: "15 minutos" },
-    { valor: "1-hora", texto: "1 hora" },
-    { valor: "hasta", texto: "Hasta las…" },
+    { valor: "sin-limite", texto: textoOpcionLimite("sin-limite") },
+    { valor: "15-min", texto: textoOpcionLimite("15-min") },
+    { valor: "1-hora", texto: textoOpcionLimite("1-hora") },
+    { valor: "hasta", texto: textoOpcionLimite("hasta") },
 ];
 
 export type ResultadoLimite = { ok: true; fin: number | null } | { ok: false; motivo: string };
@@ -118,9 +118,18 @@ export function finElegido(opcion: OpcionLimite, hora: string, ahora: number, to
         if (fin <= ahora) fin += 24 * 60 * 60_000;
     }
     if (!propia && topeMin !== null && fin - ahora > topeMin * 60_000) {
-        return { ok: false, motivo: `El dueño permite como máximo ${topeMin} minutos.` };
+        // CTL1119A: el tope del dueño RECORTA lo elegido; nunca se guarda un límite mayor del que permite.
+        fin = ahora + topeMin * 60_000;
     }
     return { ok: true, fin };
+}
+
+/** PURA. La elección de la persona en la forma que guarda la aceptación (`Controlador.limite`). */
+export function limiteDeOpcion(opcion: OpcionLimite, hora: string): LimiteSesion {
+    if (opcion === "sin-limite") return { tipo: "sin-limite" };
+    if (opcion === "15-min") return { tipo: "minutos", minutos: 15 };
+    if (opcion === "1-hora") return { tipo: "minutos", minutos: 60 };
+    return { tipo: "hasta", hora };
 }
 
 /** PURA. Texto del punto de color mientras quede límite; «sin límite» no muestra nada. */
@@ -647,8 +656,17 @@ export function ControlEntreNeuronasPanel() {
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
+            // CTL1119A: el límite ELEGIDO se guarda en la aceptación (de ahí sale el fin de cada sesión); en una neurona
+            // ajena o pública manda el filtro del dueño y `limiteNormalizado` lo recorta sin superarlo nunca.
+            const filtro = propia
+                ? undefined
+                : {
+                      porDefecto: { tipo: "minutos", minutos: Math.min(15, topeMin ?? 15) } as LimiteSesion,
+                      maximo: (topeMin === null ? { tipo: "sin-limite" } : { tipo: "minutos", minutos: topeMin }) as LimiteSesion,
+                  };
+            const opciones = { ambito: propia ? ("propia" as const) : ("otra-cuenta" as const), limite: limiteDeOpcion(opcion, hora), filtro, ahora: Date.now() };
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
-            await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
+            await cambiar((p) => ({ ...s.aceptarPendiente(p, huella, opciones), ...(encender ? { encendido: true } : {}) }));
             setElegidas((m) => {
                 const r = { ...m };
                 delete r[huella];
@@ -1021,7 +1039,7 @@ export function ControlEntreNeuronasPanel() {
                         </label>
                         {ajena && (
                             <span className="text-white/55" data-testid={`limite-tope-${x.huella.slice(0, 8)}`}>
-                                {topeMin === null ? "Esta neurona permite sin límite, pero por defecto se pone 15 min." : `El dueño permite como máximo ${topeMin} min.`}
+                                {palabrasTopeLimite(topeMin)}
                             </span>
                         )}
                         <button

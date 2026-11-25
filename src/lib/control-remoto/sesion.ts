@@ -365,6 +365,8 @@ export class PuertaControl {
             if (porLimite || porLatidos) {
                 this.sesiones.delete(token);
                 this.caducadaPor = porLimite ? "limite" : "latidos";
+                // CTL1119A: al cumplirse el límite se quita también el indicador nativo (sin órdenes, la sesión no vuelve a abrirse sola).
+                if (porLimite) void this.d.nativo.parar("limite-cumplido", token).catch(() => undefined);
                 this.d.anotar(`orden cerrar-sesion de=${s.de.slice(0, 8)} nivel=${s.nivel} resultado=${porLimite ? "limite-cumplido" : "caducada"}`);
                 cambio = true;
             }
