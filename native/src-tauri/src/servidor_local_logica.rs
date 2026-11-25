@@ -40,6 +40,12 @@ pub const ESPERA_LISTO_MS: u64 = 60_000;
 /// Cada cuánto se pregunta por la salud mientras arranca.
 pub const PASO_SONDEO_MS: u64 = 250;
 
+/// (CAP1125A) Tras un relevo de capa, la ventana no recarga hasta que el Node recién arrancado
+/// sirve de verdad la página que tiene abierta (la salud puede contestar antes que Next). Tope.
+pub const ESPERA_RECARGA_MS: u64 = 60_000;
+/// Cada cuánto se reintenta esa página mientras el servidor aún no la sirve.
+pub const PASO_RECARGA_MS: u64 = 250;
+
 /// Ruta de salud que responde el envoltorio `starseed-arranque.cjs` (no Next).
 pub const RUTA_SALUD: &str = "/__starseed/salud";
 /// (SEG1107A · T11) Entrada de la ventana: el envoltorio comprueba el pase, pone la cookie
@@ -288,6 +294,8 @@ pub fn peticion_salud(puerto: u16) -> String {
         "GET {RUTA_SALUD} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
     )
 }
+
+// ─────────────────────────────── Salud ───────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Salud {
@@ -550,6 +558,68 @@ mod pruebas {
         assert!(p.starts_with("GET /__starseed/salud HTTP/1.1\r\n"));
         assert!(p.contains("Host: 127.0.0.1:47610\r\n"));
         assert!(p.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn recarga_caliente_pide_la_ruta_y_consulta_de_la_ventana() {
+        let p = "a".repeat(64);
+        let plan = plan_recarga_caliente(
+            Some("http://127.0.0.1:47610/escritorios/aurora?x=1&y=2#frag"),
+            47610,
+            &p,
+        );
+        assert_eq!(plan.ruta, "/escritorios/aurora?x=1&y=2");
+        assert_eq!(plan.espera_ms, ESPERA_RECARGA_MS);
+        // Sin ruta o con solo la raíz: se pide «/».
+        assert_eq!(plan_recarga_caliente(Some("http://127.0.0.1:47610"), 47610, &p).ruta, "/");
+        assert_eq!(plan_recarga_caliente(Some("http://127.0.0.1:47610/"), 47610, &p).ruta, "/");
+        // Solo consulta: la raíz con esa consulta.
+        assert_eq!(plan_recarga_caliente(Some("http://127.0.0.1:47610?a=1"), 47610, &p).ruta, "/?a=1");
+    }
+
+    #[test]
+    fn recarga_caliente_nunca_sale_del_origen_ni_lleva_el_pase() {
+        let p = "b".repeat(64);
+        for url in [
+            None,
+            Some(""),
+            Some("https://starseed-os.vercel.app/escritorios"),
+            Some("http://127.0.0.1:47611/escritorios"),
+            Some("http://localhost:47610/escritorios"),
+            Some("http://127.0.0.1:476100/escritorios"),
+            Some("no-es-una-url"),
+        ] {
+            assert_eq!(plan_recarga_caliente(url, 47610, &p).ruta, "/", "{url:?}");
+        }
+        // La entrada lleva el pase en la consulta: jamás se pide tal cual.
+        let entrada = format!("http://127.0.0.1:47610/__starseed/entrar?t={p}&a=%2F");
+        assert_eq!(plan_recarga_caliente(Some(&entrada), 47610, &p).ruta, "/");
+        // Ni con el pase colado en la ruta.
+        let con_pase = format!("http://127.0.0.1:47610/x/{p}");
+        assert_eq!(plan_recarga_caliente(Some(&con_pase), 47610, &p).ruta, "/");
+    }
+
+    #[test]
+    fn recarga_caliente_estados_y_peticion() {
+        for c in [200u16, 204, 304, 404] {
+            assert!(estado_recarga_vale(c), "{c}");
+        }
+        for c in [500u16, 502, 503, 504] {
+            assert!(!estado_recarga_vale(c), "{c}");
+        }
+        let p = "c".repeat(64);
+        let q = peticion_caliente(47610, "/escritorios?x=1", &p);
+        assert!(q.starts_with("GET /escritorios?x=1 HTTP/1.1\r\n"));
+        assert!(q.contains("Host: 127.0.0.1:47610\r\n"));
+        assert!(q.contains(&format!("Cookie: starseed_pase={p}\r\n")));
+        assert!(q.ends_with("\r\n\r\n"));
+        // Sin pase no se manda una cookie vacía.
+        assert!(!peticion_caliente(47610, "/", "").contains("Cookie:"));
+        // Código de estado de la respuesta.
+        assert_eq!(codigo_estado("HTTP/1.1 200 OK\r\n\r\n"), Some(200));
+        assert_eq!(codigo_estado("HTTP/1.1 503 Service Unavailable\r\n\r\n"), Some(503));
+        assert_eq!(codigo_estado("basura"), None);
+        assert_eq!(codigo_estado(""), None);
     }
 
     fn resp(codigo: &str, cuerpo: &str) -> String {

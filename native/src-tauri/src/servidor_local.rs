@@ -296,7 +296,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -560,10 +560,66 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
 
 /// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
 /// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
+///
+/// (CAP1125A) Antes de recargar, pide al propio servidor local la ruta que la ventana tiene abierta
+/// y espera (aquí, en el hilo del servidor, nunca en el de la interfaz) a que conteste con un estado
+/// menor que 500. Así la recarga no cae en el service worker con la copia de la capa ANTERIOR
+/// cuando el Node recién arrancado aún no sirve la página. Si falla o vence, recarga igualmente.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    calentar_antes_de_recargar(app, puerto, registro);
     if let Some(v) = app.get_webview_window("main") {
         let _ = v.eval("location.reload()");
     }
+}
+
+fn calentar_antes_de_recargar(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let url = app
+        .get_webview_window("main")
+        .and_then(|v| v.url().ok())
+        .map(|u| u.to_string());
+    let plan = l::plan_recarga_caliente(url.as_deref(), puerto, &interno().pase);
+    let desde = Instant::now();
+    let tope = desde + Duration::from_millis(plan.espera_ms);
+    let mut caliente = false;
+    loop {
+        if interno().apagando.load(Ordering::SeqCst) {
+            break;
+        }
+        if pagina_contesta(puerto, &plan.ruta, &interno().pase) {
+            caliente = true;
+            break;
+        }
+        if Instant::now() >= tope {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(l::PASO_RECARGA_MS));
+    }
+    escribir_registro(
+        registro,
+        &format!(
+            "[servidor-local] recarga tras relevo caliente={} ms={}",
+            if caliente { "si" } else { "no" },
+            desde.elapsed().as_millis()
+        ),
+    );
+}
+
+/// ¿El servidor local ya sirve esa ruta (estado menor que 500)? Una petición por TcpStream, como la
+/// salud, con el pase de la ventana.
+fn pagina_contesta(puerto: u16, ruta: &str, pase: &str) -> bool {
+    let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+    let Ok(mut s) = TcpStream::connect_timeout(&dir, Duration::from_millis(800)) else { return false };
+    let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(5)));
+    if s.write_all(l::peticion_caliente(puerto, ruta, pase).as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = Vec::with_capacity(1024);
+    let _ = s.take(64 * 1024).read_to_end(&mut buf);
+    if buf.is_empty() {
+        return false;
+    }
+    l::codigo_estado(&String::from_utf8_lossy(&buf)).is_some_and(l::estado_recarga_vale)
 }
 
 fn volver_a_arranque(app: &AppHandle) {
