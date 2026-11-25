@@ -481,7 +481,10 @@ function leerPaseDeEntrada(entrada, topeMs) {
       if (i !== -1) fin(G.lineaPase(buf.slice(0, i)));
       else if (buf.length > 512) fin(null);
     };
-    const t = setTimeout(() => fin(null), topeMs);
+    // DIR1125M: al vencer, una vuelta de entrada/salida antes de rendirse. En un arranque en frío cargar Next bloquea el
+    // hilo más que el tope; al soltarse, Node atiende antes los temporizadores que la entrada y el tope ganaba a un pase
+    // que ya esperaba en la tubería (Maggabox, 25-11: «sin-pase-configurado» en la primera apertura tras encender).
+    const t = setTimeout(() => setImmediate(() => fin(null)), topeMs);
     entrada.on("data", alDato);
     entrada.once("end", () => fin(null));
   });
