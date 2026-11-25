@@ -27,6 +27,31 @@ export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
 export const ESPERA_RESPUESTA_MS = 15_000;
 export const EVENTO_CAMBIO = "starseed:control-neuronas-cambio";
 
+/**
+ * CTL1119A: qué hacer cuando un latido no vuelve bien. Solo se reabre si el aparato perdió la sesión por falta de
+ * latidos (45 s); un límite cumplido, un permiso apagado o una parada del aparato son terminales y paran el latido
+ * sin insistir ni pedir otra aceptación. Un fallo de transporte no cambia nada: el siguiente latido lo reintenta.
+ */
+export type AccionLatido = "seguir" | "reabrir" | "detener";
+export function accionTrasLatido(motivo: string | null | undefined): AccionLatido {
+    if (!motivo) return "seguir";
+    if (motivo === "sin-sesion" || motivo === "sesion-caducada") return "reabrir";
+    if (
+        motivo === "limite-cumplido" ||
+        motivo === "permiso-apagado" ||
+        motivo === "parada-nativa" ||
+        motivo === "a-mano" ||
+        motivo === "no-autorizado" ||
+        motivo === "otra-cuenta" ||
+        motivo === "sin-indicador-nativo" ||
+        motivo === "terminado-por-el-dueno" ||
+        motivo === "apagado-por-el-dueno"
+    ) {
+        return "detener";
+    }
+    return "seguir";
+}
+
 // ── permiso guardado en ESTE aparato ─────────────────────────────────────────────────────────
 
 export function leerPermisoLocal(): PermisoControl {
@@ -439,12 +464,18 @@ export class SesionHacia {
             if (!a.ok) return a;
             r = await this.mandar(this.para, nombre, args, { sesion: this.token });
         }
+        // CTL1119A: si el límite se cumplió (o el permiso se apagó), no se insiste con un token muerto: se olvida y se para el latido.
+        if (!r.ok && accionTrasLatido(r.motivo) === "detener") {
+            this.registro.olvidar(this.para, this.token);
+            this.detener();
+        }
         return r;
     }
 
     /**
      * CTL1119A: un latido firmado cada 10 s. Si la sesión ya no existe (45 s sin latidos), se reabre sola: la
-     * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió, se para.
+     * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió, se para y se
+     * suelta el token (no se vuelve a abrir: haría falta que la persona dueña acepte otra vez).
      */
     async latir(): Promise<boolean> {
         const t = this.token;
@@ -456,12 +487,21 @@ export class SesionHacia {
                 this.registro.usada(this.para);
                 return true;
             }
-            if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") {
+            const accion = accionTrasLatido(r.motivo);
+            if (accion === "reabrir") {
                 if (this.cerrando) return false;
                 this.registro.olvidar(this.para, t);
-                return (await this.abrir(true)).ok;
+                const a = await this.abrir(true);
+                if (!a.ok && accionTrasLatido(a.motivo) === "detener") {
+                    this.registro.olvidar(this.para, this.token);
+                    this.detener();
+                }
+                return a.ok;
             }
-            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+            if (accion === "detener") {
+                this.registro.olvidar(this.para, t);
+                this.detener();
+            }
         } catch {
             /* un latido que falla no rompe nada: el siguiente lo reintenta */
         }

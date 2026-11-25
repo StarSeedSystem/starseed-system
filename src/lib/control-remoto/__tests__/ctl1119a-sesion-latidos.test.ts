@@ -22,7 +22,8 @@ import {
     type LimiteSesion,
     type PermisoControl,
 } from "../sesion";
-import { palabrasLimite, palabrasMotivo, palabrasRestante } from "../palabras";
+import { palabrasLimite, palabrasMotivo, palabrasRestante, palabrasTopeLimite, textoOpcionLimite } from "../palabras";
+import { accionTrasLatido } from "../canal";
 
 const subtle = webcrypto.subtle as unknown as SubtleCrypto;
 const CUENTA = "cuenta-alex";
@@ -47,6 +48,7 @@ let nonceN = 0;
 let permiso: PermisoControl;
 let puerta: PuertaControl;
 let mac: Aparato;
+let paradas: { motivo: string; token?: string }[];
 
 async function firmar(a: Aparato, accion: string, args: Record<string, unknown> = {}, o: Partial<CargaOrden> = {}) {
     a.seq += 1;
@@ -89,7 +91,9 @@ function nuevaPuerta(): void {
             abrir: async () => ({ ok: true, token: "a".repeat(32) }),
             orden: async () => ({ ok: true }),
             anotar: () => undefined,
-            parar: async () => undefined,
+            parar: async (motivo: string, token?: string) => {
+                paradas.push({ motivo, token });
+            },
         } as never,
     });
 }
@@ -115,6 +119,7 @@ beforeEach(async () => {
     reloj = Date.parse("2026-11-19T10:00:00Z");
     nonceN = 0;
     permiso = permisoDeFabrica();
+    paradas = [];
     mac = await aparato();
     nuevaPuerta();
 });
@@ -140,6 +145,7 @@ describe("latidos: la sesión no tiene hora máxima", () => {
         expect((await latir(sesion)).ok).toBe(true);
         reloj += SESION_INACTIVA_MS + 1_000;
         expect((await latir(sesion)).motivo).toBe("sesion-caducada");
+        expect(paradas, "sin límite, la parada la decide el vigía nativo; la página no la fuerza").toEqual([]);
         const reabierta = await puerta.recibir(await firmar(mac, "abrir-sesion"));
         expect(reabierta).toMatchObject({ ok: true });
         expect(permiso.encendido).toBe(true);
@@ -147,6 +153,16 @@ describe("latidos: la sesión no tiene hora máxima", () => {
         expect(permiso.pendientes).toHaveLength(0);
         const nueva = (reabierta.resultado as { sesion: string }).sesion;
         expect((await latir(nueva)).ok).toBe(true);
+    });
+
+    it("solo la pérdida por latidos se reabre; un límite o un permiso apagado paran el latido", () => {
+        expect(accionTrasLatido("sin-sesion")).toBe("reabrir");
+        expect(accionTrasLatido("sesion-caducada")).toBe("reabrir");
+        for (const motivo of ["limite-cumplido", "permiso-apagado", "parada-nativa", "a-mano", "no-autorizado", "otra-cuenta", "sin-indicador-nativo", "terminado-por-el-dueno"]) {
+            expect(accionTrasLatido(motivo), motivo).toBe("detener");
+        }
+        expect(accionTrasLatido("sin-respuesta")).toBe("seguir");
+        expect(accionTrasLatido(null)).toBe("seguir");
     });
 
     it("una orden cualquiera también cuenta como actividad", async () => {
@@ -170,6 +186,7 @@ describe("límite de tiempo elegido al aceptar", () => {
         }
         reloj += LATIDO_CADA_MS + 1_000;
         expect((await latir(sesion)).motivo).toBe("limite-cumplido");
+        expect(paradas, "al cumplirse el límite se quita también el indicador nativo").toEqual([{ motivo: "limite-cumplido", token: sesion }]);
         expect(await puerta.recibir(await firmar(mac, "abrir-sesion"))).toMatchObject({ ok: false, motivo: "limite-cumplido" });
         expect(permiso.encendido).toBe(true);
         expect(permiso.controladores).toHaveLength(1);
@@ -251,6 +268,17 @@ describe("palabras del límite y de los latidos", () => {
         expect(palabrasRestante(90_000)).toBe("Quedan 2 min");
         expect(palabrasRestante(3_600_000)).toBe("Queda 1 h");
         expect(palabrasRestante(null)).toBeUndefined();
+    });
+
+    it("las claves de la banda dicen lo mismo y el tope del dueño se explica en llano", () => {
+        expect(textoOpcionLimite("sin-limite")).toBe("Sin límite de tiempo");
+        expect(textoOpcionLimite("15-min")).toBe("15 minutos");
+        expect(textoOpcionLimite("1-hora")).toBe("1 hora");
+        expect(textoOpcionLimite("hasta")).toBe("Hasta las…");
+        expect(textoOpcionLimite("desconocida")).toBe("Sin límite de tiempo");
+        expect(palabrasTopeLimite(null)).toMatch(/15 min/);
+        expect(palabrasTopeLimite(5)).toBe("El dueño permite como máximo 5 min.");
+        expect(palabrasTopeLimite(60)).toBe("El dueño permite como máximo 1 hora.");
     });
 
     it("el punto de color sabe cuánto queda y no inventa nada si no hay límite", () => {

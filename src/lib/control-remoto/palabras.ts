@@ -24,7 +24,7 @@ export const PALABRAS_MOTIVO: Readonly<Record<string, string>> = {
     "otra-cuenta": "Ese aparato es de otra cuenta: solo se controlan los de la misma cuenta.",
     "otro-destino": "La orden iba a otro aparato.",
     "sesion-caducada": "Se dejaron de recibir los latidos de quien controla (45 s) y la sesión se cortó. Se reabre sola mientras el permiso siga encendido.",
-    "sin-sesion": "El aparato ya no tiene esta sesión abierta (se cerró allí). Pulsa «Reabrir» para seguir.",
+    "sin-sesion": "El aparato ya no tiene esta sesión abierta. Si el permiso sigue encendido, se reabre sola con el siguiente latido, sin pedir otra aceptación.",
     // CTL1117C · FALLO 3: sin el motivo real no se sabe QUIÉN paró (antes toda parada se decía «Terminar»).
     "parada-nativa": "El aparato cerró el control por su cuenta y no dijo por qué.",
     "parada-nativa-persona": "La persona terminó la sesión desde el aviso del aparato («Terminar»). El permiso sigue encendido: pulsa «Reabrir» para volver a abrirla.",
@@ -159,12 +159,38 @@ export const PALABRAS_LIMITE: Readonly<Record<string, string>> = {
     "hasta-las": "Hasta las…",
 };
 
+/**
+ * CTL1119A: los mismos textos con las claves que usa el selector de la banda (`OpcionLimite`). Así la persona ve
+ * una sola redacción, venga del panel o de la ventana, y no hay dos listas que se puedan separar.
+ */
+export const PALABRAS_LIMITE_OPCION: Readonly<Record<string, string>> = {
+    "sin-limite": PALABRAS_LIMITE["sin-limite"],
+    "15-min": PALABRAS_LIMITE["15-minutos"],
+    "1-hora": PALABRAS_LIMITE["1-hora"],
+    hasta: PALABRAS_LIMITE["hasta-las"],
+};
+
+/** El texto de una opción del selector; una clave desconocida no inventa un límite: dice «Sin límite de tiempo». */
+export function textoOpcionLimite(opcion: string): string {
+    return PALABRAS_LIMITE_OPCION[opcion] ?? PALABRAS_LIMITE["sin-limite"];
+}
+
 /** El nombre llano de un límite (para el ajuste local y el punto de color). */
 export function palabrasLimite(limite: LimiteSesion | null | undefined): string {
     if (!limite || limite.tipo === "sin-limite") return PALABRAS_LIMITE["sin-limite"];
     if (limite.tipo === "hasta") return `Hasta las ${limite.hora}`;
     if (limite.minutos === 60) return PALABRAS_LIMITE["1-hora"];
     return limite.minutos === 1 ? "1 minuto" : `${Math.round(limite.minutos)} minutos`;
+}
+
+/**
+ * CTL1119A: el tope que puso el dueño de una neurona ajena o pública, en llano. Si no puso tope se dice también el
+ * defecto que se aplica (15 min), para que nadie crea que ahí se puede elegir «sin límite».
+ */
+export function palabrasTopeLimite(topeMin: number | null | undefined, porDefectoMin = 15): string {
+    if (topeMin === null || topeMin === undefined) return `Esta neurona permite sin límite, pero por defecto se pone ${porDefectoMin} min.`;
+    const min = Math.max(1, Math.round(topeMin));
+    return min === 60 ? "El dueño permite como máximo 1 hora." : `El dueño permite como máximo ${min} min.`;
 }
 
 /** CTL1119A: el tiempo que queda, en llano; undefined si no hay límite (el punto no inventa cuenta atrás). */

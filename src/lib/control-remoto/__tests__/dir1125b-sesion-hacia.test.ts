@@ -84,6 +84,41 @@ describe("DIR1125B · SesionHacia", () => {
         expect(await s.latir()).toBe(false);
         expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(1);
     });
+
+    it("si la sesión se perdió por latidos, el siguiente latido la reabre sin otra aceptación", async () => {
+        const a = aparato();
+        const reg = new RegistroSesiones();
+        const s = new SesionHacia(NEURONA, a.mandar, reg);
+        vivas.push(s);
+        expect((await s.orden("leer-estado")).ok).toBe(true); // abre tok-1
+        a.abiertas.clear(); // el aparato la dio por caducada a los 45 s sin latidos
+        expect(await s.latir()).toBe(true);
+        expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(2);
+        expect(a.abiertas.size).toBe(1);
+    });
+
+    it("un límite cumplido o un permiso apagado paran el latido y no se reabren solos", async () => {
+        for (const motivo of ["limite-cumplido", "permiso-apagado"]) {
+            const reg = new RegistroSesiones();
+            const vistas: string[] = [];
+            let abiertas = 0;
+            const mandar = (async (_p: string, nombre: string) => {
+                vistas.push(nombre);
+                if (nombre === "abrir-sesion") {
+                    abiertas += 1;
+                    return resp(true, "ok", { sesion: `tok-${abiertas}`, nivel: "controlar" });
+                }
+                if (nombre === "leer-estado") return resp(false, motivo);
+                return resp(true, "ok");
+            }) as unknown as ConstructorParameters<typeof SesionHacia>[1];
+            const s = new SesionHacia(NEURONA, mandar, reg);
+            vivas.push(s);
+            expect((await s.orden("leer-estado")).ok).toBe(false);
+            expect(reg.tokenDe(NEURONA), `${motivo}: el token muerto no se reutiliza`).toBeNull();
+            expect(await s.latir(), `${motivo}: sin token no se manda nada`).toBe(false);
+            expect(abiertas, `${motivo}: no se reabre`).toBe(1);
+        }
+    });
 });
 
 describe("DIR1125B · el banco mira si te aceptaron sin abrir una sesión que se quede", () => {
