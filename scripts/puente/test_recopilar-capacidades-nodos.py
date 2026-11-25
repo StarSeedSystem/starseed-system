@@ -34,6 +34,38 @@ class Recopilar(unittest.TestCase):
                          (8, 1536, 37.5, 41.2))
         self.assertEqual(n["almacen"], ["/Users/alex/StarSeed-almacen/espejo"])
         self.assertEqual(n["capas"], ["needle@1.2", "bitnet@2.1"])
+        self.assertEqual(n["movidoGb"], 0.0)
+        self.assertEqual(n["indiceEnlace"], "")
+
+    def test_mac_lee_movido_gb_desde_datos_anidados(self):
+        mac = {"salud": {"nucleos": 8, "ram_libre_mb": 1536, "cpu_pct": 37.5, "disco_libre_gb": 41.2},
+               "movidoGb": 3.5,
+               "almacen": [],
+               "capas": []}
+        n = self.nodos(mac=mac)[0]
+        self.assertEqual(n["movidoGb"], 3.5)
+
+    def test_mac_lee_movido_gb_desde_medidas(self):
+        mac = {"salud": {"nucleos": 8, "ram_libre_mb": 1536, "cpu_pct": 37.5, "disco_libre_gb": 41.2},
+               "almacen": [],
+               "capas": []}
+        n = R.recopilar(
+            self.fuentes(mac=mac),
+            lambda: {},
+            movido_gb=2.75
+        )["nodos"][0]
+        self.assertEqual(n["movidoGb"], 2.75)
+
+    def test_mac_lee_indice_enlace_desde_medidas(self):
+        mac = {"salud": {"nucleos": 8, "ram_libre_mb": 1536, "cpu_pct": 37.5, "disco_libre_gb": 41.2},
+               "almacen": [],
+               "capas": []}
+        n = R.recopilar(
+            self.fuentes(mac=mac),
+            lambda: {},
+            indice_enlace="https://ejemplo.com/indice.md"
+        )["nodos"][0]
+        self.assertEqual(n["indiceEnlace"], "https://ejemplo.com/indice.md")
 
     def test_a1_lee_su_autocuracion(self):
         a1 = {"nucleos": 4, "ram_libre_mb": 800, "carga": {"cpu_1h": 12.5}, "disco_libre_gb": 9.9,
@@ -59,6 +91,19 @@ class Recopilar(unittest.TestCase):
             self.assertIn(n["medio"], ("mac", "linux", "nube", "android"))
             self.assertEqual((n["nucleos"], n["ramLibreMb"], n["cpu"], n["discoLibreGb"]), (0, 0, 0.0, 0.0))
             self.assertEqual((n["almacen"], n["capas"]), ([], []))
+            self.assertEqual(n["movidoGb"], 0.0)
+            self.assertEqual(n["indiceEnlace"], "")
+
+    def test_todos_nodos_reciben_movido_gb_e_indice_desde_medidas(self):
+        nodos = R.recopilar(
+            self.fuentes(),
+            lambda: {},
+            movido_gb=1.5,
+            indice_enlace="https://indice.ejemplo.com"
+        )["nodos"]
+        for n in nodos:
+            self.assertEqual(n["movidoGb"], 1.5)
+            self.assertEqual(n["indiceEnlace"], "https://indice.ejemplo.com")
 
     def test_errores_de_lectura_y_sonda_no_rompen(self):
         def romper(_ruta):

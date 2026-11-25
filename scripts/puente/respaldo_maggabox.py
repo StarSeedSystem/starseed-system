@@ -147,6 +147,7 @@ def _hash_archivo(ruta: str) -> str:
         return ""
 
 
+<<<<<<< HEAD
 def _transporte_ssh() -> str:
     """PURA: cadena `-e` de rsync con la misma identidad y opciones que SSH_BASE."""
     return " ".join([
@@ -174,6 +175,11 @@ def _destino_remoto(destino: str, host: str = DEST_HOST) -> str:
 def _rsync_args(origen: str, destino: str, exclusiones: List[str], host: str = DEST_HOST) -> List[str]:
     """PURA: argv de rsync remoto de un DIRECTORIO (destino en la Maggabox)."""
     args = ["rsync", "-az", "--delete", "--info=progress2", "-e", _transporte_ssh()]
+=======
+def _rsync_args(origen: str, destino: str, exclusiones: List[str]) -> List[str]:
+    """PURA: construye argv de rsync con exclusiones."""
+    args = ["rsync", "-az", "--delete", "--info=progress2"]
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
     for ex in exclusiones:
         args.extend(["--exclude", ex])
     args.extend([origen.rstrip("/") + "/", _destino_remoto(destino, host).rstrip("/") + "/"])
@@ -421,8 +427,13 @@ def respaldar(
         r_bundle = _ejecutar(_git_bundle_args(mac_root, bundle_temp), subprocess.run, tope_s=300.0)
         resultados.append({"fase": "git_bundle_temp", "codigo": r_bundle["codigo"], "error": r_bundle["error"], "temp": bundle_temp})
         if r_bundle["codigo"] == 0:
+<<<<<<< HEAD
             # Enviar bundle a la Maggabox (rsync remoto, archivo suelto)
             r_send = _ejecutar(_rsync_archivo_args(bundle_temp, bundle_remoto), ssh_fn, tope_s=300.0)
+=======
+            # Enviar bundle a la Maggabox
+            r_send = _ejecutar(_rsync_args(bundle_temp, bundle_remoto, []), ssh_fn, tope_s=300.0)
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
             resultados.append({"fase": "enviar_bundle", "codigo": r_send["codigo"], "error": r_send["error"]})
             # Verificar checksum
             if r_send["codigo"] == 0:
@@ -612,22 +623,35 @@ def escanear_candidatos(
     listar_fn: Callable[[str], List[str]],
     mtime_fn: Callable[[str], float],
     tamano_fn: Callable[[str], int],
+<<<<<<< HEAD
     destino_base: str = DEST_BASE,
 ) -> List[Dict[str, Any]]:
     """Lista candidatos reales y medidos con su porqué (solo lectura, no mueve)."""
     candidatos: List[Dict[str, Any]] = []
 
     def anadir(ruta: str, porque: str, destino: Optional[str] = None) -> None:
+=======
+) -> List[Dict[str, Any]]:
+    """Lista candidatos reales y medidos con su porqué (solo lectura, no mueve)."""
+    ahora = time.time()
+    candidatos: List[Dict[str, Any]] = []
+
+    def anadir(ruta: str, porque: str) -> None:
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
         if not existe_fn(ruta):
             return
         try:
             mb = tamano_fn(ruta) / 1024.0
         except Exception:
             mb = 0.0
+<<<<<<< HEAD
         ficha = _candidato(ruta, mb, porque)
         if destino:
             ficha["destino"] = destino
         candidatos.append(ficha)
+=======
+        candidatos.append(_candidato(ruta, mb, porque))
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
 
     # 1. Restos go-build* de más de 1 h en carpetas temporales
     tmp_root = os.path.join(mac_root, ".tmp")
@@ -690,12 +714,17 @@ def escanear_candidatos(
             if not es_directorio_fn(ruta):
                 try:
                     if _antiguedad_dia(mtime_fn(ruta)) > OLAS_LOG_ANTIGUEDAD_D:
+<<<<<<< HEAD
                         destino = os.path.join(destino_base, "pesados", "mac", "olas-logs", entry)
                         anadir(ruta, "registro de ola con más de 7 días → pesados/mac/olas-logs", destino)
+=======
+                        anadir(ruta, "registro de ola con más de 7 días → pesados/mac/olas-logs")
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
                 except OSError:
                     pass
 
     # 7. Compilaciones .next-anterior cuando la actual lleva más de 1 h sana
+<<<<<<< HEAD
     next_actual = os.path.join(mac_root, ".next")
     next_anterior = os.path.join(mac_root, ".next-anterior")
     if existe_fn(next_anterior) and es_directorio_fn(next_actual):
@@ -704,6 +733,11 @@ def escanear_candidatos(
                 anadir(next_anterior, "compilación .next-anterior (actual sana > 1 h)")
         except OSError:
             pass
+=======
+    next_anterior = os.path.join(mac_root, ".next-anterior")
+    if existe_fn(next_anterior):
+        anadir(next_anterior, "compilación .next-anterior (actual sana > 1 h)")
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
 
     # 8. Instaladores de versiones de prueba ya publicadas en Descargas
     if es_directorio_fn(downloads):
@@ -746,7 +780,10 @@ def aliviar(
         candidatos = escanear_candidatos(
             mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
             existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
+<<<<<<< HEAD
             destino_base=destino_base,
+=======
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
         )
         return {
             "estado": "seco",
@@ -764,7 +801,10 @@ def aliviar(
     candidatos = escanear_candidatos(
         mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
         existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
+<<<<<<< HEAD
         destino_base=destino_base,
+=======
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
     )
 
     # Mover candidatos hasta alcanzar objetivo, con copia verificada
@@ -776,8 +816,12 @@ def aliviar(
         ruta = cand["ruta"]
         tam_gb = cand["mb"] / 1024.0
         res = _mover_a_pesados(ruta, destino_base, ssh_fn, seco, mac_root=mac_root,
+<<<<<<< HEAD
                                tamano_fn=tamano_fn, contar_fn=contar_fn,
                                destino_remoto=cand.get("destino"))
+=======
+                               tamano_fn=tamano_fn, contar_fn=contar_fn)
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
         res["porque"] = cand["porque"]
         res["mb"] = cand["mb"]
         movidos.append(res)
@@ -786,7 +830,11 @@ def aliviar(
 
     # Registrar cada movimiento en el índice
     if movidos:
+<<<<<<< HEAD
         _registrar_indice(movidos, memoria_root=memoria_root)
+=======
+        _registrar_indice(movidos)
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
 
     resultado = {
         "estado": "hecho" if movidos else "nada_movido",
@@ -802,17 +850,29 @@ def aliviar(
     return resultado
 
 
+<<<<<<< HEAD
 def _registrar_indice(movidos: List[Dict[str, Any]], memoria_root: str = STARSEED_MEMORY_ROOT) -> None:
     """Anota cada movimiento (origen → destino) en nodo/indice-pesados-maggabox.md."""
     indice = os.path.join(memoria_root, "nodo", "indice-pesados-maggabox.md")
+=======
+def _registrar_indice(movidos: List[Dict[str, Any]]) -> None:
+    """Anota cada movimiento en starseed_memory_root/nodo/indice-pesados-maggabox.md."""
+    indice = os.path.join(STARSEED_MEMORY_ROOT, "nodo", "indice-pesados-maggabox.md")
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
     try:
         os.makedirs(os.path.dirname(indice), exist_ok=True)
         with open(indice, "a", encoding="utf-8") as f:
             for m in movidos:
+<<<<<<< HEAD
                 f.write("- %s: %s → %s (%.2f MB; %s; verificado=%s)\n" % (
                     dt.datetime.now().isoformat(timespec="seconds"),
                     m.get("origen", ""), m.get("destino", ""), m.get("mb", 0),
                     m.get("porque", ""), m.get("verificado", False)))
+=======
+                f.write("- %s → %s (%.2f MB, %s, verificado=%s)\n" % (
+                    dt.datetime.now().isoformat(timespec="seconds"),
+                    m.get("origen", ""), m.get("mb", 0), m.get("porque", ""), m.get("verificado", False)))
+>>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
     except OSError:
         pass
 
