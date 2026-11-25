@@ -39,6 +39,7 @@ ARCHIVOS_DE_ALIAS = {
     "scripts/puente/genesis_renombrar.py": {"Puente de Mando"},
     "scripts/puente/motores_director.py": {"Dirección MetaGenesis"},
     "scripts/puente/oracle_nodo.py": {"Síntesis de producción"},
+    "scripts/puente/relevo_medios.py": {"Síntesis de producción"},
     "src/lib/chats-genesis/alias-gen1113.ts": {"GENESIS · StarSeed OS"},
     "src/lib/dock/dock-defaults.ts": {"Puente de Mando"},
 }
