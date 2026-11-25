@@ -32,7 +32,7 @@ use crate::servidor_local_logica as l;
 use serde::Serialize;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -296,7 +296,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -560,10 +560,56 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
 
 /// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
 /// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
-    if let Some(v) = app.get_webview_window("main") {
-        let _ = v.eval("location.reload()");
+/// (CAP1125A) Antes de recargar, calienta el servidor recién arrancado pidiendo la ruta que la
+/// ventana tiene abierta (con su pase como cookie) y espera hasta `ESPERA_RECARGA_MS` a que
+/// conteste con un estado menor que 500. Si no contesta o vence, recarga igual: nunca se deja de
+/// recargar. La espera va en este hilo (el del bucle del servidor), no en el de la interfaz.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let Some(v) = app.get_webview_window("main") else { return };
+    let url = v.url().map(|u| u.to_string()).unwrap_or_default();
+    let ruta = l::ruta_recarga(&url, puerto);
+    let desde = Instant::now();
+    let caliente = esperar_pagina(puerto, &ruta);
+    let ms = desde.elapsed().as_millis();
+    escribir_registro(
+        registro,
+        &format!("[servidor-local] recarga tras relevo caliente={} ms={ms}", if caliente { "si" } else { "no" }),
+    );
+    let _ = v.eval("location.reload()");
+}
+
+/// (CAP1125A) Espera a que el servidor local, recién relevado, entregue la ruta abierta (estado
+/// menor que 500) hasta el tope. `true` si llegó a contestar; solo se rinde antes si la app se cierra.
+fn esperar_pagina(puerto: u16, ruta: &str) -> bool {
+    let tope = Instant::now() + Duration::from_millis(l::ESPERA_RECARGA_MS);
+    loop {
+        if interno().apagando.load(Ordering::SeqCst) {
+            return false;
+        }
+        if pedir_pagina(puerto, ruta).is_some_and(l::estado_vale_recarga) {
+            return true;
+        }
+        if Instant::now() >= tope {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(l::PASO_SONDEO_MS));
     }
+}
+
+/// (CAP1125A) Un GET a la ruta abierta con el pase como cookie (como lo manda la ventana).
+/// Devuelve el estado HTTP, o `None` si no hubo respuesta.
+fn pedir_pagina(puerto: u16, ruta: &str) -> Option<u16> {
+    let dir = SocketAddr::from(([127, 0, 0, 1], puerto));
+    let mut s = TcpStream::connect_timeout(&dir, Duration::from_millis(800)).ok()?;
+    let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
+    s.write_all(l::peticion_recarga(puerto, ruta, &interno().pase).as_bytes()).ok()?;
+    let mut buf = Vec::with_capacity(4096);
+    let _ = s.take(64 * 1024).read_to_end(&mut buf);
+    if buf.is_empty() {
+        return None;
+    }
+    l::codigo_http(&String::from_utf8_lossy(&buf))
 }
 
 fn volver_a_arranque(app: &AppHandle) {

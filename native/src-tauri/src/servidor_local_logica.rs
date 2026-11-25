@@ -324,6 +324,65 @@ pub fn interpretar_salud(respuesta: &str, firma: &str) -> Salud {
     }
 }
 
+// ───────────────── Recarga en caliente tras un relevo ─────────────────
+
+/// (CAP1125A) Tope de espera a que el servidor recién relevado entregue la página abierta antes de
+/// recargar la ventana. Pasado el tope se recarga igual: nunca se deja de recargar.
+pub const ESPERA_RECARGA_MS: u64 = 60_000;
+
+/// Nombre de la cookie con la que la ventana manda el pase de la app (lo pone `guarda.cjs`).
+pub const COOKIE_PASE: &str = "starseed_pase";
+
+/// (CAP1125A) Ruta que se le pide al servidor local para calentarlo antes de recargar la ventana.
+/// Sale de la URL que la ventana tiene abierta: si es de ESTE servidor local (mismo `127.0.0.1` y
+/// puerto), su ruta y consulta, sin fragmento; si es de otro origen, ilegible, una ruta interna del
+/// propio servidor (`/__starseed/…`, por donde viaja el pase) o trae saltos de línea, `/`. Nunca
+/// devuelve una URL absoluta ni el pase.
+pub fn ruta_recarga(url: &str, puerto: u16) -> String {
+    if !es_url_local(url, puerto) {
+        return "/".to_string();
+    }
+    let origen = origen_local(puerto);
+    let resto = &url[origen.len()..];
+    let sin_fragmento = resto.split('#').next().unwrap_or("");
+    let ruta = if sin_fragmento.is_empty() {
+        "/".to_string()
+    } else if sin_fragmento.starts_with('?') {
+        format!("/{sin_fragmento}")
+    } else {
+        sin_fragmento.to_string()
+    };
+    // Jamás una ruta interna del servidor (la entrada lleva el pase) ni cabeceras inyectadas.
+    let camino = ruta.split('?').next().unwrap_or("");
+    if camino.contains("__starseed") || ruta.chars().any(|c| c == '\r' || c == '\n' || c == ' ') {
+        return "/".to_string();
+    }
+    ruta
+}
+
+/// (CAP1125A) Petición HTTP/1.1 a la ruta que la ventana tiene abierta, con el pase como cookie
+/// (igual que lo manda la ventana). El pase nunca va en la línea de petición.
+pub fn peticion_recarga(puerto: u16, ruta: &str, pase: &str) -> String {
+    format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nCookie: {COOKIE_PASE}={pase}\r\nAccept: text/html\r\nConnection: close\r\n\r\n"
+    )
+}
+
+/// (CAP1125A) Código de estado de la primera línea de una respuesta HTTP (`HTTP/1.1 200 OK` → `200`).
+pub fn codigo_http(respuesta: &str) -> Option<u16> {
+    let linea = respuesta.lines().next()?;
+    if !linea.starts_with("HTTP/1.") {
+        return None;
+    }
+    linea.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// (CAP1125A) Vale recargar: el servidor ya contesta con un estado menor que 500. Un 4xx (p. ej. el
+/// 404 de una ruta que no existe) prueba que Next ya atiende; un 5xx o nada, no.
+pub fn estado_vale_recarga(codigo: u16) -> bool {
+    (100..500).contains(&codigo)
+}
+
 // ─────────────────────────────── Reinicios ───────────────────────────────
 
 /// Si el servidor muere, se reinicia con pausas crecientes; más de `max_en_ventana` caídas en
@@ -550,6 +609,63 @@ mod pruebas {
         assert!(p.starts_with("GET /__starseed/salud HTTP/1.1\r\n"));
         assert!(p.contains("Host: 127.0.0.1:47610\r\n"));
         assert!(p.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn ruta_de_recarga_sale_de_la_url_de_la_ventana() {
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610/escritorios?x=1", 47610), "/escritorios?x=1");
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610/", 47610), "/");
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610", 47610), "/");
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610?a=1", 47610), "/?a=1");
+        // El fragmento no va al servidor.
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610/a/b#frag", 47610), "/a/b");
+    }
+
+    #[test]
+    fn ruta_de_recarga_nunca_sale_de_loopback_ni_lleva_el_pase() {
+        // Otro origen, otro puerto, localhost o basura: siempre "/".
+        assert_eq!(ruta_recarga("https://starseed-os.vercel.app/x?y=1", 47610), "/");
+        assert_eq!(ruta_recarga("http://127.0.0.1:47611/x", 47610), "/");
+        assert_eq!(ruta_recarga("http://localhost:47610/x", 47610), "/");
+        assert_eq!(ruta_recarga("http://127.0.0.1:476100/x", 47610), "/");
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610.evil/x", 47610), "/");
+        assert_eq!(ruta_recarga("", 47610), "/");
+        assert_eq!(ruta_recarga("no es una url", 47610), "/");
+        // La entrada del pase es ruta interna: jamás se pide (el pase no viaja en la ruta).
+        let p = "a".repeat(64);
+        let entrada = format!("http://127.0.0.1:47610/__starseed/entrar?t={p}&a=%2F");
+        assert_eq!(ruta_recarga(&entrada, 47610), "/");
+        // Ni saltos de línea (inyección de cabeceras).
+        assert_eq!(ruta_recarga("http://127.0.0.1:47610/a\r\nX: y", 47610), "/");
+    }
+
+    #[test]
+    fn peticion_de_recarga_con_la_ruta_y_el_pase_como_cookie() {
+        let p = "0123456789abcdef".repeat(4);
+        let q = peticion_recarga(47610, "/escritorios?x=1", &p);
+        assert!(q.starts_with("GET /escritorios?x=1 HTTP/1.1\r\n"));
+        assert!(q.contains("Host: 127.0.0.1:47610\r\n"));
+        assert!(q.contains(&format!("Cookie: starseed_pase={p}\r\n")));
+        // El pase va solo en la cookie, nunca en la línea de petición.
+        assert!(!q.lines().next().unwrap().contains(&p));
+        assert!(q.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn codigo_de_estado_y_estados_que_valen_para_recargar() {
+        assert_eq!(codigo_http("HTTP/1.1 200 OK\r\n\r\n"), Some(200));
+        assert_eq!(codigo_http("HTTP/1.1 404 Not Found\r\n"), Some(404));
+        assert_eq!(codigo_http("HTTP/1.1 503 Service Unavailable\r\n"), Some(503));
+        assert_eq!(codigo_http("basura"), None);
+        assert_eq!(codigo_http(""), None);
+        // Antes de 500 el servidor ya contesta (aunque sea un 404): se puede recargar.
+        assert!(estado_vale_recarga(200));
+        assert!(estado_vale_recarga(304));
+        assert!(estado_vale_recarga(404));
+        assert!(estado_vale_recarga(499));
+        assert!(!estado_vale_recarga(500));
+        assert!(!estado_vale_recarga(503));
+        assert!(!estado_vale_recarga(0));
     }
 
     fn resp(codigo: &str, cuerpo: &str) -> String {
