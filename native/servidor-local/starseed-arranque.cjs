@@ -487,7 +487,83 @@ function leerPaseDeEntrada(entrada, topeMs) {
   });
 }
 
+// ───────────────────── Estáticos de las capas anteriores (DIR1125D) ─────────────────────
+// Una página guardada (o aún abierta) de la capa ANTERIOR pide sus `/_next/static/**` con la huella de entonces; esta capa ya no
+// los tiene y Next contesta 404: la página se queda sin scripts (se ve y no responde). Medido el 25-11 en la Maggabox: el relevo
+// recargó con la copia guardada de otra capa. Aquí, si Next no tiene un estático con huella, se busca en las capas guardadas
+// junto a esta (`<datos>/servidor-capas/<otra>/.next/static/`). Son archivos inmutables y ya verificados (firma + SHA-256 al
+// bajarlos). Nunca se sale de `.next/static` de una capa hermana.
+
+const TIPOS_ESTATICOS = {
+  ".js": "application/javascript; charset=utf-8", ".mjs": "application/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8", ".map": "application/json; charset=utf-8", ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".otf": "font/otf",
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif",
+  ".svg": "image/svg+xml", ".ico": "image/x-icon", ".wasm": "application/wasm", ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg",
+};
+
+function tipoEstatico(archivo) {
+  return TIPOS_ESTATICOS[path.extname(String(archivo)).toLowerCase()] || "application/octet-stream";
+}
+
+/** ¿Un estático de Next pedido con GET/HEAD? Devuelve su ruta relativa dentro de `.next/static` (segura) o null. Pura. */
+function rutaEstaticoNext(metodo, url) {
+  const m = String(metodo || "GET").toUpperCase();
+  if (m !== "GET" && m !== "HEAD") return null;
+  let ruta;
+  try {
+    ruta = decodeURIComponent(String(url || "").split("?")[0].split("#")[0]);
+  } catch {
+    return null;
+  }
+  const PREFIJO = "/_next/static/";
+  if (!ruta.startsWith(PREFIJO)) return null;
+  const rel = ruta.slice(PREFIJO.length);
+  if (!rel || rel.length > 400) return null;
+  const partes = rel.split("/");
+  for (const p of partes) {
+    // Sin tramos vacíos, ocultos ni de subida; solo los caracteres de nombre de archivo que usan las rutas de Next.
+    if (!p || p.startsWith(".") || !/^[\w.~()[\]@+,=!$-]+$/.test(p)) return null;
+  }
+  return partes.join("/");
+}
+
+/** Busca ese estático en las capas guardadas junto a `dirCapa` (las más recientes primero). `{ archivo, bytes }` o null. */
+function buscarEnOtrasCapas(dirCapa, rel) {
+  try {
+    const propia = path.resolve(String(dirCapa));
+    const padre = path.dirname(propia);
+    const otras = fs
+      .readdirSync(padre, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== path.basename(propia) && /^[\w-]{6,64}$/.test(d.name))
+      .map((d) => {
+        try {
+          return { nombre: d.name, t: fs.statSync(path.join(padre, d.name)).mtimeMs };
+        } catch {
+          return { nombre: d.name, t: 0 };
+        }
+      })
+      .sort((a, b) => b.t - a.t)
+      .slice(0, 6);
+    for (const o of otras) {
+      const base = path.join(padre, o.nombre, ".next", "static");
+      try {
+        const real = fs.realpathSync(path.join(base, rel));
+        if (!real.startsWith(fs.realpathSync(base) + path.sep)) continue; // un enlace que saliera de la capa: no
+        const st = fs.statSync(real);
+        if (st.isFile()) return { archivo: real, bytes: st.size };
+      } catch {
+        /* no está en esa capa */
+      }
+    }
+  } catch {
+    /* sin carpeta de capas (el paquete del instalador): como antes */
+  }
+  return null;
+}
+
 function crearPuerta(cfg, estado) {
+  let avisosCapaAnterior = 0;
   const agenteWeb = new (cfg.web.startsWith("https:") ? https : http).Agent({ keepAlive: true, maxSockets: 32 });
   const moduloWeb = cfg.web.startsWith("https:") ? https : http;
 
@@ -510,6 +586,22 @@ function crearPuerta(cfg, estado) {
         headers: { ...cabecerasLimpias(req.headers), [G.CABECERA_INTERNA]: estado.testigo },
       },
       (r) => {
+        // (DIR1125D) Un estático con huella que esta capa no tiene: puede ser de la página de una capa anterior.
+        if (r.statusCode === 404) {
+          const rel = rutaEstaticoNext(req.method, req.url);
+          const hallado = rel ? buscarEnOtrasCapas(__dirname, rel) : null;
+          if (hallado) {
+            r.resume();
+            if (avisosCapaAnterior++ < 3) log("estático de una capa anterior (la página abierta es de otra capa):", rel);
+            res.writeHead(200, G.cabecerasCorsSeguras({
+              "content-type": tipoEstatico(hallado.archivo), "content-length": hallado.bytes,
+              "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff", "x-starseed-ruta": "local-capa-anterior",
+            }, origenPropio(req)));
+            if (req.method === "HEAD") return void res.end();
+            fs.createReadStream(hallado.archivo).on("error", () => res.destroy()).pipe(res);
+            return;
+          }
+        }
         res.writeHead(r.statusCode || 502, G.cabecerasCorsSeguras({ ...cabecerasLimpias(r.headers), "x-starseed-ruta": "local" }, origenPropio(req)));
         r.pipe(res);
       },
@@ -874,6 +966,7 @@ module.exports = {
   leerConfig, fdValido, protegerSalidaEnProceso, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
   adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS, RUTA_PUERTA,
   RUTAS_SOLO_MAC, RUTAS_SIEMPRE_LOCAL, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
+  rutaEstaticoNext, buscarEnOtrasCapas, tipoEstatico,
 };
 
 if (require.main === module) {
