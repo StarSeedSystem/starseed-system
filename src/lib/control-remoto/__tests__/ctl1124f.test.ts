@@ -7,7 +7,7 @@ import { leerOrden, verificarFirma, huellaDeSpki, DESFASE_MAX_MS, VIDA_ORDEN_MS 
 vi.mock("../orden", async (importOriginal) => {
     const actual = await importOriginal();
     return {
-        ...actual,
+        ...(actual as Record<string, unknown>),
         leerOrden: vi.fn(),
         verificarFirma: vi.fn(),
         huellaDeSpki: vi.fn(),
@@ -83,7 +83,7 @@ function crearOrdenValida(overrides: Partial<{
 }
 
 function crearMandarMock(): MandarSesion {
-    return vi.fn().mockImplementation((..._args: unknown[]) => Promise.resolve({ tipo: "respuesta", nonce: "", ok: true, motivo: "ok" })) as unknown as MandarSesion;
+    return vi.fn().mockImplementation(async (_nombre: string, _args: import("../niveles").Args, _o: { nivel: import("../niveles").Nivel; sesion?: string | null; esperaMs?: number }) => ({ tipo: "respuesta", nonce: "", ok: true, motivo: "ok" })) as unknown as MandarSesion;
 }
 
 describe("CTL1124F - Control remoto: terminar sesión no reabre sola", () => {
@@ -169,12 +169,12 @@ describe("CTL1124F - Control remoto: terminar sesión no reabre sola", () => {
 
     describe("SesionHacia - latido no reabre tras terminar-por-el-dueno", () => {
         let registro: RegistroSesiones;
-        let mandarMock: MandarSesion;
+        let mandarMock: typeof import("../canal").mandarOrden;
         let sesion: SesionHacia;
 
         beforeEach(() => {
             registro = new RegistroSesiones();
-            mandarMock = crearMandarMock();
+            mandarMock = vi.fn().mockResolvedValue({ tipo: "respuesta", nonce: "", ok: true, motivo: "ok" }) as unknown as typeof import("../canal").mandarOrden;
             sesion = new SesionHacia("neurona-destino", mandarMock, registro);
         });
 
@@ -307,12 +307,12 @@ describe("CTL1124F - Control remoto: terminar sesión no reabre sola", () => {
 
     describe("SesionHacia.sondear no deja sesión abierta", () => {
         let registro: RegistroSesiones;
-        let mandarMock: MandarSesion;
+        let mandarMock: typeof import("../canal").mandarOrden;
         let sesion: SesionHacia;
 
         beforeEach(() => {
             registro = new RegistroSesiones();
-            mandarMock = crearMandarMock();
+            mandarMock = vi.fn().mockResolvedValue({ tipo: "respuesta", nonce: "", ok: true, motivo: "ok" }) as unknown as typeof import("../canal").mandarOrden;
             sesion = new SesionHacia("neurona-destino", mandarMock, registro);
         });
 

@@ -41,7 +41,15 @@ function mundo(o: { orden?: unknown; tableta?: (nombre: string, n: number) => Pa
             orden: async (nombre) => {
                 remotas.push(nombre);
                 const r = o.tableta?.(nombre, ++n) ?? {};
+                if (nombre === "leer-aceptacion") {
+                    return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Tableta", nivel: "controlar", desde: new Date().toISOString() }, ...r };
+                }
                 return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: nombre === "leer-estado" ? { llamada: null } : {}, ...r };
+            },
+            sondear: async () => {
+                remotas.push("leer-aceptacion");
+                const r = o.tableta?.("leer-aceptacion", ++n) ?? {};
+                return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Tableta", nivel: "controlar", desde: new Date().toISOString() }, ...r };
             },
         }),
         local: async (nombre) => {
@@ -81,7 +89,7 @@ describe("actor del banco (lado app de la Mac)", () => {
         a.armar(TABLETA);
         expect(await a.vuelta()).toBe("hecha");
         expect(m.local).toEqual(["llamar", "simular-corte-ip", "colgar"]);
-        expect(m.remotas).toEqual(["leer-estado", "leer-estado", "contestar", "contestar", "simular-corte-ip"]);
+        expect(m.remotas).toEqual(["leer-aceptacion", "leer-estado", "contestar", "contestar", "simular-corte-ip"]);
         const ev = m.marcas.map((x) => x.split(" ")[1]);
         expect(ev).toEqual(["armada", "inicio", "calma", "fin", "calma"]);
         expect(m.marcas[1]).toBe("banco inicio esc=ble-video-2min serie=s20261114-0300 n=1 medio=sin-ip-desde-inicio tipo=video");

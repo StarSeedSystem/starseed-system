@@ -20,7 +20,7 @@ import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } fro
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
-import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente, SesionHacia } from "./registro-sesiones"; // CTL1117A
+import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente } from "./registro-sesiones"; // CTL1117A
 import { puenteNativo } from "@/lib/nativa/puente"; // CTL1119F
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
@@ -492,6 +492,7 @@ class SesionHacia {
 
     /** DIR1125B: la persona terminó el control hacia esta neurona. Se suelta el token y el latido SIN mandar nada (la cierra quien llamó). */
     detener(): void {
+        this.cerrando = true;
         this.token = null;
         this.pararLatido();
     }

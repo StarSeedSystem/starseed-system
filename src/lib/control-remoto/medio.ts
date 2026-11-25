@@ -14,6 +14,8 @@
 import type { CandidatoMedio } from "@/lib/mensajeria/medios/tipos";
 import { mismaSubred, resumirRuta, type FuenteEstadisticas } from "@/lib/network/estadisticas-enlace";
 
+export type { CandidatoMedio };
+
 // ── la elección (por aparato controlado) ─────────────────────────────────────────────────────
 
 export const MEDIOS_ELEGIBLES = ["auto", "bluetooth", "wifi-directo", "wifi-router", "malla", "nodos"] as const;

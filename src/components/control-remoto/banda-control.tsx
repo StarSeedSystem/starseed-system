@@ -527,7 +527,8 @@ export function ControlEntreNeuronasPanel() {
         },
         [leerPantallaEntrada],
     );
-    // «Pedir controlarla desde aquí» que termina en una sesión abierta: la ventana de control se abre sola.
+    // «Pedir controlarla desde aquí»: se avisa al otro aparato y se espera su respuesta.
+    // La ventana NO se abre sola: la persona debe pulsar «Abrir ventana de control» cuando la sesión sea aceptada.
     const reloj = useRef<ReturnType<typeof setInterval> | null>(null);
     useEffect(() => {
         if (!esperando) return;
@@ -538,7 +539,7 @@ export function ControlEntreNeuronasPanel() {
                 b.informarBanco(objetivo);
                 const i = b.ultimoInforme();
                 if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    abrirVentanaControl(objetivo, nombreRef.current(objetivo));
+                    // Sesión aceptada: la persona debe pulsar «Abrir ventana de control» manualmente
                     setEsperando(null);
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
                     // Si ya está aceptado en este aparato, no mostramos el rechazo (CTL1124F)
@@ -1095,7 +1096,7 @@ export function ControlEntreNeuronasPanel() {
             })()}
             {esperando && (
                 <p className="text-[12px] text-sky-200" data-testid="esperando-aceptacion">
-                    Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, la ventana de control se abrirá sola.
+                    Esperando a que {nombreDe(esperando)} te acepte (compara el código {miCodigo ?? "de este aparato"}). Cuando lo haga, pulsa «Abrir ventana de control».
                 </p>
             )}
             {neuronas.length > 0 && (

@@ -170,6 +170,7 @@ export class ActorBanco {
     /**
      * BAN1115D: fija la tableta destino (la armada o la que se pidió controlar) y mira, con una sola lectura de su estado
      * (nivel «ver»), si ya aceptó a esta Mac. No arma ni acepta nada: solo informa de lo que ve.
+     * CTL1124F: usa `sondear()` (orden `leer-aceptacion`) que NO abre sesión; nunca `orden("leer-estado")` que la abre.
      */
     async comprobar(con: string): Promise<void> {
         if (!RE_UUID.test(con)) return;
@@ -177,9 +178,9 @@ export class ActorBanco {
         this.ultimaComprobacion = this.d.ahora();
         let r: RespuestaOrden | null = null;
         try {
-            // DIR1125B: mirar si nos aceptó no deja una sesión de control abierta (con la serie armada hacia ella ya hay una y se usa).
+            // CTL1124F: solo `leer-aceptacion` (no abre sesión). Si no hay `sondear`, no se insiste.
             const t = this.d.tableta(this.objetivo);
-            r = t.sondear && this.armado?.con !== this.objetivo ? await t.sondear() : await t.orden("leer-estado");
+            if (t.sondear) r = await t.sondear();
         } catch {
             r = null;
         }

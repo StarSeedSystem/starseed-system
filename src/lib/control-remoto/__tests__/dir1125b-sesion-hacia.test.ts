@@ -23,10 +23,23 @@ function aparato() {
             abiertas.delete(String(o.sesion));
             return resp(true, "ok");
         }
+        if (nombre === "leer-aceptacion") {
+            return resp(true, "ok", { aceptado: true, nombre: "Test", nivel: "controlar", desde: new Date().toISOString() });
+        }
         if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
         return resp(true, "ok", {});
     };
     return { vistas, abiertas, mandar: mandar as unknown as ConstructorParameters<typeof SesionHacia>[1] };
+}
+
+function aparatoSinAceptar() {
+    const vistas: string[] = [];
+    const mandar = async (_p: string, nombre: string) => {
+        vistas.push(nombre);
+        if (nombre === "leer-aceptacion") return resp(false, "no-autorizado");
+        return resp(false, "no-autorizado");
+    };
+    return { vistas, mandar: mandar as unknown as ConstructorParameters<typeof SesionHacia>[1] };
 }
 
 const vivas: SesionHacia[] = [];
@@ -35,30 +48,26 @@ afterEach(async () => {
 });
 
 describe("DIR1125B · SesionHacia", () => {
-    it("sondear abre, pregunta y cierra: no queda ninguna sesión de control abierta", async () => {
+    it("sondear usa leer-aceptacion sin abrir sesión: no queda ninguna sesión de control abierta", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.sondear()).ok).toBe(true);
-        expect(a.vistas).toEqual(["abrir-sesion", "leer-estado", "cerrar-sesion"]);
+        expect(a.vistas).toEqual(["leer-aceptacion"]);
         expect(a.abiertas.size).toBe(0);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
 
     it("si no la aceptaron, sondear lo dice y tampoco deja nada", async () => {
         const reg = new RegistroSesiones();
-        const vistas: string[] = [];
-        const mandar = (async (_p: string, nombre: string) => {
-            vistas.push(nombre);
-            return resp(false, "no-autorizado");
-        }) as unknown as ConstructorParameters<typeof SesionHacia>[1];
-        const s = new SesionHacia(NEURONA, mandar, reg);
+        const a = aparatoSinAceptar();
+        const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         const r = await s.sondear();
         expect(r.ok).toBe(false);
         expect(r.motivo).toBe("no-autorizado");
-        expect(vistas).toEqual(["abrir-sesion"]);
+        expect(a.vistas).toEqual(["leer-aceptacion"]);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
 
@@ -82,6 +91,7 @@ describe("DIR1125B · SesionHacia", () => {
         s.detener();
         a.abiertas.clear(); // el aparato ya la cerró
         expect(await s.latir()).toBe(false);
+        // latir no debe llamar a abrir-sesion tras detener
         expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(1);
     });
 });

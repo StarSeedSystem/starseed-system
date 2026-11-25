@@ -30,7 +30,15 @@ function mundo(o: { orden?: unknown; tableta?: (nombre: string) => Partial<Respu
         tableta: () => ({
             orden: async (nombre) => {
                 remotas.push(nombre);
+                if (nombre === "leer-aceptacion") {
+                    return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Tableta", nivel: "controlar", desde: new Date().toISOString() }, ...(o.tableta?.(nombre) ?? {}) };
+                }
                 return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: nombre === "leer-estado" ? { llamada: null } : {}, ...(o.tableta?.(nombre) ?? {}) };
+            },
+            sondear: async () => {
+                remotas.push("leer-aceptacion");
+                const extra = o.tableta?.("leer-aceptacion") ?? {};
+                return { tipo: "respuesta", nonce: "x", ok: true, motivo: "ok", resultado: { aceptado: true, nombre: "Tableta", nivel: "controlar", desde: new Date().toISOString() }, ...extra };
             },
         }),
         local: async (nombre) => {
@@ -106,11 +114,11 @@ describe("BAN1115D · el informe de la app", () => {
     });
 
     it("una tableta que no aceptó se publica como rechazada con su motivo, sin armar ni aceptar nada", async () => {
-        const m = mundo({ tableta: () => ({ ok: false, motivo: "no-aceptada" }) });
+        const m = mundo({ tableta: (n) => (n === "leer-aceptacion" ? { ok: false, motivo: "no-aceptada" } : {}) });
         const a = new ActorBanco(m.deps);
         await a.comprobar(TABLETA); // «pedir controlarla»: solo mira
         expect(a.estado()).toBeNull();
-        expect(m.remotas).toEqual(["leer-estado"]);
+        expect(m.remotas).toEqual(["leer-aceptacion"]);
         expect(m.informes.at(-1)).toMatchObject({ objetivo: TABLETA, sesion: { estado: "rechazada", motivo: "no-aceptada" }, armada: null });
     });
 
