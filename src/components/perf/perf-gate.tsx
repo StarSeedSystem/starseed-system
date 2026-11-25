@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   applyPerf,
+  aplicarModoElegidoAlArrancar,
   allowHeavyFx,
   inicializarAutoRendimiento,
   PERF_CHANGED_EVENT,
@@ -28,6 +29,8 @@ arrancarCensoSiNativa();
 export function PerfController() {
   useEffect(() => {
     applyPerf();
+    // DIR1125I (decisión de Alex, 25-11): el modo elegido a mano se aplica al arrancar; antes «eficiente» se quedaba en «eco» tras recargar.
+    aplicarModoElegidoAlArrancar();
     void inicializarAutoRendimiento();
     const onChange = () => applyPerf();
     window.addEventListener(PERF_CHANGED_EVENT, onChange);

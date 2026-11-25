@@ -120,3 +120,21 @@ export function crearRitmoCuadros(deps: DepsRitmo = depsReales()): RitmoCuadros 
     pasos: () => pasosDeEste,
   };
 }
+
+/** DIR1125I · Cuadros por segundo del orbe de Aurora EN REPOSO cuando manda «eficiente» (decisión de Alex del 25-11). */
+export const FPS_ORBE_REPOSO_EFICIENTE = 5;
+/** El tope de «eficiente»: con un tope igual o menor que este, el modo que manda es «eficiente». */
+const FPS_EFICIENTE = 10;
+
+/**
+ * El tope del orbe de Aurora: el del modo, salvo en «eficiente» y en reposo (sin voz), donde baja a 5 cuadros/s.
+ * Medido el 25-11 en la Maggabox: 33 % → 18,5 % del hilo principal. Con voz, en «eco» y en «alto» no cambia nada. Pura.
+ */
+export function topeDelOrbe(fpsModo: number, enReposo: boolean): number {
+  return enReposo && fpsModo > 0 && fpsModo <= FPS_EFICIENTE ? Math.min(fpsModo, FPS_ORBE_REPOSO_EFICIENTE) : fpsModo;
+}
+
+/** Como `crearRitmoCuadros()`, con otro tope: una función que da los cuadros por segundo (0 = sin tope). */
+export function crearRitmoCuadrosConTope(fps: () => number): RitmoCuadros {
+  return crearRitmoCuadros({ ...depsReales(), fps });
+}

@@ -358,3 +358,14 @@ export function configModoActual() {
 export function inicializarRendimiento(): { perf: PerfApplied; rendimiento: ModoRendimiento } {
   return { perf: applyPerf(), rendimiento: applyRendimiento() };
 }
+
+/**
+ * DIR1125I · Al arrancar, aplica el modo que la persona eligió A MANO («alto», «eco» o «eficiente»). Antes solo se ponía
+ * `data-perf` (el atributo antiguo) y «eficiente» se quedaba en «eco» hasta volver a elegirlo en ajustes.
+ * En «auto» no toca nada: ahí decide `inicializarAutoRendimiento()` cuando sabe de energía, como siempre.
+ * Solo tiempo de ejecución: lee el ajuste guardado, no lo cambia.
+ */
+export function aplicarModoElegidoAlArrancar(): ModoRendimiento | null {
+  if (getPerfMode() === "auto") return null;
+  return applyRendimiento();
+}

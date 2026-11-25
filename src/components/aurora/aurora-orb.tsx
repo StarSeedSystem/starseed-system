@@ -38,7 +38,7 @@
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import { crearRitmoCuadros } from "@/lib/perf/ritmo-cuadros";
+import { crearRitmoCuadrosConTope, fpsDelModo, topeDelOrbe } from "@/lib/perf/ritmo-cuadros";
 import {
   subscribeAuroraSpeak,
   acquireMicAnalyser,
@@ -605,7 +605,11 @@ export function AuroraOrb({
 
     // DIR1125E: el ritmo lo pone el modo de rendimiento (eficiente 10 cuadros/s, eco 30, alto sin tope). Medido en la Maggabox
     // el 25-11: en «eficiente» este bucle pintaba todo lo que daba el equipo (22,5 cuadros/s) y él solo llenaba el núcleo.
-    const ritmo = crearRitmoCuadros();
+    // DIR1125I (decisión de Alex, 25-11): en «eficiente» y en reposo el orbe va a 5 cuadros/s; con voz, en «eco» y en «alto», como antes.
+    const ritmo = crearRitmoCuadrosConTope(() => {
+      const m = modeRef.current;
+      return topeDelOrbe(fpsDelModo(), !(m.speaking || m.listening || m.thinking));
+    });
     const draw = () => {
       const pasos = ritmo.pasos();
       for (let i = 1; i < pasos; i++) paso(false);

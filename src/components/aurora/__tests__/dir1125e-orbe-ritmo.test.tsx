@@ -75,10 +75,11 @@ describe("DIR1125E · el orbe de Aurora y el modo de rendimiento", () => {
     expect(r.energia).toMatch(/^\d\.\d{3}$/);
   });
 
-  it("en «eficiente» pinta como mucho 10 veces por segundo, y sigue vivo", async () => {
+  // DIR1125I: por decisión de Alex (25-11) el orbe EN REPOSO va a 5 cuadros/s en «eficiente» (antes 10). Con voz sigue a 10 (ver dir1125i-orbe-con-voz).
+  it("en «eficiente» y en reposo pinta 5 veces por segundo, y sigue vivo", async () => {
     const r = await cuadrosEnUnSegundo("eficiente");
-    expect(r.cuadros).toBeGreaterThanOrEqual(7);
-    expect(r.cuadros).toBeLessThanOrEqual(11);
+    expect(r.cuadros).toBeGreaterThanOrEqual(4);
+    expect(r.cuadros).toBeLessThanOrEqual(6);
     expect(r.energia).toMatch(/^\d\.\d{3}$/);
   });
 
