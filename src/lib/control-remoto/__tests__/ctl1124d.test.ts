@@ -14,7 +14,28 @@ const ok = (resultado?: unknown): RespuestaOrden => ({ tipo: "respuesta", nonce:
 const CAPS = { entrada: { gestos: true, max_dedos: 10, teclas: ["atras"], volumen: true, brillo: true, texto: true } };
 const JPEG = new Uint8Array(1000).fill(42);
 
-let peer: { cerrada: boolean; connectionState: string; onconnectionstatechange: (() => void) | null; close: () => void };
+let peer: {
+    cerrada: boolean;
+    connectionState: string;
+    onconnectionstatechange: (() => void) | null;
+    close: () => void;
+    localDescription: { sdp?: string } | null;
+    onicecandidate: ((e: { candidate: { candidate: string } | null }) => void) | null;
+    ontrack: ((e: { track: unknown; streams?: unknown[] }) => void) | null;
+    addTransceiver: (tipo: string, init: { direction: string }) => unknown;
+    createDataChannel: (nombre: string, init: { ordered: boolean }) => {
+        readyState: string;
+        onopen: (() => void) | null;
+        onmessage: ((e: { data: unknown }) => void) | null;
+        onclose: (() => void) | null;
+        send(d: string): void;
+        close(): void;
+    };
+    createOffer: () => Promise<{ type?: string; sdp?: string }>;
+    setLocalDescription: (d?: unknown) => Promise<void>;
+    setRemoteDescription: (d: { type: string; sdp: string }) => Promise<void>;
+    getStats: () => Promise<{ forEach(cb: (v: Record<string, unknown>) => void): void }>;
+};
 let lineas: string[];
 let pedidos: { nombre: string; args: Record<string, unknown> }[];
 let enVuelo: number;
@@ -81,7 +102,30 @@ function montar() {
 beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-18T10:00:00Z"));
-    peer = { cerrada: false, connectionState: "new", onconnectionstatechange: null, close() { this.cerrada = true; } };
+    peer = {
+        cerrada: false,
+        connectionState: "new",
+        onconnectionstatechange: null,
+        close() { this.cerrada = true; },
+        localDescription: null,
+        onicecandidate: null,
+        ontrack: null,
+        addTransceiver() { return {}; },
+        createDataChannel() {
+            return {
+                readyState: "open",
+                onopen: null,
+                onmessage: null,
+                onclose: null,
+                send() { },
+                close() { },
+            };
+        },
+        async createOffer() { return { type: "offer", sdp: "v=0\r\noferta" }; },
+        async setLocalDescription(d?: unknown) { this.localDescription = d as { sdp?: string }; },
+        async setRemoteDescription() { },
+        async getStats() { return { forEach: () => undefined }; },
+    };
     lineas = [];
     pedidos = [];
     enVuelo = 0;
