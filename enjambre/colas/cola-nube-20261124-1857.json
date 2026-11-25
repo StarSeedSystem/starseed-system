@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "IMG-diaria-endpoint-api-starseed-chat-en-bac",
+   "ola": "Imaginación · autodesarrollo 2026-11-24",
+   "titulo": "Endpoint `/api/starseed/chat` en backend soberano",
+   "tipo": "analisis",
+   "modo": "libre",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Endpoint `/api/starseed/chat` en backend soberano. : el OS lo intenta primero y recibe 404; cablearlo al router económico + BitNet local cerraría el bucle nube-local (tasks ↑). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "CTL1124F",
+   "ola": "control-1124",
+   "titulo": "El controlador no reabre solo: «Terminar control» termina de verdad",
+   "archivos": [
+    "src/components/control-remoto/anfitrion-control.tsx",
+    "src/components/control-remoto/banda-control.tsx",
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/auto-enlace.ts",
+    "src/lib/control-remoto/__tests__/ctl1124f.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 en la Mac (24-11): «Terminar control» (ventana y página) cierra la sesión (sesion-parada motivo=cerrar-sesion 22:41:33Z y 22:42:12Z) y la misma página la reabre sola a los 3–4 s (sesion-abierta 22:41:36Z y 22:42:16Z) mientras la neurona siga elegida; además elegir una neurona en la lista abre una sesión de control sin que nadie pulse «Pedir controlarla desde aquí» (el otro aparato enseña «X controla este aparato»). Lo mismo se ve desde la Maggabox hacia la Mac (22:26:46→22:26:53Z). Alex: «no hay ninguna manera de terminar de controlar más que quitando el permiso». Regla: una sesión solo se abre cuando una persona pulsa «Pedir controlarla» o «Abrir ventana de control»; tras «Terminar control» o tras «terminado-por-el-dueno» no se reabre hasta otra pulsación; comprobar si la otra neurona te aceptó se hace con una orden de lectura que no abre sesión. Quita también el texto viejo «X no te aceptó…» cuando ya aceptó. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124F",
+   "IMG-diaria-endpoint-api-starseed-chat-en-bac"
+  ]
+ }
+}
