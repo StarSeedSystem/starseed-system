@@ -70,3 +70,37 @@ export function siguienteRitmo(e: EstadoRitmo, costeMs: number, umbrales: { alto
 export function capacidadFps(costeMs: number): number {
     return costeMs > 0 ? Math.min(60, Math.round((1000 / costeMs) * 10) / 10) : 60;
 }
+
+// ── CTL1124E · el empuje por el enlace directo ───────────────────────────────────────────────────
+// Sin WebRTC (Linux) la pantalla no va de una orden por cuadro: el aparato manda cuadros JPEG seguidos
+// por el enlace directo. El ritmo se adapta al retardo medido, con suelo y tope, y se descarta el cuadro
+// viejo si uno nuevo ya está listo. Nada de esto baja los frenos de seguridad (el permiso sigue apagado).
+
+/** Suelo del intervalo entre cuadros del empuje (ms): nunca por debajo de 25 cuadros/s. */
+export const EMPUJE_MIN_MS = 40;
+/** Tope del intervalo (ms): si el enlace no da más, no se apila; 4 cuadros/s como mínimo. */
+export const EMPUJE_TOPE_MS = 250;
+/** Objetivo de cuadros/s por la malla en red local (el empuje no baja de aquí si el enlace da). */
+export const FPS_OBJETIVO_MALLA = 5;
+
+/**
+ * Intervalo entre cuadros del empuje (ms): el periodo base, o el retardo medido si es mayor (no se manda
+ * más rápido de lo que el enlace tarda en llevar un cuadro), acotado al [suelo, tope]. Con el enlace
+ * directo a 44 ms y base de 5 fps (200 ms) salen 5 cuadros/s; con base de 15 fps (66 ms), 15.
+ */
+export function intervaloEmpujeMs(retardoMs: number, baseMs: number, topeMs = EMPUJE_TOPE_MS): number {
+    const base = Number.isFinite(baseMs) && baseMs > 0 ? baseMs : COSTE_ALTO_MS;
+    const retardo = Number.isFinite(retardoMs) && retardoMs > 0 ? Math.min(retardoMs, 5_000) : 0;
+    const tope = Number.isFinite(topeMs) && topeMs >= EMPUJE_MIN_MS ? topeMs : EMPUJE_TOPE_MS;
+    return Math.max(EMPUJE_MIN_MS, Math.min(tope, Math.max(base, retardo)));
+}
+
+/** Cuadros/s que caben con ese intervalo (para el registro; nunca se enseña como medido). */
+export function fpsDesdeIntervalo(intervaloMs: number): number {
+    return Number.isFinite(intervaloMs) && intervaloMs > 0 ? Math.min(60, Math.round((1000 / intervaloMs) * 10) / 10) : 0;
+}
+
+/** ¿Se descarta el cuadro viejo? Sí cuando el anterior aún no salió y ya hay uno nuevo listo. */
+export function descartarCuadroViejo(pendiente: boolean, nuevoListo: boolean): boolean {
+    return pendiente && nuevoListo;
+}

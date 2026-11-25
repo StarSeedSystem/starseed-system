@@ -57,6 +57,38 @@ static RETARDO_RECEPTOR_MS: AtomicU64 = AtomicU64::new(0);
 static PERIODO_CAPTURA_MS: AtomicU64 = AtomicU64::new(q::PERIODO_OBJETIVO_MS);
 static ENTREGAS_CONTADOR: AtomicU64 = AtomicU64::new(0);
 
+// ── CTL1124E · empuje por el enlace directo (Linux sin WebRTC) ─────────────────────────────────────
+// La pantalla no va de una orden por cuadro: el aparato manda cuadros JPEG seguidos y el ritmo se
+// adapta al retardo medido, con suelo y tope. Lógica PURA (sin E/S, sin reloj), probada abajo.
+// No baja ningún freno de seguridad: el permiso sigue apagado por defecto y la firma/antirrepetición intactas.
+
+/// Suelo del intervalo entre cuadros del empuje (ms).
+pub const EMPUJE_MIN_MS: u64 = 40;
+/// Tope del intervalo (ms): si el enlace no da más, no se apila.
+pub const EMPUJE_TOPE_MS: u64 = 250;
+
+/// Intervalo entre cuadros del empuje (ms): el base, o el retardo medido si es mayor, acotado al [suelo, tope].
+pub fn intervalo_empuje_ms(retardo_ms: u64, base_ms: u64, tope_ms: u64) -> u64 {
+    let base = if base_ms > 0 { base_ms } else { q::PERIODO_OBJETIVO_MS };
+    let retardo = retardo_ms.min(5_000);
+    let tope = if tope_ms >= EMPUJE_MIN_MS { tope_ms } else { EMPUJE_TOPE_MS };
+    base.max(retardo).clamp(EMPUJE_MIN_MS, tope)
+}
+
+/// ¿Se descarta el cuadro viejo? Sí cuando el anterior aún no salió y ya hay uno nuevo listo.
+pub fn descartar_viejo(pendiente: bool, nuevo_listo: bool) -> bool {
+    pendiente && nuevo_listo
+}
+
+/// Prioridad de la orden en el canal: 0 la pantalla (empuje), 1 las lecturas, 2 el resto.
+pub fn prioridad_orden(nombre: &str) -> u8 {
+    match nombre {
+        "pantalla-cuadro" => 0,
+        "leer-estado" | "leer-aparato" => 1,
+        _ => 2,
+    }
+}
+
 struct Activa {
     ancho: u32,
     alto: u32,
@@ -196,7 +228,8 @@ pub fn iniciar(app: &AppHandle, sesion: &str, lado: u32, calidad: u32) -> Value 
                     let periodo = if sin_peticion_reciente {
                         q::PERIODO_MAX_MS
                     } else {
-                        ritmo.periodo_ms(trabajo)
+                        // CTL1124E: el empuje adapta el intervalo al retardo medido (con suelo y tope).
+                        intervalo_empuje_ms(retardo, ritmo.periodo_ms(trabajo), q::PERIODO_MAX_MS)
                     };
                     PERIODO_CAPTURA_MS.store(periodo, Ordering::Relaxed);
                     let _ = &app2;
@@ -282,5 +315,35 @@ mod pruebas {
         use crate::control_calidad_logica as q;
         assert!(q::PERIODO_OBJETIVO_MS > 0);
         assert!(q::PERIODO_MAX_MS > q::PERIODO_OBJETIVO_MS);
+    }
+
+    #[test]
+    fn ctl1124e_el_intervalo_del_empuje_se_adapta_al_retardo_con_suelo_y_tope() {
+        // Sin retardo manda el base: 66 ms ≈ 15 fps; 200 ms = 5 fps.
+        assert_eq!(intervalo_empuje_ms(0, q::PERIODO_OBJETIVO_MS, q::PERIODO_MAX_MS), q::PERIODO_OBJETIVO_MS);
+        assert_eq!(intervalo_empuje_ms(0, 200, q::PERIODO_MAX_MS), 200);
+        // Un retardo menor que el base no frena el ritmo (enlace directo a 44 ms sigue dando 5 fps).
+        assert_eq!(intervalo_empuje_ms(44, 200, q::PERIODO_MAX_MS), 200);
+        // Un retardo mayor que el base baja el ritmo para no apilar cuadros.
+        assert_eq!(intervalo_empuje_ms(120, q::PERIODO_OBJETIVO_MS, q::PERIODO_MAX_MS), 120);
+        // El tope acota y el suelo mantiene útil el intervalo.
+        assert_eq!(intervalo_empuje_ms(5_000, q::PERIODO_OBJETIVO_MS, q::PERIODO_MAX_MS), EMPUJE_TOPE_MS);
+        assert_eq!(intervalo_empuje_ms(0, 1, q::PERIODO_MAX_MS), EMPUJE_MIN_MS);
+        assert_eq!(intervalo_empuje_ms(500, q::PERIODO_OBJETIVO_MS, 100), 100);
+    }
+
+    #[test]
+    fn ctl1124e_descarte_del_cuadro_viejo_y_prioridad_de_ordenes() {
+        assert!(descartar_viejo(true, true));
+        assert!(!descartar_viejo(true, false));
+        assert!(!descartar_viejo(false, true));
+        assert!(!descartar_viejo(false, false));
+        // La pantalla manda; las lecturas ceden y no compiten con ella.
+        assert_eq!(prioridad_orden("pantalla-cuadro"), 0);
+        assert_eq!(prioridad_orden("leer-estado"), 1);
+        assert_eq!(prioridad_orden("leer-aparato"), 1);
+        assert_eq!(prioridad_orden("gesto"), 2);
+        assert!(prioridad_orden("leer-estado") > prioridad_orden("pantalla-cuadro"));
+        assert!(prioridad_orden("pantalla-cuadro") < prioridad_orden("leer-aparato"));
     }
 }

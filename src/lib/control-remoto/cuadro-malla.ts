@@ -165,3 +165,28 @@ export function causaParaMalla(o: { hayWebRtc: boolean; fallo?: string | null; e
     return null;
 }
 export const ESPERA_ICE_MS = 12_000;
+
+// ── CTL1124E · prioridad del canal: la pantalla manda, las lecturas no compiten ────────────────────
+// Con el empuje, `pantalla-cuadro` ya no se turna con `leer-estado`/`leer-aparato`: la pantalla va
+// delante y las lecturas esperan su hueco. Puro: solo mira el nombre de la orden.
+
+/** 0 = la pantalla (empuje, lo primero); 1 = lecturas; 2 = el resto. Menor número = más urgente. */
+export type PrioridadOrden = 0 | 1 | 2;
+
+export function prioridadOrden(nombre: string): PrioridadOrden {
+    if (nombre === "pantalla-cuadro") return 0;
+    if (nombre === "leer-estado" || nombre === "leer-aparato") return 1;
+    return 2;
+}
+
+/** ¿La orden entrante debe ceder (esperar) a la que está en curso? Las lecturas ceden a la pantalla; la pantalla nunca cede. */
+export function debeCederOrden(entrante: string, enCurso: string): boolean {
+    return prioridadOrden(entrante) > prioridadOrden(enCurso);
+}
+
+/** Línea de registro del empuje: intervalo, retardo, cuadros viejos descartados y cuadros/s (nada de promesas). */
+export function lineaEmpuje(p: { intervaloMs: number; retardoMs: number; descartados: number; fps: number }): string {
+    const n = (v: number) => (Number.isFinite(v) ? String(Math.round(v * 10) / 10) : "sin-medir");
+    const descartados = Number.isFinite(p.descartados) ? Math.max(0, Math.trunc(p.descartados)) : 0;
+    return `control-fuente paso=empuje intervalo-ms=${n(p.intervaloMs)} retardo-ms=${n(p.retardoMs)} descartados=${descartados} cuadros-s=${n(p.fps)}`;
+}
