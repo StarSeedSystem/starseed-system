@@ -6,7 +6,7 @@ Subórdenes:
   listar [--bloque B4] [--ronda 1]
   siguiente
   empezar <id>
-  recoger <id>
+  recoger <id> [--captura]
   evaluar <id>
   cerrar <id> --resultado ok|parcial|fallo --nota
   informe [--ronda N]
@@ -478,6 +478,13 @@ def cmd_recoger(args: argparse.Namespace) -> int:
 
     dir_ev = _guardar_evidencias(args.id, inicio, logs)
     print(f"Evidencias guardadas en {dir_ev}")
+
+    if getattr(args, "captura", False):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import captura_aparatos
+
+        for aparato in APARATOS:
+            captura_aparatos.capturar(aparato, "foto", 0, args.id)
     return 0
 
 
@@ -611,6 +618,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_recoger = sub.add_parser("recoger", help="Recoge logs de los tres aparatos en la ventana de la prueba")
     p_recoger.add_argument("id", help="ID de la prueba")
+    p_recoger.add_argument("--captura", action="store_true", help="Captura también la pantalla de cada aparato")
     p_recoger.set_defaults(func=cmd_recoger)
 
     p_eval = sub.add_parser("evaluar", help="Aplica criterios debe/no_debe a las evidencias recogidas")
