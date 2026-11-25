@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CTL1124D",
+   "ola": "control-1124",
+   "titulo": "Mac controla Linux: los cuadros llegan «ok» y la ventana queda negra",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/cuadro-malla.ts",
+    "src/lib/control-remoto/usar-pantalla-remota.ts",
+    "src/lib/control-remoto/__tests__/ctl1124d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Mac→Maggabox, 24-11 22:38:40–22:40Z): «control-fuente paso=via via=malla enlace=directo:red-local causa=sin-webrtc-aparato»; la Maggabox contesta 36 órdenes pantalla-cuadro con resultado=ok en 77 s, pero la ventana de control de la Mac sigue negra con «Pantalla: sin determinar», Cuadros/s «—» y control-calidad fps=0 resolucion=desconocida todo el rato. Con la .55–.59 esos cuadros JPEG sí se veían: es una regresión de CTL1124/def9be7a7. Encuentra dónde se pierde el cuadro (respuesta vacía mientras la fuente es «proyeccion», o el destino no pinta/mide) y arréglalo; el medidor de cuadros/s y la resolución deben contar también los cuadros por la malla. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "importancia": "capacidad"
+  },
+  {
+   "id": "CTL1124F",
+   "ola": "control-1124",
+   "titulo": "El controlador no reabre solo: «Terminar control» termina de verdad",
+   "archivos": [
+    "src/components/control-remoto/anfitrion-control.tsx",
+    "src/components/control-remoto/banda-control.tsx",
+    "src/lib/control-remoto/sesion.ts",
+    "src/lib/control-remoto/auto-enlace.ts",
+    "src/lib/control-remoto/__tests__/ctl1124f.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 en la Mac (24-11): «Terminar control» (ventana y página) cierra la sesión (sesion-parada motivo=cerrar-sesion 22:41:33Z y 22:42:12Z) y la misma página la reabre sola a los 3–4 s (sesion-abierta 22:41:36Z y 22:42:16Z) mientras la neurona siga elegida; además elegir una neurona en la lista abre una sesión de control sin que nadie pulse «Pedir controlarla desde aquí» (el otro aparato enseña «X controla este aparato»). Lo mismo se ve desde la Maggabox hacia la Mac (22:26:46→22:26:53Z). Alex: «no hay ninguna manera de terminar de controlar más que quitando el permiso». Regla: una sesión solo se abre cuando una persona pulsa «Pedir controlarla» o «Abrir ventana de control»; tras «Terminar control» o tras «terminado-por-el-dueno» no se reabre hasta otra pulsación; comprobar si la otra neurona te aceptó se hace con una orden de lectura que no abre sesión. Quita también el texto viejo «X no te aceptó…» cuando ya aceptó. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124D",
+   "CTL1124F"
+  ]
+ }
+}
