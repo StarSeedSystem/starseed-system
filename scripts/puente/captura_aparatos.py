@@ -6,7 +6,7 @@ Uso: captura <aparato> [--prueba ID] · grabar <aparato> --segundos N [--prueba 
 Con --prueba guarda en starseed_memory_root/pruebas/evidencias/<ID>/; sin él, en «sueltas».
 La elección de herramienta y la lectura de errores son puras (test_captura_aparatos.py).
 """
-import re, subprocess, sys
+import os, re, subprocess, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,7 +14,8 @@ RAIZ_REPO = Path(__file__).resolve().parents[2]
 EVIDENCIAS_DIR = RAIZ_REPO / "starseed_memory_root" / "pruebas" / "evidencias"
 APARATOS = ("mac", "maggabox", "tableta")
 MAGGABOX_HOST = "maggasukha@starseed-nodo-1.local"
-MAGGABOX_KEY = Path.home() / ".ssh" / "starseed_nodo1"
+MAGGABOX_KEY = os.path.expanduser("~/.ssh/starseed_nodo1")
+MAGGABOX_KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts_starseed_nodo")
 FOTO_MAGGABOX = ("xfce4-screenshooter", "import", "xwd")
 VIDEO_MAGGABOX = ("ffmpeg",)
 PERMISO_MAC = "Ajustes del Sistema › Privacidad y seguridad › Grabación de pantalla y audio del sistema"
@@ -65,8 +66,17 @@ def mensaje_error(aparato, modo, salida, herramienta=None):
     if aparato == "tableta" and not aparato_adb(salida):
         return "tableta: no hay aparato adb emparejado; empareja la tableta antes de capturar"
     return ""
+def ssh_argv(comando, host=MAGGABOX_HOST):
+    """PURA. Arma la orden ssh a la Maggabox: rutas expandidas e IPv4 (ALM1125E3)."""
+    return ["ssh", "-i", MAGGABOX_KEY, "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=8", "-o", "AddressFamily=inet",
+            "-o", f"UserKnownHostsFile={MAGGABOX_KNOWN_HOSTS}", host, comando]
+def scp_argv(origen, destino, host=MAGGABOX_HOST):
+    """PURA. Arma la orden scp a la Maggabox con las mismas rutas e IPv4."""
+    return ["scp", "-i", MAGGABOX_KEY, "-o", "AddressFamily=inet",
+            "-o", f"UserKnownHostsFile={MAGGABOX_KNOWN_HOSTS}", f"{host}:{origen}", destino]
 def _ssh(comando):
-    return subprocess.run(["ssh", "-i", str(MAGGABOX_KEY), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}", MAGGABOX_HOST, comando], capture_output=True, text=True, timeout=40)
+    return subprocess.run(ssh_argv(comando), capture_output=True, text=True, timeout=40)
 def _herramientas():
     orden = " ".join(FOTO_MAGGABOX + VIDEO_MAGGABOX)
     return set(_ssh(f'for h in {orden}; do command -v "$h" >/dev/null 2>&1 && echo "$h"; done').stdout.split())
@@ -80,7 +90,7 @@ def _tomar(aparato, modo, destino, segundos):
         if h is None: return 1, mensaje_error("maggabox", modo, "", None)
         remoto = f"/tmp/starseed-evidencia-{datetime.now(timezone.utc):%H%M%S}" + (".mp4" if modo == "video" else ".png")
         r = _ssh(comando_maggabox(h, remoto, segundos))
-        c = subprocess.run(["scp", "-i", str(MAGGABOX_KEY), f"{MAGGABOX_HOST}:{remoto}", str(destino)], capture_output=True, text=True, timeout=60)
+        c = subprocess.run(scp_argv(remoto, str(destino)), capture_output=True, text=True, timeout=60)
         _ssh(f"rm -f {remoto}")
         return (0 if not r.returncode and not c.returncode else 1), (r.stderr or c.stderr or "")
     r = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=10)

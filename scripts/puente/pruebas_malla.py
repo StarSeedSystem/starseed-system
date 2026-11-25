@@ -43,7 +43,8 @@ ANTenas = ("ble", "wifi", "malla")
 
 MAC_LOGS = Path.home() / "Library/Logs/app.starseed.os"
 MAGGABOX_HOST = "maggasukha@starseed-nodo-1.local"
-MAGGABOX_KEY = Path.home() / ".ssh/starseed_nodo1"
+MAGGABOX_KEY = os.path.expanduser("~/.ssh/starseed_nodo1")
+MAGGABOX_KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts_starseed_nodo")
 MAGGABOX_LOGS = Path("~/.local/share/app.starseed.os").expanduser()
 TABLETA_PKG = "app.starseed.os"
 
@@ -245,12 +246,12 @@ def _leer_archivo_log(ruta: Path) -> list[str]:
         return []
 
 
-def _ejecutar_ssh(comando: str) -> list[str]:
-    """Ejecuta comando por SSH en Maggabox. Devuelve líneas de stdout."""
-    cmd = [
+def ssh_argv(comando: str) -> list[str]:
+    """PURA. Arma la orden ssh a la Maggabox: rutas expandidas e IPv4 (ALM1125E3)."""
+    return [
         "ssh",
         "-i",
-        str(MAGGABOX_KEY),
+        MAGGABOX_KEY,
         "-o",
         "IdentitiesOnly=yes",
         "-o",
@@ -258,10 +259,17 @@ def _ejecutar_ssh(comando: str) -> list[str]:
         "-o",
         "ConnectTimeout=8",
         "-o",
-        f"UserKnownHostsFile={Path.home() / '.ssh/known_hosts_starseed_nodo'}",
+        "AddressFamily=inet",
+        "-o",
+        f"UserKnownHostsFile={MAGGABOX_KNOWN_HOSTS}",
         MAGGABOX_HOST,
         comando,
     ]
+
+
+def _ejecutar_ssh(comando: str) -> list[str]:
+    """Ejecuta comando por SSH en Maggabox. Devuelve líneas de stdout."""
+    cmd = ssh_argv(comando)
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if res.returncode != 0:
