@@ -4,9 +4,10 @@
 
 Órdenes: `plan`, `respaldar [--seco]`, `aliviar [--seco] [--objetivo-gb 25]`, `estado`.
 
-Conexión SSH:
-    ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes
-    -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo
+Conexión SSH (las rutas se expanden en Python):
+    ssh -i <home>/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes
+    -o ConnectTimeout=8 -o AddressFamily=inet
+    -o UserKnownHostsFile=<home>/.ssh/known_hosts_starseed_nodo
     maggasukha@starseed-nodo-1.local
 
 Destino: ~/StarSeed-almacen/
@@ -72,6 +73,7 @@ SSH_BASE = [
     "-o", "IdentitiesOnly=yes",
     "-o", "BatchMode=yes",
     "-o", "ConnectTimeout=8",
+    "-o", "AddressFamily=inet",
     "-o", f"UserKnownHostsFile={os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')}",
     DEST_HOST,
 ]
@@ -155,6 +157,7 @@ def _transporte_ssh() -> str:
         "-o", "IdentitiesOnly=yes",
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=8",
+        "-o", "AddressFamily=inet",
         "-o", "UserKnownHostsFile=%s" % os.path.expanduser("~/.ssh/known_hosts_starseed_nodo"),
     ])
 

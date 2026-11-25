@@ -116,6 +116,17 @@ class TestExcluirSecretos(unittest.TestCase):
         self.assertNotIn("src", excluidas)
 
 
+class TestOpcionesSSH(unittest.TestCase):
+    """Las opciones SSH usan rutas expandidas y fuerzan IPv4."""
+
+    def test_opciones_ssh_expandidas_y_ipv4(self):
+        opciones = [" ".join(R.SSH_BASE), R._transporte_ssh()]
+        for opcion in opciones:
+            self.assertNotIn("$HOME", opcion)
+            self.assertNotIn("~/", opcion)
+            self.assertIn("AddressFamily=inet", opcion)
+
+
 class TestPlan(unittest.TestCase):
     """`plan` decide qué se respalda y qué se excluye (PURA)."""
 
