@@ -294,6 +294,20 @@ export function topeFpsSinPantalla(energia: EstadoEnergia | null | undefined): n
   return alguienMira ? 0 : FPS_SIN_PANTALLA;
 }
 
+/**
+ * Aplica el tope por falta de pantalla a un FPS de modo (0 = sin tope).
+ * Puro: no lee ni guarda nada. Lo usan `fpsObjetivoModo()` y el ritmo de los
+ * bucles gobernados para que ambos respeten el mismo tope sin duplicar reglas.
+ */
+export function aplicarTopeFpsSinPantalla(
+  fps: number,
+  energia: EstadoEnergia | null | undefined,
+): number {
+  const tope = topeFpsSinPantalla(energia);
+  if (tope <= 0) return fps;
+  return fps > 0 ? Math.min(fps, tope) : tope;
+}
+
 /** Migra configuraciones antiguas según la regla de propagación.
  *  Solo guarda el modo; el resto de ajustes se propagan desde sus fuentes originales. */
 export function migrarConfiguracionAntigua(valorAntiguo: string | null): ModoRendimiento {

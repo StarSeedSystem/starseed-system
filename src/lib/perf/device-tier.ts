@@ -25,7 +25,7 @@ import {
   faseActiva,
   migrarConfiguracionAntigua,
   decidirModoAuto,
-  topeFpsSinPantalla,
+  aplicarTopeFpsSinPantalla,
   type DecisionAuto,
   type EstadoEnergia,
   type PerfilEnergiaSistema,
@@ -361,10 +361,12 @@ export function faseActivaModo(fase: FasePotenciacion): boolean {
  * solo en tiempo de ejecución: no se guarda ni cambia el modo elegido.
  */
 export function fpsObjetivoModo(): number {
-  const delModo = configDeModo(modoEfectivo()).fpsObjetivo;
-  const tope = topeFpsSinPantalla(energiaActual);
-  if (tope <= 0) return delModo;
-  return delModo > 0 ? Math.min(delModo, tope) : tope;
+  return aplicarTopeFpsSinPantalla(configDeModo(modoEfectivo()).fpsObjetivo, energiaActual);
+}
+
+/** Estado de energía medido ahora mismo (solo lectura); `null` = no se sabe. */
+export function energiaActualMedida(): EstadoEnergia | null {
+  return energiaActual;
 }
 
 /** Obtiene la escala de fondo según el modo efectivo. */
