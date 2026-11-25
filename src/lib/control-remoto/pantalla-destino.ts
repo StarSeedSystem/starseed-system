@@ -604,22 +604,23 @@ export class PantallaDestino {
                 continue;
             }
             const res = (r.resultado ?? {}) as Record<string, unknown>;
-            if (res.nuevo === false) {
-                // CTL1124D: «grande» no es «no hay cuadro»: el JPEG no cabe y hay que pedirlo más pequeño.
-                // Antes se esperaba el mismo cuadro para siempre y la ventana se quedaba negra sin una línea.
-                if (res.motivo === "grande") {
-                    const siguiente = nivelParaCuadroGrande(ritmo.nivel);
-                    if (siguiente !== ritmo.nivel) {
-                        ritmo = { nivel: siguiente, altas: 0, bajas: 0 };
-                        this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "cuadro-grande", nivel: siguiente }));
-                        continue;
-                    }
-                    fallos += 1;
-                    if (fallos === 1) this.anotar(`control-fuente paso=pintar via=malla resultado=grande nivel=${ritmo.nivel}`);
-                    if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
-                    await m.esperar(300 * fallos);
+            // CTL1124D: «grande» no es «no hay cuadro»: el JPEG no cabe y hay que pedirlo más pequeño.
+            // Antes se esperaba el mismo cuadro para siempre y la ventana se quedaba negra sin una línea.
+            // Se comprueba ANTES de `nuevo === false` porque el aparato puede contestar «grande» sin marcar `nuevo`.
+            if (res.motivo === "grande") {
+                const siguiente = nivelParaCuadroGrande(ritmo.nivel);
+                if (siguiente !== ritmo.nivel) {
+                    ritmo = { nivel: siguiente, altas: 0, bajas: 0 };
+                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "cuadro-grande", nivel: siguiente }));
                     continue;
                 }
+                fallos += 1;
+                if (fallos === 1) this.anotar(`control-fuente paso=pintar via=malla resultado=grande nivel=${ritmo.nivel}`);
+                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
+                await m.esperar(300 * fallos);
+                continue;
+            }
+            if (res.nuevo === false) {
                 fallos = 0;
                 vacios += 1;
                 if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
