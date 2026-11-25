@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CAP1125A",
+   "ola": "capas-1125",
+   "titulo": "Relevo de capa: la app calienta el servidor antes de recargar la página",
+   "archivos": [
+    "native/src-tauri/src/servidor_local.rs",
+    "native/src-tauri/src/servidor_local_logica.rs",
+    "native/src-tauri/src/servidor_local_android.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (02:05Z) en la Maggabox (Debian 13, Core i5-2520M): tras «relevo hecho … -> web=…/0d0498cd4e» `recargar_ventana` hizo `location.reload()` nada más estar listo el Node; el Node recién arrancado tardó más de 10 s en dar la primera página, el service worker entregó a los 10 s la copia guardada de la capa ANTERIOR y la página se quedó con `mia=mwvcv6xv-gpzi8z` (e55edbf853) hasta cerrar la app. La parte web ya está arreglada en `6a812998d` (DIR1125C: `topeNavegacion` en public/sw-logica.js y `mirarPaginaAlDia` en src/lib/nativa/relevo-capa-cliente.ts; NO tocar esos archivos). Falta la parte nativa, para la .64. PIDE: 1) En `servidor_local.rs`, antes de `v.eval(\"location.reload()\")` en `recargar_ventana`, pedir por HTTP al propio servidor local (mismo puerto, con el pase de la app como lo manda la ventana; mirar cómo lo hace `url_entrada` y la comprobación de salud) la ruta que la ventana tiene abierta (`v.url()`; si no se puede leer, `/`), esperando hasta 60 s a que conteste con un estado menor que 500; después recargar. Si la petición falla o vence, recargar igualmente (nunca dejar de recargar) y dejar una línea en servidor-local.log: `[servidor-local] recarga tras relevo caliente=si|no ms=<n>`. La espera va en el hilo que ya lleva el bucle del servidor (no en el hilo de la interfaz) y no retrasa `con_estado`/`avisar`. 2) La decisión (qué ruta pedir a partir de la URL de la ventana y el puerto, cuánto esperar, qué estados valen) en una función PURA en `servidor_local_logica.rs` con pruebas unitarias: URL local con ruta y consulta → esa ruta y consulta; URL de otro origen o ilegible → `/`; nunca una URL fuera de 127.0.0.1 ni con el pase dentro de la ruta. 3) Lo mismo en `servidor_local_android.rs` si allí hay una recarga equivalente tras el relevo; si no la hay, decirlo en el informe y no inventarla. NO cambiar el protocolo del pase, ni la cookie, ni `navegar_si_hace_falta`. Verificación: `cargo test` de la lógica en verde y `cargo check` del crate en macOS; pegar en el informe la salida de las pruebas nuevas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CAP1125A"
+  ]
+ }
+}
