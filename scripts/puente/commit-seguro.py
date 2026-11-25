@@ -7,9 +7,16 @@ tarea y una de las dos partes murió con «index.lock … another git process» 
 fase que toque git en main (commit, integración; desde el 2026-10-10 ya no espera a tsc,
 pruebas ni revisión, que corren en el worktree de cada tarea), (2) toma el mismo cerrojo
 `integrar` que usa el orquestador y espera hasta 90 s a que se suelte un index.lock breve,
-(3) commitea. (2026-11-22) Añade: comprobación de recursos de la Mac, ejecución obligatoria
-de pruebas nativas si el cambio toca native/capabilities/permisos, y delegación a remoto
-(A1/GitHub Actions) si la Mac está saturada.
+(3) commitea. (2026-11-22) Añade: comprobación de recursos de la Mac y ejecución obligatoria
+de pruebas nativas si el cambio toca native/capabilities/permisos.
+
+(SUP1125A, 2026-11-25) Sin «delegación a remoto»: con la Mac saturada (casi siempre con
+8 GB) el commit se iba a «GitHub»: `git checkout -b director/commit-…` EN EL MAIN VIVO,
+commit, `git push` de esa rama y un flujo `integrar-remoto.yml` que no existe. El main vivo
+se quedó 17 h en esas ramas (nueve, una por commit), `main` atrás, y traer_nube no pudo
+avanzar main ni traer nada de la nube («Not possible to fast-forward»). La del A1 commiteaba
+los archivos del A1, no los de aquí. Un commit no pesa: se hace aquí, en `main`, y publicar
+es de la autopublicación. Si el árbol no está en `main`, no commitea.
 
     python3 scripts/puente/commit-seguro.py -m "mensaje" [--] archivos…
 """
@@ -66,6 +73,23 @@ INDEX_LOCK_ESPERA_S = 90
 MEMORIA_LIBRE_MIN_MB = 200
 DISCO_LIBRE_MIN_GB = 10
 INTERCAMBIO_MAX_MB = 5120
+#: La rama en la que commitea el director (SUP1125A): en otra no commitea.
+RAMA_MAIN = "main"
+
+
+def rama_actual() -> str:
+    """La rama en la que está el árbol de RAIZ ('' con la cabeza suelta o si git falla)."""
+    try:
+        r = subprocess.run(
+            ["git", "symbolic-ref", "--short", "-q", "HEAD"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except Exception:
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def fases_vivas():
@@ -151,51 +175,6 @@ def ejecutar_pruebas_nativas() -> tuple[bool, str]:
         return False, "%s: %s" % (type(e).__name__, e)
 
 
-def delegar_a_remoto(mensaje: str, archivos: list[str], destino: str = "a1") -> tuple[bool, str]:
-    """Delega el commit a A1 o GitHub Actions. Retorna (ok, sha_o_error)."""
-    if destino == "a1":
-        # SSH al A1 para commitear allí
-        cmd = [
-            "ssh", "a1",
-            "cd /var/lib/starseed/repo && "
-            "git add -- %s && "
-            "git -c core.hooksPath=/dev/null commit -q -m %s && "
-            "git log --oneline -1"
-            % (" ".join(archivos), mensaje)
-        ]
-    elif destino == "github":
-        # Push a rama temporal y disparar workflow
-        rama = "director/commit-%d" % int(time.time())
-        subprocess.run(["git", "checkout", "-b", rama], cwd=RAIZ, check=False)
-        subprocess.run(["git", "add", "--"] + archivos, cwd=RAIZ, check=True)
-        subprocess.run(
-            ["git", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", mensaje],
-            cwd=RAIZ,
-            check=True,
-        )
-        subprocess.run(["git", "push", "origin", rama], cwd=RAIZ, check=True)
-        # Disparar workflow de integración remota
-        subprocess.run(
-            ["gh", "workflow", "run", "integrar-remoto.yml", "-f", "branch=%s" % rama],
-            cwd=RAIZ,
-            check=False,
-        )
-        # Esperar y leer resultado (simplificado)
-        return True, rama
-    else:
-        return False, "Destino desconocido: %s" % destino
-
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if r.returncode == 0:
-            sha = r.stdout.strip().split()[0]
-            return True, sha
-        return False, r.stderr.strip()[:200]
-    except subprocess.TimeoutExpired:
-        return False, "TIMEOUT delegando a %s" % destino
-    except Exception as e:
-        return False, "%s: %s" % (type(e).__name__, e)
-
 
 def main():
     args = sys.argv[1:]
@@ -222,18 +201,11 @@ def main():
             return 1
         print("Pruebas nativas en verde")
 
-    # 3. Comprobar recursos de la Mac
+    # 3. Recursos de la Mac: solo se avisa. Un commit no pesa y no se puede hacer en otra máquina
+    #    (los cambios están en este árbol). SUP1125A: la «delegación» dejaba el main vivo en otra
+    #    rama, la subía a GitHub y traer_nube no podía avanzar main (ver el docstring).
     if not tiene_recursos_suficientes():
-        print("Mac saturada (memoria/disco/intercambio): delegando commit a remoto...")
-        ok, resultado = delegar_a_remoto(mensaje, resto, destino="a1")
-        if not ok:
-            print("Delegación a A1 falló: %s. Intentando GitHub Actions..." % resultado)
-            ok, resultado = delegar_a_remoto(mensaje, resto, destino="github")
-        if ok:
-            print("Commit delegado exitosamente: %s" % resultado)
-            return 0
-        print("Delegación remota falló: %s. Intentando commit local a pesar de recursos..." % resultado)
-        # Caer a commit local como último recurso
+        print("Mac saturada (memoria/disco/intercambio): commiteo aquí igualmente (un commit no pesa)")
 
     # 4. Commit local con cerrojo integrar
     os.makedirs(os.path.dirname(CERROJO), exist_ok=True)
@@ -246,6 +218,14 @@ def main():
             time.sleep(3)
         if os.path.exists(candado):
             print("index.lock presente %d s; no commiteo" % INDEX_LOCK_ESPERA_S)
+            return 1
+        rama = rama_actual()
+        if rama != RAMA_MAIN:
+            print(
+                "el árbol de %s está en %s, no en %s: no commiteo (vuelve a %s antes; "
+                "un commit fuera de %s no lo ven traer_nube ni el orquestador)"
+                % (RAIZ, rama or "una cabeza suelta", RAMA_MAIN, RAMA_MAIN, RAMA_MAIN)
+            )
             return 1
         if resto:
             subprocess.run(["git", "add", "--"] + resto, cwd=RAIZ, check=True)

@@ -184,36 +184,87 @@ class TestEjecutarPruebasNativas:
             assert "inventario" in detalle.lower()
 
 
-class TestDelegarARemoto:
-    """Pruebas para delegación a remoto (A1/GitHub Actions)."""
+def _git(cwd, *args):
+    r = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True)
+    assert r.returncode == 0, (args, r.stderr)
+    return r.stdout.strip()
 
-    def test_delegar_a_a1_exitoso(self):
-        """Delegación exitosa a A1 retorna (True, sha)."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0, stdout="abc1234\n", stderr=""
-            )
-            ok, sha = CS.delegar_a_remoto("mensaje", ["archivo.txt"], destino="a1")
-            assert ok is True
-            assert sha == "abc1234"
 
-    def test_delegar_a_github_actions_exitoso(self):
-        """Delegación exitosa a GitHub Actions retorna (True, rama)."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            ok, sha = CS.delegar_a_remoto("mensaje", ["archivo.txt"], destino="github")
-            assert ok is True
-            assert sha.startswith("director/commit-")
+class TestSinDelegacion:
+    """SUP1125A (25-11): commit-seguro no se va a otra máquina ni cambia de rama el main vivo.
 
-    def test_delegar_falla(self):
-        """Si la delegación falla, retorna (False, error)."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=1, stdout="", stderr="conexión rechazada"
-            )
-            ok, sha = CS.delegar_a_remoto("mensaje", ["archivo.txt"])
-            assert ok is False
-            assert "conexión" in sha.lower()
+    Con la Mac saturada, la «delegación a GitHub» hacía `git checkout -b director/commit-…` en el
+    main vivo, commit y `git push` de esa rama: el main vivo se quedó 17 h fuera de `main` y
+    traer_nube no pudo avanzar main («Not possible to fast-forward»)."""
+
+    def test_no_hay_delegacion_a_remoto(self):
+        """Ni la función ni órdenes de cambiar de rama, subir o lanzar flujos en el código."""
+        assert not hasattr(CS, "delegar_a_remoto")
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "commit-seguro.py")
+        cuerpo = open(ruta, encoding="utf-8").read().split('"""', 2)[2]  # sin el docstring
+        for orden in ('"checkout"', '"switch"', '"push"', '"ssh"', '"workflow"', "director/commit-"):
+            assert orden not in cuerpo, orden
+
+    @pytest.fixture
+    def repo(self, tmp_path, monkeypatch):
+        """Un repo de prueba en `main` con un commit; RAIZ, OLAS y el cerrojo, en el temporal."""
+        for clave, valor in {
+            "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "prueba", "GIT_AUTHOR_EMAIL": "prueba@starseed.invalid",
+            "GIT_COMMITTER_NAME": "prueba", "GIT_COMMITTER_EMAIL": "prueba@starseed.invalid",
+        }.items():
+            monkeypatch.setenv(clave, valor)
+        raiz = tmp_path / "repo"
+        raiz.mkdir()
+        _git(raiz, "init", "-q", "-b", "main")
+        (raiz / "archivo.txt").write_text("uno\n")
+        _git(raiz, "add", "archivo.txt")
+        _git(raiz, "commit", "-q", "-m", "inicio")
+        (tmp_path / "olas").mkdir()
+        monkeypatch.setattr(CS, "RAIZ", str(raiz))
+        monkeypatch.setattr(CS, "OLAS", str(tmp_path / "olas"))
+        monkeypatch.setattr(CS, "CERROJO", str(tmp_path / "cerrojos" / "integrar.lock"))
+        return raiz
+
+    def test_mac_saturada_commitea_aqui_en_main_sin_cambiar_de_rama(self, repo, monkeypatch, capsys):
+        """Saturada: avisa y commitea en main; solo git, sin cambiar de rama ni subir nada."""
+        monkeypatch.setattr(CS, "tiene_recursos_suficientes", lambda: False)
+        llamadas = []
+        real = subprocess.run
+
+        def espia(cmd, *a, **k):
+            llamadas.append(list(cmd))
+            if cmd[0] != "git" or {"push", "checkout", "switch"} & set(cmd):
+                return subprocess.CompletedProcess(cmd, 1, "", "bloqueado por la prueba")
+            return real(cmd, *a, **k)
+
+        monkeypatch.setattr(CS.subprocess, "run", espia)
+        (repo / "archivo.txt").write_text("dos\n")
+        monkeypatch.setattr(sys, "argv", ["commit-seguro.py", "-m", "cambio de prueba", "--", "archivo.txt"])
+        rc = CS.main()
+        hechas = list(llamadas)
+        monkeypatch.setattr(CS.subprocess, "run", real)
+        assert rc == 0
+        assert _git(repo, "symbolic-ref", "--short", "HEAD") == "main"
+        assert _git(repo, "log", "-1", "--format=%s", "main") == "cambio de prueba"
+        assert _git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads") == "main"
+        assert _git(repo, "status", "--porcelain") == ""
+        for cmd in hechas:
+            assert cmd[0] == "git", cmd
+            assert not {"checkout", "switch", "push", "branch"} & set(cmd), cmd
+        assert "commiteo aquí" in capsys.readouterr().out
+
+    def test_con_el_arbol_en_otra_rama_no_commitea(self, repo, monkeypatch, capsys):
+        """Si el árbol no está en main (p. ej. en una director/commit-…), no commitea y lo dice."""
+        monkeypatch.setattr(CS, "tiene_recursos_suficientes", lambda: True)
+        _git(repo, "checkout", "-q", "-b", "director/commit-1")
+        (repo / "archivo.txt").write_text("tres\n")
+        monkeypatch.setattr(sys, "argv", ["commit-seguro.py", "-m", "no debe entrar", "--", "archivo.txt"])
+        assert CS.main() == 1
+        assert _git(repo, "log", "-1", "--format=%s") == "inicio"
+        assert _git(repo, "symbolic-ref", "--short", "HEAD") == "director/commit-1"
+        salida = capsys.readouterr().out
+        assert "director/commit-1" in salida and "no commiteo" in salida
 
 
 class TestMain:
