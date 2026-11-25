@@ -8,6 +8,10 @@
  * Sin tope (alto, o auto en un equipo capaz) esto ES `requestAnimationFrame`. Con tope (eco 30, eficiente 10) espera lo
  * que falte y dice cuántos pasos de 1/60 s representa el cuadro, para que la animación no vaya a cámara lenta.
  * Solo cambia el RITMO en tiempo de ejecución: no toca diseños, ajustes ni opciones guardadas.
+ *
+ * CAP1125D · en un nodo sin pantalla (ningún conector `connected`) `fpsObjetivoModo()` ya devuelve 1 cuadro/s, y
+ * devuelve el tope normal mientras alguien controla o comparte esta neurona. Este ritmo hereda ese tope tal cual:
+ * no lee ni guarda el estado de pantalla, solo aplica el `fps` efectivo del modo.
  */
 import { fpsObjetivoModo, PERF_CHANGED_EVENT } from "./device-tier";
 import { MODO_CHANGED_EVENT } from "./modo-rendimiento";
@@ -18,7 +22,7 @@ export interface DepsRitmo {
   poner: (f: () => void, ms: number) => unknown;
   quitar: (id: unknown) => void;
   ahora: () => number;
-  /** Cuadros por segundo que permite el modo de rendimiento; 0 = sin tope. */
+  /** Cuadros por segundo efectivos del modo (0 = sin tope); ya incluye el tope de 1/s de un nodo sin pantalla. */
   fps: () => number;
 }
 
@@ -39,7 +43,12 @@ let fpsGuardado: number | null = null;
 let fpsLeidoEn = 0;
 let oyendo = false;
 
-/** El tope del modo efectivo, leído como mucho cada 2 s y al cambiar el modo (leerlo en cada cuadro costaría más que el cuadro). */
+/**
+ * El tope del modo efectivo, leído como mucho cada 2 s y al cambiar el modo o el estado de energía
+ * (leerlo en cada cuadro costaría más que el cuadro). `fpsObjetivoModo()` es quien aplica el tope de
+ * 1 cuadro/s de un nodo sin pantalla y su excepción con control remoto o transmisión viva; aquí solo
+ * se guarda el número resultante, sin tocar el modo elegido.
+ */
 export function fpsDelModo(): number {
   const ahora = Date.now();
   if (fpsGuardado === null || ahora - fpsLeidoEn > REFRESCO_FPS_MS || ahora < fpsLeidoEn) {
