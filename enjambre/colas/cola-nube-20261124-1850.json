@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "CTL1124D",
+   "ola": "control-1124",
+   "titulo": "Mac controla Linux: los cuadros llegan «ok» y la ventana queda negra",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-destino.ts",
+    "src/lib/control-remoto/cuadro-malla.ts",
+    "src/lib/control-remoto/usar-pantalla-remota.ts",
+    "src/lib/control-remoto/__tests__/ctl1124d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Mac→Maggabox, 24-11 22:38:40–22:40Z): «control-fuente paso=via via=malla enlace=directo:red-local causa=sin-webrtc-aparato»; la Maggabox contesta 36 órdenes pantalla-cuadro con resultado=ok en 77 s, pero la ventana de control de la Mac sigue negra con «Pantalla: sin determinar», Cuadros/s «—» y control-calidad fps=0 resolucion=desconocida todo el rato. Con la .55–.59 esos cuadros JPEG sí se veían: es una regresión de CTL1124/def9be7a7. Encuentra dónde se pierde el cuadro (respuesta vacía mientras la fuente es «proyeccion», o el destino no pinta/mide) y arréglalo; el medidor de cuadros/s y la resolución deben contar también los cuadros por la malla. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "importancia": "capacidad"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124D"
+  ]
+ }
+}
