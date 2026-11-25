@@ -538,11 +538,19 @@ export function ControlEntreNeuronasPanel() {
                 b.informarBanco(objetivo);
                 const i = b.ultimoInforme();
                 if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+                    setAviso(null); // CTL1124F: ya aceptó; se quita cualquier «no te aceptó» viejo
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
-                    setEsperando(null);
+                    const motivo = i.sesion.motivo ?? "";
+                    // CTL1124F: «no-autorizado» solo significa «aún no te ha aceptado»: se sigue esperando (la lectura no
+                    // abre sesión) y el texto se quita en cuanto acepte. Un motivo terminal sí para la espera.
+                    if (motivo === "no-autorizado") {
+                        setAviso(`Esperando a que ${nombreRef.current(objetivo)} te acepte…`);
+                    } else {
+                        setAviso(`${nombreRef.current(objetivo)} no te aceptó${motivo ? `: ${palabrasMotivo(motivo) ?? motivo}` : "."}`);
+                        setEsperando(null);
+                    }
                 } else if (Date.now() - t0 > 5 * 60_000) {
                     setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
                     setEsperando(null);

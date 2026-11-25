@@ -21,6 +21,7 @@ import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
 import { RegistroSesiones, registroGlobal, type MandarSesion, type SesionSaliente } from "./registro-sesiones"; // CTL1117A
+import { MOTIVOS_TERMINALES } from "./palabras"; // CTL1124F
 import { puenteNativo } from "@/lib/nativa/puente"; // CTL1119F
 
 export const CLAVE_PERMISO = "starseed.control-neuronas.v1";
@@ -461,7 +462,9 @@ export class SesionHacia {
                 this.registro.olvidar(this.para, t);
                 return (await this.abrir(true)).ok;
             }
-            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+            // CTL1124F: un motivo terminal (lo terminó la persona, quitaron la aceptación, se apagó el permiso…) no se
+            // reintenta solo: el latido se para y la sesión no se resucita hasta que una persona vuelva a pedir control.
+            if (r.motivo === "limite-cumplido" || MOTIVOS_TERMINALES.has(r.motivo)) this.pararLatido();
         } catch {
             /* un latido que falla no rompe nada: el siguiente lo reintenta */
         }
@@ -487,15 +490,12 @@ export class SesionHacia {
     }
 
     /**
-     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
-     * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
-     * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     * CTL1124F: mirar si la otra neurona nos tiene aceptados con una orden de LECTURA que no abre sesión (`leer-aceptado`).
+     * Antes se abría una sesión y se cerraba (y el otro aparato llegaba a enseñar «X controla este aparato»); ahora no
+     * hay sesión que abrir ni que cerrar, ni latido que pueda resucitarla. Si ya había una sesión tomada aquí, se deja igual.
      */
     async sondear(): Promise<RespuestaOrden> {
-        const laAbreElSondeo = this.token === null;
-        const r = await this.orden("leer-estado");
-        if (laAbreElSondeo) await this.cerrar();
-        return r;
+        return this.mandar(this.para, "leer-aceptado", {}, { nivel: "ver" });
     }
 
     async cerrar(): Promise<void> {

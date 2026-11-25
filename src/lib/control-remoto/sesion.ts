@@ -55,7 +55,7 @@ export const TOPE_ENTRADA_SEGUNDO = 60;
 export const TOPE_LECTURA_SEGUNDO = 5;
 /** CTL1117A · S5: el techo de TODO junto (entrada + lecturas + órdenes de app) por segundo y por controlador. */
 export const TOPE_TOTAL_SEGUNDO = 70;
-const ACCIONES_LECTURA = new Set(["leer-estado", "leer-aparato"]);
+const ACCIONES_LECTURA = new Set(["leer-estado", "leer-aparato", "leer-aceptado"]);
 export const MAX_CONTROLADORES = 4;
 export const MAX_PENDIENTES = 5;
 
@@ -450,6 +450,9 @@ export class PuertaControl {
 
         // «presentarse»: un aparato de la cuenta pide que el dueño lo acepte AQUÍ. Nunca concede nada.
         if (nombre === "presentarse") return this.presentarse(o);
+        // CTL1124F: una LECTURA que no abre sesión. Sirve para saber si el dueño ya aceptó este aparato sin que
+        // el otro aparato llegue a enseñar «X controla este aparato» (no hay sesión que abrir ni que cerrar).
+        if (nombre === "leer-aceptado") return this.leerAceptado(o);
 
         if (!permiso.encendido) {
             // CTL1117J · S3: la persona de este aparato se entera de que alguien lo pidió, y quien manda sabe que se avisó (`aviso`).
@@ -616,6 +619,36 @@ export class PuertaControl {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * CTL1124F · «leer-aceptado»: la única lectura que contesta SIN sesión. Comprueba lo mismo que una orden normal
+     * (misma cuenta, controlador ya fijado aquí, firma, destino, hora, antirrepetición y tope) pero NO abre sesión,
+     * NO toca el permiso y NO ejecuta nada. Devuelve si este aparato tiene aceptada a esa neurona y si el control está
+     * encendido; si no está aceptada contesta «no-autorizado», que ya lo dice sin abrir nada.
+     */
+    private async leerAceptado(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {
+        const c = o.carga;
+        const nombre = "leer-aceptado";
+        const def = definicion(nombre);
+        if (!def || !def.validar(c.accion.args)) return this.respuesta(c.nonce, false, "argumentos", nombre, c.de, c.nivel);
+        const cuenta = this.d.cuentaPropia();
+        if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "otra-cuenta", nombre, c.de, c.nivel);
+        const permiso = this.d.leerPermiso();
+        const ctl = permiso.controladores.find((x) => x.huella === c.de);
+        if (!ctl || ctl.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "no-autorizado", nombre, c.de, c.nivel);
+        if (!(await verificarFirma(this.d.subtle, ctl.spki, o.bytes, o.firma))) return this.respuesta(c.nonce, false, "firma", nombre, c.de, c.nivel);
+        if (c.para !== this.d.neuronaPropia()) return this.respuesta(c.nonce, false, "otro-destino", nombre, c.de, c.nivel);
+        const ahora = this.d.ahora();
+        const t = Date.parse(c.t);
+        const cad = Date.parse(c.caduca);
+        if (Math.abs(ahora - t) > DESFASE_MAX_MS || cad <= ahora || cad - t > VIDA_ORDEN_MS || cad < t) {
+            return this.respuesta(c.nonce, false, "caducada", nombre, c.de, c.nivel);
+        }
+        if (!this.aceptarSeqYNonce(c.de, c.seq, c.nonce)) return this.respuesta(c.nonce, false, "repetida", nombre, c.de, c.nivel);
+        this.recordarNonce(c.nonce);
+        if (!this.tope(c.de, false, true)) return this.respuesta(c.nonce, false, "limite", nombre, c.de, c.nivel);
+        return this.respuesta(c.nonce, true, "ok", nombre, c.de, c.nivel, { aceptado: true, encendido: permiso.encendido, nivel: permiso.nivel });
     }
 
     private async presentarse(o: NonNullable<ReturnType<typeof leerOrden>>): Promise<RespuestaOrden> {

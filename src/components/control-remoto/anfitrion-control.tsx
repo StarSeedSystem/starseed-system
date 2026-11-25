@@ -252,6 +252,9 @@ export function VentanaRemota({
             alEnviar={(e) => void p.enviar(e)}
             alCerrar={() => {
                 p.cerrar();
+                // CTL1124F: «Terminar control» termina de verdad: corta también los latidos y cualquier otra sesión
+                // saliente hacia esa neurona, para que no la reabran solos a los pocos segundos.
+                void terminarControlDe(neurona);
                 alCerrada?.();
             }}
         />

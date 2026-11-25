@@ -189,6 +189,8 @@ function validarTexto(a: Args): Args | null {
 
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     "abrir-sesion": { nivel: "ver", sinSesion: true, validar: conColorOpcional, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
+    // CTL1124F: comprobar si este aparato está aceptado NO abre sesión (antes se abría y se cerraba, y el otro aparato veía «X controla este aparato»).
+    "leer-aceptado": { nivel: "ver", sinSesion: true, validar: sinArgs, que: "dice si este aparato tiene aceptada a esa neurona y si el control está encendido; no abre sesión" },
     "cerrar-sesion": { nivel: "ver", validar: sinArgs, que: "cierra la sesión" },
     "leer-estado": { nivel: "ver", validar: sinArgs, que: "ruta, llamada y sus números, enlaces y su medio, versión y build" },
     llamar: {
