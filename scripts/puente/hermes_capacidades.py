@@ -31,6 +31,7 @@ RUTA_SALIDA = os.environ.get("STARSEED_HERMES_CAPACIDADES") or os.path.expanduse
 )
 HOST_MAGGABOX = "maggasukha@starseed-nodo-1.local"
 LLAVE_NODO = os.path.expanduser("~/.ssh/starseed_nodo1")
+CONOCIDOS_NODO = os.path.expanduser("~/.ssh/known_hosts_starseed_nodo")
 SILENCIO_MAX_S = 12 * 3600
 _ISO = re.compile(r"^(\d{4}-\d\d-\d\dT[\d:.]+Z)")
 
@@ -418,6 +419,8 @@ def _ssh_base():
         "-o", "IdentitiesOnly=yes",
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=8",
+        "-o", "AddressFamily=inet",
+        "-o", "UserKnownHostsFile=" + CONOCIDOS_NODO,
         HOST_MAGGABOX,
     ]
 
