@@ -10,7 +10,9 @@
 //      backoff exponencial (máx. 3 intentos) cuando haya red; si se agotan,
 //      carga el HTML de respaldo incluido en el binario y escribe una línea en
 //      enlaces.log.
-//   3. Todo lo que no es E/S (decisión de GPU, política de reintentos, línea de log)
+//   3. Cada 30 s mira /sys/class/drm/card*-*/status y publica si NO hay ningún
+//      monitor conectado (CAP1125D), para que la web deje de pintar adornos.
+//   4. Todo lo que no es E/S (decisión de GPU, conectores, reintentos, log)
 //      vive en arranque_linux_logica y se prueba allí.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -19,8 +21,8 @@
 use std::env;
 use std::fs;
 use std::process::Command;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicI8, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, Once};
 use std::thread;
 use std::time::Duration;
 
@@ -31,6 +33,15 @@ use tauri::{AppHandle, Manager};
 const VAR_DMABUF: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 const LOG_ENLACES: &str = "enlaces.log";
 const HTML_RESPALDO: &str = include_str!("../respaldo/arranque_fallo.html");
+
+/// Cada cuánto se mira si queda algún conector con pantalla (medido: apagar el
+/// monitor deja todos los conectores en `disconnected`).
+const INTERVALO_PANTALLA: Duration = Duration::from_secs(30);
+
+/// Última medida de pantalla: -1 desconocido, 0 hay pantalla, 1 sin pantalla.
+/// La lee el canal de energía (`energia_estado` → `sinPantalla` en la web).
+static SIN_PANTALLA: AtomicI8 = AtomicI8::new(-1);
+static VIGIA_PANTALLA: Once = Once::new();
 
 /// Lee el texto relevante para detectar la GPU.
 /// Intenta primero /sys/class/drm (más fiable en contenedores/AppImage) y cae a lspci.
@@ -61,6 +72,57 @@ fn leer_info_gpu() -> String {
     }
 
     partes.join("\n")
+}
+
+/// Estados de los conectores leídos de `/sys/class/drm/card*-*/status`.
+/// Solo std: ni dependencias nuevas ni procesos externos (`xrandr` no hace falta).
+fn leer_estados_conectores() -> Vec<String> {
+    let mut estados = Vec::new();
+    if let Ok(entradas) = fs::read_dir("/sys/class/drm") {
+        for entrada in entradas.flatten() {
+            let nombre = entrada.file_name();
+            let nombre = nombre.to_string_lossy();
+            // Solo conectores (card0-HDMI-A-1, card0-DP-1…), no card0 ni card0/device.
+            if !nombre.starts_with("card") || !nombre.contains('-') {
+                continue;
+            }
+            if let Ok(txt) = fs::read_to_string(entrada.path().join("status")) {
+                estados.push(txt);
+            }
+        }
+    }
+    estados
+}
+
+/// Última medida publicada. `None` = no se sabe (como hasta hoy).
+pub fn sin_pantalla_actual() -> Option<bool> {
+    match SIN_PANTALLA.load(Ordering::Relaxed) {
+        1 => Some(true),
+        0 => Some(false),
+        _ => None,
+    }
+}
+
+/// Mide ahora y publica el resultado en el canal de energía.
+fn medir_pantalla() {
+    let medida = logica::decidir_sin_pantalla(&leer_estados_conectores());
+    let codigo = match medida {
+        Some(true) => 1,
+        Some(false) => 0,
+        None => -1,
+    };
+    SIN_PANTALLA.store(codigo, Ordering::Relaxed);
+}
+
+/// Vigila la pantalla cada 30 s en un hilo de fondo (sin procesos externos).
+fn vigilar_pantalla() {
+    VIGIA_PANTALLA.call_once(|| {
+        medir_pantalla();
+        thread::spawn(|| loop {
+            thread::sleep(INTERVALO_PANTALLA);
+            medir_pantalla();
+        });
+    });
 }
 
 /// Configura WEBKIT_DISABLE_DMABUF_RENDERER si procede (antes de crear cualquier webview).
@@ -235,4 +297,7 @@ pub fn iniciar(app: &AppHandle) {
 
     // 2. Registrar manejador de fallos de carga.
     registrar_manejador_carga(app);
+
+    // 3. Vigilar si hay pantalla conectada y publicarlo en el canal de energía.
+    vigilar_pantalla();
 }

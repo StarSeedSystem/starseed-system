@@ -25,6 +25,7 @@ import {
   faseActiva,
   migrarConfiguracionAntigua,
   decidirModoAuto,
+  topeFpsSinPantalla,
   type DecisionAuto,
   type EstadoEnergia,
   type PerfilEnergiaSistema,
@@ -75,6 +76,7 @@ export function normalizarEstadoEnergia(datos: unknown): EstadoEnergia | null {
     perfilEnergia: perfil,
     temperaturaC: temperatura !== null && temperatura >= -40 && temperatura <= 150 ? temperatura : null,
     tareasPesadas: tareas,
+    sinPantalla: d.sinPantalla === true ? true : d.sinPantalla === false ? false : undefined,
   };
 }
 
@@ -246,13 +248,27 @@ function vigilarBateria(nav: NavigatorConBateria): void {
   }).catch(() => { bateriaVigilada = false; });
 }
 
-/** Lee la energía (nativa o web) y aplica la decisión de «auto» una vez. */
+/**
+ * Lee la energía (nativa o web). Con «auto» aplica la decisión; con un modo
+ * elegido solo guarda lo medido (p. ej. `sinPantalla`), sin tocar el ajuste.
+ */
 export async function inicializarAutoRendimiento(): Promise<DecisionAuto | null> {
-  if (getPerfMode() !== "auto") return null;
+  const auto = getPerfMode() === "auto";
   const medido = (await leerEnergiaNativa()) ?? (await leerEnergiaWeb());
   if (!medido) return null;
   // Lo medido no sabe de tareas pesadas: se conservan las que ya se marcaron.
   const estado: EstadoEnergia = { ...medido, tareasPesadas: energiaActual?.tareasPesadas ?? [] };
+  if (!auto) {
+    // El tope por falta de pantalla es de tiempo de ejecución: no se guarda ni
+    // cambia el modo. Basta con conocer el estado medido.
+    energiaActual = estado;
+    try {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(PERF_CHANGED_EVENT));
+    } catch {
+      /* noop */
+    }
+    return null;
+  }
   const decision = actualizarEnergia(estado);
   if (typeof navigator !== "undefined") vigilarBateria(navigator as NavigatorConBateria);
   return decision;
@@ -339,9 +355,16 @@ export function faseActivaModo(fase: FasePotenciacion): boolean {
   return faseActiva(modoEfectivo(), fase);
 }
 
-/** Obtiene el FPS objetivo para canvas/WebGL/rAF según el modo efectivo. */
+/**
+ * Obtiene el FPS objetivo para canvas/WebGL/rAF según el modo efectivo.
+ * Sin monitor conectado (y sin nadie controlándolo) el tope es 1 cuadro/s,
+ * solo en tiempo de ejecución: no se guarda ni cambia el modo elegido.
+ */
 export function fpsObjetivoModo(): number {
-  return configDeModo(modoEfectivo()).fpsObjetivo;
+  const delModo = configDeModo(modoEfectivo()).fpsObjetivo;
+  const tope = topeFpsSinPantalla(energiaActual);
+  if (tope <= 0) return delModo;
+  return delModo > 0 ? Math.min(delModo, tope) : tope;
 }
 
 /** Obtiene la escala de fondo según el modo efectivo. */

@@ -164,6 +164,11 @@ export interface EstadoEnergia {
   temperaturaC: number | null;
   /** Tareas pesadas en curso AHORA (control remoto, llamadas, transmisiones). */
   tareasPesadas: readonly TareaPesada[];
+  /**
+   * Linux: no hay ningún monitor conectado. `undefined` = no se sabe (como hoy).
+   * Solo lo mide la app nativa; la web no lo inventa.
+   */
+  sinPantalla?: boolean;
 }
 
 export interface ContextoAuto {
@@ -269,6 +274,24 @@ export function decidirModoAuto({ tier, energia }: ContextoAuto): DecisionAuto {
 
   // 7. Reposo: manda la gama del aparato.
   return decision(base, base === "alto" ? "sin señales de ahorro" : "equipo modesto", false, false);
+}
+
+/** Tope de cuadros por segundo cuando el nodo no tiene pantalla conectada. */
+export const FPS_SIN_PANTALLA = 1;
+
+/**
+ * Tope extra de cuadros por segundo por no tener monitor conectado.
+ * Devuelve `FPS_SIN_PANTALLA` solo si se SABE que no hay pantalla y nadie la
+ * está mirando. Devuelve `0` (sin tope extra) si hay pantalla, si no se sabe
+ * (campo ausente) o si hay una sesión de control remoto o una transmisión viva:
+ * quien controla o comparte pantalla SÍ la ve aunque no haya monitor físico.
+ */
+export function topeFpsSinPantalla(energia: EstadoEnergia | null | undefined): number {
+  if (!energia || energia.sinPantalla !== true) return 0;
+  const alguienMira = energia.tareasPesadas.some(
+    (t) => t === "control-remoto" || t === "transmision",
+  );
+  return alguienMira ? 0 : FPS_SIN_PANTALLA;
 }
 
 /** Migra configuraciones antiguas según la regla de propagación.

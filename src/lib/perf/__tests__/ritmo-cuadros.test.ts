@@ -130,6 +130,15 @@ describe("DIR1125E · ritmo de cuadros según el modo de rendimiento", () => {
     }
   });
 
+  it("un tope de 1 cuadro/s (sin monitor) deja un cuadro por segundo", () => {
+    const b = banco(1);
+    const { pasos } = bucle(b);
+    b.avanzar(3000);
+    expect(pasos.length).toBeGreaterThanOrEqual(2);
+    expect(pasos.length).toBeLessThanOrEqual(4);
+    expect(pasos.slice(1).every((p) => p === PASOS_MAX)).toBe(true);
+  });
+
   it("tras una pausa larga no da un salto: como mucho PASOS_MAX pasos de golpe", () => {
     const b = banco(10);
     const r = crearRitmoCuadros(b.deps);
