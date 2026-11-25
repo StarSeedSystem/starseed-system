@@ -7633,3 +7633,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-referencias-diseno-agentes-referencias-diseno-6b9d9e-v1.json
 - `RST06-d3` — otra cosa: continúa como RST06b desde la rama nube/44912433621 (traer_nube)
 - `RST06b` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-11-25 23:41 · mg-oracle-1125-1706
+
+**Lo que se pidió.** [capas] no se pudo leer la web publicada (curl terminó con exit status: 1 (curl: /tmp/.mount_StarSe…/usr/lib/libcrypt…
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `LNX1118WB` — no escribió nada
