@@ -68,13 +68,8 @@ class SSHSimulado:
                 return _mock(0, "%s  %s" % (meta.get("hash", "abc"), ruta), "")
             return _mock(0, "", "")
         if argv[0] == "rsync":
-<<<<<<< HEAD
             if len(argv) >= 2:
                 origen = argv[-2].rstrip("/")
-=======
-            if len(argv) >= 4:
-                origen = None
->>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
                 destino = argv[-1].rstrip("/")
                 # rsync remoto llega como `host:ruta`; el almacén se simula sin el host
                 cabecera = destino.split("/", 1)[0]
@@ -253,12 +248,8 @@ class TestRespaldar(unittest.TestCase):
         git_calls = [c for c in sub_mock.call_args_list if "bundle" in str(c)]
         self.assertTrue(len(git_calls) > 0)
         bundle_arg = str(git_calls[0])
-<<<<<<< HEAD
         # La carpeta temporal es la del sistema (en macOS /var/folders/…, en Linux /tmp)
         self.assertIn(tempfile.gettempdir(), bundle_arg)
-=======
-        self.assertTrue("/tmp" in bundle_arg or "temp" in bundle_arg.lower(), bundle_arg)
->>>>>>> f098fc395 (salvavidas · ALM1121A: trabajo del agente antes de las puertas (tsc / vitest))
         # Se envía y se verifica checksum por ssh
         self.assertTrue(any("sha256sum" in " ".join(c) or "md5sum" in " ".join(c) for c in self.ssh.llamadas))
 
