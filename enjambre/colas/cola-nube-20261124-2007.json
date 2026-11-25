@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "PRU1123A"
+  ]
+ }
+}
