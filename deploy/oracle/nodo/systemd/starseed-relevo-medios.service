@@ -1,0 +1,40 @@
+[Unit]
+Description=StarSeed · relevo de medios en el A1 (RES1121A): latido, arriendo Telegram y replicación
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+# Requiere: /opt/starseed/nodo/relevo_medios.py (este script)
+# Requiere: /home/starseed/starseed-system/scripts/puente/relevo_medios.py
+# Requiere: /home/starseed/starseed-system/scripts/puente/oracle_nodo.py (para claves)
+# Requiere: /home/starseed/starseed-system/scripts/puente/sincronizador_direccion.py (nombres canales)
+# Requiere: /usr/bin/python3
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+# La bóveda del A1 (root 600). Solo NOMBRES de variable en el repo y en la unidad:
+# los valores los deja oracle_claves.py en direccion.env; el script tolera que el
+# archivo no esté (sin claves, el relevo sigue en local con motores gratuitos).
+EnvironmentFile=-/etc/starseed/direccion.env
+# Intervalo de latido y umbral de relevo (minutos sin latido Mac → A1 toma relevo)
+Environment=RELEVO_LATIDO_INTERVALO_S=60
+Environment=RELEVO_UMBRAL_MAC_MIN=5
+Environment=RELEVO_REPLICA_INTERVALO_S=300
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/relevo_medios.py
+Restart=always
+RestartSec=30
+# Trabajo de fondo: cede CPU a BitNet y al medio del enjambre
+CPUWeight=50
+IOWeight=50
+Nice=10
+MemoryHigh=1G
+MemoryMax=2G
+KillMode=control-group
+TimeoutStopSec=60
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
