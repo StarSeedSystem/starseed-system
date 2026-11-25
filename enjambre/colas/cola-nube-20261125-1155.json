@@ -1,0 +1,76 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "ola": "ALM1121",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45136124149",
+   "id": "ALM1121Ab-d2",
+   "titulo": "El respaldo y el alivio del Mac hacia el Maggabox existen en código pero nunca han corrido: hacerlos reales y automáticos (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/recopilar-capacidades-nodos.py"
+   ],
+   "depende": [],
+   "prompt": "Alex (21-11): «limpia el almacenamiento de esta computadora sin eliminar datos importantes y reparte datos pesados del desarrollo de\nproducción que podrían ser traspasados al almacenamiento del nodo Maggabox vinculado a MetaGenesis». La dirección lo hizo a mano ese día\n(guiones ~/.starseed/opus1121s/limpiar_1121.py y repartir_1121.sh; índice en starseed_memory_root/nodo/indice-pesados-maggabox.md) y\nencontró que `respaldo_maggabox.py` (ALM1118B) NUNCA ha funcionado: `estado` dice log_existe=false y cero bundles; no hay tarea de launchd;\n`aliviar --seco` no dice qué movería; y `respaldar` tiene fallos: el `git bundle` recibe como destino una ruta REMOTA («~/StarSeed-almacen/…»)\nque git trata como local, y el rsync de starseed_memory_root copiaría los 2 GB de `.tmp.driveupload`. Arréglalo y actívalo:\n1) `respaldar`: rsync de starseed_memory_root excluyendo `.tmp.drive*` y lo secreto; el bundle se crea en una carpeta temporal SOLO si hay\nmás de 6 GB libres (si no, se salta y se dice: el espejo de GitHub del Maggabox ya cubre el código), se envía, se comprueba la suma y se\nborra el temporal; rotación de 7. 2) `aliviar`: lista real y medida de candidatos con su porqué — restos `go-build*` de más de 1 h en las\ncarpetas temporales, caché de Go, restos `ShipIt` de actualizadores de más de 1 día, trozos de `.tmp.driveupload` de más de 24 h, worktrees\nterminados (usa archivar_worktrees.py), registros de olas de más de 7 días (estos se MUEVEN a pesados/mac/olas-logs con rsync\n--remove-source-files), compilaciones `.next-anterior` cuando la actual lleva más de 1 h sana, instaladores de versiones de prueba ya\npublicadas en Descargas (mover) — y `--seco` enseña cada candidato con sus MB. Nunca toca cuentas, claves, bases de datos vivas ni proyectos\nen uso; cada movimiento queda en el índice. 3) launchd cada 6 h (`respaldar`) y alivio automático cuando el disco libre baje de 12 GB,\ncon aviso en el canal General de lo ganado. 4) El medidor de almacenamiento de MetaGenesis (hoy vacío) muestra Mac, Maggabox, A1 y Drive:\nlibre, lo movido y el enlace al índice. Comprueba de punta a punta contra el Maggabox real y pega en el informe el `estado` final.\n\nREGLAS: nunca se borra un dato sin copia comprobada; nada con claves sale del Mac sin cifrar (el Maggabox es nodo público); el Maggabox nunca es el único medio de algo principal; no se cierran apps de Alex ni se matan procesos ajenos; no se toca main a mano. Pruebas que fallen sin tu cambio y, en el informe, qué mediste de verdad (GB antes y después).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45136124149`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: ', '-C', '/Users/alex/Documents/starseed-os-main', 'bundle', 'create', '/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/ssp-66967-4f73/repo-2026-11-23.bundle', '--all'], capture_output=True, text=True, timeout=300.0)\n\nscripts/puente/test_respaldo_maggabox.py:249: AssertionError\n=========================== short test summary info ============================\nFAILED scripts/puente/test_respaldo_maggabox.py::TestPlan::test_plan_incluye_memory_root_y_repo\nFAILED scripts/puente/test_respaldo_maggabox.py::TestRespaldar::test_respaldar_bundle_en_temp_solo_si_6gb_libres\n2 failed, 24 passed in 27.94s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45136124149:refs/remotes/origin/nube/45136124149\"` y `git cherry-pick --no-commit f098fc39543d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: deploy/launchd/com.starseed.alivio-maggabox.plist, deploy/launchd/com.starseed.respaldo-maggabox.plist, scripts/puente/recopilar-capacidades-nodos.py, scripts/puente/respaldo_maggabox.py, scripts/puente/test_respaldo_maggabox.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió ALM1121Ab: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/recopilar-capacidades-nodos.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALM1121Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "ALM1121Ab-d1"
+   ]
+  },
+  {
+   "id": "SUP1125B",
+   "titulo": "traer_nube · si el main vivo no está en la rama main, no comprueba nada y lo dice (una vez por hora)",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube_rama_1125.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nMedido el 25-11 (supervisión, 43.ª pasada): del 24-11 a las 18:24 al 25-11 a las 11:40 el árbol del main vivo (RAIZ) estuvo en una rama `director/commit-…` y no en `main` (commit-seguro «delegaba» el commit; ya arreglado en SUP1125A). `traer_nube._traer` lee `git rev-parse main` (la rama, que se quedó 9 commits atrás), comprueba encima en `starseed-wt/_traer` (cherry-pick y puertas enteras) y al final `_avanzar_main_ff` hace `merge --ff-only` en RAIZ, que estaba en la otra rama: «no pude avanzar main: … Not possible to fast-forward» en cada tarea y en cada pasada durante 17 h (12 tareas de la nube esperando, con sus puertas corridas para nada), y CAP1125D/Db/Dc y CTL1124F dieron «conflicto al traerla sobre el main de hoy» contra esa rama vieja, lo que creó reparaciones que gastaron runs de la nube. Nadie lo vio: el aviso solo traía las líneas «hint:» de git.\n\nCambio en `scripts/puente/traer_nube.py`: (1) una función PURA `rama_valida_para_traer(rama: str) -> tuple[bool, str]` que da `(True, \"\")` solo con `\"main\"` y, si no, `(False, motivo)` con un motivo de una línea que nombra la rama (o «una cabeza suelta» si viene vacía), p. ej. «el main vivo está en la rama X, no en main: no traigo nada hasta que vuelva a main (traer_nube avanza la rama main)». (2) En `_revisar`, SOLO con `aplicar=True` y antes de mirar el inventario: lee la rama de RAIZ con `_git([\"symbolic-ref\", \"--short\", \"-q\", \"HEAD\"])` (rc distinto de 0 = cabeza suelta = cadena vacía) y, si no es válida, devuelve enseguida el mismo dict que `revisar` devuelve cuando está «ocupado» (claves `traidas`, `reparadas`, `esperando`, `superadas_nuevas`, `texto`, `plan` vacías) con el motivo en `ocupado`, SIN llamar a `_traer`, a `_puertas` ni a `_crear_reparacion`, y avisa con `_avisar(motivo)` como mucho una vez por hora (guarda la hora del último aviso en el estado de traer, `ESTADO`, con una clave nueva `aviso_rama_t`; usa `_leer_json`/`_escribir_json`). Sin `aplicar` (lo que «haría») no cambia nada.\n\nPruebas nuevas en `scripts/puente/test_traer_nube_rama_1125.py` (carga el módulo como las demás pruebas de traer_nube): la función pura con \"main\", \"director/commit-1\" y \"\"; y `_revisar(True, 1)` con `_git` sustituido para que `symbolic-ref` dé \"director/commit-1\": devuelve `ocupado` con el nombre de la rama, no llama a `_traer` ni a `inventario` (sustitúyelos por funciones que fallen si se llaman), `_avisar` se llama una vez y, en una segunda llamada dentro de la hora, ninguna (ESTADO en un temporal). Y con `symbolic-ref` = \"main\" sigue el camino de siempre (basta con ver que llega a `inventario`, sustituido por uno que devuelva []). Comprueba: `python3 -m pytest scripts/puente/test_traer_nube_rama_1125.py scripts/puente/test_traer_nube.py -q` en verde.",
+   "ola": "1125 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CTL1124G",
+   "ola": "control-1124",
+   "titulo": "Android controlado: pantalla a 0 cuadros/s por accesibilidad con WebRTC ya negociado",
+   "archivos": [
+    "src/lib/control-remoto/pantalla-origen.ts",
+    "src/lib/control-remoto/fuente-pantalla.ts",
+    "native/src-tauri/src/control_neuronas_android.rs",
+    "src/lib/control-remoto/__tests__/ctl1124g.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (Mac→Maggaboard, 24-11 22:42:56–22:44:20Z): sesión y estado por red local a 26–52 ms; oferta y respuesta WebRTC «ok» (22:43:02–03Z), «pantalla=directo:red-local», pero la ventana dice «Maggaboard no enseña su pantalla · El aparato no está dando imágenes nuevas», «Pantalla por accesibilidad · 0,0 cuadros/s». Debe haber al menos un cuadro inicial y cuadros cuando la pantalla cambia; si la vía de accesibilidad no da, el aviso para aceptar la pantalla fluida (MediaProjection) debe salir en la tableta al abrir la ventana de control, con texto claro, y quedar anotado en el registro si la persona no lo acepta. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).",
+   "dependencias_ya_en_main": [
+    "CTL1124C"
+   ]
+  },
+  {
+   "id": "RES1121A",
+   "ola": "DIR1121",
+   "titulo": "Mac, A1 de Oracle y Maggabox enlazados, cada uno con su especialidad, y relevo automático si cae un medio principal",
+   "archivos": [
+    "scripts/puente/relevo_medios.py",
+    "scripts/puente/test_relevo_medios.py",
+    "deploy/oracle/nodo/systemd/starseed-relevo-medios.service",
+    "starseed_memory_root/fundamentos/relevo-de-medios.md"
+   ],
+   "depende": [],
+   "prompt": "Alex: «que estén vinculados todos los contenedores en la nube incluyendo la Mac, el A1 de Oracle, la neurona nodo Maggabox Linux, cada\nuna con su especialidad y con los respaldos necesarios para que funcione autónomamente aun si falla o se desconecta o pierde algún medio\nprincipal». Aplica la memoria fundamental resiliencia-seguridad-y-respaldos (ninguna dependencia única; 3 copias, 2 medios, 1 fuera del\nMac). Haz: a) registro `relevo-de-medios` con cada medio, su especialidad y quién lo releva — Mac: orquestador, puertas, cartero y\npresidente, bot Principal; A1: siempre encendido, bot de diseño, guardián de main, cola de respaldo y nube; Maggabox: almacén (espejo\nde GitHub cada 15 min, versiones, respaldos cifrados), sin claves en claro por ser nodo público; nubes efímeras (GitHub Actions,\nCloudroom): solo trabajo sin secretos de Alex; b) los registros de los tres canales y el estado de olas se replican cada pocos minutos\nal A1 y al Maggabox (este último sin secretos); c) latido entre medios: si el Mac lleva N minutos sin latido, el A1 toma el relevo con\nARRENDAMIENTO (un solo lector por bot de Telegram: el que tiene el arriendo hace el polling; al volver el Mac lo recupera sin duplicar ni\nperder mensajes) y sigue atendiendo los tres canales con motores gratuitos y la cola; d) las claves que el A1 necesite para relevar\nviajan SOLO por `oracle_nodo.py claves` (archivo 600 del servicio), nunca al Maggabox ni a nubes efímeras; e) simulacro documentado:\nparar el latido del Mac en una prueba y ver que el A1 responde en el canal General en menos de N+2 min, y la vuelta. Deja el paso que\nsolo Alex pueda hacer como acción suya, no lo hagas por él.\n\nREGLAS DE ESTA OLA (Alex, 21-11): los tres canales de dirección se llaman IGUAL en todos los medios: «Principal» (clave principal, @starseed_neurocortex_bot), «General» (clave general, @starseed_puente_bot) y «Audiovisual y diseño» (clave audiovisual, @StarSeed_Design_bot). La fuente única es ~/.starseed/canales-direccion.json (ya tiene esos nombres y `telegram_bot`); ningún medio escribe un nombre distinto a mano. Nunca imprimas ni guardes un token, una clave ni la dirección del A1; las claves solo viajan por `oracle_nodo.py claves`. No envíes nada a nombre de Alex; los bots solo escriben a su chat. No toques main a mano: worktree, pruebas y puerta. Entrega con pruebas que fallen sin tu cambio y di en el informe qué comprobaste de verdad y qué no pudiste comprobar.",
+   "dependencias_ya_en_main": [
+    "CAN1121B-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "CTL1124G",
+   "RES1121A",
+   "ALM1121Ab-d2",
+   "SUP1125B"
+  ]
+ }
+}
