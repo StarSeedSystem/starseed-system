@@ -371,6 +371,14 @@ export function suscribirSesionesSalientes(cb: () => void): () => void {
     return registroGlobal.suscribir(cb);
 }
 
+/** CTL1124F: comprueba si la otra neurona nos tienen aceptados SIN abrir una sesión de control permanente.
+ *  Usa `sondear()` que abre, lee-estado, y cierra si la abrió el sondeo. */
+export async function sondearAceptacion(para: string): Promise<RespuestaOrden> {
+    const { registroGlobal } = await import("./registro-sesiones");
+    const sesion = new SesionHacia(para, mandarOrden, registroGlobal);
+    return sesion.sondear();
+}
+
 /** DIR1125B: las sesiones «hacia» vivas en esta página (las del banco): al terminar el control hay que parar también su latido. */
 const sesionesHacia = new Set<SesionHacia>();
 
@@ -445,19 +453,20 @@ export class SesionHacia {
     /**
      * CTL1119A: un latido firmado cada 10 s. Si la sesión ya no existe (45 s sin latidos), se reabre sola: la
      * aceptación sigue siendo la misma mientras el permiso siga encendido. Si el límite se cumplió, se para.
+     * CTL1124F: tras "Terminar control" (detener()) NO se reabre sola.
      */
     async latir(): Promise<boolean> {
         const t = this.token;
         if (!t || this.cerrando) return false;
         try {
             const r = await this.mandar(this.para, "leer-estado", {}, { nivel: "ver", sesion: t });
-            if (this.cerrando || this.token !== t) return false; // CTL1119A: cerraron mientras el latido iba en vuelo
+            if (this.cerrando || this.token !== t) return false; // CTL1119A: cerraron mientras el latido iba en vuelo / CTL1124F: detener() pone cerrando=true
             if (r.ok) {
                 this.registro.usada(this.para);
                 return true;
             }
             if (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada") {
-                if (this.cerrando) return false;
+                if (this.cerrando) return false; // CTL1124F: no reabrir si la persona terminó el control
                 this.registro.olvidar(this.para, t);
                 return (await this.abrir(true)).ok;
             }
@@ -484,18 +493,26 @@ export class SesionHacia {
     detener(): void {
         this.token = null;
         this.pararLatido();
+        this.cerrando = true; // CTL1124F: evita que latir() reabra la sesión tras "Terminar control"
     }
 
     /**
-     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
+     * DIR1125B: mirar si la otra neurona nos tienen aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
      * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
      * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     * CTL1124F: abre explícitamente si hace falta, lee, y cierra solo si la abrió el sondeo.
      */
     async sondear(): Promise<RespuestaOrden> {
-        const laAbreElSondeo = this.token === null;
-        const r = await this.orden("leer-estado");
-        if (laAbreElSondeo) await this.cerrar();
-        return r;
+        const yaHabiaToken = this.token !== null;
+        if (!yaHabiaToken) {
+            const a = await this.abrir();
+            if (!a.ok) return a;
+        }
+        try {
+            return await this.orden("leer-estado");
+        } finally {
+            if (!yaHabiaToken) await this.cerrar();
+        }
     }
 
     async cerrar(): Promise<void> {

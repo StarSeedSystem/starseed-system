@@ -534,14 +534,16 @@ export function ControlEntreNeuronasPanel() {
         const objetivo = esperando;
         const t0 = Date.now();
         reloj.current = setInterval(() => {
-            void import("@/lib/banco-llamadas/app").then((b) => {
-                b.informarBanco(objetivo);
-                const i = b.ultimoInforme();
-                if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
+            void import("@/lib/control-remoto/canal").then((c) => c.sondearAceptacion(objetivo)).then((r) => {
+                if (r.ok) {
+                    // Aceptada: limpiar aviso previo de "no te aceptó" y abrir ventana
+                    setAviso(null);
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
-                } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
-                    setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
+                } else if (r.motivo === "no-autorizado" || r.motivo === "permiso-apagado") {
+                    // Rechazada o permiso apagado: mostrar aviso
+                    const motivoTexto = r.motivo === "no-autorizado" ? "no te aceptó" : "tiene el control apagado";
+                    setAviso(`${nombreRef.current(objetivo)} ${motivoTexto}${r.resultado && typeof r.resultado === "object" && "detalle" in r.resultado ? `: ${palabrasMotivo((r.resultado as { detalle: { motivo?: string } }).detalle?.motivo ?? "") ?? ""}` : "."}`);
                     setEsperando(null);
                 } else if (Date.now() - t0 > 5 * 60_000) {
                     setAviso(`${nombreRef.current(objetivo)} no contestó en 5 minutos. Cuando acepte, pulsa «Abrir ventana de control».`);
@@ -633,7 +635,7 @@ export function ControlEntreNeuronasPanel() {
         async (huella: string, encender = false, opcion: OpcionLimite = "sin-limite", hora = "", topeMin: number | null = null, propia = true) => {
             const limite = finElegido(opcion, hora, Date.now(), topeMin, propia);
             if (!limite.ok) {
-                setAviso(limite.motivo);
+                setAviso(limite.motivo as string);
                 return;
             }
             guardarFin(huella, limite.fin);
@@ -684,7 +686,10 @@ export function ControlEntreNeuronasPanel() {
 
     const elegir = useCallback(async (id: string) => {
         setDestino(id);
-        if (RE_UUID.test(id)) void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(id)); // solo mira si ya te aceptó
+        if (RE_UUID.test(id)) {
+            // CTL1124F: usar sondearAceptacion que NO deja sesión viva (a diferencia de informarBanco)
+            void import("@/lib/control-remoto/canal").then((c) => c.sondearAceptacion(id));
+        }
     }, []);
 
     const ofrecer = useCallback(async () => {
@@ -698,7 +703,8 @@ export function ControlEntreNeuronasPanel() {
         ]);
         const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreNeuronaPropia());
         if (r.ok) {
-            setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
+            // CTL1124F: usar sondearAceptacion que NO deja sesión viva
+            setTimeout(() => void import("@/lib/control-remoto/canal").then((c) => c.sondearAceptacion(destino.trim())), 6000);
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
             setAviso(
                 `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
@@ -728,7 +734,8 @@ export function ControlEntreNeuronasPanel() {
                 const { crearClaveYPedirControl } = await import("@/lib/control-remoto/canal");
                 const resultado = await crearClaveYPedirControl(destino.trim().toLowerCase(), nombreDe(destino.trim()), nombreAparato, cuenta);
                 if (resultado.respuesta.ok) {
-                    setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000);
+                    // CTL1124F: usar sondearAceptacion que NO deja sesión viva
+                    setTimeout(() => void import("@/lib/control-remoto/canal").then((c) => c.sondearAceptacion(destino.trim())), 6000);
                     setEsperando(destino.trim().toLowerCase());
                     setAviso(
                         `Clave creada y pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(resultado.respuesta.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
