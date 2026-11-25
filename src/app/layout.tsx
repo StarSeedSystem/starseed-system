@@ -173,6 +173,7 @@ import { AppNotifyBridge } from "@/components/notifications/app-notify-bridge";
 import { AppPopupHost } from "@/components/notifications/app-popup-host";
 // (NOT1108A) Avisos de mensajes nuevos: dentro del OS y del sistema; pulsar uno abre su chat. Sin UI.
 import { AvisosMensajesMount } from "@/components/notifications/avisos-mensajes-mount";
+import { RegistroSenalesControlMount } from "@/components/notifications/registro-senales-control-mount"; // DIR1125N
 // Auto-actualización de la Biblioteca (Adenda 69 · J-2): si está activada, aplica
 // solas las actualizaciones de los paquetes instalados y avisa. Sin UI.
 import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watcher";
@@ -433,6 +434,8 @@ export default function RootLayout({
                         <AppNotifyBridge />
                         <AppPopupHost />
                         <AvisosMensajesMount />
+                        {/* DIR1125N: señales y control remoto en el Centro de notificaciones, desde cualquier área. */}
+                        <RegistroSenalesControlMount />
                         {/* Auto-actualización de la Biblioteca (J-2): aplica solas las actualizaciones si el usuario lo activó. */}
                         <AutoUpdateWatcher />
                         <PaginaVivaMontaje />
