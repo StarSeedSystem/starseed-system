@@ -15,6 +15,7 @@
 //! teclas): con `indicador=oculto` NO se puede quitar el punto, porque no quedaría ningún otro aviso. El ajuste se respeta en
 //! macOS y en Android; aquí el punto se pone siempre (`control_punto_logica::dibujar_punto(…, false)`). No comprobado a ojo.
 
+use crate::control_estado_linux_logica as e;
 use crate::control_neuronas as cn;
 use crate::control_punto_logica as p;
 use gtk::prelude::*;
@@ -26,6 +27,69 @@ use tauri::AppHandle;
 static VISIBLE: AtomicBool = AtomicBool::new(false);
 /// Cada apertura o cierre del panel suma uno: el plegado por tiempo solo vale si nadie lo tocó desde entonces.
 static GENERACION: AtomicU64 = AtomicU64::new(0);
+
+/// (LNX1124A) Un rechazo del gestor de energía por D-Bus se anota UNA vez y no se reintenta
+/// mientras viva el proceso. Sin E/S ni avisos: la única señal es la línea del registro.
+static ENERGIA: std::sync::Mutex<e::GuardiaEnergia> = std::sync::Mutex::new(e::GuardiaEnergia::nueva());
+
+fn guardia_energia() -> std::sync::MutexGuard<'static, e::GuardiaEnergia> {
+    ENERGIA.lock().unwrap_or_else(|x| x.into_inner())
+}
+
+/// ¿Sigue permitida la vía D-Bus de energía? Tras un rechazo es `false` para siempre (proceso).
+pub fn energia_permite_reintento() -> bool {
+    guardia_energia().permite_reintento()
+}
+
+/// (LNX1124A) Punto único para el «AccessDenied» del gestor de energía: deja UNA línea en el
+/// registro encadenado y devuelve `true` solo la primera vez. No se enseña nada al sistema y
+/// no se vuelve a intentar; el aviso fijo desaparece al no insistir.
+#[allow(dead_code)] // lo llaman los controles nativos (brillo/energía) al recibir el rechazo
+pub fn anotar_rechazo_energia(app: &AppHandle, error: &str) -> bool {
+    match guardia_energia().registrar(error) {
+        e::RechazoEnergia::Primera(linea) => {
+            cn::anotar_k(app, e::EVENTO_ENERGIA, &linea);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// (LNX1124A) Elige la vía de brillo que no pide privilegios: `xrandr` sobre X, luego
+/// `brightnessctl` y, al final, el sysfs. `None` si no hay ninguna.
+fn via_brillo_actual() -> Option<e::ViaBrillo> {
+    let hay_comando = |prog: &str| {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!("command -v {prog}"))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    };
+    let sysfs = [
+        "/sys/class/backlight/intel_backlight",
+        "/sys/class/backlight/amdgpu_bl0",
+        "/sys/class/backlight/acpi_video0",
+    ]
+    .iter()
+    .any(|p| std::path::Path::new(p).exists());
+    e::via_brillo(hay_comando("xrandr"), hay_comando("brightnessctl"), sysfs)
+}
+
+/// (LNX1124A) Al empezar un control se deja constancia, una vez por proceso, de la vía de
+/// energía sin privilegios. Nunca se llama al D-Bus del gestor de energía desde aquí.
+fn preparar_energia(app: &AppHandle) {
+    static ANOTADA: AtomicBool = AtomicBool::new(false);
+    if ANOTADA.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let via = via_brillo_actual().map_or("ninguna", e::ViaBrillo::nombre);
+    let reintento = if energia_permite_reintento() { "si" } else { "no" };
+    cn::anotar_k(app, "energia-via", &format!("via={via} sin-dbus=si reintento-dbus={reintento}"));
+}
 
 fn confirmacion() -> std::sync::MutexGuard<'static, p::Confirmacion> {
     static C: std::sync::Mutex<p::Confirmacion> = std::sync::Mutex::new(p::Confirmacion::nueva());
@@ -266,6 +330,7 @@ fn crear(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str) -> Option<
 
 /// Pone el punto. `true` si quedó a la vista. `_indicador` se ignora a propósito: sin bandeja no hay otro aviso (ver arriba).
 pub fn poner(app: &AppHandle, nombre: &str, color_hex: &str, nivel: &str, _indicador: &str) -> bool {
+    preparar_energia(app); // LNX1124A: vía sin D-Bus, anotada una sola vez
     let (nombre, color_hex, nivel) = (nombre.to_string(), color_hex.to_string(), nivel.to_string());
     let a = app.clone();
     en_principal(app, move || {
