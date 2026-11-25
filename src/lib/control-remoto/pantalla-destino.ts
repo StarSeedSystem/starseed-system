@@ -20,7 +20,7 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, nivelParaCuadroGrande, planPorCamino, resincronizarDesde, esperaSinCuadro } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
@@ -577,6 +577,8 @@ export class PantallaDestino {
         let t0fps = this.d.ahora();
         let ultimaLinea = t0fps;
         let pintados = 0; // DIR1125B
+        let ultimoContado = 0; // CTL1124D: el mismo cuadro reintentado no cuenta dos veces
+        let fallosPintado = 0; // CTL1124D: el lienzo puede fallar sin que falle el enlace
         const tInicioMalla = t0fps;
         while (!this.cerrada && this.enMalla) {
             if (this.cola.length > 0) await m.esperar(0);
@@ -607,6 +609,21 @@ export class PantallaDestino {
             if (res.nuevo === false) {
                 fallos = 0;
                 vacios += 1;
+                // CTL1124D: si la numeración del aparato se reinició (p. ej. al pasar a «proyección»), se baja
+                // `desde`; si no, contestaría `nuevo:false` para siempre y la ventana quedaría negra sin decirlo.
+                const desdeNuevo = resincronizarDesde(desde, res);
+                if (desdeNuevo !== null) {
+                    desde = desdeNuevo;
+                    ultimoContado = desdeNuevo;
+                    vacios = 0;
+                    this.anotar(`control-fuente paso=resync via=malla desde=${desde}`);
+                }
+                // CTL1124D: el aparato dice que el cuadro no cabe en el tope; se pide un nivel menor en vez de esperar.
+                const nivelGrande = nivelParaCuadroGrande(ritmo.nivel, res);
+                if (nivelGrande !== null) {
+                    ritmo = { ...ritmo, nivel: nivelGrande, altas: 0, bajas: 0 };
+                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "cuadro-grande", nivel: nivelGrande }));
+                }
                 if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
                 else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
                 await m.esperar(esperaSinCuadro(vacios));
@@ -645,27 +662,37 @@ export class PantallaDestino {
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
+            // CTL1124D: el cuadro se mide al LLEGAR, no cuando el lienzo acierta a pintarlo. Un lienzo que falla
+            // (WebKit sin GStreamer, JPEG a medio decodificar) no puede dejar «Cuadros/s —» y «sin determinar».
+            if (p0.num > ultimoContado) {
+                ultimoContado = p0.num;
+                cuadros += 1;
+                añadirCuadro(this.calidad, { t: this.d.ahora(), bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
+            }
+            // Un cuadro completo es señal de vida del enlace aunque el lienzo local no acierte a pintarlo.
+            if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
+            else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
+            const tMedida = this.d.ahora();
+            if (tMedida - t0fps >= 1000) {
+                const fps = (cuadros * 1000) / (tMedida - t0fps);
+                cuadros = 0;
+                t0fps = tMedida;
+                this.poner({ fps: Math.round(fps * 10) / 10 });
+            }
             // DIR1125B: el cuadro solo se da por visto si se PINTÓ. Antes `desde` avanzaba antes de pintar: si el primer cuadro fallaba y la
             // pantalla del otro aparato no cambiaba, el aparato contestaba «nuevo: false» para siempre y la ventana quedaba negra sin una línea.
             if (!(await l.pintar(jpeg, ancho, alto).catch(() => false))) {
-                fallos += 1;
-                if (fallos === 1 || fallos === 5) this.anotar(`control-fuente paso=pintar via=malla resultado=fallo bytes=${jpeg.length} ancho=${ancho} alto=${alto} intento=${fallos}`);
-                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
-                await m.esperar(300 * fallos);
+                fallos = 0; // el cuadro llegó: el fallo es del lienzo, no del enlace; no se cierra la sesión por esto
+                fallosPintado += 1;
+                if (fallosPintado === 1 || fallosPintado === 5) this.anotar(`control-fuente paso=pintar via=malla resultado=fallo bytes=${jpeg.length} ancho=${ancho} alto=${alto} intento=${fallosPintado}`);
+                await m.esperar(Math.min(1000, 100 * fallosPintado));
                 continue;
             }
             fallos = 0;
+            fallosPintado = 0;
             desde = p0.num;
             if (pintados === 0) this.anotar(`control-fuente paso=primer-cuadro via=malla ms=${Math.max(0, Math.round(this.d.ahora() - tInicioMalla))} bytes=${jpeg.length} ancho=${ancho} alto=${alto}`);
             pintados += 1;
-            {
-                cuadros += 1;
-                if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
-                else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
-                // CTL1119B: alimentar cuadro a calidad (malla)
-                const t = this.d.ahora();
-                añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
-            }
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
             enMedida += 1;
@@ -677,15 +704,9 @@ export class PantallaDestino {
                 if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: (jpeg.length * 8) / Math.max(1, ms), nivel: estado.nivel }));
             }
             const ahora = this.d.ahora();
-            if (ahora - t0fps >= 1000) {
-                const fps = (cuadros * 1000) / (ahora - t0fps);
-                cuadros = 0;
-                t0fps = ahora;
-                this.poner({ fps: Math.round(fps * 10) / 10 });
-                if (ahora - ultimaLinea >= 5000) {
-                    ultimaLinea = ahora;
-                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: fps, kbps: (jpeg.length * 8) / Math.max(1, ms) }));
-                }
+            if (ahora - ultimaLinea >= 5000) {
+                ultimaLinea = ahora;
+                this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: this.snap.fps ?? null, kbps: (jpeg.length * 8) / Math.max(1, ms) }));
             }
             if (plan.pausaMs) await m.esperar(plan.pausaMs);
         }

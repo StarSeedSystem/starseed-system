@@ -131,6 +131,29 @@ export function nivelDe(n: unknown): NivelCuadro {
     return NIVELES_CUADRO[i];
 }
 
+/**
+ * CTL1124D · ¿hay que re-sincronizar `desde`? El aparato contesta el número que tiene; si va por detrás del
+ * nuestro, su numeración se reinició (p. ej. al pasar a «proyección») y, sin bajar, todo sería `nuevo:false`.
+ */
+export function resincronizarDesde(desde: number, respuesta: unknown): number | null {
+    if (!respuesta || typeof respuesta !== "object") return null;
+    const r = respuesta as Record<string, unknown>;
+    if (r.nuevo !== false) return null;
+    const numero = r.numero;
+    if (typeof numero !== "number" || !Number.isInteger(numero) || numero < 0) return null;
+    return numero < desde ? numero : null;
+}
+
+/** CTL1124D · si el aparato dice que el cuadro no cabe, se pide el siguiente nivel (más pequeño); null si ya no queda margen. */
+export function nivelParaCuadroGrande(nivelActual: number, respuesta: unknown): number | null {
+    if (!respuesta || typeof respuesta !== "object") return null;
+    const r = respuesta as Record<string, unknown>;
+    if (r.nuevo !== false || r.motivo !== "grande") return null;
+    const actual = Math.max(0, Math.trunc(nivelActual));
+    const siguiente = Math.min(actual + 1, NIVELES_CUADRO.length - 1);
+    return siguiente > actual ? siguiente : null;
+}
+
 /** Espera antes de preguntar otra vez cuando no hay cuadro nuevo (crece hasta 200 ms, no ocupa de más). */
 export function esperaSinCuadro(vacios: number): number {
     return Math.min(200, 20 + vacios * 20);
