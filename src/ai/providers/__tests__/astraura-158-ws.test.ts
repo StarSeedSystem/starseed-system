@@ -15,6 +15,7 @@ import {
 } from "@/ai/providers/astraura-158-ws";
 import { attemptAstraura158WsTurn, type ChatPreferences } from "@/ai/providers/astraura-158";
 import type { ChatOptions } from "@/ai/providers/types";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 /* ───────────────────── Doble de WebSocket en memoria ───────────────────── */
 
@@ -271,5 +272,54 @@ describe("attemptAstraura158WsTurn", () => {
     expect(chunks).toEqual(["Ho"]);
 
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("llama a onOrbParams cuando llega un evento orb_params por WS", async () => {
+    const orbParamsCalls: Partial<QuantumOrbParams>[] = [];
+    const options: ChatOptions = {
+      model: "astraura-158/aurora",
+      onChunk: () => {},
+      onOrbParams: (p) => orbParamsCalls.push(p),
+    };
+    const promise = attemptAstraura158WsTurn(
+      BASE_URL,
+      { prompt: "hola", systemPrompt: "eres Aurora", preferences: BASE_PREFS },
+      "aurora",
+      undefined,
+      options,
+    );
+
+    const socket = FakeWebSocket.instances[0];
+    socket.serverOpen();
+    socket.serverMessage({ type: "orb_params", params: { turbulence: 0.8, symmetry: 0.3 } });
+    socket.serverMessage({ type: "done", full_text: "Hola" });
+
+    await promise;
+    expect(orbParamsCalls).toHaveLength(1);
+    expect(orbParamsCalls[0]).toMatchObject({ turbulence: 0.8, symmetry: 0.3 });
+  });
+
+  it("ignora orb_params sin params por WS y resuelve el turno", async () => {
+    const orbParamsCalls: Partial<QuantumOrbParams>[] = [];
+    const options: ChatOptions = {
+      model: "astraura-158/aurora",
+      onChunk: () => {},
+      onOrbParams: (p) => orbParamsCalls.push(p),
+    };
+    const promise = attemptAstraura158WsTurn(
+      BASE_URL,
+      { prompt: "hola", systemPrompt: "sys", preferences: BASE_PREFS },
+      "aurora",
+      undefined,
+      options,
+    );
+
+    const socket = FakeWebSocket.instances[0];
+    socket.serverOpen();
+    socket.serverMessage({ type: "orb_params" }); // sin params
+    socket.serverMessage({ type: "done", full_text: "Hola" });
+
+    await promise;
+    expect(orbParamsCalls).toHaveLength(0);
   });
 });

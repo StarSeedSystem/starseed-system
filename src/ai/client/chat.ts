@@ -9,6 +9,7 @@
 import { getProvider, type ChatMessage, type ChatOptions, type ChatResponse, type ProviderId, type DecryptedProviderConfig } from "../providers";
 import { decryptKey } from "./keyStorage";
 import { loadConfigs, getActiveProviderId } from "./providerStore";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 /**
  * Ad-hoc provider override (ADDITIVE / OPTIONAL).
@@ -48,6 +49,8 @@ export interface ChatRequest {
   signal?: AbortSignal;
   /** Streaming callback. */
   onChunk?: (delta: string) => void;
+  /** Callback for orb params (BitNet 1.58b visual vector by clause). */
+  onOrbParams?: (params: Partial<QuantumOrbParams>) => void;
   /**
    * OPTIONAL ad-hoc provider+endpoint+key. When present, chat() talks to this
    * exact provider instead of resolving one from the stored config. Backward

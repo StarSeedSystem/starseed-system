@@ -12,6 +12,7 @@ import {
   persona158For,
 } from "@/ai/providers/astraura-158";
 import type { ChatMessage } from "@/ai/providers/types";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 describe("buildAstraura158Prompt", () => {
   it("un solo mensaje de usuario ⇒ prompt literal y system_prompt del OS", () => {
@@ -172,6 +173,7 @@ import {
   hasAstraura158Collected,
   mentionsSystemNote,
   readAstraura158Sse,
+  attemptAstraura158WsTurn,
   type ChatPreferences,
 } from "@/ai/providers/astraura-158";
 
@@ -321,5 +323,26 @@ describe("readAstraura158Sse", () => {
     expect(out.text).toBe("Determinista");
     expect(hasAstraura158Collected(out.collected)).toBe(false);
     await expect(readAstraura158Sse(sseResponse(['data: {"type":"error","message":"motor caído"}\n\n']))).rejects.toThrow(/motor caído/);
+  });
+
+  it("llama a onOrbParams cuando llega un evento orb_params", async () => {
+    const orbParamsCalls: Partial<QuantumOrbParams>[] = [];
+    const res = sseResponse([
+      'data: {"type":"orb_params","params":{"turbulence":0.7,"spikiness":0.4}}\n\n',
+      'data: {"type":"done","full_text":"Hola"}\n\n',
+    ]);
+    await readAstraura158Sse(res, undefined, (p) => orbParamsCalls.push(p));
+    expect(orbParamsCalls).toHaveLength(1);
+    expect(orbParamsCalls[0]).toMatchObject({ turbulence: 0.7, spikiness: 0.4 });
+  });
+
+  it("ignora orb_params sin params y sigue procesando", async () => {
+    const orbParamsCalls: Partial<QuantumOrbParams>[] = [];
+    const res = sseResponse([
+      'data: {"type":"orb_params"}\n\n',
+      'data: {"type":"done","full_text":"Hola"}\n\n',
+    ]);
+    await readAstraura158Sse(res, undefined, (p) => orbParamsCalls.push(p));
+    expect(orbParamsCalls).toHaveLength(0);
   });
 });

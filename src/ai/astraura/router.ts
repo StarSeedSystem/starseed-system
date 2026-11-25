@@ -23,6 +23,7 @@ import { chat, type ChatRequest } from "@/ai/client/chat";
 import { decryptKey } from "@/ai/client/keyStorage";
 import type { ChatMessage, ChatResponse } from "@/ai/providers/types";
 import type { SujetoMemoria } from "@/lib/memorias/capsulas";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 import {
   FREE_CATALOG,
   TASK_LABELS,
@@ -40,6 +41,7 @@ import { detectAvailabilitySafe, userConfigForSource, astraura158EndpointFor, ty
 // configurable por agente/personalidad/cerebro/neurona/cuenta. Capa pura.
 import { resolvePrimarySystem, type PrimaryMode, type PrimaryProvenance } from "@/lib/astraura/primary-system";
 import { persona158For, modelToPersona158, ASTRAURA_158_MODEL_PREFIX } from "@/ai/providers/astraura-158";
+import { emitQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_MALLA_SOURCE_ID, IA_MALLA_SOURCE_ID, esFuenteDeMalla } from "./free-catalog";
 // (Ola 368) IA por la malla P2P, genérica: peers que sirven una fuente/modelo
 // concreto (caso "a": pin no listo AQUÍ) o cualquiera (caso "b": último
@@ -927,6 +929,8 @@ export interface AstrauraChatRequest {
   effortDifficultyDelta?: number;
   signal?: AbortSignal;
   onChunk?: (delta: string) => void;
+  /** Callback para recibir parámetros de la orbe (BitNet 1.58b) en tiempo real. */
+  onOrbParams?: (params: Partial<QuantumOrbParams>) => void;
   /** Pista de tarea si el llamador ya la conoce (p.ej. "code" en el editor). */
   taskHint?: TaskKind;
   /** Cerebro activo (se propaga a chatSmart/manual). */
@@ -1165,6 +1169,7 @@ async function runCandidate(c: RouteCandidate, req: AstrauraChatRequest): Promis
     maxTokens: req.maxTokens,
     signal: req.signal,
     onChunk: req.onChunk,
+    onOrbParams: req.onOrbParams,
   };
   if (c.source.baseUrl === "builtin://chrome-ai") {
     return chromeAiChat(req.messages, { signal: req.signal, onChunk: req.onChunk });
@@ -1577,7 +1582,11 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     .filter(Boolean)
     .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
-  let reqX: AstrauraChatRequest = brainExtra ? { ...req, messages } : req;
+  // Callback para emitir parámetros de la orbe (BitNet 1.58b) al bus cuántico.
+  const onOrbParams = (params: Partial<QuantumOrbParams>) => {
+    try { emitQuantumOrbParams(params); } catch { /* defensivo: el bus nunca lanza */ }
+  };
+  let reqX: AstrauraChatRequest = brainExtra ? { ...req, messages, onOrbParams } : { ...req, onOrbParams };
 
   // ── CONTEXTO COMPACTO para Astraura 1.58 (local/nube) — fusión de skills ──
   // El backend BitNet tiene un contexto pequeño (~4096 tokens): en vez del

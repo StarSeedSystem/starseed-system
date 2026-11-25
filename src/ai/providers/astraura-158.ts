@@ -58,6 +58,7 @@ import type {
 import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
@@ -662,7 +663,11 @@ export interface Astraura158SseResult {
  * en `collected` (`collectAstraura158Event`). Exportada para tests (con un
  * `Response` de `ReadableStream`).
  */
-export async function readAstraura158Sse(res: Response, onChunk?: (delta: string) => void): Promise<Astraura158SseResult> {
+export async function readAstraura158Sse(
+  res: Response,
+  onChunk?: (delta: string) => void,
+  onOrbParams?: (params: Partial<QuantumOrbParams>) => void
+): Promise<Astraura158SseResult> {
   const reader = res.body?.getReader();
   if (!reader) throw new Error("Astraura 1.58 error: respuesta sin cuerpo.");
   const decoder = new TextDecoder();
@@ -683,6 +688,9 @@ export async function readAstraura158Sse(res: Response, onChunk?: (delta: string
       collectAstraura158Event(collected, ev);
     } else if (ev.type === "error" && typeof ev.message === "string") {
       throw new Error(`Astraura 1.58 error: ${ev.message}`);
+    } else if (ev.type === "orb_params") {
+      const params = (ev as Astraura158Event & { params?: Partial<QuantumOrbParams> }).params;
+      if (params) onOrbParams?.(params);
     } else {
       collectAstraura158Event(collected, ev);
     }
@@ -762,7 +770,7 @@ export async function attemptAstraura158WsTurn(
   turn: { prompt: string; systemPrompt: string; preferences: ChatPreferences },
   persona: string,
   mode: Astraura158MultiMode | undefined,
-  options: ChatOptions,
+  options: ChatOptions & { onOrbParams?: (params: Partial<QuantumOrbParams>) => void },
   readyTimeoutMs: number = ASTRAURA_158_WS_READY_TIMEOUT_MS,
 ): Promise<ChatResponse | null> {
   // SSR (requisito 7): `getAstraura158Ws` ya se autoprotege, pero cortamos
@@ -870,6 +878,11 @@ export async function attemptAstraura158WsTurn(
             fail(new Error(`Astraura 1.58 error: ${ev.message}`));
             return;
           }
+          if (ev.type === "orb_params") {
+            const params = (ev as Astraura158Event & { params?: Partial<QuantumOrbParams> }).params;
+            if (params) options.onOrbParams?.(params);
+            return;
+          }
           // `init_state`, `learning_event`, `dream_cycle_event`,
           // `imagination_insight_event`… — mismo tratamiento tolerante que
           // ya usa `readAstraura158Sse` para eventos que no son el texto.
@@ -934,7 +947,7 @@ async function chat(
   // respuestas— en el comentario grande junto a esa función). Si devuelve
   // `null`, no emitió NADA al consumidor y seguimos por la reserva SSE, que
   // es exactamente la que ya existía antes de esta adenda — sin reescribir.
-  const wsResponse = await attemptAstraura158WsTurn(base, { prompt: built.prompt, systemPrompt, preferences }, persona, mode, options);
+  const wsResponse = await attemptAstraura158WsTurn(base, { prompt: built.prompt, systemPrompt, preferences }, persona, mode, { ...options, onOrbParams: options.onOrbParams });
   if (wsResponse) return wsResponse;
 
   // ── Reserva SSE (idéntica a la de antes de la Adenda 164) ──
@@ -1010,7 +1023,7 @@ async function chat(
     };
     return { text, raw };
   }
-  const out = await readAstraura158Sse(res, options.onChunk);
+  const out = await readAstraura158Sse(res, options.onChunk, options.onOrbParams);
   const raw: Astraura158Raw = {
     astraura158: out.collected,
     persona,

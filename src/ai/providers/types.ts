@@ -7,6 +7,7 @@
  *
  * See: memory/principles.md §2.4 (Exocórtex) and memory/architecture.md.
  */
+import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
 
 /**
  * `astraura-158` (Adenda 153): backend soberano Astraura 1.58-bit — el SISTEMA
@@ -68,6 +69,8 @@ export interface ChatOptions {
   signal?: AbortSignal;
   /** Called for each streamed chunk (if streaming is supported). */
   onChunk?: (delta: string) => void;
+  /** Callback for orb params (BitNet 1.58b visual vector by clause). */
+  onOrbParams?: (params: Partial<QuantumOrbParams>) => void;
 }
 
 export interface ChatResponse {
