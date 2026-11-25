@@ -185,6 +185,26 @@ def libre_de_su_reasignacion(rama, entrada, run_vivo, ahora):
     return None
 
 
+#: (SUP1125B) Recordar el aviso de rama equivocada: una vez por hora, no en cada pasada de 30 min.
+AVISO_RAMA_S = 3600
+
+
+def rama_valida_para_traer(rama):
+    """PURA (SUP1125B): ¿el main vivo (RAIZ) está en `main`? → (True, "") o (False, motivo).
+
+    (Medido el 25-11) Del 24-11 18:24 al 25-11 11:40 el árbol de RAIZ estuvo en `director/commit-…`;
+    `_traer` leía `git rev-parse main` (la rama, 9 commits atrás) y `_avanzar_main_ff` fallaba con
+    «Not possible to fast-forward» en cada tarea y cada pasada. Si no está en `main` no se trae nada:
+    `traer_nube` avanza la rama `main` y escribiría sobre otra rama. Una cabeza suelta (rama vacía)
+    tampoco vale."""
+    rama = str(rama or "").strip()
+    if rama == "main":
+        return True, ""
+    donde = "la rama %s" % rama if rama else "una cabeza suelta"
+    return False, ("el main vivo está en %s, no en main: no traigo nada hasta que vuelva a main "
+                   "(traer_nube avanza la rama main)" % donde)
+
+
 def decidir(tid, commits, en_main, estado, cola, libre=None, tarea=None):
     """PURA. Qué hacer con el trabajo de UNA tarea en UNA rama: (accion, motivo).
 
@@ -1042,6 +1062,19 @@ def revisar(aplicar=False, espera_integrar_s=60):
 
 def _revisar(aplicar, espera_integrar_s):
     estado = _leer_json(ESTADO, {}) or {}
+    if aplicar:
+        # (SUP1125B) Solo se trae si el main vivo está en `main`: con RAIZ en otra rama, `_traer` lee
+        # `git rev-parse main` (viejo) y `_avanzar_main_ff` falla con «Not possible to fast-forward».
+        rc, rama = _git(["symbolic-ref", "--short", "-q", "HEAD"])
+        valida, motivo = rama_valida_para_traer(rama if rc == 0 else "")
+        if not valida:
+            ahora = int(time.time())
+            if ahora - int(estado.get("aviso_rama_t") or 0) >= AVISO_RAMA_S:
+                _avisar(motivo)
+                estado["aviso_rama_t"] = ahora
+                _escribir_json(ESTADO, estado)
+            return {"traidas": [], "reparadas": [], "esperando": [], "superadas_nuevas": [],
+                    "texto": "", "plan": [], "ocupado": motivo}
     hechas_antes = estado.get("ramas") or {}
     anunciadas = set(estado.get("anunciadas") or [])
     progreso = _progreso()
