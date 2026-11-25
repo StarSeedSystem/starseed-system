@@ -295,6 +295,7 @@ export class PantallaDestino {
     private readonly carrilCompartido: { cola: Promise<unknown> };
     private reintentadas = new WeakSet<object>();
     private enMalla = false; // CTL1118M
+    private mallaMedio: TipoMedio = "sin-determinar"; // CTL1124D: medio real de la pantalla por malla
     private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void } | null = null;
     private inicioConexion = 0;
     /** CTL1119B: estado de calidad (cuadros, acuses, métricas). */
@@ -656,6 +657,8 @@ export class PantallaDestino {
             }
             fallos = 0;
             desde = p0.num;
+            // CTL1124D: actualizar el medio de la malla para que calidad lo use
+            if (camino.medio) this.mallaMedio = camino.medio as TipoMedio;
             if (pintados === 0) this.anotar(`control-fuente paso=primer-cuadro via=malla ms=${Math.max(0, Math.round(this.d.ahora() - tInicioMalla))} bytes=${jpeg.length} ancho=${ancho} alto=${alto}`);
             pintados += 1;
             {
@@ -893,9 +896,14 @@ export class PantallaDestino {
     private actualizarCalidad(): void {
         if (this.cerrada) return;
         const ahora = this.d.ahora();
-        // Actualizar medio actual
-        const medioSnap = instantaneaMedio(this.neurona);
-        const medio: TipoMedio = (medioSnap.pantalla.medio as TipoMedio) ?? (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+        // Actualizar medio actual: en malla usamos el medio real de la pantalla (CTL1124D)
+        let medio: TipoMedio;
+        if (this.enMalla) {
+            medio = this.mallaMedio;
+        } else {
+            const medioSnap = instantaneaMedio(this.neurona);
+            medio = (medioSnap.pantalla.medio as TipoMedio) ?? (medioSnap.ordenes.medio as TipoMedio) ?? "sin-determinar";
+        }
         actualizarMedio(this.calidad, medio);
         // Calcular métricas
         const metricas = calcularMetricas(this.calidad, ahora);
