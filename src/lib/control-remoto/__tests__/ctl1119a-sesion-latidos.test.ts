@@ -47,6 +47,7 @@ let nonceN = 0;
 let permiso: PermisoControl;
 let puerta: PuertaControl;
 let mac: Aparato;
+let paradas: { motivo: string; token?: string }[];
 
 async function firmar(a: Aparato, accion: string, args: Record<string, unknown> = {}, o: Partial<CargaOrden> = {}) {
     a.seq += 1;
@@ -89,7 +90,9 @@ function nuevaPuerta(): void {
             abrir: async () => ({ ok: true, token: "a".repeat(32) }),
             orden: async () => ({ ok: true }),
             anotar: () => undefined,
-            parar: async () => undefined,
+            parar: async (motivo: string, token?: string) => {
+                paradas.push({ motivo, token });
+            },
         } as never,
     });
 }
@@ -115,6 +118,7 @@ beforeEach(async () => {
     reloj = Date.parse("2026-11-19T10:00:00Z");
     nonceN = 0;
     permiso = permisoDeFabrica();
+    paradas = [];
     mac = await aparato();
     nuevaPuerta();
 });
@@ -140,6 +144,7 @@ describe("latidos: la sesión no tiene hora máxima", () => {
         expect((await latir(sesion)).ok).toBe(true);
         reloj += SESION_INACTIVA_MS + 1_000;
         expect((await latir(sesion)).motivo).toBe("sesion-caducada");
+        expect(paradas, "sin límite, la parada la decide el vigía nativo; la página no la fuerza").toEqual([]);
         const reabierta = await puerta.recibir(await firmar(mac, "abrir-sesion"));
         expect(reabierta).toMatchObject({ ok: true });
         expect(permiso.encendido).toBe(true);
@@ -170,6 +175,7 @@ describe("límite de tiempo elegido al aceptar", () => {
         }
         reloj += LATIDO_CADA_MS + 1_000;
         expect((await latir(sesion)).motivo).toBe("limite-cumplido");
+        expect(paradas, "al cumplirse el límite se quita también el indicador nativo").toEqual([{ motivo: "limite-cumplido", token: sesion }]);
         expect(await puerta.recibir(await firmar(mac, "abrir-sesion"))).toMatchObject({ ok: false, motivo: "limite-cumplido" });
         expect(permiso.encendido).toBe(true);
         expect(permiso.controladores).toHaveLength(1);
