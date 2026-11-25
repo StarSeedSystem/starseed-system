@@ -65,6 +65,7 @@ let camino: "directo" | "capa";
 let hayWebRtc: boolean;
 let falloSenal: boolean;
 let respPartes: Record<string, unknown>[] = [];
+let fallosPintar = 0; // DIR1125B
 
 function montar() {
     comprobarWebRtcUtilizableMock.mockResolvedValue(
@@ -111,7 +112,11 @@ function montar() {
         malla: {
             hayWebRtc: () => hayWebRtc,
             crearLienzo: () => ({
-                pintar: async (j, ancho, alto) => { pintados.push({ ancho, alto, bytes: j.length }); return true; },
+                pintar: async (j, ancho, alto) => {
+                    if (fallosPintar > 0) { fallosPintar -= 1; return false; }
+                    pintados.push({ ancho, alto, bytes: j.length });
+                    return true;
+                },
                 flujo: () => ({ lienzo: true }),
                 liberar: () => { liberado = true; },
             }),
@@ -136,6 +141,7 @@ beforeEach(async () => {
     camino = "directo";
     hayWebRtc = false;
     falloSenal = false;
+    fallosPintar = 0;
     respPartes = (await trocear("v=0\r\nrespuesta", "respuesta", "negociacion1")).map((p) => ({ ...p }));
     vi.clearAllMocks();
 });
@@ -156,6 +162,18 @@ describe("CTL1118M · pantalla por la malla (destino)", () => {
         expect(lineas.some((l) => /^control-fuente paso=via via=malla enlace=directo:red-local cuadros-s=sin-medir causa=sin-webrtc$/.test(l))).toBe(true);
         await d.cerrar("fin", false);
         expect(liberado).toBe(true);
+    });
+    it("DIR1125B · si el primer cuadro no se pinta se vuelve a pedir el MISMO (la otra pantalla puede no cambiar) y queda dicho en el registro", async () => {
+        fallosPintar = 2;
+        const d = montar();
+        await d.iniciar();
+        await vi.advanceTimersByTimeAsync(500);
+        // `numero` no cambió: sin el arreglo el aparato contestaría «nuevo: false» para siempre y `pintados` quedaría vacío.
+        expect(pintados.length).toBe(1);
+        expect(lineas.some((l) => /^control-fuente paso=pintar via=malla resultado=fallo bytes=\d+ ancho=640 alto=360 intento=1$/.test(l))).toBe(true);
+        expect(lineas.some((l) => /^control-fuente paso=primer-cuadro via=malla ms=\d+ bytes=\d+ ancho=640 alto=360$/.test(l))).toBe(true);
+        expect(d.instantanea().estado).toBe("en-vivo");
+        await d.cerrar("fin", false);
     });
     it("un solo cuadro en vuelo, y con cuadros nuevos mide cuadros/s", async () => {
         const d = montar();

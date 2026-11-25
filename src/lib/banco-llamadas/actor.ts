@@ -126,7 +126,7 @@ export interface DepsActor {
     /** Escribe una línea `banco <detalle>` (con el enlace de `neurona` si lo hay). */
     marcar: (detalle: string, neurona: string | null) => void;
     /** Orden firmada a la tableta (sesión del control entre neuronas). */
-    tableta: (para: string) => { orden(nombre: string, args?: Args): Promise<RespuestaOrden> };
+    tableta: (para: string) => { orden(nombre: string, args?: Args): Promise<RespuestaOrden>; sondear?(): Promise<RespuestaOrden> };
     /** La misma acción en ESTA app (la Mac), sin pasar por la puerta: es la propia app. */
     local: (nombre: string, args: Args) => Promise<unknown>;
     /** BAN1115D: id de ESTA neurona (a quien llama la tableta en c10). */
@@ -177,7 +177,9 @@ export class ActorBanco {
         this.ultimaComprobacion = this.d.ahora();
         let r: RespuestaOrden | null = null;
         try {
-            r = await this.d.tableta(this.objetivo).orden("leer-estado");
+            // DIR1125B: mirar si nos aceptó no deja una sesión de control abierta (con la serie armada hacia ella ya hay una y se usa).
+            const t = this.d.tableta(this.objetivo);
+            r = t.sondear && this.armado?.con !== this.objetivo ? await t.sondear() : await t.orden("leer-estado");
         } catch {
             r = null;
         }

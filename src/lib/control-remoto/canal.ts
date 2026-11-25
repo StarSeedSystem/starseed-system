@@ -371,9 +371,14 @@ export function suscribirSesionesSalientes(cb: () => void): () => void {
     return registroGlobal.suscribir(cb);
 }
 
+/** DIR1125B: las sesiones «hacia» vivas en esta página (las del banco): al terminar el control hay que parar también su latido. */
+const sesionesHacia = new Set<SesionHacia>();
+
 export async function terminarControlHacia(neurona: string): Promise<boolean> {
     const objetivo = neurona.trim().toLowerCase();
     if (!objetivo) return false;
+    // DIR1125B: sin esto el latido de 10 s veía «sin-sesion» y la reabría sola a los pocos segundos (medido: 3–4 s).
+    for (const s of sesionesHacia) if (s.para.toLowerCase() === objetivo) s.detener();
     const carril = registroGlobal.carrilDe(objetivo);
     const mandarEnCarril: MandarSesion = (nombre, args, o) => {
         const sig = carril.cola.then(
@@ -401,7 +406,9 @@ export class SesionHacia {
         readonly para: string,
         private readonly mandar: typeof mandarOrden = mandarOrden,
         private readonly registro: RegistroSesiones = registroGlobal,
-    ) {}
+    ) {
+        sesionesHacia.add(this);
+    }
 
     private porAqui: MandarSesion = (nombre, args, o) => this.mandar(this.para, nombre, args, o);
 
@@ -471,6 +478,24 @@ export class SesionHacia {
         if (this.latido === null) return;
         clearInterval(this.latido);
         this.latido = null;
+    }
+
+    /** DIR1125B: la persona terminó el control hacia esta neurona. Se suelta el token y el latido SIN mandar nada (la cierra quien llamó). */
+    detener(): void {
+        this.token = null;
+        this.pararLatido();
+    }
+
+    /**
+     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
+     * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
+     * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     */
+    async sondear(): Promise<RespuestaOrden> {
+        const laAbreElSondeo = this.token === null;
+        const r = await this.orden("leer-estado");
+        if (laAbreElSondeo) await this.cerrar();
+        return r;
     }
 
     async cerrar(): Promise<void> {

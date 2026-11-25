@@ -576,6 +576,8 @@ export class PantallaDestino {
         let cuadros = 0;
         let t0fps = this.d.ahora();
         let ultimaLinea = t0fps;
+        let pintados = 0; // DIR1125B
+        const tInicioMalla = t0fps;
         while (!this.cerrada && this.enMalla) {
             if (this.cola.length > 0) await m.esperar(0);
             if (this.cerrada || !this.enMalla) return;
@@ -640,12 +642,23 @@ export class PantallaDestino {
                 await m.esperar(300 * fallos);
                 continue;
             }
-            fallos = 0;
-            desde = p0.num;
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
-            if (await l.pintar(jpeg, ancho, alto).catch(() => false)) {
+            // DIR1125B: el cuadro solo se da por visto si se PINTÓ. Antes `desde` avanzaba antes de pintar: si el primer cuadro fallaba y la
+            // pantalla del otro aparato no cambiaba, el aparato contestaba «nuevo: false» para siempre y la ventana quedaba negra sin una línea.
+            if (!(await l.pintar(jpeg, ancho, alto).catch(() => false))) {
+                fallos += 1;
+                if (fallos === 1 || fallos === 5) this.anotar(`control-fuente paso=pintar via=malla resultado=fallo bytes=${jpeg.length} ancho=${ancho} alto=${alto} intento=${fallos}`);
+                if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
+                await m.esperar(300 * fallos);
+                continue;
+            }
+            fallos = 0;
+            desde = p0.num;
+            if (pintados === 0) this.anotar(`control-fuente paso=primer-cuadro via=malla ms=${Math.max(0, Math.round(this.d.ahora() - tInicioMalla))} bytes=${jpeg.length} ancho=${ancho} alto=${alto}`);
+            pintados += 1;
+            {
                 cuadros += 1;
                 if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
                 else if (this.snap.estado !== "en-vivo") this.poner({ estado: "en-vivo", motivo: this.snap.motivo });
