@@ -89,6 +89,11 @@ export interface QuantumOrbProps {
   onClick?: () => void;
   /** Estela líquida en vez de limpiar el canvas cada frame. Por defecto true. */
   trail?: boolean;
+  /**
+   * DIR1125G · true → ni pinta ni pide cuadros (el bucle se para; al volver a false sigue donde estaba). Para quien la tiene
+   * montada pero INVISIBLE: el orbe de Aurora la deja a opacidad 0 mientras no hay voz, y aun así pintaba 10 veces por segundo.
+   */
+  pausado?: boolean;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -799,6 +804,7 @@ export function QuantumOrb({
   interactive = false,
   onClick,
   trail = true,
+  pausado = false,
 }: QuantumOrbProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -833,6 +839,11 @@ export function QuantumOrb({
   // Actualizar liveRef con los params fusionados en cada render
   liveRef.current.params = mergedParams;
 
+  // DIR1125G: el bucle se enciende y se apaga desde fuera (`pausado`) sin recrear el renderizador ni el lienzo.
+  const pausadoRef = useRef(pausado);
+  pausadoRef.current = pausado;
+  const bucleRef = useRef<{ arrancar: () => void; parar: () => void } | null>(null);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
@@ -864,11 +875,13 @@ export function QuantumOrb({
     }
 
     const ritmo = crearRitmoCuadros(); // DIR1125E: el modo de rendimiento pone el tope de cuadros (eficiente 10, eco 30)
-    let running = true;
-    let last = typeof performance !== "undefined" ? performance.now() : Date.now();
+    let running = true; // el efecto sigue montado
+    let enMarcha = false; // hay un cuadro pedido (DIR1125G: en pausa no se pide ninguno)
+    const ahoraMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+    let last = ahoraMs();
 
     const tick = (t: number) => {
-      if (!running) return;
+      if (!running || !enMarcha) return;
       const dt = Math.min(0.1, Math.max(0, (t - last) / 1000));
       last = t;
       if (docVisible && ctx) {
@@ -887,11 +900,23 @@ export function QuantumOrb({
       }
       ritmo.pedir(tick);
     };
-    ritmo.pedir(tick);
+    const arrancar = () => {
+      if (!running || enMarcha) return;
+      enMarcha = true;
+      last = ahoraMs(); // al volver de una pausa el tiempo no da un salto
+      ritmo.pedir(tick);
+    };
+    const parar = () => {
+      enMarcha = false;
+      ritmo.cancelar();
+    };
+    bucleRef.current = { arrancar, parar };
+    if (!pausadoRef.current) arrancar();
 
     return () => {
       running = false;
-      ritmo.cancelar();
+      parar();
+      bucleRef.current = null;
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibility);
       }
@@ -901,6 +926,14 @@ export function QuantumOrb({
       cancelarPRM();
     };
   }, [size]);
+
+  // DIR1125G: pausa y reanudación sin desmontar nada.
+  useEffect(() => {
+    const bucle = bucleRef.current;
+    if (!bucle) return;
+    if (pausado) bucle.parar();
+    else bucle.arrancar();
+  }, [pausado]);
 
   const clickable = interactive || !!onClick;
   const theme: QuantumOrbTheme = resolveQuantumOrbTheme(personaId);

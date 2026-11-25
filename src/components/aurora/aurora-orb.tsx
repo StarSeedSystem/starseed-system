@@ -344,6 +344,20 @@ export function AuroraOrb({
         ? "thinking"
         : "idle";
 
+  // DIR1125G · La capa cuántica está montada SIEMPRE, pero a opacidad 0 mientras no hay voz, y aun así pintaba su lienzo 10 veces
+  // por segundo. Medido el 25-11 en la Maggabox: con los dos bucles el hilo principal iba al 62 %; sin el de la cuántica, al 48 %.
+  // Ahora solo pinta mientras se ve: desde que la voz se activa hasta que acaba su fundido de salida (260 ms; se dejan 400).
+  // La capa de reposo no cambia en nada.
+  const [cuanticaSeVe, setCuanticaSeVe] = useState(quantumActive);
+  useEffect(() => {
+    if (quantumActive) {
+      setCuanticaSeVe(true);
+      return;
+    }
+    const id = window.setTimeout(() => setCuanticaSeVe(false), 400);
+    return () => window.clearTimeout(id);
+  }, [quantumActive]);
+
   // Nivel/espectro real para `<QuantumOrb>`, muestreados (no cada rAF: basta
   // ~20Hz, la orbe cuántica interpola internamente) del MISMO analizador
   // compartido que ya usa el bucle de abajo — jamás se abre un segundo
@@ -768,6 +782,7 @@ export function AuroraOrb({
           params={quantumParams}
           size={size}
           trail
+          pausado={!quantumActive && !cuanticaSeVe}
         />
       </div>
       </div>

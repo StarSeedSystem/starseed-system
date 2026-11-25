@@ -461,3 +461,34 @@
     transform: none;
   }
 }
+
+/* ── DIR1125G · el orbe y los modos de ahorro ────────────────────────────────
+   Cuando manda «eco» (el modo eco, «eficiente» recién arrancado o «auto» en un
+   equipo modesto) la regla global deja TODAS las transiciones en 0,01 ms: no se
+   ven, pero siguen ARRANCANDO. Y el orbe mueve sus variables (--aurora-energy…)
+   en cada cuadro, así que cada cuadro arrancaba una tanda de transiciones
+   invisibles en la esfera, el halo, el brillo y la estrella.
+   Medido el 25-11 en la Maggabox (WebKitGTK 2.54, orbe a 10 cuadros/s): 48 % →
+   33 % del hilo principal al quitarlas, con la misma imagen en pantalla
+   (0,01 ms y «sin transición» pintan lo mismo). En «alto» y en «auto» de un
+   equipo capaz esta regla no se aplica y el orbe conserva sus transiciones. */
+:global(html[data-perf="eco"]) .root,
+:global(html[data-perf="eco"]) .root *,
+:global(html[data-perf="eco"]) .root::before,
+:global(html[data-perf="eco"]) .root::after,
+:global(html[data-perf="eco"]) .root *::before,
+:global(html[data-perf="eco"]) .root *::after,
+:global(html[data-rendimiento="eco"]) .root,
+:global(html[data-rendimiento="eco"]) .root *,
+:global(html[data-rendimiento="eco"]) .root::before,
+:global(html[data-rendimiento="eco"]) .root::after,
+:global(html[data-rendimiento="eco"]) .root *::before,
+:global(html[data-rendimiento="eco"]) .root *::after,
+:global(html[data-rendimiento-efectivo="eco"]) .root,
+:global(html[data-rendimiento-efectivo="eco"]) .root *,
+:global(html[data-rendimiento-efectivo="eco"]) .root::before,
+:global(html[data-rendimiento-efectivo="eco"]) .root::after,
+:global(html[data-rendimiento-efectivo="eco"]) .root *::before,
+:global(html[data-rendimiento-efectivo="eco"]) .root *::after {
+  transition: none !important;
+}
