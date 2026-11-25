@@ -151,7 +151,7 @@ function montar(opts?: { fuente?: "auto" | "proyeccion"; webrtcAparato?: boolean
             esperar: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 5))),
         },
     };
-    return new PantallaDestino("tableta", deps, fuente as "auto" | "proyeccion" | "accesibilidad");
+    return new PantallaDestino("tableta", deps, fuente);
 }
 
 beforeEach(async () => {
