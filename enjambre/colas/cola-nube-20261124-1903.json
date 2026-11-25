@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261124",
+ "tareas": [
+  {
+   "ola": "PRU1118",
+   "id": "PRU1118A-d3",
+   "titulo": "Conductor de pruebas de la malla: lista la batería, recoge registros de los tres aparatos, evalúa y deja el registro (parte 3 de 3)",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json"
+   ],
+   "depende": [],
+   "prompt": "Lee starseed_memory_root/pruebas/bateria-malla-completa-1118.md (la batería que pidió Alex el 18-11) y starseed_memory_root/olas/auditoria-1118-AUD1118T.md (ronda R0–R13 del control). Tarea 1: starseed_memory_root/pruebas/bateria-1118.json con cada prueba (id como B4-MT-A1 = bloque, par, antena; título; pasos para Alex; aparatos; antena; criterios). Los criterios son patrones de registro que debes sacar del código real (grep de las líneas que escriben enlaces.log y control-neuronas.log en src/ y src-tauri/): `debe` y `no_debe` por aparato. Tarea 2: scripts/puente/pruebas_malla.py con subórdenes: `listar [--bloque B4] [--ronda 1]`; `siguiente`; `empezar <id>` (anota inicio UTC en pruebas/registro.jsonl y publica en el Chat Director, con director_chat.py publicar --de director-presidente --tipo aviso, los pasos exactos para Alex); `recoger <id>` (copia a pruebas/evidencias/<id>-<fecha>/ los registros recortados a la ventana de la prueba: Mac ~/Library/Logs/app.starseed.os/*.log; Maggabox por SSH con `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local` leyendo ~/.local/share/app.starseed.os/*.log; tableta con `adb logcat -d -v time` filtrado por el identificador de la app solo si `adb devices` muestra un aparato, y si no, «sin acceso: falta emparejar adb»; si la app ya comparte registros por la malla, úsalo); `evaluar <id>` (aplica los criterios y da ok/parcial/fallo con las líneas que lo prueban); `cerrar <id> --resultado ok|parcial|fallo --nota`; `informe [--ronda N]` (tabla breve que publica en el Chat Director). La lectura de ventanas de tiempo, la evaluación de patrones y el formato del informe van en funciones puras con pruebas en scripts/puente/test_pruebas_malla.py usando registros de ejemplo. Nada de aceptar, encender ni cambiar permisos. Verificación: python3 -m pytest -q scripts/puente/test_pruebas_malla.py y python3 scripts/puente/pruebas_malla.py listar --ronda 1. Reglas: nada de red salvo lo dicho; nunca imprimas claves ni variables de entorno; no ejecutes órdenes que acepten, enciendan o consientan nada en ningún aparato; la lógica pura va con pruebas unitarias (sin ejecutar nada real en las pruebas). Español neutro en textos y comentarios.\n\n## PARTE 3 DE 3 (la dirección dividió PRU1118A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: starseed_memory_root/pruebas/bateria-1118.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PRU1118A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "PRU1118A-d2"
+   ]
+  },
+  {
+   "id": "PRU1123A",
+   "ola": "control-avanzado-1123",
+   "titulo": "Materializar bateria-1118.json para pruebas autónomas con pruebas_malla.py",
+   "importancia": "media",
+   "archivos": [
+    "starseed_memory_root/pruebas/bateria-1118.json",
+    "scripts/puente/test_pruebas_malla_bateria.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `starseed_memory_root/pruebas/bateria-malla-completa-1118.md` y `scripts/puente/pruebas_malla.py`. Crea el archivo `starseed_memory_root/pruebas/bateria-1118.json` con la estructura exacta que espera `pruebas_malla.py` (bloques B1..B5, patrones `debe` y `no_debe`, sin credenciales ni IPs reales) para que `python3 scripts/puente/pruebas_malla.py listar` y `siguiente` funcionen sin FileNotFoundError. Añade un pytest mínimo en `scripts/puente/test_pruebas_malla_bateria.py` que valide el esquema de `bateria-1118.json` contra `pruebas_malla.py`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "PRU1118A-d3",
+   "PRU1123A"
+  ]
+ }
+}
