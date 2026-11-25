@@ -189,6 +189,11 @@ def formatear_informe(resultados: list[dict[str, Any]], ronda: int | None = None
 # ──────────────────────────────────────────────────────────────────────────────
 
 def cargar_bateria() -> dict[str, Any]:
+    if not BATERIA_JSON.exists():
+        raise FileNotFoundError(
+            f"Batería no encontrada: {BATERIA_JSON}. "
+            f"Genera el archivo con: python3 scripts/puente/generar_bateria_1118.py"
+        )
     with BATERIA_JSON.open("r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -366,7 +371,11 @@ def _publicar_chat_director(mensaje: str, tipo: str = "aviso") -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def cmd_listar(args: argparse.Namespace) -> int:
-    bateria = cargar_bateria()
+    try:
+        bateria = cargar_bateria()
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
     pruebas = filtrar_bateria(bateria, args.bloque, args.ronda)
     if not pruebas:
         print("Sin pruebas que coincidan.")
@@ -380,7 +389,11 @@ def cmd_listar(args: argparse.Namespace) -> int:
 
 
 def cmd_siguiente(args: argparse.Namespace) -> int:
-    bateria = cargar_bateria()
+    try:
+        bateria = cargar_bateria()
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
     pruebas = bateria.get("pruebas", [])
     if not pruebas:
         print("Batería vacía.")
@@ -404,7 +417,11 @@ def cmd_siguiente(args: argparse.Namespace) -> int:
 
 
 def cmd_empezar(args: argparse.Namespace) -> int:
-    bateria = cargar_bateria()
+    try:
+        bateria = cargar_bateria()
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
     prueba = next((p for p in bateria.get("pruebas", []) if p["id"] == args.id), None)
     if not prueba:
         print(f"Prueba {args.id} no encontrada en la batería.")
@@ -465,7 +482,11 @@ def cmd_recoger(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluar(args: argparse.Namespace) -> int:
-    bateria = cargar_bateria()
+    try:
+        bateria = cargar_bateria()
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
     prueba = next((p for p in bateria.get("pruebas", []) if p["id"] == args.id), None)
     if not prueba:
         print(f"Prueba {args.id} no encontrada.")
@@ -530,7 +551,11 @@ def cmd_cerrar(args: argparse.Namespace) -> int:
 
 
 def cmd_informe(args: argparse.Namespace) -> int:
-    bateria = cargar_bateria()
+    try:
+        bateria = cargar_bateria()
+    except FileNotFoundError as e:
+        print(str(e))
+        return 1
     pruebas = filtrar_bateria(bateria, None, args.ronda)
 
     # Leer resultados de registro.jsonl
