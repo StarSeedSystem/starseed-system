@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { FUENTE_DEFECTO, type FuentePedida, veredictoFuente, type VeredictoFuente } from "./fuente-pantalla";
 import { crearPantallaDestino, type EntradaControl, type InstantaneaPantalla, type PantallaDestino } from "./pantalla-destino";
-import { type AjustesSesion, AJUSTES_DEFECTO, sonIguales } from "./ajustes-sesion";
+import { type AjustesSesion, AJUSTES_DEFECTO, serializarAjustes, sonIguales } from "./ajustes-sesion";
 
 const VACIA: InstantaneaPantalla = {
     estado: "cerrada",
@@ -41,6 +41,10 @@ export function usarPantallaRemota(
 ): PantallaRemota {
     const fuentePedida = opciones?.fuente ?? FUENTE_DEFECTO;
     const ajustes = opciones?.ajustes ?? AJUSTES_DEFECTO;
+    // CTL1124D: la dependencia es el VALOR, no la identidad. Al cargar los ajustes guardados el objeto
+    // cambia una vez aunque valga lo mismo; antes eso cerraba la sesión y la reabría (y el aparato se
+    // quedaba sin capturar). Se reabre solo si de verdad cambian los ajustes.
+    const claveAjustes = serializarAjustes(ajustes);
     const [intento, setIntento] = useState(0);
     const [obj, setObj] = useState<PantallaDestino | null>(null);
     const prevFuentePedidaRef = useRef(fuentePedida);
@@ -60,7 +64,7 @@ export function usarPantallaRemota(
             setObj(null);
             return;
         }
-        const p = crearPantallaDestino(neurona, { fuente: fuentePedida, ajustes });
+        const p = crearPantallaDestino(neurona, { fuente: fuentePedida, ajustes: currentAjustesRef.current });
         setObj(p);
         void p.iniciar();
         return () => {
@@ -69,7 +73,7 @@ export function usarPantallaRemota(
             const motivo = fuenteCambiada ? "fuente-cambiada" : ajustesCambiados ? "ajustes-cambiados" : "desmontada";
             void p.cerrar(motivo, true);
         };
-    }, [neurona, intento, fuentePedida, ajustes]);
+    }, [neurona, intento, fuentePedida, claveAjustes]);
 
     const suscribir = useCallback((cb: () => void) => (obj ? obj.suscribir(cb) : () => undefined), [obj]);
     const snap = useSyncExternalStore(
