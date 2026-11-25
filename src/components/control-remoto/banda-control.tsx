@@ -36,7 +36,7 @@ import {
     type CosaQueFalta,
     type EstadoIndicador,
 } from "@/lib/control-remoto/nativo";
-import { BOTON_FALTA, PALABRAS_FALTA, PALABRAS_LIMITE_OPCION, palabrasMotivo, palabrasTopeLimite } from "@/lib/control-remoto/palabras";
+import { BOTON_FALTA, PALABRAS_FALTA, palabrasMotivo, palabrasTopeLimite, textoOpcionLimite } from "@/lib/control-remoto/palabras";
 import { AJUSTES_CONTROL_DEFECTO, leerAjustesControl, type AjustesControl } from "@/lib/control-remoto/ajustes-aparato";
 import { quienControla, type QuienControla } from "@/lib/control-remoto/quien-controla";
 import { origenGlobal } from "@/lib/control-remoto/pantalla-origen";
@@ -80,10 +80,10 @@ function hhmm(t: number): string {
 export type OpcionLimite = "sin-limite" | "15-min" | "1-hora" | "hasta";
 
 export const OPCIONES_LIMITE: ReadonlyArray<{ valor: OpcionLimite; texto: string }> = [
-    { valor: "sin-limite", texto: PALABRAS_LIMITE_OPCION["sin-limite"] },
-    { valor: "15-min", texto: PALABRAS_LIMITE_OPCION["15-min"] },
-    { valor: "1-hora", texto: PALABRAS_LIMITE_OPCION["1-hora"] },
-    { valor: "hasta", texto: PALABRAS_LIMITE_OPCION["hasta"] },
+    { valor: "sin-limite", texto: textoOpcionLimite("sin-limite") },
+    { valor: "15-min", texto: textoOpcionLimite("15-min") },
+    { valor: "1-hora", texto: textoOpcionLimite("1-hora") },
+    { valor: "hasta", texto: textoOpcionLimite("hasta") },
 ];
 
 export type ResultadoLimite = { ok: true; fin: number | null } | { ok: false; motivo: string };

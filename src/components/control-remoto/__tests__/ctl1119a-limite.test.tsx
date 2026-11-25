@@ -26,7 +26,8 @@ vi.mock("@/lib/neurons/neurons", () => ({ thisDeviceId: () => "11111111-2222-433
 vi.mock("@/lib/banco-llamadas/app", () => ({ estadoBanco: () => null, ultimoInforme: () => null, informarBanco: () => undefined, armarBanco: () => true, apagarBanco: () => undefined }));
 vi.mock("@/lib/consumo/usuario", () => ({ uidActual: async () => "mi-cuenta" }));
 
-import { ControlEntreNeuronasPanel, finElegido, opcionInicial, opcionesPara, textoRestante, topeMinimos } from "../banda-control";
+import { ControlEntreNeuronasPanel, OPCIONES_LIMITE, finElegido, opcionInicial, opcionesPara, textoRestante, topeMinimos } from "../banda-control";
+import { textoOpcionLimite } from "@/lib/control-remoto/palabras";
 
 type ControladorGuardado = { huella: string; limite?: { tipo: string; minutos?: number; hora?: string }; aceptadoEn?: string };
 const aceptados = () => (e.v as { controladores: ControladorGuardado[] }).controladores;
@@ -79,5 +80,10 @@ describe("CTL1119A · el filtro del dueño y los textos del límite", () => {
         expect(textoRestante(null, ahora)).toBeNull();
         expect(textoRestante(ahora + 90_000, ahora)).toBe("Quedan 2 min");
         expect(textoRestante(ahora + 3_600_000, ahora)).toMatch(/quedan 1 h/);
+    });
+
+    it("el selector enseña los textos de palabras.ts, sin una segunda lista que se pueda separar", () => {
+        for (const o of OPCIONES_LIMITE) expect(o.texto).toBe(textoOpcionLimite(o.valor));
+        expect(OPCIONES_LIMITE.map((o) => o.valor)).toEqual(["sin-limite", "15-min", "1-hora", "hasta"]);
     });
 });
