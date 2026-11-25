@@ -72,15 +72,17 @@ def _ficha(nodo_id: str, medio: str, datos: Any, **medidas: Any) -> Dict[str, An
             "ramLibreMb": int(round(_numero(valor("ram", RAM)))),
             "cpu": _numero(valor("cpu", CPU)),
             "discoLibreGb": round(_numero(valor("disco", DISCO)), 1),
+            "movidoGb": round(_numero(medidas.get("movido_gb", _buscar(datos, ("movidoGb", "movido_gb", "movido")))), 2),
+            "indiceEnlace": medidas.get("indice_enlace", ""),
             "almacen": _almacen(valor("almacen", ALMACEN)),
             "capas": _capas(valor("capas", CAPAS))}
 
-def _ficha_maggabox(sonda: Any) -> Dict[str, Any]:
+def _ficha_maggabox(sonda: Any, **medidas: Any) -> Dict[str, Any]:
     sonda = sonda if isinstance(sonda, dict) else {}
     carpetas = sonda.get("carpetas_starSeed_almacen")
     almacen = ["~/StarSeed-almacen/%s" % n for n in sorted(carpetas)] if isinstance(carpetas, dict) else []
     return _ficha("maggabox", "linux", sonda, nucleos=sonda.get("cpu"), ram=sonda.get("ramLibreMb"),
-                  cpu=0, disco=sonda.get("discoLibreGb"), almacen=almacen, capas=sonda.get("capas"))
+                  cpu=0, disco=sonda.get("discoLibreGb"), almacen=almacen, capas=sonda.get("capas"), **medidas)
 
 def _fuente(leer: Optional[Callable[[str], Any]], ruta: str) -> Dict[str, Any]:
     try:
@@ -92,15 +94,20 @@ def _fuente(leer: Optional[Callable[[str], Any]], ruta: str) -> Dict[str, Any]:
     except Exception: return {}
 
 def recopilar(read_fn: Optional[Callable[[str], Any]] = None,
-              sonda_fn: Optional[Callable[[], Any]] = None) -> Dict[str, Any]:
+              sonda_fn: Optional[Callable[[], Any]] = None,
+              movido_gb: Optional[float] = None,
+              indice_enlace: Optional[str] = None) -> Dict[str, Any]:
     """Fichas de los tres nodos; `read_fn` y `sonda_fn` se inyectan en pruebas."""
     if sonda_fn is None: from sonda_maggabox import sonda_maggabox as sonda_fn
     try: sonda = sonda_fn()
     except Exception: sonda = {}
+    medidas: Dict[str, Any] = {}
+    if movido_gb is not None: medidas["movido_gb"] = movido_gb
+    if indice_enlace is not None: medidas["indice_enlace"] = indice_enlace
     return {"nodos": [
-        _ficha("mac-local", "mac", _fuente(read_fn, RUTA_ORQUESTADOR)),
-        _ficha_maggabox(sonda),
-        _ficha("a1-oracle", "nube", _fuente(read_fn, RUTA_A1)),
+        _ficha("mac-local", "mac", _fuente(read_fn, RUTA_ORQUESTADOR), **medidas),
+        _ficha_maggabox(sonda, **medidas),
+        _ficha("a1-oracle", "nube", _fuente(read_fn, RUTA_A1), **medidas),
     ]}
 
 def guardar(datos: Dict[str, Any], write_fn: Optional[Callable[[str, str], Any]] = None) -> Dict[str, Any]:
