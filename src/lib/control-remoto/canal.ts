@@ -403,6 +403,11 @@ export class SesionHacia {
         private readonly registro: RegistroSesiones = registroGlobal,
     ) {}
 
+    /** CTL1124F: devuelve el token de la sesión viva en el registro, sin abrir ninguna. */
+    tokenExistente(): string | null {
+        return this.registro.tokenDe(this.para);
+    }
+
     private porAqui: MandarSesion = (nombre, args, o) => this.mandar(this.para, nombre, args, o);
 
     async abrir(forzar = false): Promise<RespuestaOrden> {
@@ -419,18 +424,23 @@ export class SesionHacia {
         return r;
     }
 
-    async orden(nombre: string, args: Args = {}): Promise<RespuestaOrden> {
-        if (!this.token) {
+    async orden(nombre: string, args: Args = {}, opts?: { sesion?: string }): Promise<RespuestaOrden> {
+        const token = opts?.sesion ?? this.token;
+        if (!token) {
             const a = await this.abrir();
             if (!a.ok) return a;
         }
-        let r = await this.mandar(this.para, nombre, args, { sesion: this.token });
+        const t = token ?? this.token;
+        if (!t) return { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-sesion" };
+        let r = await this.mandar(this.para, nombre, args, { sesion: t });
         if (r.ok) this.registro.usada(this.para);
         if (!r.ok && (r.motivo === "sin-sesion" || r.motivo === "sesion-caducada")) {
-            this.registro.olvidar(this.para, this.token);
-            const a = await this.abrir(true);
-            if (!a.ok) return a;
-            r = await this.mandar(this.para, nombre, args, { sesion: this.token });
+            if (!opts?.sesion) {
+                this.registro.olvidar(this.para, this.token);
+                const a = await this.abrir(true);
+                if (!a.ok) return a;
+                r = await this.mandar(this.para, nombre, args, { sesion: this.token });
+            }
         }
         return r;
     }
@@ -454,7 +464,10 @@ export class SesionHacia {
                 this.registro.olvidar(this.para, t);
                 return (await this.abrir(true)).ok;
             }
-            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado" || r.motivo === "terminado-por-el-dueno") {
+                this.registro.olvidar(this.para, t);
+                this.pararLatido();
+            }
         } catch {
             /* un latido que falla no rompe nada: el siguiente lo reintenta */
         }

@@ -684,7 +684,7 @@ export function ControlEntreNeuronasPanel() {
 
     const elegir = useCallback(async (id: string) => {
         setDestino(id);
-        if (RE_UUID.test(id)) void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(id)); // solo mira si ya te aceptó
+        // CTL1124F: solo selecciona la neurona; no abre sesión ni consulta estado (eso hace "Pedir controlarla desde aquí")
     }, []);
 
     const ofrecer = useCallback(async () => {
@@ -692,6 +692,7 @@ export function ControlEntreNeuronasPanel() {
             setAviso("Escribe el id completo de la neurona (lo ves en Mensajes › Neuronas).");
             return;
         }
+        setAviso(null); // CTL1124F: limpia avisos previos ("no te aceptó") al volver a pedir
         const [c, { nombreNeuronaPropia }] = await Promise.all([
             import("@/lib/control-remoto/canal"),
             import("@/lib/control-remoto/nombre-propio"),
@@ -817,6 +818,20 @@ export function ControlEntreNeuronasPanel() {
         }
         return salida;
     }, [sesionesEntrantes, permiso]);
+
+    // CTL1124F: limpia el aviso "X no te aceptó" cuando hay sesión activa para esa neurona
+    useEffect(() => {
+        if (!aviso) return;
+        const match = aviso.match(/^(.+?) no te aceptó/);
+        if (!match) return;
+        const nombreNeurona = match[1];
+        const tieneSaliente = salientesActivas.some((s) => s.nombre === nombreNeurona);
+        const tieneEntrante = sesionesEntrantes.some((s) => {
+            const q = quienControla(s, permiso);
+            return q?.nombre === nombreNeurona;
+        });
+        if (tieneSaliente || tieneEntrante) setAviso(null);
+    }, [aviso, salientesActivas, sesionesEntrantes, permiso]);
 
     // CTL1119A: todas las decisiones del límite se calculan aquí, antes de pintar; el botón solo aplica lo elegido.
     const limiteDePendiente = (x: PermisoControl["pendientes"][number]) => {

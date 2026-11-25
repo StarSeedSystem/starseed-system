@@ -170,6 +170,7 @@ export class ActorBanco {
     /**
      * BAN1115D: fija la tableta destino (la armada o la que se pidió controlar) y mira, con una sola lectura de su estado
      * (nivel «ver»), si ya aceptó a esta Mac. No arma ni acepta nada: solo informa de lo que ve.
+     * No abre sesión nueva: usa la que ya haya en el registro compartido.
      */
     async comprobar(con: string): Promise<void> {
         if (!RE_UUID.test(con)) return;
@@ -177,7 +178,12 @@ export class ActorBanco {
         this.ultimaComprobacion = this.d.ahora();
         let r: RespuestaOrden | null = null;
         try {
-            r = await this.d.tableta(this.objetivo).orden("leer-estado");
+            const token = this.d.tableta(this.objetivo).tokenExistente?.();
+            if (token) {
+                r = await this.d.tableta(this.objetivo).orden("leer-estado", {}, { sesion: token });
+            } else {
+                r = { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-sesion" };
+            }
         } catch {
             r = null;
         }
