@@ -600,4 +600,75 @@ mod pruebas {
         assert!(s.starts_with("window.__starseedUltimo=[\"local\",\"Listo en «127.0.0.1»\"];"));
         assert!(s.contains("window.__starseedArranque(\"local\""));
     }
+
+    // ───────────────── CAP1125A · recarga tras relevo caliente ─────────────────
+
+    #[test]
+    fn plan_de_recarga_usa_la_ruta_local_y_nunca_el_pase() {
+        // La misma ruta y consulta que tiene abierta la ventana.
+        assert_eq!(
+            ruta_para_recarga(Some("http://127.0.0.1:47610/escritorios?tab=x"), 47610),
+            "/escritorios?tab=x"
+        );
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:47610"), 47610), "/");
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:47610/"), 47610), "/");
+        // Sin fragmento.
+        assert_eq!(
+            ruta_para_recarga(Some("http://127.0.0.1:47610/a?b=1#seccion"), 47610),
+            "/a?b=1"
+        );
+        // Consulta pegada al origen (sin barra).
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:47610?x=1"), 47610), "/?x=1");
+        // Otro origen, otro puerto, localhost, puerto que empieza igual o ilegible: "/".
+        assert_eq!(
+            ruta_para_recarga(Some("https://starseed-os.vercel.app/escritorios"), 47610),
+            "/"
+        );
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:47611/escritorios"), 47610), "/");
+        assert_eq!(ruta_para_recarga(Some("http://localhost:47610/escritorios"), 47610), "/");
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:476100/x"), 47610), "/");
+        assert_eq!(ruta_para_recarga(Some("basura"), 47610), "/");
+        assert_eq!(ruta_para_recarga(None, 47610), "/");
+        // La entrada (lleva el pase en `t=`) nunca se pide: jamás el pase dentro de la ruta.
+        let entrada = url_entrada(47610, &"ab".repeat(32), "/escritorios");
+        assert_eq!(ruta_para_recarga(Some(&entrada), 47610), "/");
+        // Una doble barra inicial no se manda como si fuera otro origen.
+        assert_eq!(ruta_para_recarga(Some("http://127.0.0.1:47610//otro/x"), 47610), "/");
+        // El plan espera el tope acordado y pide una ruta local.
+        let p = plan_recarga(Some("http://127.0.0.1:47610/escritorios"), 47610);
+        assert_eq!(p.ruta, "/escritorios");
+        assert_eq!(p.tope_ms, ESPERA_RECARGA_MS);
+    }
+
+    #[test]
+    fn la_pagina_se_pide_con_el_pase_en_la_cookie_no_en_la_ruta() {
+        let pase = "ab".repeat(32);
+        let peticion = peticion_pagina(47610, "/escritorios?tab=x", &pase);
+        let primera = peticion.lines().next().unwrap();
+        assert_eq!(primera, "GET /escritorios?tab=x HTTP/1.1");
+        assert!(!primera.contains(&pase));
+        assert!(peticion.contains(&format!("Host: 127.0.0.1:47610\r\n")));
+        assert!(peticion.contains(&format!("Cookie: starseed_pase={pase}\r\n")));
+        assert!(peticion.ends_with("\r\n\r\n"));
+        // Una ruta que no empieza por `/` no se manda tal cual (nunca un origen absoluto).
+        assert!(peticion_pagina(47610, "http://otro/x", &pase).starts_with("GET / HTTP/1.1\r\n"));
+    }
+
+    #[test]
+    fn estados_de_la_pagina_que_valen_antes_de_recargar() {
+        assert_eq!(estado_http("HTTP/1.1 200 OK\r\n\r\n"), Some(200));
+        assert_eq!(estado_http("HTTP/1.1 404 Not Found\r\n\r\n"), Some(404));
+        assert_eq!(estado_http("HTTP/1.1 503 Service Unavailable\r\n\r\n"), Some(503));
+        assert_eq!(estado_http("basura"), None);
+        assert_eq!(estado_http("HTTP/1.1 sin-codigo OK\r\n"), None);
+        assert_eq!(estado_http(""), None);
+        // < 500 vale (el Node ya sirve, aunque la ruta no exista); 5xx todavía no.
+        assert!(estado_caliente_vale(200));
+        assert!(estado_caliente_vale(304));
+        assert!(estado_caliente_vale(404));
+        assert!(estado_caliente_vale(499));
+        assert!(!estado_caliente_vale(500));
+        assert!(!estado_caliente_vale(503));
+    }
+}
 }
