@@ -4,15 +4,17 @@
 //! La sesión de control vive AQUÍ (Rust), no en la página: la página pide abrirla (y solo se abre si hay
 //! indicador nativo), pide permiso a Rust antes de ejecutar CADA orden y Rust anota la orden en un
 //! registro de solo-añadir encadenado por SHA-256. Parar (menú del indicador, atendido en Rust) cierra
-//! la sesión aunque la página no conteste: la siguiente orden ya no tiene sesión. También se cierra sola
-//! a la hora (máximo) y a los 2 min sin órdenes.
+//! la sesión aunque la página no conteste: la siguiente orden ya no tiene sesión. Se mantiene con los
+//! latidos de quien controla (uno cada 10 s) y solo se cierra si faltan 45 s; ya no hay hora máxima.
 //!
 //! Sin Tauri ni E/S: reloj y textos entran por argumento. Lo usa `control_neuronas.rs`.
 
 pub const REGISTRO: &str = "control-neuronas.log";
 pub const INICIO_CADENA: &str = "inicio";
+/// (CTL1119A) Ya no hay hora máxima de sesión: se conserva como referencia de una sesión larga en las pruebas.
 pub const SESION_MAX_MS: u64 = 60 * 60_000;
-pub const SESION_INACTIVA_MS: u64 = 2 * 60_000;
+/// (CTL1119A) La sesión cae si faltan latidos 45 s (quien controla manda uno firmado cada 10 s).
+pub const SESION_INACTIVA_MS: u64 = 45_000;
 /// Hasta cuántas neuronas de la cuenta pueden controlar/ver esta neurona a la vez.
 pub const MAX_SESIONES_ACTIVAS: usize = 8;
 const MAX_DETALLE: usize = 160;
@@ -225,7 +227,7 @@ impl Control {
     /// misma sesión (mismo token, mismo indicador), solo se da por activa ahora. Nada de indicador nuevo ni de token
     /// nuevo: así una apertura repetida (la Mac, dos ventanas, un reintento) no tumba lo que ya funciona. No reutiliza
     /// si ese controlador no tiene sesión viva ni si no hay indicador a la vista. Con pausa local SÍ (CTL1118H).
-    /// No alarga la hora máxima: `inicio_ms` no cambia.
+    /// No cambia el inicio (solo la actividad): el inicio ya no limita la duración.
     pub fn reutilizar(&mut self, de: &str, nivel: &str, ahora: u64, indicador: bool) -> Option<&Sesion> {
         if !indicador || !huella_valida(de) || !nivel_valido(nivel) {
             return None;
@@ -298,12 +300,13 @@ impl Control {
             .ok_or(Rechazo::Token)
     }
 
-    /// Cierra todas las sesiones que pasaron la hora o 2 min sin órdenes. Devuelve las cerradas.
+    /// (CTL1119A) Cierra las sesiones que llevan más de 45 s sin latidos. Ya no hay hora máxima: una sesión con
+    /// latidos vive hasta que la persona la pare. Devuelve las cerradas.
     pub fn caducar_todas(&mut self, ahora: u64) -> Vec<Sesion> {
         let mut vivas = Vec::with_capacity(self.sesiones.len());
         let mut vencidas = Vec::new();
         for s in self.sesiones.drain(..) {
-            if ahora.saturating_sub(s.inicio_ms) > SESION_MAX_MS || ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS {
+            if ahora.saturating_sub(s.ultima_ms) > SESION_INACTIVA_MS {
                 vencidas.push(s);
             } else {
                 vivas.push(s);
@@ -772,19 +775,21 @@ mod pruebas {
     }
 
     #[test]
-    fn token_ajeno_inactividad_hora_e_indicador_perdido() {
+    fn token_ajeno_inactividad_latidos_e_indicador_perdido() {
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         assert_eq!(c.orden("ffffffffffffffffffffffffffffffff", "colgar", 10, true).unwrap_err(), Rechazo::Token);
         assert!(c.orden(TOK, "colgar", SESION_INACTIVA_MS, true).is_ok());
         assert_eq!(c.orden(TOK, "colgar", 2 * SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
+        // CTL1119A: con latidos cada 10 s la sesión ya no tiene hora máxima.
         let mut t = 0;
-        while t < SESION_MAX_MS {
-            t += 60_000;
-            let _ = c.orden(TOK, "leer-estado", t, true);
+        while t < SESION_MAX_MS + 60_000 {
+            t += 10_000;
+            assert!(c.orden(TOK, "leer-estado", t, true).is_ok(), "t={t}");
         }
-        assert_eq!(c.orden(TOK, "leer-estado", SESION_MAX_MS + 60_001, true).unwrap_err(), Rechazo::SinSesion);
+        assert!(c.activa().is_some(), "más de una hora con latidos y sigue viva");
+        assert_eq!(c.orden(TOK, "leer-estado", t + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         assert_eq!(c.orden(TOK, "colgar", 5, false).unwrap_err(), Rechazo::SinIndicador);
         assert!(c.activa().is_none());
@@ -954,21 +959,21 @@ mod pruebas {
             c.abrir(&format!("tok{i:029}"), &format!("{i:064x}"), &format!("N{i}"), "controlar", 7_100, true).unwrap();
         }
         assert_eq!(c.negada_por_la_viva(otro, 7_200), Some(Rechazo::OtraSesion));
-        // Caducada (2 min sin órdenes) o terminada por la persona: NO resucita.
+        // Caducada (45 s sin latidos) o terminada por la persona: NO resucita.
         assert!(c.reutilizar(DE, "controlar", 7_200 + SESION_INACTIVA_MS + 1, true).is_none());
         assert!(c.activa().is_none());
         assert_eq!(c.negada_por_la_viva(DE, 9_000_000), None, "sin sesión no hay nada que negar");
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         c.parar(10, "la-persona-desde-el-indicador");
         assert!(c.reutilizar(DE, "controlar", 11, true).is_none(), "una sesión que la persona terminó no se renueva");
-        // La hora máxima no se alarga reabriendo.
+        // CTL1119A: con latidos, reabrir mantiene viva la sesión más allá de la antigua hora máxima.
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         let mut t = 0;
-        while t < SESION_MAX_MS - 60_000 {
-            t += 60_000;
-            assert!(c.reutilizar(DE, "controlar", t, true).is_some());
+        while t < SESION_MAX_MS + 60_000 {
+            t += 10_000;
+            assert!(c.reutilizar(DE, "controlar", t, true).is_some(), "t={t}");
         }
-        assert!(c.reutilizar(DE, "controlar", SESION_MAX_MS + 1, true).is_none());
+        assert!(c.reutilizar(DE, "controlar", t + SESION_INACTIVA_MS + 1, true).is_none());
     }
 
     // ─────────── ORD1114V ───────────
@@ -1025,18 +1030,18 @@ mod pruebas {
     }
 
     #[test]
-    fn ctl1117f_con_la_ventana_leyendo_la_sesion_vive_hasta_el_tope_de_una_hora() {
-        // La ventana lee cada 5 s con órdenes firmadas (`leer-aparato`): cada una que pasa renueva la inactividad, pero NO la hora máxima.
+    fn ctl1119a_con_la_ventana_leyendo_la_sesion_no_tiene_hora_maxima() {
+        // La ventana lee cada 5 s con órdenes firmadas (`leer-aparato`): cada una renueva los latidos y la sesión sigue.
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         let mut t = 0;
-        while t + 5_000 <= SESION_MAX_MS {
+        while t < SESION_MAX_MS + 60_000 {
             t += 5_000;
             assert!(c.orden(TOK, "leer-aparato", t, true).is_ok(), "t={t}");
         }
-        assert!(c.activa().is_some(), "una hora de lecturas cada 5 s y sigue viva");
-        // Pasado el tope duro, ni leyendo.
-        assert_eq!(c.orden(TOK, "leer-aparato", SESION_MAX_MS + 5_000, true).unwrap_err(), Rechazo::SinSesion);
+        assert!(c.activa().is_some(), "más de una hora de lecturas cada 5 s y sigue viva");
+        // Sin latidos 45 s, ni leyendo.
+        assert_eq!(c.orden(TOK, "leer-aparato", t + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
     }
 
     #[test]
@@ -1044,9 +1049,9 @@ mod pruebas {
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();
         assert!(c.orden(TOK, "leer-aparato", 5_000, true).is_ok());
-        // Sin lecturas: a los 2 min de la última, caducada.
+        // Sin latidos: a los 45 s de la última, caducada.
         assert_eq!(c.orden(TOK, "leer-aparato", 5_000 + SESION_INACTIVA_MS + 1, true).unwrap_err(), Rechazo::SinSesion);
-        // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 2 min).
+        // CTL1118H: en pausa local las lecturas YA pasan y renuevan la actividad (antes se rechazaban y una pausa pegada mataba la sesión a los 45 s).
         // Lo que sigue sin renovar es lo que se rechaza (la entrada): una pausa sin nadie leyendo caduca como siempre.
         let mut c = Control::default();
         c.abrir(TOK, DE, "Mac", "controlar", 0, true).unwrap();

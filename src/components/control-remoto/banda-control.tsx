@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import type { PermisoControl, SesionActiva } from "@/lib/control-remoto/sesion";
+import { filtroPorAmbito, type LimiteSesion, type PermisoControl, type SesionActiva } from "@/lib/control-remoto/sesion";
 import { registroGlobal, type SesionSaliente } from "@/lib/control-remoto/registro-sesiones";
 import { leerVentanasActivas, suscribirVentanasActivas, type VentanaControlViva } from "@/lib/control-remoto/ventanas-activas";
 import type { EstadoApp } from "@/lib/banco-llamadas/actor";
@@ -123,6 +123,39 @@ export function finElegido(opcion: OpcionLimite, hora: string, ahora: number, to
     return { ok: true, fin };
 }
 
+/** PURA. La opción elegida, en la forma que guarda y aplica la puerta (`LimiteSesion`); null si la hora no vale. */
+export function limiteDeOpcion(opcion: OpcionLimite, hora = ""): LimiteSesion | null {
+    if (opcion === "sin-limite") return { tipo: "sin-limite" };
+    if (opcion === "15-min") return { tipo: "minutos", minutos: 15 };
+    if (opcion === "1-hora") return { tipo: "minutos", minutos: 60 };
+    const h = hora.trim();
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(h) ? { tipo: "hasta", hora: h } : null;
+}
+
+export interface LimiteParaAceptar {
+    /** Lo que se guarda en el controlador y aplica la puerta al abrir la sesión. */
+    limite: LimiteSesion;
+    /** Fin absoluto para el punto de color; null si no hay límite. */
+    fin: number | null;
+    /** Filtro del dueño que la puerta usa para no superar nunca su máximo. */
+    filtro: { porDefecto: LimiteSesion; maximo: LimiteSesion };
+}
+
+export type ResultadoAceptar = { ok: true; valor: LimiteParaAceptar } | { ok: false; motivo: string };
+
+/**
+ * PURA. Todo lo que se guarda al aceptar: el fin que se enseña y el filtro que la puerta aplica.
+ * Sin tope del dueño (neuronas propias) se permite cualquier elección, también «sin límite».
+ */
+export function limiteParaAceptar(opcion: OpcionLimite, hora: string, ahora: number, topeMin: number | null, propia: boolean): ResultadoAceptar {
+    const r = finElegido(opcion, hora, ahora, topeMin, propia);
+    if (!r.ok) return r;
+    const limite = limiteDeOpcion(opcion, hora);
+    if (!limite) return { ok: false, motivo: "Escribe la hora como HH:MM." };
+    const maximo: LimiteSesion = topeMin === null ? { tipo: "sin-limite" } : { tipo: "minutos", minutos: topeMin };
+    return { ok: true, valor: { limite, fin: r.fin, filtro: { porDefecto: limite, maximo } } };
+}
+
 /** PURA. Texto del punto de color mientras quede límite; «sin límite» no muestra nada. */
 export function textoRestante(fin: number | null | undefined, ahora: number): string | null {
     if (fin === null || fin === undefined) return null;
@@ -140,12 +173,25 @@ interface DatosDelDueño {
     filtro?: { maxMin?: number };
 }
 
-/** PURA. Tope que puso el dueño del aparato ajeno; `null` significa que él permite sin límite. */
+/** PURA. ¿El dueño declaró el aparato como público? */
+function esPublico(datos: DatosDelDueño): boolean {
+    return datos.publico === true || datos.visibilidad === "publica" || datos.visibilidad === "público";
+}
+
+/**
+ * PURA. Tope en minutos que puso el dueño del aparato ajeno; `null` solo en las neuronas de la misma
+ * cuenta (ahí manda la persona). Sin valor declarado se usa el máximo del filtro de su ámbito: 1 h en
+ * una ajena privada y 15 min en una pública, como `filtroPorAmbito` en `sesion.ts`.
+ */
 export function topeMinimos(datos: DatosDelDueño, miCuenta: string | null): number | null {
     if (!miCuenta || datos.cuenta === miCuenta) return null;
     const declarado = datos.filtro?.maxMin ?? datos.limiteMaxMin;
-    if (typeof declarado === "number" && Number.isFinite(declarado)) return Math.max(1, Math.min(1440, Math.floor(declarado)));
-    return datos.publico === true || datos.visibilidad === "publica" || datos.visibilidad === "público" ? 15 : null;
+    const delDueno =
+        typeof declarado === "number" && Number.isFinite(declarado)
+            ? { maximo: { tipo: "minutos" as const, minutos: Math.max(1, Math.min(1440, Math.floor(declarado))) } }
+            : null;
+    const max = filtroPorAmbito(esPublico(datos) ? "publica" : "otra-cuenta", delDueno).maximo;
+    return max.tipo === "minutos" ? max.minutos : null;
 }
 
 const CLAVE_LIMITES_CONTROL = "starseed.control-limites.v1";
@@ -631,18 +677,23 @@ export function ControlEntreNeuronasPanel() {
 
     const aceptar = useCallback(
         async (huella: string, encender = false, opcion: OpcionLimite = "sin-limite", hora = "", topeMin: number | null = null, propia = true) => {
-            const limite = finElegido(opcion, hora, Date.now(), topeMin, propia);
-            if (!limite.ok) {
-                setAviso(limite.motivo);
+            const ahora = Date.now();
+            const preparado = limiteParaAceptar(opcion, hora, ahora, topeMin, propia);
+            if (!preparado.ok) {
+                setAviso(preparado.motivo);
                 return;
             }
-            guardarFin(huella, limite.fin);
+            guardarFin(huella, preparado.valor.fin);
             const s = await import("@/lib/control-remoto/sesion");
             const c = await import("@/lib/control-remoto/canal");
             const antes = c.leerPermisoLocal();
             const quien = antes.pendientes.find((x) => x.huella === huella);
             // CTL1118B: con el control apagado el botón dice «Aceptar y encender el control»: la persona hace las dos cosas a sabiendas.
-            await cambiar((p) => ({ ...s.aceptarPendiente(p, huella), ...(encender ? { encendido: true } : {}) }));
+            // CTL1119A: el límite elegido se guarda con el controlador: la puerta lo aplica al abrir y lo recorta al máximo del dueño.
+            await cambiar((p) => ({
+                ...s.aceptarPendiente(p, huella, { ahora, limite: preparado.valor.limite, filtro: preparado.valor.filtro }),
+                ...(encender ? { encendido: true } : {}),
+            }));
             setElegidas((m) => {
                 const r = { ...m };
                 delete r[huella];

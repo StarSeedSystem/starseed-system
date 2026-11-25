@@ -84,6 +84,58 @@ describe("DIR1125B · SesionHacia", () => {
         expect(await s.latir()).toBe(false);
         expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(1);
     });
+
+    it("CTL1119A: un latido con «sesion-caducada» reabre sola la sesión, sin pedir otra aceptación", async () => {
+        const vistas: string[] = [];
+        const abiertas = new Set<string>();
+        let n = 0;
+        let caducar = false;
+        const mandar = (async (_p: string, nombre: string, _args: unknown, o: { sesion?: string | null }): Promise<RespuestaOrden> => {
+            vistas.push(nombre);
+            if (nombre === "abrir-sesion") {
+                n += 1;
+                abiertas.add(`tok-${n}`);
+                return resp(true, "ok", { sesion: `tok-${n}`, nivel: "controlar" });
+            }
+            if (nombre === "leer-estado" && caducar) {
+                caducar = false;
+                abiertas.clear();
+                return resp(false, "sesion-caducada");
+            }
+            if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
+            return resp(true, "ok");
+        }) as unknown as ConstructorParameters<typeof SesionHacia>[1];
+        const reg = new RegistroSesiones();
+        const s = new SesionHacia(NEURONA, mandar, reg);
+        vivas.push(s);
+        expect((await s.orden("leer-estado")).ok).toBe(true); // abre la sesión aceptada
+        caducar = true; // el aparato la dio por caducada (45 s sin latidos)
+        expect(await s.latir()).toBe(true); // el latido la reabre sola
+        expect(vistas.filter((x) => x === "abrir-sesion").length).toBe(2);
+        expect(reg.tokenDe(NEURONA)).toBe("tok-2");
+    });
+
+    it("CTL1119A: un latido con «limite-cumplido» no reabre nada y para el latido", async () => {
+        const abiertas = new Set<string>();
+        let n = 0;
+        let limite = false;
+        const mandar = (async (_p: string, nombre: string, _args: unknown, o: { sesion?: string | null }): Promise<RespuestaOrden> => {
+            if (nombre === "abrir-sesion") {
+                n += 1;
+                abiertas.add(`tok-${n}`);
+                return resp(true, "ok", { sesion: `tok-${n}`, nivel: "controlar" });
+            }
+            if (nombre === "leer-estado" && limite) return resp(false, "limite-cumplido");
+            if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
+            return resp(true, "ok");
+        }) as unknown as ConstructorParameters<typeof SesionHacia>[1];
+        const s = new SesionHacia(NEURONA, mandar, new RegistroSesiones());
+        vivas.push(s);
+        expect((await s.orden("leer-estado")).ok).toBe(true);
+        limite = true;
+        expect(await s.latir()).toBe(false);
+        expect(n).toBe(1); // no se abrió otra sesión: hace falta que la persona vuelva a aceptar
+    });
 });
 
 describe("DIR1125B · el banco mira si te aceptaron sin abrir una sesión que se quede", () => {
