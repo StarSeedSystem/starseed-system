@@ -39,6 +39,13 @@ pub const PAUSA_PREFERIDO_MS: u64 = 300;
 pub const ESPERA_LISTO_MS: u64 = 60_000;
 /// Cada cuánto se pregunta por la salud mientras arranca.
 pub const PASO_SONDEO_MS: u64 = 250;
+/// (CAP1125A) Tope de la recarga en caliente: tras un relevo, el Node recién arrancado puede tardar
+/// más que la salud en servir su primera página. Se espera a que conteste, nunca más de esto.
+pub const ESPERA_RECARGA_MS: u64 = 60_000;
+/// (CAP1125A) Cada cuánto se reintenta esa primera página mientras el Node compila.
+pub const PASO_RECARGA_MS: u64 = 250;
+/// (CAP1125A) Nombre de la cookie con la que la ventana manda el pase al servidor local.
+pub const COOKIE_PASE: &str = "starseed_pase";
 
 /// Ruta de salud que responde el envoltorio `starseed-arranque.cjs` (no Next).
 pub const RUTA_SALUD: &str = "/__starseed/salud";
@@ -324,6 +331,74 @@ pub fn interpretar_salud(respuesta: &str, firma: &str) -> Salud {
     }
 }
 
+// ─────────────────────── Recarga en caliente (CAP1125A) ───────────────────────
+//
+// Tras un relevo de capa, la ventana se recarga en el mismo origen. Si el Node recién arrancado
+// todavía no da su primera página, el service worker puede entregar la copia de la capa ANTERIOR
+// (medido el 25-11: >10 s de primera página). Antes de recargar se pide la ruta que la ventana
+// tiene abierta; cuando contesta con un estado menor que 500, ya hay página nueva que servir.
+
+/// Qué ruta pedir para calentar el servidor, a partir de la URL de la ventana y el puerto local.
+/// Devuelve SOLO ruta y consulta del mismo origen: nunca una URL fuera de 127.0.0.1, nunca la
+/// entrada (que lleva el pase en `?t=`), nunca el pase. Si no es local o no se puede leer, `/`.
+pub fn ruta_para_calentar(url_ventana: &str, puerto: u16) -> String {
+    let url = url_ventana.trim();
+    if url.is_empty() || url.chars().any(char::is_control) || url.contains(' ') {
+        return "/".into();
+    }
+    let sin_fragmento = url.split('#').next().unwrap_or("");
+    let Some(resto) = sin_fragmento.strip_prefix("http://") else { return "/".into() };
+    let corte = resto.find(['/', '?']).unwrap_or(resto.len());
+    let autoridad = &resto[..corte];
+    if autoridad != format!("{HOST}:{puerto}") {
+        return "/".into();
+    }
+    let resto = &resto[corte..];
+    let (ruta, consulta) = match resto.split_once('?') {
+        Some((r, c)) => (r, Some(c)),
+        None => (resto, None),
+    };
+    let ruta = if ruta.is_empty() { "/" } else { ruta };
+    if !ruta.starts_with('/') {
+        return "/".into();
+    }
+    // La entrada de la ventana lleva el pase: jamás se pide tal cual.
+    if ruta == RUTA_ENTRAR || ruta.starts_with(&format!("{RUTA_ENTRAR}/")) {
+        return "/".into();
+    }
+    match consulta {
+        Some(c) if !c.is_empty() => format!("{ruta}?{c}"),
+        _ => ruta.to_string(),
+    }
+}
+
+/// Petición HTTP/1.1 mínima a la ruta de la ventana, con el pase en la cookie (como lo manda la
+/// ventana tras entrar). El pase nunca va en la línea de la petición.
+pub fn peticion_pagina(puerto: u16, ruta: &str, pase: &str) -> String {
+    let mut peticion = format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {HOST}:{puerto}\r\nAccept: text/html,application/xhtml+xml\r\nConnection: close\r\n"
+    );
+    if !pase.is_empty() {
+        peticion.push_str(&format!("Cookie: {COOKIE_PASE}={pase}\r\n"));
+    }
+    peticion.push_str("\r\n");
+    peticion
+}
+
+/// El estado HTTP de la primera línea de una respuesta (`None` si no se puede leer).
+pub fn estado_http(respuesta: &str) -> Option<u16> {
+    let linea = respuesta.lines().next()?;
+    if !linea.starts_with("HTTP/1.") {
+        return None;
+    }
+    linea.split_whitespace().nth(1)?.parse::<u16>().ok()
+}
+
+/// ¿Ese estado ya sirve para dar por caliente el servidor? (todo lo menor que 500).
+pub fn calienta(estado: Option<u16>) -> bool {
+    matches!(estado, Some(codigo) if codigo < 500)
+}
+
 // ─────────────────────────────── Reinicios ───────────────────────────────
 
 /// Si el servidor muere, se reinicia con pausas crecientes; más de `max_en_ventana` caídas en
@@ -599,5 +674,73 @@ mod pruebas {
         let s = script_aviso("local", "Listo en «127.0.0.1»");
         assert!(s.starts_with("window.__starseedUltimo=[\"local\",\"Listo en «127.0.0.1»\"];"));
         assert!(s.contains("window.__starseedArranque(\"local\""));
+    }
+
+    // (CAP1125A) Calentar el servidor antes de recargar tras un relevo de capa.
+    #[test]
+    fn ruta_para_calentar_la_misma_ruta_y_consulta() {
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610/", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610/escritorios", 47610), "/escritorios");
+        assert_eq!(
+            ruta_para_calentar("http://127.0.0.1:47610/escritorios?tab=notas&x=1", 47610),
+            "/escritorios?tab=notas&x=1"
+        );
+        // El fragmento no viaja al servidor.
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47611/a/b#seccion", 47611), "/a/b");
+        // Consulta sin ruta.
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610?x=1", 47610), "/?x=1");
+    }
+
+    #[test]
+    fn ruta_para_calentar_fuera_de_local_es_la_raiz() {
+        assert_eq!(ruta_para_calentar("https://starseed-os.vercel.app/escritorios", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47611/escritorios", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610@otro.example/", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://localhost:47610/escritorios", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://0.0.0.0:47610/escritorios", 47610), "/");
+        assert_eq!(ruta_para_calentar("", 47610), "/");
+        assert_eq!(ruta_para_calentar("no es una url", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610/a\r\nX: y", 47610), "/");
+        assert_eq!(ruta_para_calentar("http://127.0.0.1:47610/a b", 47610), "/");
+    }
+
+    #[test]
+    fn ruta_para_calentar_nunca_lleva_el_pase() {
+        let pase = "0123456789abcdef".repeat(4);
+        let entrada = url_entrada(47610, &pase, "/escritorios");
+        let ruta = ruta_para_calentar(&entrada, 47610);
+        assert_eq!(ruta, "/");
+        assert!(!ruta.contains(&pase));
+        assert!(!ruta.contains("t="));
+    }
+
+    #[test]
+    fn estados_que_calientan() {
+        assert!(calienta(estado_http("HTTP/1.1 200 OK\r\n\r\nhola")));
+        assert!(calienta(estado_http("HTTP/1.1 204 No Content\r\n\r\n")));
+        assert!(calienta(estado_http("HTTP/1.1 404 Not Found\r\n\r\n")));
+        assert!(calienta(estado_http("HTTP/1.1 499 raro\r\n\r\n")));
+        assert!(!calienta(estado_http("HTTP/1.1 500 Internal Server Error\r\n\r\n")));
+        assert!(!calienta(estado_http("HTTP/1.1 503 Service Unavailable\r\n\r\n")));
+        assert!(!calienta(estado_http("basura")));
+        assert!(!calienta(estado_http("")));
+        assert_eq!(estado_http("HTTP/1.1 200 OK"), Some(200));
+        assert_eq!(estado_http("HTTP/2 200"), None);
+    }
+
+    #[test]
+    fn peticion_de_calentamiento_lleva_el_pase_en_la_cookie() {
+        let pase = "0123456789abcdef".repeat(4);
+        let p = peticion_pagina(47610, "/escritorios?x=1", &pase);
+        assert!(p.starts_with("GET /escritorios?x=1 HTTP/1.1\r\n"));
+        assert!(p.contains("Host: 127.0.0.1:47610\r\n"));
+        assert!(p.contains(&format!("Cookie: starseed_pase={pase}\r\n")));
+        assert!(p.ends_with("\r\n\r\n"));
+        // El pase nunca va en la línea de la petición (la ruta).
+        let linea = p.lines().next().unwrap();
+        assert!(!linea.contains(&pase));
+        // Sin pase no se manda una cookie vacía.
+        assert!(!peticion_pagina(47610, "/", "").contains("Cookie:"));
     }
 }
