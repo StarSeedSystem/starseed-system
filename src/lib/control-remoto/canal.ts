@@ -16,7 +16,7 @@
  */
 
 import { CANAL_CONTROL, AUD_CONTROL, VIDA_ORDEN_MS, esRespuesta, leerOrden, type RespuestaOrden } from "./orden";
-import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, type PermisoControl } from "./sesion";
+import { PuertaControl, sanearPermiso, LATIDO_CADA_MS, noReabreSola, type PermisoControl } from "./sesion";
 import type { Args, Nivel } from "./niveles";
 import { abrirRespuesta, esRespuestaSellada, sellarOrden, sellarRespuesta } from "./sellado"; // ORD1114Q
 import { alPararNativo, puenteNativoControl, capacidadesNativas, type CapacidadesNativas } from "./nativo"; // ORD1114Q
@@ -427,6 +427,13 @@ export class SesionHacia {
     }
 
     async orden(nombre: string, args: Args = {}): Promise<RespuestaOrden> {
+        // CTL1124F: una lectura no abre sesión jamás. Sin token se manda SIN sesión (la puerta la atiende si ya
+        // nos aceptó) y así elegir o mirar una neurona no deja control abierto ni la reabre tras «Terminar».
+        if (!this.token && nombre === "leer-estado") {
+            const soloLectura = await this.mandar(this.para, nombre, args, { nivel: "ver" });
+            if (soloLectura.ok) this.registro.usada(this.para);
+            return soloLectura;
+        }
         if (!this.token) {
             const a = await this.abrir();
             if (!a.ok) return a;
@@ -438,6 +445,8 @@ export class SesionHacia {
             const a = await this.abrir(true);
             if (!a.ok) return a;
             r = await this.mandar(this.para, nombre, args, { sesion: this.token });
+        } else if (!r.ok && noReabreSola(r.motivo)) {
+            this.detener(); // CTL1124F: «Terminar» y las paradas terminales no se reabren solas
         }
         return r;
     }
@@ -461,7 +470,7 @@ export class SesionHacia {
                 this.registro.olvidar(this.para, t);
                 return (await this.abrir(true)).ok;
             }
-            if (r.motivo === "limite-cumplido" || r.motivo === "parada-nativa" || r.motivo === "permiso-apagado") this.pararLatido();
+            if (noReabreSola(r.motivo) || r.motivo === "sin-indicador-nativo") this.detener();
         } catch {
             /* un latido que falla no rompe nada: el siguiente lo reintenta */
         }
@@ -487,15 +496,11 @@ export class SesionHacia {
     }
 
     /**
-     * DIR1125B: mirar si la otra neurona nos tiene aceptados SIN quedarse con una sesión de control abierta. Antes bastaba elegir
-     * una neurona en la lista para dejarle una sesión viva con latido («X controla este aparato» sin que nadie lo pidiera).
-     * Si la sesión ya estaba tomada aquí (la serie del banco armada), se deja como estaba.
+     * CTL1124F: mirar si la otra neurona nos tiene aceptados SIN abrir una sesión de control. La lectura sale sin
+     * sesión cuando no hay una tomada aquí; si ya hay una (serie armada), se usa esa y no se cierra.
      */
     async sondear(): Promise<RespuestaOrden> {
-        const laAbreElSondeo = this.token === null;
-        const r = await this.orden("leer-estado");
-        if (laAbreElSondeo) await this.cerrar();
-        return r;
+        return this.orden("leer-estado");
     }
 
     async cerrar(): Promise<void> {

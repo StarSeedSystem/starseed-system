@@ -540,6 +540,7 @@ export function ControlEntreNeuronasPanel() {
                 if (i?.sesion?.estado === "aceptada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
                     abrirVentanaControl(objetivo, nombreRef.current(objetivo));
                     setEsperando(null);
+                    setAviso(null); // CTL1124F: ya te aceptó; el «no te aceptó» viejo no se queda en pantalla
                 } else if (i?.sesion?.estado === "rechazada" && i.objetivo?.toLowerCase() === objetivo.toLowerCase()) {
                     setAviso(`${nombreRef.current(objetivo)} no te aceptó${i.sesion.motivo ? `: ${palabrasMotivo(i.sesion.motivo) ?? i.sesion.motivo}` : "."}`);
                     setEsperando(null);
@@ -589,6 +590,11 @@ export function ControlEntreNeuronasPanel() {
     useEffect(() => {
         void import("@/lib/banco-llamadas/app").then((b) => setInforme(b.ultimoInforme()));
     }, [n]);
+
+    // CTL1124F: si la otra neurona ya te aceptó, el texto viejo «X no te aceptó…» desaparece.
+    useEffect(() => {
+        if (informe?.sesion?.estado === "aceptada") setAviso((a) => (a && /no te aceptó/i.test(a) ? null : a));
+    }, [informe?.sesion?.estado, informe?.objetivo]);
 
     useEffect(() => {
         void (async () => {

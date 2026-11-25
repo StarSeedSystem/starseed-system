@@ -23,6 +23,8 @@ function aparato() {
             abiertas.delete(String(o.sesion));
             return resp(true, "ok");
         }
+        // CTL1124F: la puerta atiende `leer-estado` sin sesión para comprobar si ya te aceptó.
+        if (nombre === "leer-estado" && !o.sesion) return resp(true, "ok", {});
         if (!o.sesion || !abiertas.has(o.sesion)) return resp(false, "sin-sesion");
         return resp(true, "ok", {});
     };
@@ -35,13 +37,13 @@ afterEach(async () => {
 });
 
 describe("DIR1125B · SesionHacia", () => {
-    it("sondear abre, pregunta y cierra: no queda ninguna sesión de control abierta", async () => {
+    it("sondear pregunta sin abrir sesión: no deja ninguna sesión de control abierta", async () => {
         const a = aparato();
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
         expect((await s.sondear()).ok).toBe(true);
-        expect(a.vistas).toEqual(["abrir-sesion", "leer-estado", "cerrar-sesion"]);
+        expect(a.vistas).toEqual(["leer-estado"]);
         expect(a.abiertas.size).toBe(0);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
@@ -58,7 +60,7 @@ describe("DIR1125B · SesionHacia", () => {
         const r = await s.sondear();
         expect(r.ok).toBe(false);
         expect(r.motivo).toBe("no-autorizado");
-        expect(vistas).toEqual(["abrir-sesion"]);
+        expect(vistas).toEqual(["leer-estado"]);
         expect(reg.sesionesSalientes().length).toBe(0);
     });
 
@@ -67,7 +69,7 @@ describe("DIR1125B · SesionHacia", () => {
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
-        expect((await s.orden("leer-estado")).ok).toBe(true);
+        expect((await s.orden("llamar", {})).ok).toBe(true);
         expect((await s.sondear()).ok).toBe(true);
         expect(a.vistas.includes("cerrar-sesion")).toBe(false);
         expect(a.abiertas.size).toBe(1);
@@ -78,7 +80,7 @@ describe("DIR1125B · SesionHacia", () => {
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
-        expect((await s.orden("leer-estado")).ok).toBe(true);
+        expect((await s.orden("llamar", {})).ok).toBe(true);
         s.detener();
         a.abiertas.clear(); // el aparato ya la cerró
         expect(await s.latir()).toBe(false);

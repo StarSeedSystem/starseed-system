@@ -17,6 +17,7 @@
  *  11. sus argumentos son los tipados — si no, «argumentos»;
  *  12. su nivel no pasa del concedido ni del de la sesión — si no, «nivel»;
  *  13. hay sesión abierta por ESE aparato, viva (latidos cada 10 s; cae a los 45 s sin ellos) — si no, «sin-sesion»/«sesion-caducada».
+ *      CTL1124F: `leer-estado` sin sesión se atiende igual (mismos frenos 2–12) para comprobar si ya te aceptaron: no abre ni toca sesión.
  *      CTL1119A: sin límite elegido al aceptar no hay hora máxima; si se eligió uno, al cumplirse es «limite-cumplido» y no se reabre sola.
  * Cada orden, aceptada o no, deja una línea `orden <acción> de=<8> nivel=<n> resultado=<…>`.
  * Revocar (un toque) cierra la sesión y APAGA el permiso: lo siguiente es «permiso-apagado».
@@ -200,6 +201,31 @@ export const MOTIVO_TERMINADO = "terminado-por-el-dueno";
 /** CTL1118G: los motivos nativos de «Terminar» (indicador, notificación, superposición, web) que SOLO cortan la sesión. */
 export function esTerminarDeLaPersona(motivo: string): boolean {
     return motivo === MOTIVO_TERMINADO || motivo === "la-persona-desde-el-indicador" || motivo === "la-persona-desde-la-notificacion" || motivo === "la-persona-desde-la-superposicion";
+}
+
+/**
+ * CTL1124F: la ÚNICA lectura que la puerta atiende sin sesión abierta. Sirve para que el controlador sepa si ya
+ * lo aceptaron (misma cuenta, clave aceptada, firma y antirrepetición intactas) sin abrir ni tocar una sesión.
+ */
+export function esLecturaSinSesion(nombre: string): boolean {
+    return nombre === "leer-estado";
+}
+
+/**
+ * CTL1124F: motivos tras los que una sesión NO se reabre sola. La persona tiene que volver a pulsar
+ * «Pedir controlarla» o «Abrir ventana de control»: ni un latido, ni un sondeo, ni un reintento la resucitan.
+ */
+export function noReabreSola(motivo: string): boolean {
+    return (
+        motivo === "parada-nativa" ||
+        motivo === "terminado-por-el-dueno" ||
+        motivo === "limite-cumplido" ||
+        motivo === "permiso-apagado" ||
+        motivo === "permiso-apagado-avisado" ||
+        motivo === "no-autorizado" ||
+        motivo === "otra-cuenta" ||
+        motivo === "otro-destino"
+    );
 }
 
 /** CTL1118G: el nombre de la neurona que manda, limpio (sin controles, 60 letras como `presentarse`); `null` si no sirve. */
@@ -483,6 +509,18 @@ export class PuertaControl {
         const concedido: Nivel = NIVELES_CONCEDIBLES_FASE1.includes(permiso.nivel) ? permiso.nivel : "ver";
         if (rangoNivel(c.nivel) > rangoNivel(concedido) || rangoNivel(def.nivel) > rangoNivel(c.nivel)) {
             return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
+        }
+
+        // CTL1124F: mirar si ya te aceptaron es una LECTURA sin sesión. No abre, no renueva ni borra lo que la
+        // persona terminó; solo contesta a un aparato ya aceptado (los frenos anteriores ya se comprobaron).
+        if (!c.sesion && esLecturaSinSesion(nombre)) {
+            try {
+                const r = await this.d.ejecutar(nombre, args, c, sobre);
+                return this.respuesta(c.nonce, true, "ok", nombre, c.de, c.nivel, r);
+            } catch (e) {
+                const m = e instanceof Error && /^[a-z-]{1,32}$/.test(e.message) ? e.message : "fallo";
+                return this.respuesta(c.nonce, false, m, nombre, c.de, c.nivel);
+            }
         }
 
         // ORD1114Q: una intervención a mano se dice UNA vez a quien manda (su serie para), y luego nada más.
