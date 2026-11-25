@@ -210,6 +210,15 @@ export function iniciarRelevoNativo(): () => void {
   if (!esAppNativa()) return () => {};
   let parado = false;
   let enCurso = false;
+  // (DIR1125F) El censo de cuadros: que el propio aparato diga quién ocupa el hilo principal. Solo cuenta; no cambia nada.
+  let pararCenso: () => void = () => {};
+  void import("@/lib/perf/censo-cuadros")
+    .then((m) => {
+      if (!parado) pararCenso = m.iniciarCensoCuadros();
+    })
+    .catch(() => {
+      /* sin censo: como antes */
+    });
   const tick = async () => {
     if (parado || enCurso) return;
     enCurso = true;
@@ -231,6 +240,7 @@ export function iniciarRelevoNativo(): () => void {
   }
   return () => {
     parado = true;
+    pararCenso();
     clearTimeout(t0);
     clearInterval(iv);
     try {
