@@ -4,6 +4,7 @@ import * as React from "react"
 import { motion, useMotionTemplate, useMotionValue, useSpring, useTransform, useAnimation, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils"
 import { useAppearance } from "@/context/appearance-context";
+import { useAnimacionesEnAhorro } from "@/lib/perf/use-animaciones-en-ahorro";
 
 import { LiquidGlassWrapper } from "@/components/ui/LiquidGlassWrapper";
 
@@ -48,6 +49,10 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     // reducedMotion="user"> del layout raíz. `useReducedMotion()` es SSR-safe
     // (null en servidor ⇒ !reduceMotion = animado por defecto, sin salto).
     const reduceMotion = useReducedMotion();
+    // DIR1125J: el flotado en bucle también obedece al modo de rendimiento (eco, eficiente o «auto» cuando decide uno de los dos),
+    // con el mismo interruptor que ya deja quietas las animaciones CSS. Corría siempre y mantenía despierto el bucle de cuadros
+    // de framer-motion 60 veces por segundo (Maggabox, 25-11: él solo, 26 % del hilo principal).
+    const enAhorro = useAnimacionesEnAhorro();
 
     // --- NATIVE CSS 3D PHYSICS ---
     const x = useMotionValue(0);
@@ -82,7 +87,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     const floatingControls = useAnimation();
 
     React.useEffect(() => {
-      if (useCrystalEffects && interactive && !reduceMotion) {
+      if (useCrystalEffects && interactive && !reduceMotion && !enAhorro) {
         floatingControls.start({
           y: [0, -3, 0],
           transition: {
@@ -95,7 +100,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         floatingControls.stop();
         floatingControls.set({ y: 0 });
       }
-    }, [useCrystalEffects, interactive, reduceMotion, floatingControls]);
+    }, [useCrystalEffects, interactive, reduceMotion, enAhorro, floatingControls]);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (!interactive || !useCrystalEffects || reduceMotion) return;
