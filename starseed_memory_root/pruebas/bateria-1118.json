@@ -1,0 +1,293 @@
+{
+  "bateria": "1118",
+  "descripcion": "Pruebas autónomas de la malla: control entre neuronas, pausa local, caducidad, malla P2P y datos por la malla. Sin credenciales ni direcciones reales.",
+  "pruebas": [
+    {
+      "id": "B1-MT-A1",
+      "bloque": "B1",
+      "ronda": 1,
+      "titulo": "Apertura de sesión de control por BLE",
+      "aparatos": ["mac", "tableta"],
+      "antena": "ble",
+      "pasos": [
+        "En la Mac, abre Control y elige la neurona de la tableta.",
+        "Pulsa Controlar y espera a que la tableta muestre el indicador nativo.",
+        "Comprueba en el registro de enlaces que la sesión abre por BLE."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "control-sesion.*inicio de=\\S+ nivel=controlar alcance=total",
+            "control-sesion.*orden leer-estado.*resultado=autorizada"
+          ],
+          "no_debe": ["resultado=rechazo:pausa-local"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"sesion-abierta\".*nivel=controlar alcance=total",
+            "\"ev\":\"orden\".*resultado=autorizada"
+          ],
+          "no_debe": ["\"ev\":\"sesion-rechazada\""]
+        }
+      }
+    },
+    {
+      "id": "B1-MT-A2",
+      "bloque": "B1",
+      "ronda": 1,
+      "titulo": "Enlace BLE sostenido sin cortes",
+      "aparatos": ["mac", "tableta"],
+      "antena": "ble",
+      "pasos": [
+        "Mantén la sesión de control abierta durante treinta segundos.",
+        "Comprueba que el registro anota los kbps del enlace BLE.",
+        "Acerca y aleja la tableta y confirma que la sesión se recupera sola."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "ble l2cap-kbps enlace=\\S+ neurona=\\S+.*kbps=\\d+",
+            "senal-recibida app"
+          ],
+          "no_debe": ["l2cap-error", "enlace-perdido"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"senal-recibida\"",
+            "\"ev\":\"sesion-abierta\""
+          ],
+          "no_debe": ["\"ev\":\"enlace-caido\""]
+        }
+      }
+    },
+    {
+      "id": "B2-MT-A1",
+      "bloque": "B2",
+      "ronda": 2,
+      "titulo": "La pausa local corta la sesión y deja el motivo",
+      "aparatos": ["mac", "tableta"],
+      "antena": "wifi",
+      "pasos": [
+        "Con la sesión de control abierta, pausa el control desde el indicador de la tableta.",
+        "Comprueba que la Mac anota el fin con el motivo de la persona.",
+        "Verifica que la tableta registra la parada de la sesión."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "control-sesion.*fin de=\\S+ motivo=la-persona-desde-el-indicador",
+            "control-sesion.*orden gesto.*resultado=rechazo:pausa-local"
+          ],
+          "no_debe": ["motivo=sin-indicador-nativo"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"sesion-parada\".*motivo=la-persona-desde-el-indicador",
+            "\"ev\":\"sesion-rechazada\".*pausa-local"
+          ],
+          "no_debe": ["\"ev\":\"orden\".*resultado=autorizada"]
+        }
+      }
+    },
+    {
+      "id": "B2-MT-A2",
+      "bloque": "B2",
+      "ronda": 2,
+      "titulo": "Una sesión pausada no se reabre sola",
+      "aparatos": ["mac", "tableta"],
+      "antena": "wifi",
+      "pasos": [
+        "Pausa el control desde el indicador de la tableta.",
+        "Espera diez segundos sin tocar la Mac.",
+        "Confirma que no aparece una apertura de sesión nueva."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": ["control-sesion.*fin de=\\S+"],
+          "no_debe": ["control-sesion.*inicio de=.*alcance=total"]
+        },
+        "tableta": {
+          "debe": ["\"ev\":\"sesion-parada\""],
+          "no_debe": ["\"ev\":\"sesion-abierta\""]
+        }
+      }
+    },
+    {
+      "id": "B3-MT-A1",
+      "bloque": "B3",
+      "ronda": 3,
+      "titulo": "La sesión caduca al faltar el latido",
+      "aparatos": ["mac", "tableta"],
+      "antena": "wifi",
+      "pasos": [
+        "Abre una sesión de control y deja de enviar latidos.",
+        "Espera el plazo de caducidad sin interactuar.",
+        "Comprueba que la Mac cierra la sesión con motivo de caducidad."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "control-sesion.*inicio de=\\S+ nivel=controlar",
+            "control-sesion.*fin de=\\S+ motivo=caducidad"
+          ],
+          "no_debe": ["motivo=la-persona-desde-el-indicador"]
+        },
+        "tableta": {
+          "debe": ["\"ev\":\"sesion-parada\".*motivo=caducidad"],
+          "no_debe": ["\"ev\":\"sesion-rechazada\".*pausa-local"]
+        }
+      }
+    },
+    {
+      "id": "B3-MT-A2",
+      "bloque": "B3",
+      "ronda": 3,
+      "titulo": "Una sesión activa no caduca antes de tiempo",
+      "aparatos": ["mac", "tableta"],
+      "antena": "wifi",
+      "pasos": [
+        "Abre una sesión de control y mantén los latidos vivos.",
+        "Espera dos ciclos de latido completos.",
+        "Confirma que la sesión sigue abierta y sin cierre por caducidad."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": ["control-sesion.*inicio de=\\S+", "latido"],
+          "no_debe": ["motivo=caducidad"]
+        },
+        "tableta": {
+          "debe": ["\"ev\":\"sesion-abierta\""],
+          "no_debe": ["\"ev\":\"sesion-parada\".*motivo=caducidad"]
+        }
+      }
+    },
+    {
+      "id": "B4-MT-A1",
+      "bloque": "B4",
+      "ronda": 4,
+      "titulo": "Malla P2P entre tres neuronas",
+      "aparatos": ["mac", "maggabox", "tableta"],
+      "antena": "malla",
+      "pasos": [
+        "Enciende las tres neuronas y deja que se descubran por la malla.",
+        "Comprueba en cada una que ve a las otras dos como vecinas.",
+        "Retira una neurona y confirma que la malla busca otra ruta."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "malla.*enlace=\\S+.*estado=conectado",
+            "malla.*vecinos=\\d+"
+          ],
+          "no_debe": ["estado=aislado", "perdida=100"]
+        },
+        "maggabox": {
+          "debe": [
+            "malla.*nodo=\\S+.*vecinos=\\d+",
+            "latido.*malla"
+          ],
+          "no_debe": ["estado=aislado"]
+        },
+        "tableta": {
+          "debe": ["\"ev\":\"malla-enlace\".*\"calidad\":\"(alta|buena)\""],
+          "no_debe": ["\"ev\":\"malla-enlace\".*\"calidad\":\"nula\""]
+        }
+      }
+    },
+    {
+      "id": "B4-MT-A2",
+      "bloque": "B4",
+      "ronda": 4,
+      "titulo": "Multicontrolador y scroll natural por la malla",
+      "aparatos": ["mac", "maggabox", "tableta"],
+      "antena": "malla",
+      "pasos": [
+        "Controla la tableta desde la Mac por la malla.",
+        "Desplaza una lista larga y observa el scroll por pasos.",
+        "Repite el control desde Maggabox y compara la respuesta."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "multicontrol.*destino=\\S+.*ok",
+            "scroll.*paso=\\d+"
+          ],
+          "no_debe": ["scroll.*salto-brusco"]
+        },
+        "maggabox": {
+          "debe": ["malla.*multicontrol", "malla.*scroll"],
+          "no_debe": ["malla.*sin-respuesta"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"multicontrol\".*\"ok\":true",
+            "\"ev\":\"scroll\".*\"suave\":true"
+          ],
+          "no_debe": ["\"ev\":\"multicontrol\".*\"ok\":false"]
+        }
+      }
+    },
+    {
+      "id": "B5-MT-A1",
+      "bloque": "B5",
+      "ronda": 5,
+      "titulo": "Archivo entre neuronas por la malla con huella",
+      "aparatos": ["mac", "maggabox", "tableta"],
+      "antena": "malla",
+      "pasos": [
+        "Envía un archivo pequeño de la Mac a la tableta por la malla.",
+        "Comprueba que el receptor acusa cada trozo y la huella completa.",
+        "Verifica que el archivo guardado coincide con el enviado."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "archivos.*oferta.*aceptada",
+            "archivos.*sha-256=\\S+.*verificado"
+          ],
+          "no_debe": ["archivos.*verificacion-fallida"]
+        },
+        "maggabox": {
+          "debe": ["archivos.*trozo.*recibido", "archivos.*verificado"],
+          "no_debe": ["archivos.*error-de-disco"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"archivo-recibido\".*\"verificado\":true",
+            "\"ev\":\"archivo-recibido\".*\"sha256\""
+          ],
+          "no_debe": ["\"ev\":\"archivo-recibido\".*\"verificado\":false"]
+        }
+      }
+    },
+    {
+      "id": "B5-MT-A2",
+      "bloque": "B5",
+      "ronda": 5,
+      "titulo": "Emparejado sin internet y llamada directa",
+      "aparatos": ["mac", "tableta"],
+      "antena": "wifi",
+      "pasos": [
+        "Apaga el router y empareja la Mac con la tableta en la red local.",
+        "Abre una llamada directa entre las dos neuronas.",
+        "Confirma que la llamada usa el canal local y no un relevo externo."
+      ],
+      "criterios": {
+        "mac": {
+          "debe": [
+            "emparejado.*sin-internet.*ok",
+            "llamada-directa.*canal=local"
+          ],
+          "no_debe": ["llamada-directa.*canal=turn"]
+        },
+        "tableta": {
+          "debe": [
+            "\"ev\":\"emparejado\".*\"sin-internet\":true",
+            "\"ev\":\"llamada-directa\""
+          ],
+          "no_debe": ["\"ev\":\"emparejado\".*\"sin-internet\":false"]
+        }
+      }
+    }
+  ]
+}

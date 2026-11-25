@@ -79,7 +79,10 @@ queue/
 
 # temporary scoped typecheck configs
 tsc-*.tmp.json
-starseed_memory_root/
+starseed_memory_root/*
+!starseed_memory_root/pruebas/
+starseed_memory_root/pruebas/*
+!starseed_memory_root/pruebas/bateria-1118.json
 _to_delete/
 dream/
 Icon
