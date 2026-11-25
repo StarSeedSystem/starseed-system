@@ -106,6 +106,27 @@ pub fn posible(e: Option<&EstadoKotlin>) -> bool {
     e.is_some_and(|e| e.encendido && e.notificaciones && e.superposicion)
 }
 
+// ── CTL1124G · la pantalla por accesibilidad que no da ni el cuadro inicial ─────────────────────
+
+/// CTL1124G: `cuadro_ms` a partir del cual la pantalla no está dando imagen (la accesibilidad escribe ~3 cuadros/s).
+pub const SIN_CUADRO_MS: i64 = 4_000;
+
+/// CTL1124G: ¿el estado de Kotlin dice que la pantalla está dando imagen? `cuadro_ms` = ms desde el último cuadro (-1 = ninguno).
+pub fn da_imagen(e: Option<&EstadoKotlin>) -> bool {
+    e.is_some_and(|e| e.cuadro_ms >= 0 && e.cuadro_ms < SIN_CUADRO_MS)
+}
+
+/// CTL1124G: la sesión está a la vista y su pantalla no da imagen. Es solo diagnóstico: nada se concede ni se acepta por la persona.
+pub fn sin_imagen(e: Option<&EstadoKotlin>, sesion: &str, ahora_ms: u64) -> bool {
+    visible(e, sesion, ahora_ms) && !da_imagen(e)
+}
+
+/// CTL1124G: una línea de registro cuando la fuente no da imagen; recuerda que la fluida se acepta EN el aparato.
+pub fn linea_sin_imagen(e: Option<&EstadoKotlin>, sesion: &str) -> String {
+    let ms = e.map(|e| e.cuadro_ms).unwrap_or(-1).clamp(-1, 9_999_999);
+    format!("pantalla sin-imagen sesion={} cuadro-ms={} aviso=pantalla-fluida-en-el-aparato", limpio(sesion, 8), ms)
+}
+
 /// ¿El indicador de la sesión `sesion` está a la vista ahora (con latido fresco)?
 pub fn visible(e: Option<&EstadoKotlin>, sesion: &str, ahora_ms: u64) -> bool {
     let Some(e) = e else { return false };
@@ -555,6 +576,25 @@ mod pruebas {
         // Un origen raro no se cuela en el registro; el nombre vacío (el punto saldría sin texto) se ve como longitud 0.
         assert_eq!(sufijo_nombre("", "<b>\nx"), " nombre-len=0 nombre-origen=defecto");
         assert!(!sufijo_nombre("Mac de Alex", "aceptados").contains("Mac"));
+    }
+
+    #[test]
+    fn ctl1124g_la_pantalla_sin_cuadros_no_se_da_por_imagen() {
+        let sin = kotlin(serde_json::json!({ "cuadro_ms": -1 }));
+        assert!(visible(Some(&sin), "S1", 1_000_100));
+        assert!(!da_imagen(Some(&sin)), "sin cuadro no hay imagen");
+        assert!(sin_imagen(Some(&sin), "S1", 1_000_100));
+        let dando = kotlin(serde_json::json!({ "cuadro_ms": 340 }));
+        assert!(da_imagen(Some(&dando)));
+        assert!(!sin_imagen(Some(&dando), "S1", 1_000_100));
+        let justo = kotlin(serde_json::json!({ "cuadro_ms": SIN_CUADRO_MS }));
+        assert!(!da_imagen(Some(&justo)), "en el umbral ya no da imagen");
+        assert!(sin_imagen(Some(&justo), "S1", 1_000_100));
+        assert!(!sin_imagen(Some(&sin), "OTRA", 1_000_100), "otra sesión no se mira");
+        assert!(!sin_imagen(None, "S1", 1_000_100));
+        let l = linea_sin_imagen(Some(&justo), "S1");
+        assert!(l.contains("cuadro-ms=4000") && l.contains("aviso=pantalla-fluida-en-el-aparato"));
+        assert!(linea_sin_imagen(None, "S1").contains("cuadro-ms=-1"));
     }
 
     #[test]

@@ -102,3 +102,63 @@ export const GRACIA_MALLA_MS = 30_000;
 /** CTL1124C: vigencia de la malla (ms) tras la última petición; sin peticiones se para con «sin-malla». */
 export const VIGENCIA_MALLA_MS = 8_000;
 
+// ── CTL1124G · la pantalla que no da ni el cuadro inicial ────────────────────────────────────────
+
+/** Cuánto se espera al PRIMER cuadro de una fuente antes de darla por parada (la accesibilidad tarda ~340 ms). */
+export const ESPERA_PRIMER_CUADRO_MS = 4_000;
+/** Con algún cuadro ya visto, cuánto silencio se tolera antes de volver a darla por parada (la quieta también late). */
+export const SILENCIO_CUADRO_MS = 4_500;
+
+/** Texto claro para la persona: la fluida se acepta EN el aparato y nadie la acepta por ella. */
+export const AVISO_PANTALLA_FLUIDA =
+    "La pantalla por accesibilidad no está dando imagen. En la tableta, abre «Compartir pantalla» y acepta la pantalla fluida (proyección) para verla; nadie puede aceptarla por ti.";
+
+export type EstadoCuadros = "sin-fuente" | "esperando" | "dando" | "parada" | "pausa";
+
+export interface MedidaCuadros {
+    /** La fuente REAL que escribe cuadros ahora (null: aún no hay ninguna). */
+    fuente: FuenteReal | null;
+    /** Cuadros pintados en esta pantalla. */
+    cuadros: number;
+    /** ms desde que se pidió la pantalla. */
+    desdeInicioMs: number;
+    /** ms desde el último cuadro (null si no ha llegado ninguno). */
+    desdeUltimoMs: number | null;
+    /** La pausa local detiene los cuadros a propósito: no es una pantalla rota. */
+    pausada?: boolean;
+}
+
+/** Salud de los cuadros: esperando el inicial, dando imagen, parada (0 cuadros/s) o en pausa local. */
+export function estadoCuadros(m: MedidaCuadros, primerMs = ESPERA_PRIMER_CUADRO_MS, silencioMs = SILENCIO_CUADRO_MS): EstadoCuadros {
+    if (m.fuente === null) return "sin-fuente";
+    if (m.pausada === true) return "pausa";
+    if (!(m.cuadros > 0)) return m.desdeInicioMs >= primerMs ? "parada" : "esperando";
+    if (m.desdeUltimoMs !== null && m.desdeUltimoMs >= silencioMs) return "parada";
+    return "dando";
+}
+
+/** El aviso de la fluida sale UNA vez, solo por accesibilidad y solo si la pantalla está parada. */
+export function debeAvisarPantallaFluida(fuente: FuenteReal | null, estado: EstadoCuadros, yaPedida: boolean): boolean {
+    return fuente === "accesibilidad" && estado === "parada" && !yaPedida;
+}
+
+/** Lo que se le puede decir a la persona en la ventana (null: nada que decir). */
+export function textoCuadros(fuente: FuenteReal | null, estado: EstadoCuadros): string | null {
+    if (fuente !== "accesibilidad") return null;
+    if (estado === "parada") return AVISO_PANTALLA_FLUIDA;
+    if (estado === "esperando") return "Esperando la primera imagen de la pantalla por accesibilidad…";
+    return null;
+}
+
+/** Una línea del registro cuando la fuente no está dando imagen (nunca el contenido, solo conteos). */
+export function lineaSinCuadros(estado: EstadoCuadros, fuente: FuenteReal | null, cuadros: number): string {
+    const n = Number.isFinite(cuadros) ? Math.max(0, Math.trunc(cuadros)) : 0;
+    return `control-fuente paso=sin-cuadros estado=${estado} cuadros=${n} fuente=${fuente ?? "ninguna"} sigue=accesibilidad`;
+}
+
+/** Una línea del registro cuando la persona no aceptó la pantalla fluida: nadie la acepta por ella. */
+export function lineaProyeccionNoAceptada(cuadros: number, estado: EstadoCuadros): string {
+    const n = Number.isFinite(cuadros) ? Math.max(0, Math.trunc(cuadros)) : 0;
+    return `control-fuente paso=fluida-no-aceptada resultado=sin-respuesta-de-la-persona motivo=sin-consentimiento cuadros=${n} estado=${estado} sigue=accesibilidad`;
+}
+
