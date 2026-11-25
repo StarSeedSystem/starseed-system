@@ -20,7 +20,7 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
@@ -605,6 +605,21 @@ export class PantallaDestino {
             }
             const res = (r.resultado ?? {}) as Record<string, unknown>;
             if (res.nuevo === false) {
+                // CTL1124D: «grande» no es «no hay cuadro»: el JPEG no cabe y hay que pedirlo más pequeño.
+                // Antes se esperaba el mismo cuadro para siempre y la ventana se quedaba negra sin una línea.
+                if (res.motivo === "grande") {
+                    const siguiente = nivelParaCuadroGrande(ritmo.nivel);
+                    if (siguiente !== ritmo.nivel) {
+                        ritmo = { nivel: siguiente, altas: 0, bajas: 0 };
+                        this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "cuadro-grande", nivel: siguiente }));
+                        continue;
+                    }
+                    fallos += 1;
+                    if (fallos === 1) this.anotar(`control-fuente paso=pintar via=malla resultado=grande nivel=${ritmo.nivel}`);
+                    if (fallos >= 10) return void (await this.cerrar("sin-cuadros", true));
+                    await m.esperar(300 * fallos);
+                    continue;
+                }
                 fallos = 0;
                 vacios += 1;
                 if (this.snap.estado === "pausa-local") this.poner({ estado: "en-vivo" });
@@ -665,6 +680,8 @@ export class PantallaDestino {
                 // CTL1119B: alimentar cuadro a calidad (malla)
                 const t = this.d.ahora();
                 añadirCuadro(this.calidad, { t, bytes: jpeg.length, ancho, alto, codec: "jpeg", completo: true });
+                // CTL1124D: con el primer cuadro ya se conoce la resolución, aunque la pantalla no cambie y no llegue otro.
+                if (pintados === 1) this.actualizarCalidad();
             }
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);

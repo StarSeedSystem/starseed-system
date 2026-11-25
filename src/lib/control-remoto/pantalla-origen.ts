@@ -527,6 +527,9 @@ export class OrigenPantalla {
                     await this.d.esperar(Math.min(200, 20 + vacios * 20)); // sin cuadro nuevo: se adapta, no se ocupa de más
                     continue;
                 }
+                // CTL1124D: la generación pudo cambiar mientras se esperaba la captura; un bucle viejo no
+                // puede pisar `desdeCaptura`/`ultimoCompartido` del bucle nuevo.
+                if (this.vivas().length === 0 || this.capturaGen !== gen) return;
                 const h = leerCabeceraCuadro(bytes);
                 if (!h) {
                     fallos += 1;
@@ -817,6 +820,10 @@ export class OrigenPantalla {
         }
         if (this.vivas().length === 0) {
             this.capturaGen += 1;
+            // CTL1124D: el bucle que termina por cambio de generación ya no puede limpiar su bandera
+            // (`capturaGen !== gen`), así que se limpia aquí; si no, la captura quedaba «en marcha» para
+            // siempre y al reabrir el control no se servía ni un cuadro (ventana negra con «ok»).
+            this.capturaEnMarcha = false;
             this.desdeCaptura = 0;
             this.ultimoCompartido = null;
             this.soltarOcupado?.();

@@ -136,6 +136,16 @@ export function esperaSinCuadro(vacios: number): number {
     return Math.min(200, 20 + vacios * 20);
 }
 
+/**
+ * CTL1124D · el aparato contestó `motivo: "grande"` (el JPEG no cabe en una respuesta). Se pide un
+ * nivel más pequeño para que lo vuelva a codificar; en el mínimo ya no se puede bajar más.
+ */
+export function nivelParaCuadroGrande(nivel: number): number {
+    const ultimo = NIVELES_CUADRO.length - 1;
+    const n = Number.isInteger(nivel) && nivel >= 0 ? nivel : 0;
+    return Math.min(ultimo, n + 1);
+}
+
 /** Por un camino que no es directo (relevo por otra neurona, TURN, servidor) se va al nivel mínimo y con pausa. */
 export function planPorCamino(camino: "directo" | "capa" | "sin-determinar", nivelPedido: number): { nivel: number; pausaMs: number } {
     if (camino === "capa") return { nivel: NIVELES_CUADRO.length - 1, pausaMs: PAUSA_CAPA_MS };
