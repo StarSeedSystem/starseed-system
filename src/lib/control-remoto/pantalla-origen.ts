@@ -176,6 +176,8 @@ interface Activa {
     intCalidad?: ReturnType<typeof setInterval>;
     /** CTL1124C: si ya se registró el paso a modo malla (para no repetir). */
     mallaModoLogado: boolean;
+    /** CTL1124G: último momento en que se pidió fluida por 0 fps en Android (para no repetir). */
+    ultimaFluidaPorCeros: number;
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {
@@ -327,6 +329,7 @@ export class OrigenPantalla {
             calidad: { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: medio, lado: "aparato" },
             ultimaCalidad: null,
             mallaModoLogado: false,
+            ultimaFluidaPorCeros: 0,
         };
         const eraVacia = this.vivas().length === 0;
         this.activas.set(s.token, a);
@@ -387,6 +390,21 @@ export class OrigenPantalla {
             const linea = lineaRegistro(metricas);
             this.d.anotar(linea);
             marcarRegistro(a.calidad, ahora);
+        }
+        // CTL1124G: Android con accesibilidad a 0 fps → pedir pantalla fluida en la tableta
+        if (a.fuente === "accesibilidad" && metricas.fps === 0) {
+            const so = this.d.sistemaOperativo ? this.d.sistemaOperativo() : "desconocido";
+            const esAndroid = so === "android";
+            // DEBUG
+            this.d.anotar(`DEBUG actualizarCalidad: fuente=${a.fuente} fps=${metricas.fps} so=${so} esAndroid=${esAndroid} buscandoFluida=${a.buscandoFluida} ultimaFluidaPorCeros=${a.ultimaFluidaPorCeros} ahora=${ahora} hyst=${30_000} diff=${ahora - a.ultimaFluidaPorCeros}`);
+            if (esAndroid) {
+                const HISTERESIS_MS = 30_000; // no repetir antes de 30 s
+                if (!a.buscandoFluida && ahora - a.ultimaFluidaPorCeros >= HISTERESIS_MS) {
+                    a.ultimaFluidaPorCeros = ahora;
+                    this.d.anotar(`control-fuente paso=fluida-por-ceros fps=0 so=android desde=${a.inicio} ms=${ahora - a.inicio}`);
+                    void this.buscarFluida(a, true); // manual = true para saltar el límite de una vez por sesión
+                }
+            }
         }
     }
 
