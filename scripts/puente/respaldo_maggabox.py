@@ -111,6 +111,13 @@ ALIVIAR_NEGRA = [
     ".git",
 ]
 
+# Estados de progreso.json con los que la tarea AÚN puede usar su árbol (PURA)
+ESTADOS_ARBOL_VIVO = frozenset({
+    "pendiente", "en_curso", "en curso", "en_marcha", "en marcha",
+    "reasignada", "por_traer", "por traer",
+    "integrada-sin-traer", "integrada_sin_traer",
+})
+
 # Umbrales (PURA)
 MIN_LIBRE_GA_BUNDLE = 6.0   # GB mínimos libres para crear el bundle
 UMBRAL_ALIVIO_GB = 12.0     # alivio automático si el disco libre baja de esto
@@ -469,24 +476,73 @@ def respaldar(
     return resultado
 
 
-def _es_candidato_aliviar(ruta: str, cola_activa_ids: Set[str]) -> Tuple[bool, str]:
-    """PURA: decide si una ruta es candidata a mover a pesados/."""
+def _id_de_arbol(ruta_norm: str) -> Optional[str]:
+    """PURA: id de tarea del árbol, o None. Reconoce las tres formas reales de la Mac:
+    `starseed-wt-<id>`, `~/Documents/starseed-wt/<ID>` y `~/Documents/wt-<algo>`."""
+    partes = [p for p in ruta_norm.split(os.sep) if p]
+    candidato: Optional[str] = None
+    for parte in partes:
+        if parte.startswith("starseed-wt-"):
+            candidato = parte[len("starseed-wt-"):]
+            break
+    if candidato is None:
+        for i, parte in enumerate(partes[:-1]):
+            if parte == "starseed-wt":
+                candidato = partes[i + 1]
+                break
+    if candidato is None:
+        for parte in partes:
+            if parte.startswith("wt-") and len(parte) > len("wt-"):
+                candidato = parte[len("wt-"):]
+                break
+    if not candidato or candidato.startswith(("_", ".")):
+        return None
+    return candidato
+
+
+def _entrada_viva_aliviar(entrada: Any) -> bool:
+    """PURA: ¿la entrada de progreso dice que la tarea aún puede usar su árbol?"""
+    if isinstance(entrada, str):
+        return entrada in ESTADOS_ARBOL_VIVO
+    if not isinstance(entrada, dict):
+        return False
+    estado = str(entrada.get("estado") or "")
+    if estado in ESTADOS_ARBOL_VIVO:
+        return True
+    # «integrada · nube»: la nube la integró en su rama y traer_nube aún no la trajo a main.
+    return estado == "integrada" and (entrada.get("medio") or "") == "nube"
+
+
+def _es_candidato_aliviar(
+    ruta: str,
+    estados: Optional[Dict[str, Any]] = None,
+    cola_activa_ids: Optional[Set[str]] = None,
+) -> Tuple[bool, str]:
+    """PURA: decide si una ruta es candidata a mover a pesados/.
+
+    `estados` es `progreso.json` inyectado (id → entrada, o id → estado). Un árbol
+    solo es candidato si su tarea NO está pendiente, en curso, reasignada ni
+    integrada · nube sin traer; sin fila conocida, el árbol viejo sí se puede mover.
+    """
     ruta_norm = os.path.normpath(ruta)
+    if isinstance(estados, (set, frozenset, list, tuple)):
+        # Compatibilidad con la firma antigua: el segundo argumento era la cola activa.
+        cola_activa_ids = set(estados) | set(cola_activa_ids or ())
+        estados = {}
+    estados = estados or {}
 
     # Lista negra: nunca tocar
     for patron in ALIVIAR_NEGRA:
         if patron.replace("*", "") in ruta_norm:
             return False, f"en lista negra ({patron})"
 
-    # Worktrees: solo si NO están en cola activa
-    if "starseed-wt-" in ruta_norm:
-        # Extraer id de la ola del nombre del directorio
-        for parte in ruta_norm.split("/"):
-            if parte.startswith("starseed-wt-"):
-                wt_id = parte.replace("starseed-wt-", "")
-                if wt_id in cola_activa_ids:
-                    return False, f"worktree en cola activa ({wt_id})"
-                return True, "worktree integrado no en cola"
+    wt_id = _id_de_arbol(ruta_norm)
+    if wt_id is not None:
+        if wt_id in (cola_activa_ids or set()):
+            return False, f"worktree en cola activa ({wt_id})"
+        if _entrada_viva_aliviar(estados.get(wt_id)):
+            return False, f"worktree de tarea viva ({wt_id})"
+        return True, "worktree terminado no en cola"
 
     # Cachés de compilación y logs
     for patron in ALIVIAR_BLANCA:
@@ -616,6 +672,7 @@ def escanear_candidatos(
     mtime_fn: Callable[[str], float],
     tamano_fn: Callable[[str], int],
     destino_base: str = DEST_BASE,
+    estados: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Lista candidatos reales y medidos con su porqué (solo lectura, no mueve)."""
     candidatos: List[Dict[str, Any]] = []
@@ -673,12 +730,23 @@ def escanear_candidatos(
             except OSError:
                 pass
 
-    # 5. Worktrees terminados (vía archivar_worktrees, no los de cola activa)
-    if es_directorio_fn(wt_root):
-        for entry in listar_fn(wt_root):
-            if entry.startswith("starseed-wt-") and entry.replace("starseed-wt-", "") not in cola_activa_ids:
-                ruta = os.path.join(wt_root, entry)
-                anadir(ruta, "worktree terminado (archivar_worktrees.py)")
+    # 5. Árboles de tareas terminadas: starseed-wt/<ID>, starseed-wt-<id> y wt-<algo>.
+    #    La decisión de si su tarea sigue viva es la misma función pura que usa `aliviar`.
+    for base in (wt_root, os.path.dirname(wt_root)):
+        if not es_directorio_fn(base):
+            continue
+        for entry in listar_fn(base):
+            if base == wt_root:
+                if entry.startswith(("_", ".")):
+                    continue
+            elif not entry.startswith("wt-"):
+                continue
+            ruta = os.path.join(base, entry)
+            if not es_directorio_fn(ruta):
+                continue
+            ok, porque = _es_candidato_aliviar(ruta, estados, cola_activa_ids)
+            if ok:
+                anadir(ruta, porque)
 
     # 5b. Caché .next de compilaciones Next.js
     next_cache = os.path.join(mac_root, ".next", "cache")
@@ -718,6 +786,16 @@ def escanear_candidatos(
     return candidatos
 
 
+def _leer_estados(memoria_root: str) -> Dict[str, Any]:
+    """Lee `progreso.json` (id → entrada); {} si no se puede leer entero."""
+    try:
+        with open(os.path.join(memoria_root, "olas", "progreso.json"), encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def aliviar(
     ssh_fn: Callable[..., Any],
     mac_root: str = MAC_ROOT,
@@ -735,6 +813,7 @@ def aliviar(
     mtime_fn: Optional[Callable[[str], float]] = None,
     tamano_fn: Optional[Callable[[str], int]] = None,
     contar_fn: Optional[Callable[[str], int]] = None,
+    estados: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Libera espacio en la Mac moviendo lo regenerable a pesados/ con copia verificada."""
     cola_activa_ids = cola_activa_ids or set()
@@ -744,12 +823,13 @@ def aliviar(
     mtime_fn = mtime_fn or os.path.getmtime
     tamano_fn = tamano_fn or _tamano_directorio
     contar_fn = contar_fn or _contar_entradas
+    estados = estados if estados is not None else _leer_estados(memoria_root)
 
     if seco:
         candidatos = escanear_candidatos(
             mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
             existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
-            destino_base=destino_base,
+            destino_base=destino_base, estados=estados,
         )
         return {
             "estado": "seco",
@@ -767,7 +847,7 @@ def aliviar(
     candidatos = escanear_candidatos(
         mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
         existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
-        destino_base=destino_base,
+        destino_base=destino_base, estados=estados,
     )
 
     # Mover candidatos hasta alcanzar objetivo, con copia verificada
