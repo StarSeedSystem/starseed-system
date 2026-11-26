@@ -150,6 +150,10 @@ args = sys.argv[1:]
 if not args:
     sys.exit(0)
 orden = args[0]
+registro = os.environ.get("FAKE_N8N_LOG")
+if registro:
+    with open(registro, "a", encoding="utf-8") as f:
+        f.write(" ".join(args) + "\\n")
 
 if orden == "import:workflow":
     entrada = next((a.split("=", 1)[1] for a in args if a.startswith("--input=")), None)
@@ -191,9 +195,11 @@ class ArranqueIdempotente(unittest.TestCase):
         os.chmod(n8n, 0o755)
         return dir_flujos, n8n, os.path.join(tmp, "store.json")
 
-    def _arrancar(self, dir_flujos, n8n, store):
+    def _arrancar(self, dir_flujos, n8n, store, registro=None):
         env = dict(os.environ, N8N_FLUJOS_DIR=dir_flujos,
                    N8N_BIN=n8n, FAKE_N8N_STORE=store)
+        if registro:
+            env["FAKE_N8N_LOG"] = registro
         subprocess.run(["/bin/sh", os.path.join(_RAIZ, "deploy", "n8n-hf", "arranque.sh")],
                        env=env, check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
@@ -211,6 +217,21 @@ class ArranqueIdempotente(unittest.TestCase):
                 ids.add(json.load(f)["id"])
         self.assertEqual(len(guardados), 3)
         self.assertEqual(set(guardados), ids)
+
+    def test_la_importacion_es_una_sola_pasada_con_directorio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dir_flujos, n8n, store = self._preparar(tmp)
+            registro = os.path.join(tmp, "llamadas.log")
+            self._arrancar(dir_flujos, n8n, store, registro)
+            self._arrancar(dir_flujos, n8n, store, registro)
+            with open(registro, encoding="utf-8") as f:
+                llamadas = [linea.strip() for linea in f]
+        importaciones = [c for c in llamadas if c.startswith("import:workflow")]
+        self.assertEqual(len(importaciones), 2)
+        for llamada in importaciones:
+            self.assertIn("--separate", llamada)
+            self.assertIn("--input=%s" % dir_flujos, llamada)
+            self.assertNotIn(".json", llamada)
 
 
 class FlujosIdempotentes(unittest.TestCase):
