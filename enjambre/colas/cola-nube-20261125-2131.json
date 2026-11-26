@@ -1,0 +1,70 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "ola": "Ola A-desbloqueo · publicacion-82f591d2a",
+   "titulo": "URGENTE · Desbloquear la publicación (82f591d2a)",
+   "archivos": [
+    "scripts/puente/test_ronda.py"
+   ],
+   "depende": [],
+   "urgente": true,
+   "clave_desbloqueo": "publicacion-82f591d2a",
+   "segundos": 734,
+   "t": "2026-11-21 23:11:12",
+   "reconciliado": "2026-11-21 10:59",
+   "intentos_auto": 4,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/minimaxai/minimax-m3.1-flash",
+    "llm7/minimax-m2.7",
+    "freellmapi/auto",
+    "xkiro/mistralai/devstral-medium"
+   ],
+   "rama": "ola/A13BE11E4",
+   "sha": null,
+   "modelo_siguiente": null,
+   "reintentos_medio": 2,
+   "corregido": "2026-11-21 12:46:03",
+   "id": "A13BE11E4b",
+   "prompt": "La autopublicación lleva varias pasadas bloqueada por el mismo motivo y no sale nada a producción hasta que la causa se corrija en el código.\n\nLa publicación lleva 2 pasadas seguidas bloqueada: pruebas del puente en rojo\n\nEl archivo que señala la evidencia es `scripts/puente/test_ronda.py`. (El log nombra una copia generada; el archivo fuente del repo es ese.)\n\nEvidencia (tal cual la dio el compilador o la puerta):\n> eadinto\n>     return self._sock.recv_into(b)\n>            ~~~~~~~~~~~~~~~~~~~~^^^\n> ConnectionResetError: [Errno 54] Connection reset by peer\n> ----------------------------------------\n> ...............................................................................................................................................................................................................................\n> […]\n> /Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_ronda.py\", line 312, in test_turno_pesado_no_toma_el_turno_mientras_hay_ronda_y_no_gasta_su_plazo\n>     self.assertTrue(avisos)                                # esperó la ronda y lo dijo\n>     ~~~~~~~~~~~~~~~^^^^^^^^\n> AssertionError: [] is not true\n> \n> ----------------------------------------------------------------------\n> Ran 6634 tests in 778.570s\n> \n> FAILED (failures=2, skipped=5, expected failures=4)\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 60393)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 60403)>\n> <sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 60407)>\n\nPide la corrección más pequeña que haga desaparecer ESE error. Reglas: la arreglo MÍNIMA, la causa y nada más (una línea si basta); no toques los frenos de la publicación (scripts/puente/autopublicar.py, scripts/puente/produccion_puertas.py), ni las pruebas guardia (si una prueba guardia falla, el código es el que se corrige, nunca la prueba), ni permisos (capabilities, AndroidManifest, entitlements, RLS); sin claves ni cadenas con forma de clave; ≤ 3 archivos; no hagas push, ni pidas ni lances compilaciones ni publicaciones: eso lo hace el director. Comprueba con la prueba o el compilador del archivo que cambies y di en tu respuesta qué cambiaste y por qué.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 13:06:52\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A13BE11E4\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:06:55\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A13BE11E4\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:12:04\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A13BE11E4\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:12:05\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A13BE11E4\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 19:45:15\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A13BE11E4\", \"texto\": \"URGENTE · Desbloquear la publicación (82f591d2a)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:47:00\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A13BE11E4\", \"texto\": \"URGENTE · Desbloquear la publicación (82f591d2a)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 22:58:59\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A13BE11E4\", \"texto\": \"URGENTE · Desbloquear la publicación (82f591d2a)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 13:10:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A13BE11E4\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "id": "ALM1125G",
+   "ola": "almacen-1125",
+   "titulo": "aliviar ve los árboles de tareas reales y los lleva a la Maggabox",
+   "archivos": [
+    "scripts/puente/respaldo_maggabox.py",
+    "scripts/puente/test_respaldo_maggabox_arboles_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 85,
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` (lee la sección «Maggabox como medio de trabajo», es la receta exacta) y `memory/orquestacion-economica.md` §24. Alex lo ha pedido muchas veces: la Maggabox (405 GB libres) debe usarse sola cuando la Mac va justa.\n\n`_es_candidato_aliviar` solo reconoce `starseed-wt-<id>`, pero los árboles reales son `~/Documents/starseed-wt/<ID>` y `~/Documents/wt-<algo>`: por eso `aliviar --seco --objetivo-gb 20` hoy solo encuentra 68 MB de registros. Haz que reconozca también esas dos formas (el id es el nombre de la carpeta; para `wt-` lo que sigue al guion) y que un árbol solo sea candidato si su tarea NO está pendiente, en marcha, reasignada ni integrada-sin-traer en `starseed_memory_root/olas/progreso.json` (inyecta los estados: función PURA). La lista negra no cambia. Pruebas con rutas falsas de los tres formatos y estados de ejemplo. No ejecutes `aliviar` de verdad."
+  },
+  {
+   "id": "ALM1125H2",
+   "ola": "almacen-1125",
+   "titulo": "traer_nube trae también las ramas nube/mg-* de la Maggabox",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube_maggabox_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 85,
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` (lee la sección «Maggabox como medio de trabajo», es la receta exacta) y `memory/orquestacion-economica.md` §24. Alex lo ha pedido muchas veces: la Maggabox (405 GB libres) debe usarse sola cuando la Mac va justa.\n\nPunto 2 de la receta: en `dueno_de_sueltos` añade el patrón `^nube/mg-\\d{8}-\\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$` junto al de `nube/a1-…`. Prueba que una rama `nube/mg-20261126-010203-CTL1124Dc` se reconoce con su tarea y que las de a1 siguen igual."
+  },
+  {
+   "id": "SUE1125A",
+   "ola": "pasada-general-1125",
+   "titulo": "Los Sueños profundos y la consolidación se anuncian en el canal Audiovisual y diseño (sus directores), con Telegram",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos_canal_diseno_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 70,
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nAlex (25-11): «los directores del canal de diseño deben hacer eso periódicamente para siempre mejorar todo StarSeed OS con actualizaciones automáticas de mejoras innovadoras progresivamente a través de MetaGenesis». Hoy `director_suenos.anunciar` publica en el canal común (puente.decir) y, si se pide, por Hermes a Telegram; el canal de diseño no se entera. Añade, sin quitar lo de ahora, la publicación en el canal especializado «audiovisual» con `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal audiovisual --de \"Directores de diseño (Sueños profundos)\" --origen metagenesis --texto <resumen>` (CON Telegram: sin --sin-telegram), inyectable como `publicar_canal` para las pruebas (nunca red ni subprocesos reales en las pruebas). Si falla, no rompe lo demás. Pruebas: se llama una vez con canal audiovisual y el texto; un fallo no impide lo del canal común."
+  }
+ ]
+}
