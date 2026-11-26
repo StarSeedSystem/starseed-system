@@ -32,6 +32,16 @@ import {
 // neurona o en el A1, con el transporte del anfitrión inyectado (ver abajo).
 import { crearDriverNeurona, type DriverNeurona, type TransporteNeurona } from "./neurona-driver";
 
+// Tipos de almacén (manifiesto portable .starseed/almacen.json).
+import {
+  TipoAlmacen,
+  ModalidadAlmacen,
+  ModalidadCarpeta,
+  MedidasAlmacen,
+  type Almacen,
+  type ManifiestoAlmacen,
+} from "@/lib/almacenes";
+
 export type StorageKindId =
   | "starseed"
   | "gdrive"
@@ -173,11 +183,17 @@ export const STORAGE_KINDS: StorageKind[] = [
     label: "Memoria local",
     icon: "💾",
     blurb:
-      "Capacidad relativa a cada equipo conectado. Se sincroniza entre tus dispositivos vía Syncthing.",
+      "Capacidad relativa a cada equipo conectado. Se sincroniza entre tus dispositivos vía Syncthing. " +
+      "Cada almacén local tiene un manifiesto portable (.starseed/almacen.json) con su identidad " +
+      "(UUID del volumen + número de serie), modalidad y qué cerebros/partes guarda.",
     fields: [
       { key: "path", label: "Ruta local" },
       { key: "capacityMb", label: "Capacidad (MB)", type: "number" },
       { key: "syncthingFolderId", label: "Folder Syncthing (opcional)" },
+      { key: "almacenIdVolumen", label: "UUID del volumen (almacén)", placeholder: "detectado automáticamente" },
+      { key: "almacenNumeroSerie", label: "Número de serie (almacén)", placeholder: "detectado automáticamente" },
+      { key: "almacenTipo", label: "Tipo de almacén", placeholder: "extraible, disco_interno, red, nube, neurona, nodo" },
+      { key: "almacenModalidad", label: "Modalidad del almacén", placeholder: "cerebro-completo, parte, replica, respaldo-vivo, neurona-nodo, secundario" },
     ],
     unlimited: false,
     defaultRules: { prefersLarge: true },

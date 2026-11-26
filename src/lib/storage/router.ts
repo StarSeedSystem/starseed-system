@@ -9,6 +9,7 @@
  */
 
 import type { StorageBackend, StoragePolicy } from "./backends";
+import { ModalidadAlmacen, esModalidadValida } from "@/lib/almacenes";
 
 export interface RouteInput {
   sizeMb: number;
@@ -42,6 +43,17 @@ function hasCapacity(b: StorageBackend, sizeMb: number): boolean {
 
 function prio(b: StorageBackend): number {
   return typeof b.priority === "number" ? b.priority : 99;
+}
+
+/**
+ * Obtiene la modalidad del almacén desde la config del backend local.
+ */
+function getAlmacenModalidad(b: StorageBackend): ModalidadAlmacen | null {
+  if (b.kind !== "local") return null;
+  const cfg = (b.config as Record<string, unknown> | null) ?? {};
+  const modalidad = cfg.almacenModalidad as string | undefined;
+  if (modalidad && esModalidadValida(modalidad)) return modalidad;
+  return null;
 }
 
 /**
@@ -94,6 +106,12 @@ export function chooseBackend(
       const al = (a.rules as Record<string, unknown> | null)?.prefersLarge ? 0 : 1;
       const bl = (b.rules as Record<string, unknown> | null)?.prefersLarge ? 0 : 1;
       if (al !== bl) return al - bl;
+      // then prefer local backends with almacén modalidad adecuada (no "secundario" para memorias importantes)
+      const aModalidad = getAlmacenModalidad(a);
+      const bModalidad = getAlmacenModalidad(b);
+      const aEsSecundario = aModalidad === ModalidadAlmacen.SECUNDARIO;
+      const bEsSecundario = bModalidad === ModalidadAlmacen.SECUNDARIO;
+      if (aEsSecundario !== bEsSecundario) return aEsSecundario ? 1 : -1;
       // then lowest priority number
       return prio(a) - prio(b);
     });

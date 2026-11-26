@@ -21,6 +21,7 @@ import { createClient } from "@/utils/supabase/client";
 import { chooseBackend } from "./router";
 import { ensureDefaults, getPolicy, listBackends } from "./backends";
 import type { StorageBackend, StoragePolicy } from "./backends";
+import { ModalidadAlmacen, cerebrosEnManifiesto } from "@/lib/almacenes";
 
 export const BOT_BASE = "https://starseed-neurocortex.vercel.app";
 
@@ -361,15 +362,32 @@ export async function routeAndStore(
 
       /* ───────────────────────── Local (Syncthing) ───────────────────────── */
       case "local": {
-        const nextConfig = { ...cfg, local: { syncthing: true } };
+        const backendConfig = (backend.config as Record<string, unknown> | null) ?? {};
+        const almacenModalidad = backendConfig.almacenModalidad as string | undefined;
+        const almacenIdVolumen = backendConfig.almacenIdVolumen as string | undefined;
+        const almacenCerebros = backendConfig.almacenCerebros as string[] | undefined;
+
+        const nextConfig = {
+          ...cfg,
+          local: { syncthing: true },
+          almacen: almacenIdVolumen ? {
+            idVolumen: almacenIdVolumen,
+            modalidad: almacenModalidad && Object.values(ModalidadAlmacen).includes(almacenModalidad as ModalidadAlmacen)
+              ? almacenModalidad
+              : undefined,
+            cerebros: almacenCerebros,
+          } : undefined,
+        };
         const ok = await patchMemoryRow(uid, memory.id, {
           config: nextConfig,
           storage: withStorage(memory.storage, "local"),
         });
+        const modalidadStr = almacenModalidad ? ` (modalidad: ${almacenModalidad})` : "";
+        const volumenStr = almacenIdVolumen ? ` en almacén ${almacenIdVolumen.slice(0, 8)}...` : "";
         return {
           backend: backendKind,
           reason,
-          detail: "Marcado para Syncthing (folder local). Se sincronizará entre tus dispositivos.",
+          detail: `Marcado para Syncthing (folder local)${volumenStr}${modalidadStr}. Se sincronizará entre tus dispositivos.`,
           ok: ok || !memory.id,
         };
       }
