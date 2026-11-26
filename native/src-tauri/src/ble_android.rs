@@ -30,7 +30,8 @@ use std::time::Duration;
 
 static COLA: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 static AVISO: Condvar = Condvar::new();
-/// Órdenes que esperan como mucho (si Kotlin no las recoge, las más viejas se pierden).
+/// Órdenes que esperan como mucho. Si Kotlin va lento (app en segundo plano), lo que se sacrifica
+/// primero es un dato o un enlace, nunca `arrancar`/`anunciar` (BLE1124A).
 const MAX_ORDENES: usize = 512;
 
 fn cola() -> std::sync::MutexGuard<'static, VecDeque<String>> {
@@ -40,58 +41,52 @@ fn cola() -> std::sync::MutexGuard<'static, VecDeque<String>> {
     }
 }
 
-/// Órdenes de control: sin ellas la radio no vuelve a anunciarse ni a levantar el servidor GATT,
-/// así que no se tiran al llenarse la cola (con la app delante o en segundo plano).
-fn es_control(tipo: &str) -> bool {
-    matches!(tipo, "arrancar" | "anunciar" | "permisos" | "parar" | "canal-rapido")
+fn tipo_de(orden: &serde_json::Value) -> &str {
+    orden.get("o").and_then(|o| o.as_str()).unwrap_or("")
 }
 
-fn tipo_de(texto: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(texto).ok()?.get("o")?.as_str().map(str::to_string)
+/// (BLE1124A) Prioridad de una orden para la radio: 2 = sin ella no hay anuncio ni servidor GATT;
+/// 1 = abre o cierra un enlace; 0 = datos (se pueden perder: el núcleo los vuelve a pedir).
+fn prioridad(orden: &serde_json::Value) -> u8 {
+    match tipo_de(orden) {
+        "arrancar" | "anunciar" | "parar" | "permisos" | "canal-rapido" => 2,
+        "conectar" | "desconectar" | "l2cap" | "cerrar-l2cap" | "leer-psm" | "compartir" => 1,
+        _ => 0,
+    }
 }
 
-fn es_control_de_texto(texto: &str) -> bool {
-    tipo_de(texto).map(|t| es_control(&t)).unwrap_or(false)
+fn tipo_de_texto(texto: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(texto).map(|v| tipo_de(&v).to_string()).unwrap_or_default()
 }
 
-/// Mete `texto` en la cola. Un «anunciar» nuevo sustituye al pendiente (solo importa el UUID más
-/// reciente) y, con la cola llena, nunca se sacrifica una orden de control por datos o conexiones.
-/// Devuelve `false` si la orden se descartó.
-fn encolar(c: &mut VecDeque<String>, tipo: &str, texto: String) -> bool {
-    if tipo == "anunciar" {
-        c.retain(|x| tipo_de(x).as_deref() != Some("anunciar"));
+fn prioridad_de_texto(texto: &str) -> u8 {
+    serde_json::from_str::<serde_json::Value>(texto).map(|v| prioridad(&v)).unwrap_or(0)
+}
+
+/// Encola una orden para Kotlin. No repite «datos» ni «conectar» idénticos; de «anunciar» solo deja el
+/// UUID más nuevo; y con la cola llena sacrifica lo de menos prioridad, nunca el arranque ni el anuncio.
+pub fn ordenar(orden: serde_json::Value) {
+    let tipo = tipo_de(&orden).to_string();
+    let texto = orden.to_string();
+    let prio = prioridad(&orden);
+    let mut c = cola();
+    match tipo.as_str() {
+        "datos" | "conectar" if c.iter().any(|x| *x == texto) => return,
+        "arrancar" | "parar" if c.iter().any(|x| tipo_de_texto(x) == tipo) => return,
+        "anunciar" => c.retain(|x| tipo_de_texto(x) != "anunciar"),
+        _ => {}
     }
     if c.len() >= MAX_ORDENES {
-        if es_control(tipo) {
-            match c.iter().position(|x| !es_control_de_texto(x)) {
-                Some(i) => {
-                    c.remove(i);
-                }
-                None => {
-                    c.pop_front();
-                }
-            }
-        } else if c.iter().any(|x| es_control_de_texto(x)) {
-            return false;
+        if let Some(i) = c.iter().position(|x| prioridad_de_texto(x) < prio) {
+            c.remove(i);
+        } else if prio == 0 {
+            return;
         } else {
             c.pop_front();
         }
     }
     c.push_back(texto);
-    true
-}
-
-/// Encola una orden para Kotlin. «datos» de un enlace que ya espera no se repite.
-pub fn ordenar(orden: serde_json::Value) {
-    let tipo = orden.get("o").and_then(|o| o.as_str()).unwrap_or_default().to_string();
-    let texto = orden.to_string();
-    let mut c = cola();
-    if tipo == "datos" && c.iter().any(|x| *x == texto) {
-        return;
-    }
-    if encolar(&mut c, &tipo, texto) {
-        AVISO.notify_all();
-    }
+    AVISO.notify_all();
 }
 
 /// Lo que Kotlin recoge: la orden más vieja, o «» si en `ms` no llegó ninguna.
@@ -280,12 +275,20 @@ pub mod jni {
 mod pruebas {
     use super::*;
 
+    /// Las pruebas comparten la cola global: se serializan para no robarse órdenes entre hilos.
+    static COLA_PRUEBAS: Mutex<()> = Mutex::new(());
+
+    fn vaciar() {
+        while !esperar_orden(1).is_empty() {}
+    }
+
     #[test]
     fn ordenes_en_orden_sin_repetir_datos_y_con_espera() {
+        let _g = COLA_PRUEBAS.lock().unwrap_or_else(|e| e.into_inner());
         let radio = RadioAndroid;
         use crate::ble::Radio;
         // Vacía lo que hubiera.
-        while !esperar_orden(1).is_empty() {}
+        vaciar();
         radio.arrancar();
         radio.anunciar("5353b1a0-0102-0304-0000-000000000000");
         radio.hay_datos("c:AA:01");
@@ -317,6 +320,67 @@ mod pruebas {
         assert_eq!((d["o"].as_str(), d["enlace"].as_str()), (Some("cerrar-l2cap"), Some("c:AA:01")));
     }
 
+    /// (BLE1124A) Un `conectar` idéntico que ya espera no se repite: la cola no se llena de intentos
+    /// contra la misma dirección mientras Kotlin está ocupado (app en segundo plano).
+    #[test]
+    fn un_conectar_repetido_no_se_encola_dos_veces() {
+        let _g = COLA_PRUEBAS.lock().unwrap_or_else(|e| e.into_inner());
+        vaciar();
+        let radio = RadioAndroid;
+        use crate::ble::Radio;
+        radio.conectar("AA:01");
+        radio.conectar("AA:01");
+        let leer = |s: String| serde_json::from_str::<serde_json::Value>(&s).unwrap();
+        assert_eq!(leer(esperar_orden(10))["direccion"], "AA:01");
+        assert_eq!(esperar_orden(10), "", "el segundo «conectar» a la misma dirección no se encola");
+    }
+
+    /// (BLE1124A) De «anunciar» solo queda el UUID más nuevo: un anuncio viejo que esperaba no debe
+    /// arrancar después del nuevo (el UUID rota cada 5 min).
+    #[test]
+    fn el_anuncio_nuevo_reemplaza_al_que_esperaba() {
+        let _g = COLA_PRUEBAS.lock().unwrap_or_else(|e| e.into_inner());
+        vaciar();
+        let radio = RadioAndroid;
+        use crate::ble::Radio;
+        radio.anunciar("5353b100-0000-0000-0000-000000000001");
+        radio.anunciar("5353b100-0000-0000-0000-000000000002");
+        let leer = |s: String| serde_json::from_str::<serde_json::Value>(&s).unwrap();
+        let a = leer(esperar_orden(10));
+        assert_eq!(a["o"], "anunciar");
+        assert_eq!(a["uuid"], "5353b100-0000-0000-0000-000000000002");
+        assert_eq!(esperar_orden(10), "", "el anuncio viejo no queda detrás del nuevo");
+    }
+
+    /// (BLE1124A) Con la cola llena, una orden crítica (arrancar/anunciar) desaloja un dato, no al revés:
+    /// en segundo plano Kotlin puede ir lento y la radio no puede quedarse sin arranque ni sin anuncio.
+    #[test]
+    fn una_orden_critica_no_se_pierde_con_la_cola_llena() {
+        let _g = COLA_PRUEBAS.lock().unwrap_or_else(|e| e.into_inner());
+        vaciar();
+        let radio = RadioAndroid;
+        use crate::ble::Radio;
+        for i in 0..MAX_ORDENES {
+            radio.hay_datos(&format!("c:{i}"));
+        }
+        radio.arrancar();
+        let leer = |s: String| serde_json::from_str::<serde_json::Value>(&s).unwrap();
+        let mut tipos = Vec::new();
+        loop {
+            let s = esperar_orden(1);
+            if s.is_empty() {
+                break;
+            }
+            tipos.push(leer(s)["o"].as_str().unwrap_or_default().to_string());
+        }
+        assert!(tipos.iter().any(|t| t == "arrancar"), "«arrancar» debe sobrevivir a la cola llena");
+        assert_eq!(
+            tipos.iter().filter(|t| *t == "datos").count(),
+            MAX_ORDENES - 1,
+            "se sacrificó un dato, no la orden crítica"
+        );
+    }
+
     #[test]
     fn paquetes_en_hex() {
         assert_eq!(paquete_de_hex("020001"), Some(vec![2, 0, 1]));
@@ -331,38 +395,4 @@ mod pruebas {
         assert_eq!(trozo_de_hex("0g"), None);
     }
 
-    /// (BLE1124A) Con la cola llena (la app en segundo plano y Kotlin sin recoger), una orden de
-    /// control entra tirando datos viejos, y los datos no tiran una orden de control. Así la radio
-    /// vuelve a anunciarse y a levantar el servidor GATT en cuanto Kotlin despierte.
-    #[test]
-    fn las_ordenes_de_control_sobreviven_a_una_cola_llena() {
-        let mut c: VecDeque<String> = VecDeque::new();
-        for i in 0..MAX_ORDENES {
-            c.push_back(serde_json::json!({ "o": "datos", "enlace": format!("c:{i:02X}") }).to_string());
-        }
-        assert!(encolar(&mut c, "anunciar", serde_json::json!({ "o": "anunciar", "uuid": "u1" }).to_string()));
-        assert_eq!(c.len(), MAX_ORDENES);
-        assert_eq!(tipo_de(c.back().unwrap()).as_deref(), Some("anunciar"));
-        assert!(!c.iter().any(|x| x.contains("\"enlace\":\"c:00\"")), "el «datos» más viejo cede el hueco");
-        assert!(
-            !encolar(&mut c, "datos", serde_json::json!({ "o": "datos", "enlace": "c:FF" }).to_string()),
-            "no se sacrifica una orden de control por datos"
-        );
-        assert_eq!(c.len(), MAX_ORDENES);
-        assert!(encolar(&mut c, "anunciar", serde_json::json!({ "o": "anunciar", "uuid": "u2" }).to_string()));
-        let anuncios: Vec<&String> = c.iter().filter(|x| tipo_de(x).as_deref() == Some("anunciar")).collect();
-        assert_eq!(anuncios.len(), 1, "solo queda el UUID más reciente");
-        assert!(anuncios[0].contains("u2"));
     }
-
-    /// (BLE1124A) Si todo lo que hay en la cola es control, la orden más vieja cede el hueco; la cola
-    /// nunca crece por encima de `MAX_ORDENES`.
-    #[test]
-    fn con_todo_control_la_mas_vieja_cede_el_hueco() {
-        let mut c: VecDeque<String> = (0..MAX_ORDENES).map(|_| serde_json::json!({ "o": "permisos" }).to_string()).collect();
-        assert!(encolar(&mut c, "arrancar", serde_json::json!({ "o": "arrancar" }).to_string()));
-        assert_eq!(c.len(), MAX_ORDENES);
-        assert_eq!(tipo_de(c.back().unwrap()).as_deref(), Some("arrancar"));
-        assert_eq!(tipo_de(c.front().unwrap()).as_deref(), Some("permisos"));
-    }
-}
