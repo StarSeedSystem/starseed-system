@@ -26,13 +26,17 @@ const COMPONENTES_FIN: &str = "<!-- STARSEED-BLE:COMPONENTES:FIN -->";
 
 /// (permiso, atributos extra). Lo ya declarado en otro bloque (p. ej. BLUETOOTH_CONNECT de los medios)
 /// no se repite.
-pub const PERMISOS: [(&str, &str); 6] = [
+pub const PERMISOS: [(&str, &str); 7] = [
     ("android.permission.BLUETOOTH_SCAN", " android:usesPermissionFlags=\"neverForLocation\""),
     ("android.permission.BLUETOOTH_ADVERTISE", ""),
     ("android.permission.BLUETOOTH_CONNECT", ""),
     ("android.permission.BLUETOOTH", " android:maxSdkVersion=\"30\""),
     ("android.permission.BLUETOOTH_ADMIN", " android:maxSdkVersion=\"30\""),
     ("android.permission.ACCESS_FINE_LOCATION", " android:maxSdkVersion=\"30\""),
+    // (BLE1124A) La radio vive con el servicio de antenas (`connectedDevice`): sin este permiso
+    // Android 14+ no deja mantener el anuncio y el servidor GATT con la app en segundo plano.
+    // Si el bloque de segundo plano ya lo declara, no se repite.
+    ("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE", ""),
 ];
 
 /// La app también vale sin Bluetooth de baja energía.
@@ -177,6 +181,8 @@ mod pruebas {
         assert!(m.contains("<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" android:usesPermissionFlags=\"neverForLocation\" />"));
         assert!(m.contains("\"android.permission.BLUETOOTH_ADVERTISE\""));
         assert!(m.contains("<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" android:maxSdkVersion=\"30\" />"));
+        // (BLE1124A) El propio bloque de Bluetooth garantiza el tipo de servicio en segundo plano.
+        assert!(m.contains("\"android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE\""));
         assert!(m.contains("<uses-feature android:name=\"android.hardware.bluetooth_le\" android:required=\"false\" />"));
         assert!(m.contains("app.starseed.nativa.ArranqueBle"));
         assert!(m.contains("${applicationId}.starseed-ble"));
@@ -197,6 +203,8 @@ mod pruebas {
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH_CONNECT\"").count(), 1);
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH\"").count(), 1);
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH_SCAN\"").count(), 1);
+        // (BLE1124A) El permiso del servicio en segundo plano va UNA vez (lo declara antes el bloque de antenas).
+        assert_eq!(dos.matches("\"android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE\"").count(), 1);
         assert_eq!(dos.matches("</manifest>").count(), 1);
     }
 
