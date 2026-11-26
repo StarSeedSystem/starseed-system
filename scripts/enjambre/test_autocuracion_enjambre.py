@@ -204,5 +204,53 @@ class RechazoMecanicoReversibleTest(unittest.TestCase):
             self.assertEqual("pendiente", json.load(f)[tid]["estado"])
 
 
+class ReabrirTrasRechazoMecanicoAF26Test(unittest.TestCase):
+    """AF26FCCD1: la nota literal del director no se da por cerrada y la reapertura persiste.
+
+    La secuencia que se rompía: el revisor reabre → el orquestador pone `pendiente` → al
+    guardar, el disco «rechazada» lo pisaba → la tanda la apartaba con «otra ola ya la cerró»."""
+
+    NOTA = ("revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 "
+            "archivo(s)): se reescribe como tarea:alcance")
+
+    def setUp(self):
+        import contextlib
+        import shutil
+
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.json = os.path.join(self.dir, "progreso.json")
+        self.md = os.path.join(self.dir, "progreso.md")
+        with open(self.json, "w", encoding="utf-8") as f:
+            json.dump({"AF26FCCD1": {"estado": "rechazada", "nota": self.NOTA}}, f)
+        parches = [
+            mock.patch.object(enjambre, "PROG_JSON", self.json),
+            mock.patch.object(enjambre, "PROG_MD", self.md),
+            mock.patch.object(enjambre, "MIAS", {"AF26FCCD1"}),
+            mock.patch.object(enjambre, "PROG", {}),
+            mock.patch.object(enjambre, "cerrojo", lambda *_a, **_k: contextlib.nullcontext()),
+            mock.patch.dict(enjambre._CERRADAS_DISCO, {"t": 0.0, "ids": frozenset()}),
+        ]
+        for p in parches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_la_nota_literal_no_se_da_por_cerrada(self):
+        self.assertEqual(enjambre.cerradas_en_disco(cada_s=0, ruta=self.json), frozenset())
+
+    def test_la_reapertura_sobrevive_al_guardado(self):
+        enjambre.set_estado("AF26FCCD1", estado="pendiente",
+                            nota="reabierta por el director")
+        with open(self.json, encoding="utf-8") as f:
+            disco = json.load(f)
+        self.assertEqual("pendiente", disco["AF26FCCD1"]["estado"])
+        self.assertEqual("reabierta por el director", disco["AF26FCCD1"]["nota"])
+
+    def test_ya_no_aparece_entre_las_cerradas(self):
+        enjambre.set_estado("AF26FCCD1", estado="pendiente",
+                            nota="reabierta por el director")
+        self.assertNotIn("AF26FCCD1", enjambre.cerradas_en_disco(cada_s=0, ruta=self.json))
+
+
 if __name__ == "__main__":
     unittest.main()

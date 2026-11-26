@@ -63,6 +63,42 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class RechazoMecanicoAF26FCCD1Test(unittest.TestCase):
+    """AF26FCCD1: «no tocó NINGUNO de sus 1 archivo(s)» no cierra la tarea.
+
+    La objeción encadenaba «reabierta por el director» con «otra ola ya la cerró
+    (rechazada según progreso.json)»: el rechazo de las puertas se trataba como una
+    decisión irreversible y la reapertura se perdía al fundir progresos."""
+
+    NOTA = ("revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 "
+            "archivo(s)): se reescribe como tarea:alcance")
+
+    def test_reconoce_la_nota_literal_de_la_objecion(self):
+        self.assertTrue(enjambre.es_rechazo_mecanico(
+            {"estado": "rechazada", "nota": self.NOTA}))
+
+    def test_no_confunde_una_decision_de_la_direccion(self):
+        self.assertFalse(enjambre.es_rechazo_mecanico(
+            {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance"}))
+        self.assertFalse(enjambre.es_rechazo_mecanico(
+            {"estado": "commit", "nota": self.NOTA}))
+        self.assertFalse(enjambre.es_rechazo_mecanico(None))
+
+    def test_la_reapertura_no_la_pisa_el_disco(self):
+        memoria = {"AF26FCCD1": {"estado": "pendiente",
+                                 "nota": "reabierta por el director"}}
+        disco = {"AF26FCCD1": {"estado": "rechazada", "nota": self.NOTA}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"AF26FCCD1"})
+        self.assertEqual(fundido["AF26FCCD1"], memoria["AF26FCCD1"])
+
+    def test_un_rechazo_por_decision_sigue_siendo_irreversible(self):
+        memoria = {"AF26FCCD1": {"estado": "pendiente"}}
+        disco = {"AF26FCCD1": {"estado": "rechazada",
+                               "nota": "la dirección prefiere otro enfoque"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"AF26FCCD1"})
+        self.assertEqual(fundido["AF26FCCD1"], disco["AF26FCCD1"])
+
+
 class ReabrirConPeldanoTest(unittest.TestCase):
     """(2026-10-09) `reabrir` respeta el contador y el modelo que manda la escalera."""
 
