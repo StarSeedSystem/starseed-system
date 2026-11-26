@@ -44,7 +44,7 @@ import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL, type SesionIndicador }
 import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
 import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
-import { AparatoDeNeurona, aparatosDe, neuronasParaElegir } from "@/lib/neurons/aparatos-de-neurona";
+import { AparatoDeNeurona, aparatosDe, neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
@@ -486,7 +486,7 @@ export function ControlEntreNeuronasPanel() {
     const [elegidas, setElegidas] = useState<Record<string, OpcionLimite>>({}); // CTL1119A
     const [horas, setHoras] = useState<Record<string, string>>({}); // CTL1119A
     const [miCuenta, setMiCuenta] = useState<string | null>(null); // CTL1119A
-    const [aparatoSeleccionado, setAparatoSeleccionado] = useState<{ huella: string; nombre: string } | null>(null);
+    const [aparatoSeleccionado, setAparatoSeleccionado] = useState<{ huella: string; nombre: string; so?: string; visto?: number } | null>(null);
     const salientesReg = useSyncExternalStore(
         typeof registroGlobal?.suscribir === "function" ? (cb) => registroGlobal.suscribir(cb) : suscribirSalientesVacio,
         typeof registroGlobal?.sesionesSalientes === "function" ? () => registroGlobal.sesionesSalientes() : () => VACIO_SALIENTES,
@@ -739,7 +739,7 @@ export function ControlEntreNeuronasPanel() {
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
             setAviso(
-                `Pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
+                `Pedido enviado a ${aparatoSeleccionado ? `el aparato ${aparatoSeleccionado.nombre}` : nombreDe(destino.trim())}. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(r.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
             );
             return;
         }
@@ -769,7 +769,7 @@ export function ControlEntreNeuronasPanel() {
                     setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000);
                     setEsperando(destino.trim().toLowerCase());
                     setAviso(
-                        `Clave creada y pedido enviado. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(resultado.respuesta.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
+                        `Clave creada y pedido enviado a ${aparatoSeleccionado ? `el aparato ${aparatoSeleccionado.nombre}` : nombreDe(destino.trim())}. ${quienOpera.esteAparatoPide(nombreDe(destino.trim()), miCodigo)}${(resultado.respuesta.resultado as { apagado?: unknown } | undefined)?.apagado === true ? ` ${nombreDe(destino.trim())} tiene el control apagado: allí, además de aceptar, hay que encenderlo (el botón de aceptar lo hace).` : ""}`
                     );
                 } else {
                     setAviso(`Clave creada pero no se pudo pedir: ${resultado.respuesta.motivo}.`);
@@ -1143,11 +1143,11 @@ export function ControlEntreNeuronasPanel() {
                                         <button
                                             key={a.id}
                                             role="option"
-                                            aria-selected={aparatoSeleccionado?.huella === a.huella}
-                                            onClick={() => setAparatoSeleccionado({ huella: a.id, nombre: a.nombre })}
+                                            aria-selected={aparatoSeleccionado?.huella === a.id}
+                                            onClick={() => setAparatoSeleccionado({ huella: a.id, nombre: a.nombre, so: a.so, visto: a.visto })}
                                             className={`min-h-9 cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition-colors ${aparatoSeleccionado?.huella === a.id ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
                                         >
-                                            <PuntoColor color={colorPublicoDeNeurona(a.id)} /> <span className="font-medium">{a.nombre || a.so || "sin nombre"}</span> · {a.so || "sin SO"}
+                                            <PuntoColor color={colorPublicoDeNeurona(a.id)} /> <span className="font-medium">{a.nombre || a.so || "sin nombre"}</span> · {a.so || "sin SO"}{a.visto ? ` · visto: ${hhmm(a.visto)}` : ""}
                                         </button>
                                     ))}
                                 </div>

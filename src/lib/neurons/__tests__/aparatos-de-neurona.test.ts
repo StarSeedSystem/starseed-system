@@ -3,7 +3,7 @@
  *   NODE_ENV=test npx vitest run src/lib/neurons/__tests__/aparatos-de-neurona.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { aparatosDe, entradaViva, fusionarAparatos, lapida, neuronasParaElegir } from "../aparatos-de-neurona";
+import { aparatosDe, entradaViva, fusionarAparatos, lapida, neuronasParaElegir, type AparatoDeNeurona } from "../aparatos-de-neurona";
 import { combinarCapacidades } from "../neurons";
 
 const TABLET = "e0b9faf2-aaaa-4000-8000-000000000001";
@@ -45,5 +45,22 @@ describe("aparatos de la neurona", () => {
     expect(l[0].esActual).toBe(true);
     expect(l[1].aparatos.map((a) => a.nombre)).toEqual(["Samsung SM-X205"]);
     expect(l.every((n) => !n.variosAparatos)).toBe(true);
+  });
+
+  it(" CTL1126E · AparatoDeNeurona.id es la huella correcta para identificar el aparato", () => {
+    const tabla = { id: TABLET, nombre: "Tableta", medio: "android", so: "Android", equipo: "Samsung", visto: 1000000 };
+    const movil = { id: MOVIL, nombre: "Móvil", medio: "android", so: "Android", visto: 2000000 };
+    const caps = { aparatos: { [TABLET]: entradaViva({ nombre: tabla.nombre, medio: tabla.medio, so: tabla.so, equipo: tabla.equipo }, tabla.visto), [MOVIL]: entradaViva({ nombre: movil.nombre, medio: movil.medio, so: movil.so }, movil.visto) } };
+    const aparatos = aparatosDe(caps);
+    expect(aparatos).toHaveLength(2);
+    // Los aparatos se ordenan por visto (más reciente primero)
+    expect(aparatos[0].id).toBe(MOVIL);
+    expect(aparatos[0].nombre).toBe("Móvil");
+    expect(aparatos[1].id).toBe(TABLET);
+    expect(aparatos[1].nombre).toBe("Tableta");
+    expect(aparatos[0].so).toBe("Android");
+    expect(aparatos[0].equipo).toBeUndefined();
+    expect(aparatos[1].so).toBe("Android");
+    expect(aparatos[1].equipo).toBe("Samsung");
   });
 });
