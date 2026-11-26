@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "AQ00b",
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: una línea de registro por cambio de estado del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/use-marcas-geo.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F0 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el mapa deja huella en el registro de enlaces, una línea por CAMBIO de estado y nunca con latitud, longitud ni nombres: `mapa · canal-posicion · union=unido|rechazado motivo=<código>`, `mapa · ubicacion · permiso=concedido|denegado`, `mapa · marcas · total=<n> colocadas=<m>`. Prueba: se emiten una vez por cambio y ninguna contiene números con forma de coordenada.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44238340731`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44238340731:refs/remotes/origin/nube/44238340731\"` y `git cherry-pick --no-commit 484f0812bb3b 42b65c39e8bc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mesh/mapa-senales/geo/use-marcas-geo.ts, src/lib/malla/registro-enlace-ble.ts, src/lib/nativa/__tests__/permisos-enlaces.test.ts, src/lib/nativa/permisos-enlaces.ts, src/lib/senales/geo/__tests__/registro-mapa.test.ts, src/lib/senales/geo/registro-mapa.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44238340731"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "AQ00b"
+  ]
+ }
+}
