@@ -69,6 +69,19 @@ try:
 except Exception:  # pragma: no cover — instalación sin el módulo
     _analista = None
 
+# ── Escritor Antigravity (agy) ────────────────────────────────────────────────
+# Antigravity CLI puede escribir con modelos gratuitos de Google (Gemini) y
+# Claude. Se integra como un escritor más del enjambre: los modelos con prefijo
+# `antigravity/` o `agy/` se escriben con la CLI de Antigravity.
+try:
+    import escritor_agy as _escritor_agy
+
+    MODELOS_ANTIGRAVITY_DISPONIBLES = _escritor_agy.MODELOS_AGY
+except Exception:  # pragma: no cover — instalación sin el módulo o sin agy
+    _escritor_agy = None
+
+    MODELOS_ANTIGRAVITY_DISPONIBLES = []
+
 # (COL1012D) Puntos de control: cada 5 min el trabajo a medias de cada agente deja de
 # vivir solo en el disco de esta máquina (contrato: architecture/colmena-relevo-contenedores.md).
 try:
@@ -4520,6 +4533,35 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
         return rc, salida
 
 
+def es_modelo_antigravity(modelo: str) -> bool:
+    """PURA: ¿este escritor se atiende con Antigravity CLI? Prefijo `antigravity/` o `agy/`."""
+    n = str(modelo or "")
+    return n.startswith("antigravity/") or n.startswith("agy/")
+
+
+def escribir_con_antigravity(prompt, modelo, cwd, log, timeout=1800, tid=None):
+    """Ejecuta `agy` para escribir en el worktree. Contrato igual que `opencode`/`codex`.
+
+    Devuelve (rc, salida). Registra uso en medidor si éxito.
+    Requiere que `escritor_agy` esté disponible (agy instalado y con sesión válida).
+    """
+    if _escritor_agy is None:
+        return 126, (
+            "Antigravity no escribe aquí: módulo escritor_agy no disponible "
+            "(agy no está instalado o sin sesión válida)"
+        )
+    if not _escritor_agy.agy_disponible():
+        return 126, (
+            "Antigravity no escribe aquí: agy no está instalado o sin sesión de Google"
+        )
+    # Usar el modelo con prefijo agy/ internamente (el medidor lo lleva por aquí)
+    modelo_agy = _escritor_agy.modelo_agy_sin_prefijo(modelo)
+    modelo_con_prefijo = f"agy/{modelo_agy}"
+    return _escritor_agy.escribir_con_agy(
+        prompt, modelo_con_prefijo, cwd, log, timeout=timeout, tid=tid
+    )
+
+
 def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
     """ÚNICA puerta de escritura del enjambre (2026-09-08, Ola 296 · CX1): elige motor por el
     prefijo del modelo y deja el resto del flujo (tsc → tests → revisión → integración) intacto.
@@ -4531,6 +4573,10 @@ def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
             raise ArriendoPerdido("el arriendo de %s ya pertenece a otro medio" % tid)
     if es_modelo_codex(modelo):
         resultado = escribir_con_codex(
+            prompt, modelo, cwd, log, timeout=timeout, tid=tid
+        )
+    elif es_modelo_antigravity(modelo):
+        resultado = escribir_con_antigravity(
             prompt, modelo, cwd, log, timeout=timeout, tid=tid
         )
     else:

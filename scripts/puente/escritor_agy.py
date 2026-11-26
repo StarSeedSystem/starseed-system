@@ -442,17 +442,29 @@ def agy_disponible() -> bool:
 
 # ── Integración con el orquestador (punto de entrada) ─────────────────────────
 
+def es_modelo_antigravity(modelo: str) -> bool:
+    """PURA: ¿Este escritor se atiende con Antigravity CLI? Prefijo `antigravity/` o `agy/`."""
+    n = str(modelo or "")
+    return n.startswith("antigravity/") or n.startswith("agy/")
+
+
+def modelo_sin_prefijo(modelo: str) -> str:
+    """PURA: Quita el prefijo `antigravity/` o `agy/`."""
+    nombre = str(modelo or "")
+    if nombre.startswith("antigravity/"):
+        nombre = nombre.split("/", 1)[1]
+    elif nombre.startswith("agy/"):
+        nombre = nombre.split("/", 1)[1]
+    return nombre
+
+
 def es_modelo_agy(modelo: str) -> bool:
-    """PURA: ¿Este escritor se atiende con Antigravity CLI? Prefijo `agy/`."""
+    """PURA: ¿Este escritor se atiende con Antigravity CLI? Prefijo `agy/` (legacy)."""
     return str(modelo or "").startswith("agy/")
 
 
-def modelo_agy_sin_prefijo(modelo: str) -> str:
-    """PURA: Quita el prefijo `agy/`."""
-    nombre = str(modelo or "")
-    if nombre.startswith("agy/"):
-        nombre = nombre.split("/", 1)[1]
-    return nombre
+# Alias para compatibilidad hacia atrás
+modelo_agy_sin_prefijo = modelo_sin_prefijo
 
 
 # Modelos que el enjambre puede usar con agy (se añaden a la rotación si agy está disponible)
