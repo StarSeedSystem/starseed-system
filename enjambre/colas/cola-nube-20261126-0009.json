@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "segundos": 1806,
+   "t": "2026-11-18 02:17:23",
+   "rama": "ola/PET1116A-d1-d2",
+   "sha": "45aced00dfdb0071ef134b09293500519e92f465",
+   "id": "PET1116A-d1b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-19 07:12:49\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 07:28:09\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 17:46:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:47\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:21:52\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:22:12\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45752832860`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: Auto-merging scripts/puente/test_n8n_hf.py\nCONFLICT (content): Merge conflict in scripts/puente/test_n8n_hf.py\nerror: could not apply 0d0223401... salvavidas · PET1116A-d1-d2b: trabajo del agente antes de las puertas (tsc / vitest)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45752832860:refs/remotes/origin/nube/45752832860\"` y `git cherry-pick --no-commit 0d0223401223`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/test_n8n_hf.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45752832860"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "PET1116A-d1b"
+  ]
+ }
+}
