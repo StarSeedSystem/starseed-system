@@ -13,8 +13,6 @@
  * Exporta `rechazoPrueba` para la parte 2 y `finalizarPrueba` que no lanza.
  */
 
-import type { Args } from "./niveles";
-
 const RE_HUELLA = /^[0-9a-f]{64}$/;
 const MAX_DURACION_MS = 120_000;
 const MIN_DURACION_MS = 10_000;
@@ -49,7 +47,7 @@ export interface InformePruebaControl {
 
 /** Valida los argumentos de una orden `prueba-control`.
  * Devuelve `ArgsPruebaControl` validado o `null` si son inválidos. */
-export function validarArgsPruebaControl(a: Args): ArgsPruebaControl | null {
+export function validarArgsPruebaControl(a: ArgsPruebaControl): ArgsPruebaControl | null {
     if (typeof a.destino !== "string" || !RE_HUELLA.test(a.destino)) return null;
     if (typeof a.duracionMs !== "number" || !Number.isInteger(a.duracionMs)) return null;
     if (a.duracionMs < MIN_DURACION_MS || a.duracionMs > MAX_DURACION_MS) return null;
