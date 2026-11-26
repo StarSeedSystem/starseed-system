@@ -87,7 +87,7 @@ describe("RST1116A · lo que se devuelve es la fuente REAL que contestó el apar
             return { ok: true };
         });
         const r = (await origen.ejecutar("pantalla-iniciar", { fuente: "proyeccion" }, ctx())) as Record<string, unknown>;
-        expect(de("control_pantalla_iniciar").slice(0, 2).map((l) => l.args?.fuente)).toEqual(["proyeccion", undefined]);
+        expect(de("control_pantalla_iniciar").slice(0, 2).map((l) => l.args?.fuente)).toEqual(["proyeccion", "auto"]);
         expect(r).toMatchObject({ ok: true, fuente: "accesibilidad", fuente_pedida: "proyeccion" });
         expect(origen.enMarcha()).toBe(true);
         expect(de("control_pantalla_parar")).toHaveLength(0);

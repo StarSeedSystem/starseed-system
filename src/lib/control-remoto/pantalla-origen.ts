@@ -21,7 +21,7 @@ import { RelojEstable } from "@/lib/llamadas/reloj-estable";
 import { VigiaFondo, esperarCon, type MedidasFondo } from "./vigia-fondo";
 import { CUADROS_POR_MEDIDA, RITMO_INICIAL, capacidadFps, descartarCuadroViejo, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
 import { MAX_CUADRO_BYTES, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, nivelDe, partirCuadro, type ParteCuadro } from "./cuadro-malla";
-import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS, debeAvisarPantallaFluida, estadoCuadros, lineaProyeccionNoAceptada, lineaSinCuadros } from "./fuente-pantalla";
+import { ESPERA_FLUIDA_MS, SONDEO_FLUIDA_MS, debePedirFluida, fuenteActivaDe, proyeccionConcedida, type FuenteReal, esModoMalla, GRACIA_MALLA_MS, VIGENCIA_MALLA_MS, debeAvisarPantallaFluida, estadoCuadros, lineaProyeccionNoAceptada, lineaSinCuadros, FUENTE_DEFECTO } from "./fuente-pantalla";
 import { marcarOcupado } from "@/lib/actualizaciones/momento-navegador";
 import { añadirCuadro, añadirAcuse, actualizarMedio, calcularMetricas, EstadoCalidad, lineaRegistro, marcarRegistro, tocaRegistro, type AcuseOrden, type CuadroRecibido, type MetricasCalidad, type TipoMedio, INTERVALO_REGISTRO_MS } from "./calidad";
 import { instantaneaMedio } from "./medio-estado";
@@ -287,7 +287,7 @@ export class OrigenPantalla {
         let r = await inv("control_pantalla_iniciar", pide(pedida ?? undefined)).catch(() => null);
         if (pedida && (!esObjeto(r) || r.ok !== true)) {
             // Lo nativo no pudo con la proyección: la sesión sigue con lo que haya, sin cerrar nada.
-            r = await inv("control_pantalla_iniciar", pide()).catch(() => null);
+            r = await inv("control_pantalla_iniciar", pide(FUENTE_DEFECTO)).catch(() => null);
         }
         if (!esObjeto(r) || r.ok !== true) {
             // La orden se cumplió; lo nativo dijo que no puede y por qué (lo que falta lo arregla la persona EN el aparato).
