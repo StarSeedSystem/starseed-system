@@ -38,7 +38,7 @@ pub struct TerminalRemotaResultado {
 
 /// Parámetros para `terminal_ejecutar` (vienen de la orden firmada).
 #[derive(serde::Deserialize)]
-struct TerminalEjecutarParams {
+pub struct TerminalEjecutarParams {
     orden: String,
     nivel: String,           // "usuario" | "administrador"
     tiempo_max_ms: Option<u64>,
