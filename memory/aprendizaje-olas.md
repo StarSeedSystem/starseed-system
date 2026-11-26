@@ -7633,3 +7633,80 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIM-agentes-referencias-diseno-agentes-re-6b9d9e-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-agentes-referencias-diseno-agentes-referencias-diseno-6b9d9e-v1.json
 - `RST06-d3` — otra cosa: continúa como RST06b desde la rama nube/44912433621 (traer_nube)
 - `RST06b` — pruebas en rojo: vitest falla (rama conservada)
+
+## 2026-11-26 13:39 · auto-1126-121254
+
+**Lo que se pidió.** Alex
+
+**Resultado.** 4 de 66 integradas. 62 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 32 tareas se fueron por lo mismo — no escribió nada (LNX1118WB, CAP1125C, CAP-mcp-brave-search-conectar-d2b, ALM1118A-d2b, CAP-skill-coop-qa-usob, TRM1125C). Es 48 % de la ola.
+- 28 tareas se fueron por lo mismo — otra cosa (NOM1125C, NOM1125D, NOM1125E, NOM1125F, MV1125F-d1, MV1125C-d1). Es 42 % de la ola.
+- sin modelo anotado no integró ninguna de sus 55 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 2 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `NOM1125C` — otra cosa: director: reintento gratuito 2/8
+- `NOM1125D` — otra cosa: director: reintento gratuito 2/8
+- `NOM1125E` — otra cosa: director: reintento gratuito 1/8
+- `NOM1125F` — otra cosa: director: reintento gratuito 1/8
+- `MV1125F-d1` — otra cosa: director: reintento gratuito 1/8
+- `MV1125C-d1` — otra cosa: director: reintento gratuito 1/8
+- `MV1125D-d1` — otra cosa: director: reintento gratuito 1/8
+- `MV1125E-d1` — otra cosa: director: reintento gratuito 1/8
+- `NEU1125B-d1` — otra cosa: director: reintento gratuito 4/8
+- `TRM1125J-d1` — otra cosa: director: reintento gratuito 1/8
+- `ALC1125C-d1` — otra cosa: director: reintento gratuito 1/8
+- `ALC1125B-d1` — otra cosa: director: reintento gratuito 1/8
+- `CAP1126D-d1-d2` — otra cosa: director: reintento gratuito 1/8
+- `RES1126A-d1` — otra cosa: director: reintento gratuito 1/8
+- `SEN1126A-d1` — otra cosa: director: reintento gratuito 1/8
+- `CER1126A-d1` — otra cosa: director: reintento gratuito 1/8
+- `SEN1126B-d1` — otra cosa: director: reintento gratuito 1/8
+- `SEN1126C-d1` — otra cosa: director: reintento gratuito 1/8
+- `QUA1125A-d1` — otra cosa: director: reintento gratuito 1/8
+- `CRE1125C` — otra cosa: director: reintento gratuito 1/8
+- `LNX1118WB` — no escribió nada
+- `CAP1125C` — no escribió nada
+- `CAP-mcp-brave-search-conectar-d2b` — no escribió nada
+- `ALM1118A-d2b` — no escribió nada
+- `CAP-skill-coop-qa-usob` — no escribió nada
+- `TRM1125C` — no escribió nada: revisor: dividida en TRM1125C-d1, TRM1125C-d2 (tarea:sin_cambios con 4 archivos: se divide en 2 partes encadenadas)
+- `REAPLICAR-20261125-213001` — no escribió nada
+- `NOM1125A` — no escribió nada: revisor: dividida en NOM1125A-d1, NOM1125A-d2, NOM1125A-d3, NOM1125A-d4, NOM1125A-d5 (tarea:sin_cambios con 13 archivos: se divide en 5 part
+- `NOM1125B` — no escribió nada
+- `NOM1125G` — no escribió nada
+- `CRE1125E` — no escribió nada
+- `CAP-skill-coop-sync-testing-usob` — otra cosa: reasignada a la nube 20261126
+- `MV1125F` — no escribió nada: revisor: dividida en MV1125F-d1, MV1125F-d2, MV1125F-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `MV1125C` — no escribió nada: revisor: dividida en MV1125C-d1, MV1125C-d2 (tarea:sin_cambios con 5 archivos: se divide en 2 partes encadenadas)
+- `MV1125D` — no escribió nada: revisor: dividida en MV1125D-d1, MV1125D-d2 (tarea:sin_cambios con 2 archivos: se divide en 2 partes encadenadas)
+- `MV1125E` — no escribió nada: revisor: dividida en MV1125E-d1, MV1125E-d2 (tarea:sin_cambios con 2 archivos: se divide en 2 partes encadenadas)
+- `TRM1125B-d2-d1` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/TRM1125B-d2-d1 conservada)
+- `ALC1125C` — no escribió nada: revisor: dividida en ALC1125C-d1, ALC1125C-d2, ALC1125C-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `TRM1125J` — no escribió nada: revisor: dividida en TRM1125J-d1, TRM1125J-d2, TRM1125J-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `TRM1125B-d2-d2` — no escribió nada
+- `ALC1125E` — no escribió nada: revisor: dividida en ALC1125E-d1, ALC1125E-d2 (tarea:sin_cambios con 4 archivos: se divide en 2 partes encadenadas)
+- `ALC1125B` — no escribió nada: revisor: dividida en ALC1125B-d1, ALC1125B-d2, ALC1125B-d3 (tarea:sin_cambios con 8 archivos: se divide en 3 partes encadenadas)
+- `NEU1126F-d1` — no escribió nada
+- `CTL1126F-d2` — no escribió nada
+- `SEN1126B` — no escribió nada: revisor: dividida en SEN1126B-d1, SEN1126B-d2 (tarea:sin_cambios con 5 archivos: se divide en 2 partes encadenadas)
+- `ALC1125Js` — no escribió nada
+- `SEN1126C` — no escribió nada: revisor: dividida en SEN1126C-d1, SEN1126C-d2 (tarea:sin_cambios con 2 archivos: se divide en 2 partes encadenadas)
+- `QUA1125A` — no escribió nada: revisor: dividida en QUA1125A-d1, QUA1125A-d2 (tarea:sin_cambios con 2 archivos: se divide en 2 partes encadenadas)
+- `RES1126A` — no escribió nada: revisor: dividida en RES1126A-d1, RES1126A-d2 (tarea:sin_cambios con 5 archivos: se divide en 2 partes encadenadas)
+- `SEN1126A` — no escribió nada: revisor: dividida en SEN1126A-d1, SEN1126A-d2 (tarea:sin_cambios con 2 archivos: se divide en 2 partes encadenadas)
+- `CER1126A` — no escribió nada: revisor: dividida en CER1126A-d1, CER1126A-d2 (tarea:sin_cambios con 5 archivos: se divide en 2 partes encadenadas)
+- `TRM1125B-d2` — no escribió nada: revisor: dividida en TRM1125B-d2-d1, TRM1125B-d2-d2, TRM1125B-d2-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `NEU1126F` — los tipos no compilan: revisor: dividida en NEU1126F-d1, NEU1126F-d2, NEU1126F-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
+- `CAP1126D-d1` — no escribió nada: revisor: dividida en CAP1126D-d1-d1, CAP1126D-d1-d2, CAP1126D-d1-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `RIM-diaria-arreglar-el-lector-637b19-v2` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/reimaginada-diaria-arreglar-el-lector-637b19-v1.json (ya estaba)
+- `ACBB0B732` — no escribió nada
+- `IRD11261` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-26-1.json
+- `IRD11262` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-26-2.json
+- `IRD11263` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-26-3.json
+- `ALC1125E-d1` — otra cosa
+- `TRM1125C-d1` — otra cosa
+- `NOM1125A-d1` — otra cosa
