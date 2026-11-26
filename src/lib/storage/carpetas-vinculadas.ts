@@ -20,7 +20,24 @@
  * Quien las consume: el paso de Permisos del rito (alta), el paso de Cerebros
  * (las vincula solas al cerebro principal) y la pestaña de Agentes (permisos
  * de lectura por agente). SSR-safe y fail-open: sin navegador, lista vacía.
+ *
+ * Conexión con ALMACENES: cada carpeta de dispositivo vive en un almacén
+ * (medio con identidad estable: UUID del volumen + número de serie). El
+ * manifiesto portable `.starseed/almacen.json` en la raíz del volumen identifica
+ * al almacén y qué cerebros/partes guarda. Este módulo lee/valida ese manifiesto
+ * cuando se vincula una carpeta de dispositivo.
  */
+
+import {
+  RUTA_MANIFIESTO,
+  leerManifiestoDesdeObjeto,
+  crearManifiesto,
+  parsearManifiesto,
+  validarManifiestoEstricto,
+  cerebrosEnManifiesto,
+  type ManifiestoAlmacen,
+  type ResultadoLecturaManifiesto,
+} from "@/lib/almacenes";
 
 export type TipoCarpeta = "dispositivo" | "servicio";
 
@@ -44,6 +61,15 @@ export interface CarpetaVinculada {
   folderId?: string;
   /** ¿Hay handle vivo en ESTA sesión? (solo carpetas de dispositivo). */
   vivo?: boolean;
+  /** Información del almacén donde vive esta carpeta (si se pudo leer el manifiesto). */
+  almacen?: {
+    idVolumen: string;
+    numeroSerie: string;
+    dueño: string;
+    cerebros: string[];
+    partes: Record<string, string>;
+    cifrado: boolean;
+  };
   agregadaEn: number;
 }
 
@@ -183,6 +209,57 @@ export function handleDeCarpeta(id: string): unknown | null {
   return handles.get(id) ?? null;
 }
 
+/**
+ * Intenta leer el manifiesto del almacén (`.starseed/almacen.json`) desde un
+ * FileSystemDirectoryHandle que apunte a la RAÍZ del volumen.
+ * Devuelve el manifiesto parseado y validado, o null si no existe o hay error.
+ * El llamador debe asegurarse de que el handle sea la raíz del volumen (la
+ * neurona detecta el volumen y concede acceso a su raíz).
+ */
+export async function leerManifiestoAlmacenDesdeHandle(
+  handle: FileSystemDirectoryHandle
+): Promise<ResultadoLecturaManifiesto | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const fileHandle = await handle.getFileHandle(RUTA_MANIFIESTO, { create: false });
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return parsearManifiesto(text);
+  } catch {
+    // El archivo no existe o no se puede leer: el almacén no tiene manifiesto aún.
+    return null;
+  }
+}
+
+/**
+ * Crea un manifiesto de almacén nuevo en la raíz del volumen (handle).
+ * El llamador debe proveer `idVolumen` y `numeroSerie` (los detecta la neurona).
+ * Devuelve el manifiesto creado o null si falla la escritura.
+ */
+export async function crearManifiestoAlmacenEnHandle(
+  handle: FileSystemDirectoryHandle,
+  params: { idVolumen: string; numeroSerie: string; dueño: string; cerebros?: string[]; partes?: Record<string, string>; cifrado?: boolean }
+): Promise<ManifiestoAlmacen | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const manifiesto = crearManifiesto(params);
+    const fileHandle = await handle.getFileHandle(RUTA_MANIFIESTO, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(manifiesto, null, 2));
+    await writable.close();
+    return manifiesto;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Valida un manifiesto de almacén con las reglas estrictas (rechaza campos de secretos).
+ */
+export function validarManifiestoAlmacenEstricto(obj: unknown): { valido: boolean; errores: string[] } {
+  return validarManifiestoEstricto(obj);
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Puente con los CEREBROS: cada carpeta vinculada es un «servidor» del cerebro
  * (kind `local` para el dispositivo, `service` para un almacenamiento externo).
@@ -203,15 +280,30 @@ export interface ServidorCerebroCarpeta {
 
 /** Convierte las carpetas vinculadas en servidores para `Brain.servers`. */
 export function serversDeCarpetas(lista?: CarpetaVinculada[]): ServidorCerebroCarpeta[] {
-  return (lista ?? leer()).map((c) => ({
-    id: `carpeta:${c.id}`,
-    kind: c.tipo === "dispositivo" ? "local" : "service",
-    name: c.nombre,
-    notes: c.tipo === "dispositivo"
-      ? "Carpeta de este dispositivo vinculada en la configuración inicial."
-      : `Almacenamiento externo (${c.servicio ?? "servicio"}) vinculado en la configuración inicial.`,
-    carpetaId: c.id,
-  }));
+  return (lista ?? leer()).map((c) => {
+    const base: ServidorCerebroCarpeta = {
+      id: `carpeta:${c.id}`,
+      kind: c.tipo === "dispositivo" ? "local" : "service",
+      name: c.nombre,
+      notes: c.tipo === "dispositivo"
+        ? "Carpeta de este dispositivo vinculada en la configuración inicial."
+        : `Almacenamiento externo (${c.servicio ?? "servicio"}) vinculado en la configuración inicial.`,
+      carpetaId: c.id,
+    };
+    // Incluir info del almacén si está disponible (para carpetas de dispositivo).
+    if (c.tipo === "dispositivo" && c.almacen) {
+      return {
+        ...base,
+        almacenIdVolumen: c.almacen.idVolumen,
+        almacenNumeroSerie: c.almacen.numeroSerie,
+        almacenDueño: c.almacen.dueño,
+        almacenCerebros: c.almacen.cerebros,
+        almacenPartes: c.almacen.partes,
+        almacenCifrado: c.almacen.cifrado,
+      };
+    }
+    return base;
+  });
 }
 
 /**

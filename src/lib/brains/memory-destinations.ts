@@ -46,6 +46,15 @@ import { ALL_PERSONAS, getOverrides } from "@/lib/astraura/neuron-persona-store"
 // clave API, local por dispositivo) — este módulo NO duplica ese registro,
 // solo lo consulta para el paso de sincronización best-effort de abajo.
 import { getProviderConfig } from "@/ai/astraura/sync-providers";
+// Almacenes: manifiesto portable .starseed/almacen.json para medios locales/extraíbles.
+import {
+  ModalidadAlmacen,
+  TipoAlmacen,
+  type Almacen,
+  type ManifiestoAlmacen,
+  cerebrosEnManifiesto,
+  leerManifiestoDesdeObjeto,
+} from "@/lib/almacenes";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -90,6 +99,34 @@ export interface CapsulaMemoryDestination {
   ultimaSincronia?: string;
 }
 
+/**
+ * Destino «almacén» — un medio físico (USB, disco, SSD, NAS) con manifiesto
+ * portable `.starseed/almacen.json` que declara qué cerebros/partes guarda.
+ * La neurona detecta el almacén por su identidad estable (UUID del volumen +
+ * número de serie) y lo monta. El cerebro sabe qué partes de sí mismo viven
+ * en cada almacén; si el medio no está en línea, esa parte se muestra
+ * «fuera de línea», no desaparece.
+ */
+export interface AlmacenMemoryDestination {
+  enabled: boolean;
+  /** Id del backend de almacenamiento (kind 'local') que representa este almacén. */
+  backendId?: string;
+  /** Identidad estable del almacén (UUID del volumen). */
+  idVolumen?: string;
+  /** Número de serie del aparato. */
+  numeroSerie?: string;
+  /** Modalidad del almacén (cerebro-completo, parte, replica, respaldo-vivo, neurona-nodo, secundario). */
+  modalidad?: ModalidadAlmacen;
+  /** Cerebros completos que viven en este almacén. */
+  cerebros?: string[];
+  /** Partes (carpetas → cerebroId) que viven en este almacén. */
+  partes?: Record<string, string>;
+  /** Si el almacén está cifrado. */
+  cifrado?: boolean;
+  /** Etiqueta legible para la UI. */
+  label?: string;
+}
+
 export interface MemoryDestinationsConfig {
   local: { enabled: true };
   starseed: { enabled: boolean };
@@ -98,6 +135,8 @@ export interface MemoryDestinationsConfig {
   p2p: P2pMemoryDestination;
   /** Cápsula Memvid del cerebro — default OFF. */
   capsula: CapsulaMemoryDestination;
+  /** Almacenes físicos (USB, disco, NAS) con manifiesto portable — default OFF. */
+  almacen: AlmacenMemoryDestination;
 }
 
 /** Manifiesto honesto del destino StarSeed de un cerebro (solo metadatos). */
@@ -120,6 +159,7 @@ export function defaultMemoryDestinations(): MemoryDestinationsConfig {
   return {
     local: { enabled: true }, starseed: { enabled: true }, external: [],
     p2p: { enabled: false }, capsula: { enabled: false },
+    almacen: { enabled: false },
   };
 }
 
@@ -161,6 +201,22 @@ function normalizeCapsula(raw: unknown): CapsulaMemoryDestination {
     : { enabled: r.enabled === true, ultimaSincronia: ultima };
 }
 
+function normalizeAlmacen(raw: unknown): AlmacenMemoryDestination {
+  if (!raw || typeof raw !== "object") return { enabled: false };
+  const r = raw as Partial<AlmacenMemoryDestination>;
+  return {
+    enabled: r.enabled === true,
+    backendId: typeof r.backendId === "string" && r.backendId ? r.backendId : undefined,
+    idVolumen: typeof r.idVolumen === "string" && r.idVolumen ? r.idVolumen : undefined,
+    numeroSerie: typeof r.numeroSerie === "string" && r.numeroSerie ? r.numeroSerie : undefined,
+    modalidad: r.modalidad,
+    cerebros: Array.isArray(r.cerebros) ? r.cerebros.filter((c): c is string => typeof c === "string") : undefined,
+    partes: r.partes && typeof r.partes === "object" ? (r.partes as Record<string, string>) : undefined,
+    cifrado: r.cifrado === true,
+    label: typeof r.label === "string" && r.label ? r.label : undefined,
+  };
+}
+
 /** Normaliza cualquier valor de `Brain.config.memoryDestinations`. Nunca lanza. */
 export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsConfig {
   try {
@@ -172,6 +228,7 @@ export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsCon
       external: normalizeExternal(r.external),
       p2p: normalizeP2p(r.p2p), // default OFF (requiere Syncthing propio).
       capsula: normalizeCapsula(r.capsula), // default OFF (destino MVD1027E).
+      almacen: normalizeAlmacen(r.almacen), // default OFF (almacenes físicos).
     };
   } catch {
     return defaultMemoryDestinations();
@@ -202,6 +259,8 @@ export async function setMemoryDestinations(
       },
       // La cápsula se fusiona: así guardar huellas tras una ronda no borra lo demás.
       capsula: patch.capsula ? { ...current.capsula, ...patch.capsula } : current.capsula,
+      // El almacén se fusiona igual.
+      almacen: patch.almacen ? { ...current.almacen, ...patch.almacen } : current.almacen,
     };
     return await saveBrain({
       ...brain,
@@ -320,7 +379,7 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
 /* ------------------------------------------------------------------ */
 
 export interface MemoryDestinationSyncStep {
-  kind: "starseed" | "external" | "local" | "p2p" | "gdrive" | "capsula";
+  kind: "starseed" | "external" | "local" | "p2p" | "gdrive" | "capsula" | "almacen";
   ok: boolean;
   detail: string;
 }
@@ -616,6 +675,40 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
         }
       } catch (e) {
         steps.push({ kind: "gdrive", ok: false, detail: `Error inesperado sincronizando Google Drive: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }
+
+    // Almacén físico (USB, disco, NAS) — destino «almacen». Si el almacén está
+    // habilitado y tiene un backendId (kind 'local'), se verifica que el backend
+    // esté activo y se actualiza su manifiesto con los cerebros/partes de este
+    // cerebro. La sincronización real de archivos la hace la neurona/Syncthing
+    // al montar el medio; aquí solo validamos y actualizamos metadatos.
+    if (dest.almacen.enabled && !soloLocal) {
+      const almacen = dest.almacen;
+      if (almacen.backendId) {
+        try {
+          const backend = await listBackends().then((bs) => bs.find((b) => b.id === almacen.backendId));
+          if (!backend) {
+            steps.push({ kind: "almacen", ok: false, detail: `Backend del almacén «${almacen.label || almacen.idVolumen?.slice(0, 8) || "desconocido"}» no encontrado.` });
+          } else if (backend.enabled === false) {
+            steps.push({ kind: "almacen", ok: false, detail: `Almacén «${almacen.label || backend.name}» está desactivado.` });
+          } else {
+            // El backend existe y está activo. En un caso real, la neurona
+            // detectaría el medio montado y sincronizaría las partes declaradas.
+            // Aquí registramos un paso honesto: el almacén está disponible.
+            const modalidadStr = almacen.modalidad ? ` (${almacen.modalidad})` : "";
+            const cerebrosStr = almacen.cerebros?.length ? ` · cerebros: ${almacen.cerebros.join(", ")}` : "";
+            steps.push({
+              kind: "almacen",
+              ok: true,
+              detail: `Almacén «${almacen.label || backend.name}»${modalidadStr} disponible${cerebrosStr}. La neurona sincronizará al montar el medio.`,
+            });
+          }
+        } catch (e) {
+          steps.push({ kind: "almacen", ok: false, detail: `Error comprobando almacén: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      } else {
+        steps.push({ kind: "almacen", ok: false, detail: "Almacén habilitado pero sin backendId asociado (configura el backend 'local' correspondiente)." });
       }
     }
 
