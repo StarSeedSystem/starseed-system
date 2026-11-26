@@ -398,6 +398,62 @@ pub fn script_aviso(fase: &str, mensaje: &str) -> String {
     )
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum EstadoRecarga {
+    PodriaRecargar,
+    NecesarioEsperar,
+}
+
+pub struct ResultadoRecarga {
+    pub ruta: Option<String>,
+    pub estado_validez: EstadoRecarga,
+}
+
+pub fn decidir_ruta_recarga(url_ventana: &str, puerto_actual: u16, puerto_esperado: &str) -> ResultadoRecarga {
+    let ruta = extraer_ruta_valida(url_ventana, puerto_actual, puerto_esperado);
+    ResultadoRecarga {
+        ruta,
+        estado_validez: EstadoRecarga::PodriaRecargar,
+    }
+}
+
+fn extraer_ruta_valida(url_ventana: &str, puerto_actual: u16, puerto_esperado: &str) -> Option<String> {
+    let url = url_ventana.trim();
+    if url.is_empty() {
+        return Some("/".to_string());
+    }
+    let url_lower = url.to_ascii_lowercase();
+    if !url_lower.starts_with("http://127.0.0.1:") && !url_lower.starts_with("https://127.0.0.1:") {
+        return Some("/".to_string());
+    }
+    let url_sin_fragmento: String = url.split('#').next().unwrap_or(url).to_string();
+    let url_sin_protocolo = url_sin_fragmento.strip_prefix("http://127.0.0.1:")?;
+    let puerto_str: String = url_sin_protocolo.split('/').next()?.to_string();
+    let puerto: u16 = puerto_str.parse().ok()?;
+    if puerto != puerto_actual {
+        return Some("/".to_string());
+    }
+    let ruta_inicial: &str = url_sin_protocolo.split(puerto_str.as_str()).nth(1).unwrap_or("/");
+    if ruta_inicial.starts_with("/__starseed/") {
+        return Some("/".to_string());
+    }
+    if !ruta_inicial.starts_with('/') {
+        return Some("/".to_string());
+    }
+    let ruta_sin_hash = ruta_inicial.split('#').next().unwrap_or(ruta_inicial);
+    let ruta_final = if ruta_sin_hash.contains('?') {
+        let (base, query) = ruta_sin_hash.split_once('?')?;
+        format!("/{query}")
+    } else {
+        ruta_sin_hash.to_string()
+    };
+    if ruta_final.is_empty() || ruta_final == "/" {
+        Some("/".to_string())
+    } else {
+        Some(ruta_final)
+    }
+}
+
 // ───────────────────────────────── Pruebas ─────────────────────────────────
 
 #[cfg(test)]
@@ -599,5 +655,101 @@ mod pruebas {
         let s = script_aviso("local", "Listo en «127.0.0.1»");
         assert!(s.starts_with("window.__starseedUltimo=[\"local\",\"Listo en «127.0.0.1»\"];"));
         assert!(s.contains("window.__starseedArranque(\"local\""));
+    }
+}
+
+#[cfg(test)]
+mod pruebas_recarga {
+    use super::*;
+
+    #[test]
+    fn url_local_con_ruta_y_consulta_mantiene_ruta_y_consulta() {
+        let resultado = decidir_ruta_recarga(
+            "http://127.0.0.1:47610/paginas/escritorios?x=1&y=2#ancla",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/paginas/escritorios?x=1&y=2".to_string()));
+        assert_eq!(resultado.estado_validez, EstadoRecarga::PodriaRecargar);
+    }
+
+    #[test]
+    fn url_local_sin_consulta_va_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "http://127.0.0.1:47610/",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn url_de_otro_origen_vuelve_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "https://starseed-os.vercel.app/login",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn puerto_incorrecto_vuelve_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "http://127.0.0.1:47611/",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn url_ilegible_vuelve_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "javascript:alert(1)",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn url_vacia_vuelve_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn url_con_pase_en_ruta_no_es_local() {
+        let resultado = decidir_ruta_recarga(
+            "http://127.0.0.1:47610/__starseed/entrar?t=abc&a=%2F",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn ruta_illegal_devuelve_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "http://127.0.0.1:47610/../../etc/passwd",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
+    }
+
+    #[test]
+    fn url_internet_avazada_vuelve_a_raiz() {
+        let resultado = decidir_ruta_recarga(
+            "http://192.168.1.1:8080/pagina",
+            47610,
+            "47610",
+        );
+        assert_eq!(resultado.ruta, Some("/".to_string()));
     }
 }
