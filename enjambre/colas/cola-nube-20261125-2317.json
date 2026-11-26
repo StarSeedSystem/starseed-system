@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "CAP-skill-coop-sync-testing-uso",
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-sync-testing en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-sync-testing/SKILL.md"
+   ],
+   "depende": [],
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-sync-testing para que el enjambre la use. (amplía la sección de uso basándote en SKILL.md)"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "CAP-skill-coop-sync-testing-uso"
+  ]
+ }
+}
