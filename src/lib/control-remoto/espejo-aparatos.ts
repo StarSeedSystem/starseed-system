@@ -165,3 +165,65 @@ export async function ejecutarEnEspejo(
 
     return { resultados, estado: estadoActual };
 }
+
+// ── React ────────────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useRef, useState } from "react";
+
+export interface EspejoAparatos {
+    estado: EstadoEspejo;
+    agregar: (aparato: AparatoEspejo) => void;
+    quitar: (id: string) => void;
+    seleccionar: (id: string | null) => void;
+    activar: () => void;
+    desactivar: () => void;
+    ejecutar: (orden: OrdenEspejo) => Promise<ResultadoConEstado>;
+}
+
+export function usarEspejoAparatos(
+    aparatosIniciales: readonly AparatoEspejo[] = [],
+    ejecutor: EjecutorEspejo
+): EspejoAparatos {
+    const [estado, setEstado] = useState<EstadoEspejo>(() => {
+        let s = crearEstadoEspejo();
+        for (const a of aparatosIniciales) s = agregarAparato(s, a);
+        return s;
+    });
+    const ejecutorRef = useRef(ejecutor);
+    ejecutorRef.current = ejecutor;
+
+    const agregar = useCallback((aparato: AparatoEspejo) => {
+        setEstado((e) => agregarAparato(e, aparato));
+    }, []);
+
+    const quitar = useCallback((id: string) => {
+        setEstado((e) => quitarAparato(e, id));
+    }, []);
+
+    const seleccionar = useCallback((id: string | null) => {
+        setEstado((e) => seleccionarAparato(e, id));
+    }, []);
+
+    const activar = useCallback(() => {
+        setEstado((e) => activarEspejo(e));
+    }, []);
+
+    const desactivar = useCallback(() => {
+        setEstado((e) => desactivarEspejo(e));
+    }, []);
+
+    const ejecutar = useCallback(
+        async (orden: OrdenEspejo): Promise<ResultadoConEstado> => {
+            const { resultados, estado: nuevoEstado } = await ejecutarEnEspejo(
+                estado,
+                orden,
+                ejecutorRef.current
+            );
+            setEstado(nuevoEstado);
+            return { resultados, estado: nuevoEstado };
+        },
+        [estado]
+    );
+
+    return { estado, agregar, quitar, seleccionar, activar, desactivar, ejecutar };
+}
