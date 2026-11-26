@@ -3,7 +3,7 @@
 /*
  * profiles — PERFILES MÚLTIPLES por cuenta (personal/cívico/artístico/
  * profesional/custom). Cada cuenta puede tener varias facetas públicas
- * vinculadas a la misma Cuenta soberana (dualidad Cuenta/Perfil, CLAUDE.md §6).
+ * vinculadas a la misma Cuenta soberana (dualidad Cuenta/Perfil, metagenesis.md §6).
  *
  * SOP / fuente de verdad: architecture/libreria-biblioteca-sync.md §10.
  * Backend en la base del OS: Supabase **`nxstilnyidvkqeosofuh`** (ref corregida

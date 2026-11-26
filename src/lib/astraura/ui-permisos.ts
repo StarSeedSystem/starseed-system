@@ -8,7 +8,7 @@ import { esAccionDestructiva } from "./ui-acciones";
  * Capa de DECISIÓN que complementa la gramática de `ui-acciones.ts`: una vez
  * validada una propuesta, el OS decide QUIÉN puede tocar QUÉ de la interfaz
  * del perfil y en qué nivel. Es un módulo PURO: sin React, sin `node:*`,
- * SSR-safe, importable por componentes de cliente (ver CLAUDE.md §«Publicar»).
+ * SSR-safe, importable por componentes de cliente (ver metagenesis.md §«Publicar»).
  *
  * EL REPARTO DE FÁBRICA (el porqué, en español, y es innegociable):
  * la interfaz es del usuario. Que Astraura pueda proponer cualquier cambio no

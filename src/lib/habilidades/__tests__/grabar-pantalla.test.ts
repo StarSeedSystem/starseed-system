@@ -98,7 +98,7 @@ describe("grabar-pantalla · el contrato del evento", () => {
   });
 });
 
-describe("grabar-pantalla · el módulo es puro (CLAUDE.md, trampa 11)", () => {
+describe("grabar-pantalla · el módulo es puro (metagenesis.md, trampa 11)", () => {
   it("no importa nada del OS, ni node:*, ni «use client»", () => {
     const fuente = readFileSync(path.resolve(__dirname, "../grabar-pantalla.ts"), "utf8");
     const codigo = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");

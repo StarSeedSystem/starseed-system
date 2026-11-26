@@ -363,7 +363,7 @@ pasarelas, con `STARSEED_PASARELA_<NOMBRE>_RPM`).
 
 ## 8. Protocolo de relevo entre sesiones y medios
 
-1. **Al abrir**: leer `CLAUDE.md`, `starseed_memory_root/index.md`, la última adenda del
+1. **Al abrir**: leer `metagenesis.md`, `starseed_memory_root/index.md`, la última adenda del
    proyecto (`claude/adenda-NNN-…`) y `claude/memorias-workflow-continuidad.md`.
 2. **Durante**: cada bloque verificado → commit con trailer; cada decisión → adenda.
 3. **Al cerrar o al acercarse al límite**: punto de relevo en `state.md` + adenda + push.
@@ -372,11 +372,11 @@ pasarelas, con `STARSEED_PASARELA_<NOMBRE>_RPM`).
 
 ## 7. Relevo Claude ⇄ Hermes ⇄ enjambre (2026-09-03)
 
-- Estado compartido: `starseed_memory_root/relevo/` (estado.json · relevo.md · bitacora.jsonl · PROMPT-HERMES.md · PROMPT-CLAUDE.md), CLI `~/.local/bin/starseed-relevo` (Python sin dependencias).
+- Estado compartido: `starseed_memory_root/relevo/` (estado.json · relevo.md · bitacora.jsonl · PROMPT-HERMES.md · PROMPT-metagenesis.md), CLI `~/.local/bin/starseed-relevo` (Python sin dependencias).
 - Protocolo: `estado --por <agente>` al empezar → `nota --de <agente>` al avanzar → `handoff --de <agente> --a <otro> "resumen"` al parar. `tarea`/`pendiente` para trabajo compartido; `contexto <agente> clave=valor` para sesión/modelo/estado.
 - Qué comparte: uso/cuota por motor (uso-diario.json del enjambre + modelos de progreso.md + límites), contexto de cada agente (sesión, modelo, tamaño), rutas y carpetas, git (HEAD, sin push, sin commit), cola y progreso de olas (procesadas, sin cambios, bloqueantes, restantes), tareas, pendientes, adenda actual, enlaces.
 - Hermes: skill `~/.hermes/skills/starseed-relevo/SKILL.md` + bloque en `~/.hermes/SOUL.md` + enlace en `~/.hermes/memories/MEMORY.md`. Chat nuevo de StarSeed en Hermes = pegar `PROMPT-HERMES.md` (o `starseed-relevo prompt --para hermes`).
-- Claude sin puente a la Mac: doc del proyecto `claude/relevo-actual.md`; Alex pega `PROMPT-CLAUDE.md` en la sesión nueva.
+- Claude sin puente a la Mac: doc del proyecto `claude/relevo-actual.md`; Alex pega `PROMPT-metagenesis.md` en la sesión nueva.
 - Un solo agente escribe en el working tree a la vez; los crons de Hermes no hacen git add -A ni push (el watchdog del túnel quedó sin permiso de git el 03-09).
 - Contexto largo = créditos: cada llamada reenvía TODO el historial (>200k tokens es caro aunque los tokens nuevos sean pocos). Sesión nueva + relevo antes que sesión eterna. Nunca reportar como «créditos restantes» un contador de contexto.
 
@@ -1026,7 +1026,7 @@ Lo que de verdad pasaba, con números:
   la nube, 0 jobs y lo dice: freellmapi (127.0.0.1 de la Mac) y Codex (sesión de la Mac) no llegan
   allí, y Groq allí solo revisa.
 - **NIM tenía escritores y la rotación no los veía.** Medido con opencode 1.18.33 en el A1 (edición
-  real de un archivo; con contexto de tamaño real, CLAUDE.md ~14k tokens): `nvidia/nvidia/nemotron-3-super-120b-a12b`
+  real de un archivo; con contexto de tamaño real, metagenesis.md ~14k tokens): `nvidia/nvidia/nemotron-3-super-120b-a12b`
   ESCRIBE (23 s) y `nvidia/z-ai/glm-5.3` ESCRIBE (56 s); `gpt-oss-20b` contesta sin editar;
   `deepseek-v4.1-flash` no termina en 300 s; `kimi-k3` tarda 45 s en 16 tokens (saturado en NIM, no
   la Mac: desde la Mac nemotron contesta en 0,7 s). El id de nemotron en `MODELOS` estaba SIN la
@@ -1066,7 +1066,7 @@ dependen de Claude; lo que se quedó sin dueño fue el trabajo que la sesión de
   MetaGenesis la toma como cualquier cola; el revisor de bloqueadas divide lo de más de 3 archivos y `capacidad: alta`
   va al carril de alta capacidad. Aviso único en el Chat Director.
 - **Al volver**, Claude lee `relevo_carril_claude.py estado`, no repite lo relevado y cierra lo suyo con `cerrar`.
-- Lógica pura y pruebas: `relevo_carril_claude_logica.py`, `test_relevo_carril_claude.py`. Contexto: CLAUDE.md, trampa 23.
+- Lógica pura y pruebas: `relevo_carril_claude_logica.py`, `test_relevo_carril_claude.py`. Contexto: metagenesis.md, trampa 23.
 
 ## 22. Captura de Jev y prueba en sombra: medir antes de instalar (2026-11-10, MGM1110B)
 

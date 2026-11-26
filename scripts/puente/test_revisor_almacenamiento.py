@@ -58,8 +58,8 @@ def test_solo_salen_caches_de_la_lista_cerrada():
     updater = os.path.join(caches, "electron-updater")
     prohibido = os.path.join(caches, "documents")
     disco = DiscoFalso(
-        [go_build, updater, prohibido, os.path.join(HOME, ".ssh"), os.path.join(RAIZ_REPO, "CLAUDE.md")],
-        tamanos={go_build: 1024 ** 3, updater: 2 * 1024 ** 3, prohibido: 3 * 1024 ** 3, os.path.join(HOME, ".ssh"): 4 * 1024 ** 3, os.path.join(RAIZ_REPO, "CLAUDE.md"): 5 * 1024 ** 3},
+        [go_build, updater, prohibido, os.path.join(HOME, ".ssh"), os.path.join(RAIZ_REPO, "metagenesis.md")],
+        tamanos={go_build: 1024 ** 3, updater: 2 * 1024 ** 3, prohibido: 3 * 1024 ** 3, os.path.join(HOME, ".ssh"): 4 * 1024 ** 3, os.path.join(RAIZ_REPO, "metagenesis.md"): 5 * 1024 ** 3},
         listados={caches: ["go-build", "electron-updater", "documents", "../../.ssh"]},
     )
 

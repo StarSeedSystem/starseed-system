@@ -3864,7 +3864,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `p316Mc` — la revisión lo rechazó: rechazada automáticamente por ide (sin revisión humana); rama ola/p316Mc conservada
 - `PRD1005T` — la revisión lo rechazó: director: escalada agotada tras 8 intentos (libre×8): requiere una persona
 - `ES1010Hb` — pruebas en rojo: vitest falla (rama conservada)
-- `FLU1005F` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-07 06:56:18 [0m> build · auto [0m [0m→ [0mRead CLAUDE.md [0m→ [0mRead memo
+- `FLU1005F` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-07 06:56:18 [0m> build · auto [0m [0m→ [0mRead metagenesis.md [0m→ [0mRead memo
 - `PRD1005J` — no escribió nada
 - `PRD1005K` — otra cosa: red caída: $ opencode run --model freellmapi/auto · 2026-10-07 07:00:24 [0m [0m> build · auto [91m[1mError: [0mUnable to connect. Is th
 - `PRD1005R` — otra cosa: sin decisión en 0 h; rama ola/PRD1005R conservada

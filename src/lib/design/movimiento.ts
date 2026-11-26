@@ -6,7 +6,7 @@
  * los componentes consumen estos tokens para que el sistema se sienta uniforme,
  * sin que cada pieza invente su propia duración o curva a mano.
  *
- *  · DURACION  — la escala de tiempos (ms) que manda CLAUDE.md §8: suave, sin
+ *  · DURACION  — la escala de tiempos (ms) que manda metagenesis.md §8: suave, sin
  *                prisas y con la «voz» única del OS.
  *  · CURVA     — las curvas de easing con un comentario de cuándo usarlas.
  *  · tokensDe  — traduce cada micro-interacción a duración + curva (+ transform

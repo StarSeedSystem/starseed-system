@@ -4,7 +4,7 @@
 // Datos PUROS (sin React) para que la Librería publique las apps
 // oficiales del ecosistema como Entidades Únicas con ficha rica.
 // Fuente de verdad de URLs: catálogo del launcher (app-catalog.ts),
-// CLAUDE.md §1 y el manual de enlaces del Ecosistema.
+// metagenesis.md §1 y el manual de enlaces del Ecosistema.
 //
 // También define los PRIMITIVOS de listado extendido (versiones,
 // media, enlaces) que consume la ficha `AppFilePage` — tolerantes a

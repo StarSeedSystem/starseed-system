@@ -2,7 +2,7 @@
  * StarSeed XR · CONFORT Y ACCESIBILIDAD. Giro por saltos, viñeta, altura, subtítulos, movimiento reducido,
  * una mano y tamaño de texto. Lo persistido (localStorage / cuenta) se SANEA al leerlo —una preferencia vieja
  * o rota nunca deja a nadie sin poder salir ni mareado— y el movimiento reducido manda sobre todo lo demás.
- * Regla de la casa (CLAUDE.md, propagación de actualizaciones): al añadir un campo, `sanearConfort` le da su
+ * Regla de la casa (metagenesis.md, propagación de actualizaciones): al añadir un campo, `sanearConfort` le da su
  * valor por defecto a quien ya tenía la configuración guardada. Módulo PURO.
  */
 import type { Mano, Postura } from "./tipos";

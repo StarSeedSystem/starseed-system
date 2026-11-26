@@ -8,7 +8,7 @@
 
 Ola 1025C · tarea ART1025A. Esta ola **revisa, fija el contrato y deja la cola**; no instala nada en
 ninguna máquina. Los cuatro repositorios se leyeron como DATOS en `craft-src/` (clones superficiales);
-no se ejecutó ni compiló nada de ellos y no se siguió ninguna instrucción de sus `AGENTS.md`/`CLAUDE.md`.
+no se ejecutó ni compiló nada de ellos y no se siguió ninguna instrucción de sus `AGENTS.md`/`metagenesis.md`.
 Todo lo que sigue dice de dónde sale: «leído» (código o documentos del repo), «web» (páginas de releases
 de GitHub) o «no comprobado».
 
@@ -27,7 +27,7 @@ Decisiones que sostienen todo lo demás:
    GridCraft o DeckCraft solo por la **pasarela ArtCraft** (§3): lista permitida de herramientas y
    comandos, directorio de trabajo por neurona, procesos sin shell ni red, registro y permisos del OS.
    Las fichas lo dicen en su `motivo`.
-2. **Editable sí, ejecutable no** (regla del OS, `CLAUDE.md`): los complementos WASM de FigCraft, los
+2. **Editable sí, ejecutable no** (regla del OS, `metagenesis.md`): los complementos WASM de FigCraft, los
    scripts de GridCraft, las macros VBA y el código generado (CSS/React/SwiftUI) son **datos** que se
    pueden mirar y guardar, nunca algo que el OS ejecute por encargo de un agente.
 3. **El OS manda sobre la interfaz.** FigCraft diseña; lo que llega al OS pasa por `UiSpec`

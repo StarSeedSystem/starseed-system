@@ -21,7 +21,7 @@
 
 Fuente de verdad del área. Lo que no esté aquí no se inventa; lo que ya existe (§2) se reutiliza, no se duplica.
 
-## 0 · Reglas que mandan (de `CLAUDE.md`; no se negocian)
+## 0 · Reglas que mandan (de `metagenesis.md`; no se negocian)
 
 - **Editable sí, ejecutable no.** Un bot cambia el OS con un vocabulario cerrado de acciones (§6) que se traduce a los
   módulos que ya existen (`aurora/actions.ts`, `ui-acciones`, `genesis/operaciones`, `UiSpec`, Protomolécula). El código

@@ -30,7 +30,7 @@ dispositivos por `live-signal`, fusión por elemento con `actualizado` y lápida
   el tipo de relación, nunca teléfonos, correos, notas ni el matiz de la relación.
 - **«Seguir» sigue existiendo para entidades** (páginas, comunidades, E.F., partidos): `os_follows`.
 - **Ajustes personales, nunca punitivos.** Silenciar, archivar, restringir o vaciar un chat solo
-  cambia lo que ve quien lo decide (Justicia restaurativa, CLAUDE.md §6).
+  cambia lo que ve quien lo decide (Justicia restaurativa, metagenesis.md §6).
 - **Formato = dato, no código.** `validarFormato` (lista blanca, límites, sin `javascript:` ni
   `blob:`, sin rutas `/api` o `/auth` como medio). Las ventanas web son iframes con `sandbox` sin
   `allow-same-origin` y se activan con un clic; las «apps» son rutas del OS; nada ejecuta código ajeno.

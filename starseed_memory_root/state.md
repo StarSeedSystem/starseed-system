@@ -477,7 +477,7 @@
 - Ventana OmniVoice ya no aparece tras los datos del perfil; barra de pestañas global corregida (`safe center`); «Crear perfil» solo por botón; «Avatar» → «Foto de perfil».
 - Marco de forma para la foto de perfil (11 formas, encuadre a mano) y avatar 3D `<model-viewer>` (GLB/glTF; posición, rotación, animación, luz, distancia, ángulo, AR). Migración `avatar_marco`/`avatar_3d` en `os_profiles` y `profiles`.
 - Marcos opcionales en fotos y vídeos del Lienzo Universal (bloques imagen/portada/vídeo → `ss:meta.marcos` y `block.marco`; PostCard y renderer los pintan).
-- **Regla permanente de economía de créditos** (CLAUDE.md + `memory/orquestacion-economica.md`): ningún modelo agota sus créditos; ramificar por coste; relevar ante 429/402; punto de relevo antes del límite.
+- **Regla permanente de economía de créditos** (metagenesis.md + `memory/orquestacion-economica.md`): ningún modelo agota sus créditos; ramificar por coste; relevar ante 429/402; punto de relevo antes del límite.
 - NVIDIA NIM integrado en las tres capas: proveedor `nvidia` + proxy comunitario `/api/ai/nvidia` (`NVIDIA_SHARED_KEY`, solo servidor) + fuente `nvidia-nim` del catálogo; Hermes `providers.nvidia` + fallback; `starseed-sub` motor `nim`. 82 modelos verificados; latencias medidas (Super 1,0 s · Ultra 2,3 s · Kimi K3 3,8 s).
 **Punto de relevo:** falta `NVIDIA_SHARED_KEY` en Vercel (el token CLI del Mac no pertenece al team del OS): añadirla a mano en Settings → Environment Variables. Siguiente ola: rediseño de bienvenida de perfiles/páginas/grupos y pestañas predeterminadas.
 

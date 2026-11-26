@@ -7,7 +7,7 @@
  * Da a Aurora la capacidad HONESTA de leer/traer páginas web usando
  * herramientas OPEN SOURCE, priorizando lo GRATIS/LOCAL/OSS y dejando lo de
  * clave (Firecrawl) como última opción. Auto-selecciona el mejor proveedor
- * DISPONIBLE por tarea/contexto (Comunismo de Abundancia · §3 CLAUDE.md;
+ * DISPONIBLE por tarea/contexto (Comunismo de Abundancia · §3 metagenesis.md;
  * Ciberdelia: tecnología para expandir la conciencia, nunca para vigilar).
  *
  * HONESTIDAD RADICAL: Aurora en el navegador NO puede scrapear la web por sí

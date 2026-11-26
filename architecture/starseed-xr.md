@@ -17,7 +17,7 @@ descrito, realmente funcional y profesional.»
 
 ---
 
-## 0 · Reglas que mandan (de `CLAUDE.md`; no se negocian)
+## 0 · Reglas que mandan (de `metagenesis.md`; no se negocian)
 
 1. **Editable sí, ejecutable no.** Un mundo es un DATO (`MundoSpec`, vocabulario cerrado, sin scripts), igual que la
    interfaz es `UiSpec`. Nada de `eval`, `new Function` ni import dinámico de código ajeno; lo de terceros solo en iframe
@@ -29,9 +29,9 @@ descrito, realmente funcional y profesional.»
    viaja entre cuentas de la propia persona y con su consentimiento (`privacidad.ts`, §3 k).
 4. **Honestidad:** un botón sin efecto real no se pinta, se escribe «próximamente: <motivo>». Una capacidad se afirma por
    lo que concede `session.enabledFeatures`, nunca por la marca del aparato.
-5. **Dependencias nuevas = palabra de Alex** (`CLAUDE.md` capas, §11). Son 7 directas (§1.3 y §3 n); la tarea `XR1010A` lleva
+5. **Dependencias nuevas = palabra de Alex** (`metagenesis.md` capas, §11). Son 7 directas (§1.3 y §3 n); la tarea `XR1010A` lleva
    `aprobacion: true` para que no entren sin su visto bueno.
-6. **El layout raíz no carga motores pesados** (`CLAUDE.md`, «Publicar»): three/uikit/rapier/vrm/spark solo en el chunk de
+6. **El layout raíz no carga motores pesados** (`metagenesis.md`, «Publicar»): three/uikit/rapier/vrm/spark solo en el chunk de
    `/xr/os` (`next/dynamic` sin SSR). Al layout raíz solo sube el botón de entrada (ligero).
 7. **Nada de `node:*` en código de cliente.** Claves solo por NOMBRE de variable. Migrar lo persistido al cambiar defaults
    (`sanearConfort` ya lo hace). Máximo 3 archivos y 120 líneas por tarea de la cola; añadir ≤30 líneas a un archivo grande
@@ -151,7 +151,7 @@ verificado** y el diseño no depende de ello: el sondeo en el visor (`/xr/diagno
 | `src/lib/vivo/xr.ts#plataformaDe` (5 plataformas) | Se solapa con `capacidades.ts#plataformaDeDatos` (10). | `plataformaDe` delega en el nuevo (tarea `XR1010AK`). |
 | `components/vivo/espacial/rendimiento.ts#leerPerfil` (eco/reducido) | Calidad ad hoc de 2 estados. | Su salida alimenta `PerfilDispositivo` (`nucleos`, `memoriaGB`). |
 | `XREntryButton` (enlace a `/xr`) | Solo navega. | Se queda para navegar al hub; el botón universal nuevo es el que abre sesión de verdad. |
-| `DocEscena` (colaborativo) y `MundoSpec` (declarativo) | Dos modelos de «mundo». | **Decisión:** UNA entidad `vivo` (singularidad, §6 de `CLAUDE.md`) con dos capas: `doc` (`DocEscena`, lo que se edita en colaboración, con lápidas) y `mundo` (`MundoSpec`, que fija el dueño/editor y se fusiona entero por versión). Adaptador `mundo → doc` para el lienzo 2D existente (pierde portales/reglas/zonas, que quedan en `mundo`). |
+| `DocEscena` (colaborativo) y `MundoSpec` (declarativo) | Dos modelos de «mundo». | **Decisión:** UNA entidad `vivo` (singularidad, §6 de `metagenesis.md`) con dos capas: `doc` (`DocEscena`, lo que se edita en colaboración, con lápidas) y `mundo` (`MundoSpec`, que fija el dueño/editor y se fusiona entero por versión). Adaptador `mundo → doc` para el lienzo 2D existente (pierde portales/reglas/zonas, que quedan en `mundo`). |
 
 ### 2.3 Sobra o está sin uso (candidatos, NO se tocan sin la palabra de Alex)
 
@@ -177,7 +177,7 @@ Módulos del núcleo (todos puros, `src/lib/xr/`, ≤ 200 líneas por archivo, p
 
 ### (a) Trinity espacial
 
-La Trinity (`CLAUDE.md` §7) se despliega alrededor de la persona, en metros (eje y arriba, -z al frente, origen en el suelo,
+La Trinity (`metagenesis.md` §7) se despliega alrededor de la persona, en metros (eje y arriba, -z al frente, origen en el suelo,
 referencia `local-floor`). `disponerTrinity({alturaOjos, postura, manoDominante, modo, yawBase, escala, techo})`:
 
 | Nodo | Dónde (de pie / sentado / una mano) | Contenido |

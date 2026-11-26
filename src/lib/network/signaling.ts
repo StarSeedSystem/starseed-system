@@ -19,7 +19,7 @@
  *      dispositivo AÑADE su señal (merge no destructivo) y LEE las dirigidas a
  *      él; se limpian por TTL. Más lento pero funciona con sólo la tabla.
  *
- * Alineado con CLAUDE.md:
+ * Alineado con metagenesis.md:
  *   - Identidad Soberana: la CUENTA es el canal (no un tercero).
  *   - Defensivo / SSR-safe: sin sesión → no-op; nunca lanza.
  *   - Merge no destructivo sobre `prefs` (nunca pisa devices/dashboards/…).

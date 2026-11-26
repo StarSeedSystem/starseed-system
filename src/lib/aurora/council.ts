@@ -25,7 +25,7 @@ import {
  *
  * NUESTRA VARIACIÓN — el Consejo no delibera «modelo contra modelo» sino
  * PERSPECTIVA contra PERSPECTIVA: cada consejero encarna uno de los fundamentos
- * StarSeed (CLAUDE.md §3 · Tríada Ideológica Nuclear + §5 Plan evolutivo +
+ * StarSeed (metagenesis.md §3 · Tríada Ideológica Nuclear + §5 Plan evolutivo +
  * §6 Invariantes). Así la deliberación es ideológicamente plural pero
  * constitucionalmente anclada: cada dictamen CITA el fundamento en el que se apoya.
  *
@@ -76,9 +76,9 @@ export interface CouncilPerspective {
 
 /**
  * Los CINCO consejeros. Salen literalmente de los documentos fundacionales:
- *   · Ontocracia, Ciberdelia y Transhumanismo Comunista → CLAUDE.md §3.
- *   · Fases Semilla/Fruto/Cosecha y post-escasez        → CLAUDE.md §5.
- *   · Invariantes técnicas (soberanía, federación…)     → CLAUDE.md §6.
+ *   · Ontocracia, Ciberdelia y Transhumanismo Comunista → metagenesis.md §3.
+ *   · Fases Semilla/Fruto/Cosecha y post-escasez        → metagenesis.md §5.
+ *   · Invariantes técnicas (soberanía, federación…)     → metagenesis.md §6.
  *   · Desarrollo extendido                              → memory/principles.md.
  */
 export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
@@ -86,7 +86,7 @@ export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
     id: "ontocratico",
     label: "Consejero Ontocrático",
     fundamento: "🜂 Ontocracia — el Gobierno del Ser",
-    fuente: "CLAUDE.md §3 · Constitución de la Sociedad StarSeed",
+    fuente: "metagenesis.md §3 · Constitución de la Sociedad StarSeed",
     accent: "#DC143C",
     system:
       "Eres el CONSEJERO ONTOCRÁTICO del Consejo de Aurora (StarSeed). Encarnas la Ontocracia: " +
@@ -101,7 +101,7 @@ export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
     id: "ecologico",
     label: "Consejero Ecológico",
     fundamento: "🜃 Oikos — el hogar común (planeta + comunidad)",
-    fuente: "CLAUDE.md §5 (Fase Fruto) · §9 Glosario · Codex StarSeed",
+    fuente: "metagenesis.md §5 (Fase Fruto) · §9 Glosario · Codex StarSeed",
     accent: "#10B981",
     system:
       "Eres el CONSEJERO ECOLÓGICO del Consejo de Aurora (StarSeed). Encarnas el OIKOS: el hogar común (planeta + comunidad local) " +
@@ -115,7 +115,7 @@ export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
     id: "abundancia",
     label: "Consejero de la Abundancia",
     fundamento: "🜃 Transhumanismo Comunista — Comunismo de Abundancia (post-escasez)",
-    fuente: "CLAUDE.md §3 y §5 (Semilla → Fruto → Cosecha)",
+    fuente: "metagenesis.md §3 y §5 (Semilla → Fruto → Cosecha)",
     accent: "#FFBF00",
     system:
       "Eres el CONSEJERO DE LA ABUNDANCIA del Consejo de Aurora (StarSeed). Encarnas el COMUNISMO DE ABUNDANCIA (post-escasez): " +
@@ -131,7 +131,7 @@ export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
     id: "simbiotico",
     label: "Consejero Simbiótico",
     fundamento: "🜁 Ciberdelia + Evolución Simbiótica (Exocórtex, soberanía técnica)",
-    fuente: "CLAUDE.md §3 y §6 (Invariantes técnicas)",
+    fuente: "metagenesis.md §3 y §6 (Invariantes técnicas)",
     accent: "#007FFF",
     system:
       "Eres el CONSEJERO SIMBIÓTICO del Consejo de Aurora (StarSeed). Encarnas la CIBERDELIA y la EVOLUCIÓN SIMBIÓTICA: " +
@@ -146,7 +146,7 @@ export const COUNCIL_PERSPECTIVES: CouncilPerspective[] = [
     id: "empatico",
     label: "Consejera Empática",
     fundamento: "Progresismo empático · Justicia restaurativa · disolución del ego",
-    fuente: "CLAUDE.md §3 (Ciberdelia) y §6 (Justicia restaurativa)",
+    fuente: "metagenesis.md §3 (Ciberdelia) y §6 (Justicia restaurativa)",
     accent: "#B24BF3",
     system:
       "Eres la CONSEJERA EMPÁTICA del Consejo de Aurora (StarSeed). Encarnas el progresismo empático: " +

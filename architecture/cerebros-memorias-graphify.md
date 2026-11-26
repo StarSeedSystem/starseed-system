@@ -5,7 +5,7 @@
 > sync multi-destino por cerebro, y (5) offline + fusión inteligente + conflictos.
 > Actualizar ESTE doc antes de cambiar la lógica. Fecha: 2026-07-07 · Adenda 66.
 >
-> Regla dorada del proyecto: este documento se escribió **antes** que el código (§8 CLAUDE.md).
+> Regla dorada del proyecto: este documento se escribió **antes** que el código (§8 metagenesis.md).
 
 ---
 
@@ -269,7 +269,7 @@ Cada cerebro declara `Brain.config.memoryDestinations`:
   mensajes, correo, buscador de biblioteca, ni ajustes generales (fuera de alcance de esta
   ola, ver instrucciones de la tarea).
 
-## 10. Cumplimiento de la Tríada e invariantes (CLAUDE.md)
+## 10. Cumplimiento de la Tríada e invariantes (metagenesis.md)
 
 - **Identidad soberana / Código abierto**: sin dependencias nuevas de pago; el parser de
   frontmatter es propio (cero paquetes nuevos). Destinos externos son endpoints que el usuario
@@ -315,4 +315,4 @@ Cada cerebro declara `Brain.config.memoryDestinations`:
 
 ---
 
-*Escrito antes del código (regla dorada, §8 CLAUDE.md). Última actualización: 2026-07-07.*
+*Escrito antes del código (regla dorada, §8 metagenesis.md). Última actualización: 2026-07-07.*

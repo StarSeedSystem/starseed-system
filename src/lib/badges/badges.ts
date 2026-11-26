@@ -15,7 +15,7 @@
  *       PK(profile_id, badge_id)
  *   • profiles(id, user_id, handle, display_name, badges jsonb)
  *
- * Principios (alineados con CLAUDE.md):
+ * Principios (alineados con metagenesis.md):
  *   - TOLERANTE A FALLOS: sin sesión, sin tabla o ante error de red NUNCA lanza;
  *     devuelve valores seguros ([] / null / false). El que consume nunca rompe.
  *   - DATOS DEL USUARIO, PROPIEDAD DEL USUARIO: las escrituras pasan por RLS

@@ -176,7 +176,7 @@ VARIABLES_QUE_ENSUCIAN = (
 #: (2026-10-07) La publicación de las 14:46 cayó con «/usr/local/bin/python3: No module named
 #: pytest»: el botón de Genesis lanza este guion con el primer python3 del PATH de su servidor
 #: (/usr/local/bin, sin pytest) y las puertas usaban `sys.executable`. El de Homebrew sí tiene
-#: pytest y además el permiso de disco de macOS (CLAUDE.md, trampa 4). Se elige el primero que
+#: pytest y además el permiso de disco de macOS (metagenesis.md, trampa 4). Se elige el primero que
 #: importe pytest; si ninguno lo tiene, el de siempre, y la puerta lo dirá.
 CANDIDATOS_PYTHON = ("/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3")
 

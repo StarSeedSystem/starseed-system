@@ -9,12 +9,12 @@
  * de muestra por "sistema") por el censo REAL de la entidad, leído de la fuente
  * de verdad de la membresía. ADITIVO y de PURA PRESENTACIÓN.
  *
- * PRINCIPIO "UNA PERSONA, UNA VOZ" (CLAUDE.md §3): la lista se construye desde
+ * PRINCIPIO "UNA PERSONA, UNA VOZ" (metagenesis.md §3): la lista se construye desde
  * `os_memberships` por CUENTA (una fila por cuenta y grupo). Este componente
  * JAMÁS escribe, ni toca el censo ni la votación — solo muestra quién es miembro
  * y con qué CARA (faceta) ha elegido mostrarse en este grupo.
  *
- * DUALIDAD CUENTA/PERFIL (CLAUDE.md §6): cada ciudadano puede elegir una faceta
+ * DUALIDAD CUENTA/PERFIL (metagenesis.md §6): cada ciudadano puede elegir una faceta
  * pública (personal/cívico/artístico/profesional) para representarse en un grupo
  * concreto. Si la ha elegido, se muestra esa cara + una insignia de su tipo; si
  * no, se cae al perfil de directorio (os_profiles) y, en último término, a un

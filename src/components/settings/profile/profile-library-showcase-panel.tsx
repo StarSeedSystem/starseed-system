@@ -10,7 +10,7 @@
 // Al MARCAR un nodo, `setShowInProfile` eleva su ámbito a `public` (si no, las
 // visitas ni siquiera podrían leerlo — RLS `es_doc_acl_allows`). Al DESMARCAR
 // no se revoca nada de lo ya compartido: solo deja de mostrarse en la vitrina
-// (justicia restaurativa, CLAUDE.md §6).
+// (justicia restaurativa, metagenesis.md §6).
 //
 // Datos: la biblioteca de la CUENTA (`entity_state`, kind 'user'), vía
 // entity-library. Sin sesión: no-op honesto.

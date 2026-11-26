@@ -22,7 +22,7 @@
 //         sobre que HOY no ejecuta generación.
 //       - Endpoint propio genérico (custom-endpoint).
 //
-// FILOSOFÍA NUCLEAR (CLAUDE.md §3, Ciberdelia + Abundancia): la tecnología
+// FILOSOFÍA NUCLEAR (metagenesis.md §3, Ciberdelia + Abundancia): la tecnología
 // amplifica, nunca exige peaje para empezar. Por eso la imagen SIEMPRE funciona
 // gratis desde el navegador; el resto son mejoras opcionales que el usuario
 // activa si quiere más calidad o control (local) o más servicios (de pago).

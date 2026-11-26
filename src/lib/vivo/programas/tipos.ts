@@ -1,7 +1,7 @@
 /**
  * Tipos del PROGRAMA en vivo (L4 · 2026-09-28).
  *
- * Alcance honesto (CLAUDE.md §«editable sí, ejecutable no»): un programa NO es código. Es una
+ * Alcance honesto (metagenesis.md §«editable sí, ejecutable no»): un programa NO es código. Es una
  * especificación declarativa (`ProgramaSpec`) de un VOCABULARIO CERRADO de bloques (título,
  * texto, lista de tareas, contador, encuesta, tablero kanban, formulario) cuyo ESTADO
  * COMPARTIDO se reconstruye repitiendo un diario de acciones con reglas puras (`motor.ts`).

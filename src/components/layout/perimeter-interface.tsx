@@ -18,7 +18,7 @@ const GLOW_COLOR_MAP: Record<string, string> = {
 };
 
 /**
- * Colores cardinales OFICIALES de Trinity (CLAUDE.md §7 / EDGE_META en
+ * Colores cardinales OFICIALES de Trinity (metagenesis.md §7 / EDGE_META en
  * trinity-edge-access.tsx). Usados SOLO para el indicador sutil de borde en
  * reposo (nuevo, opt-in) — no tocan el glow de hover existente arriba.
  */

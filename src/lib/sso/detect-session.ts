@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // ⚠️ CORREGIDO 2026-07-12: NO existe un proyecto Supabase compartido por todo el
 // ecosistema. El OS/SOSD usa su PROPIO proyecto —`nxstilnyidvkqeosofuh`— con
-// cuentas SEPARADAS de las de Nexus/Café (`dzkjapinnewkxzjltadv`). Ver CLAUDE.md
+// cuentas SEPARADAS de las de Nexus/Café (`dzkjapinnewkxzjltadv`). Ver metagenesis.md
 // §2. El helper sigue siendo válido DENTRO del OS: reanuda la sesión del propio
 // OS ya presente en este navegador.
 // Como el cliente browser del
@@ -28,7 +28,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 
 // Ref del proyecto Supabase DEL OS (Nexus/Café tienen el suyo: `dzkjapinnewkxzjltadv`).
-// Fuente de verdad: `.env.local` + CLAUDE.md §2. Se deriva de la URL en runtime y
+// Fuente de verdad: `.env.local` + metagenesis.md §2. Se deriva de la URL en runtime y
 // solo se cae a esta constante como respaldo si no hay env var.
 // ⚠️ 2026-07-12: este respaldo apuntaba al proyecto EQUIVOCADO (el de Nexus/Café),
 // lo que habría hecho leer la clave de localStorage `sb-<ref>-auth-token` de otro

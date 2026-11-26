@@ -50,7 +50,7 @@ GRACIA_H = 8
 
 #: Si falta la plantilla del repo, la mínima con las reglas que no se negocian.
 PLANTILLA_MINIMA = """Eres el carril de alta capacidad de StarSeed OS: haces UNA tarea que el enjambre no ha cerrado.
-Lee CLAUDE.md y AGENTS.md. Solo los archivos declarados; tsc sin errores nuevos y tus pruebas en verde.
+Lee metagenesis.md y AGENTS.md. Solo los archivos declarados; tsc sin errores nuevos y tus pruebas en verde.
 Prohibido: push a main, desplegar, tocar secretos, vercel.json, .github/ o la CI; no abras pull requests.
 Un solo commit con el asunto «{ID}: {TITULO}» y empújalo a nube/cc-{FECHA}/ola/{ID}
 (git push origin HEAD:refs/heads/nube/cc-{FECHA}/ola/{ID}).

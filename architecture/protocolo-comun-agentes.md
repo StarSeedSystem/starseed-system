@@ -27,7 +27,7 @@ Secciones, en el orden de cada rol (lo que no cabe en `--max` se recorta por el 
 
 | sección | qué lleva | de dónde sale |
 |---|---|---|
-| Reglas permanentes | las del rol primero y luego las de todos, cada una con su fuente | `REGLAS` (curadas de CLAUDE.md, `memory/orquestacion-economica.md` §0/§9/§15/§16, `memory/workflow-actual.md`); la prueba de deriva exige que cada fuente exista |
+| Reglas permanentes | las del rol primero y luego las de todos, cada una con su fuente | `REGLAS` (curadas de metagenesis.md, `memory/orquestacion-economica.md` §0/§9/§15/§16, `memory/workflow-actual.md`); la prueba de deriva exige que cada fuente exista |
 | Cómo se decide (Jev) | el protocolo de la §2 | `PROTOCOLO` |
 | Herramientas | la orden exacta: `decidir.py`, `contexto_agente.py`, `suenos.py`, `latido_externo.py`, `gitnexus`, `starseed-fuentes`, `starseed-puente decir`, `starseed-relevo`, `hermes send` | solo las que existen (las de la Mac van marcadas «Mac») |
 | Tu área | nombre, descripción, documentos que mandan (solo los que existen), rutas de la app y dónde vive el código | `src/lib/mando/areas.ts` + `suenos_areas.AREAS_EXTRA`/`RAICES`; se deduce de la tarea si nombra una ruta |

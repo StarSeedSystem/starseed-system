@@ -38,7 +38,7 @@ export function BotonFondoAudiomorphic({
 
   const llevar = () => {
     let capas = normalizeLayers(config.background?.layers);
-    // Audiomorphic NUNCA arranca solo (CLAUDE.md · background-layers): si la
+    // Audiomorphic NUNCA arranca solo (metagenesis.md · background-layers): si la
     // capa no está encendida, se enciende aquí; el fondo base no se toca.
     if (!audiomorphicLayer(capas)) capas = setAudiomorphicEnabled(capas, true);
     const capa = audiomorphicLayer(capas);

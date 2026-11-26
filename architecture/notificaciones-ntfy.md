@@ -18,7 +18,7 @@ pestaña del navegador**: si el usuario no tiene el OS abierto, no se entera de 
 autohospedable) que entrega avisos aunque el navegador esté cerrado (móvil, escritorio con la app de
 ntfy, u otra pestaña). No sustituye el sistema in-app: se **espeja** hacia él (`notifyFromApp()`), así
 que todo mensaje de ntfy que llega también aparece en `/notifications` si el usuario lo permite. Encaja
-con las invariantes del proyecto (CLAUDE.md §6): Código Abierto absoluto, Identidad Soberana (el
+con las invariantes del proyecto (metagenesis.md §6): Código Abierto absoluto, Identidad Soberana (el
 usuario decide servidor y token), Privacidad ↔ Transparencia dual.
 
 ## 1. Qué es ntfy (hechos verificados)
@@ -149,14 +149,14 @@ ola, que solo entrega el cliente + el panel):
 
 - **`ntfy.sh` público cachea los mensajes en texto plano en su servidor** (12h por defecto) y sus
   logs incluyen tópico + IP (lo reconoce el propio FAQ oficial). Choca con "Privacidad ↔ Transparencia
-  dual" (CLAUDE.md §6) y con que la Cuenta es el "ancla legal soberana" del usuario. **No debe ser el
+  dual" (metagenesis.md §6) y con que la Cuenta es el "ancla legal soberana" del usuario. **No debe ser el
   canal por defecto para nada sensible** (alertas de seguridad de cuenta, contenido de mensajes
   privados, votos, ubicación…) — ver §8.
 - Sirve bien para desarrollo/staging o avisos no sensibles ("tu build ha terminado") mientras no haya
   infraestructura propia lista — que es exactamente por qué `NtfySettings.server` por defecto es
   `https://ntfy.sh` y por qué `enabled` por defecto es **`false`** (opt-in explícito).
 - **Self-host recomendado** (encaja con Cloud Run, ya usado como alternativa soberana del proyecto —
-  CLAUDE.md §2 — o con un nodo casero/CasaOS):
+  metagenesis.md §2 — o con un nodo casero/CasaOS):
   ```yaml
   # docker-compose.yml — instancia privada mínima
   services:

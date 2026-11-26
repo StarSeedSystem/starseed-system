@@ -62,7 +62,7 @@ describe("debeOmitirArchivo", () => {
 
     it("deja pasar archivos normales de memoria", () => {
         expect(debeOmitirArchivo("state.md")).toBe(false);
-        expect(debeOmitirArchivo("CLAUDE.md")).toBe(false);
+        expect(debeOmitirArchivo("metagenesis.md")).toBe(false);
         expect(debeOmitirArchivo("gobernador.json")).toBe(false);
         expect(debeOmitirArchivo("salud-proveedores.json")).toBe(false);
     });
@@ -280,7 +280,7 @@ describe("etiquetasDe", () => {
 
 describe("capas: agrupar / construir / contar / recuerdos por tarea", () => {
     const archivos: ArchivoMemoria[] = [
-        archivo({ ruta: "CLAUDE.md", capa: "nucleo", titulo: "CLAUDE" }),
+        archivo({ ruta: "metagenesis.md", capa: "nucleo", titulo: "CLAUDE" }),
         archivo({ ruta: "memory/state.md", capa: "proyecto", titulo: "Estado", vinculos: ["p318Jb"] }),
         archivo({ ruta: "memory/glossary.md", capa: "proyecto", titulo: "Glosario" }),
     ];

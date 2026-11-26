@@ -14,7 +14,7 @@
  *
  * Módulo PURO: sin React, sin `node:*`, sin red ni disco. SSR-safe.
  *
- * Las invariantes derivan de CLAUDE.md §6 (identidad soberana,
+ * Las invariantes derivan de metagenesis.md §6 (identidad soberana,
  * descentralización, singularidad del contenido, privacidad ↔ transparencia,
  * justicia restaurativa) y de la regla de datos honestos del 2026-07-01.
  * No se inventan aquí: si falta alguna, se anota como `// candidata:` y la

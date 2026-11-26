@@ -8,7 +8,7 @@
  * cuenta soberana DEL OS — Supabase **`nxstilnyidvkqeosofuh`**, tabla
  * `user_settings`, jsonb `prefs`. ⚠️ Ref corregida el 2026-07-12: NO es
  * `dzkjapinnewkxzjltadv` (ese es el proyecto de Nexus/Café) y las cuentas del OS
- * NO se comparten con ellos (CLAUDE.md §2). Sigue EXACTAMENTE el patrón de
+ * NO se comparten con ellos (metagenesis.md §2). Sigue EXACTAMENTE el patrón de
  * `src/lib/library-sync.ts`:
  *   · LOCAL ES LA VERDAD (localStorage manda sin conexión).
  *   · MERGE NO DESTRUCTIVO de `prefs`: se lee y se mezclan SOLO nuestras claves.

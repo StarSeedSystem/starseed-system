@@ -62,7 +62,7 @@ El interruptor «Mantener encendida» instala el launchd `com.starseed.despierto
   hay un demonio vigilando al vigilante); **`RunAtLoad: true`** para que sobreviva a un
   reinicio de sesión sin que Alex tenga que volver a tocar el interruptor.
 - **`ProcessType: Interactive`**, igual que el resto de demonios interactivos de Genesis (ver
-  CLAUDE.md §«Modo ligero, oído residente y BitNet estable»): `Background` hace que macOS
+  metagenesis.md §«Modo ligero, oído residente y BitNet estable»): `Background` hace que macOS
   ahogue CPU/I/O a procesos que en realidad importan que respondan rápido.
 
 Activar/desactivar hace `launchctl load -w`/`unload -w` (ignorando el error si ya estaba en el

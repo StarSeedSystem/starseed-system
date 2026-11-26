@@ -11,7 +11,7 @@
  * y Compartir a lo público.
  *
  * Estética: shadcn + Crystal Liquid Glass (Card líquida, botones redondeados,
- * transiciones suaves, iconos Lucide — nunca emojis como iconos, CLAUDE.md §8).
+ * transiciones suaves, iconos Lucide — nunca emojis como iconos, metagenesis.md §8).
  *
  * Solo LEE el manifiesto de capacidades (SKILL_CAPABILITIES) de skills.ts; no
  * lo modifica. Toda la persistencia va por el store de agentes (localStorage +

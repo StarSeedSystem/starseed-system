@@ -21,7 +21,7 @@
  * "restaurar-si-vacío" en `user_settings.prefs.dashboards`. ESTE es la capa de
  * sincronización viva multi-dispositivo sobre la tabla dedicada `dashboard_state`.
  *
- * Principios (alineados con CLAUDE.md · Identidad Soberana, tolerancia a fallos):
+ * Principios (alineados con metagenesis.md · Identidad Soberana, tolerancia a fallos):
  *  - ADITIVO: nunca quita la ruta de localStorage; Supabase es una capa añadida.
  *  - DEFENSIVO: sin sesión / sin tabla / red caída → no rompe (try/catch, nunca lanza).
  *  - SSR-safe: en el servidor (sin window/localStorage) todo es no-op.

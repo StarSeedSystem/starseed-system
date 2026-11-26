@@ -787,7 +787,7 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     en la carpeta `cwd`. (ok, detalle)."""
     # Con TS, primero el A1 (TRA1012A). (2026-10-13) Aquí ponía `traer_nube.archivos_ts` y
     # `from . import comprobar_en_a1` DENTRO de este mismo módulo, que corre como guion: NameError
-    # en cada tarea con TS y traer_nube caído otra vez (§15 de CLAUDE.md). El A1 es un extra: si
+    # en cada tarea con TS y traer_nube caído otra vez (§15 de metagenesis.md). El A1 es un extra: si
     # su comprobación falla por lo que sea, se comprueba aquí.
     # (2026-10-13) Al A1 se le manda la carpeta `cwd` (HEAD ya cherry-pickeado): lo empaqueta
     # sobre el main de la Mac que el A1 ya tiene y lo comprueba en un clon aparte.

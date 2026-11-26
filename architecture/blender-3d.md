@@ -12,7 +12,7 @@
 > §11 y `servicios/taller-3d/README.md` (el taller 3D ya llama a Blender sin ventana para remallar y convertir),
 > `architecture/starseed-xr.md` §0 y `architecture/repos-3d-oido-agentes-1023.md` §3.
 
-## 0 · Reglas que mandan (de `CLAUDE.md`; no se negocian)
+## 0 · Reglas que mandan (de `metagenesis.md`; no se negocian)
 
 1. **Blender es un MEDIO, nunca una dependencia.** Todo lo 3D del OS tiene que seguir funcionando sin Blender (three.js
    en el navegador). Blender suma: edición completa, render de calidad y lotes en cola.
@@ -23,10 +23,10 @@
    persona, de una IA ni de un complemento sin revisión (`architecture/protomolecula.md` §8.2: la IA PROPONE, la persona
    acepta con la mano).
 4. **Honestidad:** lo que aún no corre se escribe «próximamente: <motivo>». Una neurona sin Blender no finge renderizar.
-5. **Nada de `node:*` en código de cliente** (`CLAUDE.md`, trampa 11): lo puro va en `src/lib/blender3d/trabajo.ts`; la
+5. **Nada de `node:*` en código de cliente** (`metagenesis.md`, trampa 11): lo puro va en `src/lib/blender3d/trabajo.ts`; la
    lectura de disco y los procesos, en un archivo solo de servidor.
 6. **Tareas del enjambre ≤ 3 archivos y ≤ 120 líneas por archivo.** Claves solo por NOMBRE de variable; nunca en el guion.
-7. **Toda repo o modelo que Alex trae entra en la Biblioteca con comprobación de versión** (`CLAUDE.md`, economía). La ficha
+7. **Toda repo o modelo que Alex trae entra en la Biblioteca con comprobación de versión** (`metagenesis.md`, economía). La ficha
    `repo-blender` se añade en este mismo commit (`src/lib/library/repos-os.ts`), «próximamente» hasta que corra (§9).
 
 ## 1 · Lo averiguado (2026-10-25, con enlaces)
@@ -52,7 +52,7 @@ ver §1.3); el vocabulario v1 solo usa operaciones que existen en 4.0 y en 5.2 y
 
 - Blender es **GPL-3.0-or-later**. StarSeed OS es **AGPL-3.0-or-later** (`LICENSE`, `package.json`). La GPLv3 permite combinar con
   la AGPLv3 (cláusula 13), así que no hay incompatibilidad; aun así **no se enlaza**: pesa 1,2 GB instalado (aquí) y 346 MB de
-  descarga, Vercel tiene tope de 250 MB por función (`CLAUDE.md`) y un proceso aparte es la forma más simple de no mezclar código.
+  descarga, Vercel tiene tope de 250 MB por función (`metagenesis.md`) y un proceso aparte es la forma más simple de no mezclar código.
 - Lo que la persona crea es suya: «What you create with Blender is your sole property» ([licencia](https://www.blender.org/about/license/)).
   La API de Python es parte de Blender: un guion que se **publique** debe ser GPL-compatible. Los nuestros son AGPL (compatible) y
   no se redistribuyen con Blender.

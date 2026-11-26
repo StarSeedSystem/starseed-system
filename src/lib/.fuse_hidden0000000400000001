@@ -9,7 +9,7 @@
  * (o si se borró el almacenamiento local). NO es la fuente de verdad ni altera la
  * lógica de siembra de `dashboard-layout.tsx`: solo lee/escribe localStorage.
  *
- * Principios (alineados con CLAUDE.md · Identidad Soberana, tolerancia a fallos):
+ * Principios (alineados con metagenesis.md · Identidad Soberana, tolerancia a fallos):
  *  - LOCAL ES LA VERDAD: localStorage manda. La nube es red de seguridad.
  *  - RESTAURACIÓN SOLO SI VACÍO: si NO hay tableros locales pero SÍ respaldo,
  *    restaura a localStorage y avisa (evento + reload suave). Si hay locales,

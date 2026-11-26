@@ -198,7 +198,7 @@ diciendo la calidad medida.
 ## 5. Reglas duras (no romper)
 
 1. **Solo `escena-3d.tsx` importa three/R3F** y se carga perezosa. Nada de WebGL en el paquete común ni
-   en el layout raíz (ver CLAUDE.md §«Publicar»). Ningún `node:*` en estos archivos ni en
+   en el layout raíz (ver metagenesis.md §«Publicar»). Ningún `node:*` en estos archivos ni en
    `src/lib/senales/` (el modelo lo importan componentes de cliente).
 2. **Una sola fuente de constantes** (ángulos, colores, sectores, escalas): `mapa-3d.ts` y `escalas.ts`;
    el plano, el mini radar y la escena las importan. No las dupliques.
@@ -262,7 +262,7 @@ src/components/dashboard/widgets/_social-d/__tests__/radar-internet-widget.test.
 
 - El encargo «actualizaciones por capas y niveles Genesis» (`architecture/actualizaciones-por-capas-y-niveles.md`)
   no se ejecutó aquí: el encargo de Alex fue este mapa.
-- No se tocó `memory/state.md` ni `CLAUDE.md` (otros agentes trabajan en el mismo árbol): la bitácora la
+- No se tocó `memory/state.md` ni `metagenesis.md` (otros agentes trabajan en el mismo árbol): la bitácora la
   anota el director/orquestador con el resumen de la ola.
 - Sin migraciones ni dependencias nuevas (three, @react-three/fiber, drei y lucide ya estaban).
 - **Historia**: la base del mapa (`mapa-3d.ts`, escena, lista, radar plano) la escribió el agente de

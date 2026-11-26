@@ -930,7 +930,7 @@ export async function updateMediationCase(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Documentos constitucionales (referencia estática — CLAUDE.md §10)
+// Documentos constitucionales (referencia estática — metagenesis.md §10)
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface ConstitutionalDoc {

@@ -40,7 +40,7 @@
   - Manifiesto Fundacional
   - Codex StarSeed (Arquitectura social comunitaria)
 - Creado sistema de memoria persistente:
-  - `CLAUDE.md` (raíz) — memoria de trabajo, índice maestro
+  - `metagenesis.md` (raíz) — memoria de trabajo, índice maestro
   - `memory/principles.md` — desarrollo extendido de los principios con implicaciones técnicas
   - `memory/roadmap.md` — roadmap técnico de 3 fases (Semilla → Fruto → Cosecha)
   - `memory/architecture.md` — decisiones arquitectónicas
@@ -84,7 +84,7 @@
   - Tests (no hay testing setup todavía).
   - CI/CD (falta).
   - Git (la carpeta no está versionada).
-  - Documentación canónica (existía dispersa, ahora consolidada en `CLAUDE.md` + `memory/`).
+  - Documentación canónica (existía dispersa, ahora consolidada en `metagenesis.md` + `memory/`).
 - El sistema de **Singularidad del Contenido (Lienzo Universal)** es un diferenciador técnico fuerte vs. redes sociales tradicionales. El schema actual ya lo soporta con `Post.references[]`, pero falta implementar la lógica de propagación de cambios.
 - Las **Insignias verificables** son la clave de la Meritocracia del Entendimiento. Implementarlas bien es prioridad en Fase Semilla.
 - **Nota cultural:** los documentos fundacionales son extremadamente ricos y poéticos. La traducción a código debe mantener este espíritu: no es solo software, es la encarnación digital de una constitución civilizatoria.
@@ -2697,7 +2697,7 @@ Migración aplicada (`[]`). Comprobado: 15 columnas de `os_versions`, RLS **ON**
 
 `acl_ids_allow()` confirmada en vivo en las dos direcciones: grant a la CUENTA A → `true` para la sesión A; grant al PERFIL A2 → `true` para la sesión A; grant a un perfil de C → `false`. Datos de prueba y usuarios QA **borrados** al terminar (0 filas residuales).
 
-**Nota conceptual importante:** en el OS la sesión (`auth.uid()`) **ES la Cuenta**; los perfiles son facetas suyas (CLAUDE.md §6). Por eso «que lo vea mi segundo perfil» se cumple nombrando a la CUENTA en el grant — y la migración `20260712100100` (`acl_ids_allow`) además resuelve cuenta↔perfil en **ambas** direcciones, de modo que un grant a un perfil concreto también vale.
+**Nota conceptual importante:** en el OS la sesión (`auth.uid()`) **ES la Cuenta**; los perfiles son facetas suyas (metagenesis.md §6). Por eso «que lo vea mi segundo perfil» se cumple nombrando a la CUENTA en el grant — y la migración `20260712100100` (`acl_ids_allow`) además resuelve cuenta↔perfil en **ambas** direcciones, de modo que un grant a un perfil concreto también vale.
 
 ### B · Dock Trinity — CAUSA RAÍZ del «en tablet no se puede deslizar» (**archivo:línea**)
 
@@ -3014,7 +3014,7 @@ Y Framer Motion **deja `filter: blur(0px)` FIJO** en el estilo inline al acabar 
 - **UI honesta**: bloque «Aurora y Astraura» en `RealtimeSyncPanel` (/cuenta) con estado real; el botón ahora hace `syncNow()` = **pull + push** (antes solo empujaba). `setup-astraura.tsx` repinta el reparto por neurona/cerebro al llegar un cambio remoto.
 
 ### Decisiones tomadas
-- **Aurora/Astraura es de ÁMBITO CUENTA, no de perfil.** Lo pidió el usuario y encaja con el Exocórtex (CLAUDE.md §3): la IA personal pertenece a la **Persona (Cuenta)**, no a una de sus facetas públicas (Perfiles). Único override: la sección `aurora` de `sync-profiles-config.ts` permite excluir un **tipo de dispositivo**.
+- **Aurora/Astraura es de ÁMBITO CUENTA, no de perfil.** Lo pidió el usuario y encaja con el Exocórtex (metagenesis.md §3): la IA personal pertenece a la **Persona (Cuenta)**, no a una de sus facetas públicas (Perfiles). Único override: la sección `aurora` de `sync-profiles-config.ts` permite excluir un **tipo de dispositivo**.
 - **`starseed.aurora.chats.v1` NO se sincroniza a propósito**: su `AuroraChatProviderConfig` guarda `apiKey` en claro por chat. Sincronizarlo sería filtrar claves. (El `chatlog` sí viaja.)
 - **No se tocó la BD.** `REPLICA IDENTITY DEFAULT` de `user_settings` es suficiente (solo leemos `payload.new`, y `user_id` es la PK): verificado E2E.
 
@@ -3456,7 +3456,7 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 ### Verificación
 - `tsc --noEmit`: **0 errores** (antes 24). `next build`: en verificación al cierre de esta entrada (ignoreBuildErrors sigue true, pero ya no tapa nada). Tests codec 15/15. Multi-agente: 7 agentes de investigación/mapeo (docs oficiales Meshtastic + firmware real + mapeo del repo) + verificación cruzada.
 
-**Pendiente / siguiente ola:** aplicar migración realtime pendiente (aviso previo de CLAUDE.md); probar con radio LoRa FÍSICO (todo lo demás está probado con simulador + tests); v2 mesh: intercambio de topologías entre neuronas remotas vía Supabase (os_spaces), reglas por clase de tráfico en UI, y migrar el reproductor troceado al mixer; rotar service_role + DashScope (arrastrado).
+**Pendiente / siguiente ola:** aplicar migración realtime pendiente (aviso previo de metagenesis.md); probar con radio LoRa FÍSICO (todo lo demás está probado con simulador + tests); v2 mesh: intercambio de topologías entre neuronas remotas vía Supabase (os_spaces), reglas por clase de tráfico en UI, y migrar el reproductor troceado al mixer; rotar service_role + DashScope (arrastrado).
 
 ---
 
@@ -3604,7 +3604,7 @@ persistidas, con la app como origen) y **ventanas emergentes** (toasts + popups 
 - Neurona: `NeuronCapabilities.astraura158` (sonda en `detectCapabilities`, publicada en `neuron_devices`), `NeuronSettings.astraura158{endpoint,enabled}`.
 - UI: `PrimaryChoiceEditor` (tarjeta en la pestaña LLM de la ventana A149 — «Todas»=neurona, personalidad=personalidad; en `AgentConfigPanel` por agente), panel `/agent?tab=astraura-158` (`Astraura158Panel`: estado local/nube honesto, endpoint, primario cuenta/neurona, personalidades con correlación OS→1.58, agentes, habilidades, cerebros, memoria mem0, instalación, últimas rutas), paleta de comandos `action:astraura-158`, app `astraura-158` en catálogo y Biblioteca (`app-astraura-158`, icono `Binary`). Sin migración de dock (pestaña ya registrada).
 - Backend 1.58 (repo `astraura`): `backend/app/api/starseed_bridge.py` (`/api/starseed/{health,manifest,chat}`) registrado en `main.py`; `bitnet_engine.py` honra `ASTRAURA_OLLAMA_URL`/`ASTRAURA_OLLAMA_MODEL` y reporta el modelo real en `active_model`.
-- Docs: `architecture/astraura-inteligencia.md` §23, `src/ai/providers/README.md`, `CLAUDE.md` §2/§10, tests `primary-system.test.ts` + `astraura-158.test.ts`.
+- Docs: `architecture/astraura-inteligencia.md` §23, `src/ai/providers/README.md`, `metagenesis.md` §2/§10, tests `primary-system.test.ts` + `astraura-158.test.ts`.
 
 ### Decisiones tomadas
 - «Primario» ≠ «exclusivo»: Aurora siempre responde; el primario va primero y los secundarios siguen salvo `exclusivo:true`.
@@ -3725,7 +3725,7 @@ verificación en vivo: `https://starseed-os.vercel.app/api/ai/astraura-158/api/s
 - **Paridad**: 4 pestañas nuevas (`boveda`, `workflows`, `privacidad`, `instalador`) y ampliación de
   `memoria`, `almacenamiento`, `proyectos`, `telemetria` y `configuracion`. Destaca la de privacidad, que
   es el primer sitio del OS donde se ven y se conceden los **permisos reales del navegador**.
-- Registro (CLAUDE.md §11): dock (`imaginacion`, con `DOCK_DEFAULTS_VERSION` 14 → 15 para que llegue a
+- Registro (metagenesis.md §11): dock (`imaginacion`, con `DOCK_DEFAULTS_VERSION` 14 → 15 para que llegue a
   cuentas ya existentes), `app-catalog`, `packages.ts` y `funciones-index` reescrito.
 - SOP: `architecture/astraura-158-ola6-menu-imaginacion-orbe.md`.
 - **Pendiente**: los endpoints nuevos (`/api/vault/*`, `/api/workflows/save`, `/api/projects/*`,
@@ -4021,7 +4021,7 @@ existían en Supabase (`neuron_devices` con heartbeats frescos, faros recientes 
   `server-relay.ts`: los faros llevan `neuronId`/`syncId` del emisor.
 - `src/lib/neurons/neurons.ts`: `NeuronCapabilities.meshDeviceId` (casa neurona↔faro/topología);
   heartbeat lento (3 min) en pestaña oculta en vez de dejar de latir del todo.
-- SOP: `architecture/malla-neuronas-autovinculo.md`. `CLAUDE.md` §11 actualizado.
+- SOP: `architecture/malla-neuronas-autovinculo.md`. `metagenesis.md` §11 actualizado.
 
 ### Verificado
 - `tsc --noEmit -p .` limpio (0 errores).
@@ -4327,7 +4327,7 @@ consentimiento explícito de ambos lados y un canal P2P directo y cifrado.
 - TODO añadido en `src/lib/storage/route-memory.ts` (rama `gdrive` del bot externo, sin
   autenticar `account_id`): queda como fallback legado, no se extiende.
 - SOP: sección nueva «Ola 374» en `architecture/memoria-cerebros-sync.md`. Línea nueva en
-  `CLAUDE.md` §11.
+  `metagenesis.md` §11.
 
 ### Decisiones tomadas
 - Cero variables de entorno nuevas: la clave de cifrado se deriva de
@@ -4475,7 +4475,7 @@ de introducción de 24 pasos.
 **Resumen ejecutivo:** Alex: «los directores y agentes dejaron de funcionar cuando terminó tu crédito». Lo que murió
 fueron los agentes de Claude (límite de sesión a las 01:57 UTC); el enjambre siguió. Ahora lo que Claude reparte se anota
 antes en `olas/carril-claude/registro.json` y la autocuración lo convierte en cola de MetaGenesis si Claude calla 45 min
-o su límite se agota. Trampa 23 de CLAUDE.md y §21 de `memory/orquestacion-economica.md`.
+o su límite se agota. Trampa 23 de metagenesis.md y §21 de `memory/orquestacion-economica.md`.
 
 ## 2026-10-26 — Ola 1026P · la ventana de la Protomolécula: pedir sin salir del contexto y gobierno por entidad
 **Sesión por:** Claude (carril Opus; tres agentes escribieron P1 ventana, P2 gobierno y P3 petición; Claude integró)
@@ -4502,7 +4502,7 @@ SOP: `architecture/protomolecula-ventana.md`, `architecture/protomolecula-gobier
 
 ## 2026-10-26 — CAP1026: más agentes en la nube, contados por los escritores vivos
 **Sesión por:** Claude (Cowork, Opus 5.5) supervisando; el enjambre siguió escribiendo.
-**Resumen ejecutivo:** «Hay muy pocos agentes»: seis arreglos de capacidad en los directores (A-F, CLAUDE.md §23).
+**Resumen ejecutivo:** «Hay muy pocos agentes»: seis arreglos de capacidad en los directores (A-F, metagenesis.md §23).
 Genesis pasó de 5 agentes a 31 (28 en GitHub, 3 en la Mac); el límite real es ahora el de los escritores con cupo.
 
 ### Hecho

@@ -3,7 +3,7 @@
  * StarSeed OS — Ola 307 · AGENTES DE GRUPO (públicos y privados)
  * ---------------------------------------------------------------------------
  * «La IA también debe poder crear agentes privados y públicos para grupos de
- * cualquier tipo» (rumbo fijado el 2026-09-09, CLAUDE.md §«El OS universal,
+ * cualquier tipo» (rumbo fijado el 2026-09-09, metagenesis.md §«El OS universal,
  * libre y seguro»). Este módulo EXTIENDE `./model.ts` (`Agent`), no lo
  * reemplaza: un AgenteGrupo es un Agent con dueño colectivo, con los roles que
  * pueden invocarlo y con unos límites que el grupo concede a mano.
@@ -21,7 +21,7 @@
  * una comodidad, para el grupo entero es una factura —o una fuga—. Salir a
  * internet y escribir se CONCEDEN, no se heredan.
  *
- * Invariantes de CLAUDE.md §6: identidad soberana (`author` firma el origen y
+ * Invariantes de metagenesis.md §6: identidad soberana (`author` firma el origen y
  * `creadoPor` firma quién lo llevó al grupo), privacidad ↔ transparencia (la
  * memoria del agente vive en el grupo, nunca en la persona) y singularidad del
  * contenido (el agente de grupo es una Entidad propia, con `parentId` hacia el

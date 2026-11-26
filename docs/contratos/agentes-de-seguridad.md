@@ -1,7 +1,7 @@
 # Contrato · Agentes de seguridad ligeros y autoaprendibles de Astraura
 
 > **Tarea:** SEG1119C · **Ola:** SEG1119 · **Fecha:** 2026-11-19 · **Estado:** contrato y cola; esta tarea no escribe código de producto.
-> **Base:** `starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md` (19-11), `CLAUDE.md` §8, §11 y 💠,
+> **Base:** `starseed_memory_root/fundamentos/resiliencia-seguridad-y-respaldos.md` (19-11), `metagenesis.md` §8, §11 y 💠,
 > `architecture/astraura-158-sistema-primario.md`, `memory/orquestacion-economica.md` y `memory/diseno/{identidades,armonia,referencias}.md`.
 > **Nota honesta:** el fundamento de resiliencia no está en esta copia (la memoria viva no se versiona); sus reglas llegan por el encargo y por `AGENTS.md`. No se inventa lo que ese documento dice.
 

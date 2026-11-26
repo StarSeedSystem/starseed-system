@@ -7,7 +7,7 @@
 // que has dado (por tema, con caducidad obligatoria) y las voces que otras personas
 // te confían. Revocar es real (`revokeDelegation`): tu voz vuelve a ti al instante, y
 // votar directo en una propuesta también la recupera para esa votación.
-// Invariante (CLAUDE.md §3): voto delegado líquido, revocable, nunca alienado.
+// Invariante (metagenesis.md §3): voto delegado líquido, revocable, nunca alienado.
 //
 //   micro      → el grafo como glifo: tú en el centro y tus delegaciones alrededor.
 //   s          → el grafo + «delegas N temas · te confían M voces».

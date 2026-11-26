@@ -23,10 +23,10 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /** Fuentes que mira cada ámbito de Astra (rutas relativas al repositorio). */
 export const FUENTES_POR_AMBITO: Record<string, string[]> = {
-  // Capacidades que el OS promete en CLAUDE.md y que aún no existen: la propia
+  // Capacidades que el OS promete en metagenesis.md y que aún no existen: la propia
   // constitución, las adendas fundacionales y la bitácora de cambios.
   funciones: [
-    "CLAUDE.md",
+    "metagenesis.md",
     "memory/state.md",
     "memory/roadmap.md",
     "memory/architecture.md",
@@ -44,14 +44,14 @@ export const FUENTES_POR_AMBITO: Record<string, string[]> = {
   // compartidos del módulo Genesis.
   arquitectura: [
     "memory/architecture.md",
-    "CLAUDE.md",
+    "metagenesis.md",
     "src/lib/mando/astra.ts",
     "src/lib/mando/ramificacion.ts",
   ],
   // Navegación por teclado, foco, contraste, lectores de pantalla: el propio
-  // CLAUDE.md y los componentes de layout que concentran la accesibilidad.
+  // metagenesis.md y los componentes de layout que concentran la accesibilidad.
   accesibilidad: [
-    "CLAUDE.md",
+    "metagenesis.md",
     "src/components/layout/omni-dock.tsx",
     "src/components/layout/header.tsx",
   ],
@@ -65,7 +65,7 @@ export const FUENTES_POR_AMBITO: Record<string, string[]> = {
   // Claves fuera del cliente y del repo, rutas /api/mando/* solo locales:
   // constitución, el módulo de claves del servidor y el SOP económico.
   "seguridad-y-claves": [
-    "CLAUDE.md",
+    "metagenesis.md",
     "memory/orquestacion-economica.md",
     "src/lib/mando/claves-servidor.ts",
     "src/lib/mando/guardian.ts",
@@ -80,14 +80,14 @@ export const FUENTES_POR_AMBITO: Record<string, string[]> = {
   // Feed, publicación, singularidad del contenido (Entidad Única): constitución
   // (sección 6) + las rutas de publicación.
   "contenido-y-canales": [
-    "CLAUDE.md",
+    "metagenesis.md",
     "src/lib/mando/publicaciones.ts",
     "src/lib/canales/canales.ts",
   ],
-  // Regla dorada del CLAUDE.md §11: una ruta que no está en el dock ni en el
+  // Regla dorada del metagenesis.md §11: una ruta que no está en el dock ni en el
   // catálogo no existe para el usuario.
   descubribilidad: [
-    "CLAUDE.md",
+    "metagenesis.md",
     "src/components/layout/dock-config.ts",
     "src/lib/dock/dock-defaults.ts",
     "src/components/dashboard/apps/app-catalog.ts",

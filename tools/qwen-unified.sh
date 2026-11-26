@@ -3,7 +3,7 @@
 # StarSeed OS — Script de Integración Unificada para Qwen Code (Agent)
 # =====================================================================
 # Este script permite invocar a Qwen Code de manera no interactiva,
-# asegurando la sincronización de la memoria universal (CLAUDE.md y memory/)
+# asegurando la sincronización de la memoria universal (metagenesis.md y memory/)
 # y delegando tareas de código y arquitectura al agente de terminal.
 
 # 1. Cargar NVM y entorno Node.js
@@ -28,13 +28,13 @@ export OPENAI_API_KEY="${OPENAI_API_KEY:-$DASHSCOPE_API_KEY}"
 SYSTEM_INSTRUCTION="Eres parte de un equipo unificado de desarrollo de IA para StarSeed OS (SOSD).
 Tu memoria y contexto provienen del sistema de memoria persistente del repositorio.
 Antes de realizar cualquier cambio o análisis, DEBES leer obligatoriamente:
-- El archivo raíz 'CLAUDE.md' (para entender la memoria de trabajo y el estado actual).
+- El archivo raíz 'metagenesis.md' (para entender la memoria de trabajo y el estado actual).
 - La bitácora en 'memory/state.md' (para ver los últimos cambios y pendientes).
 - Las decisiones arquitectónicas en 'memory/architecture.md'.
 - Los principios en 'memory/principles.md'.
 
 Al completar tu tarea de desarrollo, DEBES actualizar:
-- El estado actual en 'CLAUDE.md' (para registrar avances y nuevos pendientes).
+- El estado actual en 'metagenesis.md' (para registrar avances y nuevos pendientes).
 - Añadir una nueva entrada cronológica al final de 'memory/state.md' resumiendo detalladamente lo que hiciste, con formato estándar de la bitácora."
 
 # 4. Ejecutar Qwen Code en modo agente automatizado (YOLO)

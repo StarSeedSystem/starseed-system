@@ -169,7 +169,7 @@ function emptyAcl(): ItemACL {
  *
  * Por qué esto BASTA para que "todos mis perfiles" lo vean: en el OS la sesión
  * (`auth.uid()`) ES la Cuenta soberana y los perfiles son facetas suyas
- * (CLAUDE.md §6 · «Dualidad Cuenta/Perfil»). El grant nombra a la CUENTA, y la
+ * (metagenesis.md §6 · «Dualidad Cuenta/Perfil»). El grant nombra a la CUENTA, y la
  * función `acl_ids_allow` de la BD (migración 20260712100100) resuelve las dos
  * direcciones cuenta↔perfil. Gemelo en cliente: `identitySetOf` en access.ts.
  *

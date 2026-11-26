@@ -45,7 +45,7 @@ export const PROFILE_SCOPED_KEYS = ["starseed.desktops.v1"] as const;
  * voz, visión, permisos, reparto de Astraura, ámbito, conectores…) es de ÁMBITO
  * CUENTA, no de perfil: es la MISMA Aurora en cualquier neurona, dispositivo o
  * perfil de la cuenta. Es lo que pidió el usuario y es coherente con el modelo
- * de Exocórtex (CLAUDE.md §3 · Ciberdelia): la IA personal pertenece a la
+ * de Exocórtex (metagenesis.md §3 · Ciberdelia): la IA personal pertenece a la
  * PERSONA (la Cuenta), no a una de sus facetas públicas (los Perfiles).
  *
  * Por eso NO están en PROFILE_SCOPED_KEYS: no se gatean por perfil activo y

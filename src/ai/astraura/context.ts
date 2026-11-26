@@ -15,7 +15,7 @@
  * Se compone de piezas puras y defensivas (el router/cerebro las cablea; este
  * módulo NO llama al modelo ni muta nada):
  *   1) systemContextPrompt()  → bloque compacto para el system prompt del
- *      cerebro. Derivado EXCLUSIVAMENTE de CLAUDE.md (§2 rutas, §3 Tríada, §4
+ *      cerebro. Derivado EXCLUSIVAMENTE de metagenesis.md (§2 rutas, §3 Tríada, §4
  *      ecosistemas, §6 invariantes, §7 Trinity) + el mapa vivo de abajo.
  *   2) directLinkFor(intent)  → mapea intención/palabra clave (es/en) a una ruta
  *      del OS ("/library", "/network/politics", "/settings", "/escritorios", …).
@@ -38,7 +38,7 @@
  */
 
 /* ─────────────────────────── Secciones del OS ─────────────────────────── */
-/** Ruta → ficha completa. Derivado de CLAUDE.md §2/§4 + rutas reales del repo. */
+/** Ruta → ficha completa. Derivado de metagenesis.md §2/§4 + rutas reales del repo. */
 interface OsSection {
   path: string;
   label: string;
@@ -54,7 +54,7 @@ interface OsSection {
   agentCapable: boolean;
 }
 
-/** Secciones del StarSeed OS (rutas reales de CLAUDE.md §2 + Ajustes/Escritorios). */
+/** Secciones del StarSeed OS (rutas reales de metagenesis.md §2 + Ajustes/Escritorios). */
 export const OS_SECTIONS: OsSection[] = [
   {
     path: "/dashboard", label: "Dashboard (widgets arrastrables)",
@@ -263,7 +263,7 @@ export function describeArea(route: string): AreaDescription | null {
 
 /**
  * Bloque COMPACTO que describe el sistema para el cerebro de Aurora. Derivado
- * de CLAUDE.md + el mapa vivo de OS_SECTIONS (qué se puede hacer en cada área).
+ * de metagenesis.md + el mapa vivo de OS_SECTIONS (qué se puede hacer en cada área).
  * Honesto sobre límites (sin internet en tiempo real por defecto ni control de
  * pantalla aquí; describe estructura, capacidades y enlaces directos).
  */

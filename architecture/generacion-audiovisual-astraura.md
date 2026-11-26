@@ -26,7 +26,7 @@ de pago) va envuelto en manejo defensivo; si falla, `generateImage()` cae
 **en silencio** a Pollinations. El usuario nunca se queda sin imagen por un
 fallo de conexión a un servicio que él mismo configuró.
 
-Esto es la aplicación directa de la Tríada Ideológica del proyecto (CLAUDE.md
+Esto es la aplicación directa de la Tríada Ideológica del proyecto (metagenesis.md
 §3, Ciberdelia + Transhumanismo Comunista): la tecnología amplifica sin pedir
 peaje de entrada. Los servicios locales o de pago son **mejoras opcionales**,
 nunca un requisito para que la habilidad exista.

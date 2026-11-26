@@ -4,7 +4,7 @@
  * persona con el dedo; nada sale de la app, nada toca permisos del sistema ni los concede.
  *
  * Los módulos de llamadas se cargan a demanda (`import()`): este archivo cuelga del montaje global y
- * no debe arrastrar el motor al grafo común (CLAUDE.md, «el layout raíz no carga motores pesados»).
+ * no debe arrastrar el motor al grafo común (metagenesis.md, «el layout raíz no carga motores pesados»).
  */
 
 import type { Args } from "./niveles";

@@ -94,4 +94,4 @@ except Exception as e:
           git push
         # NOTA: El push real requiere la aprobación de Maggasukha.
         # Este workflow solo prepara el commit; el push efectivo se hace
-        # manualmente tras su validación. Ver CLAUDE.md § reglas duras.
+        # manualmente tras su validación. Ver metagenesis.md § reglas duras.

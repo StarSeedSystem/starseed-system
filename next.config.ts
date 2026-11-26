@@ -239,7 +239,7 @@ const nextConfig: NextConfig = {
       // mientras el ecosistema termina de migrar; un navegador que no entienda
       // una de las dos simplemente la ignora. URL relativa (no absoluta): el OS
       // se despliega en varios dominios (Vercel/Cloud Run/Firebase, ver
-      // CLAUDE.md §2) y ambas cabeceras resuelven la URL contra el propio
+      // metagenesis.md §2) y ambas cabeceras resuelven la URL contra el propio
       // origen de la respuesta, igual que ya hace `report-uri` más abajo.
       {
         key: 'Report-To',

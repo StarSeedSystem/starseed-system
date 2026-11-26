@@ -28,7 +28,7 @@ export interface WidgetStyleOverride {
     trinityNode?: TrinityNode;
 }
 
-/** Colores oficiales de los 4 nodos Trinity (ver CLAUDE.md §7). */
+/** Colores oficiales de los 4 nodos Trinity (ver metagenesis.md §7). */
 export const TRINITY_TINTS: Record<TrinityNode, string> = {
     zenith: "#007FFF",   // Norte — Guía IA contextual
     horizon: "#39FF14",  // Oeste — Lienzo de creación

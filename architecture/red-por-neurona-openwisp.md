@@ -28,7 +28,7 @@
   amplía la malla): infraestructura de telecomunicaciones sin depender de
   operadores, financiada y mantenida por quien la usa.
 
-**Invariantes que esta capa respeta** (CLAUDE.md §6): descentralización
+**Invariantes que esta capa respeta** (metagenesis.md §6): descentralización
 federada (cada neurona es un nodo autónomo), identidad soberana (claves/
 tokens de OpenWISP quedan en el dispositivo del usuario, nunca en un servidor
 de StarSeed), código abierto absoluto (NetJSON es un formato abierto;
@@ -315,7 +315,7 @@ en el servidor de StarSeed.
 ## 8. Modelo de datos de antenas / señales
 
 ⚠️ **Tres modelos de "antena" distintos en el repo — no confundir** (mismo
-tipo de aviso que ya existe en CLAUDE.md §11 para "conexiones"):
+tipo de aviso que ya existe en metagenesis.md §11 para "conexiones"):
 
 | Tipo | Archivo | Qué modela | Persistencia |
 |---|---|---|---|
@@ -333,7 +333,7 @@ refresque en vivo, igual que el patrón `NEURON_EVENT` de `neurons.ts`.
 
 ---
 
-## 9. Dónde encaja en la UI (regla dorada de descubribilidad, CLAUDE.md §11)
+## 9. Dónde encaja en la UI (regla dorada de descubribilidad, metagenesis.md §11)
 
 Este SOP solo entrega la capa de datos (`netjson.ts`, `neuron-network.ts`,
 el proxy). Cableado de UI pendiente; recomendación para cuando se construya:
@@ -355,7 +355,7 @@ el proxy). Cableado de UI pendiente; recomendación para cuando se construya:
 - Si en el futuro esto crece a una **ruta propia** (p.ej. `/red-router`),
   entonces SÍ aplica la regla dorada completa: registrar en `dock-config.ts`
   (con su migración one-shot), `app-catalog.ts` y opcionalmente
-  `src/lib/library/packages.ts` — ver CLAUDE.md §11. Mientras sea una pestaña
+  `src/lib/library/packages.ts` — ver metagenesis.md §11. Mientras sea una pestaña
   dentro de Señales (ya registrada en dock/launcher), no hace falta
   duplicar el registro.
 

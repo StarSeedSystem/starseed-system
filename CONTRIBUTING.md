@@ -6,7 +6,7 @@ Gracias por querer contribuir al **Sistema Operativo Social Descentralizado** de
 
 ## Antes de empezar
 
-1. **Lee [`CLAUDE.md`](CLAUDE.md)** para entender el proyecto.
+1. **Lee [`metagenesis.md`](metagenesis.md)** para entender el proyecto.
 2. **Lee [`memory/principles.md`](memory/principles.md)** para entender los valores no negociables.
 3. **Lee [`memory/roadmap.md`](memory/roadmap.md)** para ver dónde encaja tu contribución.
 

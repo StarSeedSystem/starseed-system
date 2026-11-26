@@ -7,7 +7,7 @@
 // embebe: página de comunidad, grupo, tarjeta de propuesta…). Este panel es la
 // vista GLOBAL: "¿en quién he delegado mi voz, en qué temas, y hasta cuándo?".
 //
-// Cláusulas pétreas de la Ontocracia (memory/principles.md + CLAUDE.md §3):
+// Cláusulas pétreas de la Ontocracia (memory/principles.md + metagenesis.md §3):
 //   • "Una persona, una voz": delegar transfiere tu peso a otra persona SOLO
 //     para el tema elegido — nunca inventa votos ni aliena tu voz para siempre.
 //   • Revocable en cualquier momento (un clic, con confirmación accesible).

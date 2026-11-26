@@ -73,7 +73,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             ("codex", "gpt-5-codex", "respaldo de lectura"),
         ),
         "memorias": (
-            "CLAUDE.md (fundamentos)",
+            "metagenesis.md (fundamentos)",
             "memory/orquestacion-economica.md",
             "memory/aprendizaje-olas.md",
             "registro de pruebas y plan activo",
@@ -118,7 +118,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             ("claude", "claude-sonnet-5-5", "solo si hace falta"),
         ),
         "memorias": (
-            "CLAUDE.md (fundamentos)",
+            "metagenesis.md (fundamentos)",
             "memory/orquestacion-economica.md",
             "memory/aprendizaje-olas.md",
             "registro de pruebas y estado de olas",
@@ -162,7 +162,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             ("codex", "gpt-5-codex", "respaldo de lectura"),
         ),
         "memorias": (
-            "CLAUDE.md (fundamentos)",
+            "metagenesis.md (fundamentos)",
             "identidad Trinity Liquid Crystal y design system",
             "memory/orquestacion-economica.md",
             "registro de pruebas y estado de olas",

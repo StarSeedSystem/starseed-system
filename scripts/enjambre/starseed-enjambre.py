@@ -244,7 +244,7 @@ MODELOS = [
     # (2026-10-10, CAP1010) NIM MEDIDO HOY con opencode 1.18.33 en el A1 (edición real de un
     # archivo, no un chat). Con orden corta: nemotron-3-super ESCRIBE (60 s), glm-5.3 (76 s) y
     # gpt-oss-20b (52 s); deepseek-v4.1-flash no terminó en 300 s. Con contexto de tamaño real
-    # (CLAUDE.md, ~14k tokens, leído por la herramienta): nemotron-3-super ESCRIBE (23 s) y
+    # (metagenesis.md, ~14k tokens, leído por la herramienta): nemotron-3-super ESCRIBE (23 s) y
     # glm-5.3 (56 s); gpt-oss-20b contestó en 9 s SIN editar → no entra. Por chat de 16 tokens
     # desde la Mac: nemotron 0,7 s · glm-5.3 1,2 s · kimi-k3 44,9 s (la sonda de 25 s lo da por
     # «no contesta»: saturado en NIM, no la Mac — gpt-oss-20b contesta en 0,6 s).
@@ -307,7 +307,7 @@ MODELOS = [
 ]
 
 # (2026-10-21) OpenCode Zen: modelos GRATIS del propio opencode (Alex cargó su clave con
-# `opencode auth login`). Verificados con una EDICIÓN REAL en la Mac (CLAUDE.md de 70 KB leído con
+# `opencode auth login`). Verificados con una EDICIÓN REAL en la Mac (metagenesis.md de 70 KB leído con
 # la herramienta y un archivo nuevo con el dato exacto): glm-5.3-flash-free 39 s,
 # deepseek-v4.1-flash-free 30 s, minimax-m3.1-flash-free 61 s y big-pickle 128 s. Solo los gratuitos
 # («-free» y big-pickle): los demás modelos de Zen (claude-*, gpt-*, gemini-*…) son de pago y NUNCA
@@ -6177,7 +6177,7 @@ AREAS_CONTEXTO = [
     (
         ("dock", "app-catalog", "packages", "layout"),
         "navegacion",
-        ["CLAUDE.md"],
+        ["metagenesis.md"],
         "Regla dorada §11: una ruta nueva NO es accesible hasta registrarla en dock-config, app-catalog y packages.",
     ),
     (
@@ -6541,14 +6541,14 @@ def contexto_tarea(t, raiz=None):
     raiz = raiz or ROOT
     regla_raiz = (
         "RAIZ DEL REPOSITORIO: `%s`. Es la unica carpeta que puedes leer y escribir.\n"
-        "Usa SIEMPRE rutas RELATIVAS a esa raiz (`CLAUDE.md`, `src/lib/...`), nunca rutas absolutas "
+        "Usa SIEMPRE rutas RELATIVAS a esa raiz (`metagenesis.md`, `src/lib/...`), nunca rutas absolutas "
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
     salida = (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
-        "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
+        "Lee primero metagenesis.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
         "español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios "
         "escritos en disco sin pedir confirmación.\n\n"
         # Por qué (2026-09-07, Ola 261, P6b): 3 tsc simultáneos tumbaron el contenedor

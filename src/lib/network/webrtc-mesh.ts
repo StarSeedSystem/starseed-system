@@ -20,7 +20,7 @@
  *   directa puede no establecerse. En LAN / NAT normal suele bastar STUN. El
  *   estado se reporta con honestidad ('failed' incluido) — no simulamos éxito.
  *
- * Alineado con CLAUDE.md:
+ * Alineado con metagenesis.md:
  *   - Descentralización: datos P2P directos, señalización por tu cuenta.
  *   - Defensivo / SSR-safe: sin RTCPeerConnection → degrada; nunca lanza.
  *

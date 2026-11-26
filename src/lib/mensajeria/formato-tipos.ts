@@ -6,7 +6,7 @@
  * básico) y SIEMPRE lleva también un `body` de texto plano equivalente (búsqueda, avisos,
  * clientes viejos, lectores de pantalla).
  *
- * Seguridad (núcleo intocable, CLAUDE.md «editable sí, ejecutable no»): el formato es un DATO
+ * Seguridad (núcleo intocable, metagenesis.md «editable sí, ejecutable no»): el formato es un DATO
  * declarativo con vocabulario cerrado. No hay HTML crudo, ni scripts, ni manejadores. Las
  * «ventanas de sitios web» son iframes con `sandbox`; los «programas» son apps del OS (rutas del
  * catálogo) o especificaciones `UiSpec`; nunca código de otra persona ejecutándose en tu neurona.

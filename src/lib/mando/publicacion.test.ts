@@ -10,7 +10,7 @@ describe("contarAreas", () => {
             "src/components/mando/panel-publicacion.tsx",
             "src/app/api/mando/publicacion/route.ts",
             "supabase/migrations/0001.sql",
-            "CLAUDE.md",
+            "metagenesis.md",
         ];
         expect(contarAreas(rutas)).toEqual({
             lib: 2,

@@ -21,7 +21,7 @@ import { OS_VERSION, OS_FECHA, formatearFechaBuild } from "@/lib/version/os-rele
 import { RUTA_VERSION, filasVersion } from "@/components/actualizaciones/seccion-version";
 import { leerInstalada, type Instalada } from "@/lib/actualizaciones/version-por-medio";
 
-/** URL oficial de despliegue de StarSeed OS (fuente: CLAUDE.md / config). */
+/** URL oficial de despliegue de StarSeed OS (fuente: metagenesis.md / config). */
 const OS_DOWNLOAD_URL = "https://starseed-os.vercel.app";
 
 export interface OsDownloadCardProps {

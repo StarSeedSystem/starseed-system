@@ -13,7 +13,7 @@
 //
 // Módulo PURO y SIN "use client": lo importan `packages.ts` (cliente) y la ruta
 // `/api/library/actualizaciones` (servidor). El JSON entra por importación estática,
-// igual que `config/capas-astraura.json`; NADA de `node:fs` (CLAUDE.md, trampa 11).
+// igual que `config/capas-astraura.json`; NADA de `node:fs` (metagenesis.md, trampa 11).
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { LibraryPackage } from "./packages";

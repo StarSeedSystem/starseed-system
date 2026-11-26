@@ -5,7 +5,7 @@
 // global de /network/politics (mediation.tsx: MediationPanel) pero anclado al
 // `entity_state` de la propia entidad, con su RLS por miembros/dueño.
 //
-// Invariante §6 de CLAUDE.md: «Justicia restaurativa, no punitiva». Sin castigos
+// Invariante §6 de metagenesis.md: «Justicia restaurativa, no punitiva». Sin castigos
 // ni bloqueos: procesos de mediación (Círculos de Paz) que restauran el vínculo.
 //
 // Aditivo, defensivo y local-first: si la sincronización con la red falla, se

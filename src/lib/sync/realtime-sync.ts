@@ -42,7 +42,7 @@
  *         'starseed:desktops', 'starseed:cursorfx', 'starseed:aurora-chatlog'…
  *         (ver EVENT_BY_KEY / EVENT_BY_PREFIX más abajo).
  *
- * Principios (CLAUDE.md · Identidad Soberana + Privacidad↔Transparencia):
+ * Principios (metagenesis.md · Identidad Soberana + Privacidad↔Transparencia):
  *  - Local-first: sin sesión o sin tabla, el motor no hace nada (no rompe).
  *  - Nunca lanza: todo try/catch: un fallo de red jamás debe tirar la UI.
  *  - Privacidad: solo viajan las claves/prefijos de settings-sync.ts (las

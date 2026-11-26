@@ -27,7 +27,7 @@
  * (supabase/migrations/20260805220000_group_join_approval.sql — migración
  * escrita para revisión; no aplicada por el agente).
  *
- * ÉTICA RESTAURATIVA, NO PUNITIVA (CLAUDE.md §6): rechazar SOLO borra la fila
+ * ÉTICA RESTAURATIVA, NO PUNITIVA (metagenesis.md §6): rechazar SOLO borra la fila
  * pendiente. No deja marca, ni bloqueo, ni "lista negra" — la persona puede
  * volver a solicitar el ingreso cuando quiera con un nuevo self-insert.
  *

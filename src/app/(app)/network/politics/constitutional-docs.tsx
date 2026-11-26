@@ -1,7 +1,7 @@
 "use client";
 
 // StarSeed · Área Política · Judicial — Referencia a los documentos
-// constitucionales (fuente de verdad, CLAUDE.md §10). Enlaces estáticos: no se
+// constitucionales (fuente de verdad, metagenesis.md §10). Enlaces estáticos: no se
 // hace fetch de contenido (fuera de alcance / sin acceso a Drive aquí).
 
 import { GlassCard } from "@/components/ui/glass-card";
@@ -17,7 +17,7 @@ export function ConstitutionalDocsPanel() {
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
         Toda consulta de constitucionalidad y toda revisión judicial se resuelve conforme a estos documentos —
-        autoridad máxima del sistema (CLAUDE.md §10).
+        autoridad máxima del sistema (metagenesis.md §10).
       </p>
       <div className="space-y-1.5">
         {CONSTITUTIONAL_DOCUMENTS.map((doc) => (

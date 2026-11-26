@@ -929,7 +929,7 @@ export async function detachInheritance(ref: ResourceRef, opts: EnsureSpaceOptio
 /**
  * «Volver a heredar»: borra la ACL propia del nodo — vuelve a regirse por la de
  * su padre. No es punitivo: no se borra nada del contenido, solo la excepción
- * de permisos (CLAUDE.md §6).
+ * de permisos (metagenesis.md §6).
  */
 export async function restoreInheritance(ref: ResourceRef): Promise<EffectiveAccess> {
     if (isLibraryResource(ref) && ref.libraryRef) {

@@ -156,7 +156,7 @@ describe("tanda 1025 · en la Biblioteca y preinstaladas", () => {
     });
 });
 
-describe("tanda 1025 · el módulo es puro (CLAUDE.md, trampa 11)", () => {
+describe("tanda 1025 · el módulo es puro (metagenesis.md, trampa 11)", () => {
     it("no usa node:*, ni «use client», ni lee el disco: entra al paquete del navegador y al servidor", () => {
         const fuente = readFileSync(path.join(RAIZ, "src/lib/library/repos-1025.ts"), "utf8");
         // La cabecera comenta la regla; lo que no puede haber es un import o una directiva reales.

@@ -57,7 +57,7 @@ RUTAS_HUMO = ("/", "/login", "/version.json")
 #: corre desde la CREACIÓN del run en GitHub, y esperar a que el run aparezca tiene su propia cota y su propio mensaje.
 CI_TOPE_S = 50 * 60
 CI_APARICION_S = int(os.environ.get("STARSEED_PUBLICAR_CI_APARICION_S", str(15 * 60)))
-VERCEL_TOPE_S = 45 * 60  # Vercel ha llegado a tardar 27 min en compilar (CLAUDE.md, «Publicar»)
+VERCEL_TOPE_S = 45 * 60  # Vercel ha llegado a tardar 27 min en compilar (metagenesis.md, «Publicar»)
 VERCEL_SIN_ESTADO_S = 10 * 60  # sin estado de GitHub, tras 10 min se consulta /version.json
 VENTANA_S = 20 * 60
 MAX_DIA = 24

@@ -269,11 +269,11 @@ def _arquitectura_titulos(raiz: str, leer: Optional[Callable] = None) -> list[di
 
 
 def _memoria_archivos_clave(raiz: str, leer: Optional[Callable] = None) -> dict:
-    """Contenido de memory/workflow-actual.md, CLAUDE.md, AGENTS.md."""
+    """Contenido de memory/workflow-actual.md, metagenesis.md, AGENTS.md."""
     leer = leer or _leer_archivo
     archivos = {
         "workflow_actual": "memory/workflow-actual.md",
-        "claude": "CLAUDE.md",
+        "claude": "metagenesis.md",
         "agents": "AGENTS.md",
     }
     fuera = {}

@@ -64,7 +64,7 @@ tenía la Mac. Dejó una tarea programada que necesitaba la Mac y un clic de Ale
 
 ## 4. Lo que aprenden los chats (para que cualquier chat sepa hacerlo)
 
-- **En el repo:** una línea en `CLAUDE.md` y `AGENTS.md` (§ «Encargar trabajo a MetaGenesis sin la Mac») que apunta a
+- **En el repo:** una línea en `metagenesis.md` y `AGENTS.md` (§ «Encargar trabajo a MetaGenesis sin la Mac») que apunta a
   este contrato.
 - **En el proyecto de Claude «Producción audiovisual StarSeed»:** su memoria y el doc
   `claude/encargos-chats-metagenesis.md`.
@@ -109,13 +109,13 @@ Se generó junto a este contrato. Tareas:
   "titulo": "Encargos de los chats · cableado en el líder y guía para los chats",
   "archivos": [
    "scripts/puente/director_autodesarrollo.py",
-   "CLAUDE.md",
+   "metagenesis.md",
    "AGENTS.md"
   ],
   "depende": [
    "ENC1111B"
   ],
-  "prompt": "Lee architecture/encargos-chats-metagenesis.md entero. (1) En director_autodesarrollo.py añade _buzon_encargos(raiz, ahora) con import protegido de encargos_buzon.ciclo, como _agente_alcance, llamado como mucho cada 10 minutos cuando este nodo dirige; si falla, el director sigue. (2) En CLAUDE.md y AGENTS.md añade una sección corta «Encargar trabajo a MetaGenesis sin la Mac»: carpeta de Drive «Encargos para MetaGenesis» (id 1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF), formato del Doc (título con «(léelo, director)», línea «Destino en el repo», bloque JSON de la cola) y enlace a architecture/encargos-chats-metagenesis.md. Máximo 120 líneas tocadas por archivo; prueba de que el director sigue si el módulo falta."
+  "prompt": "Lee architecture/encargos-chats-metagenesis.md entero. (1) En director_autodesarrollo.py añade _buzon_encargos(raiz, ahora) con import protegido de encargos_buzon.ciclo, como _agente_alcance, llamado como mucho cada 10 minutos cuando este nodo dirige; si falla, el director sigue. (2) En metagenesis.md y AGENTS.md añade una sección corta «Encargar trabajo a MetaGenesis sin la Mac»: carpeta de Drive «Encargos para MetaGenesis» (id 1lZaGcZ8COkaunilTxYLj-SWuFkGTwmrF), formato del Doc (título con «(léelo, director)», línea «Destino en el repo», bloque JSON de la cola) y enlace a architecture/encargos-chats-metagenesis.md. Máximo 120 líneas tocadas por archivo; prueba de que el director sigue si el módulo falta."
  }
 ]
 ```

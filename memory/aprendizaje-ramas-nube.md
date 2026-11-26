@@ -103,7 +103,7 @@ pruebas (`RSC1006A`–`RSC1006N`) y la cadena del radar compartido regenerada (`
    arrancar el job).
 4. **«Huérfana» no es «hecha».** `reconciliar_progreso.py` marca «sustituida (huérfana)» toda
    tarea que ya no define ninguna cola de `olas/`; mover una cola a `colas-fuente/` (lo que pide
-   CLAUDE.md para no duplicar ids) la deja huérfana aunque no se hiciera. Así se perdió la mitad
+   metagenesis.md para no duplicar ids) la deja huérfana aunque no se hiciera. Así se perdió la mitad
    de la Ola 375 (radar compartido) y hay 56 tareas en ese estado (11 pendientes y 20
    bloqueadas). Revisarlas como estas ramas: propósito frente a main, regenerar lo que siga
    haciendo falta.

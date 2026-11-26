@@ -6,7 +6,7 @@
 
 | Archivo | Para qué sirve |
 |---|---|
-| [`../CLAUDE.md`](../CLAUDE.md) | **Empieza aquí.** Memoria de trabajo: índice maestro, estado actual, instrucciones operativas. |
+| [`../metagenesis.md`](../metagenesis.md) | **Empieza aquí.** Memoria de trabajo: índice maestro, estado actual, instrucciones operativas. |
 | [`principles.md`](principles.md) | Desarrollo extendido de la Tríada Ideológica con implicaciones técnicas concretas. |
 | [`roadmap.md`](roadmap.md) | Roadmap técnico de 3 fases (Semilla → Fruto → Cosecha) con hitos verificables. |
 | [`architecture.md`](architecture.md) | Decisiones arquitectónicas vivas. Modelo A.N.T. de 3 capas, stack, schema, federación. |
@@ -16,13 +16,13 @@
 ## Cómo usar esta carpeta
 
 ### Si eres un agente IA empezando una sesión nueva
-1. Lee `../CLAUDE.md` completo.
+1. Lee `../metagenesis.md` completo.
 2. Lee la última entrada de `state.md` para saber qué se hizo en la sesión anterior y qué quedó pendiente.
 3. Lee el archivo específico del área en que vas a trabajar (`roadmap.md` para planificar, `architecture.md` para decisiones de stack, `principles.md` para validar features).
 4. Al terminar tu sesión, **añade una entrada al final de `state.md`** describiendo qué hiciste.
 
 ### Si eres una persona contribuyendo al proyecto
-1. Lee `../CLAUDE.md` para entender qué es esto.
+1. Lee `../metagenesis.md` para entender qué es esto.
 2. Lee `principles.md` para entender los valores no negociables.
 3. Lee `roadmap.md` para ver dónde encaja tu contribución.
 4. Si tu contribución cambia una decisión arquitectónica, **actualiza primero `architecture.md`** (regla dorada del proyecto), luego implementa.

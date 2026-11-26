@@ -13,7 +13,7 @@
  * lleva su origen; no hay ninguna inventada. Lo que Soup no documenta (por ejemplo una sección
  * `export:` en el YAML) NO se escribe: el export va por orden de línea de comandos.
  *
- * Sin `node:*` (CLAUDE.md, trampa 11): lo puede importar código de cliente.
+ * Sin `node:*` (metagenesis.md, trampa 11): lo puede importar código de cliente.
  */
 
 import type { Acelerador } from "./fabricas";

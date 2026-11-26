@@ -180,9 +180,9 @@ Banco de estilos pendientes (cada uno, una tarea del enjambre en §12): `geometr
   Lo que está en marcha se dice **«en construcción»**; los principios de diseño se dicen **«se diseña como…»**
   o **«principio de diseño: …»**, no como hechos ya logrados.
 - **Hechos que usa la campaña y de dónde salen:** código abierto bajo AGPL-3.0 (`LICENSE`, `package.json`),
-  OS funcionando en `starseed-os.vercel.app` (CLAUDE.md §1), malla P2P y IA local 1,58 bits **en construcción**
-  (CLAUDE.md §11, `architecture/astraura-158-sistema-primario.md`), estaciones de Omnifrecuencias **en
-  construcción**, tríada y fases Semilla/Fruto/Cosecha (CLAUDE.md §3–§5).
+  OS funcionando en `starseed-os.vercel.app` (metagenesis.md §1), malla P2P y IA local 1,58 bits **en construcción**
+  (metagenesis.md §11, `architecture/astraura-158-sistema-primario.md`), estaciones de Omnifrecuencias **en
+  construcción**, tríada y fases Semilla/Fruto/Cosecha (metagenesis.md §3–§5).
 - **Hechos a confirmar por Alex antes de publicar** (el Estudio no puede comprobarlos desde un contenedor): que el
   repositorio `StarSeedSystem/starseed-system` sea **público** y acepte *issues* y *pull requests* (la lámina 4
   dice «el repositorio es abierto: issues y pull requests»); que `starseed-os.vercel.app` siga siendo la dirección
@@ -266,7 +266,7 @@ El motor propio cubre todo lo que necesita esta campaña. Hay cosas que un gener
 | **Figma** (`use_figma`, `generate_image`, `export_video`) | Pasar un diseño del estudio a un archivo editable | Escribe en archivos de Alex |
 | **Seedance y similares** | Vídeo generativo | De pago |
 
-**Regla permanente (CLAUDE.md, «Economía de créditos»):** **NUNCA se gastan créditos de pago sin la palabra de
+**Regla permanente (metagenesis.md, «Economía de créditos»):** **NUNCA se gastan créditos de pago sin la palabra de
 Alex.** Si una pieza justificaría un generador externo, el Estudio **no lo lanza**: deja una **cotización en la
 cola «Para aprobar»** con: proveedor, qué se generaría, **créditos estimados con la fuente de la cifra** (la
 herramienta de cotización del proveedor, no una suposición) y la fecha. Sin cotización real no se encola. En

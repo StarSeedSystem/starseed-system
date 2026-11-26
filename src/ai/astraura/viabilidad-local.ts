@@ -15,7 +15,7 @@
  * 1.58 local «no viable» y releeve en vez de colgar el turno.
  *
  * Módulo PURO (Adenda 63/153): sin red, sin `node:*`, sin `window`, sin I/O.
- * Apto para navegador y para `next build` (CLAUDE.md §«Publicar»). Todas las
+ * Apto para navegador y para `next build` (metagenesis.md §«Publicar»). Todas las
  * funciones son TOTALES y NUNCA lanzan: datos sucios se sanean, no explotan.
  * ============================================================================
  */

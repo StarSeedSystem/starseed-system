@@ -7,7 +7,7 @@
  * en la cuenta soberana compartida por el ecosistema (Supabase `user_settings`,
  * clave `prefs.connectors`), siguiendo el MISMO patrón que `library-sync.ts`.
  *
- * Principios (CLAUDE.md · Identidad Soberana + Singularidad del contenido):
+ * Principios (metagenesis.md · Identidad Soberana + Singularidad del contenido):
  *  - LOCAL ES LA VERDAD: `localStorage` manda sin conexión. La nube solo enriquece.
  *  - MERGE NO DESTRUCTIVO: al leer/escribir `prefs` NO se pisan otras claves
  *    (library, installed, capabilities, dashboards…). Solo tocamos `prefs.connectors`.

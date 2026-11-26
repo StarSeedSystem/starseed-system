@@ -15,7 +15,7 @@ El medidor: `scripts/puente/recopilar-capacidades-nodos.py` → `~/.starseed/cap
 
 ## Qué es fundamental (≥ 2 medios además de GitHub)
 
-Código con todas las ramas e historia; `starseed_memory_root/` y `memory/`; contextos (`CLAUDE.md`, `AGENTS.md`, `PUENTE-DE-MANDO.md`); claves SOLO cifradas; versiones instalables de StarSeed OS; datos de cuentas.
+Código con todas las ramas e historia; `starseed_memory_root/` y `memory/`; contextos (`metagenesis.md`, `AGENTS.md`, `PUENTE-DE-MANDO.md`); claves SOLO cifradas; versiones instalables de StarSeed OS; datos de cuentas.
 
 ## Qué es pesado y menos fundamental (se traslada, no se queda en un medio lleno)
 

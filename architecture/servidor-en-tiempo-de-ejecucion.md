@@ -183,7 +183,7 @@ fuente propia— y por eso el riesgo de sesión hay que resolverlo con el ajuste
 ### 3.1 · Nombre y firma
 
 Módulo puro nuevo: **`src/lib/red/resolutor-servidor.ts`** (tipos aparte si algún día importa
-`node:*`; hoy puro, sin `node:*`, por trampa 11 de CLAUDE.md).
+`node:*`; hoy puro, sin `node:*`, por trampa 11 de metagenesis.md).
 
 ```ts
 // Modos del contrato · red-sin-dependencias.md §6 («La URL del servidor pasa a

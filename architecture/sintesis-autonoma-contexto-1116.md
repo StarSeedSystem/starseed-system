@@ -115,7 +115,7 @@ noticias, referencias, actividad, ideas, guiones y YouTube) y un **contexto vivo
 1. **Lo ya integrado (índice):**
    - olas con commit de los últimos 30 días;
    - los títulos y resúmenes de `architecture/*.md`;
-   - `memory/workflow-actual.md`, `CLAUDE.md` y `AGENTS.md`;
+   - `memory/workflow-actual.md`, `metagenesis.md` y `AGENTS.md`;
    - la Librería instalada (`config/repos-libreria-*.json`);
    - las rutas y apps del OS.
 2. **Producción audiovisual:**

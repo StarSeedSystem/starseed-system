@@ -15,7 +15,7 @@
  *   · router LLM  (`rankCandidates`)  → nudge por `llmSourceAccessClass`.
  *   · cadena de voz (`buildVoiceChain`) → reordena AUTO por `voiceEngineAccessClass`.
  *
- * FILOSOFÍA (CLAUDE.md §3): soberanía y privacidad primero. Por defecto lo LOCAL
+ * FILOSOFÍA (metagenesis.md §3): soberanía y privacidad primero. Por defecto lo LOCAL
  * (en el dispositivo) manda, luego el servidor StarSeed/OpenVoice automático,
  * luego las APIs gratis sin coste y, al final, las externas con clave.
  *

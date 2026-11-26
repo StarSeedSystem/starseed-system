@@ -97,7 +97,7 @@ export function construirEventoSeguridad(entrada: unknown, ahoraMs: number): Eve
 }
 /** Propone una respuesta en español: SOLO pasos humanos de revisar, abrir un caso o
  *  rotar la clave la dueña. Sin castigos automáticos contra una persona (justicia
- *  restaurativa, CLAUDE.md §6): cuenta, grupo o página los decide un humano o Círculo de Paz. */
+ *  restaurativa, metagenesis.md §6): cuenta, grupo o página los decide un humano o Círculo de Paz. */
 export function proponerRespuesta(e: EventoSeguridad): RespuestaPropuesta {
   const acciones: Record<TipoEventoSeguridad, string[]> = {
     "secreto-detectado": ["revisar el hallazgo en Genesis", "rotar la credencial: la rota su dueña"], "limite-peticiones": ["revisar la ruta alcanzada", "abrir un caso si el límite se repite"],

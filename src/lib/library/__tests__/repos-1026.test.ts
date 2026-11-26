@@ -296,7 +296,7 @@ describe("tanda 1026 · la ruta de actualizaciones las comprueba", () => {
     });
 });
 
-describe("tanda 1026 · el módulo es puro (CLAUDE.md, trampa 11)", () => {
+describe("tanda 1026 · el módulo es puro (metagenesis.md, trampa 11)", () => {
     it("no usa node:*, ni «use client», ni lee el disco: entra al paquete del navegador y al servidor", () => {
         const fuente = readFileSync(path.join(RAIZ, "src/lib/library/repos-1026.ts"), "utf8");
         expect(fuente).not.toMatch(/^\s*import[^;]*from\s+["']node:/m);

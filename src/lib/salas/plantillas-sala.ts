@@ -57,7 +57,7 @@ function andamio(
 
 /**
  * Las plantillas que el OS ofrece al crear una sala. Ancladas en los tres
- * ecosistemas de CLAUDE.md §4 — político (asamblea, círculo de paz, mapa de
+ * ecosistemas de metagenesis.md §4 — político (asamblea, círculo de paz, mapa de
  * comunidad), educativo (aula), cultural (taller creativo) — y en el trabajo
  * real de la red (panel de proyecto, escritorio de equipo, retrospectiva).
  */

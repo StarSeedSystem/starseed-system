@@ -14,7 +14,7 @@ import type { CustomFont } from "../../context/appearance-context";
  * `CAMPOS_PERMITIDOS` y solo en forma de `AccionUi` validada.
  *
  * Módulo PURO: sin React, sin `node:*`, SSR-safe. Lo importan componentes de
- * cliente para el diálogo de confirmación (ver CLAUDE.md §«Publicar»).
+ * cliente para el diálogo de confirmación (ver metagenesis.md §«Publicar»).
  *
  * La IA es el exocórtex del usuario (Tríada §3): todo cambio se explica con
  * `motivo`, nunca se aplica nada mudo, y el usuario confirma antes.

@@ -5,7 +5,7 @@
  * StarSeed OS — Agentes · BUILTINS de fábrica
  * ---------------------------------------------------------------------------
  * Conjunto pequeño de agentes recomendados de arranque (Comunismo de
- * Abundancia · CLAUDE.md §3): cada persona activa capacidades REALES de Aurora
+ * Abundancia · metagenesis.md §3): cada persona activa capacidades REALES de Aurora
  * cuyos ids provienen del vocabulario compartido de `src/ai/astraura/skills.ts`
  * (taste · pm · web-senses · research · vision · voice). No requieren descarga
  * ni clave: son configuración (persona + ids de capacidad) sobre la

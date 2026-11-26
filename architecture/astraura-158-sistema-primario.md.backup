@@ -129,7 +129,7 @@ El `RouteRecord` añade `primary?: { modo, provenance }` para la transparencia (
   descubrir el backend de esta).
 - `NeuronSettings.astraura158?: { endpoint?: string; enabled?: boolean }` (`starseed.neurons.prefs.v1`).
 
-## 7 · Superficies (medios correctos, CLAUDE.md §11)
+## 7 · Superficies (medios correctos, metagenesis.md §11)
 
 | Superficie | Qué aparece |
 |---|---|

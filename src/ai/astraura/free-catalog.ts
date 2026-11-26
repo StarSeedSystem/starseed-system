@@ -3,7 +3,7 @@
  * ASTRAURA · CATÁLOGO GRATIS-PRIMERO (julio 2026)
  * ---------------------------------------------------------------------------
  * La inteligencia de StarSeed debe ser LO MÁS GRATUITA POSIBLE DESDE EL
- * PRINCIPIO para todos los usuarios (Comunismo de Abundancia, §3 CLAUDE.md).
+ * PRINCIPIO para todos los usuarios (Comunismo de Abundancia, §3 metagenesis.md).
  * Este catálogo declara TODAS las fuentes de inteligencia que Aurora conoce,
  * ordenadas por: gratuidad → privacidad → capacidad por tarea.
  *

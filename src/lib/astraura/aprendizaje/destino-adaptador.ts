@@ -17,7 +17,7 @@
  * alcance del adaptador es el del dato MÁS privado que vio, y solo lo cargan actores que podrían leer
  * ese dato. Es una red de seguridad, no una garantía criptográfica.
  *
- * Sin I/O ni `node:*` (CLAUDE.md, trampa 11). `import type` de `mando/aprendizaje.ts` no contamina.
+ * Sin I/O ni `node:*` (metagenesis.md, trampa 11). `import type` de `mando/aprendizaje.ts` no contamina.
  */
 
 import { CAPAS, type CapaConciencia } from "@/lib/astraura/capas-conciencia";

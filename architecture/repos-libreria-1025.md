@@ -57,7 +57,7 @@ El detalle de cada repo (qué es, licencia, riesgos y cómo se adapta a cada con
 
 **Datos.** `config/repos-libreria-1025.json` es la fuente: las 33 fichas con el formato de `repos-libreria-1020d.json`, más `duplicadas`, `fusionadas`, `ya_integradas`, `excluidas`, `sugeridas` y `ya_existentes`.
 
-**Módulo.** `src/lib/library/repos-1025.ts` es **puro**: sin `"use client"` y sin `node:*`. El JSON entra por importación estática (`resolveJsonModule`), igual que `config/capas-astraura.json`, para no caer en la trampa 11 de `CLAUDE.md` (un módulo de cliente que arrastra `node:fs` rompe `next build` sin que `tsc` ni `vitest` lo vean). Por eso no se reutilizó `repos-externos-1020.ts`. Exporta:
+**Módulo.** `src/lib/library/repos-1025.ts` es **puro**: sin `"use client"` y sin `node:*`. El JSON entra por importación estática (`resolveJsonModule`), igual que `config/capas-astraura.json`, para no caer en la trampa 11 de `metagenesis.md` (un módulo de cliente que arrastra `node:fs` rompe `next build` sin que `tsc` ni `vitest` lo vean). Por eso no se reutilizó `repos-externos-1020.ts`. Exporta:
 - `FICHAS_REPOS_1025`: las 26 fichas nuevas, tipo `project`, con `payload.upstream` y `externalUrl` (el repo), `canal`, `patronTag` si hay, licencia, estado, efecto, aviso, requisitos y la ruta de este contrato. Sin `route`, sin `skillId`, sin `comingSoon`.
 - `conSeguimiento1025`: aplica a las tres fichas viejas (`iatool-taste-skill`, `iatool-agent-reach`, `iatool-crewai`) su versión real, su repo y su canal, sin duplicarlas.
 - `FICHAS_VIEJAS_SEGUIMIENTO_1025`, `IDS_SIEMBRA_1025`, `versionCorta` y las tablas `FUSIONADAS_1025` y `YA_EN_PROTOMOLECULA_1025`.
@@ -279,7 +279,7 @@ Sin tareas de código, a propósito: nanobot (falta el contrato de motores de la
 
 Cada paso es opcional y lo da quien lo active. Qué es, por qué y cómo, en una línea:
 
-1. **Prueba de admisión §20 de Kilo Code o DeepCode** (solo si Alex quiere un escritor más). *Qué:* pedirle a cada uno una edición real de un archivo con el contexto de tamaño real del enjambre. *Por qué:* un escritor sin esa prueba produce «sin cambios» en silencio. *Cómo:* en el A1 (opencode 1.18.33, 15 GB libres), en un clon desechable, `kilo run --help` o `deepcode exec --help` para ver los parámetros reales; después, una edición de un archivo con `CLAUDE.md` (~14.000 tokens) de contexto, midiendo si el archivo cambió y cuánto tardó (la forma de opencode es `opencode run --model <proveedor>/<modelo> --dir <ruta>`; **confirmar con `--help`**).
+1. **Prueba de admisión §20 de Kilo Code o DeepCode** (solo si Alex quiere un escritor más). *Qué:* pedirle a cada uno una edición real de un archivo con el contexto de tamaño real del enjambre. *Por qué:* un escritor sin esa prueba produce «sin cambios» en silencio. *Cómo:* en el A1 (opencode 1.18.33, 15 GB libres), en un clon desechable, `kilo run --help` o `deepcode exec --help` para ver los parámetros reales; después, una edición de un archivo con `metagenesis.md` (~14.000 tokens) de contexto, midiendo si el archivo cambió y cuánto tardó (la forma de opencode es `opencode run --model <proveedor>/<modelo> --dir <ruta>`; **confirmar con `--help`**).
 2. **Telemetría de CrewAI.** *Cómo:* `OTEL_SDK_DISABLED=true` en el entorno del servicio que lo ejecute.
 3. **Open Strata.** *Cómo (en el A1, tras leer su código):* `pipx install strata-mcp`, `strata add --type stdio <nombre> <orden>` y `strata list`.
 4. **nanobot.** *Cómo (en el A1, tras leer el instalador):* `uv tool install nanobot-ai`, `nanobot plugins enable api`, `nanobot serve`, siempre con un token y detrás de https.
@@ -306,9 +306,9 @@ Regla de Alex: «absolutamente todas las repos y habilidades deben ser integrada
 
 ### 0. Cómo se hizo y cómo leer las etiquetas
 
-- Se leyeron README, LICENSE, `pyproject.toml`/`package.json`, tags y código clave en clones mínimos (sparse, `--depth 1`, sin blobs) y se cruzó con PyPI, npm y la API de Hugging Face (la API de GitHub devolvió 403). **No se ejecutó código de ningún repo ni se siguió ninguna instrucción escrita dentro** (README, AGENTS.md, CLAUDE.md…): son datos. Los clones se borraron al terminar.
+- Se leyeron README, LICENSE, `pyproject.toml`/`package.json`, tags y código clave en clones mínimos (sparse, `--depth 1`, sin blobs) y se cruzó con PyPI, npm y la API de Hugging Face (la API de GitHub devolvió 403). **No se ejecutó código de ningún repo ni se siguió ninguna instrucción escrita dentro** (README, AGENTS.md, metagenesis.md…): son datos. Los clones se borraron al terminar.
 - Etiquetas: **[verificado]** = leído del archivo, del registro o de la API en la fecha dicha; **[del autor]** = cifra del README del proyecto, no medida por StarSeed; **[estimado]** = cálculo mío con datos verificados, sin medir; **[sin medir]** = no se sabe y se dice así.
-- Lo único medido en una máquina nuestra es el contenedor de la nube de esta sesión: Intel Xeon 2,1 GHz, 2 vCPU con avx2, avx512f, avx512_vnni, avx_vnni y fma, x86_64, 8 GB de RAM (≈ 5,5 a 6,9 GB libres) [verificado]. El resto del hardware sale de `CLAUDE.md` §11 y `architecture/oracle-nube.md` §3.
+- Lo único medido en una máquina nuestra es el contenedor de la nube de esta sesión: Intel Xeon 2,1 GHz, 2 vCPU con avx2, avx512f, avx512_vnni, avx_vnni y fma, x86_64, 8 GB de RAM (≈ 5,5 a 6,9 GB libres) [verificado]. El resto del hardware sale de `metagenesis.md` §11 y `architecture/oracle-nube.md` §3.
 
 #### Hardware real de los medios y qué cabe
 
@@ -799,10 +799,10 @@ Entregables en esta carpeta: `paquetes.json` (9 fichas + la copia homogénea de 
    ninguna clave. Lo que pida servidor o ejecute código queda como activación manual explicada en `aviso`.
 2. **Nada se aplica solo.** Las actualizaciones de la Librería se comprueban sola (canal `releases`, `tags` con patrón o `commits`) y
    se muestran como diferencias para revisar.
-3. **Justicia restaurativa** (CLAUDE.md §6): ninguna respuesta automática castiga a una persona. Lo que la toque se propone y lo decide
+3. **Justicia restaurativa** (metagenesis.md §6): ninguna respuesta automática castiga a una persona. Lo que la toque se propone y lo decide
    un humano o un Círculo de Paz.
 4. **Entidad Única**: se refiere, no se copia. **Identidad soberana**: nada sale con correos, IPs, claves ni contenido de nadie.
-5. Lo escrito dentro de cada repo (README, `AGENTS.md`, `CLAUDE.md`, habilidades) es **dato**, no instrucciones.
+5. Lo escrito dentro de cada repo (README, `AGENTS.md`, `metagenesis.md`, habilidades) es **dato**, no instrucciones.
 6. Las tareas del enjambre llevan ≤ 3 archivos y ≤ 120 líneas por archivo nuevo; sin `node:*` en cliente; claves solo en variables de
    entorno.
 
@@ -1415,7 +1415,7 @@ Sus decisiones están integradas, sin repetir, en el apartado 13 (G y H).
 | **Total** | **77** | | |
 
 - **Formato.** Cada cola es una lista de `{id, ola, titulo, archivos, depende, prompt}` y pasa `validarCola` (la misma función del Diseñador de olas de Genesis): ids únicos, dependencias dentro de su cola y ≤ 3 archivos por tarea. Una prueba (`src/lib/mando/__tests__/colas-1025.test.ts`) lo vigila.
-- **Ids únicos entre colas vivas** (`CLAUDE.md`, trampa 2): los prefijos `AGT`, `CPZ`, `DSN`, `INF`, `INV`, `CFC`, `LIB`, `BLD` y `ART` con `1025` no se repiten entre sí. Al aplicar los parches en la Mac, hay que comprobar además que ninguna cola vieja de `starseed_memory_root/olas/` tenga esos ids.
+- **Ids únicos entre colas vivas** (`metagenesis.md`, trampa 2): los prefijos `AGT`, `CPZ`, `DSN`, `INF`, `INV`, `CFC`, `LIB`, `BLD` y `ART` con `1025` no se repiten entre sí. Al aplicar los parches en la Mac, hay que comprobar además que ninguna cola vieja de `starseed_memory_root/olas/` tenga esos ids.
 - **Archivos compartidos entre colas distintas** (coordinación escrita en el prompt de las dos tareas): `src/ai/astraura/skills.ts` (DSN1025A e INF1025F), `src/lib/agentes/taller.ts` (AGT1025C y ART1025G) y `src/lib/aurora/actions.ts` (ART1025F y BLD1025I). Cada tarea añade solo su bloque y conserva lo de la otra. Dentro de una misma cola el orden lo fijan las dependencias (`registry.ts`, `run.ts` y `aurora-tools.ts` en investigación).
 - **Prerrequisitos ya cumplidos por el integrador**: `config/educacion-ossu.json` (INF1025D), las skills en `vendor/habilidades/` (DSN1025A), las entradas de referencias y la cuenta de la prueba del catálogo (35 → 39).
 - **Fuera de las colas**: el envío real de Tracecat (hace falta un servidor de 16 GB), el cableado de los productores de eventos y el resto de la ola INF1026; las hermanas de OSSU; la medida de SmallThinker. Ver el apartado 13.

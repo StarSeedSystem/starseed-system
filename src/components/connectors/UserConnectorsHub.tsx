@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // UserConnectorsHub — Hub de Conectores POR USUARIO de StarSeed OS.
 //
-// FILOSOFÍA (CLAUDE.md §3 Ciberdelia · §6 Invariantes · Identidad Soberana):
+// FILOSOFÍA (metagenesis.md §3 Ciberdelia · §6 Invariantes · Identidad Soberana):
 //   Cada usuario conecta OPCIONALMENTE sus propias cuentas/credenciales.
 //   El sistema funciona SIEMPRE con los defaults gratis/OSS, sin cuenta.
 //   El usuario elige el modo de selección por categoría (o global):

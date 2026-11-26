@@ -1,6 +1,6 @@
 /**
  * StarSeed XR · PRIVACIDAD. Qué datos del aparato pueden salir de él, hasta dónde y con qué permiso.
- * Ciberdelia (CLAUDE.md §3): la tecnología nunca es instrumento de vigilancia. Por eso la cámara del
+ * Ciberdelia (metagenesis.md §3): la tecnología nunca es instrumento de vigilancia. Por eso la cámara del
  * passthrough NO sale JAMÁS del visor, y el mapa de la habitación (planos, mallas, anclas) sólo viaja entre
  * las cuentas de la propia persona y con su consentimiento vigente. Una sala pública recibe lo que la persona
  * ES en la sala (pose del avatar, su voz mientras habla), nunca lo que su casa ES. Módulo PURO: el reloj entra.

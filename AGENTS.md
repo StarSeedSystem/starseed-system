@@ -8,7 +8,7 @@ repo bajo launchd (`com.starseed.mando`, `next start`). *(Corrección 2026-09-12
 
 Lo ha pedido muchas veces: en TODO medio y canal del desarrollo de MetaGenesis (mensajes, informes, Telegram, canales de Hermes, Chat Director, avisos, documentos y prompts nuevos) se le llama **Maggasukha**, nunca «Alex». En textos y commits antiguos «Alex» es la misma persona: no se reescribe la historia. Los identificadores NO cambian (rol `"alex"`, rutas `/Users/alex`, claves como `requiere_alex`); solo lo que lee una persona o un modelo.
 
-Lo lee **Codex** y **Antigravity IDE**. Claude usa `CLAUDE.md`, que manda sobre este archivo
+Lo lee **Codex** y **Antigravity IDE**. Todos los modelos usan `metagenesis.md` (la memoria principal, independiente de cualquier modelo; Claude Code la carga por el adaptador `CLAUDE.md`), que manda sobre este archivo
 cuando se contradigan; Hermes lee ambos. Los cuatro entornos trabajan sobre el MISMO repo, el
 MISMO enjambre y el MISMO Genesis.
 
@@ -198,7 +198,7 @@ de siempre. Detalles y reglas de validación: `architecture/encargos-chats-metag
 | | |
 |---|---|
 | Repo | `/Users/alex/Documents/starseed-os-main` |
-| Rumbo permanente | `CLAUDE.md` |
+| Rumbo permanente | `metagenesis.md` |
 | Contexto vivo compartido | `PUENTE-DE-MANDO.md` (se regenera, no lo edites) |
 | Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona** |
 | Orquestador | `scripts/enjambre/starseed-enjambre.py` → `~/.local/bin/` |

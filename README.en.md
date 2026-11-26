@@ -213,7 +213,7 @@ Detail in [`memory/roadmap.md`](memory/roadmap.md).
 3. Create branch, follow [Conventional Commits](https://www.conventionalcommits.org/en/), pass `typecheck`, `test`, `build`.
 4. Open pull request explaining **what** changes, **why**, and **how you verified it**.
 
-> If you add a page, register it in the dock and app catalog: an unregistered route is invisible (see `CLAUDE.md` §11).
+> If you add a page, register it in the dock and app catalog: an unregistered route is invisible (see `metagenesis.md` §11).
 
 ---
 

@@ -3,7 +3,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Solo se muestra lo que el navegador DA: la batería existe únicamente en Chromium (Battery Status
  * API) y el tipo de red en Chromium (Network Information API). Lo que no hay, no se pinta ni se
- * inventa. «Neurona» es el aparato y el medio es cómo se abre el OS en él (ver CLAUDE.md §11).
+ * inventa. «Neurona» es el aparato y el medio es cómo se abre el OS en él (ver metagenesis.md §11).
  */
 
 export interface Bateria {

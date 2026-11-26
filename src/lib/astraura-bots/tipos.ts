@@ -20,7 +20,7 @@ export interface Dueno {
   tipo: TipoDueno;
   /** id del perfil o de la entidad (nunca un correo). */
   id: string;
-  /** Cuenta raíz responsable (Dualidad Cuenta/Perfil, CLAUDE.md §6). */
+  /** Cuenta raíz responsable (Dualidad Cuenta/Perfil, metagenesis.md §6). */
   cuentaId: string;
 }
 

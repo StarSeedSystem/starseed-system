@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // Árbol del mérito — tus insignias como hojas de un árbol vivo (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// Meritocracia del entendimiento (CLAUDE.md §3): la autoridad técnica se gana con
+// Meritocracia del entendimiento (metagenesis.md §3): la autoridad técnica se gana con
 // sabiduría aplicada VERIFICABLE. Datos REALES: el catálogo `badges`, tus facetas
 // `profiles` y lo otorgado en `profile_badges`. Cada rama es un área (Política,
 // Educación, Cultura, General) y cada hoja una insignia: encendida si es tuya, con

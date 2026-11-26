@@ -5,7 +5,7 @@ import {
   type CapaActiva,
 } from "../capa-pantalla";
 
-// Clave de EJEMPLO montada en tiempo de ejecución (trampa nº 12 de CLAUDE.md: la protección de secretos).
+// Clave de EJEMPLO montada en tiempo de ejecución (trampa nº 12 de metagenesis.md: la protección de secretos).
 const CLAVE = ["s", "k-"].join("") + "ejemploNoReal123";
 
 const SPEC = {

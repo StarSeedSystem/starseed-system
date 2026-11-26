@@ -26,7 +26,7 @@
  *     con mensaje claro (hay que iniciar sesión en ambos dispositivos).
  *   - Con todo disponible → negocia y devuelve "connecting"/"connected"/"error".
  *
- * Alineado con CLAUDE.md: Identidad Soberana (la cuenta es el canal),
+ * Alineado con metagenesis.md: Identidad Soberana (la cuenta es el canal),
  * descentralización (P2P directo), defensivo (nunca rompe).
  */
 

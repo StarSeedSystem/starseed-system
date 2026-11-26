@@ -4,7 +4,7 @@
  * sobrevive al salir de /messages), latido de presencia («en línea» en cualquier página), la
  * presencia de las apps en vivo y el aviso de novedad del bloqueo para cuentas ya creadas.
  * Todo se carga PEREZOSO: cuelga del layout raíz y no puede engordar el grafo común
- * (CLAUDE.md, «El layout raíz no carga motores pesados de forma estática»).
+ * (metagenesis.md, «El layout raíz no carga motores pesados de forma estática»).
  */
 import dynamic from "next/dynamic";
 

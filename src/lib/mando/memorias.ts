@@ -43,7 +43,7 @@ export const DEFINICION_CAPAS: readonly DefinicionCapa[] = [
     {
         id: "nucleo",
         titulo: "Núcleo",
-        descripcion: "Principios e instrucciones del proyecto: CLAUDE.md, AGENTS.md, PUENTE-DE-MANDO.md, DESIGN.md, README.md.",
+        descripcion: "Principios e instrucciones del proyecto: metagenesis.md, AGENTS.md, PUENTE-DE-MANDO.md, DESIGN.md, README.md.",
     },
     {
         id: "proyecto",

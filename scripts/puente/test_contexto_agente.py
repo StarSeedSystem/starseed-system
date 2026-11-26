@@ -121,8 +121,8 @@ class Tamano(unittest.TestCase):
         chico = construir("supervisor", area="voz", max_chars=1500)
         self.assertLessEqual(chico["caracteres"], 1500)
         self.assertTrue(chico["compacto"])
-        self.assertNotIn("_(CLAUDE.md", chico["texto"])  # sin fuentes en compacto
-        self.assertIn("_(CLAUDE.md", grande["texto"])
+        self.assertNotIn("_(metagenesis.md", chico["texto"])  # sin fuentes en compacto
+        self.assertIn("_(metagenesis.md", grande["texto"])
         self.assertTrue(chico["recortadas"])
 
     def test_excluir_secciones(self):

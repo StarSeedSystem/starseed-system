@@ -30,7 +30,7 @@ class TestAsignacionesAgentes(unittest.TestCase):
         self.starseed_opus_director = "1"
 
     def test_raiz_por_defecto_es_la_del_repositorio(self):
-        """La raíz por defecto es la del repo: contiene CLAUDE.md y no es `scripts/`.
+        """La raíz por defecto es la del repo: contiene metagenesis.md y no es `scripts/`.
 
         Fallo REAL ya resuelto (OPS1024A, mismo arreglo que OPF1024A): en
         asignaciones_agentes.py:35 `RAIZ` salía como `scripts/` porque faltaba un
@@ -50,7 +50,7 @@ class TestAsignacionesAgentes(unittest.TestCase):
             importlib.reload(asignaciones_agentes)
             self.addCleanup(importlib.reload, asignaciones_agentes)
             self.assertEqual(os.path.abspath(asignaciones_agentes.RAIZ), repo)
-            self.assertTrue(os.path.isfile(os.path.join(repo, "CLAUDE.md")))
+            self.assertTrue(os.path.isfile(os.path.join(repo, "metagenesis.md")))
             self.assertEqual(
                 asignaciones_agentes.RUTA_ASIGNACIONES,
                 os.path.join(

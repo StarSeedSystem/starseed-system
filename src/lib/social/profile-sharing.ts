@@ -763,7 +763,7 @@ export async function updateAccessRole(
 }
 
 /**
- * Retira un acceso. NO es punitivo (CLAUDE.md §6): no borra nada de la otra
+ * Retira un acceso. NO es punitivo (metagenesis.md §6): no borra nada de la otra
  * cuenta, solo deja de compartirse.
  */
 export async function revokeAccess(kind: SharedTargetKind, entryId: string): Promise<AccessMutationResult> {

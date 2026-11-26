@@ -17,7 +17,7 @@ dispositivo, y dejando **todo editable**. La ventana es la puerta única de ese 
 estrenar una neurona, al haber actualizaciones de sistemas instalados, o con recomendaciones de
 novedades adecuadas detectadas automáticamente.
 
-**Principios (Tríada §3 + invariantes §6 de CLAUDE.md):** el Exocórtex es propiedad del usuario;
+**Principios (Tríada §3 + invariantes §6 de metagenesis.md):** el Exocórtex es propiedad del usuario;
 gratis-y-local-primero (regla de Astraura: siempre funciona y cambia sola de fuente); defaults
 soberanos con todo activado pero nada de pago sin permiso (`permitirPago`); nunca se rompe la voz
 ni la inteligencia por un pin obsoleto (los pins van primero en la cadena, no son exclusivos).
@@ -168,7 +168,7 @@ Regla de todos los puntos: **camino rápido sin overrides = comportamiento byte-
 - **SEÑALES** — `mesh/persona-antenna-gate.ts` (`antennaRuleFor`/`outboundAllowed`/`inboundAllowed`/`preferredRouteFor`; la antena lógica «lora» manda sobre el enlace físico serial/BLE/daemon) cableado en 4 puntos: `sendOverMesh` (salida por malla → reutiliza el rol «off»), `transmit` (flags: sin salida wifi → sin servidor/público), `deliverInbound` (entrada por antena; los llamantes de red externa pasan `antena:"wifi"` para no matar relé/feed/realtime al cerrar LoRa), y `decideRoute` (ruta preferida inclina SOLO entre vías ya legales; «auto» no cambia nada). `preferredRouteFor` recorre la especificidad fija lora→serial→bluetooth→daemon→wifi y toma la primera regla activa con salida y ruta ≠ auto.
 - **SYNC** — la clave viaja con la cuenta (settings-sync) y refresca en vivo (realtime-sync); los consumidores leen fresco de localStorage, así que el sync aplica sin depender del evento.
 
-## 6 · Superficies donde vive (medios correctos, CLAUDE.md §11)
+## 6 · Superficies donde vive (medios correctos, metagenesis.md §11)
 
 Ya existentes y conservadas: auto-apertura por neurona; drawer global (`openAstrauraConfig`);
 pestaña **Configuración IA** de /agent (hub embedded); CTAs en Nexus y Modelos & Proveedores;

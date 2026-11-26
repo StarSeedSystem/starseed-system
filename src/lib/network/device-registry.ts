@@ -16,7 +16,7 @@
  *   (3) La conexión directa real es P2P WebRTC, con señalización vía la cuenta
  *   (ver `lan-sync.ts`).
  *
- * Alineado con CLAUDE.md (Identidad Soberana · tolerancia a fallos):
+ * Alineado con metagenesis.md (Identidad Soberana · tolerancia a fallos):
  *   - LOCAL ES ESPEJO: localStorage guarda id de dispositivo + snapshot.
  *   - CUENTA ES LA VERDAD COMPARTIDA: sin sesión → degrada a solo-local.
  *   - MERGE NO DESTRUCTIVO: nunca pisa otras claves de `prefs`; deduplica por id.

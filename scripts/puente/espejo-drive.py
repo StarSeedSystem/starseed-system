@@ -28,7 +28,7 @@ Sube el estado real de esta neurona a su carpeta de Drive, con rsync:
 
     starseed_memory_root/  →  neurona-<host>/memoria/
     memory/                →  neurona-<host>/memoria-repo/
-    PUENTE-DE-MANDO.md, CLAUDE.md, los contextos  →  neurona-<host>/contextos/
+    PUENTE-DE-MANDO.md, metagenesis.md, los contextos  →  neurona-<host>/contextos/
 
 y escribe un `INDICE.md` legible para que cualquier medio —otro ordenador, el
 móvil, un IDE, otra sesión— sepa qué hay ahí sin tener que adivinar.
@@ -82,7 +82,7 @@ TRAMOS = (
 #: para ponerse al día sin esta máquina delante.
 CONTEXTOS = (
     "PUENTE-DE-MANDO.md",
-    "CLAUDE.md",
+    "metagenesis.md",
     "AGENTS.md",
     ".github/copilot-instructions.md",
     ".cursor/rules/puente-de-mando.mdc",

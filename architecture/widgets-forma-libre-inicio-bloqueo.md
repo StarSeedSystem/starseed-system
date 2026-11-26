@@ -70,7 +70,7 @@ edita) y **pantalla de bloqueo** (contraseña o identificador biométrico verifi
   («dashboard principal» del perfil). Una ruta que ya no existe cae al defecto, sin pantalla rota.
 - `/` y el acceso tras iniciar sesión llevan a la pantalla resuelta (hoy van fijos a `/escritorios`).
 - Se pregunta en el último paso del rito del perfil y en `neuron-setup.tsx`; se cambia en Ajustes.
-- Se registra en OmniDock y catálogo (regla de descubribilidad de CLAUDE.md §11).
+- Se registra en OmniDock y catálogo (regla de descubribilidad de metagenesis.md §11).
 
 ### Pantalla de bloqueo
 

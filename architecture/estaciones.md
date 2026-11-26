@@ -43,7 +43,7 @@ real choca con el contrato, gana el código y se anota en el informe de la tarea
 10. **Cliente sin `node:*`.** Todo `src/lib/estaciones/*` es puro o usa el cliente Supabase del
     navegador (`@/utils/supabase/client`). Ningún archivo de esta ola importa `node:*`.
 11. **Medios del OS.** La página se registra en el dock, el catálogo de apps y la Biblioteca
-    (CLAUDE.md §11), y en los kits de cada entidad (grupo/página/comunidad).
+    (metagenesis.md §11), y en los kits de cada entidad (grupo/página/comunidad).
 
 ## 2. Conceptos
 

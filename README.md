@@ -213,7 +213,7 @@ Detalle en [`memory/roadmap.md`](memory/roadmap.md).
 3. Crea rama, sigue [Conventional Commits](https://www.conventionalcommits.org/es/), pasa `typecheck`, `test`, `build`.
 4. Abre pull request explicando **qué** cambia, **por qué** y **cómo lo verificaste**.
 
-> Si añades una página, regístrala en el dock y en el catálogo de apps: una ruta sin registrar no la ve nadie (ver `CLAUDE.md` §11).
+> Si añades una página, regístrala en el dock y en el catálogo de apps: una ruta sin registrar no la ve nadie (ver `metagenesis.md` §11).
 
 ---
 

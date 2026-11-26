@@ -137,13 +137,13 @@ Mapa con las carpetas: `~/.starseed/produccion/higgsfield/proyectos.json` en el 
 "archivos": [
 "memory/orquestacion-economica.md",
 "memory/workflow-actual.md",
-"CLAUDE.md",
+"metagenesis.md",
 "AGENTS.md"
 ],
 "depende": [
 "HGF1113B"
 ],
-"prompt": "Lee architecture/higgsfield-aprobado-1113.md. En memory/orquestacion-economica.md añade Higgsfield como proveedor de PAGO con créditos limitados: solo con aprobación de Maggasukha, por presupuesto de proyecto, a través de higgsfield_aprobado.py; nunca para tareas rutinarias ni como respaldo automático de otros modelos. En CLAUDE.md y AGENTS.md añade «Higgsfield (solo con aprobación)» en 3 a 5 líneas: vías (el conector de Claude y el CLI en los nodos), regla de aprobación, presupuesto y marca. Añade también una entrada corta en memory/workflow-actual.md."
+"prompt": "Lee architecture/higgsfield-aprobado-1113.md. En memory/orquestacion-economica.md añade Higgsfield como proveedor de PAGO con créditos limitados: solo con aprobación de Maggasukha, por presupuesto de proyecto, a través de higgsfield_aprobado.py; nunca para tareas rutinarias ni como respaldo automático de otros modelos. En metagenesis.md y AGENTS.md añade «Higgsfield (solo con aprobación)» en 3 a 5 líneas: vías (el conector de Claude y el CLI en los nodos), regla de aprobación, presupuesto y marca. Añade también una entrada corta en memory/workflow-actual.md."
 },
 {
 "id": "HGF1113E",

@@ -4,7 +4,7 @@
  * Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0):
  * shared/mascot-bodies.ts.
  *
- * Datos puros, sin dependencias del servidor: los importa el cliente (CLAUDE.md, trampa 11).
+ * Datos puros, sin dependencias del servidor: los importa el cliente (metagenesis.md, trampa 11).
  */
 /** Todos los ids de cuerpo, en el orden en que los muestra el selector. */
 export const IDS_CUERPO_MAUSBOT = ["cursor", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star"] as const;

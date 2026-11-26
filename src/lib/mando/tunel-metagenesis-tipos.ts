@@ -5,7 +5,7 @@
  * `tunel-metagenesis-estado.ts`, que abre con `node:child_process`, `node:fs/promises` y
  * `node:util`. tsc y las pruebas de la tarea pasaron, pero `next build` murió con
  * «UnhandledSchemeError: node:child_process» y la guarda `sin-node-en-cliente` se puso roja:
- * main quedó rojo y el nodo de MetaGenesis en la A1 dejó de tomar tareas. Regla de CLAUDE.md
+ * main quedó rojo y el nodo de MetaGenesis en la A1 dejó de tomar tareas. Regla de metagenesis.md
  * («Publicar: next build»): lo que lee el navegador va aquí; el servidor lo reexporta.
  */
 

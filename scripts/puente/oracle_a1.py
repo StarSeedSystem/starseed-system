@@ -112,7 +112,7 @@ MODELO_BITNET = os.path.join(HOME, "astraura", "backend", "BitNet", "models", "B
 CALIDAD_CADA_S = 3600
 
 #: Pasos del guardián: los cuatro del CI (`.github/workflows/ci.yml`). `next build` es la ÚNICA
-#: puerta que ve un módulo de servidor colado en el paquete del navegador (CLAUDE.md, «Publicar»);
+#: puerta que ve un módulo de servidor colado en el paquete del navegador (metagenesis.md, «Publicar»);
 #: en la Mac no se puede (no cabe) y aquí sí: 12 GB, con BitNet aparte y por delante en CPU.
 #: Medido el 2026-10-10 en este A1 (main 4f2ead81): tsc 210 s · vitest 546 s (8.128 pruebas) ·
 #: mesh 5 s. Cada paso: (nombre, orden, tope en segundos).
@@ -193,7 +193,7 @@ def entrantes_pendientes(archivos):
 
 def tareas_de_entrante(datos):
     """PURA. Las tareas de una cola de la bandeja: una lista de tareas o `{"tareas": [...]}`.
-    Solo diccionarios con un id válido y sin repetir (un id solo puede vivir en una cola, CLAUDE.md
+    Solo diccionarios con un id válido y sin repetir (un id solo puede vivir en una cola, metagenesis.md
     trampa 2). Lista vacía si no queda ninguna: esa cola no se trabaja."""
     lista = datos.get("tareas") if isinstance(datos, dict) else datos
     salida, vistos = [], set()

@@ -234,7 +234,7 @@ describe("lectura-http · lectura defensiva", () => {
   });
 });
 
-describe("lectura-http · el módulo es puro (CLAUDE.md, trampa 11)", () => {
+describe("lectura-http · el módulo es puro (metagenesis.md, trampa 11)", () => {
   it("no usa node:*, process.env, ni «use client»", () => {
     const fuente = readFileSync(path.resolve(__dirname, "../lectura-http.ts"), "utf8");
     // La cabecera comenta la regla; lo que no puede haber es código real que la rompa.

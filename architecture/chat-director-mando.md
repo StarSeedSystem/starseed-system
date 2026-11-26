@@ -53,7 +53,7 @@ El estado de un mensaje en un canal es el **último** registro de entrega de ese
 | `mando` | el propio chat | — | — |
 | `director-presidente` | **el Director presidente** (DIR1111G): destinatario por defecto del compositor | el cartero (`director_presidente.py`) | al momento si alguien puede; si no, EN COLA (§8) |
 | `claude-cowork` | **la sesión de Claude Opus 5.5 en Cowork** (la de la dirección, con todo el contexto del proyecto) | `bandeja/claude-cowork.jsonl` | en su próxima revisión programada o cuando Alex le escribe allí; publica con `director_chat.py publicar` |
-| `claude-mac` | Claude Code en la Mac (`claude -p --model claude-opus-5-5 --resume <sesión del director>`, en la raíz del repo: CLAUDE.md, memory/, skills, MCP) | el cartero lo ejecuta | al momento; herramientas solo de lectura |
+| `claude-mac` | Claude Code en la Mac (`claude -p --model claude-opus-5-5 --resume <sesión del director>`, en la raíz del repo: metagenesis.md, memory/, skills, MCP) | el cartero lo ejecuta | al momento; herramientas solo de lectura |
 | `hermes` | Hermes Agent | `hermes -z <prompt> [-m modelo] --usage-file` | al momento |
 | `telegram` | copia al móvil de Alex | `hermes send -t telegram:Maggasukha` | no responde (las respuestas de Telegram entran por `telegram-puente.py` → `canal.jsonl`) |
 | `chatgpt` | ChatGPT por la suscripción de Codex | `codex exec -m <modelo> -s read-only --skip-git-repo-check -C <repo>` (prompt por stdin) | al momento |

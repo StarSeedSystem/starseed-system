@@ -9,7 +9,7 @@ import type { Agent } from "../model";
  * `src/lib/agents/model.ts`) y VARIOS motores intercambiables debajo. Los
  * modelos siempre por el enrutador propio (gratis primero, Jev, Experiential,
  * servidor propio de IA); trazas de terceros apagadas; nada de LangSmith ni
- * nubes de los autores (CLAUDE.md §8 y 💠).
+ * nubes de los autores (metagenesis.md §8 y 💠).
  *
  * Este módulo es SOLO de tipos y una función pura de elección: sin nodos, sin
  * red, sin procesos. Cualquier adaptador por motor vive en su tarea propia.

@@ -5,7 +5,7 @@
  * StarSeed OS — SIEMBRA DE DEFAULTS DE LA BIBLIOTECA (para TODOS, incl. cuentas
  * ya existentes)
  * ---------------------------------------------------------------------------
- * Objetivo (Comunismo de Abundancia · §3 CLAUDE.md): que cualquier persona —una
+ * Objetivo (Comunismo de Abundancia · §3 metagenesis.md): que cualquier persona —una
  * cuenta nueva o una que ya existía— tenga desde el primer arranque un conjunto
  * RECOMENDADO de paquetes/fuentes YA activos, sin tener que ir a la Biblioteca a
  * activarlos uno por uno. La inteligencia debe ser lo más gratuita posible desde

@@ -19,7 +19,7 @@ export interface AmbitoAstra {
 
 /** Los contextos del OS que Astra audita (concretos para este repositorio). */
 export const AMBITOS_ASTRA: readonly AmbitoAstra[] = [
-  { id: "funciones", etiqueta: "Funciones", queMira: "Qué hace falta y no está: capacidades que el OS promete (CLAUDE.md) y aún no existen." },
+  { id: "funciones", etiqueta: "Funciones", queMira: "Qué hace falta y no está: capacidades que el OS promete (metagenesis.md) y aún no existen." },
   { id: "diseno", etiqueta: "Diseño", queMira: "Identidad Crystal Liquid Glass y Trinity: coherencia visual, jerarquía, movimiento y tokens del design system." },
   { id: "arquitectura", etiqueta: "Arquitectura", queMira: "Capas, acoplamientos y deuda técnica entre src/lib, src/components y src/app." },
   { id: "accesibilidad", etiqueta: "Accesibilidad", queMira: "Contraste, foco, lectores de pantalla y navegación por teclado en las superficies del OS." },
@@ -27,7 +27,7 @@ export const AMBITOS_ASTRA: readonly AmbitoAstra[] = [
   { id: "seguridad-y-claves", etiqueta: "Seguridad y claves", queMira: "Que ninguna clave toque el cliente ni el repo, listas blancas de lectura y rutas /api/mando/* solo locales." },
   { id: "economia-de-agentes", etiqueta: "Economía de agentes", queMira: "Orquestación sin agotar créditos: escritores gratuitos, revisores baratos y ningún derrape de cuota." },
   { id: "contenido-y-canales", etiqueta: "Contenido y canales", queMira: "Feed, publicación y singularidad del contenido (Entidad Única, se referencia, no se duplica)." },
-  { id: "descubribilidad", etiqueta: "Descubribilidad", queMira: "La regla dorada del CLAUDE.md §11: una ruta que no está en el OmniDock ni en el catálogo de apps no existe para el usuario." },
+  { id: "descubribilidad", etiqueta: "Descubribilidad", queMira: "La regla dorada del metagenesis.md §11: una ruta que no está en el OmniDock ni en el catálogo de apps no existe para el usuario." },
 ] as const;
 
 /** Puntuación discreta 1..5 (impacto, esfuerzo, riesgo). Compartida por todos los campos. */
@@ -81,7 +81,7 @@ export function promptAstra(ambito: string, contexto: string): { system: string;
     "Tu papel es AUDITAR y PROPONER, nunca escribir código a granel: la flota gratuita del enjambre se encarga de eso.",
     "Eres perfeccionista, concreto y citable: cada sugerencia incluye SIEMPRE el archivo y la línea exactos (formato `ruta/archivo.ts:NNN`).",
     "No propones nada que ya exista en el repositorio ni en las memorias: primero comprueba con el grafo de código y con la documentación viva.",
-    "Respetas la Tríada Ideológica del proyecto —ontocracia, ciberdelia, transhumanismo comunista— y las invariantes del §6 del CLAUDE.md (descentralización, identidad soberana, código abierto, singularidad del contenido, privacidad/transparencia dual, dualidad cuenta/perfil, justicia restaurativa).",
+    "Respetas la Tríada Ideológica del proyecto —ontocracia, ciberdelia, transhumanismo comunista— y las invariantes del §6 del metagenesis.md (descentralización, identidad soberana, código abierto, singularidad del contenido, privacidad/transparencia dual, dualidad cuenta/perfil, justicia restaurativa).",
     "Respondes ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con la forma de `SugerenciaAstra[]` y nada más. Cada elemento tiene los campos: id, ambito, titulo, porque, evidencia (citas con archivo y línea), impacto (1-5), esfuerzo (1-5), riesgo (1-5), archivos (rutas relativas), propuestaDeTarea (objeto {titulo, archivos, prompt} o null).",
   ].join(" ");
 

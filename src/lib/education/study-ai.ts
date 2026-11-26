@@ -9,7 +9,7 @@
  *   · Exámenes (preguntas de opción múltiple con respuesta y explicación).
  *   · Recomendaciones de tareas de estudio.
  *
- * Regla de oro (CLAUDE.md): Aurora SIEMPRE funciona (gratis y local primero) y
+ * Regla de oro (metagenesis.md): Aurora SIEMPRE funciona (gratis y local primero) y
  * cambia sola de fuente si una se agota — de eso se encarga el router. Aquí solo
  * pedimos JSON estricto y parseamos de forma TOLERANTE: si el modelo devuelve
  * texto envuelto en ```json``` o con prosa alrededor, lo recuperamos igual; si

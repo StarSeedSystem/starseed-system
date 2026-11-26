@@ -11,7 +11,7 @@ import type { MaterialCristal } from "./calidad-perfiles";
 export type NodoCardinal = Exclude<NodoTrinity, "menuMano">;
 export interface ColorNodo { base: string; vivo: string }
 
-/** Espejo de `--ss-zenith`, `--ss-horizon(-vivid)`, `--ss-logic(-deep)` y `--ss-anchor` (CLAUDE.md §7). */
+/** Espejo de `--ss-zenith`, `--ss-horizon(-vivid)`, `--ss-logic(-deep)` y `--ss-anchor` (metagenesis.md §7). */
 export const COLORES_NODO: Record<NodoCardinal, ColorNodo> = {
     zenith: { base: "#007FFF", vivo: "#007FFF" },
     horizon: { base: "#10B981", vivo: "#39FF14" },

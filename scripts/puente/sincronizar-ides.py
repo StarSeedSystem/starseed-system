@@ -79,7 +79,7 @@ def documento():
     A("")
     A("> Generado por `scripts/puente/sincronizar-ides.py` el %s desde Genesis vivo."
       % time.strftime("%Y-%m-%d %H:%M:%S"))
-    A("> **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.")
+    A("> **No lo edites a mano: se regenera.** Lo permanente va en `metagenesis.md` y en `AGENTS.md`.")
     A("")
     A("Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,")
     A("**Hermes** y **Antigravity IDE**. Los cuatro miran el mismo Genesis y dan órdenes por el")
@@ -154,7 +154,7 @@ def documento():
     A("| | |")
     A("|---|---|")
     A("| Repo | `%s` |" % RAIZ)
-    A("| Rumbo y reglas permanentes | `CLAUDE.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |")
+    A("| Rumbo y reglas permanentes | `metagenesis.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |")
     A("| Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona**, muere con la máquina |")
     A("| Orquestador | `scripts/enjambre/starseed-enjambre.py`, instalado en `~/.local/bin/` |")
     A("| Genesis | `%s/mando` — local, `/api/mando/*` devuelve 404 en producción |" % MANDO)

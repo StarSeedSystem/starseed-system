@@ -1490,7 +1490,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
   {
     id: "iatool-coolify", kind: "function", name: "Coolify (PaaS soberano)",
     description:
-      "PaaS self-host de código abierto: despliega tus propias apps, bases de datos y servicios en tu propio servidor, sin depender de Heroku/Netlify/Vercel. Qué reemplaza: PaaS de pago gestionados por terceros. Encaja con la infraestructura tecnológica soberana de la Tríada (§3 CLAUDE.md). Instalar registra la skill «PaaS soberano» para que Aurora explique este patrón cuando el usuario quiera desplegar algo en su propio servidor, y abre su repo de referencia.",
+      "PaaS self-host de código abierto: despliega tus propias apps, bases de datos y servicios en tu propio servidor, sin depender de Heroku/Netlify/Vercel. Qué reemplaza: PaaS de pago gestionados por terceros. Encaja con la infraestructura tecnológica soberana de la Tríada (§3 metagenesis.md). Instalar registra la skill «PaaS soberano» para que Aurora explique este patrón cuando el usuario quiera desplegar algo en su propio servidor, y abre su repo de referencia.",
     icon: "Server", tags: ["skill", "aurora", "paas", "self-host", "soberania", "oss"], version: "1.0.0",
     author: "coollabsio", sourceRepoId: "starseed-ia-tools", free: true, featured: true,
     payload: { skillId: "self-hosting-deploy", externalUrl: "https://github.com/coollabsio/coolify", note: "PaaS self-host: despliega apps/BDs/servicios en tu propio servidor (alt. Heroku/Netlify/Vercel)." },
@@ -1581,7 +1581,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
   {
     id: "iatool-anytype", kind: "function", name: "Anytype (objetos local-first)",
     description:
-      "Notas y objetos conectados local-first, cifrados de extremo a extremo y sincronizables P2P sin servidor central. Qué reemplaza: apps de notas/wikis en la nube de pago. Encaja con memorias y conocimiento personal soberano (Tríada §3 CLAUDE.md: Identidad Soberana). Instalar registra la skill «Objetos locales» para que Aurora conozca este patrón de conocimiento personal cifrado. Conector en vivo pendiente a propósito: su API local exige emparejar la app de escritorio con un código de verificación (flujo de dos pasos que hoy no se automatiza con honestidad desde un simple endpoint), así que queda como capacidad + enlace, no como conector configurable. Abre su repo de referencia.",
+      "Notas y objetos conectados local-first, cifrados de extremo a extremo y sincronizables P2P sin servidor central. Qué reemplaza: apps de notas/wikis en la nube de pago. Encaja con memorias y conocimiento personal soberano (Tríada §3 metagenesis.md: Identidad Soberana). Instalar registra la skill «Objetos locales» para que Aurora conozca este patrón de conocimiento personal cifrado. Conector en vivo pendiente a propósito: su API local exige emparejar la app de escritorio con un código de verificación (flujo de dos pasos que hoy no se automatiza con honestidad desde un simple endpoint), así que queda como capacidad + enlace, no como conector configurable. Abre su repo de referencia.",
     icon: "Boxes", tags: ["skill", "aurora", "notas", "objetos", "local-first", "e2ee", "p2p", "oss"], version: "1.0.0",
     author: "anyproto", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "local-objects", externalUrl: "https://github.com/anyproto/anytype-ts", note: "Objetos/notas local-first cifrados, sincronización P2P sin servidor central." },
@@ -1608,7 +1608,7 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
   {
     id: "iatool-syncthing", kind: "function", name: "Syncthing (sync P2P de archivos)",
     description:
-      "Sincroniza archivos entre tus dispositivos directamente por P2P, sin subir tus datos a un servidor central. Qué reemplaza: servicios de sincronización en la nube de pago. Encaja con la soberanía de datos de la Tríada (§3 CLAUDE.md). Instalar registra la skill «Sincronización P2P» para que Aurora conozca este patrón (el proveedor de sincronización en sí se gestiona en Ajustes → Cerebros → Proveedores de sync, otra superficie). Licencia MPL-2.0. Abre su repo de referencia.",
+      "Sincroniza archivos entre tus dispositivos directamente por P2P, sin subir tus datos a un servidor central. Qué reemplaza: servicios de sincronización en la nube de pago. Encaja con la soberanía de datos de la Tríada (§3 metagenesis.md). Instalar registra la skill «Sincronización P2P» para que Aurora conozca este patrón (el proveedor de sincronización en sí se gestiona en Ajustes → Cerebros → Proveedores de sync, otra superficie). Licencia MPL-2.0. Abre su repo de referencia.",
     icon: "RefreshCw", tags: ["skill", "aurora", "sync", "p2p", "archivos", "soberania", "oss"], version: "1.0.0",
     author: "syncthing", sourceRepoId: "starseed-ia-tools", free: true,
     payload: { skillId: "p2p-sync", externalUrl: "https://github.com/syncthing/syncthing", note: "Sincronización de archivos P2P sin servidor central (MPL-2.0)." },

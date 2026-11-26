@@ -21,7 +21,7 @@
  *   · `starseed.library.usage.v1`   → { [packageId]: { count, lastUsedAt } }
  * Ambas claves viajan con la cuenta (SYNCED_KEYS en settings-sync.ts) para que
  * tu valoración y tu uso sigan a la misma cuenta soberana en cualquier
- * dispositivo (Identidad Soberana · CLAUDE.md §6).
+ * dispositivo (Identidad Soberana · metagenesis.md §6).
  *
  * Emite el mismo evento `starseed:library` que el resto del motor de paquetes
  * para que toda la Biblioteca reaccione con un único listener.

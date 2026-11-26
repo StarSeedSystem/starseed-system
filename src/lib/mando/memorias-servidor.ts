@@ -68,7 +68,7 @@ const LIMITE_VINCULOS = 40;
 const TOPE_ARCHIVOS_POR_FUENTE = 150;
 
 const ORIGENES: Partial<Record<IdCapa, string>> = {
-    nucleo: "Raíz del repositorio: CLAUDE.md, AGENTS.md, PUENTE-DE-MANDO.md, DESIGN.md, README.md.",
+    nucleo: "Raíz del repositorio: metagenesis.md, AGENTS.md, PUENTE-DE-MANDO.md, DESIGN.md, README.md.",
     proyecto: "memory/*.md",
     relevo: "relevo/ y starseed_memory_root/relevo/",
     aprendizajes: "memory/aprendizaje-olas.md, starseed_memory_root/aprendizaje/ y starseed_memory_root/verificaciones/",
@@ -204,7 +204,7 @@ async function lecturasDeDirectorio(
 
 /** «Núcleo»: principios e instrucciones en la raíz del repositorio. */
 async function lecturasNucleo(): Promise<LecturaArchivo[]> {
-    const nombres = ["CLAUDE.md", "AGENTS.md", "PUENTE-DE-MANDO.md", "DESIGN.md", "README.md"];
+    const nombres = ["metagenesis.md", "AGENTS.md", "PUENTE-DE-MANDO.md", "DESIGN.md", "README.md"];
     const salida: LecturaArchivo[] = [];
     for (const nombre of nombres) {
         const l = await leerArchivoMemoria(path.join(RAÍZ, nombre), nombre);

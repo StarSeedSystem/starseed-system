@@ -123,7 +123,7 @@
 
 **A.N.T.** — Arquitectura de 3 capas: **A**bstract → **N**eural → **T**angible. (Ver `memory/architecture.md` §1.)
 
-**Capa Abstracta** — `architecture/`, `memory/`, `CLAUDE.md`. SOPs, principios, decisiones.
+**Capa Abstracta** — `architecture/`, `memory/`, `metagenesis.md`. SOPs, principios, decisiones.
 
 **Capa Neural** — `.agent/`, `src/ai/`. IA, agentes, skills, workflows.
 

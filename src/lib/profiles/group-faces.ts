@@ -1,7 +1,7 @@
 "use client";
 
 /*
- * group-faces — FACETA por GRUPO (dualidad Cuenta/Perfil, CLAUDE.md §6).
+ * group-faces — FACETA por GRUPO (dualidad Cuenta/Perfil, metagenesis.md §6).
  *
  * El ciudadano elige QUÉ faceta pública (os_account_profiles) le representa en
  * un grupo concreto. Es ADITIVO y de PURA PRESENTACIÓN:

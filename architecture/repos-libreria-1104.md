@@ -15,7 +15,7 @@
 3. Nada de telemetría: `OPENUI_TELEMETRY_DISABLED=1` y `DO_NOT_TRACK=1` en cada `npm ci` (workflows de
    GitHub y `deploy/oracle/nodo/preparar-a1.sh`); `OPENUI_RUNTIME_TELEMETRY_ENABLED` nunca se pone.
 4. Nada que ocupe GB en la Mac ni en el A1 sin el visto bueno de Alex (Xcode, la imagen de DeepTutor).
-5. Cada pieza nueva con su prueba; módulos puros sin `node:fs` cuando los importa el cliente (CLAUDE.md,
+5. Cada pieza nueva con su prueba; módulos puros sin `node:fs` cuando los importa el cliente (metagenesis.md,
    trampa 11).
 
 ## 1 · Qué es cada uno (la verdad, sin adornos)

@@ -20,7 +20,7 @@ class TestBuscarTokensEnArchivo(unittest.TestCase):
         archivos_reales = [
             "scripts/puente/dream_a_cola.py",
             "scripts/puente/destilacion_corpus.py",
-            "CLAUDE.md",
+            "metagenesis.md",
         ]
         for ruta in archivos_reales:
             if os.path.exists(ruta):

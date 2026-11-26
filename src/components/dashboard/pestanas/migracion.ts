@@ -1,7 +1,7 @@
 /**
  * Migración de las pestañas predeterminadas (gen12, 2026-09-29) — PURO.
  *
- * Regla de CLAUDE.md §11 y lección «update-propagation»: una mejora de los predeterminados tiene
+ * Regla de metagenesis.md §11 y lección «update-propagation»: una mejora de los predeterminados tiene
  * que LLEGAR a las cuentas que ya existen, y a la vez NO puede destruir lo que la persona hizo.
  * Antes, al subir la versión, `reseedDefaultDashboards` regeneraba de cero TODAS las pestañas
  * temáticas: quien había movido un widget en «Clima» lo perdía. Ahora:

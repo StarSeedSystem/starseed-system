@@ -1,7 +1,7 @@
 # SOP · Dock: mantener presionado, arrastrar y opciones por icono
 
 > Ola 1025U · V1a · 2026-10-26. Fuente de verdad del gesto y del menú de los iconos del OmniDock
-> (Trinity Anchor). El registro de accesos (`dock-config.ts`, `app-catalog.ts`, CLAUDE.md §11) no cambia.
+> (Trinity Anchor). El registro de accesos (`dock-config.ts`, `app-catalog.ts`, metagenesis.md §11) no cambia.
 
 ## Qué hace
 

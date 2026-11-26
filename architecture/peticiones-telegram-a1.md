@@ -159,7 +159,7 @@ Mac ni Claude».
 "archivos": [
 "architecture/sintesis-diaria-autonoma.md",
 "memory/workflow-actual.md",
-"CLAUDE.md",
+"metagenesis.md",
 "AGENTS.md"
 ],
 "depende": [
@@ -167,7 +167,7 @@ Mac ni Claude».
 "PET1112C",
 "PET1112E"
 ],
-"prompt": "Lee architecture/peticiones-telegram-a1.md. En architecture/sintesis-diaria-autonoma.md añade una sección corta sobre las peticiones de Alex por el chat de la síntesis: qué hace el bot, dónde corre (A1), /estado y cómo se renueva NotebookLM. En CLAUDE.md y AGENTS.md añade «Pedir cosas a MetaGenesis por Telegram» (3–5 líneas): el chat de @StarSeed_Design_bot atiende a Alex desde el A1 sin la Mac, y la sesión de NotebookLM es solo del A1. Añade también una entrada corta en memory/workflow-actual.md."
+"prompt": "Lee architecture/peticiones-telegram-a1.md. En architecture/sintesis-diaria-autonoma.md añade una sección corta sobre las peticiones de Alex por el chat de la síntesis: qué hace el bot, dónde corre (A1), /estado y cómo se renueva NotebookLM. En metagenesis.md y AGENTS.md añade «Pedir cosas a MetaGenesis por Telegram» (3–5 líneas): el chat de @StarSeed_Design_bot atiende a Alex desde el A1 sin la Mac, y la sesión de NotebookLM es solo del A1. Añade también una entrada corta en memory/workflow-actual.md."
 },
 {
 "id": "PET1112H",

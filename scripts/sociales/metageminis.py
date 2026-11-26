@@ -5,7 +5,7 @@
 Contrato: architecture/metageminis.md. Lo que hace una pasada, de punta a punta:
 
   1. Lee el directorio de sitios (src/lib/metageminis/directorio.ts, entre las marcas <datos-json>)
-     y el contexto de StarSeed (CLAUDE.md §3–§6: tríada, arquitectura, fases, invariantes).
+     y el contexto de StarSeed (metagenesis.md §3–§6: tríada, arquitectura, fases, invariantes).
   2. Elige los sitios donde SUS REGLAS dejan redactar (no NLnet, no Hacker News, no LinkedIn…).
   3. Redacta un borrador por sitio con los modelos gratuitos del enjambre (solo NOMBRES de variables
      de entorno; ninguna clave vive en este archivo) o, sin clave, con una plantilla honesta.
@@ -54,7 +54,7 @@ from datetime import datetime, timezone
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 RUTA_DIRECTORIO = os.path.join(RAIZ, "src", "lib", "metageminis", "directorio.ts")
-RUTA_CLAUDE_MD = os.path.join(RAIZ, "CLAUDE.md")
+RUTA_CLAUDE_MD = os.path.join(RAIZ, "metagenesis.md")
 RUTA_MIGRACION = os.path.join(RAIZ, "supabase", "migrations", "20261011090000_metageminis.sql")
 CARPETA_ESTADO = os.path.join(os.path.expanduser("~"), ".starseed", "metageminis")
 
@@ -273,7 +273,7 @@ def plan(directorio, prioridad_max=2, solo_sitio=None, filas=None, ahora=None):
 
 
 def contexto_starseed(ruta=None, max_chars=3200):
-    """CLAUDE.md §3–§6 (tríada, arquitectura, fases, invariantes), recortado. Si falta, un resumen mínimo."""
+    """metagenesis.md §3–§6 (tríada, arquitectura, fases, invariantes), recortado. Si falta, un resumen mínimo."""
     minimo = (
         "StarSeed es un sistema operativo social abierto y descentralizado (código abierto) con identidad soberana, "
         "democracia directa y tecnología al servicio del bien común. Su plan tiene tres fases: Semilla (centros sociales y "

@@ -8,9 +8,9 @@
  * misma cuenta recupere su configuración en cualquier dispositivo.
  * ⚠️ Corregido el 2026-07-12: decía `dzkjapinnewkxzjltadv` y «la misma identidad
  * —Nexus, Café, OS—». FALSO: `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café;
- * sus cuentas NO son las del OS (CLAUDE.md §2).
+ * sus cuentas NO son las del OS (metagenesis.md §2).
  *
- * Principios (alineados con CLAUDE.md · Identidad Soberana e Invariantes):
+ * Principios (alineados con metagenesis.md · Identidad Soberana e Invariantes):
  *  - ADITIVO Y OPT-IN: no cambia nada hasta que el usuario pulsa sincronizar.
  *    localStorage sigue siendo la fuente de verdad sin conexión.
  *  - TOLERANTE A FALLOS: si no hay sesión, o la tabla `user_settings` aún no
@@ -272,7 +272,7 @@ export const SYNCED_PREFIX_EXCLUDE = [
 /* ═══════════════════════════════════════════════════════════════════════════
  * SECRETOS Y CLAVES DE DISPOSITIVO — LO QUE NUNCA VIAJA (Adenda 68 · A)
  * ═══════════════════════════════════════════════════════════════════════════
- * Regla del proyecto (CLAUDE.md §6 · Identidad Soberana): las CREDENCIALES se
+ * Regla del proyecto (metagenesis.md §6 · Identidad Soberana): las CREDENCIALES se
  * quedan cifradas en el dispositivo. Aquí se hace CUMPLIR, no solo se declara.
  *
  * Dos mecanismos:

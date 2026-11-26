@@ -946,7 +946,7 @@ class TestContextoSintesisNucleo(unittest.TestCase):
         self._escribir("starseed_memory_root/produccion/higgsfield/propuestas.json", [{"id": "h1", "proyecto": "sistema-diseno"}])
         self._escribir("architecture/test.md", "# Test Architecture\nPrimer párrafo.")
         self._escribir("memory/workflow-actual.md", "Workflow content")
-        self._escribir("CLAUDE.md", "Claude content")
+        self._escribir("metagenesis.md", "Claude content")
         self._escribir("AGENTS.md", "Agents content")
         self._escribir("config/repos-libreria-test.json", {"repos": [{"nombre": "repo1", "url": "http://x", "descripcion": "desc", "kind": "app"}]})
 

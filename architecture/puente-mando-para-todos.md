@@ -1,6 +1,6 @@
 # Genesis para todos: enjambres propios para cada persona, grupo y página (Olas 1007P → 1009P)
 
-> **Nombre (2026-10-07):** el producto se llama **Genesis** en todos sus contextos —personal, de grupo y de comunidad— («Genesis de <ámbito>», «Genesis para todos»). Este archivo conserva su nombre de ruta y los identificadores internos (`mando_*`, `/api/mando/*`, `STARSEED_MANDO_TODOS`) a propósito; ver «Nombre: Genesis» en `CLAUDE.md`.
+> **Nombre (2026-10-07):** el producto se llama **Genesis** en todos sus contextos —personal, de grupo y de comunidad— («Genesis de <ámbito>», «Genesis para todos»). Este archivo conserva su nombre de ruta y los identificadores internos (`mando_*`, `/api/mando/*`, `STARSEED_MANDO_TODOS`) a propósito; ver «Nombre: Genesis» en `metagenesis.md`.
 
 > Petición de Alex (2026-10-06): «Todo Genesis debe estar diseñado para funcionar de
 > forma autónoma 24/7 y ser un sistema vivo y activo para los usuarios de Starseed OS, adaptado a
@@ -13,7 +13,7 @@
 > Starseed OS.»
 
 Este documento es el CONTRATO. Lo que no esté aquí no se inventa; si choca con el código real,
-gana el código y se anota la diferencia. Complementa (no sustituye) a CLAUDE.md §«El OS
+gana el código y se anota la diferencia. Complementa (no sustituye) a metagenesis.md §«El OS
 universal, libre y seguro», `architecture/protocolo-comun-agentes.md`,
 `architecture/puente-economico-verificable.md`, `architecture/servidor-propio-protocolo.md`,
 `architecture/vinculos-entre-cuentas.md` y `architecture/medidores-credito.md`.

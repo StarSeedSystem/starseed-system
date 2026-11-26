@@ -31,7 +31,7 @@ resultado es un informe y una cola PROPUESTA que una persona abre en el Diseñad
 - **Lentes** (definidas en `analista.py`, una sola verdad): `arquitectura-deuda`,
   `ux-accesibilidad-diseno`, `rendimiento-consumo` (RAM de 8 GB, salida y peticiones de
   Supabase, bundle), `seguridad-privacidad` (**privada**: solo en la Mac), `pruebas-fiabilidad`,
-  `coherencia-triada` (CLAUDE.md §3/§6).
+  `coherencia-triada` (metagenesis.md §3/§6).
 - **Ids** `SA<MMDD><n>` (≤ 9, `^[A-Za-z][A-Za-z0-9]{0,8}$`), `n` = índice canónico área × lente:
   el mismo sueño tiene el mismo id todo el día, así relanzar no duplica.
 - **Mismo conjunto de archivos para las seis lentes de un área** (documentos que mandan +

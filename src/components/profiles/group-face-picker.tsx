@@ -2,7 +2,7 @@
 
 /*
  * GroupFacePicker — selector compacto de la FACETA con la que el usuario
- * participa en UN grupo concreto (dualidad Cuenta/Perfil, CLAUDE.md §6;
+ * participa en UN grupo concreto (dualidad Cuenta/Perfil, metagenesis.md §6;
  * Adenda 125).
  *
  * PURA PRESENTACIÓN: cambia con qué cara pública (os_account_profiles) se muestra

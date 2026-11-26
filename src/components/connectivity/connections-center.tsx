@@ -93,7 +93,7 @@ const HUB_TABS: Array<{ id: HubTab; label: string; icon: typeof RadioTower }> = 
   { id: "malla", label: "Malla", icon: Wifi },
   // Adenda 281 · E7: canales y grupos de Telegram de la cuenta, con sus enlaces
   // t.me y últimos mensajes. El icono lucide MessageSquare (no emoji) sigue el
-  // criterio de CLAUDE.md §8 (iconos Lucide, cursor-pointer, 150-300ms).
+  // criterio de metagenesis.md §8 (iconos Lucide, cursor-pointer, 150-300ms).
   { id: "canales", label: "Canales", icon: MessageSquare },
 ];
 

@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // ConnectorsHub — Hub de Conectores / Integraciones de StarSeed OS.
 //
-// FILOSOFÍA (CLAUDE.md §3 Ciberdelia · §6 Código Abierto absoluto):
+// FILOSOFÍA (metagenesis.md §3 Ciberdelia · §6 Código Abierto absoluto):
 //   Lo GRATIS · PROPIO · CÓDIGO ABIERTO funciona por DEFECTO, sin cuenta.
 //   Conectar cuentas externas es SIEMPRE opcional (por usuario y contexto),
 //   pero la opción es plenamente funcional y está integrada. Somos honestos:

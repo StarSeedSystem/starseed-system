@@ -31,7 +31,7 @@
   grupos, udev, polkit, firewall) y se conceden a la persona, al binario o al servicio, no al
   código de StarSeed. El terminal **hereda** el permiso del proceso padre; por eso un servicio de
   launchd con `zsh` como primer argumento puede leer la carpeta y no su contenido
-  (`CLAUDE.md` §💠, trampa 4).
+  (`metagenesis.md` §💠, trampa 4).
 - **Nada de este documento concede nada.** Abrir una pantalla de Ajustes deja el interruptor en
   manos de la persona. Escribir en TCC.db, usar `tccutil`, `pm grant`, `appops set`, pulsar
   diálogos por guion o perfiles MDM/PPPC está prohibido (contrato §1; prueba

@@ -5,7 +5,7 @@
  * comunidad / E.F. / partido): procesos de mediación y Círculos de Paz
  * anclados al ámbito de la PROPIA entidad, no al global de /network/politics.
  * ---------------------------------------------------------------------------
- * Invariante §6 de CLAUDE.md: «Justicia restaurativa, no punitiva». El sistema
+ * Invariante §6 de metagenesis.md: «Justicia restaurativa, no punitiva». El sistema
  * no implementa bloqueos punitivos sino procesos de mediación (Círculos de Paz).
  *
  * DISEÑO (mismo patrón EXACTO que src/lib/education/group-education.ts):

@@ -10,11 +10,11 @@
  * ⚠️ Corregido el 2026-07-12: la cabecera decía `dzkjapinnewkxzjltadv` y hablaba
  * de una cuenta «compartida por TODO el ecosistema». FALSO:
  * `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café y sus cuentas están
- * SEPARADAS de las del OS (CLAUDE.md §2).
+ * SEPARADAS de las del OS (metagenesis.md §2).
  * dispositivo. Refleja una imagen espejo en `cafe_accounts.apps` cuando existe
  * fila del usuario (defensivo, opcional).
  *
- * Principios (alineados con CLAUDE.md · Identidad Soberana, Singularidad del contenido):
+ * Principios (alineados con metagenesis.md · Identidad Soberana, Singularidad del contenido):
  *  - LOCAL ES LA VERDAD: localStorage (vía library-store) sigue mandando sin
  *    conexión. La nube solo enriquece (unión, nunca resta).
  *  - TOLERANTE A FALLOS: sin sesión, sin tabla, o ante error de red, NO rompe

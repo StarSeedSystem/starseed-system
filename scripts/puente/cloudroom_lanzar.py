@@ -84,7 +84,7 @@ TERMINADO = frozenset({"idle", "completed", "complete", "done", "finished", "sto
 PLANTILLA = """Eres un agente de StarSeed OS en un hilo de la nube de Cloudroom: un sandbox con una COPIA del repo, no la Mac de Alex (aquí no hay Genesis, ni ~/.starseed, ni orquestador). Haces UNA tarea de la cola del enjambre, solo y sin preguntar: nadie contestará hasta que termines.
 
 ## Reglas
-- Lee CLAUDE.md y AGENTS.md (lo que afecta a escribir código y pruebas) y el contrato que nombre la tarea.
+- Lee metagenesis.md y AGENTS.md (lo que afecta a escribir código y pruebas) y el contrato que nombre la tarea.
 - Solo los archivos declarados ({ARCHIVOS}); si de verdad hace falta otro, lo mínimo, y lo dices.
 - `npm ci` está permitido; NO añadas dependencias ni cambies package.json / package-lock.json.
 - Puertas: `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck -p .` antes (línea base) y al final (cero errores nuevos), y tus pruebas en verde (`npx vitest run <pruebas>` o `python3 -m pytest -q <pruebas>`). Si una prueba falla se arregla el código, no la prueba.

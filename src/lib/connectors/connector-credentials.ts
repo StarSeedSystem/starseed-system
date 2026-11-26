@@ -5,7 +5,7 @@
  * de Astraura (src/ai/astraura/provider-resolution.ts / router.ts) para que
  * cada usuario pueda conectar OPCIONALMENTE sus propias cuentas/credenciales
  * por servicio, sin que el sistema deje de funcionar con los defaults
- * gratis/OSS (CLAUDE.md · §3 Ciberdelia + §6 Invariantes · Identidad Soberana).
+ * gratis/OSS (metagenesis.md · §3 Ciberdelia + §6 Invariantes · Identidad Soberana).
  *
  * DOS ALMACENES SEPARADOS A PROPÓSITO:
  *

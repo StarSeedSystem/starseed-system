@@ -18,7 +18,7 @@ import type { AccionUi, TipoAccionUi } from "./ui-acciones";
  * rutas tocadas. Guardar esa entrada es guardar el «deshacer».
  *
  * Módulo PURO: sin React, sin estado global, sin red, sin disco, sin `node:*`.
- * SSR-safe, importable desde componentes de cliente (CLAUDE.md §«Publicar»).
+ * SSR-safe, importable desde componentes de cliente (metagenesis.md §«Publicar»).
  *
  * La IA es el exocórtex del usuario (Tríada §3): aplica lo que el usuario
  * consiente y nunca le quita la posibilidad de volver atrás.

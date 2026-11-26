@@ -27,7 +27,7 @@
 | Registro de casos de Laya y recalibrado del umbral | El código existe (`aprendizaje-laya.ts:45,65,90`), pero **nada lo alimenta**: `anotar` no tiene llamador fuera de pruebas y el panel recibe un registro vacío (`inteligencia-section.tsx:339`). |
 | Cuaderno de afinado de Laya | Citado (`laya-y-habilidades.md:106`), **no existe** en el repo. |
 | Fábrica de adaptadores (QVAC, Soup, LlamaFactory) | Módulos puros que preparan configuración (`src/lib/astraura/aprendizaje/`); apuntan a BitNet y bases de Hugging Face, **no a Laya**. No ejecutan nada. |
-| Ciclo nocturno de Needle con lo acertado | Anunciado (`CLAUDE.md:352`); `experiencias.para_needle` (`:144`) solo tiene llamador en una prueba. No lo encontré programado. |
+| Ciclo nocturno de Needle con lo acertado | Anunciado (`metagenesis.md:352`); `experiencias.para_needle` (`:144`) solo tiene llamador en una prueba. No lo encontré programado. |
 | Resultados de las decisiones | `decidir.confirmar` solo lo llaman el analista de sueños y la línea de órdenes. Casi todas las experiencias quedan **sin desenlace**. |
 
 **Conclusión: hoy nada entrena ni adapta a Laya, ni Jev ni otra cosa.** Lo que existe mide y registra.
@@ -58,7 +58,7 @@ un vecino más cercano al lado de Laya y como calibrador de su confianza, que ya
 
 | Aparato | Hace | No hace |
 |---|---|---|
-| Mac de 8 GB | Captura, une desenlaces, construye la libreta, mide la sombra (con la máquina libre, `jev_sombra.py`). | Entrenar; cargar Laya si el enjambre escribe (`CLAUDE.md`, guardia de memoria). |
+| Mac de 8 GB | Captura, une desenlaces, construye la libreta, mide la sombra (con la máquina libre, `jev_sombra.py`). | Entrenar; cargar Laya si el enjambre escribe (`metagenesis.md`, guardia de memoria). |
 | Tableta Android | Consulta la capa de ejemplos de su cuenta (cientos de ejemplos, vecinos por huella de palabras, sin modelo) y calibra; Laya int8 solo si `laya-navegador.ts` lo permite, si no por la malla. | Afinar, guardar la libreta de otra cuenta, cargar WebGPU sin 4 GB. |
 | Servidor A1 (CPU, 2 núcleos, ~2 s por petición) | Sirve Laya, recalcula calibraciones, evalúa una capa nueva contra la reserva. | Entrenar pesos. |
 | GPU gratuita (Kaggle, Colab) | Afinar y exportar un adaptador cuando Alex lo autoriza. | Ver datos privados: solo recibe el JSONL no privado. |

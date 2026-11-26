@@ -11,7 +11,7 @@
 > los pasos sobre los átomos, varios agentes a la vez, verificador distinto del autor y decisión
 > de quien manda en el ámbito (Genesis, PoliGenesis o, si hace falta código del OS, MetaGenesis)—.
 
-## 0 · Las reglas que mandan (de `CLAUDE.md`, no se tocan)
+## 0 · Las reglas que mandan (de `metagenesis.md`, no se tocan)
 
 1. **Editable sí, ejecutable no.** El núcleo del OS jamás ejecuta código ajeno. Lo de terceros corre
    **aislado**: iframe con `sandbox` y puente `postMessage` con origen verificado, WASM en un Worker, app

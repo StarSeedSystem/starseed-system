@@ -678,7 +678,7 @@ export async function approveGroupJoinRequest(
 /**
  * Rechaza (borra) una solicitud de ingreso pendiente vía la RPC SECURITY
  * DEFINER `reject_group_membership` — simétrica a `approve_group_membership`.
- * Ética restaurativa (CLAUDE.md §6): solo borra la fila `pending`; no deja
+ * Ética restaurativa (metagenesis.md §6): solo borra la fila `pending`; no deja
  * marca ni bloqueo, la persona puede volver a solicitar cuando quiera.
  */
 export async function rejectGroupJoinRequest(

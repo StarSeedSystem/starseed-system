@@ -3,7 +3,7 @@
  * ---------------------------------------------------------------------------
  * Tipos del "Hub de Conectores / Integraciones" de StarSeed OS.
  *
- * FILOSOFÍA (alineada con CLAUDE.md · §3 Ciberdelia + §6 Invariantes):
+ * FILOSOFÍA (alineada con metagenesis.md · §3 Ciberdelia + §6 Invariantes):
  *  - Lo GRATIS / CÓDIGO ABIERTO / PROPIO funciona por DEFECTO, sin cuenta.
  *  - Conectar cuentas externas es SIEMPRE opcional, por usuario y contexto.
  *  - Los conectores propios/OSS/gratis nunca requieren credenciales para

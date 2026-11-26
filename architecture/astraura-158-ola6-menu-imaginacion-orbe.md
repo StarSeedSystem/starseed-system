@@ -21,7 +21,7 @@ Infraestructura, Estudio, Gobernanza).
 
 Consecuencia práctica, y exactamente la queja del usuario: **para quien navega el
 OS, las áreas del sistema original no existían.** Se aplica aquí la regla dorada
-de descubribilidad del `CLAUDE.md` §11 — crear la pantalla no la hace accesible;
+de descubribilidad del `metagenesis.md` §11 — crear la pantalla no la hace accesible;
 hay que registrarla en los medios de navegación.
 
 ---
@@ -263,7 +263,7 @@ backend caído: el usuario habría leído «sin conexión» de un sistema sano.
 
 ---
 
-## 6 · Registro en los medios de navegación (CLAUDE.md §11)
+## 6 · Registro en los medios de navegación (metagenesis.md §11)
 
 | Medio | Qué se tocó |
 |---|---|

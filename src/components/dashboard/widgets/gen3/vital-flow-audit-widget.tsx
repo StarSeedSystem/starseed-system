@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════
 // Flujo vital · auditoría de mandatos — qué se hizo con lo que decidimos (Ola 0929, paquete B).
 // ----------------------------------------------------------------
-// Antes: un «tesoro» con flujos y cifras inventados. Ahora, lo que CLAUDE.md §6 pide: poder
+// Antes: un «tesoro» con flujos y cifras inventados. Ahora, lo que metagenesis.md §6 pide: poder
 // público transparente. Las decisiones APROBADAS del Ágora (mismas filas reales que el Ágora,
 // misma lectura compartida: cero peticiones propias) con su ejecución en el Ejecutivo —
 // pendiente, en ejecución o completada, progreso, responsable e informes de avance—. Asumir un

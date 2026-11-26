@@ -1,7 +1,7 @@
 /**
  * Diseños del Mausbot de Astraura: los de fábrica (uno por cuerpo) y los propios, en la clave
  * `starseed.mausbot.disenos.v1`. Un SVG propio pasa por `sanearSvg` antes de guardarse. Datos
- * puros, sin `node:*`: los importa el cliente (CLAUDE.md, trampa 11).
+ * puros, sin `node:*`: los importa el cliente (metagenesis.md, trampa 11).
  * Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0):
  * src/components/CursorAvatar.tsx (degradado por defecto) y MausBotCustomize.tsx (selector).
  */

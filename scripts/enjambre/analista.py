@@ -131,7 +131,7 @@ LENTES = [
     {
         "id": "coherencia-triada",
         "nombre": "Coherencia con la Tríada e invariantes",
-        "foco": "ontocracia, ciberdelia y transhumanismo comunista (CLAUDE.md §3) e invariantes técnicas (§6)",
+        "foco": "ontocracia, ciberdelia y transhumanismo comunista (metagenesis.md §3) e invariantes técnicas (§6)",
         "preguntas": [
             "¿Qué función concentra poder o datos en un servidor central cuando podría ser federada o local?",
             "¿Qué flujo castiga en vez de mediar (justicia restaurativa), o vigila en vez de amplificar?",

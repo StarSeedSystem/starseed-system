@@ -9,7 +9,7 @@ import { raizDelProyecto } from "@/lib/mando/raiz";
  * Ola 1025R: las colas que dejan los cinco grupos de la tanda de repos (agentes, capas, diseño, infra,
  * investigación), la de Cloudflare Computer y las de Blender y ArtCraft/Rare. Es lo que lanzará el enjambre,
  * así que se valida con la MISMA función que el Diseñador de olas (`validarCola`) y con las reglas de la casa:
- * ids únicos entre todas las colas vivas (CLAUDE.md, trampa 2), dependencias dentro de su cola y ≤ 3 archivos por tarea.
+ * ids únicos entre todas las colas vivas (metagenesis.md, trampa 2), dependencias dentro de su cola y ≤ 3 archivos por tarea.
  */
 const RAIZ = path.resolve(__dirname, "../../../..");
 const OLAS = path.join(RAIZ, "starseed_memory_root", "olas");

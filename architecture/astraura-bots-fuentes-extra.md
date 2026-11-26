@@ -160,7 +160,7 @@ en §5.1.
 1. **Boat es de pago** (§5.1). Alex: solo alternativas gratis.
 2. **Guarda el login de Claude de cada usuario en su servidor.** Para Alex, con su propia cuenta y
    su propia máquina, es decisión suya; para usuarios de StarSeed contradice «identidad soberana,
-   extremo a extremo» (CLAUDE.md §6) y ata el bot a una suscripción de pago.
+   extremo a extremo» (metagenesis.md §6) y ata el bot a una suscripción de pago.
 3. **Identidad de la web = un id en `localStorage`** (lo dice su README) y el hook usa un secreto
    compartido: no hay cuentas. El OS tiene Cuenta/Perfil con responsabilidad en la cuenta raíz.
 4. **Ejecuta código en una máquina remota por diseño.** En el OS eso solo cabe en la computadora
@@ -376,10 +376,10 @@ apoyan en eso, no lo sustituyen.
 
 | Regla (de dónde) | open-dots | opendots |
 |---|---|---|
-| Código abierto absoluto y auditable (CLAUDE.md §6) | Licencia no verificable | MIT, pero el motor que lo ejecuta no es auditable |
-| Identidad soberana y datos del usuario (CLAUDE.md §6) | Credenciales OAuth de usuarios en el servidor; identidad por `localStorage` | Notas y conversaciones en un tercero |
+| Código abierto absoluto y auditable (metagenesis.md §6) | Licencia no verificable | MIT, pero el motor que lo ejecuta no es auditable |
+| Identidad soberana y datos del usuario (metagenesis.md §6) | Credenciales OAuth de usuarios en el servidor; identidad por `localStorage` | Notas y conversaciones en un tercero |
 | Economía de créditos / «solo gratis» (Adenda 219 + decisión de Alex) | Boat de pago + suscripción de Claude | OpenComputer de pago + modelo de pago por defecto |
-| Editable sí, ejecutable no (CLAUDE.md «OS universal») | Ejecuta código en una VM remota (correcto solo si es la computadora aislada del bot) | Igual |
+| Editable sí, ejecutable no (metagenesis.md «OS universal») | Ejecuta código en una VM remota (correcto solo si es la computadora aislada del bot) | Igual |
 | Memoria por alcance (`alcance-memoria.ts`) | Una sesión de Claude por usuario, sin alcances | Perfil único para todos los temas |
 | Nunca publicar/`git push` sin su palabra (decisión de Alex) | Su cubo «publish» existe y se puede poner en «siempre»: **contrario** | No aplica |
 | Núcleo intocable (`NUCLEO_INTOCABLE` de BOT1011) | El bot escribe en la caja, no en el OS: compatible si no hay ruta al repo | Igual |
@@ -422,7 +422,7 @@ apoyan en eso, no lo sustituyen.
 - Terceros sobre open-dots: skillsllm.com/skill/open-dots (5.580 estrellas; un análisis automático
   marcó una línea del README como «posible envío de credenciales»; la línea 71 de `main` es solo un
   bloque de código, no pude reproducirlo, aunque el flujo de login sí guarda credenciales).
-- Repo del OS (lectura): `CLAUDE.md` §3–§6 y secciones «OS universal», «Fuentes externas» y
+- Repo del OS (lectura): `metagenesis.md` §3–§6 y secciones «OS universal», «Fuentes externas» y
   «Economía de créditos»; `architecture/{integraciones-fuentes-recomendadas, oracle-nube,
   apps-nativas-segundo-plano}.md`; `src/lib/astraura-bots/{tipos, acciones, permisos, bucle,
   reparto-de-modelo}.ts` (solo lectura); `src/app/api/telegram/send/route.ts`; `.env.example`.

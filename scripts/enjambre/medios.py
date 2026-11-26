@@ -225,7 +225,7 @@ def tope_de_silencio(bytes_trabajo, colgado_s=300, orientacion_s=900, log_crecie
 
     POR QUÉ (2026-09-14, medido en el log de p324A). El vigilante mataba a cualquier agente
     que pasara 300 s sin cambiar un byte del worktree. Kimi K3 empezó a las 16:35:45, leyó
-    CLAUDE.md, listó `src/lib/mando`, contó líneas de tres archivos y buscó sesenta y cinco
+    metagenesis.md, listó `src/lib/mando`, contó líneas de tres archivos y buscó sesenta y cinco
     coincidencias en centro-mando.tsx — y a las 16:41:02 lo cortaron. Cinco minutos y
     diecisiete segundos: exactamente el tope, por el delito de orientarse.
 

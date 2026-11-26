@@ -67,7 +67,7 @@ say "4/5 · Repo Astraura 1.58 (StarSeedSystem/astraura)"
 # ── 5 · Commit y push del OS (esto dispara el deploy de Vercel) ─────────────
 say "5/5 · Repo StarSeed OS (StarSeedSystem/starseed-system) → deploy"
 ( cd "$OS_DIR" \
-  && $DRY git add -A src architecture memory supabase CLAUDE.md next.config.ts starseed_memory_root \
+  && $DRY git add -A src architecture memory supabase metagenesis.md next.config.ts starseed_memory_root \
   && $DRY git commit -m "feat(adenda-155): Astraura 1.58-bit como sistema primario del OS (Ola 3)
 
 - Studio 1.58 completo (13 pestañas s158/*) sobre los endpoints reales del backend soberano

@@ -49,7 +49,7 @@
  * `changeKey(...)` (mismo `id` y mismo `updatedAt` de la fila) para que la
  * deduplicación cruce transportes.
  *
- * Principios (CLAUDE.md): local-first, nunca lanza (un fallo de red jamás tira
+ * Principios (metagenesis.md): local-first, nunca lanza (un fallo de red jamás tira
  * la UI), SSR-safe (en el servidor todo es no-op).
  */
 

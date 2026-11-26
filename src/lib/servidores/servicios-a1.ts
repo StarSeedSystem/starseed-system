@@ -10,7 +10,7 @@
 export type ServicioA1 =
   | "libretranslate" | "stirling-pdf" | "archivebox" | "comfyui" | "openhands-agent-server";
 
-/** Medio donde corre el OS (§11 de CLAUDE.md): solo dos alcanzan 127.0.0.1. */
+/** Medio donde corre el OS (§11 de metagenesis.md): solo dos alcanzan 127.0.0.1. */
 export type MedioOs = "localhost" | "app-nativa-mac" | "https" | "http-remoto" | "otros";
 
 export interface FichaServicioA1 {

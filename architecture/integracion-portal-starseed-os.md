@@ -18,7 +18,7 @@ El **Portal StarSeed Nexus** (`https://starseed-nexus.vercel.app`, repo `alexbor
 > | Nexus / Portal / Café | `dzkjapinnewkxzjltadv` |
 >
 > **Las cuentas NO se comparten**: un usuario registrado en el Café **no** es el
-> mismo registro `auth.users` que un usuario del OS. Ver CLAUDE.md §2.
+> mismo registro `auth.users` que un usuario del OS. Ver metagenesis.md §2.
 > Varios módulos (`spaces.ts`, `os-files.ts`, `dm.ts`, `app-servers.ts`…) decían
 > en su cabecera «Backend YA APLICADO en `dzkjapinnewkxzjltadv`» y, por eso,
 > **13 tablas que el código usaba no existían en la base del OS** y todas las
@@ -62,7 +62,7 @@ Nueva familia de fondos/tema portada del **rediseño del Nexus/Café** al SOSD: 
   - Host montado en `src/app/layout.tsx` junto a los demás fondos globales.
   - Selector en `src/components/settings/appearance/background-settings.tsx`: pestaña **"Materia Viva ✦"** con 3 tarjetas de preset (previsualización CSS animada: gradiente dorado + punto flotante) + deslizador **Intensidad** (0–100, guardado como `background.intensity` 0..1, campo opcional para retro-compatibilidad — escala cantidad de partículas y alfa del patrón).
 - **Opciones configurables:** variante (3 paletas) e intensidad; conviven con filtros, overlay y animaciones de fondo ya existentes.
-- Se publica como **opciones de personalización de la red** disponibles para cualquier usuario del SOSD, bajo el principio de **código abierto absoluto** (§6 de CLAUDE.md): el mismo lenguaje visual del Nexus/Café queda elegible —nunca impuesto— en cada perfil del OS.
+- Se publica como **opciones de personalización de la red** disponibles para cualquier usuario del SOSD, bajo el principio de **código abierto absoluto** (§6 de metagenesis.md): el mismo lenguaje visual del Nexus/Café queda elegible —nunca impuesto— en cada perfil del OS.
 
 ### v1.1 — Materia Viva integrada por defecto + acentos de interfaz (2026-06-11)
 El tema deja de ser una opción escondida y pasa a ser el lenguaje visual por defecto del OS (sigue siendo 100% personalizable):

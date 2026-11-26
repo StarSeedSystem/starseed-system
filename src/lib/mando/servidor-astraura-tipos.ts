@@ -202,7 +202,7 @@ export const ETIQUETA_DESPIERTO = "com.starseed.despierto";
  * `-d` (la pantalla puede seguir apagándose para ahorrar batería), con
  * `RunAtLoad`/`KeepAlive` para que sobreviva a un reinicio de sesión, y
  * `ProcessType Interactive` (igual que el resto de demonios interactivos del
- * Genesis: `Background` ahoga CPU/I/O, ver CLAUDE.md §Modo ligero).
+ * Genesis: `Background` ahoga CPU/I/O, ver metagenesis.md §Modo ligero).
  */
 export function plistDespierto(): string {
     return `<?xml version="1.0" encoding="UTF-8"?>

@@ -19,7 +19,7 @@
   ~30 € que un miembro enciende amplía la red de TODOS (cada dispositivo =
   cerebro + servidor, igual que las neuronas de Astraura).
 
-**Invariantes que esta capa respeta** (CLAUDE.md §6): descentralización
+**Invariantes que esta capa respeta** (metagenesis.md §6): descentralización
 federada, identidad soberana (las claves no salen del dispositivo), código
 abierto absoluto (Meshtastic es GPL; nuestra capa es AGPL), privacidad
 personal ↔ transparencia pública.

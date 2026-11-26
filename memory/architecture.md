@@ -30,7 +30,7 @@ Heredado del `gemini.md` original. Tres capas claras:
 │  ABSTRACT (Capa Abstracta)                              │
 │  - architecture/      → SOPs, specs, fundamentos        │
 │  - memory/            → estado, principios, roadmap     │
-│  - CLAUDE.md / gemini.md → constitución del proyecto    │
+│  - metagenesis.md / gemini.md → constitución del proyecto    │
 └─────────────────────────────────────────────────────────┘
 ```
 

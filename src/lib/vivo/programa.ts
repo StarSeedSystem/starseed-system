@@ -8,7 +8,7 @@
  * con las mismas reglas puras (`programas/motor.ts`). Se abre en `/programa/<id>` (acepta
  * `?sesion=<id>` sin más).
  *
- * Alcance honesto: NO ejecuta código de nadie (CLAUDE.md, «editable sí, ejecutable no»). Es un
+ * Alcance honesto: NO ejecuta código de nadie (metagenesis.md, «editable sí, ejecutable no»). Es un
  * vocabulario cerrado de bloques con estado compartido, no un lenguaje de programación. El
  * enlace público abre en modo lectura; para participar hay que tener cuenta e invitación.
  *

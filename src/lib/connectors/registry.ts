@@ -4,7 +4,7 @@
  * Catálogo semilla del Hub de Conectores. Es solo DATOS (sin efectos): puede
  * importarse en servidor y cliente.
  *
- * PRINCIPIO RECTOR (CLAUDE.md §3 Ciberdelia · §6 Código Abierto absoluto):
+ * PRINCIPIO RECTOR (metagenesis.md §3 Ciberdelia · §6 Código Abierto absoluto):
  *  - PRIMERO lo PROPIO / CÓDIGO ABIERTO / GRATIS ABIERTO → `status: 'available'`
  *    o `'connected'`, `authType: 'none' | 'localEndpoint'`, SIN cuenta.
  *  - LUEGO, y claramente OPCIONALES, los de clave/oauth de terceros →

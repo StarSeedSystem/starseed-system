@@ -146,9 +146,9 @@ export const AREAS_REVISADAS: readonly AreaRevisada[] = [
     {
         id: "descubribilidad",
         nombre: "Descubribilidad",
-        rutas: ["src/lib/dock/dock-defaults.ts", "src/app/(app)", "CLAUDE.md"],
+        rutas: ["src/lib/dock/dock-defaults.ts", "src/app/(app)", "metagenesis.md"],
         busca: [
-            "La regla dorada del §11 del CLAUDE.md: una ruta que no está en el OmniDock ni en el catálogo de apps NO EXISTE para quien usa el OS.",
+            "La regla dorada del §11 del metagenesis.md: una ruta que no está en el OmniDock ni en el catálogo de apps NO EXISTE para quien usa el OS.",
             "Pantallas terminadas en olas pasadas a las que hoy no se llega desde ningún sitio.",
             "Entradas del dock que apuntan a rutas que ya no existen.",
             "Nombres e iconos que no dicen lo que la pantalla hace de verdad.",
@@ -278,7 +278,7 @@ export function promptRevisorArea(area: AreaRevisada, contexto: string): { syste
         "No propones NADA que ya exista en el contexto que te dan: primero compruebas si ya está hecho, y si lo está, callas.",
         "Prefieres pocas sugerencias ciertas a muchas plausibles: si el área está bien, lo dices devolviendo una lista vacía.",
         "Puntúas impacto, esfuerzo y riesgo con enteros de 1 a 5 usando la escala incluida en el encargo; no confundes impacto alto con esfuerzo alto.",
-        "Respetas la Tríada Ideológica del proyecto (ontocracia, ciberdelia, transhumanismo comunista) y las invariantes del §6 del CLAUDE.md.",
+        "Respetas la Tríada Ideológica del proyecto (ontocracia, ciberdelia, transhumanismo comunista) y las invariantes del §6 del metagenesis.md.",
         `Respondes ÚNICAMENTE con JSON válido, sin texto antes ni después: una lista con la forma de SugerenciaAstra[]. Cada elemento tiene id, ambito (exactamente "${area.id}"), titulo, porque, evidencia (citas con archivo y línea), impacto (1-5), esfuerzo (1-5), riesgo (1-5), archivos (rutas relativas del repositorio) y propuestaDeTarea ({titulo, archivos, prompt} o null).`,
     ].join(" ");
 

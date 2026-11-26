@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { META_ACCION, TIPOS_ACCION, deshacer, tieneSecreto, tocaNucleo, validarAccion } from "../acciones";
 
-// Claves de EJEMPLO montadas en tiempo de ejecución (trampa nº 12 de CLAUDE.md: la protección de secretos).
+// Claves de EJEMPLO montadas en tiempo de ejecución (trampa nº 12 de metagenesis.md: la protección de secretos).
 const CLAVE = ["s", "k-"].join("") + "ejemploNoReal123";
 const BEARER = ["Bea", "rer "].join("") + "abcdef123456";
 

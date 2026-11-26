@@ -1,7 +1,7 @@
 "use client";
 /**
  * Montaje global del consumo (2026-09-29). Cuelga del layout raíz, así que todo va PEREZOSO y sin
- * SSR (CLAUDE.md, «El layout raíz no carga motores pesados de forma estática»): el guardián de red ya
+ * SSR (metagenesis.md, «El layout raíz no carga motores pesados de forma estática»): el guardián de red ya
  * vive dentro del cliente de Supabase; aquí solo se pinta el aviso y se arranca la lectura del freno
  * remoto en esta pestaña (lo hace el propio aviso al suscribirse con `useFreno`).
  *

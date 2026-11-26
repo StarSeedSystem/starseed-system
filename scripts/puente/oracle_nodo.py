@@ -961,10 +961,10 @@ def _paquete(destino):
     for a in sorted(os.listdir(enj)):
         if (a.endswith(".py") and not a.startswith("test_") and a != "conftest.py") or a == "instalar.sh":
             poner(os.path.join(enj, a), os.path.join("enjambre", a))
-    # MetaGeminis en borrador: su árbol mínimo (lee el directorio y CLAUDE.md desde su raíz).
+    # MetaGeminis en borrador: su árbol mínimo (lee el directorio y metagenesis.md desde su raíz).
     if os.path.exists(fuente("scripts/sociales/metageminis.py")):
         for rel in ("scripts/sociales/metageminis.py", "scripts/sociales/metageminis_plan.py",
-                    "src/lib/metageminis/directorio.ts", "CLAUDE.md", "scripts/puente/decidir.py"):
+                    "src/lib/metageminis/directorio.ts", "metagenesis.md", "scripts/puente/decidir.py"):
             poner(fuente(rel), os.path.join("metageminis", rel))
     # El nodo de MetaGenesis (OPA1011), si ya existe: viaja con su servicio si lo trae.
     for carpeta in {os.path.join(RAIZ, "scripts", "puente"), os.path.join(FUENTE, "scripts", "puente")}:

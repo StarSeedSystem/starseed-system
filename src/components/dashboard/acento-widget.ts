@@ -13,7 +13,7 @@
  * Los colores NO son una paleta nueva: son exactamente los tokens que ya declara
  * `widget-categories.ts` para cada categoría, expresados como utilidades Tailwind
  * (texto / relleno tenue / borde). Las duraciones salen de `DURACION`, la escala
- * única del OS en `src/lib/design/movimiento.ts` (150-300 ms, CLAUDE.md §8).
+ * única del OS en `src/lib/design/movimiento.ts` (150-300 ms, metagenesis.md §8).
  */
 
 import { DURACION } from "@/lib/design/movimiento";

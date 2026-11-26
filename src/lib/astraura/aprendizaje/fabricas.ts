@@ -11,7 +11,7 @@
  *   onebitllms · refresco del BASE 1.58 (afinado completo), solo GPU NVIDIA en la nube.
  *   meta-n     · mejora el PROCESO de la capa (pautas y funciones de ayuda), en una caja Docker.
  *
- * Sin I/O, sin red, sin claves y sin `node:*` (CLAUDE.md, trampa 11). SOP:
+ * Sin I/O, sin red, sin claves y sin `node:*` (metagenesis.md, trampa 11). SOP:
  * architecture/astraura-158-aprendizaje-continuo.md §2.2 y §2.2.1.
  */
 

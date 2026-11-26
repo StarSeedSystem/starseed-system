@@ -958,7 +958,7 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
         h = _hermes()
         if h:
             try:
-                # La forma comprobada el 2026-09-20 (CLAUDE.md): destino, asunto y cuerpo.
+                # La forma comprobada el 2026-09-20 (metagenesis.md): destino, asunto y cuerpo.
                 r = subprocess.run(
                     [
                         h,

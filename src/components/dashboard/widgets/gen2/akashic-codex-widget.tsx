@@ -4,7 +4,7 @@
 // Códice akáshico — tu registro personal: archivos, memorias, cerebros y baúles (Ola 0929).
 // ----------------------------------------------------------------
 // Antes: nodos inventados con «redundancia IPFS» de adorno. Ahora, TU registro REAL
-// (CLAUDE.md §6: la cuenta guarda el Registro Acásico Personal): cuántos archivos
+// (metagenesis.md §6: la cuenta guarda el Registro Acásico Personal): cuántos archivos
 // (`os_files`), memorias (`memories`), cerebros (`brains`) y baúles (`vaults`) tienes —con
 // recuentos sin traer filas— y lo último que guardaste. Una lectura compartida cada 15 min,
 // sin sondeo ni canales en tiempo real. Cada órbita lleva a su casa en el OS.

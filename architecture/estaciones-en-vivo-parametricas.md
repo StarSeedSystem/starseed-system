@@ -106,7 +106,7 @@ dice).
   texto cifrado. El token y la ficha viajan en el **fragmento** del enlace (`#f=…&k=…`), que el navegador no
   manda a ningún servidor. No salen en el directorio. Sin tablas nuevas.
 - **Llaves locales** (`llaves-locales.ts`, `starseed.estaciones.vivo.v1`): solo en este aparato. NO van a
-  la cuenta: son credenciales y la regla de identidad soberana (CLAUDE.md §6, `settings-sync.ts`) dice que
+  la cuenta: son credenciales y la regla de identidad soberana (metagenesis.md §6, `settings-sync.ts`) dice que
   no viajan solas. Para controlar desde otro aparato: **«Controlar desde otro aparato»** copia el enlace de
   control (`#…&c=<JWK>`); al abrirlo se comprueba que la llave es la de la sesión y se guarda.
 

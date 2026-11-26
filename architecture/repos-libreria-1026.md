@@ -30,7 +30,7 @@ La marca «Gratis» sale de `free`. Se puso `false` en las dos fichas de conteni
 
 **Datos.** `config/repos-libreria-1026.json`: las cinco fichas con el formato de `repos-libreria-1025.json`, más `fusionadas`, `duplicadas` (qué se decidió con cada nombre y por qué), `decisiones` y `licencias_verificadas` (qué se leyó, de dónde y cuándo).
 
-**Módulo.** `src/lib/library/repos-1026.ts` es **puro**: sin `"use client"` y sin `node:*`, con el JSON por importación estática (trampa 11 de `CLAUDE.md`). Reutiliza `resumenRequisitos` y `autorDe` de `repos-1025.ts` (por eso ahora se exportan). Exporta `FICHAS_REPOS_1026` (las 4 nuevas, tipo `project`, con `payload.upstream`, `externalUrl`, `canal`, `patronTag`, `licencia`, `requisitos`, `corre_aqui`, `nota`, `aviso`), `conSeguimiento1026` y `FICHAS_VIEJAS_SEGUIMIENTO_1026` (la ficha fusionada con su versión, su repo y su texto nuevo), `IDS_SIEMBRA_1026` y las tablas de decisiones y licencias.
+**Módulo.** `src/lib/library/repos-1026.ts` es **puro**: sin `"use client"` y sin `node:*`, con el JSON por importación estática (trampa 11 de `metagenesis.md`). Reutiliza `resumenRequisitos` y `autorDe` de `repos-1025.ts` (por eso ahora se exportan). Exporta `FICHAS_REPOS_1026` (las 4 nuevas, tipo `project`, con `payload.upstream`, `externalUrl`, `canal`, `patronTag`, `licencia`, `requisitos`, `corre_aqui`, `nota`, `aviso`), `conSeguimiento1026` y `FICHAS_VIEJAS_SEGUIMIENTO_1026` (la ficha fusionada con su versión, su repo y su texto nuevo), `IDS_SIEMBRA_1026` y las tablas de decisiones y licencias.
 
 **Lo que la tienda enseña.** Solo el nombre y la descripción. Por eso lo que una persona debe saber antes de fiarse (de pago, licencia, medio que no existe) va en `nota`, que se une a la descripción de la ficha.
 

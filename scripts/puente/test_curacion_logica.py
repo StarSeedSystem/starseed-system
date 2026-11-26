@@ -90,9 +90,9 @@ class InformesSueltos(unittest.TestCase):
 
     def test_informes_de_la_raiz_son_estorbo(self):
         g = clasificar_arbol_sucio(["?? informe_dream.md", "?? sugerencias-2026-10-06.md",
-                                    "?? docs/informe.md", "?? notas.md", " M CLAUDE.md"])
+                                    "?? docs/informe.md", "?? notas.md", " M metagenesis.md"])
         self.assertEqual(g["estorbo"], ["informe_dream.md", "sugerencias-2026-10-06.md"])
-        self.assertEqual(g["trabajo"], ["docs/informe.md", "notas.md", "CLAUDE.md"])
+        self.assertEqual(g["trabajo"], ["docs/informe.md", "notas.md", "metagenesis.md"])
 
 
 class UnaSolaFuenteDeEstorbo(unittest.TestCase):
@@ -110,7 +110,7 @@ class UnaSolaFuenteDeEstorbo(unittest.TestCase):
         "?? notas.md", "?? src/lib/nuevo.ts", " M src/lib/algo.ts", "UU conflicto.ts",
         " M informe_analisis.md",        # CON seguimiento y modificado: jamás es estorbo
         "A  informe_nuevo.md",
-        " M CLAUDE.md",
+        " M metagenesis.md",
     ]
     ESTORBO = ["informe_analisis.md", "informe_dream.md", "sugerencias-2026-10-06.md", "x.new",
                "sub/y.orig", "error.log", "a/b/.DS_Store", "borrador~",
@@ -126,9 +126,9 @@ class UnaSolaFuenteDeEstorbo(unittest.TestCase):
 
     def test_clasificar_lineas_reparte_en_orden(self):
         from curacion_logica import clasificar_lineas
-        estorbo, propias, trabajo = clasificar_lineas(self.LINEAS, propias=("CLAUDE.md",))
+        estorbo, propias, trabajo = clasificar_lineas(self.LINEAS, propias=("metagenesis.md",))
         self.assertEqual(estorbo, self.ESTORBO)
-        self.assertEqual(propias, ["CLAUDE.md"])
+        self.assertEqual(propias, ["metagenesis.md"])
         self.assertEqual(trabajo, ["docs/informe.md", "notas.md", "src/lib/nuevo.ts",
                                    "src/lib/algo.ts", "conflicto.ts", "informe_analisis.md",
                                    "informe_nuevo.md"])
@@ -157,7 +157,7 @@ class UnaSolaFuenteDeEstorbo(unittest.TestCase):
         self.assertEqual(vig["estorbo"], self.ESTORBO)
         self.assertEqual(e_d, self.ESTORBO)
         self.assertEqual(e_g, self.ESTORBO)
-        # Con CLAUDE.md fuera de PROPIAS, el trabajo también es idéntico.
+        # Con metagenesis.md fuera de PROPIAS, el trabajo también es idéntico.
         self.assertEqual(vig["trabajo"], t_d)
         self.assertEqual(vig["trabajo"], t_g)
 

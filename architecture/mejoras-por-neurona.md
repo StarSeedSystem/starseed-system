@@ -190,7 +190,7 @@ Hecho por OPM1010 (2026-10-10): contrato, núcleo puro (`src/lib/mejoras/`: regi
 hallazgos, decisión, calidad, aplicación, informe; 47 pruebas), sondeo real
 (`scripts/puente/mejoras_neurona.py`, 15 pruebas) y panel (6 pruebas). Lo que falta, en orden.
 Cada prompt es autosuficiente; todos empiezan igual: «Lee `architecture/mejoras-por-neurona.md`
-y CLAUDE.md. Sin `node:*` en código de cliente; claves solo por nombre de variable; español claro;
+y metagenesis.md. Sin `node:*` en código de cliente; claves solo por nombre de variable; español claro;
 nada de «al día» sin dato. Pruebas solo de tus archivos (`npx vitest run <ruta>` o
 `python3 -m unittest <archivo>`).»
 

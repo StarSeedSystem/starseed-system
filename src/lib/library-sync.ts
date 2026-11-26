@@ -10,18 +10,18 @@
  * ⚠️ Corregido el 2026-07-12: la cabecera decía `dzkjapinnewkxzjltadv` y hablaba
  * de una cuenta «compartida por TODO el ecosistema». FALSO:
  * `dzkjapinnewkxzjltadv` es el proyecto de Nexus/Café y sus cuentas están
- * SEPARADAS de las del OS (CLAUDE.md §2).
+ * SEPARADAS de las del OS (metagenesis.md §2).
  * dispositivo.
  *
  * (2026-09-29 · contrato «consumo») Se RETIRA el espejo en `cafe_accounts.apps`: esa tabla es
- * del esquema del Café (cuentas SEPARADAS de las del OS, CLAUDE.md §2) y en la base del OS no
+ * del esquema del Café (cuentas SEPARADAS de las del OS, metagenesis.md §2) y en la base del OS no
  * tiene la columna `user_id` por la que se filtraba → HTTP 400 en CADA subida de la biblioteca
  * (los «cafe_accounts 400 repetidos» del registro del 28-09). El espejo no le servía a nadie: la
  * verdad de la cuenta del OS es `user_settings.prefs.installed`. Además: debounce de 2 s, la
  * lectura trae solo las 5 claves que usa (no la columna `prefs` entera) y solo se relee al
  * cambiar de CUENTA, no en cada refresco de token.
  *
- * Principios (alineados con CLAUDE.md · Identidad Soberana, Singularidad del contenido):
+ * Principios (alineados con metagenesis.md · Identidad Soberana, Singularidad del contenido):
  *  - LOCAL ES LA VERDAD: localStorage (vía library-store) sigue mandando sin
  *    conexión. La nube solo enriquece (unión, nunca resta).
  *  - TOLERANTE A FALLOS: sin sesión, sin tabla, o ante error de red, NO rompe

@@ -10,7 +10,7 @@
  * avalar, awarded_by queda fijado en TU uid (≠ el titular) → esa insignia SÍ
  * pesa como mérito para esa persona.
  *
- * Principios (CLAUDE.md): TOLERANTE A FALLOS (nunca lanza; degrada en silencio),
+ * Principios (metagenesis.md): TOLERANTE A FALLOS (nunca lanza; degrada en silencio),
  * ADITIVO (no monta nada por su cuenta; lo integra quien lo consume).
  *
  * NO RENDERIZA NADA si:

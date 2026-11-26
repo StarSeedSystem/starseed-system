@@ -1,7 +1,7 @@
 // StarSeed · Ontocracia — Meritocracia del entendimiento (ponderación por mérito).
 //
 // "La autoridad técnica se asigna por sabiduría aplicada VERIFICABLE (insignias),
-// no por riqueza, linaje o popularidad" (Tríada Ideológica, §3 de CLAUDE.md).
+// no por riqueza, linaje o popularidad" (Tríada Ideológica, §3 de metagenesis.md).
 //
 // Aquí vive el cálculo del MULTIPLICADOR DE MÉRITO por votante: un bonus ACOTADO
 // que añaden las insignias del área relevante a cuánto pesa un voto ya emitido

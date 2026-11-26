@@ -9,7 +9,7 @@
 ## 1. Principio rector
 
 Aurora **siempre funciona** y **es lo más gratuita posible desde el inicio**
-para cualquier usuario (Comunismo de Abundancia, §3 CLAUDE.md). No exige
+para cualquier usuario (Comunismo de Abundancia, §3 metagenesis.md). No exige
 configurar nada: detecta lo disponible, elige la mejor opción gratuita para
 cada tarea, lo dice con transparencia, y si algo se agota pasa sola a la
 siguiente alternativa local/gratuita. Todo es soberano y configurable.
@@ -146,7 +146,7 @@ con la MISMA cadena gratis-primero + failover + transparencia) y leen esa misma
 config. ⚠️ **CORREGIDO 2026-07-12 — este párrafo estaba INVERTIDO.** Lo correcto:
 el **StarSeed OS** (este repo) usa **`nxstilnyidvkqeosofuh`**; **Nexus y Café**
 usan **`dzkjapinnewkxzjltadv`**. Son proyectos DISTINTOS y las cuentas **NO** se
-comparten (CLAUDE.md §2). El `astraura-core.js` de Nexus usa el cliente del
+comparten (metagenesis.md §2). El `astraura-core.js` de Nexus usa el cliente del
 portal (`window.STARSEED.client()`), no un proyecto hardcodeado.
 
 ---

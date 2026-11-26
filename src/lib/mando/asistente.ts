@@ -8,7 +8,7 @@
  *   · briefing: repositorio, olas y tareas (con estado y dónde corrieron), agentes vivos
  *     con tokens y fase, salud de proveedores, fila inteligente, últimas notas del relevo
  *     y últimos eventos del bus;
- *   · contexto por palabras: trozos de las memorias (memory/*.md, CLAUDE.md, relevo,
+ *   · contexto por palabras: trozos de las memorias (memory/*.md, metagenesis.md, relevo,
  *     progreso, revisiones, informes, índice del memory root) que casan con la pregunta;
  *   · acciones propuestas: el modelo puede pedir `{"accion": …}` en un bloque JSON y la
  *     interfaz las ejecuta (lanzar/detener con confirmación humana; leer y ver_tarea al
@@ -289,7 +289,7 @@ export async function contextoPorPalabras(pregunta: string, maxChars = 6000): Pr
         { ruta: "starseed_memory_root/relevo/relevo.md", pistas: ["relevo", "handoff", "nota", "hermes", "claude", "sigue", "pendiente", "estado"] },
         { ruta: "memory/state.md", pistas: ["estado", "cambio", "bitácora", "bitacora", "historia", "adenda"] },
         { ruta: "memory/orquestacion-economica.md", pistas: ["orquest", "económ", "econom", "crédito", "credito", "proveedor", "modelo", "api", "cupo", "flota", "coste"] },
-        { ruta: "CLAUDE.md", pistas: ["regla", "cómo", "como", "arquitect", "ruta", "medio", "dock", "voz", "enjambre", "supervisor", "fuente", "mando"] },
+        { ruta: "metagenesis.md", pistas: ["regla", "cómo", "como", "arquitect", "ruta", "medio", "dock", "voz", "enjambre", "supervisor", "fuente", "mando"] },
         { ruta: "starseed_memory_root/olas/progreso.md", pistas: ["progreso", "tarea", "ola", "commit", "fallo", "integr"] },
         { ruta: "starseed_memory_root/olas/revisiones.md", pistas: ["revisi", "bloquea", "revisor", "riesgo"] },
         { ruta: "memory/roadmap.md", pistas: ["roadmap", "fase", "plan", "futuro", "siguiente"] },
@@ -316,7 +316,7 @@ Hablas en español, con precisión técnica y sin rodeos. Te basas SOLO en el es
 Reglas permanentes del proyecto: ningún proveedor debe agotar sus créditos; las claves solo viven en archivos de entorno (nunca en repo, documentos ni memorias); no se hace git push sin la palabra de Alex; todo cambio se verifica funcionalmente en localhost antes de darse por hecho.
 Puedes PROPONER acciones para que la interfaz las ejecute. Escríbelas como un bloque JSON en una línea propia (puede haber varias):
 {"accion":"ver_tarea","id":"VZ6"}                         → abre la ficha de esa tarea en la ramificación
-{"accion":"leer","ruta":"memory/state.md"}                 → te devuelve ese archivo en el siguiente turno (solo rutas de memorias, relevo, olas, informes, CLAUDE.md, architecture/)
+{"accion":"leer","ruta":"memory/state.md"}                 → te devuelve ese archivo en el siguiente turno (solo rutas de memorias, relevo, olas, informes, metagenesis.md, architecture/)
 {"accion":"mapa","consulta":"reasignarTarea"}              → grafo del código (GitNexus): un símbolo = quién lo llama y a quién llama; «impacto <símbolo>» = qué se rompe si cambia; un concepto = flujos y definiciones relacionados. Úsalo antes de opinar sobre código o sobre el riesgo de una rama.
 {"accion":"lanzar","cola":"241-x","donde":"nube","workers":2} → lanza una cola existente (pide confirmación humana)
 {"accion":"detener","cola":"241-x","donde":"nube"}           → detiene el orquestador de esa cola (pide confirmación humana)

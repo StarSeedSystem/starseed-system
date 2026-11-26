@@ -10,7 +10,7 @@
  * de `src/ai/astraura/skills.ts` — taste · pm · web-senses · research · vision
  * · voice), preferencias de modelo opcionales y metadatos de autoría/versión.
  *
- * Encaja en las Invariantes de CLAUDE.md §6:
+ * Encaja en las Invariantes de metagenesis.md §6:
  *   · Identidad Soberana → el agente es dato del usuario; vive en localStorage
  *     y se refleja (unión, nunca resta) en la cuenta soberana (Supabase
  *     `user_settings.prefs`), igual que la Biblioteca (library-sync).
@@ -37,7 +37,7 @@
  */
 export type CapabilityId = string;
 
-/** Visibilidad de un agente (Dualidad Cuenta/Perfil de CLAUDE.md §6). */
+/** Visibilidad de un agente (Dualidad Cuenta/Perfil de metagenesis.md §6). */
 export type AgentVisibility = "private" | "public";
 
 /**

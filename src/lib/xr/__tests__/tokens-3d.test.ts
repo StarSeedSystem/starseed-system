@@ -5,7 +5,7 @@ import { COLORES_NODO, CRISTAL, CONTRASTE_MIN_TEXTO, contraste, luminancia, mezc
 import { disponerTrinity } from "../espacio-trinity";
 
 describe("colores de la Trinity", () => {
-  it("son los de CLAUDE.md §7", () => {
+  it("son los de metagenesis.md §7", () => {
     expect(COLORES_NODO.zenith.base).toBe("#007FFF");
     expect(COLORES_NODO.horizon.vivo).toBe("#39FF14");
     expect(COLORES_NODO.horizon.base).toBe("#10B981");

@@ -216,7 +216,7 @@ lo que ya tenemos y la librería o el servidor solo cuando un experimento demues
 - La reversión es la **compensación** (patrón saga): cada paso que publica registra cómo deshacerse.
 
 **Memoria del proyecto (LlamaIndex).** `produccion_memoria.py` indexa `architecture/`, `memory/`,
-`CLAUDE.md`, `AGENTS.md`, los informes de tareas (`olas/pasos/`), el historial de producción y los
+`metagenesis.md`, `AGENTS.md`, los informes de tareas (`olas/pasos/`), el historial de producción y los
 incidentes.
 
 - Por cada candidata recupera los 5 pasajes más relevantes y los añade a su paquete de contexto, sin

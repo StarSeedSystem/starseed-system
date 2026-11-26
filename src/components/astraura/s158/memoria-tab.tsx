@@ -45,7 +45,7 @@ const PREF_FIELDS: { key: string; label: string }[] = [
   { key: "hardware_device", label: "Dispositivo" },
 ];
 
-/** Mismas ramas que el memory root de StarSeed (§ CLAUDE.md) + «general». */
+/** Mismas ramas que el memory root de StarSeed (§ metagenesis.md) + «general». */
 const DOC_CATEGORIES = ["general", "soul", "ego", "style", "skills", "memory", "dream", "accounts", "tasks", "logs"];
 
 type MemSubTab = "recuerdos" | "dispositivo" | "documentos" | "openviking";

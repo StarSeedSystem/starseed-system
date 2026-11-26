@@ -13,9 +13,9 @@ import collections
 
 INCLUIR = ("src/", "scripts/", "integraciones-de-codigo/", "architecture/", "docs/", "deploy/",
            "memory/workflow-actual.md", "memory/orquestacion-economica.md", "memory/diseno/",
-           "AGENTS.md", "CLAUDE.md", "README.md", "gemini.md/", "next.config.ts", "middleware.ts")
+           "AGENTS.md", "metagenesis.md", "README.md", "gemini.md/", "next.config.ts", "middleware.ts")
 EXCLUIR = ("docs/adendas/", "memory/aprendizaje", "scripts/codex/chats.json",
-           "PUENTE-DE-MANDO.md", "CLAUDE.md", "architecture/puente-mando-para-todos.md",
+           "PUENTE-DE-MANDO.md", "metagenesis.md", "architecture/puente-mando-para-todos.md",
            "src/lib/__tests__/nombre-genesis.test.ts", "scripts/puente/genesis_renombrar.py",
            # Nombran lo viejo a propósito: la migración del dock, la redirección y el alias /mando.
            "src/lib/dock/dock-defaults.ts", "src/lib/dock/__tests__/dock-defaults.test.ts",

@@ -155,7 +155,7 @@ describe("repos 1026 · los textos no prometen lo que no hacen", () => {
   });
 });
 
-describe("repos 1026 · el módulo es puro (CLAUDE.md, trampa 11)", () => {
+describe("repos 1026 · el módulo es puro (metagenesis.md, trampa 11)", () => {
   it("solo importa un tipo del manifiesto: sin node:*, sin «use client», sin ciclo en tiempo de ejecución", () => {
     const fuente = readFileSync(path.join(RAIZ, "src/ai/astraura/habilidades/repos-1026.ts"), "utf8");
     const codigo = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");

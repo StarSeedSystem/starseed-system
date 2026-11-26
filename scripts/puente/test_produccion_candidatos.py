@@ -79,7 +79,7 @@ class TestMediosDe(unittest.TestCase):
 
     def test_un_lote_puede_tocar_varios_medios(self):
         self.assertEqual(
-            pc.medios_de(["src/app/page.tsx", "scripts/puente/x.py", "CLAUDE.md"]),
+            pc.medios_de(["src/app/page.tsx", "scripts/puente/x.py", "metagenesis.md"]),
             ["repo", "servicios", "web"],
         )
 

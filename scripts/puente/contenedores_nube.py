@@ -378,7 +378,7 @@ def _sondeo() -> list:
 def capacidad_gh(escritores, agentes_por_job, agentes_por_escritor, max_jobs) -> int:
     """PURA (2026-10-26, CAP1026F): jobs de GitHub a la vez que tienen un modelo que los escriba.
 
-    El límite de verdad de la nube son los escritores (CLAUDE.md §17), no las máquinas: cada escritor
+    El límite de verdad de la nube son los escritores (metagenesis.md §17), no las máquinas: cada escritor
     vivo aguanta `agentes_por_escritor` agentes a la vez antes de los 429 (los de «Buscar más
     capacidad»: 2 jobs × 3). Antes el catálogo decía 3 jobs fijos: el director lanzaba sus 3 con un
     solo escritor vivo y «Buscar más capacidad» lanzaba los suyos con otra cuenta (9 a las 12:08).

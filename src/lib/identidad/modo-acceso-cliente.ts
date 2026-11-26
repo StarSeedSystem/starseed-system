@@ -4,7 +4,7 @@
  * `decidirModoAcceso` es pura, pero vive en `modo-sin-internet.ts` y nadie la llamaba desde el
  * navegador: aquí se junta su entrada real (sesión en caché + certificado propio, anclas y
  * revocaciones de ESTA neurona) para el caso «sin red». El servicio de identidad se importa
- * DENTRO de la función para no engordar el layout raíz (CLAUDE.md, trampa 11).
+ * DENTRO de la función para no engordar el layout raíz (metagenesis.md, trampa 11).
  *
  * Reglas duras: sin `node:*` (lo importa el cliente), nunca lanza: ante cualquier fallo, null.
  * Solo informa del modo y su etiqueta; no redirige ni toca la sesión.

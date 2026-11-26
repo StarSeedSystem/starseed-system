@@ -14,7 +14,7 @@
 //
 // Módulo PURO y SIN "use client": lo importan `packages.ts` (cliente) y la ruta
 // `/api/library/actualizaciones` (servidor). El JSON entra por importación estática; NADA de `node:fs`
-// (CLAUDE.md, trampa 11).
+// (metagenesis.md, trampa 11).
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { LibraryPackage } from "./packages";

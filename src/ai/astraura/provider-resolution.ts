@@ -5,7 +5,7 @@
  * ASTRAURA · MOTOR DE RESOLUCIÓN DE PROVEEDORES POR CATEGORÍA (jul-2026)
  * ---------------------------------------------------------------------------
  * El OS SIEMPRE funciona con opciones gratuitas/OSS por defecto (Comunismo de
- * Abundancia, §3 CLAUDE.md). Este módulo declara, por CATEGORÍA funcional
+ * Abundancia, §3 metagenesis.md). Este módulo declara, por CATEGORÍA funcional
  * (búsqueda, scraping, mapas, repos, documentos, chat, diseño, almacenamiento,
  * correo, calendario, PDF, automatización, LLM), cuál es ese default gratis/OSS
  * y qué servicios de MARCA opcionales existen para cuando el usuario prefiere
