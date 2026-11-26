@@ -547,3 +547,30 @@ def linea_registro(e, resultado, motivo, t, firma=None):
     if firma is not None:            # GEN1114B
         fila.update(_firma_registro(firma))
     return fila
+
+# ── (DIR1125W) Canales especializados en el espejo ─────────────────────────────────────────────
+#: (nombre del canal, archivo bajo starseed_memory_root, fuente del espejo). General va a su puente (lo escribe la
+#: Mac); Audiovisual va a «direccion» marcado, porque `puente:peticiones` solo lo escribe la ficha del A1.
+CANALES_ESPEJO = (
+    ("general", ("mando", "director", "general.jsonl"), "puente:hermes-avisos"),
+    ("audiovisual", ("mando", "director", "audiovisual.jsonl"), "direccion"),
+)
+#: Ids de cada canal que se recuerdan como ya subidos.
+MAX_VISTOS_CANAL = 600
+
+
+def registros_de_canal(lineas, canal, fuente, vistos):
+    """PURA. Los registros NUEVOS (id no visto) de las líneas JSONL de un canal, listos para el espejo:
+    con `fuente` y `canalEspecializado`. Lo que no es JSON o no tiene id se salta. Nunca lanza."""
+    vistos = set(vistos or ())
+    salida = []
+    for linea in lineas or ():
+        try:
+            r = json.loads(linea) if isinstance(linea, str) else linea
+        except ValueError:
+            continue
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str) or not r["id"] or r["id"] in vistos:
+            continue
+        vistos.add(r["id"])
+        salida.append(dict(r, fuente=fuente, canalEspecializado=canal))
+    return salida

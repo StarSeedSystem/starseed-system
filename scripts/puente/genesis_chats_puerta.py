@@ -172,6 +172,7 @@ class PuenteGenesis:
         self.url, self.ficha = (url or "").rstrip("/"), ficha or ""
         self.base, self.mando = base, mando.rstrip("/")
         self.rutas = rutas_feed(raiz)
+        self.raiz = raiz  # (DIR1125W) los canales especializados
         self.mod = modulos if modulos is not None else modulos_reales()
         self.http = http or self.mod["cliente"]._http
         self.ahora, self.stat = ahora, stat
@@ -577,6 +578,9 @@ class PuenteGenesis:
                 ok = False
         if not self._resubir_con_origen():
             ok = False
+        # (DIR1125W) Los canales General y Audiovisual, aparte: solo si cambió su archivo.
+        if not self._espejar_canales(esp):
+            ok = False
         firma = self._firma_archivos()
         if firma == esp.get("mtimes"):
             return self._latir(esp, "sin-cambios" if ok else "fallo")
@@ -649,6 +653,42 @@ class PuenteGenesis:
                 por_fuente.setdefault("direccion", []).append(r)
                 cambiados[ident] = actual
         return por_fuente, nuevos, maximo, cambiados
+
+    def _espejar_canales(self, esp):
+        """(DIR1125W) Sube lo nuevo de `general.jsonl` y `audiovisual.jsonl`. True si no falló nada."""
+        canales = esp.setdefault("canales", {})
+        ok = True
+        for nombre, partes, fuente in L.CANALES_ESPEJO:
+            ruta = os.path.join(getattr(self, "raiz", RAIZ), "starseed_memory_root", *partes)
+            try:
+                mtime = os.path.getmtime(ruta)
+            except OSError:
+                continue
+            reg = canales.setdefault(nombre, {"mtime": None, "vistos": []})
+            if reg.get("mtime") == mtime:
+                continue
+            try:
+                with open(ruta, encoding="utf-8") as f:
+                    lineas = f.read().splitlines()
+            except OSError:
+                continue
+            nuevos = L.registros_de_canal(lineas, nombre, fuente, reg.get("vistos"))
+            tachar = self.mod["director_chat"].tachar
+            subidos = []
+            for i in range(0, len(nuevos), 50):
+                lote = [L.tachar_registro(r, tachar) for r in nuevos[i:i + 50]]
+                if not self._subir(fuente, lote):
+                    ok = False
+                    break
+                subidos.extend(r["id"] for r in nuevos[i:i + 50])
+            reg["vistos"] = (list(reg.get("vistos") or []) + subidos)[-L.MAX_VISTOS_CANAL:]
+            if len(subidos) == len(nuevos):
+                reg["mtime"] = mtime
+            if subidos:
+                esp.update(ultimo_envio=self.ahora(), subidos=esp.get("subidos", 0) + len(subidos))
+                self._log("espejo: canal %s · %d registro(s) a %s" % (nombre, len(subidos), fuente))
+            self._guardar_estado()
+        return ok
 
     def _latir(self, esp, resultado):
         if self.ahora() - (esp.get("ultimo_latido") or 0) >= LATIDO_S:
