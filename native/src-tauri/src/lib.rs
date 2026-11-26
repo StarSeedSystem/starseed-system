@@ -36,6 +36,7 @@ use tauri_plugin_shell::ShellExt;
 // (bandeja y cierre que oculta, solo escritorio). android_parche lo usa build.rs.
 mod android;
 mod antenas;
+mod aparato_huella;
 // (BLE1108A) Bluetooth directo entre neuronas, sin Wi-Fi ni internet: núcleo y trama (puros), radio de
 // Android (Kotlin por JNI) y de macOS (CoreBluetooth). Contrato: architecture/bluetooth-directo.md.
 mod ble;
@@ -865,13 +866,35 @@ pub fn run() {
             servidor_local::iniciar(app.handle());
             #[cfg(all(target_os = "android", starseed_servidor_android))]
             servidor_local_android::iniciar(app.handle());
-            #[cfg(desktop)]
+#[cfg(desktop)]
             {
                 if nativa::es_starseed_os(app.handle()) {
                     segundo_plano::iniciar(app.handle());
                 }
                 // (SEG1111U) Si «acceso al equipo» está dado, su aviso vuelve a la barra de menús/bandeja.
                 acceso_equipo::iniciar(app.handle());
+            }
+
+            // NEU1125A-d1: Verificación de identidad del aparato al arranque
+            // Si la huella guardada no es la de este aparato, NO se adopta nada solo:
+            // se marca "aparato nuevo" para la ventana de NEU1125B.
+            #[cfg(target_os = "android")]
+            {
+                use tauri::Manager;
+                match huella_aparato_verificar(app.handle()).await {
+                    Ok(coincide) => {
+                        if !coincide {
+                            eprintln!(
+                                "[aparato_huella] Al arranque: huella distinta → marca 'aparato nuevo' para NEU1125B. "
+                                "Ninguna adopción automática sin elección explícita del usuario."
+                            );
+                            // Aquí se podría disparar un evento o bandera para que la web
+                            // muestre la ventana de "Este aparato es nuevo". La decisión
+                            // final la toma la persona, no el sistema.
+                        }
+                    }
+                    Err(e) => eprintln!("[aparato_huella] Error al verificar huella al arranque: {e}"),
+                }
             }
             Ok(())
         });
@@ -1015,6 +1038,10 @@ pub fn run() {
                 clave_aparato_nativa::clave_aparato_spki,
                 clave_aparato_nativa::clave_aparato_estado,
                 clave_aparato_nativa::clave_aparato_olvidar,
+                // NEU1125A-d1: huella del aparato (Android: identificador nativo hasheado)
+                aparato_huella::huella_aparato_generar,
+                aparato_huella::huella_aparato_actual,
+                aparato_huella::huella_aparato_verificar,
                 $($solo_desktop,)*
             ]);
         };
