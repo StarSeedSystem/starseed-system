@@ -229,6 +229,34 @@ class TestEscaladaMotoresTareasEspeciales(unittest.TestCase):
             tarea, ["relevo: integrar 60dc6e227 en main"]))
         self.assertFalse(es_tarea_publicacion(tarea, ["otro commit sin el sha"]))
 
+
+class PublicacionRechazadaMecanicamente(unittest.TestCase):
+    """A018C6A91: una «Desbloquear la publicación <sha>» rechazada mecánicamente (no tocó
+    archivos) se cierra en el PRIMER rechazo si el sha ya está en main, sin reescribirla."""
+
+    SHA = "70f48b3c2"
+
+    def _decidir(self, historial, asuntos=None):
+        return decidir("A018C6A91", titulo="URGENTE · Desbloquear la publicación (%s)" % self.SHA,
+                       archivos=("scripts/x.ts",),
+                       asuntos=["Ola 22 · publicada " + self.SHA] if asuntos is None else asuntos,
+                       historial=historial,
+                       disponibilidad={"modelos_libres": ["openrouter/free/gemma"]})
+
+    def test_primer_rechazo_cierra_sola(self):
+        a = accion_de(self._decidir([]), "A018C6A91")[0]
+        self.assertEqual(a["accion"], "ya_hecha")
+        self.assertIn(self.SHA, a["motivo"])
+
+    def test_primer_rechazo_no_se_reescribe(self):
+        a = accion_de(self._decidir([]), "A018C6A91")[0]
+        self.assertNotEqual(a["accion"], "reescribir")
+
+    def test_sin_sha_en_main_sigue_reescribiendo(self):
+        a = accion_de(self._decidir([], asuntos=["Ola 22 · otro commit"]), "A018C6A91")[0]
+        self.assertEqual(a["accion"], "reescribir")
+
+
 class TestEscaleraMotores(unittest.TestCase):
     """Pruebas de la función escalera_motores."""
 
@@ -277,6 +305,27 @@ class TestEscaleraMotores(unittest.TestCase):
         tarea = {"id": "T1"}
         escalera = EM.escalera_motores(tarea, False, False)
         self.assertEqual(escalera[-1]["tipo"], "a1")
+
+
+def decidir(tid, disponibilidad=None, presupuesto=None, historial=None, asuntos=(),
+            titulo=None, archivos=("src/x.ts",)):
+    """Helper para crear un escenario de decisión en las pruebas."""
+    from revisor_bloqueadas_logica import decidir as _decidir
+    tarea = {"id": tid, "titulo": titulo or "tarea " + tid, "archivos": list(archivos),
+             "depende": [], "prompt": "haz " + tid}
+    prog = {tid: {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba",
+                  "t": "2026-11-21 12:00:00"}, "reapertura": None}
+    mem = {"historial": historial or [], "aprendizaje": {}}
+    foto = {"tareas": {tid: tarea}, "colas": {"cola-x.json": [tid]}, "cola_viva": None,
+            "progreso": prog, "asuntos": list(asuntos), "fallos": {}, "memoria": mem,
+            "ahora": 1700505600.0, "head": "abc1234", "disponibilidad": disponibilidad or {},
+            "presupuesto": presupuesto or {}}
+    return _decidir(foto)
+
+
+def accion_de(dec, tid):
+    """Extrae la acción de un dict de decisiones para un tarea específico."""
+    return [a for a in dec["acciones"] if a["tid"] == tid]
 
 
 if __name__ == "__main__":
