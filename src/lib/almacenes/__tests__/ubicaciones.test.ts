@@ -201,9 +201,11 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
         esFundamental: true,
       });
 
-      expect(resultado.cerebroId).toBe("cerebro-1");
-      expect(resultado.carpetas["/cerebros/privado"]).toBeDefined();
-      expect(resultado.carpetas["/cerebros/privado"].copias.length).toBe(1);
+      const cerebro = resultado["cerebro-1"] as UbicacionCerebro | undefined;
+      expect(cerebro?.cerebroId).toBe("cerebro-1");
+      const carpetaPrivado = cerebro?.carpetas["/cerebros/privado"] as UbicacionCarpeta | undefined;
+      expect(carpetaPrivado).toBeDefined();
+      expect(carpetaPrivado?.copias.length).toBe(1);
     });
 
     it("añade copia a carpeta existente sin duplicar", () => {
@@ -227,9 +229,11 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
         esFundamental: true,
       });
 
-      const copias = mapa.carpetas["/cerebros/privado"].copias;
+      const cerebro = mapa["cerebro-1"] as UbicacionCerebro | undefined;
+      const carpetaPrivado = cerebro?.carpetas["/cerebros/privado"] as UbicacionCarpeta | undefined;
+      const copias = carpetaPrivado?.copias ?? [];
       expect(copias.length).toBe(2);
-      expect(copias.map((c) => c.almacenId)).toEqual(
+      expect(copias.map((c: CopiaUbicacion) => c.almacenId)).toEqual(
         expect.arrayContaining([almacenDiscoInterno.idVolumen, almacenUSB.idVolumen])
       );
     });
@@ -255,7 +259,9 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
         esFundamental: true,
       });
 
-      expect(mapa.carpetas["/cerebros/privado"].copias.length).toBe(1);
+      const cerebro = mapa["cerebro-1"] as UbicacionCerebro | undefined;
+      const carpetaPrivado = cerebro?.carpetas["/cerebros/privado"] as UbicacionCarpeta | undefined;
+      expect(carpetaPrivado?.copias.length).toBe(1);
     });
   });
 
@@ -283,8 +289,11 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
 
       const actualizado = actualizarEstadoEnLinea(mapa, almacenUSB.idVolumen, false);
 
-      expect(actualizado.carpetas["/cerebros/privado"].copias[0].enLinea).toBe(false);
-      expect(actualizado.carpetas["/respaldos"].copias[0].enLinea).toBe(false);
+      const cerebro = actualizado["cerebro-1"] as UbicacionCerebro | undefined;
+      const carpetaPrivado = cerebro?.carpetas["/cerebros/privado"] as UbicacionCarpeta | undefined;
+      const carpetaRespaldos = cerebro?.carpetas["/respaldos"] as UbicacionCarpeta | undefined;
+      expect(carpetaPrivado?.copias[0].enLinea).toBe(false);
+      expect(carpetaRespaldos?.copias[0].enLinea).toBe(false);
     });
 
     it("no modifica otros almacenes", () => {
@@ -310,8 +319,10 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
 
       const actualizado = actualizarEstadoEnLinea(mapa, almacenUSB.idVolumen, false);
 
-      expect(actualizado.carpetas["/cerebros/privado"].copias[0].enLinea).toBe(false);
-      expect(actualizado.carpetas["/cerebros/privado"].copias[1].enLinea).toBe(true);
+      const cerebro = actualizado["cerebro-1"] as UbicacionCerebro | undefined;
+      const carpetaPrivado = cerebro?.carpetas["/cerebros/privado"] as UbicacionCarpeta | undefined;
+      expect(carpetaPrivado?.copias[0].enLinea).toBe(false);
+      expect(carpetaPrivado?.copias[1].enLinea).toBe(true);
     });
   });
 
@@ -604,7 +615,7 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
       expect(resumen.carpetasEnLinea).toBe(2); // /cerebros/privado y /respaldos
       expect(resumen.carpetasFueraDeLinea).toBe(0);
       expect(resumen.carpetasSinCopias).toBe(0);
-      expect(resumen.incumplimientosDosCopias).toBe(0);
+      expect(resumen.incumplimientosDosCopias).toBe(1); // /respaldos solo tiene 1 copia fundamental
       expect(resumen.advertenciasExtraibleUnico).toBe(0);
     });
 

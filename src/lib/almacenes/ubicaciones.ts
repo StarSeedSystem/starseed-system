@@ -13,6 +13,7 @@ import {
   ModalidadAlmacen,
   ModalidadCarpeta,
   type Almacen,
+  type ManifiestoAlmacen,
 } from "./modelo";
 
 /** Copia de una carpeta/memoria en un almacén específico. */
@@ -305,14 +306,20 @@ export function obtenerResumenCerebro(
   let advertenciasExtraibleUnico = 0;
 
   for (const [ruta, carpeta] of Object.entries(cerebro.carpetas)) {
+    const copiasFundamentales = carpeta.copias.filter((c) => c.esFundamental);
+    const esFundamentalCarpeta = copiasFundamentales.length > 0;
+
     const estado = obtenerEstadoCarpeta(mapa, ruta);
 
-    if (estado === "en_linea") carpetasEnLinea++;
-    else if (estado === "fuera_de_linea") carpetasFueraDeLinea++;
-    else carpetasSinCopias++;
+    if (esFundamentalCarpeta) {
+      if (estado === "en_linea") carpetasEnLinea++;
+      else if (estado === "fuera_de_linea") carpetasFueraDeLinea++;
+      else carpetasSinCopias++;
+    } else {
+      if (estado === "sin_copias") carpetasSinCopias++;
+    }
 
     // Verificar advertencia de extraíble único para carpetas fundamentales
-    const copiasFundamentales = carpeta.copias.filter((c) => c.esFundamental);
     if (copiasFundamentales.length === 1 && copiasFundamentales[0].almacenTipo === "extraible") {
       advertenciasExtraibleUnico++;
     }
@@ -339,7 +346,7 @@ export function construirMapaDesdeManifiestos(
   manifiestos: ManifiestoAlmacen[],
   almacenPorIdVolumen: Map<string, Almacen>
 ): MapaUbicacionesCerebro {
-  const mapa: MapaUbicacionesCerebro = {};
+  let mapa: MapaUbicacionesCerebro = {};
 
   for (const manifiesto of manifiestos) {
     const almacen = almacenPorIdVolumen.get(manifiesto.idVolumen);
