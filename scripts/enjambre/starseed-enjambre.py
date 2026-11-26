@@ -3639,6 +3639,18 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        # Reapertura explícita del director/revisor: si esta tanda puso la tarea en
+        # pendiente (p. ej. rechazo mecánico reescrito como tarea:alcance) no puede
+        # ganar un «rechazada» viejo del disco, o el reabrir se deshace en bucle.
+        reabierta = (
+            bool(propias)
+            and tid in propias
+            and isinstance(en_memoria, dict)
+            and en_memoria.get("estado") == "pendiente"
+            and estado == "rechazada"
+        )
+        if reabierta:
+            continue
         if (
             tid not in salida
             or (propias and tid not in propias)
