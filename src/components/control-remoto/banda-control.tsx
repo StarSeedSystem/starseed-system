@@ -44,7 +44,7 @@ import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL, type SesionIndicador }
 import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
 import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
-import { aparatosDe, neuronasParaElegir } from "@/lib/neurons/aparatos-de-neurona";
+import { AparatoDeNeurona, aparatosDe, neuronasParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
