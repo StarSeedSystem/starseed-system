@@ -222,3 +222,15 @@ vez de «pendiente en cola».
   tanda a la nube exige `soltar`, y una tarea soltada no vuelve a esa tanda si la nube falla: queda para una
   ola propia (pendiente de diseño, no se hace a medias).
 
+### Adenda A900E21C0 (2026-11-20) · la publicación ya cerrada no se reescribía
+
+- `prioridad_desbloqueo.tarea_de_arreglo` nombra `URGENTE · Desbloquear la publicación (<sha>)`. La lectura
+  del sha acepta ahora paréntesis (`escalada_motores.sha_de_publicacion`, usado por
+  `revisor_bloqueadas_logica._sha_publicacion` y por `es_tarea_publicacion`): antes el sha real nunca se
+  encontraba y la tarea seguía viva aunque estuviera en `main`.
+- El revisor cierra con `ya_hecha` en el **primer** rechazo mecánico si ese sha ya está en `main`; no espera
+  al tercer aviso ni la reescribe dos veces más.
+- Un `rechazada` por rechazo mecánico (`no toco NINGUNO de los …`) **no** es cierre persistido: ni
+  `starseed-enjambre.cerradas_en_disco` ni `fusionar_progreso` lo conservan sobre la reapertura del revisor.
+  Así no vuelve a aparecer «otra ola ya la cerró (rechazada según progreso.json) → no la repito».
+

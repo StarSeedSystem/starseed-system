@@ -190,6 +190,17 @@ class TestEscaladaMotoresTareasEspeciales(unittest.TestCase):
         from escalada_motores import es_tarea_publicacion
         self.assertTrue(es_tarea_publicacion(tarea, asuntos))
 
+    def test_tarea_publicacion_con_parentesis_cierra_solas(self):
+        """El título real de la cola lleva el sha entre paréntesis: también se cierra sola."""
+        tarea = {
+            "id": "PUB-125",
+            "titulo": "URGENTE · Desbloquear la publicación (a1b2c3d4)",
+            "archivos": [],
+        }
+        asuntos = ["Ola 21 · se publicó a1b2c3d4"]
+        from escalada_motores import es_tarea_publicacion
+        self.assertTrue(es_tarea_publicacion(tarea, asuntos))
+
     def test_tarea_publicacion_sin_sha_en_main_no_cierra(self):
         """Si el sha no está en main, la tarea no se cierra sola."""
         tarea = {

@@ -3612,6 +3612,22 @@ PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
 
+#: Un rechazo MECÁNICO (no tocó sus archivos) no es un cierre: el revisor lo reabre como
+#: «tarea:alcance». Si otra ola lo tomara como irreversible, la tarea muere en «no la repito»
+#: aunque vuelva a estar pendiente (A900E21C0, 2026-11-20).
+_RECHAZO_MECANICO = re.compile(r"^no toco NINGUNO de los", re.I)
+
+
+def es_cierre_persistido(valor):
+    """PURA: ¿Este registro de progreso es un cierre que una corrida vieja no puede deshacer?"""
+    if not isinstance(valor, dict):
+        return False
+    estado = str(valor.get("estado") or "")
+    if estado not in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO):
+        return False
+    return not (estado == "rechazada" and _RECHAZO_MECANICO.search(str(valor.get("nota") or "")))
+
+
 _CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
 
 
@@ -3638,10 +3654,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                 disco = json.load(f)
             if isinstance(disco, dict):
                 _CERRADAS_DISCO["ids"] = frozenset(
-                    k
-                    for k, v in disco.items()
-                    if isinstance(v, dict)
-                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                    k for k, v in disco.items() if es_cierre_persistido(v)
                 )
         except Exception:
             pass
@@ -3660,13 +3673,12 @@ def fusionar_progreso(memoria, disco, propias):
     for tid, valor in disco.items():
         if not isinstance(valor, dict):
             continue
-        estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or es_cierre_persistido(valor)
             or prestada
         ):
             salida[tid] = valor

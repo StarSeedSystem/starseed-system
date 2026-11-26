@@ -102,10 +102,27 @@ class PublicacionesSuperadas(unittest.TestCase):
 
     SHA = "a1b2c3d4"
 
-    def _decidir(self, asuntos):
-        return decidir("PUB1", titulo="Desbloquear la publicación " + self.SHA, archivos=(),
-                       asuntos=asuntos,
+    TITULO = "URGENTE · Desbloquear la publicación (%s)" % SHA
+
+    def _decidir(self, asuntos, historial=None):
+        return decidir("PUB1", titulo=self.TITULO, archivos=(),
+                       asuntos=asuntos, historial=historial,
                        disponibilidad={"modelos_libres": ["openrouter/free/gemma"]})
+
+    def test_el_sha_entre_parentesis_se_extrae(self):
+        self.assertEqual(L._sha_publicacion(self.TITULO), self.SHA)
+
+    def test_primer_rechazo_se_cierra_sola(self):
+        """El primer aviso ya debe cerrarla: no hace falta esperar a la tercera reescritura."""
+        a = accion_de(self._decidir(["Ola 21 · se publicó " + self.SHA], historial=[]), "PUB1")[0]
+        self.assertEqual(a["accion"], "ya_hecha")
+        self.assertIn(self.SHA, a["motivo"])
+
+    def test_segundo_rechazo_no_se_reescribe_otra_vez(self):
+        """Tras la primera reescritura, el segundo aviso cierra; no hay tercera reescritura."""
+        a = accion_de(self._decidir(["Ola 21 · se publicó " + self.SHA], historial=hist("PUB1", 1)), "PUB1")[0]
+        self.assertEqual(a["accion"], "ya_hecha")
+        self.assertIn(self.SHA, a["motivo"])
 
     def test_superada_se_cierra_sola(self):
         a = accion_de(self._decidir(["Ola 21 · se publicó " + self.SHA]), "PUB1")[0]

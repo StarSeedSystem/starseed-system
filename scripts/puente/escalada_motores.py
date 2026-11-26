@@ -19,6 +19,7 @@ Reglas:
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -351,6 +352,15 @@ def siguiente_motor(
     return None
 
 
+_RE_PUBLICACION = re.compile(r"desbloquear la publicación\s+\(?([a-f0-9]{7,40})\)?", re.I)
+
+
+def sha_de_publicacion(titulo: str) -> str:
+    """PURA: sha de «Desbloquear la publicación (<sha>)», con o sin paréntesis."""
+    coincidencia = _RE_PUBLICACION.search(str(titulo or "").lower())
+    return coincidencia.group(1) if coincidencia else ""
+
+
 def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
     """PURA: ¿La tarea es 'Desbloquear la publicación (<sha>)' y el sha ya está en main?
 
@@ -360,13 +370,11 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
     if "desbloquear la publicación" not in titulo:
         return False
 
-    import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', titulo)
-    if not match:
+    sha = sha_de_publicacion(titulo)
+    if not sha:
         return False
 
-    sha = match.group(1)
     for asunto in asuntos:
-        if sha in asunto.lower():
+        if sha in str(asunto).lower():
             return True
     return False

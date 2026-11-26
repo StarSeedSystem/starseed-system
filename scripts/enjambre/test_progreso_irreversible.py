@@ -25,6 +25,12 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"T1": {"estado": "rechazada"}}
         self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], disco["T1"])
 
+    def test_rechazo_mecanico_reabierto_no_vuelve_a_rechazada(self):
+        nota = "no toco NINGUNO de los 1 archivos que declaraba (rama ola/T1 conservada)"
+        memoria = {"T1": {"estado": "pendiente"}}
+        disco = {"T1": {"estado": "rechazada", "nota": nota}}
+        self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], memoria["T1"])
+
     def test_tarea_propia_no_cerrada_conserva_el_avance_nuevo(self):
         memoria = {"T1": {"estado": "revisando"}}
         disco = {"T1": {"estado": "en_curso"}}
@@ -57,6 +63,33 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"T1": {"estado": "no-aplica"}}
         fundido = enjambre.fusionar_progreso(memoria, disco, {"T1"})
         self.assertEqual(fundido["T1"], disco["T1"])
+
+
+class CerradasEnDiscoTest(unittest.TestCase):
+    """Una rechazada mecánica reabierta no es un cierre para otra ola."""
+
+    NOTA = "no toco NINGUNO de los 1 archivos que declaraba (rama ola/T1 conservada)"
+
+    def _cerradas(self, entrada):
+        import json
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "progreso.json")
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump({"T1": entrada}, f)
+            with mock.patch.dict(enjambre._CERRADAS_DISCO, {"t": 0.0, "ids": frozenset()}):
+                return enjambre.cerradas_en_disco(ruta=ruta)
+
+    def test_rechazo_mecanico_no_cuenta_como_cierre(self):
+        self.assertNotIn("T1", self._cerradas({"estado": "rechazada", "nota": self.NOTA}))
+
+    def test_rechazo_por_decision_si_cuenta_como_cierre(self):
+        self.assertIn("T1", self._cerradas({"estado": "rechazada", "nota": "decisión de la dirección"}))
+
+    def test_commit_si_cuenta_como_cierre(self):
+        self.assertIn("T1", self._cerradas({"estado": "commit", "sha": "abc1234"}))
 
 
 if __name__ == "__main__":
