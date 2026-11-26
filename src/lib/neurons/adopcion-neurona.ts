@@ -25,6 +25,8 @@ import { safeGet } from "@/lib/safe-storage";
 import { adoptarNeurona, type ResultadoAdopcion } from "@/lib/network/identidad-dispositivo";
 import { marcarNeuronaConfigurada } from "@/lib/onboarding/primer-arranque";
 import { agruparPorAparato, candidatosParaEsteMedio, esFichaVacia, type NeuronaHuella } from "@/lib/neurons/huella";
+import { puenteNativo, esAppNativa } from "@/lib/nativa/puente";
+import { leerAparato, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
 
 /** Evento (en `window`) tras una adopción: `detail = { anterior, adoptada }`. */
 export const EVENTO_NEURONA_ADOPTADA = "starseed:neurona-adoptada";
@@ -123,13 +125,76 @@ export interface OpcionesAdopcion {
   propiaCreadaAhora: boolean;
 }
 
-export interface ResultadoUsarConfiguracion extends ResultadoAdopcion {
+export interface ResultadoUsarConfiguracion extends Omit<ResultadoAdopcion, "motivo"> {
   /** Se borró la fila duplicada (huérfana) que este medio había creado para su id anterior. */
   filaDuplicadaEliminada: boolean;
+  /** Por qué no se adoptó, si `ok` es false. */
+  motivo?: "id-invalido" | "sin-almacenamiento" | "aparato-nuevo";
+}
+
+/**
+ * Verifica si la huella del aparato actual coincide con la guardada para la neurona objetivo.
+ * En la app nativa usa el comando Tauri `huella_aparato_verificar`.
+ * En la web compara la huella de hardware (`capabilities.aparato.huella`) de la neurona con la del aparato actual.
+ * Devuelve: true (coincide), false (aparato distinto), null (no se pudo verificar).
+ */
+async function verificarHuellaParaAdopcion(idNeurona: string): Promise<boolean | null> {
+  try {
+    if (esAppNativa()) {
+      const puente = puenteNativo();
+      if (!puente.disponible) return null;
+      const r = await puente.huellaAparatoVerificar();
+      return r.ok ? r.valor : null;
+    }
+
+    // Web: obtener la huella guardada de la neurona desde Supabase
+    const { data: fila } = await createClient()
+      .from("neuron_devices")
+      .select("capabilities")
+      .eq("id", idNeurona)
+      .maybeSingle();
+
+    const aparatoGuardado = leerAparato(fila?.capabilities);
+    if (!aparatoGuardado?.huella) return null; // versión antigua sin huella → no bloquea
+
+    // Obtener la huella del aparato actual (desde el medio actual)
+    const { aparatoDeEsteMedio } = await import("@/lib/neurons/aparato-este-medio");
+    const caps = await import("@/lib/neurons/neurons").then((m) => m.detectCapabilities?.() ?? {});
+    const aparatoActual = await aparatoDeEsteMedio(caps);
+    if (!aparatoActual?.huella) return null;
+
+    return aparatoActual.huella === aparatoGuardado.huella;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Genera y guarda la huella nativa del aparato actual.
+ * En la app nativa usa `huella_aparato_generar`.
+ * En la web no hay equivalente nativo; la huella de hardware se guarda al registrar la neurona.
+ */
+async function generarHuellaSiFalta(): Promise<void> {
+  try {
+    if (esAppNativa()) {
+      const puente = puenteNativo();
+      if (!puente.disponible) return;
+      const r = await puente.huellaAparatoActual();
+      if (r.ok && !r.valor) {
+        await puente.huellaAparatoGenerar();
+      }
+    }
+  } catch {
+    /* sin huella nativa */
+  }
 }
 
 /**
  * «Usar su configuración»: adopta la neurona `id`, la deja marcada como configurada y avisa.
+ *
+ * Antes de adoptar, verifica la huella del aparato:
+ *  · Si la huella guardada existe y NO coincide → motivo "aparato-nuevo" (no adopta).
+ *  · Si no hay huella guardada (versiones viejas) → no bloquea, adopta y genera huella.
  *
  * Borrado de la fila duplicada — solo si se cumplen TODAS las guardas:
  *  · el id anterior era el propio de este medio y distinto del adoptado;
@@ -139,10 +204,30 @@ export interface ResultadoUsarConfiguracion extends ResultadoAdopcion {
  * nada que la persona haya elegido. RLS limita el borrado a las filas de la propia cuenta.
  */
 export async function usarConfiguracionDeNeurona(id: string, opts: OpcionesAdopcion): Promise<ResultadoUsarConfiguracion> {
+  // Verificar huella antes de adoptar
+  const huellaOk = await verificarHuellaParaAdopcion(id);
+  if (huellaOk === false) {
+    // Huella distinta → aparato nuevo, no adoptar
+    const anterior = (typeof window !== "undefined" && window.localStorage.getItem("starseed.neuron.device-id")) || "";
+    return {
+      ok: false,
+      anterior,
+      adoptada: anterior,
+      motivo: "aparato-nuevo",
+      filaDuplicadaEliminada: false,
+    };
+  }
+
   const r = adoptarNeurona(id);
-  if (!r.ok) return { ...r, filaDuplicadaEliminada: false };
+  if (!r.ok) return { ...r, filaDuplicadaEliminada: false, motivo: r.motivo };
+
+  // Si no había huella guardada (versión antigua), generar y guardar la actual
+  if (huellaOk === null) {
+    await generarHuellaSiFalta();
+  }
+
   if (r.anterior && r.anterior !== r.adoptada) {
-    marcarNeuronaConfigurada(r.adoptada); // «esa neurona ya está configurada» → no se vuelve a preguntar
+    marcarNeuronaConfigurada(r.adoptada);
   }
   let eliminada = false;
   if (r.anterior && r.anterior !== r.adoptada && opts.propiaCreadaAhora && !tienePrefsPropias(r.anterior)) {
@@ -150,7 +235,7 @@ export async function usarConfiguracionDeNeurona(id: string, opts: OpcionesAdopc
       const { error } = await createClient().from("neuron_devices").delete().eq("id", r.anterior);
       eliminada = !error;
     } catch {
-      eliminada = false; // sin red: queda una fila offline; el usuario puede quitarla desde Neuronas
+      eliminada = false;
     }
   }
   try {
