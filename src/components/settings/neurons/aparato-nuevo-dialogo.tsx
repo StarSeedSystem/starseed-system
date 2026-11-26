@@ -48,7 +48,7 @@ export function tipoAparato(so: unknown): boolean {
 export function textoUltimaVez(visto: number | undefined, ahora: number = Date.now()): string {
   if (typeof visto !== "number" || !Number.isFinite(visto) || visto <= 0 || visto > ahora) return "";
   const min = Math.floor((ahora - visto) / 60_000);
-  if (min < 1) return "vista ahora";
+  if (min === 0) return "vista hace 0 min";
   if (min < 60) return `vista hace ${min} min`;
   const h = Math.floor(min / 60);
   if (h < 24) return `vista hace ${h} h`;

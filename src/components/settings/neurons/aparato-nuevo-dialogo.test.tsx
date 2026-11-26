@@ -29,7 +29,10 @@ import { AppearanceProvider } from "@/context/appearance-context";
 
 const pintar = () => render(<AppearanceProvider><AparatoNuevoDialogo /></AppearanceProvider>);
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("lógica pura (exportada)", () => {
   it("textoUltimaVez: solo con visto real, nada inventado", () => {
