@@ -1,0 +1,76 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "segundos": 851,
+   "t": "2026-11-22 00:36:40",
+   "rama": "ola/A018C6A91",
+   "sha": "94af7a42248c5acc4dd07596b5f49628198d945a",
+   "id": "A018C6A91b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-22 00:22:29\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A018C6A91\", \"texto\": \"URGENTE · Desbloquear la publicación (70f48b3c2)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 00:39:31\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 00:45:14\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 13:18:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "ola": "AUD1117",
+   "titulo": "Mapa de señales: una línea de registro por cambio de estado del mapa",
+   "archivos": [
+    "src/components/mesh/mapa-senales/geo/use-marcas-geo.ts"
+   ],
+   "depende": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/44238340731",
+   "adelantar": true,
+   "segundos": 3566,
+   "t": "2026-11-18 03:23:13",
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "openrouter/cohere/north-mini-code:free",
+    "openrouter/google/gemma-4-31b-it:free",
+    "opencode/big-pickle",
+    "opencode/deepseek-v4.1-flash-free"
+   ],
+   "rama": "ola/AQ00b",
+   "sha": null,
+   "id": "AQ00c",
+   "prompt": "Lee AGENTS.md. Esta tarea sale de la auditoría previa a las pruebas en aparatos del 17-11: lee starseed_memory_root/olas/auditoria-1117-AUD1117Q.md, arreglo F0 y la fila de la tabla a la que responde. Reglas de esta ola: cambio pequeño y local a los archivos nombrados (si hace falta uno más, que sea vecino y dilo); nada queda apagado por defecto salvo que la tarea lo pida; una línea de registro nunca lleva contenido, nombres de personas, coordenadas ni claves; pruebas con vitest junto al archivo, herméticas y deterministas; textos de interfaz en español neutro; no toques src/lib/control-remoto/**, src/components/control-remoto/** ni native/src-tauri/** (los lleva otra ola). Qué debe ser verdad: el mapa deja huella en el registro de enlaces, una línea por CAMBIO de estado y nunca con latitud, longitud ni nombres: `mapa · canal-posicion · union=unido|rechazado motivo=<código>`, `mapa · ubicacion · permiso=concedido|denegado`, `mapa · marcas · total=<n> colocadas=<m>`. Prueba: se emiten una vez por cambio y ninguna contiene números con forma de coordenada.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/44238340731`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/44238340731:refs/remotes/origin/nube/44238340731\"` y `git cherry-pick --no-commit 484f0812bb3b 42b65c39e8bc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mesh/mapa-senales/geo/use-marcas-geo.ts, src/lib/malla/registro-enlace-ble.ts, src/lib/nativa/__tests__/permisos-enlaces.test.ts, src/lib/nativa/permisos-enlaces.ts, src/lib/senales/geo/__tests__/registro-mapa.test.ts, src/lib/senales/geo/registro-mapa.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-18 18:59:51\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 07:38:34\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 07:49:03\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 17:46:48\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:33:37\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:33:40\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 09:13:10\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 09:13:11\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AQ00b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "medio": "nube",
+   "t_reasignada": 1795470337.643998,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 430,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-agent-reach-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:15"
+   },
+   "id": "CAP-skill-agent-reach-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 02:26:39\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "AQ00c",
+   "A018C6A91b",
+   "CAP-skill-agent-reach-usob"
+  ]
+ }
+}
