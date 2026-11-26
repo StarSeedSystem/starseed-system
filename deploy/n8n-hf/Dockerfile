@@ -7,11 +7,13 @@ COPY arranque.sh /arranque.sh
 COPY flujos /opt/flujos
 RUN chmod +x /arranque.sh
 
+# El Space se sirve por HTTPS (hf.space): la cookie de sesión debe llevar la
+# marca Secure. Con `false` viajaría también por HTTP y se podría secuestrar.
 ENV N8N_PORT=7860 \
     N8N_LISTEN_ADDRESS=0.0.0.0 \
     WEBHOOK_URL="" \
     NODE_FUNCTION_ALLOW_BUILTIN=crypto \
-    N8N_SECURE_COOKIE=false
+    N8N_SECURE_COOKIE=true
 
 EXPOSE 7860
 USER node
