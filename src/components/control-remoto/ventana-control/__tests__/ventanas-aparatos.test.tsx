@@ -36,7 +36,7 @@ function crearAparato(id: string, nombre: string, extra: Partial<{
         color: "#007FFF",
         miColor: "#DC143C",
     };
-    return { id, nombre, conPermiso, ...p, env };
+    return { id, conPermiso, ...p, env };
 }
 
 beforeEach(() => {
