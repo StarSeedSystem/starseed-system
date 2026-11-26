@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "ola": "capas-1125",
+   "id": "CAP1125A-d3",
+   "titulo": "Relevo de capa: la app calienta el servidor antes de recargar la página (parte 3 de 3)",
+   "archivos": [
+    "native/src-tauri/src/servidor_local_android.rs"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (02:05Z) en la Maggabox (Debian 13, Core i5-2520M): tras «relevo hecho … -> web=…/0d0498cd4e» `recargar_ventana` hizo `location.reload()` nada más estar listo el Node; el Node recién arrancado tardó más de 10 s en dar la primera página, el service worker entregó a los 10 s la copia guardada de la capa ANTERIOR y la página se quedó con `mia=mwvcv6xv-gpzi8z` (e55edbf853) hasta cerrar la app. La parte web ya está arreglada en `6a812998d` (DIR1125C: `topeNavegacion` en public/sw-logica.js y `mirarPaginaAlDia` en src/lib/nativa/relevo-capa-cliente.ts; NO tocar esos archivos). Falta la parte nativa, para la .64. PIDE: 1) En `servidor_local.rs`, antes de `v.eval(\"location.reload()\")` en `recargar_ventana`, pedir por HTTP al propio servidor local (mismo puerto, con el pase de la app como lo manda la ventana; mirar cómo lo hace `url_entrada` y la comprobación de salud) la ruta que la ventana tiene abierta (`v.url()`; si no se puede leer, `/`), esperando hasta 60 s a que conteste con un estado menor que 500; después recargar. Si la petición falla o vence, recargar igualmente (nunca dejar de recargar) y dejar una línea en servidor-local.log: `[servidor-local] recarga tras relevo caliente=si|no ms=<n>`. La espera va en el hilo que ya lleva el bucle del servidor (no en el hilo de la interfaz) y no retrasa `con_estado`/`avisar`. 2) La decisión (qué ruta pedir a partir de la URL de la ventana y el puerto, cuánto esperar, qué estados valen) en una función PURA en `servidor_local_logica.rs` con pruebas unitarias: URL local con ruta y consulta → esa ruta y consulta; URL de otro origen o ilegible → `/`; nunca una URL fuera de 127.0.0.1 ni con el pase dentro de la ruta. 3) Lo mismo en `servidor_local_android.rs` si allí hay una recarga equivalente tras el relevo; si no la hay, decirlo en el informe y no inventarla. NO cambiar el protocolo del pase, ni la cookie, ni `navegar_si_hace_falta`. Verificación: `cargo test` de la lógica en verde y `cargo check` del crate en macOS; pegar en el informe la salida de las pruebas nuevas.\n\n## PARTE 3 DE 3 (la dirección dividió CAP1125A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: native/src-tauri/src/servidor_local_android.rs. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CAP1125A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "CAP1125A-d2"
+   ]
+  },
+  {
+   "id": "CAP-cloudroom-config",
+   "ola": "CAP1119",
+   "titulo": "Configurar y activar Cloudroom",
+   "archivos": [
+    "scripts/puente/cloudroom_config.py"
+   ],
+   "depende": [],
+   "prompt": "usar en próxima ola. Crear script de configuración y prueba de Cloudroom."
+  },
+  {
+   "id": "ALM1125C2",
+   "ola": "almacen-1125",
+   "titulo": "Revisor de almacenamiento (2/2): propuesta diaria al canal y aplicar solo lo aprobado",
+   "archivos": [
+    "scripts/puente/revisor_almacenamiento.py",
+    "scripts/puente/test_revisor_almacenamiento.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` y regla `memory/orquestacion-economica.md` §24 (léelos antes). La Maggabox se alcanza por ssh `maggasukha@starseed-nodo-1.local` con `os.path.expanduser('~/.ssh/starseed_nodo1')`, `-o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o AddressFamily=inet` y `-o UserKnownHostsFile=` + `os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')` (modelo: `scripts/puente/sonda_maggabox.py`).\n\nSobre ALM1125C1: `python3 revisor_almacenamiento.py proponer` mide (con las funciones reales), escribe `~/.starseed/almacen-propuesta.json` y, como mucho una vez al día y solo si suma ≥ 1 GB o un medio de `~/.starseed/capacidades-nodos.json` está por debajo del 15 % libre, avisa por `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal principal --de 'Revisor de almacenamiento' --origen metagenesis --texto <resumen>` (CON Telegram: sin `--sin-telegram`). `aplicar <id>` solo actúa si `~/.starseed/almacen-aprobadas.json` trae ese id con `aprobado_por: 'alex'`, vuelve a comprobar que la ruta está en la lista cerrada y escribe una línea en `~/.starseed/almacen-aplicadas.jsonl`; `trasladar:maggabox` usa `respaldo_maggabox.py` (copia + SHA-256) y nunca borra sin copia verificada. Tú NO lo ejecutas de verdad (ni `proponer` ni `aplicar`): lo ejecuta la dirección presidente. Pruebas con todo inyectado (canal, disco, aprobadas).",
+   "dependencias_ya_en_main": [
+    "ALM1125C1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "ALM1125C2",
+   "CAP-cloudroom-config",
+   "CAP1125A-d3"
+  ]
+ }
+}
