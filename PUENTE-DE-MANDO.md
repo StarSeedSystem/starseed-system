@@ -1,7 +1,7 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-24 22:17:02 desde Genesis vivo.
-> **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-25 22:02:07 desde Genesis vivo.
+> **No lo edites a mano: se regenera.** Lo permanente va en `metagenesis.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
 **Hermes** y **Antigravity IDE**. Los cuatro miran el mismo Genesis y dan órdenes por el
@@ -12,45 +12,32 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Ola A-desbloqueo · publicacion-991401763 |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
-| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 2 |
-| HEAD | `6ec259f44 DIR1125E · los orbes (Aurora, cuántico y Protomolécula) respetan el modo de rend` |
-| Sin publicar | 0 commits |
+| Ola arriba | Sueños profundos 2026-11-25 |
+| Agentes escribiendo | **3** |
+| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 87 |
+| Últimas 7 olas | en curso 3 · pendientes 90 · integradas 9 |
+| HEAD | `63426a3ec DIR1125AI · la memoria principal CLAUDE.md pasa a llamarse metagenesis.md en tod` |
+| Sin publicar | 8 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1123-130431.json`, hace 19s)
+## Quién escribe ahora (latido de `cola-auto-1125-213149.json`, hace 0s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `A34BBC1FD` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1149 min | 68928 s | 96865 |
-| `A821E4875` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1178 min | 70651 s | 119332 |
-| `CAN1121B-d1` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 1225 min | 73496 s | 384112 |
-| `ALM1121Ab` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1239 min | 74347 s | 1302655 |
-| `ENT-agentes-referencias-diseno-agentes-re-17a90a-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1269 min | 76147 s | 707 |
-| `RIM-agentes-reimaginada-diaria-arreglar-e-8c6e98-v3` | hecho | freellmapi/auto | 1269 min | 76154 s | 607 |
-| `ENT-agentes-referencias-diseno-agentes-re-27adce-v1` | hecho | explabs/deepseek-v4.1-flash | 1272 min | 76300 s | 485 |
-| `ENT-agentes-referencias-diseno-agentes-re-9d40ea-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1303 min | 78164 s | 1035 |
-| `IRD10233` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1317 min | 79001 s | 477 |
-| `RIM-diaria-arreglar-el-lector-637b19-v2` | hecho | freellmapi/auto | 1319 min | 79149 s | 391 |
-| `IRD10232` | hecho | groq/openai/gpt-oss-120b | 1319 min | 79154 s | 587 |
-| `IRD10231` | hecho | explabs/deepseek-v4.1-flash | 1319 min | 79162 s | 467 |
-| `ENT-agentes-referencias-diseno-agentes-re-e78746-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1351 min | 81080 s | 716 |
-| `ENT-agentes-referencias-diseno-agentes-re-fea1e4-v1` | hecho | openrouter/nvidia/nemotron-3-ultra | 1354 min | 81248 s | 630 |
-| `ENT-agentes-referencias-diseno-agentes-re-88fce4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1356 min | 81350 s | 519 |
-| `IRD11231` | hecho | groq/openai/gpt-oss-120b | 1369 min | 82113 s | 1070 |
-| `IRD11233` | hecho | explabs/deepseek-v4.1-flash | 1369 min | 82121 s | 467 |
-| `IRD11232` | hecho | groq/openai/gpt-oss-120b | 1370 min | 82226 s | 464 |
-| `MRE8c` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1859 min | 111551 s | 48480 |
-| `AST1123B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1861 min | 111641 s | 75893 |
-| `ENT-agentes-referencias-diseno-agentes-re-fc3546-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1917 min | 114997 s | 811 |
-| `ENT-agentes-referencias-diseno-agentes-re-7fc2cd-v1` | hecho | explabs/deepseek-v4.1-flash | 1919 min | 115140 s | 711 |
-| `ENT-agentes-referencias-diseno-agentes-re-1316f4-v1` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 1925 min | 115525 s | 847 |
-| `ENT-agentes-referencias-diseno-agentes-re-50455f-v1` | hecho | groq/openai/gpt-oss-120b | 1927 min | 115648 s | 609 |
-| `ENT-agentes-referencias-diseno-agentes-re-e5df89-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 1928 min | 115659 s | 515 |
-| `MRE8b-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1928 min | 115693 s | 119898 |
-| `ENT-agentes-referencias-diseno-agentes-re-862df1-v1` | hecho | openrouter/nvidia/nemotron-3-ultra | 1932 min | 115950 s | 532 |
+| `SA112570` | analizando | explabs/hy4-flash | 6 min | 1 s | 608 |
+| `A13BE11E4b` | escribiendo | openrouter/nvidia/nemotron-3.5-sup | 10 min | 269 s | 71557 |
+| `ENJ1125A` | hecho | freellmapi/auto | 5 min | 316 s | 56255 |
+| `SA112567` | hecho | freellmapi/auto | 7 min | 416 s | 719 |
+| `SA112568` | hecho | freellmapi/auto | 9 min | 526 s | 564 |
+| `ALM1125H4` | tests | freellmapi/auto | 9 min | 528 s | 126084 |
+| `SA112569` | hecho | freellmapi/auto | 9 min | 550 s | 386 |
+| `SA112566` | hecho | groq/openai/gpt-oss-20b | 9 min | 553 s | 810 |
+| `SA112565` | hecho |  | 10 min | 590 s | 273 |
+| `SA112564` | hecho | groq/qwen/qwen3.8-27b | 14 min | 852 s | 1774 |
+| `IMG-diaria-publicar-vector-visual-de-la-orbeb` | hecho |  | 25 min | 1479 s | 0 |
+| `IMG-diaria-endpoint-api-starseed-chat-en-bacb` | hecho |  | 25 min | 1482 s | 0 |
+| `IMG-diaria-convertir-modelo-a-disperso-2-4b` | hecho |  | 25 min | 1484 s | 0 |
+| `ENT-agentes-referencias-diseno-agentes-re-94a280-v1` | hecho | explabs/deepseek-v4.1-flash | 25 min | 1488 s | 951 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
@@ -93,7 +80,7 @@ vigilante del orquestador lee **cada 20 s**. Da igual quién la escriba: es el m
 | | |
 |---|---|
 | Repo | `/Users/alex/Documents/starseed-os-main` |
-| Rumbo y reglas permanentes | `CLAUDE.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |
+| Rumbo y reglas permanentes | `metagenesis.md` (Claude) · `AGENTS.md` (Codex, Antigravity) · `gemini.md` |
 | Estado del enjambre | `starseed_memory_root/olas/` — **no se versiona**, muere con la máquina |
 | Orquestador | `scripts/enjambre/starseed-enjambre.py`, instalado en `~/.local/bin/` |
 | Genesis | `http://127.0.0.1:9002/mando` — local, `/api/mando/*` devuelve 404 en producción |
