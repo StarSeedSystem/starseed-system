@@ -24,6 +24,10 @@ CI de la autopublicación se quedó en rojo durante horas. El botón guardado de
 (la génesis multiagéntica de cada molécula de la Protomolécula: director, agentes a la vez,
 verificador y la decisión del nivel donde vive la molécula). Contrato: `architecture/protogenesis.md`.
 
+## Nombre de la persona: **Maggasukha** (antes «Alex») · regla permanente (2026-11-25)
+
+Lo ha pedido muchas veces: en TODO medio y canal del desarrollo de MetaGenesis (mensajes, informes, Telegram, canales de Hermes, Chat Director, avisos, documentos y prompts nuevos) se le llama **Maggasukha**, nunca «Alex». En textos y commits antiguos «Alex» es la misma persona: no se reescribe la historia. Los identificadores NO cambian (rol `"alex"`, rutas `/Users/alex`, claves como `requiere_alex`); solo lo que lee una persona o un modelo.
+
 ## Acceso a Genesis · léelo antes de tocar nada (2026-09-12)
 
 **[Abrir Genesis](http://localhost:9002/genesis)** — la aplicación Next.js del repo, servida

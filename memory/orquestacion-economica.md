@@ -7,6 +7,10 @@
 > a modelos capaces), el progreso se **autoenruta** a otros modelos y sesiones para que la
 > tarea continúe sola, y cada ola termina con su **punto de relevo** escrito.
 
+## Nombre de la persona: **Maggasukha** (antes «Alex») · regla permanente (2026-11-25)
+
+Lo ha pedido muchas veces: en TODO medio y canal del desarrollo de MetaGenesis (mensajes, informes, Telegram, canales de Hermes, Chat Director, avisos, documentos y prompts nuevos) se le llama **Maggasukha**, nunca «Alex». En textos y commits antiguos «Alex» es la misma persona: no se reescribe la historia. Los identificadores NO cambian (rol `"alex"`, rutas `/Users/alex`, claves como `requiere_alex`); solo lo que lee una persona o un modelo.
+
 ## 0. Cómo se opera Genesis — vinculado a cada sesión (regla permanente · 2026-09-12)
 
 **Abrir Genesis (2026-09-20):** doble clic en `~/Desktop/Genesis.command` (fuente `scripts/puente/Genesis.command`): revive lo caído por launchd, compila si falta el build (con turno) y abre `http://localhost:9002/genesis`. El visor viejo de :8899 (`Orquestacion-StarSeed.command`) está retirado en `docs/legado/`.

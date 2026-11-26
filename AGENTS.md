@@ -4,6 +4,10 @@ Acceso a Genesis completo: [abrir en esta Mac](http://localhost:9002/genesis) �
 repo bajo launchd (`com.starseed.mando`, `next start`). *(Corrección 2026-09-12: 9002 nunca fue una
 «interfaz Python provisional»; el 9003 fue un `next dev` suelto del 09-11, sin supervisar.)*
 
+## Nombre de la persona: **Maggasukha** (antes «Alex») · regla permanente (2026-11-25)
+
+Lo ha pedido muchas veces: en TODO medio y canal del desarrollo de MetaGenesis (mensajes, informes, Telegram, canales de Hermes, Chat Director, avisos, documentos y prompts nuevos) se le llama **Maggasukha**, nunca «Alex». En textos y commits antiguos «Alex» es la misma persona: no se reescribe la historia. Los identificadores NO cambian (rol `"alex"`, rutas `/Users/alex`, claves como `requiere_alex`); solo lo que lee una persona o un modelo.
+
 Lo lee **Codex** y **Antigravity IDE**. Claude usa `CLAUDE.md`, que manda sobre este archivo
 cuando se contradigan; Hermes lee ambos. Los cuatro entornos trabajan sobre el MISMO repo, el
 MISMO enjambre y el MISMO Genesis.
