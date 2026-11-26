@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "NEU1126F",
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "titulo": "Una neurona, un estado: archivos, ajustes y datos se igualan al instante en todos sus aparatos conectados",
+   "archivos": [
+    "src/lib/neurons/sincronia-neurona.ts",
+    "src/lib/neurons/__tests__/sincronia-neurona.test.ts",
+    "architecture/neuronas-aparatos.md"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: «como son una neurona, las modificaciones de cualquier archivo o configuración, toda la información, debe modificarse en todos los aparatos vinculados a esa neurona al instante que estén conectados, por las funciones de sincronización de la neurona en todos sus medios». Primero inventario (en el informe): qué se sincroniza hoy entre aparatos de una neurona (ajustes en localStorage, cerebros, archivos, sesiones) y qué no. Luego: sincronía por la malla P2P (cualquier medio: red local, BLE, relé) entre aparatos de la MISMA neurona, por campo y con fecha (gana el más reciente sin pisar otros campos), cola de cambios mientras no hay enlace y registro de conflictos. Lo que es propio del aparato (su clave de control, sus permisos del sistema, su huella) nunca se copia. Contrato architecture/neuronas-aparatos.md. Pruebas de fusión por campo y de la cola sin enlace.",
+   "dependencias_ya_en_main": [
+    "NEU1126A-d2"
+   ]
+  },
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-qa en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-qa/README.md"
+   ],
+   "depende": [],
+   "medio": null,
+   "t_reasignada": 1795469895.804461,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 41,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-coop-qa-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:16"
+   },
+   "id": "CAP-skill-coop-qa-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-qa para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-qa-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-qa-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-055912.json": [
+   "CAP-skill-coop-qa-usob",
+   "NEU1126F"
+  ]
+ }
+}
