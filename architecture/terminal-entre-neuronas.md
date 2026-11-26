@@ -32,6 +32,23 @@ completos entre neuronas**, por la malla P2P o por cualquier capa de la red, par
 - El transporte es el de las sesiones de control: malla P2P local, Bluetooth o relé, cifrado de
   extremo a extremo, autoenrutado por la mejor capa disponible.
 
+## En todas las versiones nativas (Maggasukha, 25-11, 23:20)
+
+El ayudante con privilegios viene con **todas** las versiones nativas instalables, en todos los
+sistemas, y lo usan los controles de las neuronas desde Genesis, PoliGenesis, Astraura, la
+Protomolécula, el control remoto y cualquier otra función que administre una neurona:
+- Linux: en el `.deb` y el `.rpm` lo instala el propio paquete (postinst) con su regla de sudoers
+  limitada al ayudante; en la AppImage, la primera vez que se active, con la autorización del sistema
+  (pkexec).
+- macOS: ayudante privilegiado registrado con `SMAppService`, que el sistema aprueba con la
+  autorización de administrador la primera vez.
+- Windows: servicio del sistema que instala el instalador (MSI/NSIS) con su ventana de UAC.
+- Android: sin root no hay nivel administrador; las órdenes tipadas que el sistema permite a una app
+  (almacenes por el marco de acceso, ajustes con su pantalla) van por la propia app.
+- Instalarlo no lo **enciende**: el permiso de terminal y de administración se sigue encendiendo en
+  cada aparato por su dueño. Las órdenes tipadas son las mismas en todos los sistemas (un solo
+  contrato de órdenes), y cada una dice si en ese sistema existe o no.
+
 ## Primera pieza ya hecha (25-11)
 
 `/usr/local/sbin/starseed-almacen` en la Maggabox: ayudante de almacenes (estado, salud, formatear
