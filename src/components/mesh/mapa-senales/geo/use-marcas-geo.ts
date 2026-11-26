@@ -17,7 +17,8 @@ import { camposDeCapa, contarSenalesSinZona, type Campo } from "@/lib/senales/ge
 import {
   EVENTO_POSICION, fijarCompartirPosicion, guardarPosicionCruda, leerCompartirPosicion, leerPosicionCruda,
 } from "@/lib/senales/geo/almacen-posicion";
-import type { PosicionCruda } from "@/lib/senales/geo/modelo-geo";
+import { coordenadasDeVista, type PosicionCruda } from "@/lib/senales/geo/modelo-geo";
+import { anotarMapa, lineasDeCambio, type FotoMapa } from "@/lib/senales/geo/registro-mapa";
 import { ESTADO_INICIAL, type CanalPosicion, type EstadoCanalPosicion } from "@/lib/senales/geo/canal-posicion";
 import { observarPermisoUbicacion } from "@/lib/senales/geo/fuente-posicion";
 import { mismosEnlaces, type EnlaceMedido } from "@/lib/senales/geo/enlaces-medidos";
@@ -215,6 +216,20 @@ export function useMarcasGeo(): MarcasGeo {
     }
     return { campos, sinZona };
   }, [marcas, ahora, publicadas.senales]);
+
+  // (AUD1117) Una línea al registro de enlaces por cada CAMBIO de estado del mapa; nunca posición ni nombres.
+  const fotoRegistro = useRef<FotoMapa | null>(null);
+  useEffect(() => {
+    const foto: FotoMapa = {
+      union: canal.union,
+      motivo: canal.motivo,
+      permiso,
+      total: marcas.length,
+      colocadas: marcas.filter((m) => coordenadasDeVista(m.posicion)).length,
+    };
+    for (const linea of lineasDeCambio(fotoRegistro.current, foto)) anotarMapa(linea);
+    fotoRegistro.current = foto;
+  }, [canal.union, canal.motivo, permiso, marcas]);
 
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
