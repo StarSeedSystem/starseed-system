@@ -73,3 +73,32 @@ export function filtrarPorCapas(grafo: Grafo4D, capasFiltro: string[]): Grafo4D 
     ramas: ramasFiltradas,
   };
 }
+
+export interface FiltroCapasQuintaDimension {
+  conciencia?: string[];
+  capacidades?: string[];
+  senales?: string[];
+  alcance?: string[];
+  sistema?: string[];
+  universosParalelos?: string[];
+}
+
+function expandirFiltroCapas(filtro: FiltroCapasQuintaDimension): string[] {
+  const expandidas: string[] = [];
+  for (const [categoria, valores] of Object.entries(filtro)) {
+    if (valores && valores.length > 0) {
+      for (const valor of valores) {
+        expandidas.push(`${categoria}-${valor}`);
+      }
+    }
+  }
+  return expandidas;
+}
+
+export function filtrarGrafoPorCapasQuintaDimension(
+  grafo: Grafo4D,
+  filtro: FiltroCapasQuintaDimension
+): Grafo4D {
+  const capasExpandidas = expandirFiltroCapas(filtro);
+  return filtrarPorCapas(grafo, capasExpandidas);
+}
