@@ -248,6 +248,10 @@ fn aplicar_capas(app: &AppHandle, p: &la::EstadoPaquete) -> (la::EstadoPaquete, 
 
 /// (AND1114L) Pide a Kotlin un proceso nuevo (cierra este y abre la app otra vez). Si no pudiera, la app sigue y la capa
 /// elegida se usa la próxima vez que se abra: queda dicho en el registro.
+/// (CAP1125A, parte 3) Aquí NO hay una recarga equivalente a la del escritorio: el relevo mata el proceso
+/// (`CapasAndroid.reiniciar` → `Process.killProcess`) y Kotlin reabre la app, así que la ventana nace de cero y
+/// `conducir` solo la lleva a `/__starseed/entrar` cuando la salud ya dice `Lista`. No hay un `location.reload()`
+/// sobre un Node frío que calentar; por eso no se añade espera ni línea «recarga tras relevo» en Android.
 fn pedir_proceso_nuevo(motivo: &str) {
     match servidor_capas::dir_puente().ok_or_else(|| "sin carpeta del puente".to_string()).and_then(|d| crate::capas_http_android::pedir_reinicio(&d, motivo)) {
         Ok(()) => registrar(&format!("proceso nuevo pedido: {motivo}")),
