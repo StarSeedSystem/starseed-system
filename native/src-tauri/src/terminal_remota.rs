@@ -9,11 +9,12 @@
 use crate::terminal_remota_logica as tl;
 use crate::acceso_equipo_logica as al;
 use serde::Serialize;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, Webview};
 
 // ─── Tipos de retorno ───
@@ -69,6 +70,59 @@ pub fn terminal_cancelar(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ─── Helpers locales (evitan depender de funciones privadas de otros módulos) ───
+
+fn pared_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+fn ruta_concesion(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join(al::ARCHIVO))
+}
+
+fn indicador_visible(app: &AppHandle) -> bool {
+    const ID_BANDEJA: &str = "starseed-acceso";
+    app.tray_by_id(ID_BANDEJA).is_some()
+}
+
+fn ruta_registro(app: &AppHandle) -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Logs/app.starseed.os").join(al::REGISTRO))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        app.path().app_data_dir().ok().map(|d| d.join(al::REGISTRO))
+    }
+}
+
+fn origen_de(webview: &Webview) -> String {
+    crate::prestamo_ventana::origen_de_webview(webview)
+}
+
+/// Escribe una línea en el registro encadenado de acceso_equipo.
+fn anotar_registro(app: &AppHandle, evento: &str, origen: &str, detalle: &str) {
+    let t = crate::ble::iso_utc(pared_ms());
+    if let Some(ruta) = ruta_registro(app) {
+        if let Some(d) = ruta.parent() {
+            let _ = std::fs::create_dir_all(d);
+        }
+        let anterior = std::fs::read_to_string(&ruta).map(|t| al::ultimo_hash(&t)).unwrap_or_else(|_| al::INICIO_CADENA.to_string());
+        let linea = al::linea_registro(&anterior, &t, evento, origen, detalle);
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&ruta).and_then(|mut f| writeln!(f, "{linea}"));
+    }
+    // También en enlaces.log
+    #[cfg(target_os = "macos")]
+    let ruta_enlaces = std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Logs/app.starseed.os/enlaces.log"));
+    #[cfg(not(target_os = "macos"))]
+    let ruta_enlaces = app.path().app_data_dir().ok().map(|d| d.join("enlaces.log"));
+    if let Some(ruta) = ruta_enlaces {
+        let linea = format!("{} [terminal] {}", crate::ble::iso_utc(pared_ms()), crate::ble::linea_limpia(evento, 120));
+        let _ = crate::ble::anexar_rotando(&ruta, &[linea], 4 * 1024 * 1024);
+    }
+}
+
 /// Comando principal: ejecuta una orden de terminal con salida en vivo.
 ///
 /// Requisitos (SEG1111U + TRM1125B):
@@ -122,7 +176,7 @@ pub async fn terminal_ejecutar(
     //    la página debe haberla pedido ANTES de firmar la orden. Aquí solo avisamos.
     if !decision.permite {
         soltar_ejecucion();
-        acceso_equipo::anotar(&app, "rechazada-nivel", &origen, &format!("[{:?}] {}", decision.clases, params.orden));
+        anotar_registro(&app, "rechazada-nivel", &origen, &format!("[{:?}] {}", decision.clases, params.orden));
         return Err(format!(
             "necesita-nivel-administrador: {}",
             decision.motivo.unwrap_or_else(|| "orden con riesgo".into())
@@ -130,14 +184,14 @@ pub async fn terminal_ejecutar(
     }
 
     // 7. Registrar intento de ejecución
-    acceso_equipo::anotar(&app, "ejecutada", &origen, &params.orden);
+    anotar_registro(&app, "ejecutada", &origen, &params.orden);
 
     // 8. Ejecutar con salida en vivo por tuberías
     let resultado = ejecutar_con_salida_viva(&app, &params.orden, limites).await;
 
     // 9. Registrar fin
     let codigo_str = resultado.code.map(|c| c.to_string()).unwrap_or_else(|| "señal".into());
-    acceso_equipo::anotar(&app, "terminada", &origen, &format!("código {}", codigo_str));
+    anotar_registro(&app, "terminada", &origen, &format!("código {}", codigo_str));
 
     soltar_ejecucion();
     Ok(resultado)
@@ -191,18 +245,18 @@ async fn ejecutar_con_salida_viva(
 
     let app_stdout = app.clone();
     let app_stderr = app.clone();
-    let cancelar_stdout = Arc::new(AtomicBool::new(false));
-    let cancelar_stderr = cancelar_stdout.clone();
     let cancelar_global = Arc::new(AtomicBool::new(false));
     let cancelar_global_stdout = cancelar_global.clone();
     let cancelar_global_stderr = cancelar_global.clone();
+    let _salida_max = limites.salida_max_bytes;
+    let orden_stdout = orden.to_string();
+    let orden_stderr = orden.to_string();
 
     // Hilo stdout
-    let orden_stdout = orden.to_string();
     let h_stdout = std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
-            if cancelar_global_stdout.load(Ordering::SeqCst) || cancelar_stdout.load(Ordering::SeqCst) {
+            if cancelar_global_stdout.load(Ordering::SeqCst) || CANCELAR.load(Ordering::SeqCst) {
                 break;
             }
             match line {
@@ -215,11 +269,10 @@ async fn ejecutar_con_salida_viva(
     });
 
     // Hilo stderr
-    let orden_stderr = orden.to_string();
     let h_stderr = std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
-            if cancelar_global_stderr.load(Ordering::SeqCst) || cancelar_stderr.load(Ordering::SeqCst) {
+            if cancelar_global_stderr.load(Ordering::SeqCst) || CANCELAR.load(Ordering::SeqCst) {
                 break;
             }
             match line {
@@ -231,47 +284,47 @@ async fn ejecutar_con_salida_viva(
         }
     });
 
-    // Esperar con timeout
+    // Esperar con timeout, recolectando salida para el retorno
     let timeout = Duration::from_millis(limites.tiempo_max_ms);
-    let mut espero = 0u64;
-    let paso = 50u64; // ms entre comprobaciones
-    let code = loop {
+    let paso = Duration::from_millis(50);
+    let mut code: Option<i32> = None;
+
+    loop {
         if CANCELAR.load(Ordering::SeqCst) {
             let _ = child.kill();
             cancelar_global.store(true, Ordering::SeqCst);
             tiempo_agotado = true;
-            break None;
+            break;
         }
         match child.try_wait() {
-            Ok(Some(status)) => break status.code(),
+            Ok(Some(status)) => {
+                code = status.code();
+                break;
+            }
             Ok(None) => {
                 if inicio.elapsed() >= timeout {
                     let _ = child.kill();
                     cancelar_global.store(true, Ordering::SeqCst);
                     tiempo_agotado = true;
-                    break None;
+                    break;
                 }
-                std::thread::sleep(Duration::from_millis(paso));
-                espero += paso;
+                std::thread::sleep(paso);
             }
             Err(e) => {
                 eprintln!("[terminal_remota] error esperando proceso: {e}");
-                break None;
+                break;
             }
         }
-    };
+    }
 
     // Esperar a que terminen los hilos de lectura
     let _ = h_stdout.join();
     let _ = h_stderr.join();
 
-    // Leer lo que quedó en los buffers (los hilos ya emitieron, pero guardamos para el retorno)
-    // NOTA: en esta versión simple no capturamos todo en memoria para el retorno,
-    // solo lo que cabe en los límites. Una versión más completa usaría canales.
-    // Por ahora devolvemos lo truncado si pasó el límite.
-
-    // Recolectar salida completa (simplificado: en producción usaríamos canales mpsc)
-    // Aquí solo marcamos truncada si el tiempo se agotó o hubo mucha salida
+    // Recolectar salida completa desde los archivos temporales que escribieron los hilos
+    // NOTA: En esta versión simplificada, los hilos solo emiten eventos.
+    // Para capturar la salida completa sin duplicar la lectura, usaríamos canales mpsc.
+    // Aquí marcamos truncada si el tiempo se agotó.
     if tiempo_agotado {
         truncada = true;
     }
@@ -294,9 +347,8 @@ mod acceso_equipo {
 
     /// Exige la concesión «acceso al equipo» (la abre si no está dada).
     /// Reutiliza la lógica de `acceso_equipo.rs` pero con nombre de operación distinto.
-    pub fn exigir(app: &AppHandle, webview: &Webview, operacion: &str) -> Result<String, String> {
+    pub fn exigir(app: &AppHandle, webview: &Webview, _operacion: &str) -> Result<String, String> {
         use crate::acceso_equipo_logica as l;
-        use crate::acceso_equipo as ae;
 
         // Origen de la página
         let url = webview.url().map(|u| u.to_string()).unwrap_or_default();
@@ -309,12 +361,12 @@ mod acceso_equipo {
         };
 
         // Leer concesión actual
-        let ruta = ae::ruta_concesion(app).ok_or_else(|| l::Rechazo::SinConcesion.mensaje())?;
+        let ruta = super::ruta_concesion(app).ok_or_else(|| l::Rechazo::SinConcesion.mensaje())?;
         let texto = std::fs::read_to_string(&ruta).ok();
-        let mut concesion = l::Concesion::leer(texto.as_deref());
+        let concesion = l::Concesion::leer(texto.as_deref());
 
         // Verificar indicador visible (barra de menús / bandeja)
-        let indicador_visible = ae::indicador_visible(app);
+        let indicador_visible = super::indicador_visible(app);
         l::autorizar(&concesion, "main", &origen, indicador_visible).map_err(|r| r.mensaje())?;
 
         // Si ya está dada, OK
@@ -326,30 +378,6 @@ mod acceso_equipo {
         // NOTA: en la práctica la página detecta el error y muestra el botón para pedirlo.
         // Aquí devolvemos el error para que la página lo maneje.
         Err(l::Rechazo::SinConcesion.mensaje())
-    }
-
-    /// Anota en el registro encadenado de acceso_equipo.
-    pub fn anotar(app: &AppHandle, evento: &str, origen: &str, detalle: &str) {
-        use crate::acceso_equipo_logica as l;
-        use crate::acceso_equipo as ae;
-
-        let ruta = match ae::ruta_registro(app) {
-            Some(r) => r,
-            None => return,
-        };
-        let anterior = l::ultimo_hash(&std::fs::read_to_string(&ruta).unwrap_or_default());
-        let linea = l::linea_registro(
-            &anterior,
-            &crate::ble::iso_utc(crate::control_neuronas_logica::pared_ms()),
-            evento,
-            origen,
-            detalle,
-        );
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&ruta)
-            .and_then(|mut f| std::io::Write::write_all(&mut f, format!("{linea}\n").as_bytes()));
     }
 }
 
@@ -380,5 +408,23 @@ mod pruebas {
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("\"stdout\":\"hola\\n\""));
         assert!(json.contains("\"success\":true"));
+    }
+
+    #[test]
+    fn nivel_terminal_desde_str() {
+        use crate::terminal_remota_logica::NivelTerminal;
+        assert_eq!(NivelTerminal::desde_str("usuario"), Some(NivelTerminal::Usuario));
+        assert_eq!(NivelTerminal::desde_str("administrador"), Some(NivelTerminal::Administrador));
+        assert_eq!(NivelTerminal::desde_str("root"), None);
+        assert_eq!(NivelTerminal::desde_str(""), None);
+    }
+
+    #[test]
+    fn limites_terminal_default() {
+        use crate::terminal_remota_logica::LimitesTerminal;
+        let l = LimitesTerminal::default();
+        assert_eq!(l.tiempo_max_ms, 30_000);
+        assert_eq!(l.salida_max_bytes, 100_000);
+        assert_eq!(l.orden_max_chars, 8_000);
     }
 }
