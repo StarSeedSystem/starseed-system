@@ -1,0 +1,6 @@
+[submodule "externos/hermes-jev-skills"]
+	path = externos/hermes-jev-skills
+	url = https://github.com/StarSeedSystem/hermes-jev-skills.git
+[submodule "externos/jev-router"]
+	path = externos/jev-router
+	url = https://github.com/StarSeedSystem/jev-router.git
