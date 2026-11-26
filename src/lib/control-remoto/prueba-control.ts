@@ -32,6 +32,21 @@ export interface ArgsPruebaControl {
     nivel?: string;
 }
 
+export interface InformePruebaControl {
+    /** `ok` siempre presente. */
+    ok: boolean;
+    /** Causa o motivo del resultado. */
+    motivo: string;
+    /** Duración medida en ms (puede ser 0 si no hubo cuadros). */
+    duracionMs: number;
+    /** Cuadros efectivamente mostrados. */
+    cuadros: number;
+    /** Latencia media en ms entre cuadros (0 si no hubo cuadros). */
+    latenciaMs: number;
+    /** Retardo aplicado en ms entre cuadros (0 si no hubo retardo). */
+    retardoMs: number;
+}
+
 /** Valida los argumentos de una orden `prueba-control`.
  * Devuelve `ArgsPruebaControl` validado o `null` si son inválidos. */
 export function validarArgsPruebaControl(a: Args): ArgsPruebaControl | null {
@@ -54,23 +69,7 @@ export function validarArgsPruebaControl(a: Args): ArgsPruebaControl | null {
 /** Genera un rechazo de prueba con motivo.
  * Devuelve un informe `InformePruebaControl` con `ok=false`. */
 export function rechazoPrueba(motivo: "sin-permiso" | "no-aceptado" | "duracion"): InformePruebaControl {
-    return { ok: false, motivo };
-}
-
-/** `InformePruebaControl`: resultado de una prueba de control entre neuronas. */
-export interface InformePruebaControl {
-    /** `ok` siempre presente. */
-    ok: boolean;
-    /** Causa o motivo del resultado. */
-    motivo: string;
-    /** Duración medida en ms (puede ser 0 si no hubo cuadros). */
-    duracionMs: number;
-    /** Cuadros efectivamente mostrados. */
-    cuadros: number;
-    /** Latencia media en ms entre cuadros (0 si no hubo cuadros). */
-    latenciaMs: number;
-    /** Retardo aplicado en ms entre cuadros (0 si no hubo retardo). */
-    retardoMs: number;
+    return { ok: false, motivo, duracionMs: 0, cuadros: 0, latenciaMs: 0, retardoMs: 0 };
 }
 
 /** Finaliza una prueba de control y devuelve un `InformePruebaControl`.
@@ -99,5 +98,3 @@ export function finalizarPrueba(
         retardoMs: estado.retardoMs,
     };
 }
-
-export type { ArgsPruebaControl, InformePruebaControl };
