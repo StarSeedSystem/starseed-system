@@ -61,7 +61,8 @@ colores sueltos.
   tarea…), `titulo`, `formato` (texto, imagen, video, audio, modelo3d, app, web, documento,
   tabla, pizarra, presentacion, enlace, flujo, cualquiera — abierto, no un enum cerrado),
   `ref` (cómo abrirlo: ruta del OS, id de archivo, id de memoria; nunca el contenido privado en
-  el grafo), `alcance`, `dueno`, `capas[]`, `t_creado`, `t_actividad`, `peso`.
+  el grafo), `alcance`, `dueno`, `capas[]`, `t_creado`, `t_actividad`, `peso` y las facetas
+  `tema`, `categoria`, `etiquetas[]` (ver «Organización estructurada»).
 - **Arista**: `de`, `a`, `tipo` (contiene, deriva, cita, prerrequisito, sincroniza, senal,
   transmuta, variacion, vota, participa, usa), `t`, `intensidad`.
 - **Evento**: `t`, `tipo`, `nodo|arista`, `alcance` — lo que mueve el universo en vivo.
@@ -114,6 +115,25 @@ Astraura **sugiere** agrupaciones, etiquetas, enlaces y limpiezas; el dueño ace
 En lo propio puede activar «aceptar solo», apagado por defecto. La disposición aprende del uso
 (lo que se usa junto se acerca). Los sueños profundos analizan el área `multiverso`
 periódicamente y proponen mejoras (dirección de diseño).
+
+## Ramificación multiagéntica de los procesos (Genesis, PoliGenesis, MetaGenesis)
+
+Petición de Alex del 25-11 (21:17). Cada proceso de orquestación es una rama viva: proceso →
+director → agentes y subagentes → pasos (leer, escribir, probar, revisar, integrar) → relevos
+entre agentes y modelos → resultados (archivos, commits, publicaciones, decisiones). Los tres
+niveles: **Genesis** (enjambres de una persona), **PoliGenesis** (de grupos, páginas y
+comunidades) y **MetaGenesis** (el de todo StarSeed). Se ve en vivo quién trabaja, con qué
+modelo y medio, cuánto lleva, qué espera a qué (dependencias) y qué falló y por qué. Solo cifras
+reales: lo que no se sabe se muestra como «sin dato», nunca inventado.
+
+## Organización estructurada (taxonomía y facetas)
+
+Todo nodo lleva facetas: **tema**, **categoría**, **etiquetas**, **tipo**, **formato**, alcance,
+dueño, sistema, capa, fecha y estado. El visor filtra y agrupa por cualquier faceta (una o
+varias a la vez), y la disposición puede ordenar el espacio por faceta (un tema por región, una
+categoría por anillo, un formato por forma). Las facetas vienen de los datos que ya existen; las
+que falten las **sugiere** Astraura y las acepta el dueño. Cada persona y grupo puede crear sus
+propios temas, categorías y etiquetas sin límite.
 
 ## Plantillas especializadas
 
