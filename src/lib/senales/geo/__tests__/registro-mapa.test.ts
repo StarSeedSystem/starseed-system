@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  codigoMotivoCanal, lineaCanalPosicion, lineasDeCambio, type FotoMapa,
+  codigoMotivoCanal, esLineaDeMapa, lineaCanalPosicion, lineasDeCambio, type FotoMapa,
 } from "../registro-mapa";
 
 function foto(p: Partial<FotoMapa> = {}): FotoMapa {
@@ -84,5 +84,36 @@ describe("registro-mapa · nunca una posición ni un nombre", () => {
     ];
     expect(sinCoordenadas(lineas)).toBe(true);
     expect(lineas.every((l) => !/8f14e45f|19\.4326|99\.1332|Alex/.test(l))).toBe(true);
+  });
+});
+
+describe("registro-mapa · el registro no admite nada fuera de las tres formas", () => {
+  it("acepta solo unido, rechazado con código, permiso y recuento", () => {
+    expect(esLineaDeMapa("mapa · canal-posicion · union=unido")).toBe(true);
+    expect(esLineaDeMapa("mapa · canal-posicion · union=rechazado motivo=sin-sesion")).toBe(true);
+    expect(esLineaDeMapa("mapa · ubicacion · permiso=denegado")).toBe(true);
+    expect(esLineaDeMapa("mapa · marcas · total=12 colocadas=7")).toBe(true);
+  });
+
+  it("rechaza texto libre con coordenadas, nombres o claves", () => {
+    const crudas = [
+      "mapa · canal-posicion · union=rechazado motivo=Alex en 19.4326,-99.1332",
+      "mapa · marcas · total=12 colocadas=7 lat=19.4326 lon=-99.1332",
+      "mapa · ubicacion · permiso=concedido token=clave-secreta",
+      "",
+    ];
+    expect(crudas.every((l) => !esLineaDeMapa(l))).toBe(true);
+  });
+
+  it("toda línea que emite el mapa pasa el filtro antes de escribirse", () => {
+    const estados = [
+      foto({ union: "rechazado", motivo: "no hay sesión iniciada (uid 8f14e45f) en 19.4326,-99.1332" }),
+      foto({ union: "unido", motivo: null, permiso: "denegado", total: 8, colocadas: 3 }),
+      foto({ union: "unido", motivo: null, permiso: "denegado", total: 9, colocadas: 4 }),
+    ];
+    const lineas = [...lineasDeCambio(null, estados[0]), ...lineasDeCambio(estados[0], estados[1]), ...lineasDeCambio(estados[1], estados[2])];
+    expect(lineas.length).toBe(7);
+    expect(lineas.every(esLineaDeMapa)).toBe(true);
+    expect(sinCoordenadas(lineas)).toBe(true);
   });
 });

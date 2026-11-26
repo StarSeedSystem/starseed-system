@@ -218,18 +218,20 @@ export function useMarcasGeo(): MarcasGeo {
   }, [marcas, ahora, publicadas.senales]);
 
   // (AUD1117) Una línea al registro de enlaces por cada CAMBIO de estado del mapa; nunca posición ni nombres.
+  const totalMarcas = marcas.length;
+  const colocadasMarcas = marcas.reduce((n, m) => (coordenadasDeVista(m.posicion) ? n + 1 : n), 0);
   const fotoRegistro = useRef<FotoMapa | null>(null);
   useEffect(() => {
     const foto: FotoMapa = {
       union: canal.union,
       motivo: canal.motivo,
       permiso,
-      total: marcas.length,
-      colocadas: marcas.filter((m) => coordenadasDeVista(m.posicion)).length,
+      total: totalMarcas,
+      colocadas: colocadasMarcas,
     };
     for (const linea of lineasDeCambio(fotoRegistro.current, foto)) anotarMapa(linea);
     fotoRegistro.current = foto;
-  }, [canal.union, canal.motivo, permiso, marcas]);
+  }, [canal.union, canal.motivo, permiso, totalMarcas, colocadasMarcas]);
 
   return {
     marcas, presenciaConectada: presencia.conectado, ahora, permiso, compartir,
