@@ -855,14 +855,23 @@ export class PantallaDestino {
      * y el aparato abre su diálogo (solo su persona lo acepta); si ya está en fluida o no hay pantalla, no hace nada. true si la orden salió.
      */
     async pedirFluida(): Promise<boolean> {
-        if (this.cerrada || !this.token || this.snap.fuente === "proyeccion" || (this.snap.estado !== "en-vivo" && this.snap.estado !== "pausa-local" && this.snap.estado !== "conectando")) return false;
+        if (this.cerrada || !this.token) return false;
+        if (this.snap.fuente === "proyeccion") {
+            this.anotar("control-fuente lado=controlador paso=fluida-ya-en-proyeccion");
+            return true;
+        }
+        if (!(this.snap.estado === "en-vivo" || this.snap.estado === "pausa-local" || this.snap.estado === "conectando")) return false;
         this.anotar("control-fuente lado=controlador paso=fluida-pedida-por-la-persona");
         const r = await this.orden("pantalla-iniciar", { fuente: "proyeccion", mantener: true, lado: this.ajustes.ladoMaximo, calidad: this.ajustes.calidadJpeg }, "ver");
         this.anotar(`control-fuente lado=controlador paso=fluida-pedida-por-la-persona resultado=${r.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}`);
         const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
         if (r.ok && real && !this.cerrada) {
             this.poner({ fuente: real });
+            this.poner({ estado: "en-vivo", motivo: undefined });
             this.anotar(`control-fuente lado=controlador fuente=${real} fluida-pedida=si`);
+        } else if (!this.cerrada) {
+            this.poner({ estado: "sin-pantalla", motivo: r.motivo ?? "sin-respuesta", capacidades: SIN_CAPACIDADES });
+            this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
         }
         return r.ok;
     }
