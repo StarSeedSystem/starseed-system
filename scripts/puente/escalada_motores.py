@@ -361,7 +361,8 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
         return False
 
     import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', titulo)
+    # El título que genera el desbloqueo lleva el sha entre paréntesis: «… publicación (70f48b3c2)».
+    match = re.search(r'desbloquear la publicación\s*\(?\s*([a-f0-9]{7,40})', titulo)
     if not match:
         return False
 
@@ -369,4 +370,5 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
     for asunto in asuntos:
         if sha in asunto.lower():
             return True
+    return False
     return False

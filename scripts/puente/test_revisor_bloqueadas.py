@@ -857,5 +857,56 @@ class NoAplicaCerrada(unittest.TestCase):
         self.assertIn("no-aplica", L.CERRADOS)
 
 
+class PublicacionRechazadaMecanicamente(unittest.TestCase):
+    """A018C6A91: una «Desbloquear la publicación (<sha>)» rechazada mecánicamente no se reescribe
+    una y otra vez. Si su sha ya está en main, se cierra sola en el PRIMER rechazo."""
+
+    SHA = "70f48b3c2"
+    TITULO = "URGENTE · Desbloquear la publicación (%s)" % SHA
+
+    def _tarea(self):
+        return T("A018C6A91", archivos=["src/lib/x.ts"], titulo=self.TITULO)
+
+    def _prog(self):
+        return {"A018C6A91": {"estado": "rechazada",
+                              "nota": "no toco NINGUNO de los 1 archivos que declaraba",
+                              "t": _t(10)}}
+
+    def test_sha_con_parentesis_se_extrae(self):
+        """El título real que genera el desbloqueo lleva el sha entre paréntesis."""
+        self.assertEqual(L._sha_publicacion(self.TITULO), self.SHA)
+
+    def test_es_tarea_publicacion_acepta_parentesis(self):
+        from escalada_motores import es_tarea_publicacion
+        self.assertTrue(es_tarea_publicacion({"titulo": self.TITULO}, ["Ola 22 · se publicó " + self.SHA]))
+        self.assertFalse(es_tarea_publicacion({"titulo": self.TITULO}, ["Ola 22 · otro commit"]))
+
+    def test_primer_rechazo_con_sha_en_main_cierra_sola(self):
+        """Objeción 2/3: no se reescribe como tarea:alcance si la publicación ya salió."""
+        dec = L.decidir(foto([self._tarea()], self._prog(), asuntos=["Ola 22 · se publicó " + self.SHA]))
+        a = acciones_de(dec, "A018C6A91")
+        self.assertEqual(len(a), 1)
+        self.assertEqual(a[0]["accion"], "ya_hecha")
+        self.assertIn(self.SHA, a[0]["motivo"])
+
+    def test_primer_rechazo_sin_sha_en_main_se_reescribe(self):
+        """Si la publicación NO ha salido, el rechazo mecánico se sigue reparando."""
+        dec = L.decidir(foto([self._tarea()], self._prog(), asuntos=["Ola 22 · otro commit"]))
+        a = acciones_de(dec, "A018C6A91")
+        self.assertEqual(a[0]["accion"], "reescribir")
+
+    def test_con_dos_reescrituras_previas_y_sha_en_main_no_escala(self):
+        """Objeción 4: aunque otra ola ya la hubiera reescrito dos veces, si el sha está en main se
+        cierra sola en vez de escalar a Codex."""
+        hist = [
+            {"t": _t(200), "tid": "A018C6A91", "accion": "reescribir", "clase": "tarea:alcance", "motivo": "rechazo mecánico..."},
+            {"t": _t(100), "tid": "A018C6A91", "accion": "reescribir", "clase": "tarea:alcance", "motivo": "rechazo mecánico..."},
+        ]
+        dec = L.decidir(foto([self._tarea()], self._prog(), memoria={"historial": hist},
+                             asuntos=["Ola 22 · se publicó " + self.SHA]))
+        a = acciones_de(dec, "A018C6A91")
+        self.assertEqual(a[0]["accion"], "ya_hecha")
+
+
 if __name__ == "__main__":
     unittest.main()
