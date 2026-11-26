@@ -131,7 +131,7 @@ describe("CTL1124D · salud de los cuadros con fuente proyeccion", () => {
  *  2. si el cuadro no cabía (`motivo: "grande"`), quien manda lo trataba como «sin cuadro» y no pedía
  *     un nivel más pequeño, de modo que nunca llegaba nada que pintar.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { nivelParaCuadroGrande, partirCuadro } from "../cuadro-malla";
 import { OrigenPantalla, type DepsOrigen, type Pintor, type SesionViva } from "../pantalla-origen";
 import { PantallaDestino, type DepsDestino, type PeerDestinoLike } from "../pantalla-destino";
