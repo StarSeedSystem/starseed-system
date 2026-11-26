@@ -304,7 +304,7 @@ export function aplicarTopeFpsSinPantalla(
   energia: EstadoEnergia | null | undefined,
   visibilityState?: string,
 ): number {
-  const tope = topeFpsSinPantalla(energia, visibilityState);
+  const tope = topeFpsSinPantalla(energia);
   if (tope <= 0) return fps;
   return fps > 0 ? Math.min(fps, tope) : tope;
 }
