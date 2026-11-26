@@ -62,11 +62,13 @@ async function nuevaPuerta(cuentaPropia = CUENTA, nativoPropio: Record<string, u
     lineas = [];
     ejecutadas = [];
     let n = 0;
+    const huellaAparatoPropia = () => TABLETA;
     puerta = new PuertaControl({
         subtle,
         ahora: () => reloj,
         cuentaPropia: () => cuentaPropia,
         neuronaPropia: () => TABLETA,
+        huellaAparatoPropia,
         leerPermiso: () => permiso,
         guardarPermiso: (p) => {
             permiso = p;

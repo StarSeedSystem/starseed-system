@@ -169,6 +169,7 @@ export interface DepsPuerta {
     ahora: () => number;
     cuentaPropia: () => string | null;
     neuronaPropia: () => string;
+    huellaAparatoPropia: () => string;
     leerPermiso: () => PermisoControl;
     guardarPermiso: (p: PermisoControl) => void;
     /** Ejecuta una acción YA validada. Devuelve el resultado o lanza con un motivo corto. */
@@ -203,6 +204,9 @@ export function esTerminarDeLaPersona(motivo: string): boolean {
     return motivo === MOTIVO_TERMINADO || motivo === "la-persona-desde-el-indicador" || motivo === "la-persona-desde-la-notificacion" || motivo === "la-persona-desde-la-superposicion";
 }
 
+/** CTL1126E · motivo cuando la orden va dirigida a otro aparato de la misma neurona. */
+export const MOTIVO_OTRO_APARATO = "otro-aparato";
+
 /**
  * CTL1124F: la ÚNICA lectura que la puerta atiende sin sesión abierta. Sirve para que el controlador sepa si ya
  * lo aceptaron (misma cuenta, clave aceptada, firma y antirrepetición intactas) sin abrir ni tocar una sesión.
@@ -224,7 +228,8 @@ export function noReabreSola(motivo: string): boolean {
         motivo === "permiso-apagado-avisado" ||
         motivo === "no-autorizado" ||
         motivo === "otra-cuenta" ||
-        motivo === "otro-destino"
+        motivo === "otro-destino" ||
+        motivo === "otro-aparato"
     );
 }
 
@@ -513,6 +518,13 @@ export class PuertaControl {
             return this.respuesta(c.nonce, false, "nivel", nombre, c.de, c.nivel);
         }
 
+        // CTL1126E: si la orden va dirigida a otro aparato de la misma neurona, rechazar.
+        const aparatoPropio = this.d.huellaAparatoPropia();
+        const aparatoDestino = c.accion.args.aparato;
+        if (typeof aparatoDestino === "string" && aparatoDestino !== aparatoPropio) {
+            return this.respuesta(c.nonce, false, "otro-aparato", nombre, c.de, c.nivel);
+        }
+
         // CTL1124F: mirar si ya te aceptaron es una LECTURA sin sesión. No abre, no renueva ni borra lo que la
         // persona terminó; solo contesta a un aparato ya aceptado (los frenos anteriores ya se comprobaron).
         if (!c.sesion && esLecturaSinSesion(nombre)) {
@@ -665,6 +677,11 @@ export class PuertaControl {
         if (!cuenta || c.cuenta.trim().toLowerCase() !== cuenta.trim().toLowerCase()) return this.respuesta(c.nonce, false, "otra-cuenta", "presentarse", c.de, "-");
         if (typeof a.spki !== "string" || typeof a.nombre !== "string" || typeof a.neurona !== "string" || !/^[A-Za-z0-9-]{1,100}$/.test(a.neurona)) {
             return this.respuesta(c.nonce, false, "argumentos", "presentarse", c.de, "-");
+        }
+        // CTL1126E: si se especifica un aparato, verificar que coincida con este aparato (para control entre aparatos de la misma neurona).
+        const aparatoPropio = this.d.huellaAparatoPropia();
+        if (typeof a.aparato === "string" && a.aparato !== aparatoPropio) {
+            return this.respuesta(c.nonce, false, "otro-aparato", "presentarse", c.de, "-");
         }
         // Prueba de posesión: la carga va firmada con la clave que presenta y su huella es `de`.
         if ((await huellaDeSpki(this.d.subtle, a.spki)) !== c.de) return this.respuesta(c.nonce, false, "firma", "presentarse", c.de, "-");

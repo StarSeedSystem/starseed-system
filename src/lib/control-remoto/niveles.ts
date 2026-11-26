@@ -53,20 +53,27 @@ function sinArgs(a: Args): Args | null {
 }
 
 /**
- * CTL1117H / CTL1118G: «abrir-sesion» lleva, opcionales, el color público del controlador (#rrggbb en minúsculas) y el nombre de SU neurona
- * (texto, 1 a 60 caracteres, sin controles); cualquier otro argumento se rechaza.
+ * CTL1117H / CTL1118G: «abrir-sesion» lleva, opcionales, el color público del controlador (#rrggbb en minúsculas),
+ * el nombre de SU neurona y el ID del aparato destino (UUID). El aparato destino indica a qué
+ * aparato de la neurona (si hay múltiples) se quiere controlar; si no va, la sesión va a la neurona como siempre.
+ * Cualquier otro argumento se rechaza.
  */
 function conColorOpcional(a: Args): Args | null {
     if (Object.keys(a).length === 0) return {};
-    if (!soloClaves(a, ["color", "nombre"])) return null;
+    const clavesPermitidas: string[] = ["color", "nombre", "aparato"];
+    if (!soloClaves(a, clavesPermitidas)) return null;
     const salida: Args = {};
-    if ("color" in a) {
+    if (a.color !== undefined) {
         if (typeof a.color !== "string" || !/^#[0-9a-f]{6}$/.test(a.color)) return null;
         salida.color = a.color;
     }
-    if ("nombre" in a) {
+    if (a.nombre !== undefined) {
         if (typeof a.nombre !== "string" || a.nombre.length === 0 || a.nombre.length > 120 || /[\u0000-\u001f\u007f]/.test(a.nombre) || a.nombre.trim() === "") return null;
         salida.nombre = a.nombre;
+    }
+    if (a.aparato !== undefined) {
+        if (typeof a.aparato !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.aparato)) return null;
+        salida.aparato = a.aparato;
     }
     return salida;
 }

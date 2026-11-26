@@ -734,7 +734,7 @@ export function ControlEntreNeuronasPanel() {
         const nombreCompleto = aparatoSeleccionado
             ? `${nombreNeuronaPropia()} (${aparatoSeleccionado.nombre})`
             : nombreNeuronaPropia();
-        const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreCompleto);
+        const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreCompleto, aparatoSeleccionado?.huella);
         if (r.ok) {
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
@@ -743,7 +743,7 @@ export function ControlEntreNeuronasPanel() {
             );
             return;
         }
-        
+
         // CTL1119E: si el motivo es "sin-aparato", ofrecer crear la clave y reintentar
         if (r.motivo === "sin-aparato") {
             setAviso("Este aparato no tiene clave propia. Creando clave y pidiendo control…");

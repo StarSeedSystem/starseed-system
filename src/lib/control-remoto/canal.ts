@@ -160,11 +160,20 @@ export async function iniciarCanalControl(): Promise<void> {
     const yo = await neuronaPropia();
     const nativo = await puenteNativoControl(); // ORD1114Q
     const { decryptEnvelopeFor } = await import("@/ai/astraura/mesh/recipient-crypto");
+    const huellaAparatoPropia = () => {
+        try {
+            const { neuronDeviceSyncId } = require("@/lib/network/identidad-dispositivo");
+            return neuronDeviceSyncId();
+        } catch {
+            return "";
+        }
+    };
     puerta = new PuertaControl({
         subtle: crypto.subtle,
         ahora: () => Date.now(),
         cuentaPropia: () => cuentaCache,
         neuronaPropia: () => yo,
+        huellaAparatoPropia,
         leerPermiso: leerPermisoLocal,
         guardarPermiso: guardarPermisoLocal,
         ejecutar: async (nombre, args, _carga, sobre, sesion) => {
@@ -350,11 +359,13 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
 }
 
 /** Pide al otro aparato que su dueño acepte este (queda «pendiente» allí; no concede nada). */
-export async function presentarmeA(para: string, nombre: string): Promise<RespuestaOrden> {
+export async function presentarmeA(para: string, nombre: string, aparato?: string): Promise<RespuestaOrden> {
     const { spkiDelAparato } = await import("@/lib/chats-genesis/firma-aparato");
     const spki = await spkiDelAparato();
-    if (!spki) return { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" };
-    const r = await mandarOrden(para, "presentarse", { spki, nombre, neurona: await neuronaPropia() });
+    if (!spki) return { type: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" };
+    const args: Record<string, unknown> = { spki, nombre, neurona: await neuronaPropia() };
+    if (typeof aparato === "string" && aparato) args.aparato = aparato;
+    const r = await mandarOrden(para, "presentarse", args);
     registroGlobal.liberar(para); // CTL1117A · S3: tras presentarse, un «no-autorizado» anterior ya no frena el reintento
     return r;
 }
