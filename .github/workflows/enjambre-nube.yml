@@ -296,6 +296,18 @@ jobs:
             tail -25 "$LOG" || true
             exit 1
           fi
+      - name: Validar cargo check en native/
+        if: always()
+        run: |
+          changed=$(git diff --name-only "${{ github.sha }}..HEAD" 2>/dev/null | grep "^native/" || true)
+          if [ -n "$changed" ]; then
+            echo "Se detectaron cambios en native/, ejecutando cargo check..."
+            cd native/src-tauri
+            cargo check 2>&1 || { echo "::error::cargo check falló"; exit 1; }
+            echo "cargo check exitoso"
+          else
+            echo "No hay cambios en native/, saltando cargo check"
+          fi
           # (2026-09-24) Se cuenta desde el commit que lanzó el run (la cola), NO desde
           # origin/main: ese rango incluía todo lo que la Mac aún no había publicado, así
           # que cada run «entregaba» aunque sus agentes no hubieran hecho nada. Resultado:
