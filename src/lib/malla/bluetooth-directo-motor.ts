@@ -166,6 +166,8 @@ export interface DepsBle {
   marcarLigado?(enlace: string): void;
   /** (BLE1109B) Últimas líneas del registro propio (web + app nativa) para espejarlas al otro lado; ausente: las de la web. */
   registroPropio?(max: number): Promise<string[]> | string[];
+  /** (BLE1124A) ¿Esa neurona ya tiene un enlace directo por la Wi-Fi? Si sí, el Bluetooth no se ofrece para datos. */
+  wifiDirecto?(neurona: string): boolean;
 }
 
 export interface ResultadoEnvioBle {
@@ -388,6 +390,32 @@ export function datosTienenTurnoEnLlamada(envDatos: number, envOtros: number, fr
 /** PTA1110A · Un trozo de túnel de la puerta (`tu.msg` del canal «puerta» con trama `dat`) es DATOS: nunca va con el control. */
 export function esTextoDatosPuerta(t: string): boolean {
   return t.startsWith('{"t":"tu.msg"') && t.includes('"c":"puerta"') && (t.includes('"k":"dat"') || t.includes('"k":"datb"'));
+}
+
+/**
+ * (BLE1124A) Un enlace Bluetooth no se ofrece para DATOS cuando esa misma neurona ya tiene un enlace directo por
+ * la Wi-Fi: la red local va antes y no gasta el aire compartido del Bluetooth. El control del enlace Wi-Fi sigue
+ * usando el Bluetooth por su cuenta (`enlaceHacia`), así que esto solo filtra lo que ve el transporte universal.
+ * Puro y tolerante: si el gancho falla, se conserva el enlace.
+ */
+export function filtrarBleConWifiDirecto<T extends { alcanza: { neuronDeviceId?: string } }>(
+  enlaces: readonly T[],
+  tieneWifiDirecto: (neurona: string) => boolean,
+): T[] {
+  const out: T[] = [];
+  for (const e of enlaces) {
+    const neurona = e.alcanza.neuronDeviceId;
+    let wifi = false;
+    if (neurona) {
+      try {
+        wifi = tieneWifiDirecto(neurona);
+      } catch {
+        wifi = false;
+      }
+    }
+    if (!wifi) out.push(e);
+  }
+  return out;
 }
 
 export function crearRedBle(deps: DepsBle): RedBle {
@@ -1229,10 +1257,13 @@ export function crearRedBle(deps: DepsBle): RedBle {
       avisar();
       void saludarPendientes().catch(nada);
     },
-    enlaces: () =>
-      enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }).filter(
+    enlaces: () => {
+      const lista = enlacesBle({ estado, ligaduras, ahora: deps.ahora(), caidas, ...(propio() ? { cifrado: Object.fromEntries(ligaduras.map((l) => [l.enlace, etiquetaDe(l)])) } : {}) }).filter(
         (e) => !estaMudo(enlaceDeIdBle(e.id) ?? ""),
-      ),
+      );
+      // (BLE1124A) Lo que ya va por un enlace directo de la Wi-Fi no se manda también por Bluetooth.
+      return deps.wifiDirecto ? filtrarBleConWifiDirecto(lista, deps.wifiDirecto) : lista;
+    },
     cifradoDe: (neurona) => {
       const l = ligaduraDeNeuronaBle(ligaduras, neurona, deps.ahora());
       return l ? etiquetaDe(l) : null;
@@ -1386,6 +1417,8 @@ async function depsReales(): Promise<DepsBle> {
   // (OFF1108A) Sin carrera de arranque en frío: antes de saludar se espera (máx. 3 s) a la clave de faro de la
   // app y al espejo de la instantánea (neuronas de la cuenta y huellas ya probadas), que no dependen de internet.
   const espejo = await import("@/lib/sin-internet/huellas-cuenta-vivas");
+  // (BLE1124A) El registro de enlaces Wi-Fi directos activos: si una neurona ya va por ahí, el Bluetooth no se ofrece.
+  const wifiOrq = await import("./enlace-wifi-orquestacion");
   await Promise.race([Promise.all([leerConfig().catch(nada), espejo.cargarEspejo().catch(nada)]), new Promise((r) => setTimeout(r, 3_000))]);
   return {
     ahora: () => Date.now(),
@@ -1512,6 +1545,16 @@ async function depsReales(): Promise<DepsBle> {
         return await myFingerprint();
       } catch {
         return null;
+      }
+    },
+    // (BLE1124A) Si esa neurona ya tiene enlace directo por la Wi-Fi (con IP del otro: se puede usar), no se
+    // ofrece el Bluetooth para datos. Sin IP todavía, el Bluetooth sigue siendo el camino.
+    wifiDirecto: (neurona) => {
+      try {
+        const e = wifiOrq.enlaceWifiDe(neurona);
+        return e !== null && e.ipOtro !== null;
+      } catch {
+        return false;
       }
     },
   };
