@@ -791,6 +791,14 @@ def main():
                         print(
                             "higiene: %d worktrees podados" % len(podados), flush=True
                         )
+                    # (DIR1126C, 26-11) Con poco disco, los worktrees de tareas TERMINADAS que tienen
+                    # restos sin guardar (la poda no los quita) se archivan en ramas archivo-wt/<tarea>
+                    # y se podan: nada se pierde (`git switch archivo-wt/<tarea>` los recupera).
+                    if shutil.disk_usage(RAIZ).free < 15 * 1024 ** 3:
+                        import archivar_worktrees
+
+                        archivar_worktrees.main(["--aplicar"])
+                        print("higiene: poco disco: worktrees terminados archivados y podados", flush=True)
                 except Exception as e:  # noqa: BLE001
                     print(
                         "higiene worktrees: %s: %s" % (type(e).__name__, e), flush=True
