@@ -6,3 +6,4 @@
 
 export * from "./modelo";
 export * from "./manifiesto";
+export * from "./ubicaciones";
