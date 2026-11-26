@@ -3572,7 +3572,7 @@ def guardar_prog(prog):
             print("[%s] progreso.json no se pudo leer entero: no lo piso con la copia de memoria"
                   % ahora()[11:19], flush=True)
             return False
-        fundido = fusionar_progreso(prog, disco, MIAS)
+        fundido = fusionar_progreso(prog, disco, MIAS, REABIERTAS)
         prog.clear()
         prog.update(fundido)
         if fundido == disco:
@@ -3607,12 +3607,13 @@ PROG = cargar_prog()
 # registró una integración/rechazo mientras este proceso conservaba una copia
 # anterior en memoria, la verdad persistida manda (2026-09-10 · Puente).
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
+REAPERTURA_VENCE = frozenset({"rechazada"})
 
 
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
 
-_CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
+_CERRADAS_DISCO = {"t": 0.0, "ids": frozenset(), "estados": {}}
 
 
 def _leer_estado_disco(tid):
@@ -3623,7 +3624,7 @@ def _leer_estado_disco(tid):
         return ""
 
 
-def cerradas_en_disco(cada_s=30, ruta=None):
+def cerradas_en_disco(cada_s=30, ruta=None, reabiertas=None):
     """Ids que `progreso.json` da por cerrados para siempre (integrada, sustituida…).
 
     (2026-10-06) Una tanda arrancada a las 18:10 volvió a escribir a las 22:55 LC1007A, que
@@ -3631,24 +3632,37 @@ def cerradas_en_disco(cada_s=30, ruta=None):
     cierran otros (traer_nube, Genesis, la dirección). Se relee el disco como mucho cada
     `cada_s` segundos. Nunca lanza."""
     ahora_ = time.time()
+    reabiertas = set(reabiertas or ())
     if ahora_ - _CERRADAS_DISCO["t"] >= cada_s:
         _CERRADAS_DISCO["t"] = ahora_
         try:
             with open(ruta or PROG_JSON, encoding="utf-8") as f:
                 disco = json.load(f)
             if isinstance(disco, dict):
-                _CERRADAS_DISCO["ids"] = frozenset(
-                    k
+                estados = {
+                    k: v.get("estado")
                     for k, v in disco.items()
                     if isinstance(v, dict)
-                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                }
+                _CERRADAS_DISCO["ids"] = frozenset(
+                    k
+                    for k, estado in estados.items()
+                    if estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
                 )
+                _CERRADAS_DISCO["estados"] = estados
         except Exception:
             pass
-    return _CERRADAS_DISCO["ids"]
+    if not reabiertas:
+        return _CERRADAS_DISCO["ids"]
+    estados = _CERRADAS_DISCO.get("estados") or {}
+    return frozenset(
+        k
+        for k in _CERRADAS_DISCO["ids"]
+        if not (k in reabiertas and estados.get(k) in REAPERTURA_VENCE)
+    )
 
 
-def fusionar_progreso(memoria, disco, propias):
+def fusionar_progreso(memoria, disco, propias, reabiertas=None):
     """Funde dos fotos sin permitir que una tarea cerrada vuelva a `en_curso`.
 
     (2026-10-23) Una tarea propia que en memoria está `reasignada` la lleva OTRO medio: este
@@ -3663,10 +3677,11 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        vencida = estado in REAPERTURA_VENCE and tid in (reabiertas or ())
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO) and not vencida)
             or prestada
         ):
             salida[tid] = valor
@@ -6624,6 +6639,7 @@ CONTROL_JSON = os.path.join(
 REASIGNADOS = {}  # tarea -> modelo pedido desde fuera (se aplica en la próxima escritura)
 SOLTADAS = set()
 REABRIR = set()  # ids que el director manda repetir dentro de la MISMA tanda  # tareas que se han ido a otro servidor: aquí ya no se ejecutan
+REABIERTAS = set()
 APROBACIONES = {}  # tarea -> "aprobar" | "rechazar" (nodos de aprobación humana)
 # Y QUIÉN lo decidió. Va aparte para no cambiar la forma de APROBACIONES, pero es
 # obligatorio: sin esto, una tarea rechazada por un director automático quedaba escrita
@@ -6932,6 +6948,7 @@ def atender_control():
             SOLTADAS.discard(tid)
             CORTADOS.discard(tid)
             REABRIR.add(tid)
+            REABIERTAS.add(tid)
             # (2026-10-09) La escalera del director sube de peldaño (más intentos, otro modelo):
             # la orden trae el contador y el modelo, y aquí se respetan. Sin esto la copia en
             # memoria pisaba el contador al guardar y CPA1007Kb repetía «Codex 1/2» para siempre.
@@ -10338,7 +10355,7 @@ def main():
                 pendientes.pop(tid)
                 hechas.add(tid)
                 continue
-            if tid in cerradas_en_disco():
+            if tid in cerradas_en_disco(reabiertas=REABIERTAS):
                 pendientes.pop(tid)
                 hechas.add(tid)
                 evento(

@@ -85,6 +85,7 @@ class ReabrirConPeldanoTest(unittest.TestCase):
         enjambre.MIAS.discard("T9")
         enjambre.PROG.pop("T9", None)
         enjambre.REABRIR.discard("T9")
+        enjambre.REABIERTAS.discard("T9")
 
     def test_tarea_soltada_reabierta_se_quita_de_los_cierres_en_memoria(self):
         from unittest import mock
@@ -109,6 +110,7 @@ class ReabrirConPeldanoTest(unittest.TestCase):
             enjambre.SOLTADAS.discard(tid)
             enjambre.CORTADOS.discard(tid)
             enjambre.REABRIR.discard(tid)
+            enjambre.REABIERTAS.discard(tid)
             enjambre.PROG.pop(tid, None)
 
 
@@ -207,3 +209,86 @@ class GuardarProgresoTest(unittest.TestCase):
             self.assertEqual({"T1": {"estado": "revisando"}, "T2": {"estado": "fallo"}}, json.load(f))
         self.assertNotEqual(inodo, os.stat(self.json).st_ino)
         self.assertEqual(["progreso.json", "progreso.md"], sorted(os.listdir(self.dir)))
+
+
+class ReaperturaExplicitaTest(unittest.TestCase):
+    TID = "PRM1119B-d3"
+
+    def setUp(self):
+        enjambre.REABIERTAS.discard(self.TID)
+
+    def tearDown(self):
+        enjambre.REABIERTAS.discard(self.TID)
+        enjambre.MIAS.discard(self.TID)
+        enjambre.PROG.pop(self.TID, None)
+        enjambre.REABRIR.discard(self.TID)
+
+    def test_rechazada_del_disco_no_pisa_la_reapertura_del_director(self):
+        memoria = {self.TID: {"estado": "pendiente", "nota": "reabierta por el director"}}
+        disco = {self.TID: {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {self.TID}, reabiertas={self.TID})
+        self.assertEqual("pendiente", fundido[self.TID]["estado"])
+        self.assertEqual("reabierta por el director", fundido[self.TID]["nota"])
+
+    def test_un_commit_de_otra_ola_si_gana_a_la_reapertura(self):
+        memoria = {self.TID: {"estado": "pendiente"}}
+        disco = {self.TID: {"estado": "commit", "sha": "abc1234"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {self.TID}, reabiertas={self.TID})
+        self.assertEqual(disco[self.TID], fundido[self.TID])
+
+    def test_reabrir_escribe_pendiente_aunque_el_disco_diga_rechazada(self):
+        import contextlib
+        import json
+        import shutil
+        import tempfile
+        from unittest import mock
+
+        temporal = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temporal, True)
+        ruta_json = os.path.join(temporal, "progreso.json")
+        ruta_md = os.path.join(temporal, "progreso.md")
+        with open(ruta_json, "w", encoding="utf-8") as f:
+            json.dump({self.TID: {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos"}}, f)
+        enjambre.PROG[self.TID] = {"estado": "rechazada"}
+        orden = {self.TID: {"accion": "reabrir", "motivo": "revisor: rechazo mecánico de las puertas"}}
+        with mock.patch.object(enjambre, "PROG_JSON", ruta_json), \
+                mock.patch.object(enjambre, "PROG_MD", ruta_md), \
+                mock.patch.object(enjambre, "MIAS", {self.TID}), \
+                mock.patch.object(enjambre, "cerrojo", lambda *_a, **_k: contextlib.nullcontext()), \
+                mock.patch.object(enjambre, "consumir_control", return_value=orden), \
+                mock.patch.object(enjambre, "entregar_mensajes"), \
+                mock.patch.object(enjambre, "evento"):
+            enjambre.atender_control()
+        with open(ruta_json, encoding="utf-8") as f:
+            self.assertEqual("pendiente", json.load(f)[self.TID]["estado"])
+        self.assertIn(self.TID, enjambre.REABIERTAS)
+
+
+class CerradasEnDiscoReabiertasTest(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        import tempfile
+        from unittest import mock
+
+        self.temporal = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.temporal, True)
+        self.ruta = os.path.join(self.temporal, "progreso.json")
+        parche = mock.patch.dict(
+            enjambre._CERRADAS_DISCO, {"t": 0.0, "ids": frozenset(), "estados": {}}
+        )
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def test_la_rechazada_reabierta_no_cuenta_como_cerrada_y_el_commit_si(self):
+        import json
+
+        tid = "PRM1119B-d3"
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            json.dump({tid: {"estado": "rechazada"}, "OTRA": {"estado": "commit"}}, f)
+        self.assertEqual(
+            {tid, "OTRA"}, set(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta))
+        )
+        self.assertEqual(
+            {"OTRA"},
+            set(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta, reabiertas={tid})),
+        )
