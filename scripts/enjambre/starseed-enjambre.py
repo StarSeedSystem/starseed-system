@@ -3608,6 +3608,17 @@ PROG = cargar_prog()
 # anterior en memoria, la verdad persistida manda (2026-09-10 · Puente).
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 
+#: (A018C6A91) «rechazada» por no tocar archivos NO es una decisión: el revisor la reescribe
+#: como tarea:alcance. Si el orquestador la diera por cerrada, la reescritura nunca correría y
+#: sus dependientes esperarían para siempre («otra ola ya la cerró»).
+_RECHAZO_MECANICO_DISCO = re.compile(r"^no toco NINGUNO de los", re.I)
+
+
+def _rechazo_mecanico(valor):
+    """¿La entrada del progreso es un rechazo mecánico de las puertas (reparable)?"""
+    return (isinstance(valor, dict) and valor.get("estado") == "rechazada"
+            and bool(_RECHAZO_MECANICO_DISCO.search(str(valor.get("nota") or ""))))
+
 
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
@@ -3642,6 +3653,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                     for k, v in disco.items()
                     if isinstance(v, dict)
                     and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                    and not _rechazo_mecanico(v)
                 )
         except Exception:
             pass

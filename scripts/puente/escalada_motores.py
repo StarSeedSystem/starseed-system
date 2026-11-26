@@ -363,7 +363,7 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
     import re
     # El título real lo crea prioridad_desbloqueo con el sha entre paréntesis
     # («URGENTE · Desbloquear la publicación (60dc6e227)»): los paréntesis son opcionales.
-    match = re.search(r'desbloquear la publicación\s*[(\[]?\s*([a-f0-9]{7,40})', titulo)
+    match = re.search(r'desbloquear la publicación\s*\(?\s*([a-f0-9]{7,40})', titulo)
     if not match:
         return False
 
