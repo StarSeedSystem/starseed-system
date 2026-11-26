@@ -516,7 +516,7 @@ export async function setNeuronName(deviceId: string, name: string): Promise<Set
   const fallo = await upsertRemote({ 
     id: deviceId, 
     name: limpio,
-    capabilities: { nombreTs: ahora, name: limpio } as Partial<NeuronCapabilities>,
+    capabilities: { platform: detectPlatform().platform, nombreTs: ahora, name: limpio },
   });
   if (!fallo) {
     // Confirmado: limpiar timestamp pendiente local

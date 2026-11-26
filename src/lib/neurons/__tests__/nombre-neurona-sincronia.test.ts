@@ -11,13 +11,15 @@ describe("nombre-neurona-sincronia: fusión por fecha y reconciliación de prefs
 
   beforeEach(() => {
     vi.useFakeTimers();
-    const mockStorage = {
-      store: {} as Record<string, string>,
+    const mockStorage: Storage & { store: Record<string, string> } = {
+      store: {},
       getItem(key: string) { return this.store[key] ?? null; },
       setItem(key: string, value: string) { this.store[key] = value; },
       removeItem(key: string) { delete this.store[key]; },
       clear() { this.store = {}; },
-    } as unknown as Storage;
+      key: () => null,
+      length: 0,
+    };
     global.localStorage = mockStorage;
     // @ts-expect-error - mock window.localStorage for tests
     global.window = { ...global.window, localStorage: mockStorage };
