@@ -123,7 +123,7 @@ export function webgpuAvailable(): boolean {
   }
 }
 
-async function getWebllmEngine(model: string, onProgress?: (p: string) => void): Promise<any> {
+export async function getWebllmEngine(model: string, onProgress?: (p: string) => void): Promise<any> {
   if (webllmEnginePromise && webllmLoadedModel === model) return webllmEnginePromise;
   webllmLoadedModel = model;
   webllmEnginePromise = (async () => {
@@ -136,7 +136,11 @@ async function getWebllmEngine(model: string, onProgress?: (p: string) => void):
       initProgressCallback: (r: any) => onProgress?.(r?.text || ""),
     });
     return engine;
-  })();
+  })().catch((err) => {
+    webllmEnginePromise = null;
+    webllmLoadedModel = "";
+    throw err;
+  });
   return webllmEnginePromise;
 }
 
@@ -174,7 +178,7 @@ let tfLoadedModel = "";
  * CDN. Import por Function() para que webpack/TS no lo resuelvan (solo existe
  * en el navegador). Cachea el pipeline por modelo.
  */
-async function getTransformersPipeline(model: string, onProgress?: (p: string) => void): Promise<any> {
+export async function getTransformersPipeline(model: string, onProgress?: (p: string) => void): Promise<any> {
   if (tfPipelinePromise && tfLoadedModel === model) return tfPipelinePromise;
   tfLoadedModel = model;
   tfPipelinePromise = (async () => {
@@ -190,7 +194,11 @@ async function getTransformersPipeline(model: string, onProgress?: (p: string) =
       },
     });
     return pipe;
-  })();
+  })().catch((err) => {
+    tfPipelinePromise = null;
+    tfLoadedModel = "";
+    throw err;
+  });
   return tfPipelinePromise;
 }
 
