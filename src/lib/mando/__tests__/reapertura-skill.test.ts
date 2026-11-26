@@ -79,3 +79,41 @@ describe("README de agent-reach para el enjambre", () => {
     expect(guia).toContain("decidirVuelta");
   });
 });
+
+const NOTAS_OBJETADAS = [
+  {
+    fecha: "2026-11-23 02:26:39",
+    nota: "reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»",
+    estado: undefined,
+    accion: "corregir-y-verificar",
+  },
+  {
+    fecha: "2026-11-23 16:21:16",
+    nota: "reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»",
+    estado: undefined,
+    accion: "corregir-y-verificar",
+  },
+  {
+    fecha: "2026-11-24 23:21:02",
+    nota: "otra ola ya la cerró (rechazada según progreso.json) → no la repito",
+    estado: "rechazada",
+    accion: "no-repetir",
+  },
+] as const;
+
+describe("reparación literal · una prueba por objeción", () => {
+  const guia = readFileSync(README, "utf8");
+
+  it.each(NOTAS_OBJETADAS)("$fecha · $nota", ({ nota, estado, accion }) => {
+    expect(guia).toContain(nota);
+    expect(decidirVuelta({ nota, estado }).accion).toBe(accion);
+  });
+
+  it("la segunda nota idéntica no autoriza otra reapertura", () => {
+    const [primera, segunda] = NOTAS_OBJETADAS;
+    expect(primera.nota).toBe(segunda.nota);
+    expect(yaSeReabrioPorRechazo([primera.nota], segunda.nota)).toBe(true);
+    expect(guia).toContain("no la relanzo igual");
+    expect(guia).toContain("se escribe de verdad");
+  });
+});
