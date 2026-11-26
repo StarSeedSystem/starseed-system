@@ -55,7 +55,7 @@ CERRADOS = CUMPLIDOS | frozenset({"informe", "sustituida", "reasignada", "descar
 #: "rechazada" NO está aquí incondicionalmente: solo las que NO son rechazo mecánico cuentan como decididas.
 DECIDIDOS = frozenset({})
 #: Patrón de rechazo MECÁNICO de las puertas (no tocó sus archivos): se repara solo.
-_RECHAZO_MECANICO = re.compile(r"^no toco NINGUNO de los", re.I)
+_RECHAZO_MECANICO = re.compile(r"no toc[óo]\s+NINGUNO|rechazo mecánico de las puertas", re.I)
 #: Tope de reescrituras por rechazo mecánico por cadena antes de escalar a Codex.
 TOPE_RECHAZO_MECANICO = 2
 TRABAJANDO = frozenset({"en_curso"})
