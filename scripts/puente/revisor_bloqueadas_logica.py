@@ -705,9 +705,9 @@ def partes_de(tarea: Dict[str, Any], motivo: str, max_archivos: int = MAX_ARCHIV
 
 
 def _sha_publicacion(titulo: str) -> str:
-    """Extrae el SHA de una tarea 'Desbloquear la publicación <sha>'."""
+    """Extrae el SHA de una tarea 'Desbloquear la publicación <sha>' (con o sin paréntesis)."""
     import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', str(titulo).lower())
+    match = re.search(r'desbloquear la publicación\s*[(\[]?\s*([a-f0-9]{7,40})', str(titulo).lower())
     return match.group(1) if match else ""
 
 
@@ -798,20 +798,20 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         # no es una decisión de la dirección ni de Alex; se repara como "tarea:alcance" con acción "reescribir".
         if est == "rechazada" and es_rechazo_mecanico(nota):
             cuenta = rechazos_mecanicos_en_cadena(memoria, tid)
+            from escalada_motores import siguiente_motor, es_tarea_publicacion
+
+            # (AF26FCCD1) «Desbloquear la publicación <sha>» no es una tarea de código: si su
+            # publicación ya está en main, se cierra en el PRIMER rechazo, sin reescribirla en
+            # bucle como tarea:alcance (la tanda la apartaba con «otra ola ya la cerró»).
+            if es_tarea_publicacion(t, asuntos):
+                acciones.append(_accion(
+                    tid, "ya_hecha",
+                    "rechazo mecánico de las puertas (%dª vez): la publicación %s ya está en main, se cierra sola" % (cuenta + 1, _sha_publicacion(t.get("titulo", ""))),
+                    "tarea:alcance"))
+                tocadas.add(tid)
+                continue
             if cuenta >= TOPE_RECHAZO_MECANICO:
-                # Tercera vez: usar escalada automática al mejor motor disponible.
-                from escalada_motores import siguiente_motor, es_tarea_publicacion
-
-                # Si es una tarea de desbloquear publicación y el sha está en main, se cierra sola.
-                if es_tarea_publicacion(t, asuntos):
-                    acciones.append(_accion(
-                        tid, "ya_hecha",
-                        "rechazo mecánico de las puertas (%dª vez): la publicación %s ya está en main, se cierra sola" % (cuenta + 1, _sha_publicacion(t.get("titulo", ""))),
-                        "tarea:alcance"))
-                    tocadas.add(tid)
-                    continue
-
-                # Usar escalada automática para determinar el siguiente motor.
+                # Tercera vez: usar escalada automática para determinar el siguiente motor.
                 disponibilidad = foto.get("disponibilidad", {})
                 presupuesto = foto.get("presupuesto", {})
                 es_arq = any(kw in str(t.get("titulo", "")).lower() for kw in ["arquitectura", "diseñar", "api", "endpoint", "motor", "sistema"])

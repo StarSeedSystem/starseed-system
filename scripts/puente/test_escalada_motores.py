@@ -201,6 +201,23 @@ class TestEscaladaMotoresTareasEspeciales(unittest.TestCase):
         from escalada_motores import es_tarea_publicacion
         self.assertFalse(es_tarea_publicacion(tarea, asuntos))
 
+    def test_tarea_publicacion_con_parentesis_se_reconoce(self):
+        """AF26FCCD1: prioridad_desbloqueo crea el título con el sha entre paréntesis.
+
+        Antes el patrón exigía el sha justo tras un espacio, así que el título real
+        «URGENTE · Desbloquear la publicación (60dc6e227)» nunca se reconocía y la tarea
+        se reescribía en bucle aunque su publicación ya estuviera en main.
+        """
+        tarea = {
+            "id": "AF26FCCD1",
+            "titulo": "URGENTE · Desbloquear la publicación (60dc6e227)",
+            "archivos": ["scripts/puente/x.py"],
+        }
+        from escalada_motores import es_tarea_publicacion
+        self.assertTrue(es_tarea_publicacion(
+            tarea, ["relevo: integrar 60dc6e227 en main"]))
+        self.assertFalse(es_tarea_publicacion(tarea, ["otro commit sin el sha"]))
+
 
 class TestEscaleraMotores(unittest.TestCase):
     """Pruebas de la función escalera_motores."""
