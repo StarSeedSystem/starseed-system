@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "segundos": 899,
+   "t": "2026-11-21 20:46:39",
+   "rama": "ola/AF26FCCD1",
+   "sha": null,
+   "intentos_auto": 0,
+   "reintentos_medio": 1,
+   "id": "AF26FCCD1c",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 19:45:15\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"AF26FCCD1\", \"texto\": \"URGENTE · Desbloquear la publicación (60dc6e227)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:31:45\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"AF26FCCD1\", \"texto\": \"URGENTE · Desbloquear la publicación (60dc6e227)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:50:32\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:50:33\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:59:14\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 21:00:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45745312853`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: to-merging scripts/enjambre/starseed-enjambre.py\nCONFLICT (content): Merge conflict in scripts/enjambre/starseed-enjambre.py\nAuto-merging scripts/enjambre/test_autocuracion_enjambre.py\nerror: could not apply 23205928a... salvavidas · AF26FCCD1b: trabajo del agente antes de las puertas (tsc / vitest)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45745312853:refs/remotes/origin/nube/45745312853\"` y `git cherry-pick --no-commit 23205928a1dc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_autocuracion_enjambre.py, scripts/enjambre/test_progreso_irreversible.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45745312853"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "AF26FCCD1c"
+  ]
+ }
+}
