@@ -1,10 +1,24 @@
 #!/bin/bash
 # ═══ StarSeed · Dream Autónomo Adaptativo (solo modelos GRATUITOS) ═══
 # Contrato: starseed_memory_root/dream/dream.md · Catálogo: dream/modelos-gratuitos.md
-ROOT="/Users/alex/Documents/starseed-os-main/starseed_memory_root"
-REPO="/Users/alex/Documents/starseed-os-main"
+ROOT="${STARSEED_ROOT:-/Users/alex/Documents/starseed-os-main/starseed_memory_root}"
+REPO="${STARSEED_REPO:-/Users/alex/Documents/starseed-os-main}"
 DATE=$(date +%Y-%m-%d); HORA=$(date +%H:%M)
 OUT="$ROOT/dream/sugerencias-$DATE.md"
+
+# ── Auto-refresh del catálogo de modelos gratuitos (informe Dream 2026-11-08) ─
+# Sin refresco, provider_models_cache.json envejece: al silencio de las pasarelas
+# sin cupo se le suma un catálogo caduco. Se refresca ANTES de soñar; si falla,
+# el Dream sigue con el catálogo que haya y lo deja anotado en el log.
+refrescar_catalogo_de_modelos() {
+  command -v hermes >/dev/null 2>&1 || return 0
+  if hermes model --refresh >/dev/null 2>&1; then
+    echo "[$DATE] (dream) catálogo de modelos refrescado antes de soñar" >> "$ROOT/logs/logs.md"
+  else
+    echo "[$DATE] (dream) hermes model --refresh falló; el Dream sigue con el catálogo existente" >> "$ROOT/logs/logs.md"
+  fi
+  return 0
+}
 # Pares "proveedor|modelo": el Dream dependia SOLO de OpenRouter y se quedaba mudo
 # los dias en que su cuota gratuita estaba agotada. Ahora releva a otros proveedores.
 # Candidatos, por pasarela. Se ORDENAN abajo según el informe de sondas: lo que
@@ -77,11 +91,7 @@ CTX="$(mktemp)"
 } > "$CTX"
 
 # Refrescar el catálogo de modelos gratuitos antes de soñar
-if hermes model --refresh 2>/dev/null; then
-  echo "☁️  Catálogo de modelos actualizado"
-else
-  echo "⚠️  Error al refrescar catálogo de modelos"
-fi
+refrescar_catalogo_de_modelos
 
 # La MISMA plantilla de propuesta para todos los agentes de Imaginacion (scripts/puente/imaginacion_plantilla.py).
 PLANTILLA="$(python3 "$REPO/scripts/puente/imaginacion_contexto.py" --plantilla linea 2>/dev/null)"
