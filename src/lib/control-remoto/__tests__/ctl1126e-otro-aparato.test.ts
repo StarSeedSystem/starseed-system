@@ -162,6 +162,17 @@ describe("CTL1126E · control entre aparatos de la misma neurona", () => {
         expect(r2.ok).toBe(true);
     });
 
+    it("CTL1126E · rechaza abrir-sesion si el controlador tiene aparato distinto del actual", async () => {
+        // Presentar con aparato incorrecto se rechaza
+        const rp = await puerta.recibir(await firmar(controlador, "presentarse", {
+            spki: controlador.spki,
+            nombre: "Mac Controlador",
+            neurona: NEURONA_MAC,
+            aparato: APARATO_OTRO,  // El controlador quiere el OTRO aparato
+        }));
+        expect(rp.motivo).toBe("otro-aparato");
+    });
+
     it("CTL1126E · el motivo 'otro-aparato' no reabre la sesión sola", () => {
         const motivo = "otro-aparato";
         expect(motivo).toBe(MOTIVO_OTRO_APARATO);

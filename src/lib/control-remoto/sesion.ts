@@ -137,6 +137,8 @@ export interface Controlador {
     limite?: LimiteSesion;
     /** CTL1119A: cuándo se aceptó (ISO); desde ahí cuenta el límite. */
     aceptadoEn?: string;
+    /** CTL1126E: ID del aparato destino (UUID) si se especificó al presentarse; si no, no hay restricción de dispositivo. */
+    aparato?: string;
 }
 
 /** Lo que el dueño decidió en ESTE aparato. Se guarda; las sesiones no (viven en memoria). */
@@ -519,9 +521,14 @@ export class PuertaControl {
         }
 
         // CTL1126E: si la orden va dirigida a otro aparato de la misma neurona, rechazar.
-        const aparatoPropio = this.d.huellaAparatoPropia();
+        const aparatoPropio = this.d.huellaAparatoPropia?.() ?? "";
         const aparatoDestino = c.accion.args.aparato;
+        // Rechazar si el orden especifica un aparato diferente al actual.
         if (typeof aparatoDestino === "string" && aparatoDestino !== aparatoPropio) {
+            return this.respuesta(c.nonce, false, "otro-aparato", nombre, c.de, c.nivel);
+        }
+        // Rechazar si el controlador aceptado tiene un aparato específico que no coincide con el actual.
+        if (typeof ctl.aparato === "string" && ctl.aparato !== aparatoPropio) {
             return this.respuesta(c.nonce, false, "otro-aparato", nombre, c.de, c.nivel);
         }
 
@@ -678,9 +685,10 @@ export class PuertaControl {
         if (typeof a.spki !== "string" || typeof a.nombre !== "string" || typeof a.neurona !== "string" || !/^[A-Za-z0-9-]{1,100}$/.test(a.neurona)) {
             return this.respuesta(c.nonce, false, "argumentos", "presentarse", c.de, "-");
         }
-        // CTL1126E: si se especifica un aparato, verificar que coincida con este aparato (para control entre aparatos de la misma neurona).
-        const aparatoPropio = this.d.huellaAparatoPropia();
-        if (typeof a.aparato === "string" && a.aparato !== aparatoPropio) {
+        // CTL1126E: si se especifica un aparato, verificar que sea un UUID válido; si no coincide con este aparato, rechazar.
+        const aparatoPropio = this.d.huellaAparatoPropia?.() ?? "";
+        const aparatoValidado = typeof a.aparato === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.aparato) ? a.aparato : undefined;
+        if (aparatoValidado !== undefined && aparatoValidado !== aparatoPropio) {
             return this.respuesta(c.nonce, false, "otro-aparato", "presentarse", c.de, "-");
         }
         // Prueba de posesión: la carga va firmada con la clave que presenta y su huella es `de`.
@@ -694,7 +702,7 @@ export class PuertaControl {
         if (p.controladores.some((x) => x.huella === c.de)) return this.respuesta(c.nonce, true, "ya-aceptado", "presentarse", c.de, "-");
         const nombre = [...a.nombre.replace(/[\u0000-\u001f\u007f]/g, "")].slice(0, 60).join("").trim() || "Neurona";
         const color = typeof a.color === "string" && /^#[0-9a-f]{6}$/.test(a.color) ? a.color : undefined;
-        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString(), ...(color ? { color } : {}) };
+        const nuevo: Controlador = { huella: c.de, spki: a.spki, cuenta: c.cuenta, nombre, neurona: a.neurona, desde: new Date(ahora).toISOString(), ...(color ? { color } : {}), ...(aparatoValidado ? { aparato: aparatoValidado } : {}) };
         const pendientes = [nuevo, ...p.pendientes.filter((x) => x.huella !== c.de)].slice(0, MAX_PENDIENTES);
         this.d.guardarPermiso({ ...p, pendientes });
         this.d.alCambiar?.();
@@ -766,6 +774,7 @@ export function sanearPermiso(x: unknown): PermisoControl {
                       const limite = sanearLimite(c.limite);
                       const aceptadoEn = typeof c.aceptadoEn === "string" && Number.isFinite(Date.parse(c.aceptadoEn)) ? c.aceptadoEn : undefined;
                       const color = typeof c.color === "string" && /^#[0-9a-f]{6}$/.test(c.color) ? c.color : undefined;
+                      const aparato = typeof c.aparato === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.aparato) ? c.aparato : undefined;
                       return {
                           huella: c.huella,
                           spki: c.spki,
@@ -776,6 +785,7 @@ export function sanearPermiso(x: unknown): PermisoControl {
                           ...(color ? { color } : {}),
                           ...(limite ? { limite } : {}),
                           ...(aceptadoEn ? { aceptadoEn } : {}),
+                          ...(aparato ? { aparato } : {}),
                       };
                   })
             : [];
