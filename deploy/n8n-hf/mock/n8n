@@ -1,0 +1,11 @@
+#!/bin/bash
+if [[ "$1" == "import:workflow" ]]; then
+  echo "Importando: $@"
+fi
+if [[ "$1" == "list:workflow" ]]; then
+  echo "produccion-pieza-lista-002"
+fi
+if [[ "$1" == "update:workflow" ]]; then
+  echo "Actualizando: $@"
+fi
+exit 0
