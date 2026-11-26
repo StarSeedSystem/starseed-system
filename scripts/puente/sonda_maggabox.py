@@ -89,6 +89,7 @@ def _parse_du_sizes(output: str, directorios: List[str]) -> Dict[str, int]:
 
 def _consultar_estado(ssh_fn: Callable[..., Any]) -> Dict[str, Any]:
     df_out = _ejecutar_ssh(SSH_BASE + ["df", "-BG", "/"], ssh_fn)
+    df_out_srv = _ejecutar_ssh(SSH_BASE + ["df", "-BG", "/srv/starseed-almacen"], ssh_fn)
     cpu_out = _ejecutar_ssh(SSH_BASE + ["nproc"], ssh_fn)
     free_out = _ejecutar_ssh(SSH_BASE + ["free", "-m"], ssh_fn)
     du_base = SSH_BASE + ["du", "-BG", "$HOME/StarSeed-almacen/espejo", "$HOME/StarSeed-almacen/versiones", "$HOME/StarSeed-almacen/respaldos", "$HOME/StarSeed-almacen/pesados", "$HOME/StarSeed-almacen/capas_privadas", "$HOME/StarSeed-almacen/capas_publicas", "$HOME/StarSeed-almacen/nube"]
@@ -111,10 +112,16 @@ def _consultar_estado(ssh_fn: Callable[..., Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    df_libre_srv = _parsedf_bg(df_out_srv) if df_out_srv else None
+    df_total_srv = _parsedf_campo(df_out_srv, 1) if df_out_srv else None
+    df_usado_srv = _parsedf_campo(df_out_srv, 2) if df_out_srv else None
     return {
         "discoLibreGb": _parsedf_bg(df_out),
         "discoTotalGb": _parsedf_campo(df_out, 1),
         "discoUsadoGb": _parsedf_campo(df_out, 2),
+        "discoLibreSrvGb": df_libre_srv,
+        "discoTotalSrvGb": df_total_srv,
+        "discoUsadoSrvGb": df_usado_srv,
         "ramLibreMb": _parsefree_mb(free_out),
         "cpu": int(cpu_out) if cpu_out.isdigit() else 2,
         "contenedores": has_docker or has_podman,
