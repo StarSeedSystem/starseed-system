@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "ALM1125C2",
+   "ola": "almacen-1125",
+   "titulo": "Revisor de almacenamiento (2/2): propuesta diaria al canal y aplicar solo lo aprobado",
+   "archivos": [
+    "scripts/puente/revisor_almacenamiento.py",
+    "scripts/puente/test_revisor_almacenamiento.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` y regla `memory/orquestacion-economica.md` §24 (léelos antes). La Maggabox se alcanza por ssh `maggasukha@starseed-nodo-1.local` con `os.path.expanduser('~/.ssh/starseed_nodo1')`, `-o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o AddressFamily=inet` y `-o UserKnownHostsFile=` + `os.path.expanduser('~/.ssh/known_hosts_starseed_nodo')` (modelo: `scripts/puente/sonda_maggabox.py`).\n\nSobre ALM1125C1: `python3 revisor_almacenamiento.py proponer` mide (con las funciones reales), escribe `~/.starseed/almacen-propuesta.json` y, como mucho una vez al día y solo si suma ≥ 1 GB o un medio de `~/.starseed/capacidades-nodos.json` está por debajo del 15 % libre, avisa por `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal principal --de 'Revisor de almacenamiento' --origen metagenesis --texto <resumen>` (CON Telegram: sin `--sin-telegram`). `aplicar <id>` solo actúa si `~/.starseed/almacen-aprobadas.json` trae ese id con `aprobado_por: 'alex'`, vuelve a comprobar que la ruta está en la lista cerrada y escribe una línea en `~/.starseed/almacen-aplicadas.jsonl`; `trasladar:maggabox` usa `respaldo_maggabox.py` (copia + SHA-256) y nunca borra sin copia verificada. Tú NO lo ejecutas de verdad (ni `proponer` ni `aplicar`): lo ejecuta la dirección presidente. Pruebas con todo inyectado (canal, disco, aprobadas).",
+   "dependencias_ya_en_main": [
+    "ALM1125C1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1123-130431.json": [
+   "ALM1125C2"
+  ]
+ }
+}
