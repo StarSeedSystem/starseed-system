@@ -76,7 +76,9 @@ mod canal_actualizacion_logica;
 mod canal_actualizacion_red;
 // (NOT1108A) Avisos del sistema de los mensajes nuevos (escritorio y Android) y su respaldo nativo.
 mod avisos_mensajes;
-mod banco_latido; // PENA1
+// (PENA1 · parte 2) Latido del banco de llamadas con la ventana en otro escritorio: el hilo vive en
+// `banco_latido` y solo macOS lo lanza; en el resto de plataformas el comando contesta «sin-soporte».
+mod banco_latido;
 mod carpetas;
 mod disco;
 // (EFI1119B) Estado de energía del aparato (batería, ahorro, temperatura) para el modo «auto».
