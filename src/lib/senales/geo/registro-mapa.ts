@@ -9,6 +9,8 @@
  * Las líneas se calculan aparte para poder probarlas sin React ni registro.
  */
 
+import type { TipoEventoEnlace } from "@/lib/malla/registro-enlace-ble";
+
 export type UnionCanalRegistro = "sin-intentar" | "uniendo" | "unido" | "rechazado";
 export type PermisoRegistro = "concedido" | "denegado" | "por-pedir" | "desconocido";
 
@@ -97,7 +99,7 @@ export function anotarMapa(linea: string): void {
     .then(async (m) => {
       const red = m.bluetoothDirectoActivo();
       if (red) {
-        red.registro().anotar("mapa", null, linea);
+        red.registro().anotar("mapa" as TipoEventoEnlace, null, linea);
         return;
       }
       // Sin motor BLE en marcha el registro sigue siendo el archivo nativo; en la web no hay registro y se calla.
