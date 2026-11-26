@@ -111,3 +111,22 @@ def test_ruta_permitida_acepta_solo_la_lista_cerrada():
     assert R.ruta_permitida(os.path.join(caches, "electron-updater"), HOME, RAIZ_REPO, RAIZ_MEMORIA)
     assert not R.ruta_permitida(RAIZ_REPO, HOME, RAIZ_REPO, RAIZ_MEMORIA)
     assert not R.ruta_permitida(os.path.join(HOME, ".ssh"), HOME, RAIZ_REPO, RAIZ_MEMORIA)
+
+
+def test_filtrar_por_aprobacion():
+    desde = os.path.join(HOME, "Library", "Caches", "go-build")
+    prohibido = os.path.join(HOME, "Library", "Caches", "documents")
+    cand1 = {"id": "abc123456789", "ruta": desde, "gb": 1.5, "porque": "caché", "regenerable": True, "otra_copia": False, "accion": "borrar"}
+    cand2 = {"id": "9876543210ab", "ruta": prohibido, "gb": 0.5, "porque": "prohibido", "regenerable": False, "otra_copia": "otro", "accion": "borrar"}
+    cand3 = {"id": "000000000001", "ruta": desde, "gb": 2.0, "porque": "caché", "regenerable": True, "otra_copia": False, "accion": "borrar"}
+
+    candidatos = [cand1, cand2, cand3]
+
+    # Solo cand1 y cand3 tienen ids en el set aprobado
+    aprobados = {"abc123456789", "000000000001"}
+    resultado = R.filtrar_por_aprobacion(candidatos, aprobados)
+
+    assert len(resultado) == 2
+    assert resultado[0]["id"] == "abc123456789"
+    assert resultado[1]["id"] == "000000000001"
+    assert cand2 not in resultado

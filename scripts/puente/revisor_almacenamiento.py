@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Set, Tuple, Union
 
 CACHES_EXACTOS: Tuple[str, ...] = ("go-build", "electron", "electron-builder")
 Candidato = Dict[str, object]
@@ -115,3 +116,7 @@ def ruta_permitida(ruta: str, home: str, raiz_repo: str, raiz_memoria: str) -> b
         return True
     padre, nombre = os.path.split(ruta)
     return padre == caches and nombre.endswith("-updater") and os.path.basename(nombre) == nombre
+
+
+def filtrar_por_aprobacion(candidatos: List[Candidato], ids_aprobados: Set[str]) -> List[Candidato]:
+    return [c for c in candidatos if c["id"] in ids_aprobados]
