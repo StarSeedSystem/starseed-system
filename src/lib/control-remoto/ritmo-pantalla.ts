@@ -104,3 +104,47 @@ export function fpsDesdeIntervalo(intervaloMs: number): number {
 export function descartarCuadroViejo(pendiente: boolean, nuevoListo: boolean): boolean {
     return pendiente && nuevoListo;
 }
+
+// ── CTL1126B-d1 · contar y medir FPS real de cuadros recibidos por la malla
+
+export interface CuadroConTimestamp {
+    t: number;
+    bytes: number;
+}
+
+export const VENTANA_FPS_CUADROS_MS = 3_000;
+
+export function contarCuadrosEnVentana(
+    cuadros: readonly CuadroConTimestamp[],
+    ventanaMs: number,
+    ahora: number,
+): number {
+    const limite = ahora - ventanaMs;
+    return cuadros.filter((c) => c.t >= limite).length;
+}
+
+export function fpsCuadrosEnVentana(cuadros: readonly CuadroConTimestamp[], ahora: number): number {
+    if (cuadros.length < 2) return 0;
+    const filtrados = cuadros.filter((c) => c.t < ahora);
+    if (filtrados.length < 2) return 0;
+    filtrados.sort((a, b) => a.t - b.t);
+    const primeroT = filtrados[0].t;
+    const ultimoT = filtrados[filtrados.length - 1].t;
+    const dt = ultimoT - primeroT;
+    if (dt <= 0) return 0;
+    return Math.min(60, Math.round((filtrados.length * 1000) / dt * 10) / 10);
+}
+
+export function adaptarIntervaloParaFps(
+    fpsObjetivo: number,
+    caudalMedidoFps: number | null,
+    retardoMedidoMs: number,
+): number {
+    const baseMs = 1000 / Math.max(1, fpsObjetivo);
+    const retardo = Math.max(0, Math.min(5_000, Number.isFinite(retardoMedidoMs) ? retardoMedidoMs : 0));
+    if (caudalMedidoFps !== null && caudalMedidoFps > 0 && caudalMedidoFps < fpsObjetivo) {
+        const intervaloNecesario = 1000 / caudalMedidoFps;
+        return Math.max(EMPUJE_MIN_MS, Math.min(EMPUJE_TOPE_MS, Math.max(baseMs, retardo, intervaloNecesario)));
+    }
+    return Math.max(EMPUJE_MIN_MS, Math.min(EMPUJE_TOPE_MS, Math.max(baseMs, retardo)));
+}

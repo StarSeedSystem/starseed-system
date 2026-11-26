@@ -3,6 +3,7 @@
  * (con suelo y tope), descarta el cuadro viejo cuando hay uno nuevo y las lecturas no compiten
  * con la pantalla. Lógica pura: sin red, sin disco, sin reloj.
  */
+
 import { describe, expect, it } from "vitest";
 import {
     COSTE_ALTO_MS,
@@ -12,8 +13,11 @@ import {
     descartarCuadroViejo,
     fpsDesdeIntervalo,
     intervaloEmpujeMs,
+    contarCuadrosEnVentana,
+    fpsCuadrosEnVentana,
+    adaptarIntervaloParaFps,
 } from "../ritmo-pantalla";
-import { debeCederOrden, lineaEmpuje, prioridadOrden } from "../cuadro-malla";
+import { debeCederOrden, lineaEmpuje, prioridadOrden, lineaVia } from "../cuadro-malla";
 
 describe("CTL1124E · intervalo del empuje adaptado al retardo", () => {
     it("sin retardo usa el periodo base (15 fps en WebRTC, 5 en malla)", () => {
@@ -84,5 +88,104 @@ describe("CTL1124E · línea de registro del empuje", () => {
         expect(l).toContain("retardo-ms=44");
         expect(l).toContain("descartados=3");
         expect(l).toContain("cuadros-s=5");
+    });
+});
+
+describe("CTL1126B-d1 · contar y medir FPS de cuadros recibidos", () => {
+    const ahora = 1_000_000;
+
+    function cuadro(t: number, bytes: number = 100_000): { t: number; bytes: number } {
+        return { t, bytes };
+    }
+
+    describe("contarCuadrosEnVentana", () => {
+        it("cuenta cuadros en los últimos 3 s", () => {
+            const cuadros = [
+                cuadro(ahora - 4_000),
+                cuadro(ahora - 3_100),
+                cuadro(ahora - 2_000),
+                cuadro(ahora - 1_000),
+                cuadro(ahora - 500),
+            ];
+            expect(contarCuadrosEnVentana(cuadros, 3_000, ahora)).toBe(3);
+        });
+
+        it("devuelve 0 si no hay cuadros", () => {
+            expect(contarCuadrosEnVentana([], 3_000, ahora)).toBe(0);
+        });
+
+        it("cuenta todos si están dentro de la ventana", () => {
+            const cuadros = [
+                cuadro(ahora - 100),
+                cuadro(ahora - 200),
+                cuadro(ahora - 300),
+                cuadro(ahora - 400),
+            ];
+            expect(contarCuadrosEnVentana(cuadros, 3_000, ahora)).toBe(4);
+        });
+    });
+
+    describe("fpsCuadrosEnVentana", () => {
+        it("calcula FPS desde cuadros con timestamp", () => {
+            const cuadros = [
+                cuadro(ahora - 1000),
+                cuadro(ahora - 500),
+            ];
+            expect(fpsCuadrosEnVentana(cuadros, ahora)).toBeCloseTo(4, 0);
+        });
+
+        it("devuelve 0 con menos de 2 cuadros", () => {
+            expect(fpsCuadrosEnVentana([cuadro(ahora)], ahora)).toBe(0);
+            expect(fpsCuadrosEnVentana([], ahora)).toBe(0);
+        });
+
+        it("calcula FPS correcto con varios cuadros", () => {
+            const cuadros = [];
+            for (let i = 0; i < 10; i++) {
+                cuadros.push(cuadro(ahora - 3_000 + i * 333));
+            }
+            expect(fpsCuadrosEnVentana(cuadros, ahora)).toBeCloseTo(3.0, 0);
+        });
+    });
+
+    describe("adaptarIntervaloParaFps", () => {
+        it("usa el intervalo base para FPS objetivo", () => {
+            expect(adaptarIntervaloParaFps(FPS_OBJETIVO_MALLA, 0, 100)).toBe(200);
+        });
+
+        it("adapta el intervalo al caudal real medido", () => {
+            const intervalo = adaptarIntervaloParaFps(5, 0.5, 100);
+            expect(intervalo).toBeGreaterThanOrEqual(200);
+            const fps = fpsDesdeIntervalo(intervalo);
+            expect(fps).toBeLessThanOrEqual(5);
+        });
+
+        it("respetar el techo de 500 ms retardo", () => {
+            const intervalo = adaptarIntervaloParaFps(5, 600, 100);
+            expect(intervalo).toBeLessThanOrEqual(EMPUJE_TOPE_MS);
+        });
+
+        it("no baja de 40 ms (25 fps)", () => {
+            const intervalo = adaptarIntervaloParaFps(5, 30, 100);
+            expect(intervalo).toBeGreaterThanOrEqual(EMPUJE_MIN_MS);
+        });
+    });
+});
+
+describe("CTL1126B-d1 · líneaVia con FPS medido", () => {
+    it("muestra FPS medido cuando se proporciona", () => {
+        const l = lineaVia({ via: "malla", enlace: "directo:red-local", cuadrosS: 5.2 });
+        expect(l).toContain("cuadros-s=5.2");
+    });
+
+    it("muestra sin-medir cuando no hay FPS", () => {
+        const l = lineaVia({ via: "malla", enlace: "directo:red-local", cuadrosS: null });
+        expect(l).toContain("cuadros-s=sin-medir");
+    });
+
+    it("incluye causa cuando hay malla con causa", () => {
+        const l = lineaVia({ via: "malla", enlace: "capa:turn", cuadrosS: 3.5, causa: "sin-webrtc" });
+        expect(l).toContain("causa=sin-webrtc");
+        expect(l).toContain("cuadros-s=3.5");
     });
 });
