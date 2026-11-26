@@ -34,7 +34,9 @@ export type TipoEventoEnlace =
   /** (BLE1109A) Cambios de carril: `l2cap-abierto|l2cap-cerrado` (el enlace sigue por GATT). */
   | "canal-rapido"
   /** (AUD1117 · F4) El enlace envía latidos y no recibe ni un byte: `mudo=si` / `mudo=no`. */
-  | "mudo";
+  | "mudo"
+  /** (AUD1117) Un cambio de estado del Mapa de señales: sin posiciones, sin nombres, solo el estado. */
+  | "mapa";
 
 export interface EventoEnlaceBle {
   seq: number;
