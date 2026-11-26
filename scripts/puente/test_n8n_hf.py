@@ -19,7 +19,16 @@ n8n_hf = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(n8n_hf)
 
 FLUJOS = os.path.join(_RAIZ, "deploy", "n8n-hf", "flujos")
+DOCKERFILE = os.path.join(_RAIZ, "deploy", "n8n-hf", "Dockerfile")
+ARRANQUE = os.path.join(_RAIZ, "deploy", "n8n-hf", "arranque.sh")
 ENV = {"N8N_HF_SPACE": "alex/n8n-produccion", "HF_TOKEN": "tk-prueba", "STARSEED_ENV": "/no/existe"}
+
+# IDs esperados para idempotencia (PRD1005Tb)
+IDS_ESPERADOS = {
+    "publicada": "b1a0c2d4-0001-4e10-9a01-000000000001",
+    "pieza-lista": "b1a0c2d4-0002-4e10-9a02-000000000002",
+    "revertida": "b1a0c2d4-0003-4e10-9a03-000000000003",
+}
 
 
 class ClienteFalso:
@@ -118,6 +127,35 @@ class FlujosValidos(unittest.TestCase):
             self.assertIn("PRODUCCION_WEBHOOK_SECRETO", codigos, nombre)
             self.assertIn("x-starseed-firma", codigos, nombre)
             self.assertIn("createHmac", codigos, nombre)
+
+
+class IdempotenciaFlujos(unittest.TestCase):
+    """Pruebas para la idempotencia de flujos (PRD1005Tb)."""
+
+    def test_cada_flujo_tiene_id_estable(self):
+        """Cada flujo JSON debe tener un campo 'id' con UUID estable."""
+        for nombre, id_esperado in IDS_ESPERADOS.items():
+            with open(os.path.join(FLUJOS, "%s.json" % nombre), encoding="utf-8") as f:
+                flujo = json.load(f)
+            self.assertIn("id", flujo, f"Falta 'id' en {nombre}")
+            self.assertEqual(flujo["id"], id_esperado, f"id incorrecto en {nombre}")
+
+    def test_dockerfile_tiene_secure_cookie_true(self):
+        """Dockerfile debe tener N8N_SECURE_COOKIE=true para HTTPS."""
+        with open(DOCKERFILE, encoding="utf-8") as f:
+            contenido = f.read()
+        self.assertIn("N8N_SECURE_COOKIE=true", contenido)
+
+    def test_arranque_usa_importacion_idempotente(self):
+        """arranque.sh debe importar el directorio completo con --separate para upsert por id."""
+        with open(ARRANQUE, encoding="utf-8") as f:
+            contenido = f.read()
+        # Debe usar la variable FLUJOS y importar el directorio
+        self.assertIn('FLUJOS="${N8N_FLUJOS_DIR:-/opt/flujos}"', contenido)
+        self.assertIn('--input="$FLUJOS"', contenido)
+        self.assertIn("--separate", contenido)
+        # No debe iterar archivo por archivo (eso crea duplicados)
+        self.assertNotIn('for f in /opt/flujos/*.json', contenido)
 
 
 if __name__ == "__main__":
