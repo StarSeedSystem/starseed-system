@@ -23,6 +23,7 @@ import {
   extraerInformacionFallo,
   crearRegistroEvento,
   crearAvisoControlador,
+  registrarYAvistarFallo,
 } from "@/lib/control-remoto/aviso-fallo-remoto";
 
 interface Props {
@@ -51,6 +52,8 @@ export default function AppError({
     if (aviso) {
       console.log("[CTL1126D] Aviso al controlador:", JSON.stringify(aviso));
     }
+
+    registrarYAvistarFallo(detalle).catch(() => {});
   }, [error, detalle]);
 
   const handleCopiarDetalle = () => {

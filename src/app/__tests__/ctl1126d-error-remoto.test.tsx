@@ -68,7 +68,7 @@ describe("CTL1126D · aviso de fallo remoto en error boundary", () => {
     const error = new Error("Error con pila larga") as Error & { digest?: string };
     error.stack = "Error: Error con pila larga\n    at f1 (file1.ts:1:1)\n    at f2 (file2.ts:2:2)\n    at f3 (file3.ts:3:3)";
     const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    process.env['NODE_ENV'] = "production";
 
     renderWithAppearance(<AppError error={error} reset={() => undefined} rutaActual="/test" />);
 
@@ -76,6 +76,6 @@ describe("CTL1126D · aviso de fallo remoto en error boundary", () => {
     expect(texto).not.toContain("at f1");
     expect(texto).not.toContain("file1.ts");
 
-    process.env.NODE_ENV = originalNodeEnv;
+    process.env['NODE_ENV'] = originalNodeEnv;
   });
 });
