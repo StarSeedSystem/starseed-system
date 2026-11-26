@@ -76,6 +76,11 @@ chrono = { version = "0.4", features = ["serde"] }
 # El updater usa thiserror para el error del comando fetch/install (patrón oficial).
 thiserror = "2"
 
+# NEU1125A-d1: huella del aparato con SHA-256
+sha2 = "0.10"
+# Necesario para generar sal aleatoria (ya está en rand que trae p256)
+rand = "0.10"
+
 # (ACT1108A) Comparar versiones del canal de pruebas con las MISMAS reglas que tauri-plugin-updater
 # (0.5.0 < 0.5.1-prueba.23 < 0.5.1). Ya estaba en el árbol (tauri-utils): no baja ni compila nada nuevo.
 semver = "1"

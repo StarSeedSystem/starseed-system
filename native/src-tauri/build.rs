@@ -188,6 +188,10 @@ const COMANDOS_APP: &[&str] = &[
     "clave_aparato_spki",
     "clave_aparato_estado",
     "clave_aparato_olvidar",
+    // NEU1125A-d1: huella del aparato (Android: identificador nativo hasheado con SHA-256 + sal)
+    "huella_aparato_generar",
+    "huella_aparato_actual",
+    "huella_aparato_verificar",
     // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
     "ventanas_prestables",
     "capturar_ventana",
