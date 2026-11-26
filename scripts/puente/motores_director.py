@@ -94,6 +94,9 @@ ORDENES_METAGENESIS = (
     "python3 scripts/puente/repartir-a-nube.py",
     "python3 scripts/puente/nube-gh.py lanzar",
     "python3 scripts/puente/director_pruebas.py",
+    # (DIR1125U) Alex, 25-11: el presidente conduce las pruebas. El conductor recoge los registros de los tres
+    # aparatos (la Maggabox por SSH dentro, con su propósito fijo); `ssh` directo sigue vetado.
+    "python3 scripts/puente/pruebas_malla.py",
     "python3 scripts/puente/antigravity_flota.py modelos",
     "python3 scripts/puente/antigravity_flota.py uso",
     "python3 scripts/puente/antigravity_flota.py papel",
@@ -102,6 +105,8 @@ ORDENES_METAGENESIS = (
     "starseed-enjambre.py",
     "git status", "git log", "git diff", "git show", "git worktree list",
     "launchctl list",
+    # (DIR1125U) Leer el CI (solo lectura): por qué se frenó la autopublicación o una compilación.
+    "gh run list", "gh run view",
 )
 
 #: Nunca, ni aunque otra regla lo abriera: publicar o reescribir main, borrar, claves, el A1, parar servicios.
