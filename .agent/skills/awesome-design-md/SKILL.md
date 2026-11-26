@@ -77,6 +77,65 @@ Reglas al escribirlo: los colores llevan **nombre descriptivo** («ciruela polvo
 se midió se marca como inferido; nada de logotipos ni de fotos con licencia; y el archivo declara el registro y la
 fecha del ADN del que sale, para que `check.py` del contexto pueda compararlo.
 
+## Uso
+
+### Para el enjambre: cómo invocar esta skill
+
+**Modo A — Leer referencias (patrones de otros productos)**
+
+```markdown
+# Brief de diseño: panel de datos denso para /network/politics
+# Contexto: StarSeed OS, identidad Trinity, ADN en memory/diseno/adn/starseed-os/dna.json
+
+## Patrón buscado
+Tabla densa sin ruido visual, con estados de fila, ordenación y acciones inline.
+
+## Pasos
+1. Abre `INDICE.md` → busca en «Backend, Database & DevOps» y «Developer Tools & IDEs»
+2. Selecciona 2-3 carpetas: `supabase` (tabla de datos), `linear.app` (lista densa), `clickhouse` (analytics denso)
+3. Descarga cada `DESIGN.md` desde:
+   `https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/<carpeta>/DESIGN.md`
+4. Para cada marca, extrae (máx. 120 palabras):
+   - **Qué resuelve**: «tabla densa con 50+ columnas y filtros laterales»
+   - **Cómo**: rejilla 8px, jerarquía por peso tipográfico, estados hover/selected, radios 6px, elevación nivel 1
+   - **Por qué funciona**: «la densidad no sacrifica legibilidad gracias al ritmo vertical constante»
+   - **En StarSeed**: usar `espacio.fib-8` para gap, `tipo.peso.medium` para cabecera, `superficie.elevacion.nivel1` para hover
+   - **No tomar**: su verde esmeralda, su fuente Circular, su tono «developer-first»
+5. Sintetiza una frase final: «Para el panel de gobernanza, adopta la rejilla 8px de Linear con la jerarquía tipográfica de Supabase, mapeando colores a `palette.trinity.logic` y radios a `radius.sm` (6px).»
+```
+
+**Modo B — Escribir DESIGN.md de un contexto StarSeed**
+
+```markdown
+# Contexto: Astraura (inteligencia 1.58-bit)
+# ADN: memory/diseno/adn/astraura/dna.json (registro 2026-10-15)
+
+## Pasos
+1. Elige formato: **numerado** (para agentes Stitch) o **alfa** (para tokens estructurados)
+2. Consulta el formato base en `ejemplo-formato/DESIGN-formato-numerado-kraken.md` o `ejemplo-formato/DESIGN-formato-alpha-supabase.md`
+3. Mapea cada sección del formato al ADN usando la tabla de correspondencia (líneas 62-74):
+   - `alma.una_linea` → «Visual Theme & Atmosphere»
+   - `paleta[]` → «Color Palette & Roles» (nombres descriptivos obligatorios)
+   - `tipo` → «Typography Rules»
+   - `firmas[]` + `superficie` → «Component Stylings»
+   - `espacio` → «Layout Principles» + «Responsive Behavior»
+   - `superficie.elevacion` → «Depth & Elevation»
+   - `prohibiciones[]` + `jugada_rara` → «Do's and Don'ts»
+   - `PROMPT.md` → «Agent Prompt Guide»
+4. Escribe el DESIGN.md completo declarando registro y fecha del ADN de origen.
+5. Valida: colores tienen nombre descriptivo, nada de hex sueltos, no hay logos ni fotos con licencia.
+```
+
+### Referencias rápidas
+
+| Archivo | Qué contiene | Cuándo usarlo |
+|---------|--------------|---------------|
+| `INDICE.md` | 84 marcas por categoría + descripción README | Paso 1 de Modo A: elegir carpetas |
+| `ejemplo-formato/DESIGN-formato-numerado-kraken.md` | Formato 9 secciones (estilo Stitch numerado) | Modo B, formato numerado |
+| `ejemplo-formato/DESIGN-formato-alpha-supabase.md` | Formato YAML + cuerpo (estilo Stitch alfa) | Modo B, formato alfa |
+| `ORIGEN.md` | Origen del repo, licencia, qué se copió/no | Contexto general |
+| `STARSEED.md` | Riesgos de marca, integración con skills del OS | Reglas de uso en StarSeed |
+
 ## Cuándo NO usarla
 
 - Para copiar el look de una empresa (riesgo de marca y de imagen comercial).
