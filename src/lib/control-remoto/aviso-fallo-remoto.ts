@@ -11,7 +11,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
-import { sesionActiva } from "@/lib/control-remoto/sesion";
+import { puertaControl } from "@/lib/control-remoto/canal";
 
 export interface DetalleFallo {
   codigo: string;
@@ -88,7 +88,7 @@ export async function registrarYAvistarFallo(detalle: DetalleFallo): Promise<voi
   // 2. Si hay una sesión de control activa, avisa al controlador (síncronamente para tests)
   if (typeof window !== "undefined") {
     try {
-      const sesion = sesionActiva();
+      const sesion = puertaControl()?.sesionActiva();
       if (sesion) {
         const aviso = crearAvisoControlador(detalle);
         // Registrar en consola para compatibilidad con tests existentes
