@@ -296,7 +296,7 @@ fn arrancar(app: AppHandle) {
                 let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
                 if std::mem::take(&mut recargar) && ya_local {
-                    recargar_ventana(&app);
+                    recargar_ventana(&app, puerto, registro.as_ref());
                 }
                 crate::servidor_capas::iniciar_vigia(&app);
                 let desde = Instant::now();
@@ -558,12 +558,98 @@ fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
         .is_some_and(|u| l::es_url_local(u.as_str(), puerto))
 }
 
+/// (CAP1125A) Tope de la espera para que el servidor recién arrancado entregue la primera página
+/// de la capa nueva antes de recargar la ventana.
+const ESPERA_CALIENTE_MS: u64 = 60_000;
+/// (CAP1125A) Cada cuánto se reintenta la página mientras el servidor frío todavía no contesta.
+const PASO_CALIENTE_MS: u64 = 400;
+
+/// (CAP1125A) Ruta y consulta de la página que la ventana tiene abierta, solo para el servidor local
+/// de ese puerto. Cualquier otra cosa —otro origen, ilegible, la propia entrada con el pase— es `/`.
+fn ruta_caliente(url: Option<&tauri::Url>, puerto: u16) -> String {
+    let Some(url) = url else { return "/".into() };
+    if !l::es_url_local(url.as_str(), puerto) {
+        return "/".into();
+    }
+    let camino = url.path();
+    if camino.starts_with(l::RUTA_ENTRAR) {
+        return "/".into();
+    }
+    let mut ruta = if camino.is_empty() { "/".to_string() } else { camino.to_string() };
+    if let Some(q) = url.query() {
+        if !q.is_empty() {
+            ruta.push('?');
+            ruta.push_str(q);
+        }
+    }
+    ruta
+}
+
+/// (CAP1125A) Petición mínima a la página, por el mismo puerto y con la cookie del pase tal como la
+/// manda la ventana (sin dependencias: va por un TcpStream).
+fn peticion_pagina(puerto: u16, ruta: &str, pase: &str) -> String {
+    format!(
+        "GET {ruta} HTTP/1.1\r\nHost: {}:{puerto}\r\nAccept: text/html\r\nCookie: starseed_pase={pase}\r\nConnection: close\r\n\r\n",
+        l::HOST
+    )
+}
+
+/// (CAP1125A) Código de estado de una respuesta HTTP cruda (`HTTP/1.1 200 OK` → 200).
+fn codigo_http(respuesta: &str) -> Option<u32> {
+    let linea = respuesta.lines().next()?;
+    if !linea.starts_with("HTTP/1.") {
+        return None;
+    }
+    linea.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// (CAP1125A) Una pasada: pide la página y dice si responde con un estado menor que 500.
+fn pedir_pagina(puerto: u16, ruta: &str, pase: &str) -> bool {
+    let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+    let Ok(mut s) = TcpStream::connect_timeout(&dir, Duration::from_millis(800)) else { return false };
+    let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
+    let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
+    if s.write_all(peticion_pagina(puerto, ruta, pase).as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    match s.read(&mut buf) {
+        Ok(n) if n > 0 => codigo_http(&String::from_utf8_lossy(&buf[..n])).is_some_and(|c| c < 500),
+        _ => false,
+    }
+}
+
+/// (CAP1125A) Espera (hasta `tope`) a que el servidor frío entregue la página con un estado < 500.
+fn esperar_caliente(puerto: u16, ruta: &str, pase: &str, tope: Duration) -> bool {
+    let fin = Instant::now() + tope;
+    loop {
+        if pedir_pagina(puerto, ruta, pase) {
+            return true;
+        }
+        if interno().apagando.load(Ordering::SeqCst) || Instant::now() >= fin {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(PASO_CALIENTE_MS));
+    }
+}
+
 /// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
 /// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
-fn recargar_ventana(app: &AppHandle) {
-    if let Some(v) = app.get_webview_window("main") {
-        let _ = v.eval("location.reload()");
-    }
+/// (CAP1125A) Antes de recargar, calienta la ruta que la ventana tiene abierta: el Node recién
+/// arrancado tarda en servir la primera página y, sin esperar, el service worker entrega la copia
+/// guardada de la capa ANTERIOR. Si la espera falla o vence, se recarga igual (nunca se deja de
+/// recargar). Va en el hilo del bucle del servidor, no en el de la interfaz.
+fn recargar_ventana(app: &AppHandle, puerto: u16, registro: Option<&File>) {
+    let Some(v) = app.get_webview_window("main") else { return };
+    let ruta = ruta_caliente(v.url().ok().as_ref(), puerto);
+    let comienzo = Instant::now();
+    let caliente = esperar_caliente(puerto, &ruta, &interno().pase, Duration::from_millis(ESPERA_CALIENTE_MS));
+    let marca = if caliente { "si" } else { "no" };
+    escribir_registro(
+        registro,
+        &format!("[servidor-local] recarga tras relevo caliente={marca} ms={}", comienzo.elapsed().as_millis()),
+    );
+    let _ = v.eval("location.reload()");
 }
 
 fn volver_a_arranque(app: &AppHandle) {
