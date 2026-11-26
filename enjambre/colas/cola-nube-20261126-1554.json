@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "CRE1125E",
+   "titulo": "Revisar bloques rich en creation-blocks.tsx",
+   "archivos": [
+    "src/components/creation/creation-blocks.tsx"
+   ],
+   "depende": [],
+   "prompt": "Verificar y corregir la serialización de bloques rich: blocks, referencia, entidad, protomolécula. Asegurar que serializeBlocks maneje todos los tipos correctamente. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "CRE1125E"
+  ]
+ }
+}
