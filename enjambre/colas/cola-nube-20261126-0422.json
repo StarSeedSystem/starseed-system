@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "segundos": 1648,
+   "t": "2026-10-05 02:58:11",
+   "rama": "ola/PRD1005Tbs",
+   "sha": "b6aaa297dbb8768912776df9b7dc24bce108db9c",
+   "faltan": [],
+   "quien_decidio": "desatascador",
+   "id": "PRD1005Tbsb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. **Duplicación de flujos en cada arranque** – `arranque.sh` usa `n8n import:workflow --separate`. Cada vez que el contenedor se reinicia crea una nueva copia del mismo workflow en vez de actualizarla. Con el tiempo se saturará el almacenamiento del Space y se activarán versiones antiguas inesperadamente.  \n2. **Cookie sin flag Secure** – `ENV N8N_SECURE_COOKIE=false` deja la cookie de sesión sin la marca *Secure*. En un entorno HTTPS sigue funcionando, pero si alguna petición se hace por HTTP (p.ej. pruebas internas) la cookie se enviará sin cifrado, abriendo la puerta a secuestro de sesión.\n\nSeguimiento: sí, bloqueante — riesgo 1 (duplicación de flujos) debe corregirse (usar `--update` o comprobar existencia antes de importar). El riesgo 2 es de seguridad pero no impide el funcionamiento; puede quedar como observación.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-032401.json": [
+   "PRD1005Tbsb"
+  ]
+ }
+}
