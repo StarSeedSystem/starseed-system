@@ -469,24 +469,64 @@ def respaldar(
     return resultado
 
 
-def _es_candidato_aliviar(ruta: str, cola_activa_ids: Set[str]) -> Tuple[bool, str]:
+def _obtener_id_worktree(ruta: str) -> Optional[str]:
+    """Extrae el id de un worktree de cualquier formato: starseed-wt-*, wt-*, o ruta completa."""
+    ruta_norm = os.path.normpath(ruta)
+
+    # Formato starseed-wt-*
+    for parte in ruta_norm.split("/"):
+        if parte.startswith("starseed-wt-"):
+            return parte.replace("starseed-wt-", "")
+
+    # Formato wt-*
+    for parte in ruta_norm.split("/"):
+        if parte.startswith("wt-"):
+            return parte.replace("wt-", "")
+
+    # Formato ruta completa ~/Documents/starseed-wt-<id> o ~/Documents/wt-<id>
+    basename = os.path.basename(ruta_norm)
+    if basename.startswith("starseed-wt-"):
+        return basename.replace("starseed-wt-", "")
+    if basename.startswith("wt-"):
+        return basename.replace("wt-", "")
+
+    return None
+
+
+def _tarea_esta_pendiente(wt_id: str, progreso: Dict[str, Any]) -> bool:
+    """Verifica si la tarea del worktree está en estado no candidato."""
+    olas = progreso.get("olas", {})
+    for ola_id, ola_data in olas.items():
+        tareas = ola_data.get("tareas", [])
+        for tarea in tareas:
+            if tarea.get("id") == wt_id:
+                estado = tarea.get("estado", "")
+                # Los siguientes estados hacen que NO sea candidato
+                if estado in ("pendiente", "en_marcha", "reasignada", "integrada-sin-traer"):
+                    return True
+    return False
+
+
+def _es_candidato_aliviar(ruta: str, cola_activa_ids: Set[str], progreso: Dict[str, Any] = None) -> Tuple[bool, str]:
     """PURA: decide si una ruta es candidata a mover a pesados/."""
     ruta_norm = os.path.normpath(ruta)
+    wt_id = _obtener_id_worktree(ruta)
 
     # Lista negra: nunca tocar
     for patron in ALIVIAR_NEGRA:
         if patron.replace("*", "") in ruta_norm:
             return False, f"en lista negra ({patron})"
 
-    # Worktrees: solo si NO están en cola activa
-    if "starseed-wt-" in ruta_norm:
-        # Extraer id de la ola del nombre del directorio
-        for parte in ruta_norm.split("/"):
-            if parte.startswith("starseed-wt-"):
-                wt_id = parte.replace("starseed-wt-", "")
-                if wt_id in cola_activa_ids:
-                    return False, f"worktree en cola activa ({wt_id})"
-                return True, "worktree integrado no en cola"
+    # Worktrees: solo si NO están en cola activa y su tarea no está en estado bloqueado
+    if wt_id is not None:
+        if wt_id in cola_activa_ids:
+            return False, f"worktree en cola activa ({wt_id})"
+
+        # Verificar que la tarea no esté en estado bloqueado
+        if progreso and _tarea_esta_pendiente(wt_id, progreso):
+            return False, f"worktree con tarea {progreso.get('olas', {}).get('tareas', [{}])[0].get('estado', '') if progreso.get('olas') else 'desconocido'}"
+
+        return True, "worktree integrado no en cola y tarea activa"
 
     # Cachés de compilación y logs
     for patron in ALIVIAR_BLANCA:
@@ -676,7 +716,14 @@ def escanear_candidatos(
     # 5. Worktrees terminados (vía archivar_worktrees, no los de cola activa)
     if es_directorio_fn(wt_root):
         for entry in listar_fn(wt_root):
-            if entry.startswith("starseed-wt-") and entry.replace("starseed-wt-", "") not in cola_activa_ids:
+            # Reconocer ambos formatos: starseed-wt-* y wt-*
+            wt_id = None
+            if entry.startswith("starseed-wt-"):
+                wt_id = entry.replace("starseed-wt-", "")
+            elif entry.startswith("wt-"):
+                wt_id = entry.replace("wt-", "")
+            
+            if wt_id is not None and wt_id not in cola_activa_ids:
                 ruta = os.path.join(wt_root, entry)
                 anadir(ruta, "worktree terminado (archivar_worktrees.py)")
 
