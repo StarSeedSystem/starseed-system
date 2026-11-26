@@ -136,7 +136,32 @@ PUEDES_ACTUAR = (
     "falta: si estás respondiendo con Claude, hay sesión). No editas archivos, no publicas fuera de las puertas, no "
     "tocas claves ni el A1 y no quitas una pausa de publicación. Si en este motor falta una herramienta, dilo en una "
     "línea y sigue con las que tengas."
+    # (DIR1125R) Alex, 25-11: las pruebas se llevan desde este canal. Órdenes exactas para no preguntar lo comprobable.
+    " PRUEBAS EN APARATOS (las conduces tú desde este canal): plan en starseed_memory_root/pruebas/plan-activo.md; "
+    "estado de un arreglo: `python3 -c \"import json;p=json.load(open('starseed_memory_root/olas/progreso.json'));print(p.get('<ID>'))\"` y "
+    "`git log --oneline origin/main | grep <ID>`; pedir la compilación de prueba: `python3 scripts/puente/director_pruebas.py "
+    "pedir compilar --sha <sha de origin/main> --quien director-presidente --nota \"<qué arregla>\"`; conducir: "
+    "`python3 scripts/puente/pruebas_malla.py listar|siguiente|empezar|recoger|evaluar|cerrar|informe`; registros de la "
+    "Maggabox (solo lectura): `ssh -i ~/.ssh/starseed_nodo1 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 "
+    "-o AddressFamily=inet -o UserKnownHostsFile=$HOME/.ssh/known_hosts_starseed_nodo maggasukha@starseed-nodo-1.local "
+    "'tail -n 80 ~/.local/share/app.starseed.os/enlaces.log'`; avisar a Alex (canal principal y Telegram a la vez, sin A1 "
+    "ni otra cuenta): `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal principal --de "
+    "\"Director presidente (MetaGenesis)\" --origen metagenesis --texto \"…\"`. Lo que puedas comprobar, compruébalo y di "
+    "lo que viste; no preguntes si debes comprobarlo. Solo Alex enciende permisos, acepta en sus aparatos e instala."
 )
+
+
+#: (DIR1125R) Nombre del motor que de verdad contesta, para que el presidente no se confunda con las notas del hilo.
+NOMBRES_MOTOR = {"claude": "Claude en la Mac (claude -p)", "hermes": "Hermes", "agy": "Antigravity (Gemini)",
+                 "chatgpt": "ChatGPT por Codex"}
+
+
+def marcar_motor(prompt, motor):
+    """PURA (DIR1125R). Antepone quién está sirviendo al presidente. Las notas firmadas «Dirección presidente
+    (Claude Cowork)» del hilo son de otra sesión: antes el presidente servido por Hermes decía ser Claude en Cowork."""
+    nombre = NOMBRES_MOTOR.get(str(motor or ""), str(motor or "otro motor"))
+    return ("Te está sirviendo ahora: %s. Las notas del hilo firmadas «Dirección presidente (Claude Cowork)» son de "
+            "la sesión de Claude en Cowork, no tuyas; si te preguntan qué motor eres, di este.\n\n" % nombre) + (prompt or "")
 
 
 def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
@@ -923,11 +948,11 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
         info = {}
         try:
             if p == "claude":
-                texto, motivo, uso = _llamar_claude(prompt, correr, segundos=timeout_actual)
+                texto, motivo, uso = _llamar_claude(marcar_motor(prompt, "claude"), correr, segundos=timeout_actual)
             elif p == "hermes":
                 texto, motivo, uso = _llamar_hermes(
-                    prompt, correr, sesion_hermes,
-                    lambda: prompt_sesion_fresca(mensaje.get("texto", ""), hilo, contexto), info,
+                    marcar_motor(prompt, "hermes"), correr, sesion_hermes,
+                    lambda: marcar_motor(prompt_sesion_fresca(mensaje.get("texto", ""), hilo, contexto), "hermes"), info,
                     segundos=timeout_actual)
                 # HER1111K: aviso único de la pausa / de la vuelta a la sesión de dirección.
                 if info.get("pausa"):
@@ -937,11 +962,11 @@ def atender(mensaje, estado, raiz=None, correr=None, existe=None, limites=None,
             elif p == "agy":
                 prompt_agy = (
                     "Modo headless sin permisos interactivos: responde directo en español usando el contexto "
-                    "proporcionado o solo lectura; no ejecutes comandos interactivos.\n\n" + prompt
+                    "proporcionado o solo lectura; no ejecutes comandos interactivos.\n\n" + marcar_motor(prompt, "agy")
                 )
                 texto, motivo, uso = _llamar_agy(prompt_agy, correr, plan=es_encargo, segundos=timeout_actual)
             else:
-                texto, motivo, uso = _llamar_chatgpt(prompt, correr, segundos=timeout_actual)
+                texto, motivo, uso = _llamar_chatgpt(marcar_motor(prompt, "chatgpt"), correr, segundos=timeout_actual)
         except OSError as e:
             texto, motivo, uso = None, "no se pudo lanzar: %s" % e, {}
         if not texto:
