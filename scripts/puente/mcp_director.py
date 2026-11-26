@@ -660,7 +660,7 @@ def _estado():
         datos = None
     if not isinstance(datos, dict):
         datos = dict(_ESTADO_VACIO)
-    datos["pausada"] = os.path.exists(_ruta_pausa())
+    datos["pausada"] = pausa_activa(_ruta_pausa())
     return json.dumps(datos, ensure_ascii=False, indent=2, sort_keys=True)
 
 
@@ -716,11 +716,25 @@ def _historial(args):
     return "\n".join(salida) if salida else "Sin historial todavía."
 
 
+def pausa_activa(ruta):
+    """(DIR1125V) ¿Está pausada la producción? Lo que manda es el campo `pausada` del archivo, el mismo que leen
+    autopublicar.py y director-produccion.py; un archivo antiguo sin ese campo cuenta como pausa. Nunca lanza."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return True
+    return not (isinstance(datos, dict) and datos.get("pausada") is False)
+
+
 def _escribir_pausa(quien, motivo):
     """Crea el interruptor de §4 con escritura atómica (tmp + replace)."""
     ruta = _ruta_pausa()
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
     datos = {
+        "pausada": True,  # (DIR1125V) el campo que leen autopublicar.py y director-produccion.py
         "desde": datetime.now().isoformat(timespec="seconds"),
         "quien": quien,
         "motivo": motivo,
