@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "MV1125B",
+   "ola": "multiverso-1125",
+   "titulo": "Ramas 4D: modelo de nodos, aristas, eventos y ramas de cualquier formato",
+   "archivos": [
+    "src/lib/ramas4d/modelo.ts",
+    "src/lib/ramas4d/index.ts",
+    "src/lib/ramas4d/__tests__/modelo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Crea el modelo del motor según la sección «Modelo» del contrato: tipos Nodo, Arista, Evento, Rama, Alcance (privado|contactos|grupo|comunidad|publico), Capa, Formato (cadena abierta con constantes para los conocidos) y Grafo4D. Funciones puras: crearGrafo, añadirNodo/añadirArista (sin duplicados, aristas a nodos inexistentes se rechazan), aplicarEvento (actualiza t_actividad y peso), hijos/ancestros de una rama, validarNodo (ref obligatoria, nunca campos de contenido privado: rechaza claves como contenido, cuerpo, texto_privado). index.ts reexporta. Pruebas: invariantes, eventos, validación. Añadido (Alex, 21:17): el Nodo lleva también las facetas opcionales tema, categoria y etiquetas (string[]), y facetasDe(nodo) devuelve todas las facetas del contrato (tema, categoría, etiquetas, tipo, formato, alcance, dueño, sistema, capa, fecha, estado) para filtrar y agrupar. Pruebas de facetasDe.",
+   "prioridad": 82
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-055912.json": [
+   "MV1125B"
+  ]
+ }
+}
