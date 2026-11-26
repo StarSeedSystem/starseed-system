@@ -234,6 +234,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       textoMedios: "1 medio abierto",
       datos: [],
       radar: { titulo: "Visible en el radar", motivo: null, lineas: [], emision: "publica" },
+      mediosAbiertos: 1,
     };
 
     renderWithProviders(
@@ -293,6 +294,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       textoMedios: "1 medio abierto",
       datos: [],
       radar: { titulo: "Visible en el radar", motivo: null, lineas: [], emision: "publica" },
+      mediosAbiertos: 1,
     };
 
     renderWithProviders(
@@ -562,6 +564,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       textoMedios: "1 medio abierto",
       datos: [],
       radar: { titulo: "Visible en el radar", motivo: null, lineas: [], emision: "publica" },
+      mediosAbiertos: 1,
     };
 
     render(
@@ -621,6 +624,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       textoMedios: "1 medio abierto",
       datos: [],
       radar: { titulo: "Visible en el radar", motivo: null, lineas: [], emision: "publica" },
+      mediosAbiertos: 1,
     };
 
     render(
