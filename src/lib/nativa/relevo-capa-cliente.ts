@@ -212,8 +212,13 @@ export function iniciarRelevoNativo(): () => void {
   let enCurso = false;
   // (DIR1125F) El censo de cuadros: que el propio aparato diga quién ocupa el hilo principal. Solo cuenta; no cambia nada.
   let pararCenso: () => void = () => {};
-  // (DIR1125H) El censo ya no se pone aquí: lo pone `censo-arranque` al cargar la página, antes de que se monte nada (así ve
-  // también los relojes que la página arranca al montarse), y mide TIEMPO, no solo quién pide cuadros.
+  void import("@/lib/perf/censo-cuadros")
+    .then((m) => {
+      if (!parado) pararCenso = m.iniciarCensoCuadros();
+    })
+    .catch(() => {
+      /* sin censo: como antes */
+    });
   const tick = async () => {
     if (parado || enCurso) return;
     enCurso = true;

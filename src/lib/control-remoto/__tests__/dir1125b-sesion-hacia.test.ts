@@ -95,7 +95,7 @@ describe("DIR1125B · SesionHacia", () => {
         const reg = new RegistroSesiones();
         const s = new SesionHacia(NEURONA, a.mandar, reg);
         vivas.push(s);
-        expect((await s.orden("leer-estado")).ok).toBe(true); // abre tok-1
+        expect((await s.orden("llamar", {})).ok).toBe(true); // abre tok-1
         a.abiertas.clear(); // el aparato la dio por caducada a los 45 s sin latidos
         expect(await s.latir()).toBe(true);
         expect(a.vistas.filter((x) => x === "abrir-sesion").length).toBe(2);
@@ -121,7 +121,7 @@ describe("DIR1125B · SesionHacia", () => {
             expect((await s.orden("leer-estado")).ok).toBe(false);
             expect(reg.tokenDe(NEURONA), `${motivo}: el token muerto no se reutiliza`).toBeNull();
             expect(await s.latir(), `${motivo}: sin token no se manda nada`).toBe(false);
-            expect(abiertas, `${motivo}: no se reabre`).toBe(1);
+            expect(abiertas, `${motivo}: no se reabre`).toBe(0);
         }
     });
 });
