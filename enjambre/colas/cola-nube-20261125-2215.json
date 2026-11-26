@@ -1,0 +1,32 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "adelantar": "2026-11-21 06:36:55",
+   "segundos": 1343,
+   "t": "2026-11-21 08:04:25",
+   "modelos_fallidos": [
+    "codex/gpt-5.6-sol",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "llm7/minimax-m2.7",
+    "freellmapi/auto",
+    "opencode/deepseek-v4.1-flash-free"
+   ],
+   "rama": "ola/RST06-d2b",
+   "sha": "c848e26afb4d37cfdacd9ca0ff7c5358efd189bb",
+   "id": "RST06c",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 08:10:01\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:10:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:16:00\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:16:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45744667050`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: ST06-d2b\": {\"estado\": \"rechazada\", \"nota\": NOTA, \"t\": _t(5)}}\n        fundido = enjambre.fusionar_progreso(memoria, disco, set())\n>       self.assertEqual(fundido[\"RST06-d2b\"][\"estado\"], \"rechazada\")\nE       AssertionError: 'pendiente' != 'rechazada'\nE       - pendiente\nE       + rechazada\n\nscripts/enjambre/test_rst06_rechazo_mecanico.py:50: AssertionError\n=========================== short test summary info ============================\nFAILED scripts/enjambre/test_rst06_rechazo_mecanico.py::ReaperturaMecanicaNoSePisa::test_rechazada_en_disco_si_gana_si_no_es_propia\n1 failed, 4 passed in 0.95s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45744667050:refs/remotes/origin/nube/45744667050\"` y `git cherry-pick --no-commit 5fe6d1240862`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_rst06_rechazo_mecanico.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45744667050"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "RST06c"
+  ]
+ }
+}
