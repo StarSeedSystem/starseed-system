@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -118,6 +120,119 @@ class FlujosValidos(unittest.TestCase):
             self.assertIn("PRODUCCION_WEBHOOK_SECRETO", codigos, nombre)
             self.assertIn("x-starseed-firma", codigos, nombre)
             self.assertIn("createHmac", codigos, nombre)
+
+
+N8N_FALSO = '''#!/usr/bin/env python3
+"""Doble de `n8n` para probar `arranque.sh` sin el binario real (ni red)."""
+import glob
+import json
+import os
+import sys
+import uuid
+
+RUTA = os.environ["FAKE_N8N_STORE"]
+
+
+def cargar():
+    try:
+        with open(RUTA, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def guardar(store):
+    with open(RUTA, "w", encoding="utf-8") as f:
+        json.dump(store, f)
+
+
+args = sys.argv[1:]
+if not args:
+    sys.exit(0)
+orden = args[0]
+
+if orden == "import:workflow":
+    entrada = next((a.split("=", 1)[1] for a in args if a.startswith("--input=")), None)
+    separado = "--separate" in args
+    store = cargar()
+    if separado:
+        # n8n 1.63.4: --separate exige un DIRECTORIO; con un archivo no importa nada.
+        rutas = sorted(glob.glob(os.path.join(entrada, "*.json"))) if os.path.isdir(entrada) else []
+    else:
+        rutas = [entrada] if entrada else []
+    for ruta in rutas:
+        with open(ruta, encoding="utf-8") as f:
+            flujo = json.load(f)
+        clave = flujo.get("id") or str(uuid.uuid4())
+        store[clave] = flujo.get("name", clave)
+    guardar(store)
+elif orden == "list:workflow":
+    for clave in cargar():
+        print(clave)
+elif orden == "update:workflow":
+    pass
+elif orden == "start":
+    pass
+sys.exit(0)
+'''
+
+
+class ArranqueIdempotente(unittest.TestCase):
+    """Riesgo 1: reiniciar el Space no debe duplicar flujos."""
+
+    def _preparar(self, tmp):
+        dir_flujos = os.path.join(tmp, "flujos")
+        os.mkdir(dir_flujos)
+        for nombre in ("publicada", "pieza-lista", "revertida"):
+            shutil.copy(os.path.join(FLUJOS, "%s.json" % nombre), dir_flujos)
+        n8n = os.path.join(tmp, "n8n")
+        with open(n8n, "w", encoding="utf-8") as f:
+            f.write(N8N_FALSO)
+        os.chmod(n8n, 0o755)
+        return dir_flujos, n8n, os.path.join(tmp, "store.json")
+
+    def _arrancar(self, dir_flujos, n8n, store):
+        env = dict(os.environ, N8N_FLUJOS_DIR=dir_flujos,
+                   N8N_BIN=n8n, FAKE_N8N_STORE=store)
+        subprocess.run(["/bin/sh", os.path.join(_RAIZ, "deploy", "n8n-hf", "arranque.sh")],
+                       env=env, check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+
+    def test_dos_arranques_dejan_un_flujo_por_nombre(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dir_flujos, n8n, store = self._preparar(tmp)
+            self._arrancar(dir_flujos, n8n, store)
+            self._arrancar(dir_flujos, n8n, store)
+            with open(store, encoding="utf-8") as f:
+                guardados = json.load(f)
+        ids = set()
+        for nombre in ("publicada", "pieza-lista", "revertida"):
+            with open(os.path.join(FLUJOS, "%s.json" % nombre), encoding="utf-8") as f:
+                ids.add(json.load(f)["id"])
+        self.assertEqual(len(guardados), 3)
+        self.assertEqual(set(guardados), ids)
+
+
+class FlujosIdempotentes(unittest.TestCase):
+    def test_cada_flujo_lleva_un_id_estable_y_unico(self):
+        ids = []
+        for nombre in ("publicada", "pieza-lista", "revertida"):
+            with open(os.path.join(FLUJOS, "%s.json" % nombre), encoding="utf-8") as f:
+                flujo = json.load(f)
+            self.assertIsInstance(flujo.get("id"), str, nombre)
+            self.assertTrue(flujo["id"].strip(), nombre)
+            ids.append(flujo["id"])
+        self.assertEqual(len(ids), len(set(ids)))
+
+
+class ConfiguracionSegura(unittest.TestCase):
+    """Riesgo 2: la cookie de sesión debe viajar con la marca Secure."""
+
+    def test_cookie_de_sesion_con_secure(self):
+        with open(os.path.join(_RAIZ, "deploy", "n8n-hf", "Dockerfile"), encoding="utf-8") as f:
+            texto = f.read()
+        self.assertIn("N8N_SECURE_COOKIE=true", texto)
+        self.assertNotIn("N8N_SECURE_COOKIE=false", texto)
 
 
 if __name__ == "__main__":
