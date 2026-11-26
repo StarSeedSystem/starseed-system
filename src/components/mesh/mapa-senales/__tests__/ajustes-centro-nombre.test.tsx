@@ -227,7 +227,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       nombreNeurona: "Mi Neurona",
       sinNombre: false,
       nombrePerfil: "Maggasukha",
-      usuario: "@maggasukha",
+      usuario: null,
       iniciales: "MG",
       avatar: { modo: "iniciales", url: null, color: "#38bdf8", iniciales: "MG", motivo: "" },
       subtitulo: "mobile · android",
@@ -283,11 +283,11 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
 
     const { AjustesNeurona } = await import("../ajustes-centro");
 
-    const mockCentro = {
+const mockCentro = {
       nombreNeurona: "Mi Neurona",
       sinNombre: false,
       nombrePerfil: "Maggasukha",
-      usuario: "@maggasukha",
+      usuario: null,
       iniciales: "MG",
       avatar: { modo: "iniciales", url: null, color: "#38bdf8", iniciales: "MG", motivo: "" },
       subtitulo: "mobile · android",
@@ -297,7 +297,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       mediosAbiertos: 1,
     };
 
-    renderWithProviders(
+    render(
       <AjustesNeurona
         centro={mockCentro}
         neuronaId="neurona-1"
@@ -617,7 +617,7 @@ describe("NEU1126A: componente AjustesNeurona - integración", () => {
       nombreNeurona: "Mi Neurona",
       sinNombre: false,
       nombrePerfil: "Maggasukha",
-      usuario: "@maggasukha",
+      usuario: null,
       iniciales: "MG",
       avatar: { modo: "iniciales", url: null, color: "#38bdf8", iniciales: "MG", motivo: "" },
       subtitulo: "mobile · android",
