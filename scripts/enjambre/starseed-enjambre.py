@@ -5728,6 +5728,40 @@ def _puerta_python(wt, tid=None, log=None):
     return rc_total, "\n".join(_orden_de_salidas(resultados))
 
 
+def _puerta_rust(wt, tid=None, log=None):
+    """Puerta Rust (ENJ1126A): nada que toque native/ entra en main sin cargo check en verde.
+
+    - Si entre los archivos que la tarea cambió hay alguno bajo native/, corre `cargo check`
+      sobre el crate correspondiente. Si hay errores, la puerta falla y la tarea no se integra.
+    - (2026-11-26) Si no toca native/, la puerta pasa automáticamente (no hay Rust que revisar).
+    - (2026-11-26) En la Mac, si el cambio toca native/ y no hay sello de cargo check en verde
+      desde la nube (sha con cargo check aprobado), la tarea vuelve a la nube con el motivo.
+    - El worktree `wt` ya debe tener el main de antes + los cherry-picks aplicados.
+    """
+    tocados = _tocados_por_la_tarea(wt, log)
+    native_tocados = [f for f in tocados if f.startswith("native/")]
+    if not native_tocados:
+        return 0, ""
+    # Ejecutar cargo check en el worktree
+    import shutil
+    cargo_check = shutil.which("cargo") or "cargo"
+    # Usar el heap de tsc para no morir de memoria en la Mac
+    memoria = "--max-old-space-size=%d" % TSC_HEAP_MB
+    result = subprocess.run(
+        [cargo_check, "check", "--no-default-features", "--target", "linux"]
+        + ([memoria] if memoria else []),
+        capture_output=True, text=True, timeout=300,
+        cwd=wt,
+        env={**os.environ, "RUSTFLAGS": "--edition 2021"},
+    )
+    rc = result.returncode
+    out = (result.stdout or "") + (result.stderr or "")
+    if rc != 0:
+        detalle = out or "cargo check falló sin mensaje"
+        return 1, ("cargo check: " + detalle[-800:] if detalle else "cargo check falló")
+    return 0, "cargo check en verde"
+
+
 def _norma_ruta(ruta):
     """Normaliza una ruta para comparar (2026-09-07, Ola 261, P8): quita espacios y comillas
     de git, y deja './a.ts' como 'a.ts' (os.path.normpath). Los pedidos de la cola pueden

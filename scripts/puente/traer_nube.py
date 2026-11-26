@@ -854,6 +854,15 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
             rc, salida = _correr_en(cwd, [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *py], 900)
             if rc not in (0, 5):  # 5 = no encontró pruebas
                 return False, "pruebas del puente: " + salida[-600:]
+
+    # Puerta Rust: si la tarea tocó native/, exige cargo check en verde
+    native_cambiados = [c for c in cambiados if c.startswith("native/")]
+    if native_cambiados:
+        rc, salida = _correr_en(cwd, ["cargo", "check", "--no-default-features", "--target", "linux"], 300)
+        if rc != 0:
+            detalle = (salida or "")[-600:]
+            return False, "cargo check falló: " + detalle
+
     return True, "tsc y pruebas relacionadas en verde"
 
 
