@@ -860,7 +860,10 @@ export class PantallaDestino {
         const r = await this.orden("pantalla-iniciar", { fuente: "proyeccion", mantener: true, lado: this.ajustes.ladoMaximo, calidad: this.ajustes.calidadJpeg }, "ver");
         this.anotar(`control-fuente lado=controlador paso=fluida-pedida-por-la-persona resultado=${r.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}`);
         const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
-        if (r.ok && real && !this.cerrada) this.poner({ fuente: real });
+        if (r.ok && real && !this.cerrada) {
+            this.poner({ fuente: real });
+            this.anotar(`control-fuente lado=controlador fuente=${real} fluida-pedida=si`);
+        }
         return r.ok;
     }
 
