@@ -31,6 +31,9 @@ import { leerAparato, type AparatoRegistro } from "@/lib/neurons/aparato-registr
 /** Evento (en `window`) tras una adopción: `detail = { anterior, adoptada }`. */
 export const EVENTO_NEURONA_ADOPTADA = "starseed:neurona-adoptada";
 
+/** Clave para marcar huella en estado «requiere revisión» (aparato nuevo detectado). */
+export const CLAVE_HUELLA_REVISION = "starseed.neuron.huella-revision.v1";
+
 /** Prefs de neuronas (sincronizadas): la misma clave que `neurons.ts` (`NEURON_PREFS_KEY`). */
 const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
 
@@ -169,6 +172,28 @@ async function verificarHuellaParaAdopcion(idNeurona: string): Promise<boolean |
   }
 }
 
+/** Marca la huella como «requiere revisión» (aparato nuevo detectado). Nunca lanza. */
+function marcarHuellaRequiereRevision(): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CLAVE_HUELLA_REVISION, JSON.stringify({ v: 1, ts: Date.now() }));
+    }
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+/** Limpia la marca de «requiere revisión». Nunca lanza. */
+function limpiarHuellaRequiereRevision(): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(CLAVE_HUELLA_REVISION);
+    }
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
 /**
  * Genera y guarda la huella nativa del aparato actual.
  * En la app nativa usa `huella_aparato_generar`.
@@ -209,6 +234,9 @@ export async function usarConfiguracionDeNeurona(id: string, opts: OpcionesAdopc
   if (huellaOk === false) {
     // Huella distinta → aparato nuevo, no adoptar
     const anterior = (typeof window !== "undefined" && window.localStorage.getItem("starseed.neuron.device-id")) || "";
+    // Marcar huella como «requiere revisión» para que la ventana NEU1125B sepa que hay un aparato nuevo
+    marcarHuellaRequiereRevision();
+    // Devolver resultado completo extendiendo la estructura base
     return {
       ok: false,
       anterior,
@@ -225,6 +253,9 @@ export async function usarConfiguracionDeNeurona(id: string, opts: OpcionesAdopc
   if (huellaOk === null) {
     await generarHuellaSiFalta();
   }
+
+  // Adopción exitosa: limpiar marca de revisión si existía
+  limpiarHuellaRequiereRevision();
 
   if (r.anterior && r.anterior !== r.adoptada) {
     marcarNeuronaConfigurada(r.adoptada);

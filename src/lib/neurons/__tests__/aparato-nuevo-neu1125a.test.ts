@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usarConfiguracionDeNeurona } from "../adopcion-neurona";
 import { adoptarNeurona, leerAliasDispositivo } from "@/lib/network/identidad-dispositivo";
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { CLAVE_HUELLA_REVISION } from "../adopcion-neurona";
 
 const LS_NEURON = "starseed.neuron.device-id";
 const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
@@ -80,6 +81,7 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
     expect(resultado.adoptada).toBe(idAdoptada);
     expect(resultado.anterior).toBe(idPropia);
     expect(resultado.filaDuplicadaEliminada).toBe(true);
+    expect(resultado.motivo).toBeUndefined();
   });
 
   it("huella nativa distinta → motivo 'aparato-nuevo' y NO adopta", async () => {
@@ -97,6 +99,33 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
     expect(resultado.adoptada).toBe(idPropia); // sigue siendo la propia
     expect(resultado.anterior).toBe(idPropia);
     expect(resultado.filaDuplicadaEliminada).toBe(false);
+    // Verificar que tiene todos los campos de ResultadoUsarConfiguracion
+    expect(resultado).toHaveProperty("ok");
+    expect(resultado).toHaveProperty("anterior");
+    expect(resultado).toHaveProperty("adoptada");
+    expect(resultado).toHaveProperty("motivo");
+    expect(resultado).toHaveProperty("filaDuplicadaEliminada");
+    expect(typeof resultado.ok).toBe("boolean");
+    expect(typeof resultado.anterior).toBe("string");
+    expect(typeof resultado.adoptada).toBe("string");
+    expect(typeof resultado.filaDuplicadaEliminada).toBe("boolean");
+  });
+
+  it("huella nativa distinta → marca huella como 'requiere revisión'", async () => {
+    mockPuente.huellaAparatoVerificar.mockResolvedValue({ ok: true, valor: false });
+
+    const idPropia = "neurona-propia-123";
+    const idAdoptada = "neurona-ajena-456";
+    setupNeuronId(idPropia);
+    setupPrefs(idPropia, false);
+
+    await usarConfiguracionDeNeurona(idAdoptada, { propiaCreadaAhora: true });
+
+    const revision = window.localStorage.getItem(CLAVE_HUELLA_REVISION);
+    expect(revision).not.toBeNull();
+    const parsed = JSON.parse(revision!);
+    expect(parsed.v).toBe(1);
+    expect(typeof parsed.ts).toBe("number");
   });
 
   it("sin huella guardada (versión antigua) → adopta y guarda huella actual", async () => {
@@ -114,6 +143,9 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
     expect(resultado.ok).toBe(true);
     expect(resultado.adoptada).toBe(idAdoptada);
     expect(mockPuente.huellaAparatoGenerar).toHaveBeenCalled();
+    // No debe haber marca de revisión tras adopción exitosa
+    const revision = window.localStorage.getItem(CLAVE_HUELLA_REVISION);
+    expect(revision).toBeNull();
   });
 
   it("en web (sin app nativa) usa huella web y adopta si coincide", async () => {
@@ -127,7 +159,17 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
     setupNeuronId(idPropia);
     setupPrefs(idPropia, false);
 
-    // TODO: mockear la comparación de huella web
+    // Mockear la comparación de huella web para que coincida
+    vi.doMock("@/lib/neurons/aparato-registro", () => ({
+      leerAparato: () => ({ v: 1, huella: "web-huella-123" }),
+    }));
+    vi.doMock("@/lib/neurons/aparato-este-medio", () => ({
+      aparatoDeEsteMedio: () => Promise.resolve({ v: 1, huella: "web-huella-123" }),
+    }));
+    vi.doMock("@/lib/neurons/neurons", () => ({
+      detectCapabilities: () => Promise.resolve({}),
+    }));
+
     const resultado = await usarConfiguracionDeNeurona(idAdoptada, { propiaCreadaAhora: true });
 
     expect(resultado.ok).toBe(true);
@@ -143,7 +185,7 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
 
     const resultado = await usarConfiguracionDeNeurona(idAdoptada, { propiaCreadaAhora: true });
 
-    // Verificar que tiene todos los campos de ResultadoAdopcion
+    // Verificar que tiene todos los campos de ResultadoUsarConfiguracion
     expect(resultado).toHaveProperty("ok");
     expect(resultado).toHaveProperty("anterior");
     expect(resultado).toHaveProperty("adoptada");
@@ -153,6 +195,7 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
     expect(typeof resultado.anterior).toBe("string");
     expect(typeof resultado.adoptada).toBe("string");
     expect(typeof resultado.filaDuplicadaEliminada).toBe("boolean");
+    expect(resultado.motivo).toBe("aparato-nuevo");
   });
 
   it("dos arranques en el mismo aparato dan la misma huella", async () => {
@@ -173,5 +216,34 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
 
     const r2 = await usarConfiguracionDeNeurona(idAdoptada, { propiaCreadaAhora: true });
     expect(r2.ok).toBe(true);
+  });
+
+  it("adopción exitosa limpia marca de revisión previa", async () => {
+    // Primero simular un aparato nuevo (marca de revisión)
+    window.localStorage.setItem(CLAVE_HUELLA_REVISION, JSON.stringify({ v: 1, ts: Date.now() - 1000 }));
+
+    const idPropia = "neurona-propia-123";
+    const idAdoptada = "neurona-ajena-456";
+    setupNeuronId(idPropia);
+    setupPrefs(idPropia, false);
+
+    const resultado = await usarConfiguracionDeNeurona(idAdoptada, { propiaCreadaAhora: true });
+
+    expect(resultado.ok).toBe(true);
+    const revision = window.localStorage.getItem(CLAVE_HUELLA_REVISION);
+    expect(revision).toBeNull();
+  });
+
+  it("ResultadoAdopcion de identidad-dispositivo incluye 'aparato-nuevo'", async () => {
+    // Verificar que el tipo ResultadoAdopcion acepta 'aparato-nuevo'
+    const resultado = adoptarNeurona("id-invalido@@");
+    expect(resultado.ok).toBe(false);
+    expect(resultado.motivo).toBe("id-invalido");
+
+    // La adopción exitosa no debe tener motivo
+    setupNeuronId("neurona-existente");
+    const r2 = adoptarNeurona("neurona-existente");
+    expect(r2.ok).toBe(true);
+    expect(r2.motivo).toBeUndefined();
   });
 });

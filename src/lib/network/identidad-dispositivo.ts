@@ -173,7 +173,7 @@ export interface ResultadoAdopcion {
   /** Id de neurona que usa ahora este medio. */
   adoptada: string;
   /** Por qué no se adoptó, si `ok` es false. */
-  motivo?: "id-invalido" | "sin-almacenamiento";
+  motivo?: "id-invalido" | "sin-almacenamiento" | "aparato-nuevo";
 }
 
 /**
