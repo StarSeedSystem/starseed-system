@@ -1,0 +1,55 @@
+{
+  "sincronia-basica": {
+    "estadoInicial": {
+      "salaId": "test-sala",
+      "elementos": {
+        "1": { "id": "1", "tipo": "widget", "datos": { "val": 1 }, "actualizadoEn": 100, "porDispositivo": "host" }
+      },
+      "reloj": 1
+    },
+    "pasos": [
+      { "cliente": "host", "accion": "actualizar", "elemento": { "id": "1", "datos": { "val": 2 }, "actualizadoEn": 200 } },
+      { "cliente": "cliente-1", "accion": "actualizar", "elemento": { "id": "1", "datos": { "val": 3 }, "actualizadoEn": 300 } }
+    ],
+    "esperado": {
+      "host": { "elemento1": { "val": 3 } },
+      "cliente-1": { "elemento1": { "val": 3 } },
+      "cliente-2": { "elemento1": { "val": 3 } }
+    }
+  },
+  "sincronia-con-conflicto": {
+    "estadoInicial": {
+      "salaId": "test-sala",
+      "elementos": {
+        "1": { "id": "1", "tipo": "widget", "datos": { "val": 1 }, "actualizadoEn": 100, "porDispositivo": "host" }
+      },
+      "reloj": 1
+    },
+    "pasos": [
+      { "cliente": "host", "accion": "actualizar", "elemento": { "id": "1", "datos": { "val": 2 }, "actualizadoEn": 200 } },
+      { "cliente": "cliente-1", "accion": "actualizar", "elemento": { "id": "1", "datos": { "val": 99 }, "actualizadoEn": 200 } }
+    ],
+    "esperado": {
+      "host": { "elemento1": { "val": 99 }, "conflicto": true },
+      "cliente-1": { "elemento1": { "val": 99 }, "conflicto": true },
+      "cliente-2": { "elemento1": { "val": 99 }, "conflicto": true }
+    }
+  },
+  "sincronia-lapida": {
+    "estadoInicial": {
+      "salaId": "test-sala",
+      "elementos": {
+        "1": { "id": "1", "tipo": "widget", "datos": { "val": 1 }, "actualizadoEn": 100, "porDispositivo": "host" }
+      },
+      "reloj": 1
+    },
+    "pasos": [
+      { "cliente": "host", "accion": "borrar", "elemento": { "id": "1", "borrado": true, "actualizadoEn": 200 } }
+    ],
+    "esperado": {
+      "host": { "elemento1": { "borrado": true } },
+      "cliente-1": { "elemento1": { "borrado": true } },
+      "cliente-2": { "elemento1": { "borrado": true } }
+    }
+  }
+}
