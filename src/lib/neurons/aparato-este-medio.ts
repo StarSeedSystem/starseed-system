@@ -11,6 +11,10 @@
  *   neurona que usaba en el origen de la web publicada (Rust: `pista_neurona`). Aquí se lee
  *   (`pista_neurona_leer`) y se deja donde la escritorio deja la suya (`CLAVE_NEURONA_ANTERIOR`), para
  *   que la adopción al arrancar y la ventana «Esta neurona» la usen igual en las dos plataformas.
+ * · `verificarHuellaAparato()`: NEU1125A-d2 — llama al comando nativo `huella_aparato_verificar`
+ *   para comprobar si la huella guardada (SHA-256 + sal propia) coincide con ESTE aparato.
+ *   Si no coincide, NO se adopta nada automáticamente: se marca «aparato nuevo» para la
+ *   ventana de NEU1125B. La persona decide.
  * Nunca lanza.
  */
 
@@ -19,6 +23,7 @@ import { CLAVE_NEURONA_ANTERIOR, leerNeuronaAnterior } from "@/lib/nativa/migrac
 // Módulos ligeros y puros salvo la lectura del global de Tauri: estáticos (el latido no espera a cargarlos).
 import { leerInfoNativa, tauriGlobal } from "@/lib/nativa/info-neurona";
 import { medioActual, plataformaNativa } from "@/lib/actualizaciones/version-por-medio";
+import { puenteNativo } from "@/lib/nativa/puente";
 
 interface CapsMinimas {
   platform?: string;
@@ -80,6 +85,60 @@ export async function traerPistaNativa(): Promise<string | null> {
     if (!id) return null;
     window.localStorage.setItem(CLAVE_NEURONA_ANTERIOR, id);
     return id;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * NEU1125A-d2: Verifica la huella nativa del aparato contra la guardada.
+ * Llama al comando nativo `huella_aparato_verificar` que compara el identificador nativo
+ * del aparato (Android: ANDROID_ID; macOS: IOPlatformUUID; Linux: /etc/machine-id;
+ * Windows: MachineGuid) hasheado con SHA-256 + sal propia de la app.
+ *
+ * Devuelve:
+ *   - `true`: la huella coincide (mismo aparato)
+ *   - `false`: huella distinta → «aparato nuevo» (no se adopta nada solo; la persona elige en NEU1125B)
+ *   - `null`: no se pudo verificar (no hay app nativa, error, sin datos guardados)
+ * Nunca lanza.
+ */
+export async function verificarHuellaAparato(): Promise<boolean | null> {
+  try {
+    const puente = puenteNativo();
+    if (!puente.disponible) return null;
+    const r = await puente.huellaAparatoVerificar();
+    return r.ok ? r.valor : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * NEU1125A-d2: Genera y guarda la huella nativa de ESTE aparato.
+ * Debe llamarse cuando la persona confirma «sí, este es mi aparato» en la ventana de NEU1125B.
+ * Nunca lanza.
+ */
+export async function generarHuellaAparato(): Promise<boolean> {
+  try {
+    const puente = puenteNativo();
+    if (!puente.disponible) return false;
+    const r = await puente.huellaAparatoGenerar();
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * NEU1125A-d2: Lee la huella actual guardada (sin verificar).
+ * Nunca lanza.
+ */
+export async function leerHuellaAparato(): Promise<{ huella: string | null; id_guardado: string | null; creado: string | null } | null> {
+  try {
+    const puente = puenteNativo();
+    if (!puente.disponible) return null;
+    const r = await puente.huellaAparatoActual();
+    return r.ok ? r.valor : null;
   } catch {
     return null;
   }

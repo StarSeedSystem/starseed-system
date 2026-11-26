@@ -145,3 +145,10 @@ export interface ClaveAparatoNativaEstado {
   algoritmo: string;
   almacen: string; // "secret-service" | "credential-manager" | "archivo-0600"
 }
+
+/** NEU1125A: Estado de la huella nativa del aparato (SHA-256 + sal propia). */
+export interface HuellaAparatoEstado {
+  huella: string | null;
+  id_guardado: string | null;
+  creado: string | null;
+}

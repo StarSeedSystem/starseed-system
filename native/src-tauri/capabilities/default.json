@@ -185,6 +185,9 @@
     "allow-clave-aparato-firmar",
     "allow-clave-aparato-spki",
     "allow-clave-aparato-estado",
-    "allow-clave-aparato-olvidar"
+    "allow-clave-aparato-olvidar",
+    "allow-huella-aparato-generar",
+    "allow-huella-aparato-actual",
+    "allow-huella-aparato-verificar"
   ]
 }

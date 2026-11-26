@@ -20,6 +20,7 @@ import type {
   Resultado,
   Verificacion,
   ClaveAparatoNativaEstado,
+  HuellaAparatoEstado,
 } from "./tipos";
 import { EVENTO_ANTENAS, EVENTO_SERIE, EVENTO_SERIE_CERRADA } from "./tipos";
 import { marcarEnHilo, medirEnHilo } from "../perf/medidor-hilo";
@@ -87,6 +88,14 @@ export interface PuenteNativo {
   claveAparatoEstado(): Promise<Resultado<ClaveAparatoNativaEstado>>;
   /** Olvida la clave nativa. */
   claveAparatoOlvidar(): Promise<Resultado<null>>;
+
+  // NEU1125A: Huella nativa del aparato (SHA-256 + sal propia).
+  /** Genera y guarda la huella nativa del aparato. */
+  huellaAparatoGenerar(): Promise<Resultado<HuellaAparatoEstado>>;
+  /** Devuelve la huella actual del aparato. */
+  huellaAparatoActual(): Promise<Resultado<HuellaAparatoEstado | null>>;
+  /** Verifica si la huella guardada coincide con este aparato. */
+  huellaAparatoVerificar(): Promise<Resultado<boolean>>;
 }
 
 /** Convierte lo que llega de `nas_leer` / `starseed://serie` en bytes. */
@@ -174,6 +183,11 @@ export function crearPuente(tauri: TauriMinimo | null | undefined): PuenteNativo
     claveAparatoSpki: () => llamar("clave_aparato_spki"),
     claveAparatoEstado: () => llamar("clave_aparato_estado"),
     claveAparatoOlvidar: () => nulo(llamar("clave_aparato_olvidar")),
+
+    // NEU1125A: Huella nativa del aparato (SHA-256 + sal propia).
+    huellaAparatoGenerar: () => llamar("huella_aparato_generar"),
+    huellaAparatoActual: () => llamar("huella_aparato_actual"),
+    huellaAparatoVerificar: () => llamar("huella_aparato_verificar"),
   };
 }
 
