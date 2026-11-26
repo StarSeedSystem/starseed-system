@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "ALC1125A",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Almacenes: modelo del almacén universal, modalidades y manifiesto portable .starseed/almacen.json",
+   "archivos": [
+    "src/lib/almacenes/modelo.ts",
+    "src/lib/almacenes/manifiesto.ts",
+    "src/lib/almacenes/index.ts",
+    "src/lib/almacenes/__tests__/modelo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Secciones 1 y 2: tipos Almacen (identidad = UUID del volumen + serie, nunca la ruta), TipoAlmacen, Medidas (total, libre, velocidad medida, salud, sistema de archivos, en línea, neurona), Modalidad (cerebro-completo, parte, replica, respaldo-vivo, nodo, secundario) por almacén y por carpeta; manifiesto portable .starseed/almacen.json con versión de formato y validación estricta (rechaza campos de secretos). Funciones puras y pruebas.",
+   "prioridad": 80
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "ALC1125A"
+  ]
+ }
+}
