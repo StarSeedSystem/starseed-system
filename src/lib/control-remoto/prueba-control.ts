@@ -62,7 +62,7 @@ export function validarArgsPruebaControl(a: Args): ArgsPruebaControl | null {
         destino: a.destino,
         duracionMs: a.duracionMs,
         fuente: a.fuente,
-        nivel: a.nivel,
+        nivel: a.nivel as string | undefined,
     };
 }
 

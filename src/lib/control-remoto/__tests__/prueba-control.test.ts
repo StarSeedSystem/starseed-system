@@ -12,7 +12,7 @@ const HUELLA_VALIDA = "a".repeat(64);
 
 describe("prueba-control: validación de argumentos", () => {
     it("orden válida produce objeto ArgsPruebaControl", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 60_000,
             fuente: "auto",
@@ -25,7 +25,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("destino inválido (no huella de 64) devuelve null", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: "short",
             duracionMs: 60_000,
             fuente: "auto",
@@ -35,7 +35,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("duración por debajo del mínimo devuelve null", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 5000,
             fuente: "auto",
@@ -45,7 +45,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("duración por encima del tope devuelve null", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 200_000,
             fuente: "auto",
@@ -55,7 +55,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("fuente inválida devuelve null", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 60_000,
             fuente: "streaming",
@@ -65,7 +65,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("nivel inválido devuelve null", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 60_000,
             fuente: "auto",
@@ -76,7 +76,7 @@ describe("prueba-control: validación de argumentos", () => {
     });
 
     it("nivel ausente es aceptado", () => {
-        const args: Args = {
+        const args: ArgsPruebaControl = {
             destino: HUELLA_VALIDA,
             duracionMs: 60_000,
             fuente: "auto",
