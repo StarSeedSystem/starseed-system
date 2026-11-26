@@ -97,6 +97,9 @@ ORDENES_METAGENESIS = (
     # (DIR1125U) Alex, 25-11: el presidente conduce las pruebas. El conductor recoge los registros de los tres
     # aparatos (la Maggabox por SSH dentro, con su propósito fijo); `ssh` directo sigue vetado.
     "python3 scripts/puente/pruebas_malla.py",
+    # (DIR1125AB) La pasada general de Alex (25-11) la lleva MetaGenesis: el presidente lanza, verifica y consolida
+    # los Sueños profundos (analistas gratuitos por área × lente; nada de esto escribe código).
+    "python3 scripts/puente/suenos.py",
     "python3 scripts/puente/antigravity_flota.py modelos",
     "python3 scripts/puente/antigravity_flota.py uso",
     "python3 scripts/puente/antigravity_flota.py papel",

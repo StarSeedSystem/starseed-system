@@ -36,3 +36,9 @@ def test_el_presidente_puede_conducir_y_leer_el_ci_pero_no_ssh():
 
 def test_el_prompt_del_presidente_sigue_llevando_puedes_actuar():
     assert D.PUEDES_ACTUAR in D.prompt_presidente("hola", [])
+
+
+def test_el_presidente_lleva_los_suenos_profundos():
+    import motores_director as M
+    permitidas, _ = M.permisos_del_presidente()
+    assert "Bash(python3 scripts/puente/suenos.py:*)" in permitidas
