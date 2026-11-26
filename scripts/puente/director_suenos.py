@@ -72,6 +72,8 @@ FACTOR_PRIORIDAD = {"alta": 1.2, "media": 1.0, "baja": 0.85}
 VETO_JEV = 0.2
 CONFIANZA_JEV = 0.6
 DESTINO_TELEGRAM = os.environ.get("STARSEED_TELEGRAM_DESTINO", "telegram:Maggasukha")
+CANAL_DISENO = "audiovisual"
+DE_CANAL_DISENO = "Directores de diseño (Sueños profundos)"
 _CITA = re.compile(r"`([^`:\s]+):(\d+)`")
 _NUM = {
     "impacto": re.compile(r"impacto\s+(\d)"),
@@ -936,10 +938,41 @@ def publicar_en_bus(texto, datos, tipo="informe"):
         return False
 
 
-def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
-    """Canal común siempre; la bandeja de Reportes de Genesis si se le pasa `bus`; Hermes →
-    Telegram solo si se pide (el resumen final de una sesión completa)."""
-    hecho = {"canal": False, "telegram": False, "reportes": False}
+def orden_canal_diseno(texto):
+    """La orden del canal Audiovisual y diseño: va CON Telegram (sin `--sin-telegram`). PURA."""
+    return [
+        "python3",
+        "scripts/puente/sincronizador_direccion.py",
+        "publicar-canal",
+        "--canal",
+        CANAL_DISENO,
+        "--de",
+        DE_CANAL_DISENO,
+        "--origen",
+        "metagenesis",
+        "--texto",
+        texto,
+    ]
+
+
+def _publicar_canal(texto):
+    """Publica el resumen en el canal de diseño; False si falla, sin romper lo demás."""
+    try:
+        r = subprocess.run(orden_canal_diseno(texto), timeout=40, capture_output=True)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+publicar_canal = _publicar_canal
+
+
+def anunciar(
+    texto, telegram=False, decir=None, bus=None, datos_bus=None, publicar_canal=None
+):
+    """Canal común siempre; también el canal Audiovisual y diseño (con Telegram); la bandeja
+    de Reportes si se pasa `bus`; Hermes → Telegram al final solo si se pide."""
+    hecho = {"canal": False, "telegram": False, "reportes": False, "diseno": False}
     try:
         if decir is None:
             import puente  # noqa: E402
@@ -947,6 +980,11 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
             decir = puente.decir
         decir(texto, "suenos", "hecho")
         hecho["canal"] = True
+    except Exception:
+        pass
+    try:
+        publicador = publicar_canal if publicar_canal is not None else _publicar_canal
+        hecho["diseno"] = bool(publicador(texto))
     except Exception:
         pass
     if bus is not None:
@@ -1017,11 +1055,12 @@ def ejecutar(
     planificadas=None,
     telegram=False,
     decir=None,
+    publicar_canal=None,
     consejero=_POR_DEFECTO,
     bus=_POR_DEFECTO,
 ):
     """Consolida una sesión y escribe INFORME.md + la cola propuesta. Devuelve un resumen.
-    `consejero` y `bus` se pueden inyectar (pruebas); por defecto, Jev y el bus de verdad.
+    `consejero`, `bus` y `publicar_canal` se inyectan en pruebas; por defecto, los de verdad.
     `memoria` se resuelve al llamar (MEMORIA_ENCARGADAS), no al importar: así se puede cambiar."""
     memoria = memoria or MEMORIA_ENCARGADAS
     informes = leer_informes(dir_sesion)
@@ -1098,6 +1137,7 @@ def ejecutar(
         telegram=telegram,
         decir=decir,
         bus=bus,
+        publicar_canal=publicar_canal,
         datos_bus={
             "sesion": sesion,
             "propuestas": len(cola),
