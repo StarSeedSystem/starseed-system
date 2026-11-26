@@ -313,7 +313,7 @@ def ejecutar(orden, argumentos=None, quien="", motivo="", canal="mcp", medio="ma
     if orden in ("apuntar_nota", "apuntar_relevo") and not (argumentos or {}).get("canal"):
         a["canal"] = canal
     if "_reservada" in a:
-        texto = "esto es de Alex: %s" % a["_reservada"]
+        texto = "esto es de Maggasukha: %s" % a["_reservada"]
         _anotar(quien, canal, medio, orden, texto, ahora)
         return texto
     herramienta = (herramientas or {}).get(orden) or _HERRAMIENTAS[orden]

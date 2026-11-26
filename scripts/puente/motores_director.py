@@ -700,10 +700,10 @@ def prompt_director(pregunta: str, historial: list, contexto: str) -> str:
     if historial:
         lineas = []
         for turno in historial[-12:]:
-            quien = "Alex" if turno.get("rol") == "alex" else "Dirección"
+            quien = "Maggasukha" if turno.get("rol") == "alex" else "Dirección"
             lineas.append(f"{quien}: {turno.get('texto', '')}")
         partes.append("Historial:\n" + "\n".join(lineas))
-    partes.append("Pregunta de Alex: " + pregunta)
+    partes.append("Pregunta de Maggasukha: " + pregunta)
     return "\n\n".join(partes)
 
 

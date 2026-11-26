@@ -77,7 +77,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             "memory/orquestacion-economica.md",
             "memory/aprendizaje-olas.md",
             "registro de pruebas y plan activo",
-            "estado de olas y acciones de Alex",
+            "estado de olas y acciones de Maggasukha",
         ),
         "sin_alex": (
             "leer, verificar y proponer",
@@ -122,7 +122,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             "memory/orquestacion-economica.md",
             "memory/aprendizaje-olas.md",
             "registro de pruebas y estado de olas",
-            "acciones de Alex y avisos pendientes",
+            "acciones de Maggasukha y avisos pendientes",
         ),
         "sin_alex": (
             "vigilar salud, colas y capacidad",
@@ -166,7 +166,7 @@ _FICHAS: Dict[str, Dict[str, Any]] = {
             "identidad Trinity Liquid Crystal y design system",
             "memory/orquestacion-economica.md",
             "registro de pruebas y estado de olas",
-            "acciones de Alex y encargos de diseño",
+            "acciones de Maggasukha y encargos de diseño",
         ),
         "sin_alex": (
             "preparar borradores, piezas y fichas",

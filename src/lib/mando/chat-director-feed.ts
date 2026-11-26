@@ -283,7 +283,7 @@ const NOMBRES_CORTOS: Record<string, string> = {
 /** Nombre corto de un autor del feed para un chip. */
 export function nombreDeAutor(de: string): string {
     if (de === "director-presidente") return "Director presidente";
-    if (de === "alex") return "Alex";
+    if (de === "alex") return "Maggasukha";
     return NOMBRES_CORTOS[de] ?? de;
 }
 

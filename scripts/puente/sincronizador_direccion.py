@@ -458,7 +458,7 @@ AYUDA_ORDENES = (
     "Órdenes que entiendo: «estado», «busca más capacidad», «pausa el enjambre», "
     "«reanuda el enjambre», «lanza la cola <nombre>», «prioriza <tarea> a <n>», "
     "«reabre <tarea>», «escala <tarea> a <motor>», «archiva los worktrees», "
-    "«compila», «apunta: <texto>». Lo reservado a Alex (publicar, claves, aceptar en su "
+    "«compila», «apunta: <texto>». Lo reservado a Maggasukha (publicar, claves, aceptar en su "
     "nombre, cerrar apps) no se ejecuta desde un canal."
 )
 
@@ -499,9 +499,9 @@ def interpretar_orden_director(texto: str) -> Dict[str, Any]:
         if re.search(patron, t):
             try:
                 import mcp_director_ordenes as O
-                motivo = O.RESERVADAS.get(clave, "es de Alex")
+                motivo = O.RESERVADAS.get(clave, "es de Maggasukha")
             except Exception:  # noqa: BLE001
-                motivo = "es de Alex"
+                motivo = "es de Maggasukha"
             return {"tipo": "reservada", "orden": clave, "motivo": motivo}
     if re.search(r"\b(busca|buscar|consigue|trae|necesito)\b.*\bcapacidad\b", t) or "mas agentes" in t:
         return {"tipo": "orden", "orden": "buscar_capacidad", "argumentos": {"aplicar": False}}
@@ -567,7 +567,7 @@ def atender_orden_director(
     if tipo == "ayuda":
         return AYUDA_ORDENES
     if tipo == "reservada":
-        return "esto es de Alex: %s" % plan.get("motivo")
+        return "esto es de Maggasukha: %s" % plan.get("motivo")
     if tipo == "estado":
         try:
             return str((estado_fn or _estado_por_defecto)())
@@ -578,7 +578,7 @@ def atender_orden_director(
         ejecutar_fn = O.ejecutar
     try:
         return str(ejecutar_fn(plan["orden"], plan.get("argumentos") or {}, quien,
-                               "orden de Alex por %s/%s" % (canal, medio),
+                               "orden de Maggasukha por %s/%s" % (canal, medio),
                                canal=canal, medio=medio))
     except Exception as e:  # noqa: BLE001
         return "No pude ejecutar «%s»: %s" % (plan.get("orden"), e)
@@ -1272,10 +1272,10 @@ def _prefijo_origen_hermes(reg: Dict[str, Any], texto_limpio: str) -> str:
     rol = str(reg.get("rol") or "").strip().lower()
     if rol == "alex" or de == "alex":
         if canal in _ETIQUETAS_CANAL:
-            return f"[{_ETIQUETAS_CANAL[canal]} · Alex] "
+            return f"[{_ETIQUETAS_CANAL[canal]} · Maggasukha] "
         if canal == "telegram":
-            return "[Telegram · Alex] "
-        return "[MetaGenesis · Alex] "
+            return "[Telegram · Maggasukha] "
+        return "[MetaGenesis · Maggasukha] "
     if de == "telegram" or canal == "telegram":
         return "[Telegram] "
     etiqueta = _ETIQUETAS_CANAL.get(de) or _ETIQUETAS_CANAL.get(canal) or str(reg.get("de") or "MetaGenesis")
@@ -1815,7 +1815,7 @@ def _etiqueta_origen(r: Dict[str, Any]) -> str:
     de = str(r.get("de") or "").strip().lower()
     canal = str(r.get("canal") or "").strip().lower()
     if de == "alex":
-        return f"Alex · {_ETIQUETAS_CANAL.get(canal, canal or 'MetaGenesis')}"
+        return f"Maggasukha · {_ETIQUETAS_CANAL.get(canal, canal or 'MetaGenesis')}"
     return _ETIQUETAS_CANAL.get(de) or _ETIQUETAS_CANAL.get(canal) or (r.get("de") or "Dirección")
 
 

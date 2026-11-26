@@ -99,7 +99,7 @@ class PruebasOrdenes(unittest.TestCase):
         for nombre, motivo in O.RESERVADAS.items():
             with self.subTest(orden=nombre):
                 texto = self._ejecutar(nombre, {})
-                self.assertEqual(texto, "esto es de Alex: %s" % motivo)
+                self.assertEqual(texto, "esto es de Maggasukha: %s" % motivo)
                 self.assertNotIn(nombre, self.llamadas)
 
     def test_registro_jsonl_con_quien_canal_medio_orden_y_resultado(self):
@@ -133,7 +133,7 @@ class PruebasOrdenes(unittest.TestCase):
             "jsonrpc": "2.0", "id": 2, "method": "tools/call",
             "params": {"name": "metagenesis_orden", "arguments": {
                 "orden": "cerrar_apps", "argumentos": {}, "quien": "claude", "motivo": "prueba"}}})
-        self.assertIn("esto es de Alex", respuesta["result"]["content"][0]["text"])
+        self.assertIn("esto es de Maggasukha", respuesta["result"]["content"][0]["text"])
 
     def test_la_puerta_del_presidente_incluye_la_orden(self):
         import motores_director as M

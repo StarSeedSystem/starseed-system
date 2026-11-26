@@ -38,7 +38,7 @@ class PruebasMotorComun(unittest.TestCase):
             "quita la pausa de publicación", canal="audiovisual", medio="telegram",
             ejecutar_fn=lambda *a, **k: llamadas.append(a) or "NO",
         )
-        self.assertIn("esto es de Alex", r)
+        self.assertIn("esto es de Maggasukha", r)
         self.assertEqual(llamadas, [])
 
     def test_atender_usa_la_puerta_con_canal_y_medio(self):

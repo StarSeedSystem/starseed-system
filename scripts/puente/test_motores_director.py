@@ -153,16 +153,16 @@ class TestPromptDirector(unittest.TestCase):
         self.assertIn("no escribes código", p)
         self.assertIn("Contexto:", p)
         self.assertIn("contexto breve", p)
-        self.assertIn("Alex: ¿qué hay?", p)
+        self.assertIn("Maggasukha: ¿qué hay?", p)
         self.assertIn("Dirección: tres tareas", p)
-        self.assertIn("Pregunta de Alex: ¿y ahora?", p)
+        self.assertIn("Pregunta de Maggasukha: ¿y ahora?", p)
 
     def test_recorta_contexto_y_historial(self):
         historial = [{"rol": "alex", "texto": f"t{i}"} for i in range(20)]
         p = M.prompt_director("p", historial, "x" * 20000)
         self.assertLessEqual(len(p), 20000 + 5000)
-        self.assertIn("Alex: t8", p)
-        self.assertNotIn("Alex: t7\n", p)
+        self.assertIn("Maggasukha: t8", p)
+        self.assertNotIn("Maggasukha: t7\n", p)
 
 
 AVISO_PAUSA = (

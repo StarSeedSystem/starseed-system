@@ -401,7 +401,7 @@ def _anotar_descarte(estado, sesion, raiz=None):
     director_chat.publicar(
         "Turno perdido de la sesión de Hermes (%s) descartado solo: era de solo lectura "
         "(un resumen periódico) y la pausa vino de un reinicio de la pasarela. La sesión "
-        "sigue con su contexto; no se le pide nada a Alex." % sesion,
+        "sigue con su contexto; no se le pide nada a Maggasukha." % sesion,
         de="cartero",
         rol="sistema",
         tipo="aviso",

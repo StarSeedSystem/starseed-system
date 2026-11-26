@@ -144,10 +144,10 @@ PUEDES_ACTUAR = (
     "`python3 scripts/puente/pruebas_malla.py listar|siguiente|empezar|recoger|evaluar|cerrar|informe`; registros de los "
     "tres aparatos de una prueba (Mac, Maggabox y tableta): `python3 scripts/puente/pruebas_malla.py recoger <id> "
     "[--captura]` (tú no usas ssh directo: está vetado); el CI: `gh run list -L 5` y `gh run view <id> --log-failed`; "
-    "avisar a Alex (canal principal y Telegram a la vez, sin A1 "
+    "avisar a Maggasukha (canal principal y Telegram a la vez, sin A1 "
     "ni otra cuenta): `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal principal --de "
     "\"Director presidente (MetaGenesis)\" --origen metagenesis --texto \"…\"`. Lo que puedas comprobar, compruébalo y di "
-    "lo que viste; no preguntes si debes comprobarlo. Solo Alex enciende permisos, acepta en sus aparatos e instala."
+    "lo que viste; no preguntes si debes comprobarlo. Solo Maggasukha enciende permisos, acepta en sus aparatos e instala."
 )
 
 
@@ -164,6 +164,14 @@ def marcar_motor(prompt, motor):
             "la sesión de Claude en Cowork, no tuyas; si te preguntan qué motor eres, di este.\n\n" % nombre) + (prompt or "")
 
 
+#: (DIR1125AG, 25-11) Lo ha pedido muchas veces: su nombre es Maggasukha en todos los canales de MetaGenesis.
+NOMBRE_PERSONA = "Maggasukha"
+IDENTIDAD_PERSONA = (
+    "La persona a la que sirves se llama Maggasukha: llámala siempre Maggasukha, nunca «Alex» "
+    "(en textos antiguos «Alex» es la misma persona), en todos los canales, informes y mensajes."
+)
+
+
 def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
     """PURA. El prompt del presidente: reglas, contexto del proyecto y el hilo de dirección."""
     partes = [
@@ -172,6 +180,7 @@ def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
         "los demás directores cuando venga al caso.",
         "Reglas: no escribes código (lo escribe el enjambre tarea a tarea); propones olas, "
         "verificas puertas y decides rumbo. Si no sabes algo, dilo.",
+        IDENTIDAD_PERSONA,
         PUEDES_ACTUAR,
     ]
     if contexto:
@@ -179,12 +188,12 @@ def prompt_presidente(pregunta, hilo, contexto="", rol_texto=None):
     if hilo:
         lineas = []
         for r in hilo:
-            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            quien = "Maggasukha" if r.get("rol") == "alex" else (r.get("de") or "director")
             marca = " (síntesis)" if r.get("sintesis") else ""
             tipo = r.get("tipo") or "mensaje"
             lineas.append("[%s · %s%s] %s" % (quien, tipo, marca, (r.get("texto") or "")[:1500]))
         partes.append("Hilo de dirección (lo más reciente al final):\n" + "\n".join(lineas))
-    partes.append("Mensaje de Alex al Director presidente: " + (pregunta or ""))
+    partes.append("Mensaje de Maggasukha al Director presidente: " + (pregunta or ""))
     return "\n\n".join(partes)
 
 
@@ -723,6 +732,7 @@ def prompt_revisar_plan(encargo: Dict[str, Any], hilo: List[Dict[str, Any]], con
     frentes_info = encargo.get("frentes_str", "")
     partes = [
         "Eres el Director presidente de Genesis (StarSeed OS).",
+        IDENTIDAD_PERSONA,
         "Recibes un nuevo encargo desde el A1 (Telegram) y debes revisar su plan.",
         "",
         f"Encargo: {encargo.get('encargo_id', '?')} — «{encargo.get('titulo', '?')}»",
@@ -748,7 +758,7 @@ def prompt_revisar_plan(encargo: Dict[str, Any], hilo: List[Dict[str, Any]], con
     if hilo:
         partes.append("Hilo de dirección reciente:")
         for r in hilo[-5:]:
-            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            quien = "Maggasukha" if r.get("rol") == "alex" else (r.get("de") or "director")
             partes.append(f"  [{quien}] {(r.get('texto') or '')[:200]}")
     partes.append("\nDevuelve SOLO el JSON del plan mejorado:")
     return "\n".join(partes)
@@ -784,6 +794,7 @@ def prompt_entregable_2d3d(mensaje: Dict[str, Any], hilo: List[Dict[str, Any]], 
     texto = mensaje.get("texto", "")
     partes = [
         "Eres el Director presidente de Genesis (StarSeed OS) en la Mac.",
+        IDENTIDAD_PERSONA,
         "Recibes una solicitud de entregable 2D/3D (Blender, HyperFrames, video) para producir en esta Mac.",
         "",
         f"Solicitud: {texto}",
@@ -796,7 +807,7 @@ def prompt_entregable_2d3d(mensaje: Dict[str, Any], hilo: List[Dict[str, Any]], 
     if hilo:
         partes.append("Hilo de dirección reciente:")
         for r in hilo[-5:]:
-            quien = "Alex" if r.get("rol") == "alex" else (r.get("de") or "director")
+            quien = "Maggasukha" if r.get("rol") == "alex" else (r.get("de") or "director")
             partes.append(f"  [{quien}] {(r.get('texto') or '')[:200]}")
     return "\n".join(partes)
 

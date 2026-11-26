@@ -1539,7 +1539,7 @@ def _atender_orden_director_a1(texto: str, enviar_fn=None, estado_fn=None) -> Op
     if tipo == "ayuda":
         return S.AYUDA_ORDENES
     if tipo == "reservada":
-        return "esto es de Alex: %s" % plan.get("motivo")
+        return "esto es de Maggasukha: %s" % plan.get("motivo")
     if tipo == "estado":
         estado = (estado_fn or _estado_de_la_mac)()
         if estado:
@@ -1547,7 +1547,7 @@ def _atender_orden_director_a1(texto: str, enviar_fn=None, estado_fn=None) -> Op
         local = texto_estado(leer_json(COLA, []), leer_json(ESTADO, {}).get("notebooklm", {}))
         return local + "\n\nLa Mac no responde; este es el estado del A1."
     payload = {"orden": plan["orden"], "argumentos": plan.get("argumentos") or {},
-               "quien": "alex", "motivo": "orden de Alex por audiovisual/a1",
+               "quien": "alex", "motivo": "orden de Maggasukha por audiovisual/a1",
                "canal": "audiovisual", "medio": "a1"}
     r = enviar_orden_a_mac(payload, enviar_fn=enviar_fn)
     if r.get("ok"):
@@ -1828,7 +1828,7 @@ def _comando_higgsfield_aprobar(pid: str, *, subir_a_drive=None) -> None:
     if propuesta is None:
         decir(f"Propuesta {pid} no encontrada.")
         return
-    aprobacion = hfa.aprobar(propuesta, "Alex")
+    aprobacion = hfa.aprobar(propuesta, "Maggasukha")
     _hfa_guardar_aprobacion(aprobacion)
     decir(f"Aprobada {pid}. Ejecutando…")
     resultado = hfa.ejecutar(
@@ -1859,7 +1859,7 @@ def _comando_higgsfield_rechazar(pid: str) -> None:
     if propuesta is None:
         decir(f"Propuesta {pid} no encontrada.")
         return
-    aprobacion = hfa.rechazar(propuesta, "Alex", motivo="rechazada por Alex")
+    aprobacion = hfa.rechazar(propuesta, "Maggasukha", motivo="rechazada por Maggasukha")
     _hfa_guardar_aprobacion(aprobacion)
     decir(f"Rechazada {pid}.")
 
