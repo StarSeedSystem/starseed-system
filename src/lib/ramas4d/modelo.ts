@@ -191,12 +191,35 @@ export function aplicarEvento(grafo: Grafo4D, evento: Evento): boolean {
   if (evento.es_arista) {
     return false;
   }
-  const nodo = grafo.nodos.get(evento.objetivo_id);
-  if (!nodo) {
+  const nodoExistente = grafo.nodos.get(evento.objetivo_id);
+  
+  if (evento.tipo === 'crear') {
+    if (nodoExistente) {
+      return false;
+    }
+    const nuevoNodo: Nodo = {
+      id: evento.objetivo_id,
+      tipo: 'archivo',
+      titulo: evento.objetivo_id,
+      formato: 'texto',
+      ref: `/${evento.objetivo_id}`,
+      alcance: evento.alcance,
+      dueno: 'sistema',
+      capas: [],
+      t_creado: evento.t,
+      t_actividad: evento.t,
+      peso: 1.0,
+      etiquetas: [],
+    };
+    grafo.nodos.set(evento.objetivo_id, nuevoNodo);
+    return true;
+  }
+  
+  if (!nodoExistente) {
     return false;
   }
-  nodo.t_actividad = evento.t;
-  nodo.peso = Math.min(2.0, nodo.peso + 0.1);
+  nodoExistente.t_actividad = evento.t;
+  nodoExistente.peso = 0.6;
   return true;
 }
 
