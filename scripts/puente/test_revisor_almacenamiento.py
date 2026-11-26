@@ -111,3 +111,83 @@ def test_ruta_permitida_acepta_solo_la_lista_cerrada():
     assert R.ruta_permitida(os.path.join(caches, "electron-updater"), HOME, RAIZ_REPO, RAIZ_MEMORIA)
     assert not R.ruta_permitida(RAIZ_REPO, HOME, RAIZ_REPO, RAIZ_MEMORIA)
     assert not R.ruta_permitida(os.path.join(HOME, ".ssh"), HOME, RAIZ_REPO, RAIZ_MEMORIA)
+
+
+def test_debe_avisar_una_vez_al_dia_y_por_umbral():
+    lleno = [{"discoLibreGb": 50, "discoTotalGb": 100}]
+    bajo = [{"discoLibreGb": 5, "discoTotalGb": 100}]
+    assert R.debe_avisar(2.0, lleno, AHORA, 0)
+    assert not R.debe_avisar(0.5, lleno, AHORA, 0)
+    assert R.debe_avisar(0.5, bajo, AHORA, 0)
+    assert not R.debe_avisar(2.0, bajo, AHORA, AHORA - 3600)
+    assert R.debe_avisar(2.0, bajo, AHORA, AHORA - 25 * 3600)
+
+
+def test_aprobacion_exige_alex_y_ruta_cerrada():
+    caches = os.path.join(HOME, "Library", "Caches")
+    permitido = {"id": "a" * 12, "ruta": os.path.join(caches, "go-build"), "accion": "borrar", "gb": 2.0}
+    fuera = {"id": "b" * 12, "ruta": os.path.join(HOME, ".ssh"), "accion": "borrar", "gb": 2.0}
+    assert R.aprobacion_valida(permitido["id"], [{"id": permitido["id"], "aprobado_por": "alex"}], [permitido], HOME, RAIZ_REPO, RAIZ_MEMORIA) == permitido
+    assert R.aprobacion_valida(permitido["id"], [{"id": permitido["id"], "aprobado_por": "otro"}], [permitido], HOME, RAIZ_REPO, RAIZ_MEMORIA) is None
+    assert R.aprobacion_valida(fuera["id"], [{"id": fuera["id"], "aprobado_por": "alex"}], [fuera], HOME, RAIZ_REPO, RAIZ_MEMORIA) is None
+    assert R.aprobacion_valida("c" * 12, [{"id": "c" * 12, "aprobado_por": "alex"}], [permitido], HOME, RAIZ_REPO, RAIZ_MEMORIA) is None
+
+
+def test_proponer_escribe_y_avisa_una_vez_al_dia():
+    caches = os.path.join(HOME, "Library", "Caches")
+    go_build = os.path.join(caches, "go-build")
+    disco = DiscoFalso([go_build], tamanos={go_build: 2 * 1024 ** 3})
+    escritos, publicados = {}, []
+
+    def leer(ruta):
+        return escritos.get(ruta)
+
+    def escribir(ruta, datos):
+        escritos[ruta] = datos
+
+    res = R.proponer(AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, disco.existe, disco.tamano,
+                     disco.mtime, disco.listar, leer, escribir, publicados.append)
+    assert res == {"total_gb": 2.0, "candidatos": 1, "avisado": True}
+    assert escritos[R.RUTA_PROPUESTA]["total_gb"] == 2.0
+    assert len(publicados) == 1 and "propuestas" in publicados[0]
+
+    res2 = R.proponer(AHORA + 3600, HOME, RAIZ_REPO, RAIZ_MEMORIA, disco.existe, disco.tamano,
+                      disco.mtime, disco.listar, leer, escribir, publicados.append)
+    assert res2["avisado"] is False and len(publicados) == 1
+
+
+def test_aplicar_solo_lo_aprobado_y_no_borra_sin_copia():
+    caches = os.path.join(HOME, "Library", "Caches")
+    go_build = os.path.join(caches, "go-build")
+    logs = os.path.join(RAIZ_MEMORIA, "olas", "logs")
+    anterior = os.path.join(RAIZ_REPO, ".next-anterior")
+    borrar = {"id": "a" * 12, "ruta": go_build, "accion": "borrar", "gb": 2.0, "regenerable": True, "otra_copia": False}
+    mover = {"id": "b" * 12, "ruta": logs, "accion": "trasladar:maggabox", "gb": 3.0, "regenerable": False, "otra_copia": "maggabox"}
+    inseguro = {"id": "c" * 12, "ruta": anterior, "accion": "borrar", "gb": 4.0, "regenerable": False, "otra_copia": False}
+    archivos = {R.RUTA_PROPUESTA: {"candidatos": [borrar, mover, inseguro]}}
+    anotadas, borrados = [], []
+
+    def leer(ruta):
+        return archivos.get(ruta)
+
+    def anotar(ruta, linea):
+        anotadas.append((ruta, linea))
+
+    sin_aprobar = R.aplicar(borrar["id"], AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, leer, anotar, borrados.append, lambda r: {"verificado": False})
+    assert sin_aprobar["aplicado"] is False and borrados == [] and anotadas == []
+
+    archivos[R.RUTA_APROBADAS] = [{"id": borrar["id"], "aprobado_por": "alex"}]
+    res = R.aplicar(borrar["id"], AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, leer, anotar, borrados.append, lambda r: {"verificado": False})
+    assert res["aplicado"] is True and borrados == [go_build]
+    assert anotadas[0][0] == R.RUTA_APLICADAS and anotadas[0][1]["id"] == borrar["id"]
+
+    archivos[R.RUTA_APROBADAS] = [{"id": inseguro["id"], "aprobado_por": "alex"}]
+    res = R.aplicar(inseguro["id"], AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, leer, anotar, borrados.append, lambda r: {"verificado": False})
+    assert res["aplicado"] is False and borrados == [go_build] and len(anotadas) == 1
+
+    archivos[R.RUTA_APROBADAS] = [{"id": mover["id"], "aprobado_por": "alex"}]
+    res = R.aplicar(mover["id"], AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, leer, anotar, borrados.append, lambda r: {"verificado": False, "estado": "error_verificacion"})
+    assert res["aplicado"] is False and len(anotadas) == 1
+
+    res = R.aplicar(mover["id"], AHORA, HOME, RAIZ_REPO, RAIZ_MEMORIA, leer, anotar, borrados.append, lambda r: {"verificado": True, "estado": "movido"})
+    assert res["aplicado"] is True and len(anotadas) == 2 and borrados == [go_build]
