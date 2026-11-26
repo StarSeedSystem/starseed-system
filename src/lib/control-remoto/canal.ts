@@ -362,7 +362,7 @@ export async function mandarOrden(para: string, nombre: string, args: Args = {},
 export async function presentarmeA(para: string, nombre: string, aparato?: string): Promise<RespuestaOrden> {
     const { spkiDelAparato } = await import("@/lib/chats-genesis/firma-aparato");
     const spki = await spkiDelAparato();
-    if (!spki) return { type: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" };
+    if (!spki) return { tipo: "respuesta", nonce: "", ok: false, motivo: "sin-aparato" };
     const args: Record<string, unknown> = { spki, nombre, neurona: await neuronaPropia() };
     if (typeof aparato === "string" && aparato) args.aparato = aparato;
     const r = await mandarOrden(para, "presentarse", args);
