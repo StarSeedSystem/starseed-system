@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usarConfiguracionDeNeurona } from "../adopcion-neurona";
 import { adoptarNeurona, leerAliasDispositivo } from "@/lib/network/identidad-dispositivo";
@@ -99,6 +100,7 @@ describe("aparato-nuevo NEU1125A - adopción con huella nativa", () => {
   });
 
   it("sin huella guardada (versión antigua) → adopta y guarda huella actual", async () => {
+    mockPuente.huellaAparatoVerificar.mockResolvedValue({ ok: false });
     mockPuente.huellaAparatoActual.mockResolvedValue({ ok: true, valor: null });
     mockPuente.huellaAparatoGenerar.mockResolvedValue({ ok: true, valor: { huella: "nueva-huella", id_guardado: "device-1", creado: "123" } });
 
