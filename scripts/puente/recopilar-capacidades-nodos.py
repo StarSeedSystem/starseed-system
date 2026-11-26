@@ -82,6 +82,15 @@ def _ficha_maggabox(sonda: Any, **medidas: Any) -> Dict[str, Any]:
     sonda = sonda if isinstance(sonda, dict) else {}
     carpetas = sonda.get("carpetas_starSeed_almacen")
     almacen = ["~/StarSeed-almacen/%s" % n for n in sorted(carpetas)] if isinstance(carpetas, dict) else []
+    srv = sonda.get("srv_starseed_almacen")
+    if isinstance(srv, dict):
+        if srv.get("conectado"):
+            desde = srv.get("desde", "desconocido")
+            libre = srv.get("libreGb", 0)
+            almacen.append(f"Maggabox · almacén USB (btrfs) · libre {libre} GB · desde {desde}")
+        else:
+            desde = srv.get("desde", "desconocido")
+            almacen.append(f"Maggabox · almacén USB (btrfs) · desconectado desde {desde}")
     return _ficha("maggabox", "linux", sonda, nucleos=sonda.get("cpu"), ram=sonda.get("ramLibreMb"),
                   cpu=0, disco=sonda.get("discoLibreGb"), almacen=almacen, capas=sonda.get("capas"), **medidas)
 

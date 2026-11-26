@@ -102,9 +102,37 @@ class TestSondaMaggaBox:
         assert "carpetas_starSeed_almacen" in result
         assert isinstance(result["carpetas_starSeed_almacen"], dict)
 
+    def test_sonda_mide_srv_starseed_almacen(self, tmp_path, monkeypatch):
+        from sonda_maggabox import sonda_maggabox
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        df_output = "Filesystem     1G-blocks   Used Available Use% Mounted on\n/srv/starseed-almacen  200G   50G  150G  25% /srv/starseed-almacen"
+
+        def mock_run(argv: List[str], *args, **kwargs) -> MockCompletedProcess:
+            if "df" in argv and "-BG" in argv:
+                if "/srv/starseed-almacen" in str(argv):
+                    return MockCompletedProcess(0, stdout=df_output)
+                if "df" in argv and "-BG" in argv:
+                    return MockCompletedProcess(0, stdout="Filesystem     1G-blocks   Used Available Use% Mounted on\n/dev/sda1       500G   82G   418G   17% /")
+            return MockCompletedProcess(0, stdout="")
+
+        result = sonda_maggabox(ssh_fn=mock_run)
+        assert result["discoLibreSrvGb"] == 150
+
+    def test_sonda_almacen_desconectado(self, tmp_path, monkeypatch):
+        from sonda_maggabox import sonda_maggabox
+
+        df_output = "Filesystem     1G-blocks   Used Available Use% Mounted on\n/dev/sda1       500G   82G   418G   17% /"
+
+        def mock_run(argv: List[str], *args, **kwargs) -> MockCompletedProcess:
+            if "df" in argv and "-BG" in argv:
+                if "/srv/starseed-almacen" in str(argv):
+                    return MockCompletedProcess(1, stdout="")
+                if "df" in argv and "-BG" in argv:
+                    return MockCompletedProcess(0, stdout=df_output)
+            return MockCompletedProcess(0, stdout="")
+
+        result = sonda_maggabox(ssh_fn=mock_run)
+        assert result["discoLibreSrvGb"] is None
 
 
 def test_dir1125o_rutas_de_ssh_expandidas():

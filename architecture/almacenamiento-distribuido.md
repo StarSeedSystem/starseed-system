@@ -7,7 +7,7 @@ Regla fundamental: `memory/orquestacion-economica.md` §24. Este archivo es el c
 | Medio | Libre / total | Para qué es | Cómo se llega |
 |---|---|---|---|
 | Mac (neurona de desarrollo) | ~10–12 / 228 GB | repo completo, memorias, servicios de MetaGenesis, enjambre local | local |
-| Maggabox (neurona nodo, misma red) | 405 / 453 GB | espejo de GitHub, versiones, respaldos, pesados, capas (`~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas_privadas,capas_publicas,nube}`) | ssh `maggasukha@starseed-nodo-1.local` con `~/.ssh/starseed_nodo1`, `-o AddressFamily=inet`, known_hosts `~/.ssh/known_hosts_starseed_nodo` (rutas expandidas); y las capas de capacidades de StarSeed OS |
+| Maggabox (neurona nodo, misma red) | 405 / 453 GB | espejo de GitHub, versiones, respaldos, pesados, capas (`~/StarSeed-almacen/{espejo,versiones,respaldos,pesados,capas_privadas,capas_publicas,nube}`) y `/srv/starseed-almacen` (sonda Maggabox) | ssh `maggasukha@starseed-nodo-1.local` con `~/.ssh/starseed_nodo1`, `-o AddressFamily=inet`, known_hosts `~/.ssh/known_hosts_starseed_nodo` (rutas expandidas); y las capas de capacidades de StarSeed OS. Mostrado en medidor como «Maggabox · almacén USB (btrfs)», distinto del disco interno. Si no está montado dice «desconectado» y desde cuándo, nunca 0 GB inventados. |
 | A1 de Oracle (nodo de MetaGenesis) | 9,6 GB libres | orquestador del préstamo, guardián de main | `scripts/puente/oracle_nodo.py` |
 | Google Drive | StarSeed ocupa ~4 GB de 2 TB | memoria y contextos de las neuronas (`My Drive/StarSeed_Memory_Root`) | carpeta montada en `~/Library/CloudStorage/GoogleDrive-<cuenta>` (la sin fecha) |
 

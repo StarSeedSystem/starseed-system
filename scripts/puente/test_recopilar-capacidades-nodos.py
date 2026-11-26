@@ -84,6 +84,25 @@ class Recopilar(unittest.TestCase):
         self.assertEqual(n["almacen"], ["~/StarSeed-almacen/espejo", "~/StarSeed-almacen/respaldos"])
         self.assertEqual(n["capas"], [])
 
+    def test_maggabox_con_srv_starseed_almacen_conectado(self):
+        sonda = {"discoLibreGb": 418, "ramLibreMb": 220, "cpu": 4, "contenedores": False,
+                 "carpetas_starSeed_almacen": {"espejo": 12, "respaldos": 3},
+                 "srv_starseed_almacen": {"conectado": True, "libreGb": 150, "desde": "2026-11-20"}}
+        n = self.nodos(sonda=sonda)[1]
+        any_conectado = any("Maggabox · almacén USB (btrfs)" in entry for entry in n["almacen"])
+        self.assertTrue(any_conectado, f"Ninguna entrada de almacen contiene 'Maggabox · almacén USB (btrfs)': {n['almacen']}")
+        self.assertEqual(n["almacen"][0], "~/StarSeed-almacen/espejo")
+
+    def test_maggabox_con_srv_starseed_almacen_desconectado(self):
+        sonda = {"discoLibreGb": 418, "ramLibreMb": 220, "cpu": 4, "contenedores": False,
+                 "carpetas_starSeed_almacen": {"espejo": 12, "respaldos": 3},
+                 "srv_starseed_almacen": {"conectado": False, "desde": "2026-11-18"}}
+        n = self.nodos(sonda=sonda)[1]
+        any_desconectado = any("desconectado" in entry for entry in n["almacen"])
+        self.assertTrue(any_desconectado, f"Ninguna entrada de almacen contiene 'desconectado': {n['almacen']}")
+        any_fecha = any("2026-11-18" in entry for entry in n["almacen"])
+        self.assertTrue(any_fecha, f"Ninguna entrada de almacen contiene la fecha 2026-11-18: {n['almacen']}")
+
     def test_los_tres_nodos_existen_aunque_falte_todo(self):
         nodos = self.nodos()
         self.assertEqual([n["nodoId"] for n in nodos], ["mac-local", "maggabox", "a1-oracle"])
