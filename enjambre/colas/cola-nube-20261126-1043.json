@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-qa en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-qa/README.md"
+   ],
+   "depende": [],
+   "medio": null,
+   "t_reasignada": 1795469895.804461,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 41,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-coop-qa-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:16"
+   },
+   "id": "CAP-skill-coop-qa-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-qa para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-qa-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-qa-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-055912.json": [
+   "CAP-skill-coop-qa-usob"
+  ]
+ }
+}
