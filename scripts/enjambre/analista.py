@@ -139,6 +139,20 @@ LENTES = [
             "¿Qué confunde Cuenta (privada) con Perfil (público), o voto con popularidad?",
         ],
     },
+    # (DIR1125AA) Alex, 25-11: «otra pasada de diseño y mejora de características y funciones útiles de cada página
+    # y sección … y arreglar todo lo que aún no es funcional».
+    {
+        "id": "funcional-caracteristicas",
+        "nombre": "Funcionamiento real y características",
+        "foco": "lo que no funciona de verdad y lo que falta para superar a las mejores redes sociales y sistemas operativos",
+        "preguntas": [
+            "¿Qué botón, opción o ruta no hace nada, falla o enseña datos de ejemplo en vez de los reales?",
+            "¿Qué función está integrada pero ninguna pantalla la usa (integrado no es aplicado)?",
+            "¿Qué flujo se corta a medias: crear, editar, guardar, compartir con permisos públicos o privados, sincronizar entre neuronas?",
+            "¿Qué opción o formato falta para que esta área supere a las mejores redes sociales y sistemas operativos (personalización por elemento, formatos libres, malla P2P multicapa)?",
+            "¿Dónde falta personalización ilimitada, personal y grupal, y configuración de nodos públicos y privados (perfil, neurona, página, grupo, comunidad, evento, nodo), con estética creativa, intuitiva, equilibrada y coherente con los fundamentos?",
+        ],
+    },
 ]
 IDS_LENTES = [l["id"] for l in LENTES]
 # La lente de seguridad describe agujeros: sus informes no salen de la Mac.

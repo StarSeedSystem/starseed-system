@@ -14,7 +14,7 @@
 
 import { AREAS_TRABAJO } from "@/lib/mando/areas";
 
-/** Las seis lentes (copia de `LENTES` en scripts/enjambre/analista.py: una prueba vigila que no se separen). */
+/** Las siete lentes (copia de `LENTES` en scripts/enjambre/analista.py: una prueba vigila que no se separen). */
 export const LENTES_SUENOS = [
     { id: "arquitectura-deuda", nombre: "Arquitectura y deuda" },
     { id: "ux-accesibilidad-diseno", nombre: "UX y accesibilidad" },
@@ -22,6 +22,7 @@ export const LENTES_SUENOS = [
     { id: "seguridad-privacidad", nombre: "Seguridad (privada)" },
     { id: "pruebas-fiabilidad", nombre: "Pruebas y fiabilidad" },
     { id: "coherencia-triada", nombre: "Coherencia con la Tríada" },
+    { id: "funcional-caracteristicas", nombre: "Funcionamiento y características" }, // DIR1125AA
 ] as const;
 
 /** Áreas de la orquestación que no están en `AREAS_TRABAJO` (copia de `AREAS_EXTRA` de suenos_areas.py). */
