@@ -688,11 +688,12 @@ export function combinarCapacidades(
   ahora: number = Date.now(),
 ): NeuronCapabilities {
   const base: Record<string, unknown> = remotas && typeof remotas === "object" ? { ...remotas } : {};
+  const remotasCapabilities = (remotas?.capabilities as Record<string, unknown> | undefined);
   
   // NEU1126A: fusión de nombre por timestamp (nombreTs en capabilities)
-  const remotoNombreTs = typeof remotas?.capabilities?.nombreTs === "number" ? remotas.capabilities.nombreTs : 0;
+  const remotoNombreTs = typeof remotasCapabilities?.nombreTs === "number" ? remotasCapabilities.nombreTs : 0;
   const localNombreTs = typeof locales.nombreTs === "number" ? locales.nombreTs : 0;
-  const remotoName = typeof remotas?.capabilities?.name === "string" ? remotas.capabilities.name : 
+  const remotoName = typeof remotasCapabilities?.name === "string" ? remotasCapabilities.name : 
     (typeof remotas?.name === "string" ? remotas.name : undefined);
   const localName = typeof locales.name === "string" ? locales.name : undefined;
   
