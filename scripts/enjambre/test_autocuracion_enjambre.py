@@ -130,6 +130,14 @@ class CerradasEnDiscoTest(unittest.TestCase):
         self.assertEqual(set(enjambre.cerradas_en_disco(cada_s=3600, ruta=self.ruta)), {"A"})
         self.assertEqual(set(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)), {"A", "B"})
 
+    def test_rechazo_mecanico_no_cierra_la_tarea(self):
+        """A018C6A91: «rechazada» por no tocar archivos es reparable, no terminal: el
+        orquestador debe poder volver a correrla cuando el revisor la reescribe."""
+        self.escribir({"A018C6A91": {"estado": "rechazada",
+                                     "nota": "no toco NINGUNO de los 1 archivos que declaraba"},
+                       "DEC1": {"estado": "rechazada", "nota": "no cumple el contrato"}})
+        self.assertEqual(sorted(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)), ["DEC1"])
+
     def test_archivo_roto_no_lanza_y_conserva_lo_anterior(self):
         self.escribir({"A": {"estado": "commit"}})
         enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)
