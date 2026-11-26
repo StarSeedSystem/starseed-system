@@ -9,7 +9,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import tempfile
+import textwrap
 import unittest
 
 _RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -118,6 +121,126 @@ class FlujosValidos(unittest.TestCase):
             self.assertIn("PRODUCCION_WEBHOOK_SECRETO", codigos, nombre)
             self.assertIn("x-starseed-firma", codigos, nombre)
             self.assertIn("createHmac", codigos, nombre)
+
+
+_FAKE_N8N = textwrap.dedent(
+    """\
+    #!/usr/bin/env python3
+    import json, os, sys
+
+    estado_path = os.environ["FAKE_N8N_ESTADO"]
+    try:
+        with open(estado_path, encoding="utf-8") as f:
+            estado = json.load(f)
+    except FileNotFoundError:
+        estado = {}
+
+    args = sys.argv[1:]
+    comando = args[0] if args else ""
+
+    def valor(flag):
+        for i, a in enumerate(args):
+            if a == flag:
+                return args[i + 1]
+            if a.startswith(flag + "="):
+                return a.split("=", 1)[1]
+        return ""
+
+    if comando == "import:workflow":
+        entrada = valor("--input")
+        if "--separate" in args:
+            for nombre in sorted(os.listdir(entrada)):
+                if not nombre.endswith(".json"):
+                    continue
+                with open(os.path.join(entrada, nombre), encoding="utf-8") as f:
+                    flujo = json.load(f)
+                estado[flujo.get("id") or "nuevo-" + nombre] = flujo.get("name", "")
+        else:
+            with open(entrada, encoding="utf-8") as f:
+                flujos = json.load(f)
+            for flujo in flujos:
+                estado[flujo.get("id") or "nuevo-" + flujo.get("name", "")] = flujo.get("name", "")
+        with open(estado_path, "w", encoding="utf-8") as f:
+            json.dump(estado, f)
+    elif comando == "list:workflow" and "--onlyId" in args:
+        for identificador in estado:
+            print(identificador)
+    sys.exit(0)
+    """
+)
+
+
+class ArranqueIdempotente(unittest.TestCase):
+    """`arranque.sh` actualiza por id; reiniciar no debe duplicar flujos."""
+
+    ARRANQUE = os.path.join(_RAIZ, "deploy", "n8n-hf", "arranque.sh")
+
+    def _arrancar(self, flujos_dir, estado_path):
+        with tempfile.TemporaryDirectory() as bin_dir:
+            falso = os.path.join(bin_dir, "n8n")
+            with open(falso, "w", encoding="utf-8") as f:
+                f.write(_FAKE_N8N)
+            os.chmod(falso, 0o755)
+            entorno = dict(os.environ)
+            entorno["PATH"] = bin_dir + os.pathsep + entorno.get("PATH", "")
+            entorno["FLUJOS_DIR"] = flujos_dir
+            entorno["FAKE_N8N_ESTADO"] = estado_path
+            return subprocess.run(
+                ["sh", self.ARRANQUE], env=entorno, capture_output=True,
+                text=True, timeout=30,
+            )
+
+    def test_los_tres_flujos_llevan_un_id_estable_y_unico(self):
+        vistos = set()
+        for nombre in ("publicada", "pieza-lista", "revertida"):
+            with open(os.path.join(FLUJOS, "%s.json" % nombre), encoding="utf-8") as f:
+                flujo = json.load(f)
+            identificador = flujo.get("id")
+            self.assertIsInstance(identificador, str, nombre)
+            self.assertTrue(identificador, nombre)
+            self.assertNotIn(identificador, vistos, nombre)
+            vistos.add(identificador)
+
+    def test_dos_arranques_seguidos_no_duplican_los_flujos(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flujos = os.path.join(tmp, "flujos")
+            shutil.copytree(FLUJOS, flujos)
+            estado_path = os.path.join(tmp, "estado.json")
+            for _ in range(2):
+                r = self._arrancar(flujos, estado_path)
+                self.assertEqual(r.returncode, 0, r.stderr)
+            with open(estado_path, encoding="utf-8") as f:
+                estado = json.load(f)
+            self.assertEqual(len(estado), 3)
+
+    def test_un_flujo_sin_id_no_se_importa_para_no_duplicarlo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            flujos = os.path.join(tmp, "flujos")
+            shutil.copytree(FLUJOS, flujos)
+            ruta = os.path.join(flujos, "publicada.json")
+            with open(ruta, encoding="utf-8") as f:
+                flujo = json.load(f)
+            flujo.pop("id", None)
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump(flujo, f)
+            estado_path = os.path.join(tmp, "estado.json")
+            r = self._arrancar(flujos, estado_path)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertFalse(os.path.exists(estado_path))
+
+    def test_importa_la_carpeta_una_vez_no_archivo_a_archivo_con_separate(self):
+        with open(self.ARRANQUE, encoding="utf-8") as f:
+            guion = f.read()
+        self.assertIn('--separate --input="$FLUJOS_DIR"', guion)
+        self.assertNotIn('--input="$f"', guion)
+
+
+class CookieSegura(unittest.TestCase):
+    def test_la_cookie_de_sesion_exige_https(self):
+        with open(os.path.join(_RAIZ, "deploy", "n8n-hf", "Dockerfile"), encoding="utf-8") as f:
+            dockerfile = f.read()
+        self.assertNotIn("N8N_SECURE_COOKIE=false", dockerfile)
+        self.assertIn("N8N_SECURE_COOKIE=true", dockerfile)
 
 
 if __name__ == "__main__":

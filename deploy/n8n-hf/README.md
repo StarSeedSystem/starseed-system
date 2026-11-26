@@ -3,7 +3,10 @@
 Puente propio de producción (ola 1005B, contrato `architecture/director-produccion.md` §10).
 n8n Community corre en un Space **Docker privado**; los flujos viven versionados aquí
 (`flujos/*.json`) porque el disco gratuito del Space no persiste: `arranque.sh` los
-importa y activa en cada arranque.
+importa y activa en cada arranque. Cada flujo lleva un `id` estable, así que n8n hace
+upsert por id y reiniciar **actualiza** el flujo en vez de duplicarlo; un JSON sin `id`
+se omite para no crear copias nuevas en cada arranque. La cookie de sesión exige HTTPS
+(`N8N_SECURE_COOKIE=true`).
 
 ## Qué hace
 
