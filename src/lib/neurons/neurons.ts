@@ -459,6 +459,19 @@ function writePrefs(p: NeuronPrefs): void {
   } catch { /* */ }
 }
 
+/** Test helper: leer prefs (exportado solo para tests). */
+export function __testReadPrefs(): NeuronPrefs {
+  return readPrefs();
+}
+
+/** Test helper: escribir prefs (exportado solo para tests). */
+export function __testWritePrefs(p: NeuronPrefs): void {
+  writePrefs(p);
+}
+
+/** Alias para tests: leer prefs. */
+export { readPrefs as __readPrefsForTest, writePrefs as __writePrefsForTest };
+
 export function permissionsFor(deviceId: string): NeuronPermissions {
   const prefs = readPrefs();
   return { ...DEFAULT_PERMISSIONS, ...(prefs.permissions[deviceId] ?? {}) };
@@ -472,11 +485,46 @@ export function setPermission(deviceId: string, key: keyof NeuronPermissions, va
   void upsertRemote({ id: deviceId, permissions: permissionsFor(deviceId) });
 }
 
-export function setNeuronName(deviceId: string, name: string): void {
+export interface SetNeuronNameResult {
+  ok: boolean;
+  pending: boolean;
+  fallo?: FalloConsulta | null;
+}
+
+/**
+ * Establece el nombre de la neurona.
+ * - Guarda en prefs.names con timestamp (nombreTs) para UI inmediata.
+ * - Sube a Supabase con capabilities.nombreTs; el nombre gana por timestamp más reciente.
+ * - Devuelve { ok, pending, fallo }: ok=true si subió, pending=true si está en cola de reintento.
+ * - El aviso de éxito SOLO cuando ok=true; si pending, la UI muestra "pendiente de sincronizar".
+ */
+export async function setNeuronName(deviceId: string, name: string): Promise<SetNeuronNameResult> {
+  const limpio = name.trim().slice(0, 60);
+  const ahora = Date.now();
   const prefs = readPrefs();
-  prefs.names[deviceId] = name.trim();
+  // Guardar nombre local con timestamp para UI inmediata y reconciliación
+  prefs.names[deviceId] = limpio;
+  // Guardar timestamp aparte para saber cuándo se cambió localmente
+  (prefs as any).nombreTs = (prefs as any).nombreTs ?? {};
+  (prefs as any).nombreTs[deviceId] = ahora;
   writePrefs(prefs);
-  void upsertRemote({ id: deviceId, name: name.trim() });
+  // Subir con timestamp en capabilities para que gane por fecha en la fusión
+  const fallo = await upsertRemote({ 
+    id: deviceId, 
+    name: limpio,
+    capabilities: { nombreTs: ahora, name: limpio } as Partial<NeuronCapabilities>,
+  });
+  if (!fallo) {
+    // Confirmado: limpiar timestamp pendiente local
+    const prefs2 = readPrefs();
+    if ((prefs2 as any).nombreTs?.[deviceId] === ahora) {
+      delete (prefs2 as any).nombreTs[deviceId];
+      writePrefs(prefs2);
+    }
+    return { ok: true, pending: false, fallo: null };
+  }
+  // Fallo: queda pendiente; el próximo latido reintentará (fichaPendiente en latirUnaVez)
+  return { ok: false, pending: true, fallo };
 }
 
 /* ── (NEU1115G) Aparatos de la neurona: nombre propio y cambio de neurona ───────────────────────── */
@@ -624,9 +672,11 @@ async function getOwner(): Promise<string | null> {
 /**
  * Funde la ficha remota de una neurona con la de ESTE medio (puro, exportado para pruebas):
  *  · rasgos del aparato: gana el valor definido más nuevo (los `undefined`/vacíos no pisan);
+ *  · `name` + `nombreTs`: gana el nombre con timestamp más reciente (NEU1126A);
  *  · `medios`: unión por id, con el más reciente de cada uno (ver `fusionarMedios`);
  *  · (NEU1108A) `aparato`: un navegador nunca pisa la identidad que escribió la app nativa
  *    (`combinarAparato`); y la marca `fusionada` de la fila NUNCA la quita un medio (no la manda).
+ *  · (NEU1115G) `aparatos`: cada aparato escribe SOLO su entrada; se funden por id (gana la más nueva, lápidas incluidas).
  */
 export function combinarCapacidades(
   remotas: Record<string, unknown> | null | undefined,
@@ -634,8 +684,26 @@ export function combinarCapacidades(
   ahora: number = Date.now(),
 ): NeuronCapabilities {
   const base: Record<string, unknown> = remotas && typeof remotas === "object" ? { ...remotas } : {};
+  
+  // NEU1126A: fusión de nombre por timestamp (nombreTs en capabilities)
+  const remotoNombreTs = typeof remotas?.capabilities?.nombreTs === "number" ? remotas.capabilities.nombreTs : 0;
+  const localNombreTs = typeof locales.nombreTs === "number" ? locales.nombreTs : 0;
+  const remotoName = typeof remotas?.capabilities?.name === "string" ? remotas.capabilities.name : 
+    (typeof remotas?.name === "string" ? remotas.name : undefined);
+  const localName = typeof locales.name === "string" ? locales.name : undefined;
+  
+  if (remotoNombreTs > 0 || localNombreTs > 0) {
+    if (localNombreTs >= remotoNombreTs && localName) {
+      base.name = localName;
+      base.nombreTs = localNombreTs;
+    } else if (remotoNombreTs > localNombreTs && remotoName) {
+      base.name = remotoName;
+      base.nombreTs = remotoNombreTs;
+    }
+  }
+  
   for (const [k, v] of Object.entries(locales)) {
-    if (k === "medios" || k === "aparato" || k === "aparatos" || k === "fusionada") continue;
+    if (k === "medios" || k === "aparato" || k === "aparatos" || k === "fusionada" || k === "name" || k === "nombreTs") continue;
     if (v === undefined || v === null || v === "") continue;
     base[k] = v;
   }
@@ -1293,17 +1361,54 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
     });
     const prefs = readPrefs();
     const now = Date.now();
-    const out = data.map((row: any): Neuron => ({
-      id: String(row.id),
-      name: prefs.names[row.id] || String(row.name || "Dispositivo"),
-      kind: (row.kind as NeuronKind) || "other",
-      capabilities: row.capabilities ?? {},
-      permissions: { ...DEFAULT_PERMISSIONS, ...(row.permissions ?? {}), ...(prefs.permissions[row.id] ?? {}) },
-      last_seen_at: row.last_seen_at,
-      created_at: row.created_at,
-      online: row.last_seen_at ? now - Date.parse(row.last_seen_at) < ONLINE_WINDOW_MS : false,
-      isThisDevice: row.id === meId,
-    }));
+    const out = data.map((row: any): Neuron => {
+      const rowId = String(row.id);
+      // NEU1126A: reconciliación de nombre por timestamp
+      // Remoto: capabilities.nombreTs + capabilities.name (o row.name)
+      // Local pendiente: prefs.nombreTs[rowId] + prefs.names[rowId]
+      const remotoTs = typeof row.capabilities?.nombreTs === "number" ? row.capabilities.nombreTs : 0;
+      const remotoName = typeof row.capabilities?.name === "string" ? row.capabilities.name : 
+        (typeof row.name === "string" ? row.name : undefined);
+      const localTs = typeof (prefs as any).nombreTs?.[rowId] === "number" ? (prefs as any).nombreTs[rowId] : 0;
+      const localName = prefs.names[rowId];
+      
+      let nombreFinal: string;
+      if (remotoTs > 0 && remotoTs >= localTs && remotoName) {
+        // Remoto más nuevo o igual (y existe): gana remoto, descartar local pendiente
+        nombreFinal = remotoName;
+        // Limpiar local pendiente si era más viejo
+        if (localTs > 0 && localTs < remotoTs) {
+          const prefs2 = readPrefs();
+          if ((prefs2 as any).nombreTs?.[rowId] === localTs) {
+            delete (prefs2 as any).nombreTs[rowId];
+            delete prefs2.names[rowId];
+            writePrefs(prefs2);
+          }
+        }
+      } else if (localTs > 0 && localTs > remotoTs && localName) {
+        // Local pendiente más nuevo: gana local (aún no confirmado por remoto)
+        nombreFinal = localName;
+      } else if (localName) {
+        // Sin timestamps o empate sin remoto: local (comportamiento legacy)
+        nombreFinal = localName;
+      } else if (remotoName) {
+        nombreFinal = remotoName;
+      } else {
+        nombreFinal = "Dispositivo";
+      }
+      
+      return {
+        id: rowId,
+        name: nombreFinal,
+        kind: (row.kind as NeuronKind) || "other",
+        capabilities: row.capabilities ?? {},
+        permissions: { ...DEFAULT_PERMISSIONS, ...(row.permissions ?? {}), ...(prefs.permissions[rowId] ?? {}) },
+        last_seen_at: row.last_seen_at,
+        created_at: row.created_at,
+        online: row.last_seen_at ? now - Date.parse(row.last_seen_at) < ONLINE_WINDOW_MS : false,
+        isThisDevice: rowId === meId,
+      };
+    });
     // Este dispositivo primero; luego online; luego por última conexión.
     return out.sort((a, b) =>
       Number(b.isThisDevice) - Number(a.isThisDevice) ||
