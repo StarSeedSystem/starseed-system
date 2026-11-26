@@ -705,9 +705,9 @@ def partes_de(tarea: Dict[str, Any], motivo: str, max_archivos: int = MAX_ARCHIV
 
 
 def _sha_publicacion(titulo: str) -> str:
-    """Extrae el SHA de 'Desbloquear la publicación (<sha>)', con o sin paréntesis."""
-    match = re.search(r'desbloquear la publicación\s+\(?\s*([a-f0-9]{7,40})\s*\)?',
-                      str(titulo).lower())
+    """Extrae el SHA de una tarea 'Desbloquear la publicación <sha>' (con o sin paréntesis)."""
+    import re
+    match = re.search(r'desbloquear la publicación\s*\(?\s*([a-f0-9]{7,40})', str(titulo).lower())
     return match.group(1) if match else ""
 
 
