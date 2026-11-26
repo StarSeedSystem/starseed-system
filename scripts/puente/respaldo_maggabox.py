@@ -470,18 +470,27 @@ def respaldar(
 
 
 def _obtener_id_worktree(ruta: str) -> Optional[str]:
-    """Extrae el id de un worktree de cualquier formato: starseed-wt-*, wt-*, o ruta completa."""
+    """Extrae el id de un worktree de cualquier formato: starseed-wt-*, wt-* o starseed-wt/<id>."""
     ruta_norm = os.path.normpath(ruta)
+    partes = ruta_norm.split("/")
 
-    # Formato starseed-wt-*
-    for parte in ruta_norm.split("/"):
+    # Formato starseed-wt-<id> (cualquier componente con ese prefijo)
+    for parte in partes:
         if parte.startswith("starseed-wt-"):
             return parte.replace("starseed-wt-", "")
 
-    # Formato wt-*
-    for parte in ruta_norm.split("/"):
+    # Formato wt-<id> (cualquier componente con ese prefijo)
+    for parte in partes:
         if parte.startswith("wt-"):
             return parte.replace("wt-", "")
+
+    # Formato ~/Documents/starseed-wt/<id>: "starseed-wt" es carpeta y el siguiente
+    # componente es el id de la tarea.
+    for i, parte in enumerate(partes):
+        if parte == "starseed-wt" and i + 1 < len(partes):
+            siguiente = partes[i + 1]
+            if siguiente and not siguiente.startswith("starseed-wt-") and not siguiente.startswith("wt-"):
+                return siguiente
 
     # Formato ruta completa ~/Documents/starseed-wt-<id> o ~/Documents/wt-<id>
     basename = os.path.basename(ruta_norm)
@@ -655,6 +664,7 @@ def escanear_candidatos(
     listar_fn: Callable[[str], List[str]],
     mtime_fn: Callable[[str], float],
     tamano_fn: Callable[[str], int],
+    progreso: Optional[Dict[str, Any]] = None,
     destino_base: str = DEST_BASE,
 ) -> List[Dict[str, Any]]:
     """Lista candidatos reales y medidos con su porqué (solo lectura, no mueve)."""
@@ -716,15 +726,13 @@ def escanear_candidatos(
     # 5. Worktrees terminados (vía archivar_worktrees, no los de cola activa)
     if es_directorio_fn(wt_root):
         for entry in listar_fn(wt_root):
-            # Reconocer ambos formatos: starseed-wt-* y wt-*
-            wt_id = None
-            if entry.startswith("starseed-wt-"):
-                wt_id = entry.replace("starseed-wt-", "")
-            elif entry.startswith("wt-"):
-                wt_id = entry.replace("wt-", "")
-            
-            if wt_id is not None and wt_id not in cola_activa_ids:
-                ruta = os.path.join(wt_root, entry)
+            ruta = os.path.join(wt_root, entry)
+            wt_id = _obtener_id_worktree(ruta)
+            if (
+                wt_id is not None
+                and wt_id not in cola_activa_ids
+                and not _tarea_esta_pendiente(wt_id, progreso or {})
+            ):
                 anadir(ruta, "worktree terminado (archivar_worktrees.py)")
 
     # 5b. Caché .next de compilaciones Next.js
@@ -776,6 +784,7 @@ def aliviar(
     seco: bool = False,
     guardar_log: Optional[Callable[[Dict[str, Any]], Any]] = None,
     cola_activa_ids: Optional[Set[str]] = None,
+    progreso: Optional[Dict[str, Any]] = None,
     existe_fn: Optional[Callable[[str], bool]] = None,
     es_directorio_fn: Optional[Callable[[str], bool]] = None,
     listar_fn: Optional[Callable[[str], List[str]]] = None,
@@ -796,7 +805,7 @@ def aliviar(
         candidatos = escanear_candidatos(
             mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
             existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
-            destino_base=destino_base,
+            progreso=progreso, destino_base=destino_base,
         )
         return {
             "estado": "seco",
@@ -814,7 +823,7 @@ def aliviar(
     candidatos = escanear_candidatos(
         mac_root, wt_root, downloads, memoria_root, cola_activa_ids,
         existe_fn, es_directorio_fn, listar_fn, mtime_fn, tamano_fn,
-        destino_base=destino_base,
+        progreso=progreso, destino_base=destino_base,
     )
 
     # Mover candidatos hasta alcanzar objetivo, con copia verificada
