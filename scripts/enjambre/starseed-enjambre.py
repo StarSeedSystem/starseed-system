@@ -3624,6 +3624,22 @@ def es_rechazo_mecanico(valor):
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
 
+
+def cierre_irreversible(valor):
+    """PURA. ¿Esta entrada cierra la tarea para siempre (y no es un rechazo mecánico)?
+
+    (AF26FCCD1) Un rechazo mecánico de las puertas no decide nada: el revisor lo reescribe y
+    la tarea vuelve a la tanda. Las DOS rutas que miran el disco (`cerradas_en_disco` y
+    `fusionar_progreso`) tienen que usar la MISMA regla; si divergen, la reapertura se pierde
+    y el orquestador la aparta con «otra ola ya la cerró» sin llegar a ejecutarla."""
+    if not isinstance(valor, dict):
+        return False
+    return (
+        valor.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+        and not es_rechazo_mecanico(valor)
+    )
+
+
 _CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
 
 
@@ -3652,9 +3668,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                 _CERRADAS_DISCO["ids"] = frozenset(
                     k
                     for k, v in disco.items()
-                    if isinstance(v, dict)
-                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
-                    and not es_rechazo_mecanico(v)
+                    if isinstance(v, dict) and cierre_irreversible(v)
                 )
         except Exception:
             pass
@@ -3673,14 +3687,12 @@ def fusionar_progreso(memoria, disco, propias):
     for tid, valor in disco.items():
         if not isinstance(valor, dict):
             continue
-        estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
-                and not es_rechazo_mecanico(valor))
+            or cierre_irreversible(valor)
             or prestada
         ):
             salida[tid] = valor

@@ -173,6 +173,37 @@ class RechazoMecanicoReversibleTest(unittest.TestCase):
             cerradas = enjambre.cerradas_en_disco(cada_s=0, ruta=ruta)
         self.assertEqual(cerradas, frozenset({"DEC1"}))
 
+    # (AF26FCCD1c) La nota literal del revisor (objeción 20:50:32) no puede contar como
+    # cierre: si cuenta, la tanda la aparta con «otra ola ya la cerró» (20:50:33).
+    NOTA_OBJECION = (
+        "reabierta por el director: revisor: rechazo mecánico de las puertas "
+        "(no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance"
+    )
+
+    def test_punto_20_50_32_la_nota_literal_se_reconoce_como_mecanica(self):
+        self.assertTrue(
+            enjambre.es_rechazo_mecanico(
+                {"estado": "rechazada", "nota": self.NOTA_OBJECION}
+            )
+        )
+
+    def test_punto_20_50_33_no_se_aparta_con_otra_ola_ya_la_cerro(self):
+        """Con la nota literal en disco, la tanda NO la ve cerrada y no la salta."""
+        import json
+        import tempfile
+        from unittest import mock
+
+        temporal = tempfile.TemporaryDirectory()
+        self.addCleanup(temporal.cleanup)
+        ruta = os.path.join(temporal.name, "progreso.json")
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"AF26FCCD1": {"estado": "rechazada", "nota": self.NOTA_OBJECION},
+                       "DEC1": {"estado": "rechazada", "nota": "decisión de Alex"}}, f)
+        with mock.patch.dict(enjambre._CERRADAS_DISCO, {"t": 0.0, "ids": frozenset()}):
+            cerradas = enjambre.cerradas_en_disco(cada_s=0, ruta=ruta)
+        self.assertNotIn("AF26FCCD1", cerradas)
+        self.assertIn("DEC1", cerradas)
+
     def test_orden_de_reabrir_deja_la_tarea_viva_en_memoria_y_en_disco(self):
         import json
         import tempfile

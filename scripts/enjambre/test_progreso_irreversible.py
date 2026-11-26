@@ -25,6 +25,68 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"T1": {"estado": "rechazada"}}
         self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], disco["T1"])
 
+    # (AF26FCCD1c) Objeción literal del 2026-11-21: la puerta marcó «rechazada» por no tocar
+    # archivos (20:50:32), el director la reabrió y el orquestador la apartó con «otra ola ya
+    # la cerró» (20:50:33). Un rechazo MECÁNICO no es una decisión y no puede ser irreversible.
+    NOTA_MECANICA = (
+        "reabierta por el director: revisor: rechazo mecánico de las puertas "
+        "(no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance"
+    )
+
+    def test_rechazo_mecanico_no_es_irreversible_y_la_reabierta_sobrevive(self):
+        """Punto 20:50:33: el «pendiente» de la reapertura no lo revierte el disco «rechazada»."""
+        memoria = {"AF26FCCD1": {"estado": "pendiente", "nota": "reabierta por el director"}}
+        disco = {"AF26FCCD1": {"estado": "rechazada", "nota": self.NOTA_MECANICA}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"AF26FCCD1"})
+        self.assertEqual(fundido["AF26FCCD1"], memoria["AF26FCCD1"])
+
+    def test_rechazo_mecanico_se_reconoce_por_la_nota(self):
+        self.assertTrue(
+            enjambre.es_rechazo_mecanico({"estado": "rechazada", "nota": self.NOTA_MECANICA})
+        )
+        self.assertTrue(
+            enjambre.es_rechazo_mecanico(
+                {"estado": "rechazada",
+                 "nota": "no toco NINGUNO de los 1 archivos que declaraba"}
+            )
+        )
+        self.assertFalse(
+            enjambre.es_rechazo_mecanico(
+                {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance"}
+            )
+        )
+        self.assertFalse(
+            enjambre.es_rechazo_mecanico(
+                {"estado": "commit", "nota": "no toco NINGUNO de los 1 archivos"}
+            )
+        )
+        self.assertFalse(enjambre.es_rechazo_mecanico(None))
+
+    def test_rechazo_por_decision_sigue_siendo_irreversible(self):
+        """La decisión de la dirección sí cierra: solo el rechazo mecánico es reversible."""
+        memoria = {"AF26FCCD1": {"estado": "pendiente"}}
+        disco = {"AF26FCCD1": {"estado": "rechazada",
+                               "nota": "Alex decidió descartar: fuera de alcance"}}
+        self.assertEqual(
+            enjambre.fusionar_progreso(memoria, disco, {"AF26FCCD1"})["AF26FCCD1"],
+            disco["AF26FCCD1"],
+        )
+
+    def test_cierre_irreversible_es_la_misma_regla_en_las_dos_rutas(self):
+        """AF26FCCD1c: `cerradas_en_disco` y `fusionar_progreso` comparten `cierre_irreversible`."""
+        self.assertTrue(enjambre.cierre_irreversible({"estado": "commit"}))
+        self.assertTrue(enjambre.cierre_irreversible({"estado": "descartada"}))
+        self.assertTrue(
+            enjambre.cierre_irreversible(
+                {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance"}
+            )
+        )
+        self.assertFalse(
+            enjambre.cierre_irreversible({"estado": "rechazada", "nota": self.NOTA_MECANICA})
+        )
+        self.assertFalse(enjambre.cierre_irreversible({"estado": "pendiente"}))
+        self.assertFalse(enjambre.cierre_irreversible(None))
+
     def test_tarea_propia_no_cerrada_conserva_el_avance_nuevo(self):
         memoria = {"T1": {"estado": "revisando"}}
         disco = {"T1": {"estado": "en_curso"}}
