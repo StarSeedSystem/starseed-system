@@ -63,6 +63,14 @@ __pycache__/
 # Agent / session artifacts
 .agent/
 
+# (CAP1119) La guía de uso de agent-reach SÍ se versiona: con `.agent/` ignorado, el run de la
+# nube no veía el README declarado y la tarea se cerraba «rechazada» sin tocar ningún archivo.
+!.agent/
+.agent/*
+!.agent/skills/
+.agent/skills/*
+!.agent/skills/agent-reach/
+
 # macOS artifacts
 Icon
 Icon?
