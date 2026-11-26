@@ -550,6 +550,51 @@ fn ahora_ms() -> u64 {
     INICIO.get_or_init(Instant::now).elapsed().as_millis() as u64
 }
 
+// ───────────────────── Frescura de las direcciones (BLE1124A) ─────────────────────
+//
+// Android rota la dirección LE en cada anuncio y BlueZ conserva la vieja en su caché con el último
+// RSSI. Si el núcleo pide conectar con una dirección que ya no se oye, el controlador la aborta
+// (`le-connection-abort-by-local`) una y otra vez. Aquí se recuerda cuándo CAMBIÓ algo de cada
+// dirección (UUID de anuncio o RSSI, como `Oidos`) y no se insiste con la que lleva rato sin oírse.
+
+/// Lo último que cambió de una dirección: (rssi, uuid de anuncio) y cuándo.
+static VISTAS: Mutex<Option<HashMap<String, (i16, [u8; 16], u64)>>> = Mutex::new(None);
+
+fn vistas<T>(f: impl FnOnce(&mut HashMap<String, (i16, [u8; 16], u64)>) -> T) -> T {
+    let mut g = VISTAS.lock().unwrap_or_else(|e| e.into_inner());
+    f(g.get_or_insert_with(HashMap::new))
+}
+
+/// ¿Cambió el anuncio (UUID o RSSI) respecto a la última lectura? BlueZ repite el mismo RSSI de su
+/// caché: solo una lectura distinta cuenta como «se sigue oyendo».
+pub fn es_cambio(anterior: Option<(i16, [u8; 16])>, rssi: i16, uuid: [u8; 16]) -> bool {
+    anterior.map(|(r, u)| r != rssi || u != uuid).unwrap_or(true)
+}
+
+/// ¿La última lectura es reciente? Sin lectura previa no se puede afirmar que esté caducada: se permite.
+pub fn direccion_fresca(ultima: Option<u64>, ahora: u64) -> bool {
+    ultima.map(|t| ahora.saturating_sub(t) < lg::FRESCO_MS).unwrap_or(true)
+}
+
+fn anotar_vista(dir: &str, rssi: i16, uuid: [u8; 16], ahora: u64) {
+    vistas(|v| {
+        let previa = v.get(dir).map(|(r, u, _)| (*r, *u));
+        if es_cambio(previa, rssi, uuid) {
+            v.insert(dir.to_string(), (rssi, uuid, ahora));
+        }
+    });
+}
+
+fn direccion_vigente(dir: &str, ahora: u64) -> bool {
+    vistas(|v| direccion_fresca(v.get(dir).map(|(_, _, t)| *t), ahora))
+}
+
+fn olvidar_vista(dir: &str) {
+    vistas(|v| {
+        v.remove(dir);
+    });
+}
+
 fn fallo(t: impl Into<String>) -> (lg::ResultadoConnect, String) {
     (lg::ResultadoConnect::Fallo, t.into())
 }
@@ -1012,10 +1057,15 @@ fn descubriendo_ahora(c: &Connection, ad: &str) -> Option<bool> {
 impl PausaEscaneo {
     fn nueva(c: &Connection, ad: &str, plat: &str) -> Self {
         ESCANEO_PAUSADO.store(true, Ordering::SeqCst);
+        let estaba = descubriendo_ahora(c, ad) == Some(true);
         if let Ok(a) = proxy(c, ad, lg::IF_ADAPTADOR) {
             let _ = a.call::<_, _, ()>("StopDiscovery", &());
         }
-        std::thread::sleep(Duration::from_millis(300));
+        // CTL1123E/BLE1124A: el controlador necesita asentarse tras soltar el escaneo. Los 300 ms fijos
+        // se quedaban cortos y `Device1.Connect` abortaba con `le-connection-abort-by-local`; el turno
+        // garantiza una sola conexión LE a la vez, así que no hay otras pendientes que sumar.
+        let asentar = if estaba { crate::ble_enlace_diagnostico::asentamiento_recomendado_ms(true, 0) } else { 300 };
+        std::thread::sleep(Duration::from_millis(asentar));
         match descubriendo_ahora(c, ad) {
             Some(true) => dec(
                 Some(plat),
@@ -1082,6 +1132,18 @@ fn trabajador_conexion(c: Connection, ad: String, primera: String) {
 fn intento_conexion(c: &Connection, ad: &str, dir: &str) -> Option<lg::ResultadoConnect> {
     let plat = lg::plataforma('c', dir)?;
     let ruta = lg::ruta_dispositivo(ad, dir)?;
+    // BLE1124A: no insistir con una dirección que dejó de oírse (Android rota la MAC en cada anuncio).
+    // Se olvida del vecindario y se espera a un anuncio nuevo, en vez de acumular abortos del controlador.
+    if !direccion_vigente(dir, ahora_ms()) {
+        dec(
+            Some(&plat),
+            &format!("conectar {dir}: no se oye desde hace más de {} s; no insisto con una dirección caducada (se espera un anuncio nuevo)", lg::FRESCO_MS / 1000),
+        );
+        nucleo::olvidar_vecino(dir);
+        turno(|t| t.quitar(dir));
+        reexplorar(c, ad, Some(&plat), "dirección caducada: se busca el anuncio nuevo");
+        return Some(lg::ResultadoConnect::ObjetoPerdido);
+    }
     // El objeto debe seguir en BlueZ: si lo olvidó, no se intenta (y se vuelve a explorar).
     let existe = objetos(c).map(|o| prop(&o, &ruta, lg::IF_DISPOSITIVO).is_some()).unwrap_or(true);
     if !existe {
@@ -1266,6 +1328,7 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
                 m.doble_modo_omitidos.remove(&dir);
                 // BlueZ guarda el último RSSI de una dirección en su caché aunque ya no se oiga (la privada vieja de una neurona
                 // convive con la nueva): solo se da por vista la que cambia. Así el núcleo elige la dirección que SÍ se oye.
+                anotar_vista(&dir, rssi, uuid, ahora);
                 match m.oidos.observar(&dir, uuid, rssi, ahora) {
                     lg::Frescura::Fresca => nucleo::al_ver(&dir, &uuid, rssi),
                     lg::Frescura::Caducada => {}
@@ -1293,6 +1356,7 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
         }
         nucleo::olvidar_vecino(&dir);
         turno(|t| t.quitar(&dir));
+        olvidar_vista(&dir);
         dec(lg::plataforma('c', &dir).as_deref(), &format!("vecindario: {dir} no se oye hace {} s; la olvido (BlueZ y núcleo)", lg::OLVIDAR_MS / 1000));
     }
     Ok(())
@@ -1340,6 +1404,36 @@ mod pruebas {
         assert_eq!(u, vec!["5353b1aa-0000-4000-8000-000000000001".to_string()]);
         assert_eq!(an.get_property::<String>("Type").expect("Type"), "peripheral");
         *UUID_ANUNCIO.lock().unwrap() = String::new();
+    }
+
+    /// (BLE1124A) La frescura de una dirección: solo cuenta un anuncio que CAMBIÓ (BlueZ repite el
+    /// último RSSI de su caché) y sin lectura previa no se puede decir que esté caducada. Es lo que
+    /// impide insistir contra una MAC aleatoria que ya no se oye (`le-connection-abort-by-local`).
+    #[test]
+    fn solo_se_insiste_con_una_direccion_que_sigue_anunciandose() {
+        assert!(es_cambio(None, -60, [1; 16]));
+        assert!(!es_cambio(Some((-60, [1; 16])), -60, [1; 16]), "mismo RSSI y UUID: es la caché, no un anuncio nuevo");
+        assert!(es_cambio(Some((-60, [1; 16])), -61, [1; 16]), "cambia el RSSI");
+        assert!(es_cambio(Some((-60, [1; 16])), -60, [2; 16]), "rota el UUID");
+        assert!(direccion_fresca(None, 10_000), "sin lectura previa no está caducada");
+        assert!(direccion_fresca(Some(10_000), 10_000 + lg::FRESCO_MS - 1));
+        assert!(!direccion_fresca(Some(10_000), 10_000 + lg::FRESCO_MS), "pasado FRESCO_MS ya no se oye");
+        let dir = "AA:BB:CC:DD:EE:01";
+        olvidar_vista(dir);
+        anotar_vista(dir, -60, [3; 16], 1_000);
+        assert!(direccion_vigente(dir, 1_000 + lg::FRESCO_MS - 1));
+        anotar_vista(dir, -60, [3; 16], 1_000 + lg::FRESCO_MS + 5_000);
+        assert!(!direccion_vigente(dir, 1_000 + lg::FRESCO_MS + 5_000), "la caché repetida no cuenta como oírla");
+        anotar_vista(dir, -70, [3; 16], 1_000 + lg::FRESCO_MS + 6_000);
+        assert!(direccion_vigente(dir, 1_000 + lg::FRESCO_MS + 6_000), "un RSSI distinto sí la renueva");
+        olvidar_vista(dir);
+        assert!(direccion_vigente(dir, 0), "sin registro, no se bloquea el intento");
+    }
+
+    /// (BLE1124A) Tras soltar el escaneo no basta con 300 ms: el asentamiento del controlador es mayor.
+    #[test]
+    fn el_asentamiento_tras_el_escaneo_no_se_queda_en_300_ms() {
+        assert!(crate::ble_enlace_diagnostico::asentamiento_recomendado_ms(true, 0) > 300);
     }
 
     #[test]

@@ -40,18 +40,58 @@ fn cola() -> std::sync::MutexGuard<'static, VecDeque<String>> {
     }
 }
 
-/// Encola una orden para Kotlin. «datos» de un enlace que ya espera no se repite.
-pub fn ordenar(orden: serde_json::Value) {
-    let texto = orden.to_string();
-    let mut c = cola();
-    if orden.get("o").and_then(|o| o.as_str()) == Some("datos") && c.iter().any(|x| *x == texto) {
-        return;
+/// Órdenes de control: sin ellas la radio no vuelve a anunciarse ni a levantar el servidor GATT,
+/// así que no se tiran al llenarse la cola (con la app delante o en segundo plano).
+fn es_control(tipo: &str) -> bool {
+    matches!(tipo, "arrancar" | "anunciar" | "permisos" | "parar" | "canal-rapido")
+}
+
+fn tipo_de(texto: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(texto).ok()?.get("o")?.as_str().map(str::to_string)
+}
+
+fn es_control_de_texto(texto: &str) -> bool {
+    tipo_de(texto).map(|t| es_control(&t)).unwrap_or(false)
+}
+
+/// Mete `texto` en la cola. Un «anunciar» nuevo sustituye al pendiente (solo importa el UUID más
+/// reciente) y, con la cola llena, nunca se sacrifica una orden de control por datos o conexiones.
+/// Devuelve `false` si la orden se descartó.
+fn encolar(c: &mut VecDeque<String>, tipo: &str, texto: String) -> bool {
+    if tipo == "anunciar" {
+        c.retain(|x| tipo_de(x).as_deref() != Some("anunciar"));
     }
     if c.len() >= MAX_ORDENES {
-        c.pop_front();
+        if es_control(tipo) {
+            match c.iter().position(|x| !es_control_de_texto(x)) {
+                Some(i) => {
+                    c.remove(i);
+                }
+                None => {
+                    c.pop_front();
+                }
+            }
+        } else if c.iter().any(|x| es_control_de_texto(x)) {
+            return false;
+        } else {
+            c.pop_front();
+        }
     }
     c.push_back(texto);
-    AVISO.notify_all();
+    true
+}
+
+/// Encola una orden para Kotlin. «datos» de un enlace que ya espera no se repite.
+pub fn ordenar(orden: serde_json::Value) {
+    let tipo = orden.get("o").and_then(|o| o.as_str()).unwrap_or_default().to_string();
+    let texto = orden.to_string();
+    let mut c = cola();
+    if tipo == "datos" && c.iter().any(|x| *x == texto) {
+        return;
+    }
+    if encolar(&mut c, &tipo, texto) {
+        AVISO.notify_all();
+    }
 }
 
 /// Lo que Kotlin recoge: la orden más vieja, o «» si en `ms` no llegó ninguna.
@@ -289,5 +329,40 @@ mod pruebas {
         assert_eq!(trozo_de_hex(&"00".repeat(crate::ble_l2cap::TROZO_MAX + 1)), None);
         assert_eq!(trozo_de_hex(""), None);
         assert_eq!(trozo_de_hex("0g"), None);
+    }
+
+    /// (BLE1124A) Con la cola llena (la app en segundo plano y Kotlin sin recoger), una orden de
+    /// control entra tirando datos viejos, y los datos no tiran una orden de control. Así la radio
+    /// vuelve a anunciarse y a levantar el servidor GATT en cuanto Kotlin despierte.
+    #[test]
+    fn las_ordenes_de_control_sobreviven_a_una_cola_llena() {
+        let mut c: VecDeque<String> = VecDeque::new();
+        for i in 0..MAX_ORDENES {
+            c.push_back(serde_json::json!({ "o": "datos", "enlace": format!("c:{i:02X}") }).to_string());
+        }
+        assert!(encolar(&mut c, "anunciar", serde_json::json!({ "o": "anunciar", "uuid": "u1" }).to_string()));
+        assert_eq!(c.len(), MAX_ORDENES);
+        assert_eq!(tipo_de(c.back().unwrap()).as_deref(), Some("anunciar"));
+        assert!(!c.iter().any(|x| x.contains("\"enlace\":\"c:00\"")), "el «datos» más viejo cede el hueco");
+        assert!(
+            !encolar(&mut c, "datos", serde_json::json!({ "o": "datos", "enlace": "c:FF" }).to_string()),
+            "no se sacrifica una orden de control por datos"
+        );
+        assert_eq!(c.len(), MAX_ORDENES);
+        assert!(encolar(&mut c, "anunciar", serde_json::json!({ "o": "anunciar", "uuid": "u2" }).to_string()));
+        let anuncios: Vec<&String> = c.iter().filter(|x| tipo_de(x).as_deref() == Some("anunciar")).collect();
+        assert_eq!(anuncios.len(), 1, "solo queda el UUID más reciente");
+        assert!(anuncios[0].contains("u2"));
+    }
+
+    /// (BLE1124A) Si todo lo que hay en la cola es control, la orden más vieja cede el hueco; la cola
+    /// nunca crece por encima de `MAX_ORDENES`.
+    #[test]
+    fn con_todo_control_la_mas_vieja_cede_el_hueco() {
+        let mut c: VecDeque<String> = (0..MAX_ORDENES).map(|_| serde_json::json!({ "o": "permisos" }).to_string()).collect();
+        assert!(encolar(&mut c, "arrancar", serde_json::json!({ "o": "arrancar" }).to_string()));
+        assert_eq!(c.len(), MAX_ORDENES);
+        assert_eq!(tipo_de(c.back().unwrap()).as_deref(), Some("arrancar"));
+        assert_eq!(tipo_de(c.front().unwrap()).as_deref(), Some("permisos"));
     }
 }
