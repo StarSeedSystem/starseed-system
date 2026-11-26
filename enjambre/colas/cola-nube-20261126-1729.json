@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 78,
+   "id": "MV1125D-d1",
+   "titulo": "Ramas 4D: zoom semántico (galaxias que se abren en sistemas, planetas y contenido) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/agrupar.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Agrupación jerárquica para el zoom semántico del contrato: por dueño, cerebro, entidad, carpeta o comunidad; nivelDeDetalle(distancia) → qué grupos se muestran colapsados (un cuerpo con tamaño = suma de pesos) y cuáles abiertos; respeta un tope de cuerpos visibles. Funciones puras. Pruebas con grafos de 10, 1 000 y 20 000 nodos.\n\n## PARTE 1 DE 2 (la dirección dividió MV1125D: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/agrupar.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "MV1125B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "MV1125D-d1"
+  ]
+ }
+}
