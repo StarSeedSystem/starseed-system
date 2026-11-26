@@ -36,8 +36,11 @@ Sin Jev (apagado, sin red, sin local), manda la regla y queda dicho. Cada consej
 en el informe (columna «Jev») y en consolidado.json.
 
 AVISOS. El resumen va al canal común (`puente.decir`), a la bandeja de Reportes de Genesis (UN
-evento `informe` de `director-suenos` en el bus: poco y grueso, §15) y, solo cuando la sesión
-está completa, a Telegram por Hermes (`hermes send -t telegram:Maggasukha`), si Hermes está.
+evento `informe` de `director-suenos` en el bus: poco y grueso, §15), al canal especializado
+«audiovisual» (los directores de diseño, CON Telegram vía `sincronizador_direccion.py
+publicar-canal`) y, solo cuando la sesión está completa, a Telegram por Hermes
+(`hermes send -t telegram:Maggasukha`), si Hermes está. Si el canal de diseño falla, lo demás
+sigue: nunca es un paso necesario.
 
 Núcleo PURO (`consolidar`, `render_informe`, `cola_propuesta`, `resumen_corto`); lo que toca
 disco o red está en funciones pequeñas con la ruta por parámetro.
@@ -72,6 +75,9 @@ FACTOR_PRIORIDAD = {"alta": 1.2, "media": 1.0, "baja": 0.85}
 VETO_JEV = 0.2
 CONFIANZA_JEV = 0.6
 DESTINO_TELEGRAM = os.environ.get("STARSEED_TELEGRAM_DESTINO", "telegram:Maggasukha")
+CANAL_DISENO = "audiovisual"
+DE_CANAL_DISENO = "Directores de diseño (Sueños profundos)"
+_POR_DEFECTO = object()
 _CITA = re.compile(r"`([^`:\s]+):(\d+)`")
 _NUM = {
     "impacto": re.compile(r"impacto\s+(\d)"),
@@ -936,10 +942,67 @@ def publicar_en_bus(texto, datos, tipo="informe"):
         return False
 
 
-def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
-    """Canal común siempre; la bandeja de Reportes de Genesis si se le pasa `bus`; Hermes →
-    Telegram solo si se pide (el resumen final de una sesión completa)."""
-    hecho = {"canal": False, "telegram": False, "reportes": False}
+def comando_canal_audiovisual(texto):
+    """Comando del sincronizador para el canal de diseño/audiovisual. PURA: mismo argv siempre.
+    CON Telegram (sin `--sin-telegram`), como pide la dirección del 2026-11-25."""
+    return [
+        sys.executable,
+        os.path.join(DIRECTORIO, "sincronizador_direccion.py"),
+        "publicar-canal",
+        "--canal",
+        CANAL_DISENO,
+        "--de",
+        DE_CANAL_DISENO,
+        "--origen",
+        "metagenesis",
+        "--texto",
+        str(texto or ""),
+    ]
+
+
+def publicar_canal_audiovisual(texto):
+    """Publica el resumen en el canal «audiovisual» con Telegram. Nunca rompe lo demás: si el
+    sincronizador falla o estamos en una prueba, devuelve False y se sigue."""
+    try:
+        import director_chat  # noqa: E402
+
+        if director_chat.en_pruebas():
+            return False
+    except Exception:
+        pass
+    try:
+        r = subprocess.run(
+            comando_canal_audiovisual(texto),
+            timeout=60,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return False
+    if r.returncode != 0:
+        return False
+    try:
+        return bool(json.loads(r.stdout or "{}").get("ok"))
+    except (ValueError, AttributeError):
+        return False
+
+
+def anunciar(
+    texto,
+    telegram=False,
+    decir=None,
+    bus=None,
+    datos_bus=None,
+    publicar_canal=None,
+):
+    """Canal común siempre; la bandeja de Reportes de Genesis si se le pasa `bus`; el canal
+    de diseño/audiovisual con Telegram; Hermes → Telegram solo si se pide (resumen final)."""
+    hecho = {
+        "canal": False,
+        "telegram": False,
+        "reportes": False,
+        "audiovisual": False,
+    }
     try:
         if decir is None:
             import puente  # noqa: E402
@@ -954,6 +1017,11 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
             hecho["reportes"] = bool(bus(texto, datos_bus or {}))
         except Exception:
             pass
+    publicador = publicar_canal or publicar_canal_audiovisual
+    try:
+        hecho["audiovisual"] = bool(publicador(texto))
+    except Exception:
+        hecho["audiovisual"] = False
     if telegram:
         h = _hermes()
         if h:
@@ -976,9 +1044,6 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
             except Exception:
                 pass
     return hecho
-
-
-_POR_DEFECTO = object()
 
 
 def ids_existentes(dir_olas):
@@ -1019,9 +1084,11 @@ def ejecutar(
     decir=None,
     consejero=_POR_DEFECTO,
     bus=_POR_DEFECTO,
+    publicar_canal=None,
 ):
     """Consolida una sesión y escribe INFORME.md + la cola propuesta. Devuelve un resumen.
-    `consejero` y `bus` se pueden inyectar (pruebas); por defecto, Jev y el bus de verdad.
+    `consejero`, `bus` y `publicar_canal` se pueden inyectar (pruebas); por defecto, Jev, el
+    bus de verdad y el canal de diseño/audiovisual con Telegram.
     `memoria` se resuelve al llamar (MEMORIA_ENCARGADAS), no al importar: así se puede cambiar."""
     memoria = memoria or MEMORIA_ENCARGADAS
     informes = leer_informes(dir_sesion)
@@ -1103,5 +1170,6 @@ def ejecutar(
             "propuestas": len(cola),
             "cola": nombre_cola if cola else "",
         },
+        publicar_canal=publicar_canal,
     )
     return fuera
