@@ -81,6 +81,10 @@ export const LISTA_CACHE_MS = 5 * 60_000;
 export type NeuronKind = "desktop" | "laptop" | "mobile" | "tablet" | "server" | "other";
 
 export interface NeuronCapabilities {
+  /** (NEU1126A) Nombre de la neurona para fusión por timestamp (nombreTs). */
+  name?: string;
+  /** (NEU1126A) Timestamp del nombre para fusión: gana el más reciente. */
+  nombreTs?: number;
   platform: string;          // "macOS", "Android", "Windows", "Linux", "iOS"…
   browser?: string;          // "Chrome 148"…
   webgpu?: boolean;          // puede correr WebLLM
