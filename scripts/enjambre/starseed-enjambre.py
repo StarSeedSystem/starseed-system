@@ -3577,9 +3577,16 @@ def guardar_prog(prog):
         prog.update(fundido)
         if fundido == disco:
             return False
-        # Filtrar entradas no-dict antes de escribir (no deben aparecer en el reporte)
-        prog_filtrado = {tid: val for tid, val in prog.items() if isinstance(val, dict)}
+        # Filtrar entradas no-dict antes de escribir (no deben aparecer en el reporte).
+        # La autorización de reapertura es un pase de memoria: se consume al escribir.
+        prog_filtrado = {
+            tid: {k: v for k, v in val.items() if k != REAPERTURA_AUTORIZADA}
+            for tid, val in prog.items() if isinstance(val, dict)
+        }
         _escribir_atomico(PROG_JSON, json.dumps(prog_filtrado, ensure_ascii=False, indent=1))
+        for val in prog.values():
+            if isinstance(val, dict):
+                val.pop(REAPERTURA_AUTORIZADA, None)
         lines = [
             "# Progreso de las olas (enjambre gratuito)",
             "",
@@ -3611,6 +3618,10 @@ PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
+
+#: (AF44EE5BF) Autorización EXPLÍCITA del director al reabrir: vence al «rechazada» irreversible
+#: del disco durante un guardado, y se consume al escribir (nunca viaja a progreso.json).
+REAPERTURA_AUTORIZADA = "_reabrir_autorizado"
 
 _CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
 
@@ -3663,10 +3674,11 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        autorizada = isinstance(en_memoria, dict) and bool(en_memoria.get(REAPERTURA_AUTORIZADA))
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO) and not autorizada)
             or prestada
         ):
             salida[tid] = valor
@@ -6942,12 +6954,18 @@ def atender_control():
             m = orden.get("reintentos_medio")
             if isinstance(m, int) and not isinstance(m, bool) and m >= 0:
                 extra["reintentos_medio"] = m
+            # (AF44EE5BF) `rechazada` es irreversible para una corrida vieja, pero NO para una
+            # orden explícita del director: sin este pase el guardado la devolvía a «rechazada»
+            # y el bucle de pendientes decía «otra ola ya la cerró → no la repito».
+            extra[REAPERTURA_AUTORIZADA] = True
             set_estado(
                 tid,
                 estado="pendiente",
                 nota=str(orden.get("motivo") or "reabierta por el director")[:160],
                 **extra
             )
+            _CERRADAS_DISCO["t"] = 0.0
+            _CERRADAS_DISCO["ids"] = frozenset()
             modelo_pedido = str(orden.get("modelo") or "").strip()
             if modelo_pedido and "/" in modelo_pedido and asegurar_modelo_opencode(modelo_pedido):
                 REASIGNADOS[tid] = modelo_pedido
