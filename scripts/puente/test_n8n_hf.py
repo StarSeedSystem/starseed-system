@@ -157,13 +157,12 @@ if registro:
 
 if orden == "import:workflow":
     entrada = next((a.split("=", 1)[1] for a in args if a.startswith("--input=")), None)
-    separado = "--separate" in args
     store = cargar()
-    if separado:
-        # n8n 1.63.4: --separate exige un DIRECTORIO; con un archivo no importa nada.
+    # Sin --separate: entrada es un archivo único; con --separate: directorio
+    if "--separate" in args:
         rutas = sorted(glob.glob(os.path.join(entrada, "*.json"))) if os.path.isdir(entrada) else []
     else:
-        rutas = [entrada] if entrada else []
+        rutas = [entrada] if entrada and os.path.isfile(entrada) else []
     for ruta in rutas:
         with open(ruta, encoding="utf-8") as f:
             flujo = json.load(f)
@@ -218,7 +217,7 @@ class ArranqueIdempotente(unittest.TestCase):
         self.assertEqual(len(guardados), 3)
         self.assertEqual(set(guardados), ids)
 
-    def test_la_importacion_es_una_sola_pasada_con_directorio(self):
+    def test_la_importacion_es_un_archivo_por_vez_sin_separate(self):
         with tempfile.TemporaryDirectory() as tmp:
             dir_flujos, n8n, store = self._preparar(tmp)
             registro = os.path.join(tmp, "llamadas.log")
@@ -227,11 +226,10 @@ class ArranqueIdempotente(unittest.TestCase):
             with open(registro, encoding="utf-8") as f:
                 llamadas = [linea.strip() for linea in f]
         importaciones = [c for c in llamadas if c.startswith("import:workflow")]
-        self.assertEqual(len(importaciones), 2)
+        self.assertEqual(len(importaciones), 6)
         for llamada in importaciones:
-            self.assertIn("--separate", llamada)
-            self.assertIn("--input=%s" % dir_flujos, llamada)
-            self.assertNotIn(".json", llamada)
+            self.assertNotIn("--separate", llamada)
+            self.assertIn(".json", llamada)
 
 
 class FlujosIdempotentes(unittest.TestCase):
