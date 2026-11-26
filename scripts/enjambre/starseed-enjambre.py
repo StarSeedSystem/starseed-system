@@ -3626,10 +3626,12 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        reabierta = (tid in REABRIR and isinstance(en_memoria, dict)
+                     and en_memoria.get("estado") == "pendiente")
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO) and not reabierta)
             or prestada
         ):
             salida[tid] = valor
@@ -3642,6 +3644,9 @@ def set_estado(tid, **kw):
     with LOCK_ESTADO:
         PROG.setdefault(tid, {}).update(kw)
         guardar_prog(PROG)
+        if kw.get("estado") == "pendiente":
+            _CERRADAS_DISCO["t"] = 0.0
+            _CERRADAS_DISCO["ids"] = frozenset(k for k in _CERRADAS_DISCO["ids"] if k != tid)
 
 
 # ── revisión cruzada por otro proveedor ─────────────────────────────────────

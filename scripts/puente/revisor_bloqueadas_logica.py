@@ -705,9 +705,9 @@ def partes_de(tarea: Dict[str, Any], motivo: str, max_archivos: int = MAX_ARCHIV
 
 
 def _sha_publicacion(titulo: str) -> str:
-    """Extrae el SHA de una tarea 'Desbloquear la publicación <sha>'."""
-    import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', str(titulo).lower())
+    """Extrae el SHA de 'Desbloquear la publicación (<sha>)', con o sin paréntesis."""
+    match = re.search(r'desbloquear la publicación\s*\(?\s*([a-f0-9]{7,40})\s*\)?',
+                      str(titulo).lower())
     return match.group(1) if match else ""
 
 
@@ -792,6 +792,17 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         entrada = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
         nota = str(entrada.get("nota") or "")
         if est in CERRADOS or est in DECIDIDOS or est in TRABAJANDO or est in EN_APROBACION:
+            continue
+
+        # 0-publicacion) El sha de «Desbloquear la publicación (<sha>)» ya pasó a main: se cierra
+        # sin reescribirla ni reasignarla, incluso si llegó con un rechazo mecánico.
+        sha = _sha_publicacion(t.get("titulo", ""))
+        if sha and any(sha in str(asunto).lower() for asunto in (asuntos or ())):
+            acciones.append(_accion(
+                tid, "ya_hecha",
+                "la publicación %s ya está en main, se cierra sola (no aplica)" % sha,
+                "publicacion", estado="no_aplica"))
+            tocadas.add(tid)
             continue
 
         # 0-rechazo-mecanico) Tarea "rechazada" por las puertas (nota empieza por "no toco NINGUNO de los"):
