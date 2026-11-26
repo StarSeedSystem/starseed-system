@@ -795,6 +795,15 @@ def main():
                     print(
                         "higiene worktrees: %s: %s" % (type(e).__name__, e), flush=True
                     )
+                # (DIR1125AF) Trabajo ajeno en main desde hace más de 15 min: a cuarentena con copia
+                # verificada, parche, aviso en el canal Principal y tarea para reaplicarlo con pruebas.
+                try:
+                    import apartar_arbol_sucio
+
+                    if apartar_arbol_sucio.apartar_si_lleva_tiempo():
+                        print("cuarentena: trabajo ajeno de main apartado (ver ~/.starseed/cuarentena)", flush=True)
+                except Exception as e:  # noqa: BLE001
+                    print("cuarentena: %s: %s" % (type(e).__name__, e), flush=True)
             if hay:
                 # (2026-10-08) Un orquestador VIVO sin ninguna tarea en marcha y con listas en
                 # su cola (35 min así con JF2b): antes nadie lo veía, porque aquí solo se

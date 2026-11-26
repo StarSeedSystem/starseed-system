@@ -62,8 +62,25 @@ def _git(*args, **kwargs) -> str:
 
 
 def _hay_cerrojo_integrar() -> bool:
-    """True si existe el cerrojo de integración (alguien está integrando en main)."""
-    return os.path.exists(CERROJO_INTEGRAR)
+    """True si alguien TIENE el cerrojo de integración (está integrando en main).
+
+    (DIR1125AF, 25-11) `integrar.lock` es un flock: el archivo existe siempre, lo tenga alguien o no.
+    Mirar solo si existía hacía que la cuarentena no actuara nunca (main estuvo sucio con trabajo
+    ajeno sin que nadie lo apartara). Se prueba el flock sin esperar: si está tomado, hay integración.
+    """
+    if not os.path.exists(CERROJO_INTEGRAR):
+        return False
+    try:
+        import fcntl
+        with open(CERROJO_INTEGRAR, "a") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except (BlockingIOError, PermissionError):
+                return True
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return False
+    except Exception:
+        return True  # ante la duda, no se toca main
 
 
 def _leer_porcelain() -> str:

@@ -138,13 +138,24 @@ class ApartarArbolSucioTest(unittest.TestCase):
         """Si hay cerrojo integrar.lock → no aparta, devuelve False."""
         self.escribe("app.ts", "const a = 2\n")
         os.makedirs(os.path.dirname(self.cerrojo_path), exist_ok=True)
+        import fcntl
         with open(self.cerrojo_path, "w") as f:
             f.write("pid\n")
-        with patch.object(time, "time", return_value=time.time() + 1000):
-            resultado = modulo.apartar_si_lleva_tiempo()
+            f.flush()
+            fcntl.flock(f, fcntl.LOCK_EX)  # alguien integrando de verdad
+            with patch.object(time, "time", return_value=time.time() + 1000):
+                resultado = modulo.apartar_si_lleva_tiempo()
         self.assertFalse(resultado)
         # Main sigue sucio
         self.assertIn("app.ts", self.sucio())
+
+    def test_cerrojo_suelto_no_frena_dir1125af(self):
+        """(DIR1125AF) integrar.lock existe siempre (es un flock): sin nadie que lo tenga, sí aparta."""
+        self.escribe("app.ts", "const a = 2\n")
+        os.makedirs(os.path.dirname(self.cerrojo_path), exist_ok=True)
+        with open(self.cerrojo_path, "w") as f:
+            f.write("")
+        self.assertFalse(modulo._hay_cerrojo_integrar())
 
     def test_solo_archivos_proprios_no_aparta(self):
         """Si solo hay archivos propios del enjambre (memoria/aprendizaje-olas.md) → no aparta, los recoge el guardia normal."""
