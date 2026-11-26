@@ -171,7 +171,7 @@ export interface DepsPuerta {
     ahora: () => number;
     cuentaPropia: () => string | null;
     neuronaPropia: () => string;
-    huellaAparatoPropia: () => string;
+    huellaAparatoPropia?: () => string;
     leerPermiso: () => PermisoControl;
     guardarPermiso: (p: PermisoControl) => void;
     /** Ejecuta una acción YA validada. Devuelve el resultado o lanza con un motivo corto. */
