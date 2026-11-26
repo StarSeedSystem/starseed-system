@@ -70,8 +70,9 @@ class TestOrden(unittest.TestCase):
     def test_no_debe_tocar_next_build(self):
         """Verificación: este módulo no lanza tsc ni vitest."""
         import subprocess
+        raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         result = subprocess.run(
             ["grep", "-r", "tsc\\|vitest", "scripts/puente/maggabox_medio.py"],
-            capture_output=True, text=True, cwd="/Users/alex/Documents/starseed-wt/ALM1125H4"
+            capture_output=True, text=True, cwd=raiz
         )
         self.assertEqual(result.returncode, 1)  # No matches found
