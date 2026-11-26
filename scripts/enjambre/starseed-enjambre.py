@@ -3676,11 +3676,13 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
-        # (AF26FCCD1) Un rechazo mecánico no es irreversible: si no, `guardar_prog` revertía
-        # a «rechazada» el «pendiente» con el que el director acababa de reabrir la tarea.
+        # (AF26FCCD1 + RST06c) Un rechazo mecánico no es irreversible en una tarea MÍA: si no,
+        # `guardar_prog` revertía a «rechazada» el «pendiente» de la reapertura. En una ajena
+        # manda el disco, como siempre: otro medio la cerró y este orquestador no la reabre.
+        reapertura_propia = tid in (propias or ()) and es_rechazo_mecanico(valor)
         cerrada = (
             estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
-            and not es_rechazo_mecanico(valor)
+            and not reapertura_propia
         )
         if (
             tid not in salida
