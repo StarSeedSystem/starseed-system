@@ -47,6 +47,7 @@ import {
   startMeshSubsystem,
   type SignalSource, type SignalKind, type NativeRecommendation,
 } from "@/ai/astraura/mesh";
+import { tauriGlobal } from "@/lib/nativa/info-neurona";
 import {
   TRANSPORTES_BWP,
   estadoTransporte,
@@ -208,6 +209,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   }, []);
 
   // Recomendación de app nativa para acceso completo al hardware (según el SO).
+  const isTauri = !!tauriGlobal();
   const native = useMemo<NativeRecommendation>(() => recommendNative(detectPlatform()), []);
 
   // Voz de borde: sondear UNA vez (caché de 5 min) las capacidades de hardware
