@@ -1,0 +1,79 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "segundos": 1648,
+   "t": "2026-10-05 02:58:11",
+   "rama": "ola/PRD1005Tbs",
+   "sha": "b6aaa297dbb8768912776df9b7dc24bce108db9c",
+   "faltan": [],
+   "quien_decidio": "desatascador",
+   "id": "PRD1005Tbsb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. **Duplicación de flujos en cada arranque** – `arranque.sh` usa `n8n import:workflow --separate`. Cada vez que el contenedor se reinicia crea una nueva copia del mismo workflow en vez de actualizarla. Con el tiempo se saturará el almacenamiento del Space y se activarán versiones antiguas inesperadamente.  \n2. **Cookie sin flag Secure** – `ENV N8N_SECURE_COOKIE=false` deja la cookie de sesión sin la marca *Secure*. En un entorno HTTPS sigue funcionando, pero si alguna petición se hace por HTTP (p.ej. pruebas internas) la cookie se enviará sin cifrado, abriendo la puerta a secuestro de sesión.\n\nSeguimiento: sí, bloqueante — riesgo 1 (duplicación de flujos) debe corregirse (usar `--update` o comprobar existencia antes de importar). El riesgo 2 es de seguridad pero no impide el funcionamiento; puede quedar como observación.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "titulo": "Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "t": "2026-11-07 14:56:25",
+   "id": "IMG-agentes-reimaginada-agentes-reimaginadab",
+   "ola": "",
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable. # Reimaginación accionable\n\n## Intención conservada\nEvitar que una promesa rechazada en carga de modelo quede en caché y contamine intentos posteriores, con reintentos limitados y sin agotar créditos.\n\n## Problema\nCuando una carga falla por timeout, red, 429/402, la promesa rechazada puede persistir en caché. Los intentos siguientes reutilizan el fallo en lugar de reintentar.\n\n## Enfoque genérico y seguro\nNo se asumen nombres de archivos. La tarea es de descubrimiento + especificación, no edición.\n\n1. **Inventario de carga de modelos**\n   - Recorrer `src/lib/` y `src/components/` para identifi Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nrechazada por la dirección (07-11): la rama de la nube (919fe2af0) añade 8.483 archivos ajenos (.agent/, -W, xai-proxy.js) y nada del encargo\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 449,
+   "t": "2026-11-11 03:54:20",
+   "modelos_fallidos": [
+    "nvidia/minimaxai/minimax-m3.1-flash",
+    "xkiro/mistralai/devstral-medium",
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nvidia/nemotron-3-super-120b-a12b",
+    "apinex/free/gemini-3.8-flash"
+   ],
+   "jev_experiencia": "8e759947a71a",
+   "intentos_auto": 6,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-11 03:29:24",
+   "rama": "ola/IMG-diaria-auto-refresh-del-catalogo-de-mode",
+   "sha": "ad6e45f37e42f9324778de285f53b5fbb706db2a",
+   "modelo_siguiente": null,
+   "revisado_por": "revisor-bloqueadas",
+   "id": "IMG-diaria-auto-refresh-del-catalogo-de-modeb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nno toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-auto-refresh-del-catalogo-de-mode conservada)\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 1806,
+   "t": "2026-11-18 02:17:23",
+   "rama": "ola/PET1116A-d1-d2",
+   "sha": "45aced00dfdb0071ef134b09293500519e92f465",
+   "id": "PET1116A-d1-d2b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-19 07:12:49\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 07:28:09\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 17:46:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:47\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:21:52\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:22:12\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "IMG-agentes-reimaginada-agentes-reimaginadab",
+   "IMG-diaria-auto-refresh-del-catalogo-de-modeb",
+   "PET1116A-d1-d2b",
+   "PRD1005Tbsb"
+  ]
+ }
+}
