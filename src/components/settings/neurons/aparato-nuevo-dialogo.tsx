@@ -85,9 +85,9 @@ export function AparatoNuevoDialogo() {
   useEffect(() => {
     setNombreNueva(nombrePropuesto(nombreEsteAparato()));
     void cargar();
-    void aparatoDeEsteMedio().then((a) => {
+    void aparatoDeEsteMedio({}).then((a) => {
       setModelo(a?.equipo ?? null);
-      setSistema(tipoAparato(a?.so) ? `${NOMBRE_SO[a.so as keyof typeof NOMBRE_SO] ?? a.so}${a?.soV ? ` ${a.soV}` : ""}` : null);
+      setSistema(tipoAparato(a?.so) ? `${a.so ? NOMBRE_SO[a.so as keyof typeof NOMBRE_SO] ?? a.so : ""}${a?.soV ? ` ${a.soV}` : ""}` : null);
     });
     const alCambiar = () => void cargar();
     window.addEventListener(NEURON_EVENT, alCambiar);
