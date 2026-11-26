@@ -12,6 +12,7 @@ function crearAparato(id: string, nombre: string, extra: Partial<{
     estado: PropsVentanaControl["estado"];
     nivel: PropsVentanaControl["nivel"];
     conPermiso: boolean;
+    motivo: PropsVentanaControl["motivo"];
 }> = {}): AparatoConPermiso & { env: ReturnType<typeof vi.fn> } {
     const env = vi.fn();
     const capacidades = extra.capacidades ?? { gestos: true, maxDedos: 10, teclas: TODAS, volumen: true, brillo: true, texto: true };
