@@ -10,30 +10,53 @@
  * - "Reintentar" invoca reset() → re-renderiza el segmento fallido.
  * - "Ir al panel" navega a /dashboard como salida segura.
  * - El detalle del error solo se muestra en desarrollo (nunca el stack en prod).
+ * - CTL1126D: registra el error en el registro del aparato y envía aviso al controlador.
  */
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { RotateCcw, LayoutDashboard, TriangleAlert } from "lucide-react";
+import { RotateCcw, LayoutDashboard, TriangleAlert, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { esErrorDeVersionNueva, recargarPorVersionNueva } from "@/lib/pwa/recarga-por-version";
+import {
+  extraerInformacionFallo,
+  crearRegistroEvento,
+  crearAvisoControlador,
+} from "@/lib/control-remoto/aviso-fallo-remoto";
+
+interface Props {
+  error: Error & { digest?: string };
+  reset: () => void;
+  rutaActual?: string;
+}
 
 export default function AppError({
   error,
   reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  useEffect(() => {
-    // Log al console para no perder trazabilidad (no se expone al usuario).
-    console.error("[StarSeed OS] Error de ruta:", error);
-    // Una pestaña abierta antes de publicar/reconstruir pide trozos que ya no existen: se recarga sola.
-    if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
-  }, [error]);
-
+  rutaActual = "página actual",
+}: Props) {
   const isDev = process.env.NODE_ENV === "development";
+  const detalle = extraerInformacionFallo(error, rutaActual);
+
+  useEffect(() => {
+    console.error("[StarSeed OS] Error de ruta:", error);
+
+    if (esErrorDeVersionNueva(error)) recargarPorVersionNueva();
+
+    const registro = crearRegistroEvento(detalle);
+    console.log("[CTL1126D] Registro:", JSON.stringify(registro));
+
+    const aviso = crearAvisoControlador(detalle);
+    if (aviso) {
+      console.log("[CTL1126D] Aviso al controlador:", JSON.stringify(aviso));
+    }
+  }, [error, detalle]);
+
+  const handleCopiarDetalle = () => {
+    const texto = `${detalle.codigo} · ${detalle.ruta} · ${detalle.mensaje}`;
+    navigator.clipboard.writeText(texto).catch(() => undefined);
+  };
 
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 md:px-8">
@@ -54,6 +77,21 @@ export default function AppError({
           Ocurrió un problema al mostrar esta parte del sistema. Puedes
           reintentar o volver al panel principal; tu información sigue a salvo.
         </p>
+
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs rounded-md bg-amber-400/10 px-2 py-1 text-amber-300">
+            {detalle.codigo}
+          </span>
+          <Button
+            onClick={handleCopiarDetalle}
+            variant="ghost"
+            size="sm"
+            className="cursor-pointer"
+          >
+            <Copy className="mr-1.5 size-4" />
+            Copiar detalle
+          </Button>
+        </div>
 
         {isDev && error?.message ? (
           <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs leading-relaxed text-foreground/60">
