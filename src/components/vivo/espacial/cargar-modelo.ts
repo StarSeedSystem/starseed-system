@@ -13,10 +13,13 @@
  */
 
 import * as THREE from "three";
+import { crearCachePromesas } from "@/lib/carga/cache-promesas";
 
 export const LIMITE_MODELO_BYTES = 40 * 1024 * 1024;
 
-const cache = new Map<string, Promise<THREE.Group>>();
+// La caché evicta la promesa RECHAZADA: un timeout o un 429 no contamina el siguiente intento.
+// `maxFallos` corta los reintentos consecutivos para no agotar créditos con un servidor caído.
+const cache = crearCachePromesas<THREE.Group>({ maxFallos: 3 });
 
 async function leerConLimite(res: Response, limite: number): Promise<ArrayBuffer> {
     const cabecera = Number(res.headers.get("content-length") ?? "0");
@@ -82,9 +85,7 @@ function gestorSeguro(urlModelo: string): THREE.LoadingManager {
 }
 
 export function cargarModelo(url: string): Promise<THREE.Group> {
-    const previo = cache.get(url);
-    if (previo) return previo;
-    const p = (async () => {
+    return cache.obtener(url, async () => {
         const res = await fetch(url, { mode: "cors", credentials: "omit", referrerPolicy: "no-referrer" });
         if (!res.ok) throw new Error(`El servidor del modelo respondió ${res.status}.`);
         const buf = await leerConLimite(res, LIMITE_MODELO_BYTES);
@@ -94,10 +95,7 @@ export function cargarModelo(url: string): Promise<THREE.Group> {
         const base = url.slice(0, url.lastIndexOf("/") + 1);
         const gltf = await loader.parseAsync(buf, base);
         return gltf.scene;
-    })();
-    cache.set(url, p);
-    p.catch(() => cache.delete(url));
-    return p;
+    });
 }
 
 /**
