@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "id": "SUE1125A",
+   "ola": "pasada-general-1125",
+   "titulo": "Los Sueños profundos y la consolidación se anuncian en el canal Audiovisual y diseño (sus directores), con Telegram",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos_canal_diseno_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 70,
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nAlex (25-11): «los directores del canal de diseño deben hacer eso periódicamente para siempre mejorar todo StarSeed OS con actualizaciones automáticas de mejoras innovadoras progresivamente a través de MetaGenesis». Hoy `director_suenos.anunciar` publica en el canal común (puente.decir) y, si se pide, por Hermes a Telegram; el canal de diseño no se entera. Añade, sin quitar lo de ahora, la publicación en el canal especializado «audiovisual» con `python3 scripts/puente/sincronizador_direccion.py publicar-canal --canal audiovisual --de \"Directores de diseño (Sueños profundos)\" --origen metagenesis --texto <resumen>` (CON Telegram: sin --sin-telegram), inyectable como `publicar_canal` para las pruebas (nunca red ni subprocesos reales en las pruebas). Si falla, no rompe lo demás. Pruebas: se llama una vez con canal audiovisual y el texto; un fallo no impide lo del canal común."
+  },
+  {
+   "segundos": 899,
+   "t": "2026-11-21 20:46:39",
+   "rama": "ola/AF26FCCD1",
+   "sha": null,
+   "intentos_auto": 0,
+   "reintentos_medio": 1,
+   "id": "AF26FCCD1c",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 19:45:15\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"AF26FCCD1\", \"texto\": \"URGENTE · Desbloquear la publicación (60dc6e227)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:31:45\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"AF26FCCD1\", \"texto\": \"URGENTE · Desbloquear la publicación (60dc6e227)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:50:32\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:50:33\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 20:59:14\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 21:00:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF26FCCD1\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45745312853`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: to-merging scripts/enjambre/starseed-enjambre.py\nCONFLICT (content): Merge conflict in scripts/enjambre/starseed-enjambre.py\nAuto-merging scripts/enjambre/test_autocuracion_enjambre.py\nerror: could not apply 23205928a... salvavidas · AF26FCCD1b: trabajo del agente antes de las puertas (tsc / vitest)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45745312853:refs/remotes/origin/nube/45745312853\"` y `git cherry-pick --no-commit 23205928a1dc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/starseed-enjambre.py, scripts/enjambre/test_autocuracion_enjambre.py, scripts/enjambre/test_progreso_irreversible.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45745312853"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1125-221216.json": [
+   "SUE1125A",
+   "AF26FCCD1c"
+  ]
+ }
+}
