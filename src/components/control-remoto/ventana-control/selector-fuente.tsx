@@ -2,7 +2,7 @@
 
 import { useRef, type KeyboardEvent } from "react";
 
-import { rotuloFuente, type FuentePedida, type FuenteReal } from "@/lib/control-remoto/fuente-pantalla";
+import { rotuloFuente, rotuloFuenteMedida, type FuentePedida, type FuenteReal } from "@/lib/control-remoto/fuente-pantalla";
 
 export interface PropsSelectorFuente {
     pedida: FuentePedida;
@@ -48,25 +48,27 @@ export function SelectorFuente({ pedida, real, aviso, onCambiar }: PropsSelector
                 >
                     Automática
                 </button>
-                <button
-                    ref={proyeccion}
-                    type="button"
-                    role="radio"
-                    aria-checked={pedida === "proyeccion"}
-                    aria-describedby="ayuda-fuente-fluida"
-                    tabIndex={pedida === "proyeccion" ? 0 : -1}
-                    onClick={() => onCambiar("proyeccion")}
-                    onKeyDown={(e) => cambiarConFlechas(e, "proyeccion")}
-                    className={claseOpcion(pedida === "proyeccion")}
-                >
-                    Fluida (proyección)
-                </button>
+                {real !== "proyeccion" && (
+                    <button
+                        ref={proyeccion}
+                        type="button"
+                        role="radio"
+                        aria-checked={pedida === "proyeccion"}
+                        aria-describedby="ayuda-fuente-fluida"
+                        tabIndex={pedida === "proyeccion" ? 0 : -1}
+                        onClick={() => onCambiar("proyeccion")}
+                        onKeyDown={(e) => cambiarConFlechas(e, "proyeccion")}
+                        className={claseOpcion(pedida === "proyeccion")}
+                    >
+                        Fluida (proyección)
+                    </button>
+                )}
             </div>
             <p id="ayuda-fuente-fluida" className="px-1 text-[11px] leading-snug text-white/60">
                 Pide al aparato la pantalla por proyección: más fluida; hace falta que él la ofrezca
             </p>
             <p data-testid="selector-fuente-real" className="px-1 text-[11px] leading-snug text-white/70">
-                <span className="text-white/50">Fuente real:</span> <span>{rotuloFuente(real)}</span>
+                <span className="text-white/50">Fuente real:</span> <span>{rotuloFuenteMedida(real, undefined)}</span>
             </p>
             {aviso ? (
                 <p role="status" className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[11px] leading-snug text-amber-200">
