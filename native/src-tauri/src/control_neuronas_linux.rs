@@ -28,17 +28,19 @@ static VISIBLE: AtomicBool = AtomicBool::new(false);
 /// Cada apertura o cierre del panel suma uno: el plegado por tiempo solo vale si nadie lo tocó desde entonces.
 static GENERACION: AtomicU64 = AtomicU64::new(0);
 
-/// (LNX1124A) Un rechazo del gestor de energía por D-Bus se anota UNA vez y no se reintenta
-/// mientras viva el proceso. Sin E/S ni avisos: la única señal es la línea del registro.
+/// (LNX1124A) Sin DBus o sin portal, vamos directo a xshm sin esperar reintentos.
+/// El rechazo de energía se anota pero no bloquea el inicio de pantalla.
 static ENERGIA: std::sync::Mutex<e::GuardiaEnergia> = std::sync::Mutex::new(e::GuardiaEnergia::nueva());
 
 fn guardia_energia() -> std::sync::MutexGuard<'static, e::GuardiaEnergia> {
     ENERGIA.lock().unwrap_or_else(|x| x.into_inner())
 }
 
-/// ¿Sigue permitida la vía D-Bus de energía? Tras un rechazo es `false` para siempre (proceso).
+/// (LNX1124A) Sin DBus o sin portal, vamos directo a xshm sin esperar reintentos.
+/// Siempre permite el inicio (aunque antes hubiera rechazo); el tope de seguridad
+/// es el timeout corto de despertar la pantalla, no el bloqueo de energía.
 pub fn energia_permite_reintento() -> bool {
-    guardia_energia().permite_reintento()
+    true
 }
 
 /// (LNX1124A) Punto único para el «AccessDenied» del gestor de energía: deja UNA línea en el

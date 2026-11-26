@@ -393,6 +393,9 @@ export class PantallaDestino {
         if (this.fuente === "proyeccion") argsPantallaIniciar.fuente = this.fuente;
         const p = await this.orden("pantalla-iniciar", argsPantallaIniciar, "ver");
         this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=${p.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(p.motivo)} ms=${Math.max(0, Math.min(999_999, Math.round(this.d.ahora() - t0)))}`); // CTL1118A
+        if (p.ok) {
+            this.anotar(`control-senal paso=pantalla-iniciar lado=controlador resultado=ok avisos=pantalla-iniciando`);
+        }
         if (this.cerrada) return;
         if (!p.ok) return this.cerrar(p.motivo, false);
         const res = (p.resultado ?? {}) as Record<string, unknown>;
