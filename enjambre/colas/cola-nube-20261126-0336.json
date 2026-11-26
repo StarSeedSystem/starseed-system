@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "segundos": 851,
+   "t": "2026-11-22 00:36:40",
+   "rama": "ola/A018C6A91",
+   "sha": "94af7a42248c5acc4dd07596b5f49628198d945a",
+   "id": "A018C6A91d",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-22 00:22:29\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A018C6A91\", \"texto\": \"URGENTE · Desbloquear la publicación (70f48b3c2)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 00:39:31\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 00:45:14\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 13:18:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A018C6A91\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45762081741`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ambre/test_autocuracion_enjambre.py\nAuto-merging scripts/puente/test_revisor_bloqueadas_logica.py\nCONFLICT (content): Merge conflict in scripts/puente/test_revisor_bloqueadas_logica.py\nerror: could not apply f2bde40e3... salvavidas · A018C6A91c: trabajo del agente antes de las puertas (tsc / vitest)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45762081741:refs/remotes/origin/nube/45762081741\"` y `git cherry-pick --no-commit f2bde40e3178 71d67f1cd65d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/enjambre/test_autocuracion_enjambre.py, scripts/puente/escalada_motores.py, scripts/puente/revisor_bloqueadas_logica.py, scripts/puente/test_escalada_motores.py, scripts/puente/test_maggabox_medio.py, scripts/puente/test_revisor_bloqueadas_logica.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45762081741"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-032401.json": [
+   "A018C6A91d"
+  ]
+ }
+}
