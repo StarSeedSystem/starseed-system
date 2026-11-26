@@ -617,12 +617,15 @@ def _colas_por_id():
 def dueno_de_sueltos(rama, por_tid):
     """PURA: a qué tarea pertenecen los commits sin id de una rama, o None si a ninguna.
 
+    (ALM1125H2) La Maggabox entrega por `nube/mg-<fecha>-<hora>-<ID>` (la cola entera, sin id, cae a
+    sus commits, como la del A1). Se lee el id de las dos igual.
     (2026-10-12) Las ramas del A1 se llaman `nube/a1-<fecha>-<hora>-<ID>` (no `…/ola/<ID>`) y la
     rama de la cola entera (`nube/a1-<fecha>-<hora>`) a veces solo trae «chore(memoria): aprendizaje de
     la ola …», que no es de ninguna tarea. Antes eso daba una fila con id None y `traer_nube` moría
     en `base_de(None)` en CADA pasada (74 veces desde el 11-10 01:02 UTC): nada de la nube ni del A1
     se reparaba y el trabajo del A1 no llegaba a main."""
-    m = re.search(r"/ola/([^/]+)$", rama) or re.search(r"^nube/a1-\d{8}-\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$", rama)
+    m = re.search(r"/ola/([^/]+)$", rama) or re.search(
+        r"^nube/(?:a1|mg)-\d{8}-\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$", rama)
     if m:
         return m.group(1)
     return next(iter(por_tid), None)
