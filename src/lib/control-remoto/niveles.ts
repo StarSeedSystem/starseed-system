@@ -10,8 +10,10 @@
 
 import { RE_NEG, MAX_PARTES, leerParte } from "./senal-partes";
 import { validarPideCuadro } from "./cuadro-malla";
+import { validarComandoTerminal } from "./terminal";
 
 export type Nivel = "ver" | "controlar" | "modificar" | "administrar";
+export type NivelTerminal = "usuario" | "administrador";
 export const NIVELES: readonly Nivel[] = ["ver", "controlar", "modificar", "administrar"];
 
 /**
@@ -249,6 +251,44 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     brillo: { nivel: "controlar", entrada: true, validar: (a) => (soloClaves(a, ["nivel"]) && unidad(a.nivel) ? { nivel: redondear(a.nivel) } : null), que: "pone el brillo del aparato (0 a 1)" },
     texto: { nivel: "controlar", entrada: true, validar: validarTexto, que: "escribe un texto (hasta 512 caracteres) en el campo con foco" },
     "simular-vuelve-ip": { nivel: "controlar", simulacion: true, validar: sinArgs, que: "SIMULACIÓN: deshace «simular-corte-ip»" },
+    // TRM1125A · terminal entre neuronas
+    "terminal-abrir": {
+        nivel: "modificar",
+        validar: (a) =>
+            soloClaves(a, ["nivel", "modo", "caducidadMin"]) &&
+            typeof a.nivel === "string" &&
+            (a.nivel === "usuario" || a.nivel === "administrador") &&
+            typeof a.modo === "string" &&
+            (a.modo === "tipado" || a.modo === "completo") &&
+            (a.caducidadMin === undefined || (typeof a.caducidadMin === "number" && a.caducidadMin > 0 && a.caducidadMin <= 1440))
+                ? { nivel: a.nivel, modo: a.modo, ...(a.caducidadMin ? { caducidadMin: a.caducidadMin } : {}) }
+                : null,
+        que: "abre una sesión de terminal (nivel: usuario|administrador, modo: tipado|completo, caducidadMin: opcional)",
+    },
+    "terminal-cerrar": { nivel: "modificar", validar: sinArgs, que: "cierra la sesión de terminal activa" },
+    "terminal-ejecutar": {
+        nivel: "modificar",
+        validar: (a) =>
+            soloClaves(a, ["comando", "args"]) &&
+            typeof a.comando === "string" &&
+            a.comando.length > 0 &&
+            typeof a.args === "object" &&
+            a.args !== null
+                ? { comando: a.comando, args: validarComandoTerminal(a.comando, a.args as Record<string, unknown>) }
+                : null,
+        que: "ejecuta un comando de terminal (el nivel efectivo depende del comando: usuario o administrador)",
+    },
+    "terminal-registro": {
+        nivel: "ver",
+        validar: (a) =>
+            soloClaves(a, ["desde", "hasta", "controlador"]) &&
+            (a.desde === undefined || (typeof a.desde === "number" && a.desde > 0)) &&
+            (a.hasta === undefined || (typeof a.hasta === "number" && a.hasta > 0)) &&
+            (a.controlador === undefined || typeof a.controlador === "string")
+                ? { ...(a.desde ? { desde: a.desde } : {}), ...(a.hasta ? { hasta: a.hasta } : {}), ...(a.controlador ? { controlador: a.controlador } : {}) }
+                : null,
+        que: "lee el registro de comandos de terminal ejecutados",
+    },
 };
 
 export function definicion(nombre: unknown): DefAccion | null {
@@ -260,4 +300,18 @@ export function capacidadesDeNivel(n: Nivel): string[] {
     return Object.entries(ACCIONES)
         .filter(([, d]) => rangoNivel(d.nivel) <= rangoNivel(n))
         .map(([k]) => k);
+}
+
+export const NIVELES_TERMINAL: readonly NivelTerminal[] = ["usuario", "administrador"];
+
+export function esNivelTerminal(n: unknown): n is NivelTerminal {
+    return typeof n === "string" && NIVELES_TERMINAL.includes(n as NivelTerminal);
+}
+
+export function rangoNivelTerminal(n: unknown): number {
+    return typeof n === "string" ? NIVELES_TERMINAL.indexOf(n as NivelTerminal) : -1;
+}
+
+export function nivelTerminalMinimo(a: NivelTerminal, b: NivelTerminal): NivelTerminal {
+    return rangoNivelTerminal(a) <= rangoNivelTerminal(b) ? a : b;
 }
