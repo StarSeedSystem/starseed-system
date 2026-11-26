@@ -1,4 +1,4 @@
-import { Grafo4D, Nodo } from "../modelo";
+import { Grafo4D, Nodo } from "./modelo";
 
 export function agruparPorJerarquia(
   grafo: Grafo4D,
