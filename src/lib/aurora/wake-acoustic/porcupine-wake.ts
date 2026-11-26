@@ -381,13 +381,16 @@ function inertSession(engine: AcousticWakeEngine): AcousticWakeSession {
 let porcupineModPromise: Promise<any> | null = null;
 
 /** Importa `@picovoice/porcupine-web` desde la CDN una sola vez (memoizado). */
-async function importPorcupine(): Promise<any> {
+export async function importPorcupine(): Promise<any> {
   if (porcupineModPromise) return porcupineModPromise;
   porcupineModPromise = (async () => {
     // `webpackIgnore` / `@vite-ignore`: import de runtime puro, no lo resuelve el bundler.
     const mod: any = await import(/* webpackIgnore: true */ /* @vite-ignore */ PORCUPINE_CDN);
     return mod;
-  })();
+  })().catch((err) => {
+    porcupineModPromise = null;
+    throw err;
+  });
   return porcupineModPromise;
 }
 
