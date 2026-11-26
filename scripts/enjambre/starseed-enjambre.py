@@ -3676,11 +3676,24 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        # Reapertura explícita del director/revisor: un rechazo MECÁNICO de las puertas
+        # (no tocó archivos) no puede deshacer el «pendiente» que esta tanda acaba de
+        # poner, o el reabrir se deshace en bucle. Solo vale para las tareas propias:
+        # el rechazo que ya cerró otra tanda (o una decisión real) manda desde el disco.
+        mecanico_propio = (
+            bool(propias) and tid in propias and es_rechazo_mecanico(valor)
+        )
+        if (
+            mecanico_propio
+            and isinstance(en_memoria, dict)
+            and en_memoria.get("estado") == "pendiente"
+        ):
+            continue
         if (
             tid not in salida
             or (propias and tid not in propias)
             or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
-                and not es_rechazo_mecanico(valor))
+                and not mecanico_propio)
             or prestada
         ):
             salida[tid] = valor
