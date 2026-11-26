@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PantallaDestino } from "../pantalla-destino";
 
-class CanalFalso implements RequestEncoder {
+class CanalFalso {
     readyState = "open";
     onopen: (() => void) | null = null;
     onmessage: ((e: { data: unknown }) => void) | null = null;
@@ -19,6 +19,7 @@ class PeerFalso {
     ontrack: ((e: { track: unknown; streams?: unknown[] }) => void) | null = null;
     onconnectionstatechange: (() => void) | null = null;
     remota: { type: string; sdp: string } | null = null;
+    ahora = () => Date.now();
     addTransceiver(t: string, init: { direction: string }) { return {}; }
     createDataChannel(nombre: string, init: { ordered: boolean }) { return new CanalFalso(this.ahora); }
     async createOffer() { return { type: "offer", sdp: "v=0\r\noferta" }; }
