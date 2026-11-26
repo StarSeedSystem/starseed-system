@@ -44,6 +44,10 @@ const COMANDOS_APP: &[&str] = &[
     // (SEG1111U) Solo escritorio y con «acceso al equipo» (acceso_equipo.rs); su permiso solo lo da
     // capabilities/acceso-equipo.json. Inventario: architecture/permisos-y-control-del-dispositivo.md §4.8.1.
     "run_terminal",
+    // (TRM1125B) Terminal entre neuronas: ejecución nativa con salida en vivo (comando terminal_ejecutar).
+    // Solo escritorio, con «acceso al equipo» y nivel concedido (usuario/administrador vía ayudante TRM1125C).
+    "terminal_ejecutar",
+    "terminal_cancelar",
     "check_update",
     "reiniciar_para_actualizar",
     "estado_actualizacion",

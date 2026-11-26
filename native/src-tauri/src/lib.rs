@@ -187,6 +187,11 @@ mod prestamo_ventana_logica; // SEG1111T
 mod acceso_equipo; // SEG1111U
 #[cfg(any(desktop, test))]
 mod acceso_equipo_logica; // SEG1111U
+// (TRM1125B) Terminal entre neuronas: ejecución nativa con salida en vivo.
+#[cfg(desktop)]
+mod terminal_remota; // TRM1125B
+#[cfg(any(desktop, test))]
+mod terminal_remota_logica; // TRM1125B
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
 mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
@@ -1049,6 +1054,8 @@ pub fn run() {
     #[cfg(desktop)]
     registrar_comandos!(builder [
         run_terminal, // SEG1111U (solo escritorio y con «acceso al equipo»)
+        terminal_remota::terminal_ejecutar, // TRM1125B (terminal remota con salida en vivo)
+        terminal_remota::terminal_cancelar, // TRM1125B (cancelar orden en curso)
         acceso_equipo::acceso_equipo_estado, // SEG1111U
         acceso_equipo::acceso_equipo_pedir, // SEG1111U
         acceso_equipo::acceso_equipo_revocar, // SEG1111U

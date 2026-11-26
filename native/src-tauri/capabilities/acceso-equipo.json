@@ -28,6 +28,8 @@
   },
   "permissions": [
     "allow-run-terminal",
+    "allow-terminal-ejecutar",
+    "allow-terminal-cancelar",
     "allow-acceso-equipo-estado",
     "allow-acceso-equipo-pedir",
     "allow-acceso-equipo-revocar"
