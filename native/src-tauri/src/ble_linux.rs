@@ -22,6 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 use crate::ble::{self as nucleo, Radio};
+use crate::ble_enlace_diagnostico as diag;
 use crate::ble_l2cap as l2;
 use crate::ble_linux_logica as lg;
 use crate::ble_trama as bt;
@@ -80,10 +81,84 @@ static PSM_PUBLICADO: AtomicU16 = AtomicU16::new(0);
 /// (BLX1118A) El turno de conexión como central (una a la vez) y la marca de «escaneo parado a propósito».
 static TURNO: Mutex<Option<lg::Turno>> = Mutex::new(None);
 static ESCANEO_PAUSADO: AtomicBool = AtomicBool::new(false);
+/// (BLE1124A) Cuándo se oyó por última vez cada dirección. Android rota su dirección privada y BlueZ
+/// conserva la vieja en su caché: sin esto se lanzaba `Connect` contra una dirección que ya no existe.
+static VISTAS: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
+/// (BLE1124A) Hasta cuándo no se abre otra conexión como central tras un fallo. El descanso es global
+/// (no por dirección) porque cada anuncio puede traer una dirección nueva de la misma neurona.
+static DESCANSO_HASTA: Mutex<Option<u64>> = Mutex::new(None);
 
 fn turno<T>(f: impl FnOnce(&mut lg::Turno) -> T) -> T {
     let mut g = TURNO.lock().unwrap_or_else(|e| e.into_inner());
     f(g.get_or_insert_with(lg::Turno::default))
+}
+
+fn vistas<T>(f: impl FnOnce(&mut HashMap<String, u64>) -> T) -> T {
+    let mut g = VISTAS.lock().unwrap_or_else(|e| e.into_inner());
+    f(g.get_or_insert_with(HashMap::new))
+}
+
+fn anotar_vista(direccion: &str, ahora: u64) {
+    vistas(|v| {
+        v.insert(direccion.to_string(), ahora);
+    });
+}
+
+fn olvidar_vista(direccion: &str) {
+    vistas(|v| {
+        v.remove(direccion);
+    });
+}
+
+fn vista_hace_ms(direccion: &str, ahora: u64) -> Option<u64> {
+    vistas(|v| v.get(direccion).map(|t| ahora.saturating_sub(*t)))
+}
+
+fn descanso_hasta() -> Option<u64> {
+    *DESCANSO_HASTA.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn fijar_descanso(ahora: u64, ms: u64) {
+    if ms == 0 {
+        return;
+    }
+    let mut g = DESCANSO_HASTA.lock().unwrap_or_else(|e| e.into_inner());
+    let hasta = ahora.saturating_add(ms);
+    let nuevo = match *g {
+        Some(t) => t.max(hasta),
+        None => hasta,
+    };
+    *g = Some(nuevo);
+}
+
+/// (BLE1124A) Qué se sabe de una dirección en el momento de intentar conectar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Vigencia {
+    /// Nunca se oyó por esta radio: puede venir de una apertura manual; se permite.
+    Desconocida,
+    /// Se oyó hace `FRESCO_MS` o menos.
+    Fresca,
+    /// Se oyó hace más: la dirección privada probablemente ya rotó.
+    Caducada(u64),
+}
+
+fn vigencia(hace_ms: Option<u64>) -> Vigencia {
+    match hace_ms {
+        None => Vigencia::Desconocida,
+        Some(h) if h <= lg::FRESCO_MS => Vigencia::Fresca,
+        Some(h) => Vigencia::Caducada(h),
+    }
+}
+
+/// (BLE1124A) Milisegundos que quedan del descanso global (0 = ya se puede intentar).
+fn descanso_restante_ms(ahora: u64, hasta: Option<u64>) -> u64 {
+    hasta.map(|t| t.saturating_sub(ahora)).unwrap_or(0)
+}
+
+/// (BLE1124A) Asentamiento antes de `Connect`: 300 ms abortaba con `le-connection-abort-by-local`;
+/// CTL1123E midió que hacen falta 500 ms (y más si el controlador ya tiene conexiones pendientes).
+fn asentamiento_para_conectar(escaneo_activo: bool) -> u64 {
+    diag::asentamiento_recomendado_ms(escaneo_activo, 0)
 }
 
 fn enlaces<T>(f: impl FnOnce(&mut HashMap<String, Enlace>) -> T) -> T {
@@ -1061,11 +1136,8 @@ impl PausaEscaneo {
         if let Ok(a) = proxy(c, ad, lg::IF_ADAPTADOR) {
             let _ = a.call::<_, _, ()>("StopDiscovery", &());
         }
-        // CTL1123E/BLE1124A: el controlador necesita asentarse tras soltar el escaneo. Los 300 ms fijos
-        // se quedaban cortos y `Device1.Connect` abortaba con `le-connection-abort-by-local`; el turno
-        // garantiza una sola conexión LE a la vez, así que no hay otras pendientes que sumar.
-        let asentar = if estaba { crate::ble_enlace_diagnostico::asentamiento_recomendado_ms(true, 0) } else { 300 };
-        std::thread::sleep(Duration::from_millis(asentar));
+        let espera = asentamiento_para_conectar(true);
+        std::thread::sleep(Duration::from_millis(espera));
         match descubriendo_ahora(c, ad) {
             Some(true) => dec(
                 Some(plat),
@@ -1114,6 +1186,9 @@ fn trabajador_conexion(c: Connection, ad: String, primera: String) {
                 seguidos = if matches!(r, lg::ResultadoConnect::Espera | lg::ResultadoConnect::YaConectado) { 0 } else { seguidos.saturating_add(1) };
                 let pausa = lg::pausa_tras_fallo_ms(r, seguidos);
                 if pausa > 0 {
+                    // (BLE1124A) El descanso también vale para un intento NUEVO con otra dirección de la
+                    // misma neurona: si no, cada anuncio con dirección privada nueva saltaba la espera.
+                    fijar_descanso(ahora_ms(), pausa);
                     if let Some(p) = lg::plataforma('c', &dir) {
                         dec(Some(&p), &format!("central: descanso {pausa} ms antes de aceptar otra conexión ({} seguidos: {})", seguidos, r.etiqueta()));
                     }
@@ -1132,16 +1207,23 @@ fn trabajador_conexion(c: Connection, ad: String, primera: String) {
 fn intento_conexion(c: &Connection, ad: &str, dir: &str) -> Option<lg::ResultadoConnect> {
     let plat = lg::plataforma('c', dir)?;
     let ruta = lg::ruta_dispositivo(ad, dir)?;
-    // BLE1124A: no insistir con una dirección que dejó de oírse (Android rota la MAC en cada anuncio).
-    // Se olvida del vecindario y se espera a un anuncio nuevo, en vez de acumular abortos del controlador.
-    if !direccion_vigente(dir, ahora_ms()) {
+    // (BLE1124A) El descanso se respeta también cuando el intento llega en un hilo nuevo (otra dirección
+    // privada de la misma neurona): no se abre otra conexión antes de que termine.
+    let restante = descanso_restante_ms(ahora_ms(), descanso_hasta());
+    if restante > 0 {
+        dec(Some(&plat), &format!("central: descanso {restante} ms antes de intentar con {dir}"));
+        std::thread::sleep(Duration::from_millis(restante));
+    }
+    // (BLE1124A) No insistir contra una dirección caducada: BlueZ guarda en su caché la dirección privada
+    // vieja aunque ya haya rotado. Se espera a oír un anuncio nuevo de esa neurona.
+    if let Vigencia::Caducada(hace) = vigencia(vista_hace_ms(dir, ahora_ms())) {
         dec(
             Some(&plat),
-            &format!("conectar {dir}: no se oye desde hace más de {} s; no insisto con una dirección caducada (se espera un anuncio nuevo)", lg::FRESCO_MS / 1000),
+            &format!("conectar {dir}: dirección caducada (vista hace {} s); no insisto, espero un anuncio nuevo", hace / 1000),
         );
         nucleo::olvidar_vecino(dir);
         turno(|t| t.quitar(dir));
-        reexplorar(c, ad, Some(&plat), "dirección caducada: se busca el anuncio nuevo");
+        olvidar_vista(dir);
         return Some(lg::ResultadoConnect::ObjetoPerdido);
     }
     // El objeto debe seguir en BlueZ: si lo olvidó, no se intenta (y se vuelve a explorar).
@@ -1149,6 +1231,7 @@ fn intento_conexion(c: &Connection, ad: &str, dir: &str) -> Option<lg::Resultado
     if !existe {
         dec(Some(&plat), &format!("conectar {dir}: BlueZ ya olvidó ese dispositivo (UnknownObject); lo quito del vecindario y vuelvo a explorar"));
         nucleo::olvidar_vecino(dir);
+        olvidar_vista(dir);
         reexplorar(c, ad, Some(&plat), "dispositivo olvidado por BlueZ");
         return Some(lg::ResultadoConnect::ObjetoPerdido);
     }
@@ -1186,7 +1269,7 @@ fn reexplorar(c: &Connection, ad: &str, plat: Option<&str>, motivo: &str) {
     if let Ok(a) = proxy(c, ad, lg::IF_ADAPTADOR) {
         let _ = a.call::<_, _, ()>("StopDiscovery", &());
     }
-    std::thread::sleep(Duration::from_millis(300));
+    std::thread::sleep(Duration::from_millis(asentamiento_para_conectar(true)));
     match iniciar_descubrimiento(c, ad) {
         Ok(()) => nucleo::nota(plat, "redescubriendo", &format!("Linux: escaneo reiniciado ({motivo})")),
         Err(e) => nucleo::nota(plat, "redescubriendo", &format!("Linux: no se pudo reiniciar el escaneo ({motivo}): {e}")),
@@ -1328,9 +1411,11 @@ fn vigilar(m: &mut Marcha) -> Result<(), String> {
                 m.doble_modo_omitidos.remove(&dir);
                 // BlueZ guarda el último RSSI de una dirección en su caché aunque ya no se oiga (la privada vieja de una neurona
                 // convive con la nueva): solo se da por vista la que cambia. Así el núcleo elige la dirección que SÍ se oye.
-                anotar_vista(&dir, rssi, uuid, ahora);
                 match m.oidos.observar(&dir, uuid, rssi, ahora) {
-                    lg::Frescura::Fresca => nucleo::al_ver(&dir, &uuid, rssi),
+                    lg::Frescura::Fresca => {
+                        anotar_vista(&dir, ahora);
+                        nucleo::al_ver(&dir, &uuid, rssi);
+                    }
                     lg::Frescura::Caducada => {}
                 }
             }
@@ -1406,30 +1491,6 @@ mod pruebas {
         *UUID_ANUNCIO.lock().unwrap() = String::new();
     }
 
-    /// (BLE1124A) La frescura de una dirección: solo cuenta un anuncio que CAMBIÓ (BlueZ repite el
-    /// último RSSI de su caché) y sin lectura previa no se puede decir que esté caducada. Es lo que
-    /// impide insistir contra una MAC aleatoria que ya no se oye (`le-connection-abort-by-local`).
-    #[test]
-    fn solo_se_insiste_con_una_direccion_que_sigue_anunciandose() {
-        assert!(es_cambio(None, -60, [1; 16]));
-        assert!(!es_cambio(Some((-60, [1; 16])), -60, [1; 16]), "mismo RSSI y UUID: es la caché, no un anuncio nuevo");
-        assert!(es_cambio(Some((-60, [1; 16])), -61, [1; 16]), "cambia el RSSI");
-        assert!(es_cambio(Some((-60, [1; 16])), -60, [2; 16]), "rota el UUID");
-        assert!(direccion_fresca(None, 10_000), "sin lectura previa no está caducada");
-        assert!(direccion_fresca(Some(10_000), 10_000 + lg::FRESCO_MS - 1));
-        assert!(!direccion_fresca(Some(10_000), 10_000 + lg::FRESCO_MS), "pasado FRESCO_MS ya no se oye");
-        let dir = "AA:BB:CC:DD:EE:01";
-        olvidar_vista(dir);
-        anotar_vista(dir, -60, [3; 16], 1_000);
-        assert!(direccion_vigente(dir, 1_000 + lg::FRESCO_MS - 1));
-        anotar_vista(dir, -60, [3; 16], 1_000 + lg::FRESCO_MS + 5_000);
-        assert!(!direccion_vigente(dir, 1_000 + lg::FRESCO_MS + 5_000), "la caché repetida no cuenta como oírla");
-        anotar_vista(dir, -70, [3; 16], 1_000 + lg::FRESCO_MS + 6_000);
-        assert!(direccion_vigente(dir, 1_000 + lg::FRESCO_MS + 6_000), "un RSSI distinto sí la renueva");
-        olvidar_vista(dir);
-        assert!(direccion_vigente(dir, 0), "sin registro, no se bloquea el intento");
-    }
-
     /// (BLE1124A) Tras soltar el escaneo no basta con 300 ms: el asentamiento del controlador es mayor.
     #[test]
     fn el_asentamiento_tras_el_escaneo_no_se_queda_en_300_ms() {
@@ -1445,5 +1506,49 @@ mod pruebas {
         // SAFETY: búfer propio.
         let n = unsafe { libc::recv(b.as_raw_fd(), buf.as_mut_ptr().cast(), buf.len(), 0) };
         assert_eq!(&buf[..n as usize], &p);
+    }
+
+    /// (BLE1124A) Una dirección que ya no se oye hace más de `FRESCO_MS` no se reintenta: BlueZ conserva
+    /// la privada vieja en su caché y `Connect` contra ella acaba en `le-connection-abort-by-local`.
+    #[test]
+    fn una_direccion_caducada_no_se_reintenta() {
+        assert_eq!(vigencia(None), Vigencia::Desconocida, "una apertura manual sin anuncio previo se permite");
+        assert_eq!(vigencia(Some(0)), Vigencia::Fresca);
+        assert_eq!(vigencia(Some(lg::FRESCO_MS)), Vigencia::Fresca);
+        assert_eq!(vigencia(Some(lg::FRESCO_MS + 1)), Vigencia::Caducada(lg::FRESCO_MS + 1));
+    }
+
+    /// (BLE1124A) El descanso global cuenta desde el último fallo, aunque la siguiente petición llegue
+    /// con otra dirección privada de la misma neurona.
+    #[test]
+    fn el_descanso_global_se_respeta_entre_intentos() {
+        assert_eq!(descanso_restante_ms(1_000, None), 0);
+        assert_eq!(descanso_restante_ms(1_000, Some(3_000)), 2_000);
+        assert_eq!(descanso_restante_ms(3_000, Some(3_000)), 0);
+        assert_eq!(descanso_restante_ms(4_000, Some(3_000)), 0, "vencido no resta");
+    }
+
+    /// (BLE1124A) El asentamiento antes de `Connect` es el que midió CTL1123E (≥ 500 ms con escaneo),
+    /// no los 300 ms fijos que abortaban la conexión.
+    #[test]
+    fn el_asentamiento_antes_de_conectar_usa_el_diagnostico() {
+        assert_eq!(asentamiento_para_conectar(false), 0);
+        assert_eq!(asentamiento_para_conectar(true), diag::ASENTAMIENTO_BASE_MS);
+        assert!(asentamiento_para_conectar(true) >= 500, "300 ms abortaba con le-connection-abort-by-local");
+    }
+
+    /// (BLE1124A) La pausa del escaneo y la reexploración esperan ese asentamiento, no 300 ms fijos.
+    #[test]
+    fn la_pausa_del_escaneo_usa_el_asentamiento_del_diagnostico() {
+        let fuente = include_str!("ble_linux.rs");
+        let ini = fuente.find("impl PausaEscaneo").expect("PausaEscaneo");
+        let fin = ini + fuente[ini..].find("impl Drop for PausaEscaneo").expect("Drop de PausaEscaneo");
+        let pausa = &fuente[ini..fin];
+        assert!(pausa.contains("asentamiento_para_conectar(true)"), "la pausa espera el asentamiento medido");
+        assert!(!pausa.contains("from_millis(300)"), "300 ms fijos abortaban la conexión");
+        let re = fuente.find("fn reexplorar(").expect("reexplorar");
+        let re_fin = re + fuente[re..].find("fn arrancar_marcha(").expect("fin de reexplorar");
+        assert!(fuente[re..re_fin].contains("asentamiento_para_conectar(true)"));
+        assert!(!fuente[re..re_fin].contains("from_millis(300)"));
     }
 }

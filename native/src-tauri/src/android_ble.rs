@@ -26,17 +26,13 @@ const COMPONENTES_FIN: &str = "<!-- STARSEED-BLE:COMPONENTES:FIN -->";
 
 /// (permiso, atributos extra). Lo ya declarado en otro bloque (p. ej. BLUETOOTH_CONNECT de los medios)
 /// no se repite.
-pub const PERMISOS: [(&str, &str); 7] = [
+pub const PERMISOS: [(&str, &str); 6] = [
     ("android.permission.BLUETOOTH_SCAN", " android:usesPermissionFlags=\"neverForLocation\""),
     ("android.permission.BLUETOOTH_ADVERTISE", ""),
     ("android.permission.BLUETOOTH_CONNECT", ""),
     ("android.permission.BLUETOOTH", " android:maxSdkVersion=\"30\""),
     ("android.permission.BLUETOOTH_ADMIN", " android:maxSdkVersion=\"30\""),
     ("android.permission.ACCESS_FINE_LOCATION", " android:maxSdkVersion=\"30\""),
-    // (BLE1124A) La radio vive con el servicio de antenas (`connectedDevice`): sin este permiso
-    // Android 14+ no deja mantener el anuncio y el servidor GATT con la app en segundo plano.
-    // Si el bloque de segundo plano ya lo declara, no se repite.
-    ("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE", ""),
 ];
 
 /// La app también vale sin Bluetooth de baja energía.
@@ -181,8 +177,6 @@ mod pruebas {
         assert!(m.contains("<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" android:usesPermissionFlags=\"neverForLocation\" />"));
         assert!(m.contains("\"android.permission.BLUETOOTH_ADVERTISE\""));
         assert!(m.contains("<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" android:maxSdkVersion=\"30\" />"));
-        // (BLE1124A) El propio bloque de Bluetooth garantiza el tipo de servicio en segundo plano.
-        assert!(m.contains("\"android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE\""));
         assert!(m.contains("<uses-feature android:name=\"android.hardware.bluetooth_le\" android:required=\"false\" />"));
         assert!(m.contains("app.starseed.nativa.ArranqueBle"));
         assert!(m.contains("${applicationId}.starseed-ble"));
@@ -203,8 +197,6 @@ mod pruebas {
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH_CONNECT\"").count(), 1);
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH\"").count(), 1);
         assert_eq!(dos.matches("\"android.permission.BLUETOOTH_SCAN\"").count(), 1);
-        // (BLE1124A) El permiso del servicio en segundo plano va UNA vez (lo declara antes el bloque de antenas).
-        assert_eq!(dos.matches("\"android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE\"").count(), 1);
         assert_eq!(dos.matches("</manifest>").count(), 1);
     }
 
@@ -429,5 +421,31 @@ mod pruebas {
         // El PHY 2M se pide con retraso, nunca dentro del callback de conexión.
         assert!(KOTLIN.contains("RETRASO_PHY_MS"));
         assert!(KOTLIN.contains("principal.postDelayed({\n            try {\n                f()"));
+    }
+
+    /// (BLE1124A) El anuncio y el servidor GATT tienen que seguir con la app delante y en segundo plano:
+    /// anuncio conectable y sin plazo, servidor abierto ANTES de escanear y de anunciar, anuncio al
+    /// registrar el servicio y al encender el Bluetooth, y el proveedor arrancando la radio con el proceso.
+    #[test]
+    fn kotlin_anuncia_y_sirve_gatt_tambien_en_segundo_plano() {
+        assert!(KOTLIN.contains(".setConnectable(true)"), "el anuncio debe aceptar conexiones");
+        assert!(KOTLIN.contains(".setTimeout(0)"), "sin plazo: el anuncio no se apaga solo");
+        let arr = KOTLIN.find("private fun arrancar()").expect("arrancar");
+        let fin = arr + KOTLIN[arr..].find("private fun limpiar(").expect("limpiar");
+        let cuerpo = &KOTLIN[arr..fin];
+        let servidor = cuerpo.find("abrirServidor(mgr)").expect("abrirServidor");
+        let escanear = cuerpo.find("escanear()").expect("escanear");
+        assert!(servidor < escanear, "primero el servidor GATT, después el escaneo");
+        let sa = KOTLIN.find("override fun onServiceAdded").expect("onServiceAdded");
+        let sa_fin = sa + KOTLIN[sa..].find("override fun onConnectionStateChange").expect("fin de onServiceAdded");
+        assert!(KOTLIN[sa..sa_fin].contains("anunciar()"), "al registrar el servicio se vuelve a anunciar");
+        assert!(
+            KOTLIN.contains("BluetoothAdapter.STATE_ON -> principal.post { if (activo) arrancar() }"),
+            "al encender el Bluetooth con la app atrás se vuelve a arrancar la radio"
+        );
+        // El proveedor arranca la radio con el proceso y antes que el servicio de antenas (initOrder 100).
+        assert!(bloque_componentes().contains("android:initOrder=\"80\""));
+        assert!(KOTLIN.contains("class ArranqueBle : ContentProvider()"));
+        assert!(KOTLIN.contains("MotorBle.iniciar(app)"));
     }
 }
