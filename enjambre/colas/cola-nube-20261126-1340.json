@@ -1,0 +1,119 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "ACBB0B732",
+   "ola": "Ola A-desbloqueo · publicacion-27d66259d",
+   "titulo": "URGENTE · Desbloquear la publicación (27d66259d)",
+   "archivos": [
+    "src/lib/nativa/__tests__/inventario-nativo.test.ts"
+   ],
+   "depende": [],
+   "urgente": true,
+   "clave_desbloqueo": "publicacion-27d66259d",
+   "prompt": "La autopublicación lleva varias pasadas bloqueada por el mismo motivo y no sale nada a producción hasta que la causa se corrija en el código.\n\nLa publicación lleva 2 pasadas seguidas bloqueada: CI en rojo · espero a que llegue un commit nuevo\n\nEl archivo que señala la evidencia es `src/lib/nativa/__tests__/inventario-nativo.test.ts`, línea 85.\n\nEvidencia (tal cual la dio el compilador o la puerta):\n> as de verdad\n> 2026-11-26T19:05:12.6836802Z AssertionError: «allow-terminal-ejecutar» se concede a un origen remoto y no está en el inventario del contrato (§4.8.1): expected undefined to be defined\n> 2026-11-26T19:05:12.6837930Z  ❯ src/lib/nativa/__tests__/inventario-nativo.test.ts:85:115\n> 2026-11-26T19:05:12.6977515Z      83|     for (const [permiso, donde] of concedido) {\n> 2026-11-26T19:05:12.6978384\n> […]\n> ⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n> 2026-11-26T19:05:12.6983333Z\n> 2026-11-26T19:05:12.7067812Z  Test Files  1 failed | 2457 passed (2458)\n> 2026-11-26T19:05:12.7235295Z       Tests  1 failed | 27930 passed | 18 skipped (27949)\n> 2026-11-26T19:05:12.7235909Z    Start at  18:54:40\n> 2026-11-26T19:05:12.7280280Z    Duration  631.69s (transform 71.05s, setup 71.53s, collect 386.90s, tests 660.73s, environment 280.14s, prepare 132.51s)\n> 2026-11-26T19:05:12.7280880Z\n> 2026-11-26T19:05:12.7455889Z\n> 2026-11-26T19:05:12.7465921Z ##[error]AssertionError: «allow-terminal-ejecutar» se concede a un origen remoto y no está en el inventario del contrato (§4.8.1): expected undefined to be defined\n>  ❯ src/lib/nativa/__tests__/inventario-nativo.test.ts:85:115\n> \n> \n> 2026-11-26T19:05:13.2576874Z ##[error]Process completed with exit code 1.\n\nPide la corrección más pequeña que haga desaparecer ESE error. Reglas: la arreglo MÍNIMA, la causa y nada más (una línea si basta); no toques los frenos de la publicación (scripts/puente/autopublicar.py, scripts/puente/produccion_puertas.py), ni las pruebas guardia (si una prueba guardia falla, el código es el que se corrige, nunca la prueba), ni permisos (capabilities, AndroidManifest, entitlements, RLS); sin claves ni cadenas con forma de clave; ≤ 3 archivos; no hagas push, ni pidas ni lances compilaciones ni publicaciones: eso lo hace el director. Comprueba con la prueba o el compilador del archivo que cambies y di en tu respuesta qué cambiaste y por qué."
+  },
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 91,
+   "capacidad": "alta",
+   "id": "CTL1126F-d2",
+   "titulo": "Neurona con varios aparatos: cada aparato en su ventana o pestaña y modo espejo (la misma acción en todos a la vez) (parte 2 de 3)",
+   "archivos": [
+    "src/lib/control-remoto/espejo-aparatos.ts"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: el control a veces llegaba al teléfono y a veces a la tableta (compartían neurona). Cuando varios aparatos usan una neurona: se elige cada aparato (CTL1126E), cada uno se controla en su ventana o pestaña, y hay un «modo espejo» que ejecuta las mismas órdenes en todos los aparatos de la neurona a la vez, en tiempo real, desde la pantalla de cualquiera de ellos. Cada aparato conserva su permiso y su aviso de «te están controlando»; si uno no tiene permiso, el espejo lo salta y lo dice. Pruebas con dos aparatos falsos: selección, pestañas y espejo.\n\n## PARTE 2 DE 3 (la dirección dividió CTL1126F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/control-remoto/espejo-aparatos.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTL1126F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CTL1126F-d1"
+   ]
+  },
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "id": "NEU1126F-d1",
+   "titulo": "Una neurona, un estado: archivos, ajustes y datos se igualan al instante en todos sus aparatos conectados (parte 1 de 3)",
+   "archivos": [
+    "src/lib/neurons/sincronia-neurona.ts"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: «como son una neurona, las modificaciones de cualquier archivo o configuración, toda la información, debe modificarse en todos los aparatos vinculados a esa neurona al instante que estén conectados, por las funciones de sincronización de la neurona en todos sus medios». Primero inventario (en el informe): qué se sincroniza hoy entre aparatos de una neurona (ajustes en localStorage, cerebros, archivos, sesiones) y qué no. Luego: sincronía por la malla P2P (cualquier medio: red local, BLE, relé) entre aparatos de la MISMA neurona, por campo y con fecha (gana el más reciente sin pisar otros campos), cola de cambios mientras no hay enlace y registro de conflictos. Lo que es propio del aparato (su clave de control, sus permisos del sistema, su huella) nunca se copia. Contrato architecture/neuronas-aparatos.md. Pruebas de fusión por campo y de la cola sin enlace.\n\n## PARTE 1 DE 3 (la dirección dividió NEU1126F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/neurons/sincronia-neurona.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NEU1126F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "NEU1126A-d2"
+   ]
+  },
+  {
+   "ola": "terminal-neuronas-1125",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "revisor": {
+    "origen": "TRM1125B-d2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "id": "TRM1125B-d2-d2",
+   "titulo": "Terminal entre neuronas: ejecución nativa con salida en vivo (comando terminal_ejecutar) (parte 2 de 3) (parte 2 de 3)",
+   "archivos": [
+    "native/src-tauri/capabilities/default.json"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Ejecuta en el aparato controlado lo que permite el nivel concedido, con salida en vivo por tuberías (sin PTY si no hay crate), tope de tiempo y de salida, cancelación con «Terminar», y registro. La lógica de decisión (¿se permite esta orden con este permiso?) en terminal_remota_logica.rs con pruebas. Nivel administrador: solo a través del ayudante con privilegios (TRM1125C), nunca sudo con contraseña.\n\n## PARTE 2 DE 3 (la dirección dividió TRM1125B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: native/src-tauri/build.rs, native/src-tauri/capabilities/default.json, architecture/permisos-y-control-del-dispositivo.md. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## PARTE 2 DE 3 (la dirección dividió TRM1125B-d2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: native/src-tauri/capabilities/default.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main."
+  },
+  {
+   "id": "ALC1125Js",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas · lo que faltó: src/lib/mando/medidores.ts",
+   "archivos": [
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de ALC1125J, que ya está integrada (sha fd0d50f2e69b). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/mando/medidores.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas\n\n--- encargo original, como contexto ---\nContrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 7 del contrato. (1) La sonda de la Maggabox mide también /srv/starseed-almacen (usado, libre, si está montado y, si se puede leer sin root, la salud) y el medidor de almacenamiento de MetaGenesis lo muestra como medio propio «Maggabox · almacén USB (btrfs)», distinto del disco interno; si no está montado dice «desconectado» y desde cuándo, nunca 0 GB inventados. (2) almacen_maggabox.py (sin root, por ssh con las opciones de respaldo_maggabox.py: AddressFamily=inet y known_hosts_starseed_nodo): instantáneas de solo lectura diarias de los subvolúmenes respaldos y cerebros en .instantaneas con retención 7 diarias + 4 semanales, y la orden «destinos» que dice qué va a cada subvolumen (pesado regenerable del enjambre → desarrollo; respaldos y versiones → respaldos). (3) Actualiza la tabla de medios de almacenamiento-distribuido.md. Pruebas con dobles de ssh.",
+   "prioridad": 84,
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  },
+  {
+   "id": "CRE1125E",
+   "titulo": "Revisar bloques rich en creation-blocks.tsx",
+   "archivos": [
+    "src/components/creation/creation-blocks.tsx"
+   ],
+   "depende": [],
+   "prompt": "Verificar y corregir la serialización de bloques rich: blocks, referencia, entidad, protomolécula. Asegurar que serializeBlocks maneje todos los tipos correctamente. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70
+  },
+  {
+   "id": "REAPLICAR-20261125-213001",
+   "ola": "DIR1121C",
+   "titulo": "Reaplicar cambios de main en cuarentena (2 archivos)",
+   "archivos": [
+    "src/components/creation/creation-center.tsx",
+    "src/lib/entity-kinds.ts"
+   ],
+   "depende": [],
+   "prompt": "Los siguientes archivos estaban en main con cambios sin commit >15 min y fueron apartados a cuarentena en /Users/alex/.starseed/cuarentena/20261125-212952. MANIFIESTO.json tiene los detalles.\n\nArchivos: src/components/creation/creation-center.tsx, src/lib/entity-kinds.ts\n\nTu tarea: reaplicar estos cambios en un worktree limpio, pasando tsc y vitest. Si los cambios son válidos, intégralos. Si son basura, descártalos y avisa.",
+   "tipo": "codigo",
+   "prioridad": 50
+  },
+  {
+   "id": "DR1126-1",
+   "ola": "Ola Imaginación 2026-11-26 · lo que el análisis nocturno encontró",
+   "titulo": "Convertir modelo a disperso 2:4 y probar `spbitnet`",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-11-26.md`, sección «ideas nuevas». Texto literal del informe:\n\n  Convertir modelo a disperso 2:4 y probar `spbitnet` — en neurona con GPU NVIDIA (tarea abierta).\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  }
+ ]
+}
