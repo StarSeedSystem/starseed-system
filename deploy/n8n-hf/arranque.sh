@@ -4,7 +4,7 @@
 set -eu
 
 for f in /opt/flujos/*.json; do
-  n8n import:workflow --input="$f" --separate || echo "aviso: no se pudo importar $f" >&2
+  n8n import:workflow --input="$f" --update || echo "aviso: no se pudo importar $f" >&2
 done
 
 # Activar uno a uno: si un flujo no se puede activar (falta credencial, p.ej.)
