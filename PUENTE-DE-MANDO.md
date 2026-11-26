@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-25 22:02:07 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-26 13:39:58 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `metagenesis.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,32 +12,80 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Sueños profundos 2026-11-25 |
-| Agentes escribiendo | **3** |
-| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 87 |
-| Últimas 7 olas | en curso 3 · pendientes 90 · integradas 9 |
-| HEAD | `63426a3ec DIR1125AI · la memoria principal CLAUDE.md pasa a llamarse metagenesis.md en tod` |
-| Sin publicar | 8 commits |
+| Ola arriba | Ola A-desbloqueo · publicacion-991401763 |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 0 |
+| Últimas 4 olas | en curso 0 · pendientes 0 · integradas 3 |
+| HEAD | `57326cc4a chore(memoria): aprendizaje de la ola auto-1126-121254` |
+| Sin publicar | 15 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1125-213149.json`, hace 0s)
+## Quién escribe ahora (latido de `cola-auto-1126-121254.json`, hace 9s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `SA112570` | analizando | explabs/hy4-flash | 6 min | 1 s | 608 |
-| `A13BE11E4b` | escribiendo | openrouter/nvidia/nemotron-3.5-sup | 10 min | 269 s | 71557 |
-| `ENJ1125A` | hecho | freellmapi/auto | 5 min | 316 s | 56255 |
-| `SA112567` | hecho | freellmapi/auto | 7 min | 416 s | 719 |
-| `SA112568` | hecho | freellmapi/auto | 9 min | 526 s | 564 |
-| `ALM1125H4` | tests | freellmapi/auto | 9 min | 528 s | 126084 |
-| `SA112569` | hecho | freellmapi/auto | 9 min | 550 s | 386 |
-| `SA112566` | hecho | groq/openai/gpt-oss-20b | 9 min | 553 s | 810 |
-| `SA112565` | hecho |  | 10 min | 590 s | 273 |
-| `SA112564` | hecho | groq/qwen/qwen3.8-27b | 14 min | 852 s | 1774 |
-| `IMG-diaria-publicar-vector-visual-de-la-orbeb` | hecho |  | 25 min | 1479 s | 0 |
-| `IMG-diaria-endpoint-api-starseed-chat-en-bacb` | hecho |  | 25 min | 1482 s | 0 |
-| `IMG-diaria-convertir-modelo-a-disperso-2-4b` | hecho |  | 25 min | 1484 s | 0 |
-| `ENT-agentes-referencias-diseno-agentes-re-94a280-v1` | hecho | explabs/deepseek-v4.1-flash | 25 min | 1488 s | 951 |
+| `LNX1118WB` | hecho | claude/opus | 2 min | 134 s | 328 |
+| `CAP1125C` | hecho | claude/opus | 2 min | 136 s | 326 |
+| `CAP-skill-coop-qa-usob` | hecho | claude/opus | 3 min | 151 s | 354 |
+| `ALM1118A-d2b` | hecho | claude/opus | 3 min | 155 s | 334 |
+| `CAP-mcp-brave-search-conectar-d2b` | hecho | claude/opus | 3 min | 157 s | 376 |
+| `CRE1125E` | hecho | claude/opus | 3 min | 179 s | 326 |
+| `REAPLICAR-20261125-213001` | hecho | claude/opus | 3 min | 181 s | 360 |
+| `CRE1125C` | hecho | claude/opus | 3 min | 188 s | 326 |
+| `NOM1125G` | hecho | claude/opus | 3 min | 199 s | 326 |
+| `NOM1125B` | hecho | claude/opus | 3 min | 200 s | 326 |
+| `NOM1125F` | hecho | claude/opus | 3 min | 206 s | 326 |
+| `NOM1125A` | hecho | claude/opus | 4 min | 216 s | 656 |
+| `NOM1125C` | hecho | claude/opus | 4 min | 217 s | 652 |
+| `NOM1125D` | hecho | claude/opus | 4 min | 218 s | 652 |
+| `ALC1125B-d1` | hecho | claude/opus | 4 min | 228 s | 332 |
+| `ALC1125E` | hecho | claude/opus | 4 min | 230 s | 652 |
+| `MV1125E-d1` | hecho | claude/opus | 4 min | 230 s | 330 |
+| `TRM1125C` | hecho | claude/opus | 4 min | 242 s | 652 |
+| `NEU1125B-d1` | hecho | claude/sonnet | 4 min | 260 s | 159761 |
+| `ALC1125C-d1` | hecho | claude/opus | 4 min | 269 s | 332 |
+| `MV1125D-d1` | hecho | claude/opus | 4 min | 269 s | 330 |
+| `NEU1126F-d1` | hecho | claude/opus | 5 min | 288 s | 1992 |
+| `ALC1125Js` | hecho | claude/opus | 5 min | 288 s | 1320 |
+| `TRM1125B-d2-d2` | hecho | claude/opus | 5 min | 296 s | 1352 |
+| `CTL1126F-d2` | hecho | claude/opus | 5 min | 297 s | 9763 |
+| `QUA1125A-d1` | hecho | claude/opus | 5 min | 306 s | 332 |
+| `ACBB0B732` | hecho | claude/opus | 5 min | 306 s | 1312 |
+| `MV1125C-d1` | hecho | claude/opus | 5 min | 311 s | 330 |
+| `SEN1126C-d1` | hecho | claude/opus | 5 min | 317 s | 332 |
+| `SEN1126B-d1` | hecho | claude/opus | 5 min | 319 s | 332 |
+| `MV1125F-d1` | hecho | claude/opus | 5 min | 321 s | 332 |
+| `CER1126A-d1` | hecho | claude/opus | 6 min | 353 s | 332 |
+| `SEN1126A-d1` | hecho | claude/opus | 6 min | 356 s | 332 |
+| `RES1126A-d1` | hecho | claude/opus | 6 min | 365 s | 334 |
+| `TRM1125J-d1` | hecho | claude/opus | 6 min | 369 s | 332 |
+| `CAP1126D-d1-d2` | hecho | claude/opus | 6 min | 382 s | 338 |
+| `TRM1125B-d2-d1` | hecho | claude/sonnet | 6 min | 385 s | 77113 |
+| `NOM1125E` | hecho | claude/opus | 7 min | 398 s | 326 |
+| `CAP1126D-d1-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 7 min | 443 s | 229349 |
+| `ALC1125B` | hecho | claude/opus | 9 min | 516 s | 656 |
+| `ALC1125C` | hecho | claude/opus | 9 min | 519 s | 652 |
+| `MV1125E` | hecho | claude/opus | 9 min | 526 s | 648 |
+| `MV1125D` | hecho | claude/opus | 9 min | 533 s | 648 |
+| `QUA1125A` | hecho | claude/opus | 9 min | 537 s | 652 |
+| `MV1125C` | hecho | claude/opus | 9 min | 539 s | 648 |
+| `MV1125F` | hecho | claude/opus | 9 min | 546 s | 648 |
+| `SEN1126C` | hecho | claude/opus | 9 min | 552 s | 652 |
+| `SEN1126B` | hecho | claude/opus | 9 min | 560 s | 652 |
+| `CER1126A` | hecho | claude/opus | 9 min | 560 s | 652 |
+| `SEN1126A` | hecho | claude/opus | 9 min | 568 s | 652 |
+| `RES1126A` | hecho | claude/opus | 9 min | 569 s | 652 |
+| `TRM1125J` | hecho | claude/opus | 10 min | 575 s | 978 |
+| `NEU1125A-d3b-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 753 s | 38238 |
+| `IRD11262` | hecho | groq/openai/gpt-oss-120b | 13 min | 781 s | 449 |
+| `IRD11263` | hecho | groq/openai/gpt-oss-120b | 13 min | 783 s | 551 |
+| `IRD11261` | hecho | tokenrouter/deepseek/deepseek-v4.1 | 13 min | 794 s | 475 |
+| `TRM1125B-d2` | hecho | claude/opus | 58 min | 3502 s | 664 |
+| `CAP1126E` | hecho | claude/sonnet | 59 min | 3532 s | 167650 |
+| `NEU1126F` | hecho | claude/sonnet | 64 min | 3850 s | 91088 |
+| `CAP1126D-d1` | hecho | freellmapi/auto | 74 min | 4470 s | 31194 |
+| `RIM-diaria-arreglar-el-lector-637b19-v2` | hecho |  | 77 min | 4639 s | 775 |
+| `NEU1125A-d3b-d2` | hecho | codex/gpt-5.6-sol | 81 min | 4882 s | 51166 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
