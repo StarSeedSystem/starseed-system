@@ -577,7 +577,7 @@ export class PantallaDestino {
         let fallos = 0;
         let ritmo: EstadoRitmo = RITMO_INICIAL;
         let coste: number | null = null;
-        let kbpsActual = 0;
+        let kbpsActual: number = 0;
         let enMedida = 0;
         let cuadros = 0;
         let t0fps = this.d.ahora();
@@ -681,7 +681,7 @@ export class PantallaDestino {
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
             // DIR1125B: el cuadro solo se da por visto si se PINTÓ. Antes `desde` avanzaba antes de pintar: si el primer cuadro fallaba y la
-            // pantalla del otro aparato no cambiaba, el aparato contestaba «nuevo: false» para siempre y la ventana quedaba negra sin una línea.
+            // pantalla del otro aparato no cambiaba, el aparato contestaba «nuevo: false» para siempre y la ventana queda negra sin una línea.
             if (!(await l.pintar(jpeg, ancho, alto).catch(() => false))) {
                 fallos += 1;
                 if (fallos === 1 || fallos === 5) this.anotar(`control-fuente paso=pintar via=malla resultado=fallo bytes=${jpeg.length} ancho=${ancho} alto=${alto} intento=${fallos}`);
