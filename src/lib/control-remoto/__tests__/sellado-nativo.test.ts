@@ -75,6 +75,7 @@ function crearPuerta(n: PuenteNativoControl, ejecutar?: (nombre: string) => Prom
         ahora: () => reloj,
         cuentaPropia: () => CUENTA,
         neuronaPropia: () => TABLETA,
+        huellaAparatoPropia: () => TABLETA,
         leerPermiso: () => permiso,
         guardarPermiso: (p) => {
             permiso = p;

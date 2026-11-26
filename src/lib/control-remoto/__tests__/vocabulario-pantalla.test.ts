@@ -178,10 +178,13 @@ beforeEach(async () => {
     mac = await par();
     llamadas = [];
     let n = 0;
+    const lineas: string[] = [];
     puerta = new PuertaControl({
-        subtle, ahora: () => reloj, cuentaPropia: () => CUENTA, neuronaPropia: () => TABLETA, leerPermiso: () => permiso, guardarPermiso: (p) => { permiso = p; },
+        subtle, ahora: () => reloj, cuentaPropia: () => CUENTA, neuronaPropia: () => TABLETA,
+        huellaAparatoPropia: () => TABLETA,
+        leerPermiso: () => permiso, guardarPermiso: (p) => { permiso = p; },
         ejecutar: async (nombre, args, _c, sobre, sesion) => { llamadas.push({ nombre, args, sobre, sesion }); return { ok: true }; },
-        anotar: () => undefined, azarHex: () => (++n).toString(16).padStart(32, "0"),
+        anotar: (l) => { lineas.push(l); }, azarHex: () => (++n).toString(16).padStart(32, "0"),
         nativo: { disponible: () => true, abrir: async () => ({ ok: true, token: "a".repeat(32) }), orden: async () => ({ ok: true }), anotar: () => undefined, parar: async () => undefined },
     });
     await puerta.recibir(await firmar(mac, "presentarse", { spki: mac.spki, nombre: "Mac", neurona: "n-mac" }));
