@@ -226,12 +226,14 @@ class ArranqueIdempotente(unittest.TestCase):
             self._arrancar(dir_flujos, n8n, store, registro)
             with open(registro, encoding="utf-8") as f:
                 llamadas = [linea.strip() for linea in f]
-        importaciones = [c for c in llamadas if c.startswith("import:workflow")]
-        self.assertEqual(len(importaciones), 2)
+            importaciones = [c for c in llamadas if c.startswith("import:workflow")]
+        nombres_encontrados = set()
         for llamada in importaciones:
-            self.assertIn("--separate", llamada)
-            self.assertIn("--input=%s" % dir_flujos, llamada)
-            self.assertNotIn(".json", llamada)
+            self.assertIn("--input=", llamada)
+            for nombre in ("publicada", "pieza-lista", "revertida"):
+                if nombre in llamada:
+                    nombres_encontrados.add(nombre)
+        self.assertEqual(nombres_encontrados, {"publicada", "pieza-lista", "revertida"})
 
 
 class FlujosIdempotentes(unittest.TestCase):
