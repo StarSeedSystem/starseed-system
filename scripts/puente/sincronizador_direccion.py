@@ -1061,7 +1061,7 @@ def sincronizar_canal_secundario_hermes(
     importados = 0
     for f in filas:
         estado[cursor_key] = max(int(estado.get(cursor_key) or 0), int(f["id"]))
-        contenido = director_chat.tachar(str(f["content"] or "").strip())
+        contenido = traducir_aviso_hermes(director_chat.tachar(str(f["content"] or "").strip()))
         pmid = f["platform_message_id"] if "platform_message_id" in f.keys() else ""
         if _es_fila_espejada_hermes(pmid, contenido):
             continue
@@ -1097,6 +1097,19 @@ def sincronizar_canal_secundario_hermes(
             pref = f"{nombre_de_canal(canal_clave, cargar_canales_direccion())} · Hermes"
             enviar_telegram_canal(canal_clave, contenido, prefijo=pref, enviar_fn=enviar_fn)
     return importados
+
+
+# (DIR1126A, 26-11) Avisos de sistema de Hermes que llegaban en inglés y sin contexto a los canales.
+AVISOS_HERMES = {
+    "this turn did not complete. some actions may already have run; verify their effects before resending.":
+        "Hermes no terminó ese turno (se cortó). Puede que alguna acción ya se hiciera: revísalo antes de pedirlo otra vez.",
+}
+
+
+def traducir_aviso_hermes(texto: str) -> str:
+    """PURA. Cambia un aviso de sistema conocido de Hermes por su versión en español; lo demás, igual."""
+    clave = " ".join(str(texto or "").split()).lower()
+    return AVISOS_HERMES.get(clave, texto)
 
 
 # ─── DIR1121B: Sincronización desde log del bot A1 (@StarSeed_Design_bot) ──────────────

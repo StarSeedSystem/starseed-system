@@ -64,3 +64,11 @@ def test_el_publicador_por_defecto_no_rompe_si_falla_el_comando(monkeypatch):
 
     monkeypatch.setattr(S.subprocess, "run", falla)
     assert S.publicar_canal("resumen") is False
+
+
+def test_en_pruebas_el_publicador_por_defecto_no_publica_dir1126a(monkeypatch):
+    """(DIR1126A) Desde una prueba nunca se publica de verdad en el canal Audiovisual y diseño."""
+    llamadas = []
+    monkeypatch.setattr(S.subprocess, "run", lambda *a, **k: llamadas.append(a))
+    assert S.publicar_canal("Imaginación profunda 2026-09-29") is False
+    assert llamadas == []

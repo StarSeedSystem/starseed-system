@@ -956,7 +956,19 @@ def orden_canal_diseno(texto):
 
 
 def _publicar_canal(texto):
-    """Publica el resumen en el canal de diseño; False si falla, sin romper lo demás."""
+    """Publica el resumen en el canal de diseño; False si falla, sin romper lo demás.
+
+    (DIR1126A, 26-11) Nunca desde una prueba: las de este módulo llamaban a `ejecutar` y a
+    `anunciar` sin inyectar el publicador y mandaban de verdad «Imaginación profunda 2026-09-29…»
+    y «resumen» al canal Audiovisual y diseño (Telegram, Hermes y chat) en cada pasada de puertas.
+    """
+    try:
+        import director_chat  # noqa: E402
+
+        if director_chat.en_pruebas():
+            return False
+    except Exception:
+        pass
     try:
         r = subprocess.run(orden_canal_diseno(texto), timeout=40, capture_output=True)
         return r.returncode == 0
