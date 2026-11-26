@@ -116,5 +116,33 @@ class PublicacionesSuperadas(unittest.TestCase):
         a = accion_de(self._decidir(["Ola 21 · otro commit"]), "PUB1")[0]
         self.assertEqual(a["accion"], "reasignar")
 
+
+class PublicacionRechazadaMecanicamente(unittest.TestCase):
+    """A018C6A91: una «Desbloquear la publicación <sha>» rechazada mecánicamente (no tocó
+    archivos) se cierra en el PRIMER rechazo si el sha ya está en main, sin reescribirla."""
+
+    SHA = "70f48b3c2"
+
+    def _decidir(self, historial, asuntos=None):
+        return decidir("A018C6A91", titulo="URGENTE · Desbloquear la publicación (%s)" % self.SHA,
+                       archivos=("scripts/x.ts",),
+                       asuntos=["Ola 22 · publicada " + self.SHA] if asuntos is None else asuntos,
+                       historial=historial,
+                       disponibilidad={"modelos_libres": ["openrouter/free/gemma"]})
+
+    def test_primer_rechazo_cierra_sola(self):
+        a = accion_de(self._decidir([]), "A018C6A91")[0]
+        self.assertEqual(a["accion"], "ya_hecha")
+        self.assertIn(self.SHA, a["motivo"])
+
+    def test_primer_rechazo_no_se_reescribe(self):
+        a = accion_de(self._decidir([]), "A018C6A91")[0]
+        self.assertNotEqual(a["accion"], "reescribir")
+
+    def test_sin_sha_en_main_sigue_reescribiendo(self):
+        a = accion_de(self._decidir([], asuntos=["Ola 22 · otro commit"]), "A018C6A91")[0]
+        self.assertEqual(a["accion"], "reescribir")
+
+
 if __name__ == "__main__":
     unittest.main()

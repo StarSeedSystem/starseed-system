@@ -201,6 +201,17 @@ class TestEscaladaMotoresTareasEspeciales(unittest.TestCase):
         from escalada_motores import es_tarea_publicacion
         self.assertFalse(es_tarea_publicacion(tarea, asuntos))
 
+    def test_tarea_publicacion_con_sha_entre_parentesis(self):
+        """A018C6A91: el título real es «URGENTE · Desbloquear la publicación (70f48b3c2)»."""
+        tarea = {
+            "id": "A018C6A91",
+            "titulo": "URGENTE · Desbloquear la publicación (70f48b3c2)",
+            "archivos": ["scripts/puente/x.py"],
+        }
+        asuntos = ["Ola A-desbloqueo · publicacion-70f48b3c2 · A018C6A91: se publicó"]
+        from escalada_motores import es_tarea_publicacion
+        self.assertTrue(es_tarea_publicacion(tarea, asuntos))
+
 
 class TestEscaleraMotores(unittest.TestCase):
     """Pruebas de la función escalera_motores."""

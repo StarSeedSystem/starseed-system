@@ -361,7 +361,7 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
         return False
 
     import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', titulo)
+    match = re.search(r'desbloquear la publicación\s*\(?\s*([a-f0-9]{7,40})', titulo)
     if not match:
         return False
 
