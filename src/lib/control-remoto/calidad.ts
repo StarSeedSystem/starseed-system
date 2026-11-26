@@ -222,6 +222,13 @@ export function colorFps(fps: number): "verde" | "ambar" | "rojo" {
     return "rojo";
 }
 
+/** Color del indicador según fps para modo malla (verde ≥ 5, ámbar 3–4.9, rojo < 3). */
+export function colorFpsMalla(fps: number): "verde" | "ambar" | "rojo" {
+    if (fps >= 5) return "verde";
+    if (fps >= 3) return "ambar";
+    return "rojo";
+}
+
 function nombreMedio(m: TipoMedio): string {
     const nombres: Record<TipoMedio, string> = {
         bluetooth: "Bluetooth",

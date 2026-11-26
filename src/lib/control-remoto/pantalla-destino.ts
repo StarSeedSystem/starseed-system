@@ -20,8 +20,8 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande } from "./cuadro-malla";
-import { CUADROS_POR_MEDIDA, EMPUJE_TOPE_MS, FPS_OBJETIVO_MALLA, RITMO_INICIAL, fpsDesdeIntervalo, intervaloEmpujeMs, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande, crearMedidorCaudal, actualizarCaudal, calcularKbps, type MedidorCaudal } from "./cuadro-malla";
+import { CUADROS_POR_MEDIDA, EMPUJE_TOPE_MS, FPS_OBJETIVO_MALLA, RITMO_INICIAL, fpsDesdeIntervalo, intervaloEmpujeMs, mediaCoste, siguienteRitmo, adaptarIntervaloParaFps, type EstadoRitmo } from "./ritmo-pantalla";
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
@@ -584,6 +584,8 @@ export class PantallaDestino {
         let pintados = 0; // DIR1125B
         let descartados = 0; // CTL1124E: cuadros viejos que el empuje deja atrás
         const tInicioMalla = t0fps;
+        // CTL1126B-d1: medidor de caudal para adaptación del enlace
+        const caudal: MedidorCaudal = crearMedidorCaudal();
         while (!this.cerrada && this.enMalla) {
             if (this.cola.length > 0) await m.esperar(0);
             if (this.cerrada || !this.enMalla) return;
@@ -703,25 +705,31 @@ export class PantallaDestino {
             const ms = this.d.ahora() - t0;
             coste = mediaCoste(coste, ms);
             enMedida += 1;
+            // CTL1126B-d1: actualizar caudal medido para adaptación del enlace
+            actualizarCaudal(caudal, jpeg.length);
             if (enMedida >= Math.min(CUADROS_POR_MEDIDA, 10)) {
                 enMedida = 0;
                 const umbrales = camino.camino === "directo" ? UMBRALES_MALLA_DIRECTO : UMBRALES_MALLA;
                 const { estado, cambio } = siguienteRitmo(ritmo, coste, umbrales);
                 ritmo = estado;
-                if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: (jpeg.length * 8) / Math.max(1, ms), nivel: estado.nivel }));
+                const kbpsActual = calcularKbps(caudal, ms);
+                if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: kbpsActual, nivel: estado.nivel }));
             }
             const ahora = this.d.ahora();
-            // CTL1124E: el empuje adapta el intervalo al retardo medido (con suelo y tope); con el enlace directo a 44 ms y base de 5 fps salen 5 cuadros/s.
+            // CTL1124E: adaptar intervalo según caudal real medido (no solo retardo).
+            // Si el caudal medido es menor que el objetivo, ajustamos el intervalo.
             const retardo = this.medidaLatencia ?? 0;
-            const intervalo = intervaloEmpujeMs(retardo, 1000 / FPS_OBJETIVO_MALLA, EMPUJE_TOPE_MS);
+            const kbpsActual = calcularKbps(caudal, ms);
+            const intervalo = adaptarIntervaloParaFps(FPS_OBJETIVO_MALLA, caudal.cuadros, retardo);
             if (ahora - t0fps >= 1000) {
-                const fps = (cuadros * 1000) / (ahora - t0fps);
-                cuadros = 0;
+                const fpsMedido = caudal.cuadros;
+                caudal.cuadros = 0;
+                caudal.bytes = 0;
                 t0fps = ahora;
-                this.poner({ fps: Math.round(fps * 10) / 10 });
+                this.poner({ fps: Math.round(fpsMedido * 10) / 10 });
                 if (ahora - ultimaLinea >= 5000) {
                     ultimaLinea = ahora;
-                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: fps, kbps: (jpeg.length * 8) / Math.max(1, ms) }));
+                    this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: fpsMedido, kbps: kbpsActual }));
                     this.anotar(lineaEmpuje({ intervaloMs: intervalo, retardoMs: retardo, descartados, fps: fpsDesdeIntervalo(intervalo) }));
                 }
             }

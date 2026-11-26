@@ -200,3 +200,28 @@ export function lineaEmpuje(p: { intervaloMs: number; retardoMs: number; descart
     const descartados = Number.isFinite(p.descartados) ? Math.max(0, Math.trunc(p.descartados)) : 0;
     return `control-fuente paso=empuje intervalo-ms=${n(p.intervaloMs)} retardo-ms=${n(p.retardoMs)} descartados=${descartados} cuadros-s=${n(p.fps)}`;
 }
+
+/** Estado del medidor de caudal para adaptación del enlace por la malla. */
+export interface MedidorCaudal {
+    bytes: number;
+    cuadros: number;
+    kbps: number;
+}
+
+/** Crea un medidor de caudal vacío. */
+export function crearMedidorCaudal(): MedidorCaudal {
+    return { bytes: 0, cuadros: 0, kbps: 0 };
+}
+
+/** Actualiza el medidor con un nuevo cuadro recibido. */
+export function actualizarCaudal(m: MedidorCaudal, bytes: number): void {
+    m.bytes += bytes;
+    m.cuadros += 1;
+    // kbps se calcula afuera usando los bytes acumulados
+}
+
+/** Calcula el kbps a partir de bytes y tiempo. */
+export function calcularKbps(m: MedidorCaudal, dtMs: number): number {
+    if (dtMs <= 0) return 0;
+    return Math.round((m.bytes * 8) / (dtMs / 1000));
+}
