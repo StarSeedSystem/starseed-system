@@ -44,6 +44,7 @@ import { AjustesIndicadorControl, EVENTO_AJUSTES_CONTROL, type SesionIndicador }
 import { PuntoColor, PuntoControl } from "./punto-control";
 import { colorDe } from "@/lib/neurons/color-publico";
 import { colorPublicoDeNeurona } from "@/lib/neurons/color-publico-ajuste";
+import { aparatosDe, neuronasParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 
 // UNI1115M: el anfitrión (ventana, sesión, vídeo) se carga solo al abrir una ventana; el panel no lo arrastra.
 const abrirVentanaControl = (neurona: string, nombre: string) => void import("./anfitrion-control").then((m) => m.abrirVentanaControl(neurona, nombre));
@@ -471,7 +472,7 @@ export function ControlEntreNeuronasPanel() {
     const [aviso, setAviso] = useState<string | null>(null);
     const [banco, setBanco] = useState<{ con: string; hasta: number; restantes: number } | null>(null);
     // BAN1115D: las neuronas de la cuenta (para elegir sin teclear el id) y lo que la app informa de sí misma
-    const [neuronas, setNeuronas] = useState<Array<{ id: string; nombre: string; plataforma: string; online: boolean }>>([]);
+    const [neuronas, setNeuronas] = useState<Array<{ id: string; nombre: string; plataforma: string; online: boolean; variosAparatos?: boolean; aparatos?: AparatoDeNeurona[] }>>([]);
     const [informe, setInforme] = useState<EstadoApp | null>(null);
     const [indicador, setIndicador] = useState<EstadoIndicador | null>(null);
     // UNI1115M: pantalla y entrada de ESTE aparato (solo la app nativa de Android responde) y la espera de «Pedir controlarla»
@@ -485,6 +486,7 @@ export function ControlEntreNeuronasPanel() {
     const [elegidas, setElegidas] = useState<Record<string, OpcionLimite>>({}); // CTL1119A
     const [horas, setHoras] = useState<Record<string, string>>({}); // CTL1119A
     const [miCuenta, setMiCuenta] = useState<string | null>(null); // CTL1119A
+    const [aparatoSeleccionado, setAparatoSeleccionado] = useState<{ huella: string; nombre: string } | null>(null);
     const salientesReg = useSyncExternalStore(
         typeof registroGlobal?.suscribir === "function" ? (cb) => registroGlobal.suscribir(cb) : suscribirSalientesVacio,
         typeof registroGlobal?.sesionesSalientes === "function" ? () => registroGlobal.sesionesSalientes() : () => VACIO_SALIENTES,
@@ -585,10 +587,18 @@ export function ControlEntreNeuronasPanel() {
                 const nn = await import("@/lib/neurons/neurons");
                 const yo = nn.thisDeviceId();
                 const lista = await nn.listNeurons();
+                const fichas: readonly { id: string; name?: string; capabilities?: unknown }[] = lista
+                    .filter((x) => x.id !== yo && !x.isThisDevice)
+                    .map((x) => ({ id: x.id, name: x.name, capabilities: x.capabilities }));
                 setNeuronas(
-                    lista
-                        .filter((x) => x.id !== yo && !x.isThisDevice)
-                        .map((x) => ({ id: x.id, nombre: x.name, plataforma: x.capabilities?.platform || x.kind, online: !!x.online })),
+                    neuronasParaElegir(fichas, yo).map((n) => ({
+                        id: n.id,
+                        nombre: n.nombre,
+                        plataforma: n.aparatos.length > 0 ? n.aparatos[0].so || n.aparatos[0].medio || "desconocido" : "sin aparato",
+                        online: true,
+                        variosAparatos: n.variosAparatos,
+                        aparatos: n.aparatos,
+                    })),
                 );
             } catch {
                 setNeuronas([]); // sin lista: queda el campo del id
@@ -708,6 +718,7 @@ export function ControlEntreNeuronasPanel() {
 
     const elegir = useCallback(async (id: string) => {
         setDestino(id);
+        setAparatoSeleccionado(null);
         if (RE_UUID.test(id)) void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(id)); // solo mira si ya te aceptó
     }, []);
 
@@ -720,7 +731,10 @@ export function ControlEntreNeuronasPanel() {
             import("@/lib/control-remoto/canal"),
             import("@/lib/control-remoto/nombre-propio"),
         ]);
-        const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreNeuronaPropia());
+        const nombreCompleto = aparatoSeleccionado
+            ? `${nombreNeuronaPropia()} (${aparatoSeleccionado.nombre})`
+            : nombreNeuronaPropia();
+        const r = await c.presentarmeA(destino.trim().toLowerCase(), nombreCompleto);
         if (r.ok) {
             setTimeout(() => void import("@/lib/banco-llamadas/app").then((b) => b.informarBanco(destino.trim())), 6000); // mira si ya te aceptó
             setEsperando(destino.trim().toLowerCase()); // UNI1115M: cuando acepte, la ventana de control se abre sola
@@ -1120,17 +1134,37 @@ export function ControlEntreNeuronasPanel() {
             )}
             {neuronas.length > 0 && (
                 <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3" role="listbox" aria-label="Neuronas de tu cuenta" data-testid="neuronas-elegir">
-                    {neuronas.map((x) => (
-                        <button
-                            key={x.id}
-                            role="option"
-                            aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
-                            onClick={() => void elegir(x.id)}
-                            className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
-                        >
-                            <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
-                        </button>
-                    ))}
+                    {neuronas.map((x) => {
+                        if (x.variosAparatos && x.aparatos && x.aparatos.length > 1) {
+                            return (
+                                <div key={x.id} className="flex flex-col gap-2">
+                                    <p className="text-[11px] font-medium text-white/80">{x.nombre}</p>
+                                    {x.aparatos.map((a) => (
+                                        <button
+                                            key={a.id}
+                                            role="option"
+                                            aria-selected={aparatoSeleccionado?.huella === a.huella}
+                                            onClick={() => setAparatoSeleccionado({ huella: a.id, nombre: a.nombre })}
+                                            className={`min-h-9 cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition-colors ${aparatoSeleccionado?.huella === a.id ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                                        >
+                                            <PuntoColor color={colorPublicoDeNeurona(a.id)} /> <span className="font-medium">{a.nombre || a.so || "sin nombre"}</span> · {a.so || "sin SO"}
+                                        </button>
+                                    ))}
+                                </div>
+                            );
+                        }
+                        return (
+                            <button
+                                key={x.id}
+                                role="option"
+                                aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
+                                onClick={() => void elegir(x.id)}
+                                className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                            >
+                                <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             )}
             {(destino.trim() !== "" || banco) && (
