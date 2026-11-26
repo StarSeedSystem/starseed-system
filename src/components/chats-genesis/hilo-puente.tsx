@@ -15,7 +15,7 @@
  * código (nunca del catálogo). El puente del A1 se lee pero no se escribe hasta la fase 1b.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HelpCircle, Lock, Route, SquareTerminal, Send } from "lucide-react";
 
 import { DESTINO_DE_FUENTE } from "@/lib/chats-genesis/alias-gen1113";
@@ -25,7 +25,7 @@ import type { ClienteChatsGenesis } from "@/lib/chats-genesis/puerta-chats";
 import { TEXTOS_SIN_RED, desfaseRelojMs } from "@/lib/chats-genesis/puerta-chats";
 import type { FuenteEspejo, PuenteTelegram } from "@/lib/chats-genesis/tipos";
 import { canalPorPuenteAstraura } from "@/lib/mando/canales-especializados";
-import { nombreDeAutor } from "@/lib/mando/chat-director-feed";
+import { fusionarFeed, nombreDeAutor } from "@/lib/mando/chat-director-feed";
 import { cn } from "@/lib/utils";
 
 import { AvisoReloj, CabeceraChat, CabeceraEspejo, useAhora, useEnvios, useFeedEspejo, type ChatVisto, type EntradaEnvio, type RegistroEspejo } from "./cabecera-espejo";
@@ -199,14 +199,31 @@ function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onApar
     const chatVisto: ChatVisto | null = firmable ? { id: firmable.id, nombre: firmable.nombre } : null;
     const [info, setInfo] = useState(false);
     const feed = useFeedEspejo(cliente, fuente);
+    // (DIR1125X) El canal Audiovisual (@StarSeed_Design_bot) vive en la Mac (`director/audiovisual.jsonl`); la Mac lo
+    // sube a «direccion» marcado (DIR1125W) porque `puente:peticiones` solo lo escribe el A1. Aquí se juntan las dos.
+    const canalMac = puente === "peticiones" ? "audiovisual" : null;
+    const feedMac = useFeedEspejo(cliente, canalMac ? "direccion" : null);
+    const registros = useMemo(
+        () =>
+            canalMac
+                ? (fusionarFeed(
+                      feed.registros,
+                      feedMac.registros.filter((r) => (r as { canalEspecializado?: unknown }).canalEspecializado === canalMac),
+                  ) as RegistroEspejo[])
+                : feed.registros,
+        [canalMac, feed.registros, feedMac.registros],
+    );
+    const latido = feed.latido ?? (canalMac ? feedMac.latido : null);
     const emparejado = aparato?.estado === "emparejado" ? aparato : null;
     const { envios, enviar, quitar } = useEnvios(cliente, emparejado ? emparejado.codigo.split("-")[0] : null);
     const ahora = useAhora(1000);
     const { logRef, compositorRef, pegadoRef, pegado, bajar, alDesplazar } = useTecladoVisible();
     const origen = puente === "peticiones" ? "a1" : "mac";
+    // (DIR1125X) Si el A1 no late pero la copia de la Mac sí, la cabecera dice la verdad: «desde la Mac».
+    const origenLatido = canalMac && !feed.latido && feedMac.latido ? "mac" : origen;
     const soloLectura = puente === "avisos-directores";
     const perfilCanal = canalPorPuenteAstraura(puente);
-    const ultimo = feed.registros[feed.registros.length - 1];
+    const ultimo = registros[registros.length - 1];
     const firma = `${ultimo?.id ?? ""}:${ultimo?.texto.length ?? 0}:${envios.length}`;
     useEffect(() => {
         if (pegadoRef.current && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -215,7 +232,7 @@ function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onApar
     return (
         <section aria-label={nombre} data-testid="hilo-puente" className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
             <CabeceraChat nombre={nombre} provisional={provisional} onInfo={() => setInfo(true)} />
-            <CabeceraEspejo latido={feed.latido} fallo={feed.fallo} cargado={feed.cargado} origen={origen} queEs="puente" ahora={ahora} onReintentar={feed.releer} />
+            <CabeceraEspejo latido={latido} fallo={feed.fallo} cargado={feed.cargado} origen={origenLatido} queEs="puente" ahora={ahora} onReintentar={feed.releer} />
             {perfilCanal ? (
                 <div
                     data-testid="cabecera-especializada-puente"
@@ -244,14 +261,14 @@ function HiloPuenteAbierto({ cliente, puente, esDueno, aparato, catalogo, onApar
             <div className="relative flex min-h-0 flex-1 flex-col">
                 <div ref={logRef} role="log" aria-label={`Mensajes de ${nombre}`} onScroll={alDesplazar} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-xl border border-white/5 bg-black/20 p-2">
                     <div className="mt-auto flex flex-col gap-2">
-                        {feed.cargado && feed.registros.length === 0 ? (
+                        {feed.cargado && registros.length === 0 ? (
                             <p data-testid="hilo-vacio" className="p-2 text-[12px] text-white/50">
-                                {feed.latido
-                                    ? `Sin mensajes en la copia de «${nombre}» (último latido: ${horaMensaje(feed.latido.t, ahora)}).`
+                                {latido
+                                    ? `Sin mensajes en la copia de «${nombre}» (último latido: ${horaMensaje(latido.t, ahora)}).`
                                     : feed.fallo ? "Sin copia que mostrar." : `La puerta del A1 aún no tiene ninguna copia de «${nombre}».`}
                             </p>
                         ) : null}
-                        {feed.registros.map((m) => <TarjetaPuente key={m.id} mensaje={m} ahora={ahora} />)}
+                        {registros.map((m) => <TarjetaPuente key={m.id} mensaje={m} ahora={ahora} />)}
                         {envios.map((e) => <TarjetaEnvio key={e.clave} envio={e} ahora={ahora} destino={origen} onQuitar={quitar} />)}
                     </div>
                 </div>

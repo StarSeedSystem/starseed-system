@@ -95,12 +95,14 @@ function dormir(ms: number, senal: AbortSignal): Promise<void> {
  * 25 s (la puerta contesta en cuanto llega algo). Sin permiso (401/403) no insiste; sin puerta
  * reintenta con 2 → 5 → 15 → 60 s. Nunca toca Supabase: todo va por la puerta del A1.
  */
-export function useFeedEspejo(cliente: ClienteChatsGenesis, fuente: string): EstadoFeed & { releer: () => void } {
+export function useFeedEspejo(cliente: ClienteChatsGenesis, fuente: string | null): EstadoFeed & { releer: () => void } {
     const [estado, setEstado] = useState<EstadoFeed>(VACIO);
     const [vuelta, setVuelta] = useState(0);
     useEffect(() => {
         const ctl = new AbortController();
         setEstado(VACIO);
+        // (DIR1125X) Sin fuente no se lee nada (un hilo que no necesita la segunda copia).
+        if (!fuente) return () => ctl.abort();
         let cursor: number | undefined;
         let fallos = 0;
         void (async () => {
