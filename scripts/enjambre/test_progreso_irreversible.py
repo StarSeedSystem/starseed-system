@@ -25,6 +25,30 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"T1": {"estado": "rechazada"}}
         self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], disco["T1"])
 
+    def test_rechazo_mecanico_no_es_irreversible_y_la_reabierta_sobrevive(self):
+        """AF26FCCD1: «no toco NINGUNO de los…» no cierra la tarea; reabrirla la deja pendiente.
+
+        Antes `guardar_prog` fundía con el disco y devolvía «rechazada», así que el «pendiente»
+        de la reapertura se perdía y el orquestador la apartaba con «otra ola ya la cerró»."""
+        memoria = {"T1": {"estado": "pendiente", "nota": "reabierta por el director"}}
+        disco = {"T1": {"estado": "rechazada",
+                        "nota": "no toco NINGUNO de los 1 archivos que declaraba"}}
+        self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], memoria["T1"])
+
+    def test_rechazo_mecanico_se_reconoce_por_la_nota(self):
+        self.assertTrue(enjambre.es_rechazo_mecanico(
+            {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba"}))
+        self.assertFalse(enjambre.es_rechazo_mecanico(
+            {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance"}))
+        self.assertFalse(enjambre.es_rechazo_mecanico(
+            {"estado": "commit", "nota": "no toco NINGUNO de los 1 archivos que declaraba"}))
+        self.assertFalse(enjambre.es_rechazo_mecanico(None))
+
+    def test_rechazo_por_decision_sigue_siendo_irreversible(self):
+        memoria = {"T1": {"estado": "pendiente"}}
+        disco = {"T1": {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance"}}
+        self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"T1"})["T1"], disco["T1"])
+
     def test_tarea_propia_no_cerrada_conserva_el_avance_nuevo(self):
         memoria = {"T1": {"estado": "revisando"}}
         disco = {"T1": {"estado": "en_curso"}}
