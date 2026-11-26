@@ -3517,10 +3517,43 @@ def _escribir_atomico(ruta, texto):
 
 def cargar_prog():
     datos = _leer_prog_del_disco()
-    return datos if isinstance(datos, dict) else {}
+    if not isinstance(datos, dict):
+        return {}
+    # Si algún valor no es dict, retornar {} y anotar
+    if any(not isinstance(v, dict) for v in datos.values()):
+        _anotar_entradas_no_dict(datos)
+        return {}
+    _anotar_entradas_no_dict(datos)
+    return datos
 
 
 MIAS = set()  # tareas que ESTE orquestador gobierna (las de su cola/--solo)
+
+
+def _anotar_entradas_no_dict(prog):
+    """Marca una sola vez en el registro si hay entradas no-dict en prog."""
+    if not isinstance(prog, dict):
+        return
+    no_dict = [tid for tid, val in prog.items() if not isinstance(val, dict)]
+    if no_dict and not getattr(_anotar_entradas_no_dict, "_ya_anotado", False):
+        _anotar_entradas_no_dict._ya_anotado = True
+        try:
+            with open(PROG_JSON, encoding="utf-8") as f:
+                disco = json.load(f)
+            if isinstance(disco, dict):
+                lineas = []
+                for tid in no_dict:
+                    val = disco.get(tid, "")
+                    if not isinstance(val, dict):
+                        lineas.append(f"- Tarea {tid}: entrada no-detectable (tipo {type(val).__name__})")
+                if lineas:
+                    md_path = PROG_MD.replace(".md", ".extra.md")
+                    with open(md_path, "a", encoding="utf-8") as f:
+                        f.write("\n## Entradas no-dict detectadas en progreso.json\n")
+                        for l in lineas:
+                            f.write(l + "\n")
+        except Exception:
+            pass
 
 
 def guardar_prog(prog):
@@ -3544,14 +3577,16 @@ def guardar_prog(prog):
         prog.update(fundido)
         if fundido == disco:
             return False
-        _escribir_atomico(PROG_JSON, json.dumps(prog, ensure_ascii=False, indent=1))
+        # Filtrar entradas no-dict antes de escribir (no deben aparecer en el reporte)
+        prog_filtrado = {tid: val for tid, val in prog.items() if isinstance(val, dict)}
+        _escribir_atomico(PROG_JSON, json.dumps(prog_filtrado, ensure_ascii=False, indent=1))
         lines = [
             "# Progreso de las olas (enjambre gratuito)",
             "",
             "Actualizado: " + ahora()[:16],
             "",
         ]
-        for tid, t in prog.items():
+        for tid, t in prog_filtrado.items():
             lines.append(
                 "- **%s** · %s · %s · %ss · %s"
                 % (
@@ -3623,6 +3658,8 @@ def fusionar_progreso(memoria, disco, propias):
     traer_nube no traía sus ramas («la tarea está reasignada ahora mismo»)."""
     salida = dict(memoria)
     for tid, valor in disco.items():
+        if not isinstance(valor, dict):
+            continue
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
@@ -3633,6 +3670,8 @@ def fusionar_progreso(memoria, disco, propias):
             or prestada
         ):
             salida[tid] = valor
+    # Anotar si el disco tenía entradas no-dict
+    _anotar_entradas_no_dict(disco)
     return salida
 
 
