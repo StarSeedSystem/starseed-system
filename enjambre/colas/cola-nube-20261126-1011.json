@@ -1,0 +1,32 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill coop-sync-testing en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/coop-sync-testing/README.md"
+   ],
+   "depende": [],
+   "medio": "nube",
+   "t_reasignada": 1795294130.86614,
+   "t": "2026-11-22 22:42:34",
+   "segundos": 1526,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "freellmapi/auto"
+   ],
+   "intentos_auto": 1,
+   "rama": "ola/CAP-skill-coop-sync-testing-uso",
+   "sha": "2924e0fc1de6ebb6089dd60fa1938582d0fa48dc",
+   "id": "CAP-skill-coop-sync-testing-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill coop-sync-testing para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-22 22:44:29\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-sync-testing-uso\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 22:47:29\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-sync-testing-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 22:49:30\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-sync-testing-uso\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-22 23:01:00\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-sync-testing-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 13:11:03\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-coop-sync-testing-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-055912.json": [
+   "CAP-skill-coop-sync-testing-usob"
+  ]
+ }
+}
