@@ -46,7 +46,10 @@ describe("contrato web ↔ app nativa", () => {
 
   it("cada comando que llama puente.ts está registrado en lib.rs", () => {
     const lib = rust("lib.rs");
-    const registrados = new Set([...lib.matchAll(/nativa::(\w+)/g)].map((m) => m[1]));
+    // (DIR1126B) Lo registrado es lo que está dentro de `generate_handler![…]`, venga del módulo que venga
+    // (`nativa::`, `clave_aparato_nativa::`, `aparato_huella::`…); antes solo contaba «nativa::».
+    const bloques = [...lib.matchAll(/generate_handler!\[([\s\S]*?)\]\)/g)].map((m) => m[1]).join("\n");
+    const registrados = new Set([...bloques.matchAll(/\b\w+::(\w+)\s*,/g)].map((m) => m[1]));
     const llamados = [...ts("puente.ts").matchAll(/llamar(?:<[^>]+>)?\("([a-z_]+)"/g)].map((m) => m[1]);
     expect(llamados.length).toBeGreaterThan(15);
     for (const c of llamados) expect(registrados, `falta ${c} en generate_handler!`).toContain(c);
