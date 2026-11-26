@@ -97,7 +97,13 @@ RAICES = {
              "middleware.ts", "deploy", ".github/workflows", "scripts/puente/publicar.py"],
     "memoria": ["src/lib/memory-sync", "src/app/(app)/memorias", "memory"],
     "mando": ["src/lib/mando", "src/app/api/mando", "src/components/mando", "scripts/enjambre",
-              "scripts/puente"],
+              "scripts/puente",
+              # (DIR1125AC) Alex, 25-11: la estructura completa de Genesis, PoliGenesis y MetaGenesis con
+              # Astraura, la Protomolécula y el lienzo universal de creación.
+              "src/app/(app)/genesis", "src/app/(app)/poligenesis", "src/app/(app)/metagenesis",
+              "src/lib/genesis", "src/components/genesis", "src/lib/metagenesis", "src/components/metagenesis",
+              "src/lib/chats-genesis", "src/components/chats-genesis", "src/lib/protogenesis",
+              "src/components/protogenesis"],
     "dashboards": ["src/lib/dashboard", "src/lib/widgets", "src/lib/widget-data", "src/lib/widget-sync",
                    "src/lib/dashboards-sync.ts", "src/app/(app)/dashboard-compartido",
                    "src/components/widgets-libres", "src/components/dashboard",
