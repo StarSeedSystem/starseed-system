@@ -3676,6 +3676,22 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        # Reapertura explícita del director/revisor de ESTA tanda: si la memoria la tiene en
+        # «pendiente» con una marca MÁS NUEVA que el «rechazada» del disco, el rechazo viejo
+        # no puede deshacerla (o el reabrir se pierde en bucle). La marca es obligatoria: una
+        # copia vieja en memoria no resucita lo que otro medio ya cerró con una decisión.
+        reabierta = False
+        if (
+            tid in propias
+            and isinstance(en_memoria, dict)
+            and en_memoria.get("estado") == "pendiente"
+            and estado == "rechazada"
+        ):
+            t_mem = str(en_memoria.get("t") or "")
+            t_disco = str(valor.get("t") or "")
+            reabierta = bool(t_mem) and t_mem >= t_disco
+        if reabierta:
+            continue
         if (
             tid not in salida
             or (propias and tid not in propias)
