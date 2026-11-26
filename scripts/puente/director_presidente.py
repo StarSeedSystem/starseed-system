@@ -806,10 +806,37 @@ def existe_cli(nombre):
     return bool(shutil.which(nombre)) or os.path.exists(os.path.expanduser("~/.local/bin/" + nombre))
 
 
-def leer_limites():
+#: (DIR1125Z) Con una lectura de más de estos minutos se renueva antes de decidir (caduca a los 120).
+RENOVAR_LIMITES_MIN = 100
+
+
+def _correr_lector_limites():
+    """Lee `claude -p /usage` y lo declara (lector_limites_claude.py). Nunca lanza."""
+    import subprocess  # noqa: PLC0415
+
+    try:
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lector_limites_claude.py")],
+                       capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def leer_limites(lector=None, ahora=None):
+    """Los límites del plan de Claude. (DIR1125Z) Si la última lectura es vieja (o no hay), la renueva al momento
+    con el lector local antes de devolverla: sin servicio aparte y sin gastar (la orden /usage no llama al modelo)."""
     import limites_claude  # noqa: PLC0415
 
-    return limites_claude.leer()
+    datos = limites_claude.leer()
+    try:
+        est = limites_claude.estado(datos, ahora or datetime.now(timezone.utc))
+        hace = est.get("lectura_hace_min")
+        vieja = hace is None or hace > RENOVAR_LIMITES_MIN
+    except Exception:  # noqa: BLE001
+        vieja = True
+    if vieja:
+        (lector or _correr_lector_limites)()
+        datos = limites_claude.leer()
+    return datos
 
 
 def _ordenar_con_config(disponibilidad, enfriados, ahora, orden_cfg=None, activos_cfg=None):
