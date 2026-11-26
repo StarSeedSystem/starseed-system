@@ -68,6 +68,7 @@ const COMANDOS_APP: &[&str] = &[
     "permisos_sistema_pedir",
     "permisos_sistema_abrir",
     "recursos_ia_detectar",
+    "energia_estado",
     // (MOD1110B) Instalación guiada de Ollama (solo escritorio).
     "ollama_instalador_descargar",
     "ollama_instalador_cancelar",

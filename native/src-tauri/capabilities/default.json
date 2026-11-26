@@ -106,6 +106,7 @@
     "allow-permisos-sistema-abrir",
     "allow-ventana-pantalla-completa",
     "allow-recursos-ia-detectar",
+    "allow-energia-estado",
     "allow-antenas-estado",
     "allow-antenas-medir",
     "allow-antenas-config",
