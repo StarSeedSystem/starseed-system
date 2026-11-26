@@ -3608,6 +3608,18 @@ PROG = cargar_prog()
 # anterior en memoria, la verdad persistida manda (2026-09-10 · Puente).
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 
+#: (PRM1119B-d3) Un rechazo MECÁNICO de las puertas no es una decisión de la dirección: el
+#: revisor lo reescribe como «tarea:alcance». La misma regla que usa el revisor se aplica aquí
+#: para que una reapertura no se pierda al fundir progresos ni se aparte como «ya cerró otra ola».
+_RECHAZO_MECANICO = re.compile(r"no toc[óo]\s+NINGUNO|rechazo mecánico de las puertas", re.I)
+
+
+def es_rechazo_mecanico(valor):
+    """¿Es esta entrada de progreso un rechazo mecánico (no tocó archivos), no una decisión? PURA."""
+    if not isinstance(valor, dict) or valor.get("estado") != "rechazada":
+        return False
+    return bool(_RECHAZO_MECANICO.search(str(valor.get("nota") or "")))
+
 
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
@@ -3642,6 +3654,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                     for k, v in disco.items()
                     if isinstance(v, dict)
                     and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                    and not es_rechazo_mecanico(v)
                 )
         except Exception:
             pass
@@ -3666,7 +3679,8 @@ def fusionar_progreso(memoria, disco, propias):
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or (estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                and not es_rechazo_mecanico(valor))
             or prestada
         ):
             salida[tid] = valor

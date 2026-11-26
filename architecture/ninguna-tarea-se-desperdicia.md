@@ -214,6 +214,19 @@ vez de «pendiente en cola».
   S1010-EV-ORACLE-1a); en cadena 77 → 75 (S1010-TU-LL1c entró en main y soltó a S1010-TU-LL2); fusiones de
   ida y vuelta por hora 7 → 0.
 
+### Tercera pasada (PRM1119B-d3): el rechazo mecánico no es un cierre
+
+Medido el 2026-11-21: el revisor reescribía una tarea rechazada por «no tocó NINGUNO de sus 1
+archivos» como `tarea:alcance`, el director pedía `reabrir`, y el orquestador respondía «otra ola
+ya la cerró (rechazada según progreso.json) → no la repito». Causa: `fusionar_progreso` daba por
+irreversible todo `rechazada` y devolvía la reapertura a ese estado; `cerradas_en_disco` volvía a
+apartarla con el mismo dato. El bucle se repetía cada 5 min sin que nadie reescribiera nada.
+
+Ahora `es_rechazo_mecanico(nota)` distingue el fallo de las puertas de una decisión: un rechazo
+mecánico no sobrescribe la reapertura al fundir progresos y no cuenta como cerrado en disco. Un
+rechazo con motivo de dirección sigue siendo irreversible. Pruebas:
+`scripts/enjambre/test_autocuracion_enjambre.py` › `RechazoMecanicoReversibleTest`.
+
 ### Lo que sigue limitando (no es un bloqueo, es capacidad)
 
 - **La Mac sola**: 8 GB, swap casi llena y el gobernador baja a 2 trabajadores.

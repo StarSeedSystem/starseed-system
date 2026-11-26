@@ -138,5 +138,71 @@ class CerradasEnDiscoTest(unittest.TestCase):
         self.assertEqual(set(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)), {"A"})
 
 
+class RechazoMecanicoReversibleTest(unittest.TestCase):
+    """(PRM1119B-d3) El rechazo por no tocar archivos NO cierra la tarea: la reescritura del
+    revisor tiene que poder cogerla, en vez de dar vueltas entre «reabrir» y «no la repito»."""
+
+    NOTA = "no toco NINGUNO de los 1 archivos que declaraba (rama ola/PRM1119B-d3 conservada)"
+
+    def test_reabrir_no_es_sobrescrito_por_rechazo_mecanico_del_disco(self):
+        memoria = {"PRM1119B-d3": {"estado": "pendiente",
+                                   "nota": "revisor: rechazo mecánico de las puertas"}}
+        disco = {"PRM1119B-d3": {"estado": "rechazada", "nota": self.NOTA}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"PRM1119B-d3"})
+        self.assertEqual(fundido["PRM1119B-d3"], memoria["PRM1119B-d3"])
+
+    def test_rechazo_por_decision_sigue_siendo_irreversible(self):
+        memoria = {"DEC1": {"estado": "pendiente"}}
+        disco = {"DEC1": {"estado": "rechazada", "nota": "Alex prefiere otro enfoque"}}
+        self.assertEqual(
+            enjambre.fusionar_progreso(memoria, disco, {"DEC1"})["DEC1"], disco["DEC1"]
+        )
+
+    def test_la_tanda_no_aparta_una_reescritura_por_rechazo_mecanico(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        temporal = tempfile.TemporaryDirectory()
+        self.addCleanup(temporal.cleanup)
+        ruta = os.path.join(temporal.name, "progreso.json")
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"MEC1": {"estado": "rechazada", "nota": self.NOTA},
+                       "DEC1": {"estado": "rechazada", "nota": "decisión de Alex"}}, f)
+        with mock.patch.dict(enjambre._CERRADAS_DISCO, {"t": 0.0, "ids": frozenset()}):
+            cerradas = enjambre.cerradas_en_disco(cada_s=0, ruta=ruta)
+        self.assertEqual(cerradas, frozenset({"DEC1"}))
+
+    def test_orden_de_reabrir_deja_la_tarea_viva_en_memoria_y_en_disco(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        tid = "PRM1119B-d3"
+        temporal = tempfile.TemporaryDirectory()
+        self.addCleanup(temporal.cleanup)
+        prog_json = os.path.join(temporal.name, "progreso.json")
+        disco = {tid: {"estado": "rechazada", "nota": self.NOTA}}
+        with open(prog_json, "w", encoding="utf-8") as f:
+            json.dump(disco, f)
+        orden = {tid: {"accion": "reabrir",
+                       "motivo": "revisor: rechazo mecánico de las puertas: se reescribe como tarea:alcance"}}
+        for parche in (
+            mock.patch.object(enjambre, "PROG_JSON", prog_json),
+            mock.patch.object(enjambre, "PROG_MD", os.path.join(temporal.name, "progreso.md")),
+            mock.patch.object(enjambre, "PROG", dict(disco)),
+            mock.patch.object(enjambre, "MIAS", {tid}),
+            mock.patch.object(enjambre, "consumir_control", return_value=orden),
+            mock.patch.object(enjambre, "entregar_mensajes"),
+            mock.patch.object(enjambre, "evento"),
+        ):
+            parche.start()
+            self.addCleanup(parche.stop)
+        enjambre.atender_control()
+        self.assertEqual("pendiente", enjambre.PROG[tid]["estado"])
+        with open(prog_json, encoding="utf-8") as f:
+            self.assertEqual("pendiente", json.load(f)[tid]["estado"])
+
+
 if __name__ == "__main__":
     unittest.main()
