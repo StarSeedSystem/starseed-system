@@ -638,6 +638,13 @@ class PruebasBrave(unittest.TestCase):
             os.environ.pop(v, None)
         os.environ.pop("STARSEED_BRAVE_URL", None)
 
+    def test_variable_brave_respeta_entorno_isolado(self):
+        """(SUP1124F) _variable_brave debe usar el parámetro entorno cuando se pasa."""
+        entorno_sin_key = {}
+        self.assertIsNone(mcp_director._variable_brave(entorno_sin_key))
+        entorno_con_key = {"BRAVE_API_KEY": "test-key"}
+        self.assertEqual(mcp_director._variable_brave(entorno_con_key), "BRAVE_API_KEY")
+
     def tearDown(self):
         for v in self.VARS:
             if self._guardadas[v] is None:

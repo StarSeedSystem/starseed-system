@@ -62,6 +62,7 @@ __pycache__/
 
 # Agent / session artifacts
 .agent/
+!.agent/skills/
 
 # macOS artifacts
 Icon

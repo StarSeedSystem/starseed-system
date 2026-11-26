@@ -477,7 +477,7 @@ _URL_BRAVE = "https://api.search.brave.com/res/v1/web/search"
 
 def _variable_brave(entorno=None):
     """PURA: nombre de la primera variable de la clave de Brave, nunca su valor."""
-    fuente = os.environ if entorno is None else entorno
+    fuente = entorno if entorno is not None else os.environ
     for nombre in VARIABLES_BRAVE:
         if (fuente.get(nombre) or "").strip():
             return nombre
