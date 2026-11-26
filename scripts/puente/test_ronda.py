@@ -251,8 +251,7 @@ class ElSilencioDeLaMac(Base):
 
     def test_turno_pesado_no_toma_el_turno_mientras_hay_ronda_y_no_gasta_su_plazo(self):
         import turno_pesado as TP
-        ahora = time.time()
-        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 2, ahora - 119.0)       # le quedan ~1 s de las 2 min
+        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 2, time.time())
         self.w.escribir_json(R.ARCHIVO, datos)
         antes = (os.environ.get("STARSEED_PRODUCCION_DIR"), TP.CERROJOS, R.AVISO_S)
         os.environ["STARSEED_PRODUCCION_DIR"] = self.tmp
@@ -261,9 +260,16 @@ class ElSilencioDeLaMac(Base):
         sondeo, R.SONDEO_S = R.SONDEO_S, 0.1
         try:
             avisos = []
-            t0 = time.time()
-            with TP.turno(espera_s=0.5, reintento_s=0.05, avisar_ronda=lambda t, s: avisos.append(t)):
+
+            def avisar(texto, seg):
+                avisos.append(texto)
+                if len(avisos) == 3:            # más de espera_s: la ronda se cierra por la prueba, no por el reloj
+                    fin, _, _ = R.terminar(datos, "alex", time.time())
+                    self.w.escribir_json(R.ARCHIVO, fin)
+
+            with TP.turno(espera_s=0.5, reintento_s=0.05, avisar_ronda=avisar):
                 tomado = os.path.isdir(os.path.join(TP.CERROJOS, "pesado.lock"))
+                self.assertTrue(R.leer(self.w)["ronda"]["fin"])    # no forzó el turno: esperó a que la ronda cerrara
             self.assertTrue(tomado)
             self.assertTrue(avisos)                                # esperó la ronda y lo dijo
         finally:
