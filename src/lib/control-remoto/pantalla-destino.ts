@@ -577,6 +577,7 @@ export class PantallaDestino {
         let fallos = 0;
         let ritmo: EstadoRitmo = RITMO_INICIAL;
         let coste: number | null = null;
+        let kbpsActual = 0;
         let enMedida = 0;
         let cuadros = 0;
         let t0fps = this.d.ahora();
@@ -707,19 +708,18 @@ export class PantallaDestino {
             enMedida += 1;
             // CTL1126B-d1: actualizar caudal medido para adaptación del enlace
             actualizarCaudal(caudal, jpeg.length);
+            kbpsActual = calcularKbps(caudal, ms);
             if (enMedida >= Math.min(CUADROS_POR_MEDIDA, 10)) {
                 enMedida = 0;
                 const umbrales = camino.camino === "directo" ? UMBRALES_MALLA_DIRECTO : UMBRALES_MALLA;
                 const { estado, cambio } = siguienteRitmo(ritmo, coste, umbrales);
                 ritmo = estado;
-                const kbpsActual = calcularKbps(caudal, ms);
                 if (cambio) this.anotar(lineaVia({ via: "malla", enlace: camino.medio ? `${camino.camino}:${camino.medio}` : null, cuadrosS: null, causa: "ritmo", kbps: kbpsActual, nivel: estado.nivel }));
             }
             const ahora = this.d.ahora();
             // CTL1124E: adaptar intervalo según caudal real medido (no solo retardo).
             // Si el caudal medido es menor que el objetivo, ajustamos el intervalo.
             const retardo = this.medidaLatencia ?? 0;
-            const kbpsActual = calcularKbps(caudal, ms);
             const intervalo = adaptarIntervaloParaFps(FPS_OBJETIVO_MALLA, caudal.cuadros, retardo);
             if (ahora - t0fps >= 1000) {
                 const fpsMedido = caudal.cuadros;
