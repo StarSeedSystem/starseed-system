@@ -3577,6 +3577,23 @@ PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 #: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
 CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
 
+#: (AF26FCCD1) Nota con la que las puertas marcan un rechazo MECÁNICO (el agente no tocó ningún
+#: archivo declarado). NO es una decisión: el revisor la reescribe y la tarea vuelve a la tanda.
+_RECHAZO_MECANICO = re.compile(r"^no toco NINGUNO de los", re.I)
+
+
+def rechazo_mecanico_en_progreso(entrada):
+    """PURA. ¿La entrada de progreso es un rechazo mecánico de las puertas (no una decisión)?
+
+    Si lo es, no puede tratarse como cierre irreversible: el revisor la reabre y, si el
+    orquestador la siguiera viendo «rechazada», la apartaría con «otra ola ya la cerró» y la
+    tarea quedaría en un bucle de reaperturas que nunca se ejecuta (AF26FCCD1, 2026-11-21)."""
+    e = entrada if isinstance(entrada, dict) else {}
+    return str(e.get("estado") or "") == "rechazada" and bool(
+        _RECHAZO_MECANICO.search(str(e.get("nota") or ""))
+    )
+
+
 _CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
 
 
@@ -3607,6 +3624,9 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                     for k, v in disco.items()
                     if isinstance(v, dict)
                     and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+                    # (AF26FCCD1) Un rechazo mecánico se reescribe y vuelve a la tanda: no se
+                    # aparta con «otra ola ya la cerró» (la tarea nunca llegaba a ejecutarse).
+                    and not rechazo_mecanico_en_progreso(v)
                 )
         except Exception:
             pass
@@ -3626,10 +3646,16 @@ def fusionar_progreso(memoria, disco, propias):
         estado = valor.get("estado") if isinstance(valor, dict) else ""
         en_memoria = salida.get(tid)
         prestada = isinstance(en_memoria, dict) and en_memoria.get("estado") == "reasignada"
+        # (AF26FCCD1) Un rechazo mecánico no es irreversible: si no, `guardar_prog` revertía
+        # a «rechazada» el «pendiente» con el que el director acababa de reabrir la tarea.
+        cerrada = (
+            estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            and not rechazo_mecanico_en_progreso(valor)
+        )
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
+            or cerrada
             or prestada
         ):
             salida[tid] = valor
