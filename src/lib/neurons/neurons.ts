@@ -437,6 +437,8 @@ interface NeuronPrefs {
   permissions: Record<string, Partial<NeuronPermissions>>;
   /** deviceId → nombre personalizado. */
   names: Record<string, string>;
+  /** deviceId → timestamp del nombre local (para reconciliación). */
+  nombreTs?: Record<string, number>;
   /** deviceId → ajustes (solicitudes de archivos, rol, notas, CasaOS…). */
   settings: Record<string, NeuronSettings>;
 }
@@ -449,6 +451,7 @@ function readPrefs(): NeuronPrefs {
     return {
       permissions: p?.permissions && typeof p.permissions === "object" ? p.permissions : {},
       names: p?.names && typeof p.names === "object" ? p.names : {},
+      nombreTs: p?.nombreTs && typeof p.nombreTs === "object" ? p.nombreTs : undefined,
       settings: p?.settings && typeof p.settings === "object" ? p.settings : {},
     };
   } catch {
@@ -697,6 +700,8 @@ export function combinarCapacidades(
     (typeof remotas?.name === "string" ? remotas.name : undefined);
   const localName = typeof locales.name === "string" ? locales.name : undefined;
   
+  // NEU1126A: fusión por timestamp - si hay timestamps, gana el más reciente
+  // Si no hay timestamps, gana el remoto (se propaga desde la base inicial)
   if (remotoNombreTs > 0 || localNombreTs > 0) {
     if (localNombreTs >= remotoNombreTs && localName) {
       base.name = localName;
@@ -705,6 +710,9 @@ export function combinarCapacidades(
       base.name = remotoName;
       base.nombreTs = remotoNombreTs;
     }
+  } else if (remotoName) {
+    // Sin timestamps: gana el remoto (se propaga desde la base inicial)
+    base.name = remotoName;
   }
   
   for (const [k, v] of Object.entries(locales)) {
