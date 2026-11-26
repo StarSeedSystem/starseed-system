@@ -1,0 +1,151 @@
+{
+ "ola": "nube-20261125",
+ "tareas": [
+  {
+   "segundos": 1648,
+   "t": "2026-10-05 02:58:11",
+   "rama": "ola/PRD1005Tbs",
+   "sha": "b6aaa297dbb8768912776df9b7dc24bce108db9c",
+   "faltan": [],
+   "quien_decidio": "desatascador",
+   "id": "PRD1005Tbsb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nRiesgos reales:\n1. **Duplicación de flujos en cada arranque** – `arranque.sh` usa `n8n import:workflow --separate`. Cada vez que el contenedor se reinicia crea una nueva copia del mismo workflow en vez de actualizarla. Con el tiempo se saturará el almacenamiento del Space y se activarán versiones antiguas inesperadamente.  \n2. **Cookie sin flag Secure** – `ENV N8N_SECURE_COOKIE=false` deja la cookie de sesión sin la marca *Secure*. En un entorno HTTPS sigue funcionando, pero si alguna petición se hace por HTTP (p.ej. pruebas internas) la cookie se enviará sin cifrado, abriendo la puerta a secuestro de sesión.\n\nSeguimiento: sí, bloqueante — riesgo 1 (duplicación de flujos) debe corregirse (usar `--update` o comprobar existencia antes de importar). El riesgo 2 es de seguridad pero no impide el funcionamiento; puede quedar como observación.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "titulo": "Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "t": "2026-11-07 14:56:25",
+   "id": "IMG-agentes-reimaginada-agentes-reimaginadab",
+   "ola": "",
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable. # Reimaginación accionable\n\n## Intención conservada\nEvitar que una promesa rechazada en carga de modelo quede en caché y contamine intentos posteriores, con reintentos limitados y sin agotar créditos.\n\n## Problema\nCuando una carga falla por timeout, red, 429/402, la promesa rechazada puede persistir en caché. Los intentos siguientes reutilizan el fallo en lugar de reintentar.\n\n## Enfoque genérico y seguro\nNo se asumen nombres de archivos. La tarea es de descubrimiento + especificación, no edición.\n\n1. **Inventario de carga de modelos**\n   - Recorrer `src/lib/` y `src/components/` para identifi Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nrechazada por la dirección (07-11): la rama de la nube (919fe2af0) añade 8.483 archivos ajenos (.agent/, -W, xai-proxy.js) y nada del encargo\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 449,
+   "t": "2026-11-11 03:54:20",
+   "modelos_fallidos": [
+    "nvidia/minimaxai/minimax-m3.1-flash",
+    "xkiro/mistralai/devstral-medium",
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nvidia/nemotron-3-super-120b-a12b",
+    "apinex/free/gemini-3.8-flash"
+   ],
+   "jev_experiencia": "8e759947a71a",
+   "intentos_auto": 6,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-11 03:29:24",
+   "rama": "ola/IMG-diaria-auto-refresh-del-catalogo-de-mode",
+   "sha": "ad6e45f37e42f9324778de285f53b5fbb706db2a",
+   "modelo_siguiente": null,
+   "revisado_por": "revisor-bloqueadas",
+   "id": "IMG-diaria-auto-refresh-del-catalogo-de-modeb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nno toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-auto-refresh-del-catalogo-de-mode conservada)\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 1806,
+   "t": "2026-11-18 02:17:23",
+   "rama": "ola/PET1116A-d1-d2",
+   "sha": "45aced00dfdb0071ef134b09293500519e92f465",
+   "id": "PET1116A-d1-d2b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-19 07:12:49\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 07:28:09\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-19 17:46:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 07:53:47\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:21:52\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:22:12\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PET1116A-d1-d2\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 1236,
+   "t": "2026-11-20 06:51:32",
+   "modelos_fallidos": [
+    "llm7/minimax-m2.7"
+   ],
+   "rama": "ola/A900E21C0",
+   "sha": "d1dbd91667b9a46358af503e52582f5e80aa75ea",
+   "id": "A900E21C0b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-20 06:30:56\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"A900E21C0\", \"texto\": \"URGENTE · Desbloquear la publicación (dbbf0ff6e)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 06:54:46\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A900E21C0\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 06:59:41\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A900E21C0\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 11:15:44\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"A900E21C0\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "segundos": 3529,
+   "t": "2026-11-20 12:14:37",
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "llm7/minimax-m2.7",
+    "opencode/deepseek-v4.1-flash-free",
+    "opencode/big-pickle"
+   ],
+   "rama": "ola/AF44EE5BF",
+   "sha": "f59a9e64ef828cb4862ea8b8207e2409ee3074d4",
+   "id": "AF44EE5BFb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-20 11:15:48\", \"quien\": \"enjambre\", \"tipo\": \"inicio\", \"tarea\": \"AF44EE5BF\", \"texto\": \"URGENTE · Desbloquear la publicación (e02479ebc)\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 12:16:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF44EE5BF\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 12:16:04\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF44EE5BF\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 12:21:24\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF44EE5BF\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-20 12:21:26\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"AF44EE5BF\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "medio": "nube",
+   "t_reasignada": 1795265772.642582,
+   "t": "2026-11-21 13:30:16",
+   "segundos": 1593,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "llm7/minimax-m2.7",
+    "freellmapi/auto"
+   ],
+   "intentos_auto": 2,
+   "modelo_siguiente": null,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-21 05:56:46",
+   "rama": "ola/PRM1119B-d3",
+   "sha": "7cf2c2229e5c0f1e4053365f376c8a2ac4b9abb4",
+   "id": "PRM1119B-d3b",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 13:32:57\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PRM1119B-d3\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:32:58\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PRM1119B-d3\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:37:57\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PRM1119B-d3\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 13:37:58\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"PRM1119B-d3\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  },
+  {
+   "adelantar": "2026-11-21 06:36:55",
+   "segundos": 1343,
+   "t": "2026-11-21 08:04:25",
+   "modelos_fallidos": [
+    "codex/gpt-5.6-sol",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "llm7/minimax-m2.7",
+    "freellmapi/auto",
+    "opencode/deepseek-v4.1-flash-free"
+   ],
+   "rama": "ola/RST06-d2b",
+   "sha": "c848e26afb4d37cfdacd9ca0ff7c5358efd189bb",
+   "id": "RST06-d2c",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-21 08:10:01\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:10:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:16:00\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"reabierta por el director: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-21 08:16:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"RST06-d2b\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ]
+}
