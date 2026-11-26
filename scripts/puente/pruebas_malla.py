@@ -9,6 +9,7 @@ Subórdenes:
   recoger <id> [--captura]
   evaluar <id>
   cerrar <id> --resultado ok|parcial|fallo --nota
+  lanzar <id> --duracion <ms> --fuente <auto|proyeccion|malla>
   informe [--ronda N]
 
 Lógica pura (testable): recortar_ventana, evaluar_patrones, formatear_informe,
@@ -29,8 +30,7 @@ from typing import Any
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Rutas y constantes
-# ──────────────────────────────────────────────────────────────────────────────
-
+# ──────────────────────────────────────────────────────────────────────────
 RAIZ_REPO = Path(__file__).resolve().parents[2]
 MEMORIA_ROOT = RAIZ_REPO / "starseed_memory_root"
 PRUEBAS_DIR = MEMORIA_ROOT / "pruebas"
@@ -46,6 +46,12 @@ MAGGABOX_HOST = "maggasukha@starseed-nodo-1.local"
 MAGGABOX_KEY = Path.home() / ".ssh/starseed_nodo1"
 MAGGABOX_LOGS = Path("~/.local/share/app.starseed.os").expanduser()
 TABLETA_PKG = "app.starseed.os"
+
+# Rutas y configuración para la orden prueba-control
+ORDEN_PRUEBA_CONTROL = "prueba-control"
+FUENTES_VALIDAS = ("auto", "proyeccion", "malla")
+MAX_DURACION_MS = 120_000
+MIN_DURACION_MS = 10_000
 
 
 # ──────────────────────────────────────────────────────────────────────────────
