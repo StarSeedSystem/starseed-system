@@ -6986,7 +6986,7 @@ def atender_control():
                     pass
             # (2026-10-13) Con el medio: sin él, `reclamar_varadas` y el vigía de runs no sabían que
             # era de la nube y, si su run moría, la tarea quedaba «reasignada» para siempre.
-            medio_nuevo = "nube" if donde.startswith("nube") else ("oracle" if donde.startswith("oracle") else None)
+            medio_nuevo = "nube" if donde.startswith("nube") else ("oracle" if donde.startswith("oracle") else ("maggabox" if donde.startswith("maggabox") else None))
             set_estado(
                 tid, estado="reasignada", nota="movida a %s desde Genesis" % donde,
                 **({"medio": medio_nuevo} if medio_nuevo else {})

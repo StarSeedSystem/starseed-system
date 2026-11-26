@@ -1,0 +1,25 @@
+[Unit]
+Description=StarSeed Maggabox nodo de trabajo del enjambre
+Documentation=https://starseed-os.vercel.app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u %h/StarSeed-trabajo/starseed-system/deploy/maggabox/nodo/maggabox_medio.py servir
+ExecStartPre=/bin/sleep 5
+Restart=always
+RestartSec=10
+Nice=10
+MemoryMax=2G
+Environment=STARSEED_MEDIO=maggabox
+Environment=STARSEED_DONDE=maggabox
+Environment=STARSEED_ROOT=%h/StarSeed-trabajo/starseed-system
+Environment=STARSEED_WT=%h/StarSeed-trabajo/starseed-wt
+WorkingDirectory=%h/StarSeed-trabajo/starseed-system
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=starseed-maggabox
+
+[Install]
+WantedBy=default.target
