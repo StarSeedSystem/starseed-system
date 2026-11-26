@@ -30,6 +30,14 @@ verificador y la decisión del nivel donde vive la molécula). Contrato: `archit
 
 Lo ha pedido muchas veces: en TODO medio y canal del desarrollo de MetaGenesis (mensajes, informes, Telegram, canales de Hermes, Chat Director, avisos, documentos y prompts nuevos) se le llama **Maggasukha**, nunca «Alex». En textos y commits antiguos «Alex» es la misma persona: no se reescribe la historia. Los identificadores NO cambian (rol `"alex"`, rutas `/Users/alex`, claves como `requiere_alex`); solo lo que lee una persona o un modelo.
 
+## Lo único que hace Maggasukha: poner claves e iniciar sesión · regla permanente (2026-11-26)
+
+Lo ha pedido muchas veces: **todo lo que se le diría que haga lo hacen la dirección y los directores de MetaGenesis**, con la terminal y el control de la neurona. Lo único que queda para él es lo que por seguridad solo puede hacer una persona, y aun eso se le deja preparado:
+- **Claves:** nunca se le pide «pon la clave en tal sitio». El director escribe un guion que la pide con lectura oculta (`read -s`) y la guarda donde va (p. ej. `~/.starseed/env`, permisos 600), le abre la Terminal con ese guion ya en marcha (en macOS, `open -a Terminal <guion>.command`, que no necesita permisos de automatización) o le manda el comando exacto. La clave nunca pasa por un chat, un canal ni un registro.
+- **Inicios de sesión:** los lanzan los directores (`claude auth login`, `claude setup-token`, `gh auth login`, el navegador propio en la página de acceso…). Le abren la ventana en su neurona o le mandan el enlace por el canal Principal con Telegram; él solo inicia sesión.
+- **Después sigue solo:** un vigía espera a que termine, comprueba que funciona y avisa en el canal Principal. No se cierra un turno con «cuando lo hagas, avísame».
+- Ejemplo (26-11): `~/.starseed/opus1125s/sesion_claude.sh` (abierto en la Terminal como `Sesion-Claude-StarSeed.command`) y `esperar_sesion_claude.sh`, que avisa en el canal Principal cuando Claude Code vuelve a tener sesión.
+
 ## Acceso a Genesis · léelo antes de tocar nada (2026-09-12)
 
 **[Abrir Genesis](http://localhost:9002/genesis)** — la aplicación Next.js del repo, servida

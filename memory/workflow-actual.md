@@ -11,6 +11,13 @@ dirigen, verifican y publican: diseñan olas, las lanzan, miran Genesis, comprue
 `localhost` y aprueban. No se escribe código de producto a mano salvo para DESHACER una
 regresión. Esto lo pidió Alex expresamente y no es negociable.
 
+### Lo único que hace Maggasukha (2026-11-26)
+
+Poner claves e iniciar sesión, nada más. Los directores le abren la Terminal con el guion que
+pide la clave a escondidas y la guarda (o le dan el comando exacto) y le abren la ventana o le
+mandan el enlace de inicio de sesión por el canal Principal con Telegram; un vigía espera,
+comprueba y sigue solo. Detalle en `metagenesis.md` («Lo único que hace Maggasukha»).
+
 **Acceso de edición total del programa: `maggasukha@star.seed`.** Hoy es la única cuenta con
 acceso de desarrollador. Nuevos desarrolladores solo por votación de los que ya lo son.
 
