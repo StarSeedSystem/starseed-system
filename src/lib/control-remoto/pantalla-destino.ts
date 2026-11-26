@@ -20,13 +20,8 @@ import { esRespuesta, type RespuestaOrden } from "./orden";
 import { RegistroSesiones, registroGlobal } from "./registro-sesiones";
 import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
-<<<<<<< HEAD
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro } from "./cuadro-malla";
+import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, EMPUJE_TOPE_MS, FPS_OBJETIVO_MALLA, RITMO_INICIAL, fpsDesdeIntervalo, intervaloEmpujeMs, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
-=======
-import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, leerParteCuadro, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande } from "./cuadro-malla";
-import { CUADROS_POR_MEDIDA, RITMO_INICIAL, mediaCoste, siguienteRitmo, type EstadoRitmo } from "./ritmo-pantalla";
->>>>>>> 839b0df5a (salvavidas · CTL1124Db-d1: trabajo del agente antes de las puertas (tsc / vitest))
 import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F

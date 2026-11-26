@@ -1,5 +1,4 @@
 /**
-<<<<<<< HEAD
  * CTL1124D · la pantalla por la malla no se queda negra: los cuadros que llegan
  * por la malla cuentan en cuadros/s y resolución, y una fuente «proyeccion»
  * no devuelve respuesta vacía. Solo funciones puras (sin red, sin disco).
@@ -119,7 +118,10 @@ describe("CTL1124D · salud de los cuadros con fuente proyeccion", () => {
 
     it("sin fuente no hay imagen aunque pasen los ms", () => {
         expect(estadoCuadros(medida({ fuente: null, desdeInicioMs: 9_000 }))).toBe("sin-fuente");
-=======
+    });
+});
+
+/**
  * CTL1124D · Mac controla Linux: los cuadros llegan «ok» y la ventana queda negra.
  *
  * Medido con la .63: muchas órdenes `pantalla-cuadro` con resultado ok, pero ninguna imagen pintada
@@ -265,6 +267,5 @@ describe("CTL1124D · un cuadro «grande» se vuelve a pedir más pequeño", () 
             vi.useRealTimers();
             (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection = origRtc;
         }
->>>>>>> 839b0df5a (salvavidas · CTL1124Db-d1: trabajo del agente antes de las puertas (tsc / vitest))
     });
 });
