@@ -168,7 +168,7 @@ def test_el_dream_lleva_el_contexto_y_la_plantilla():
 
 def test_el_dream_ejecuta_auto_refresh_de_modelos():
     sh = open(os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh"), encoding="utf-8").read()
-    assert "hermes model --refresh" in sh
+    assert "auto_refresh_dream" in sh and "refrescar_catalogo" in sh
 
 
 # ───────────────────── enganche: sueños profundos y agente de alcance (IMG1102E) ─────────────────────

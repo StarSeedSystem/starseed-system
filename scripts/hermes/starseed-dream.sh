@@ -77,11 +77,9 @@ CTX="$(mktemp)"
 } > "$CTX"
 
 # Refrescar el catálogo de modelos gratuitos antes de soñar
-if hermes model --refresh 2>/dev/null; then
-  echo "☁️  Catálogo de modelos actualizado"
-else
-  echo "⚠️  Error al refrescar catálogo de modelos"
-fi
+# Regla: el Dream NO se interrumpe por un fallo de refresco (ver auto_refresh_dream.py).
+REFRESH_SCRIPT="$REPO/scripts/puente/auto_refresh_dream.py"
+python3 -c "from auto_refresh_dream import refrescar_catalogo, seguir_soñando; ok, msg = refrescar_catalogo(executar=True); print('✓ Catálogo actualizado' if ok else f'⚠️  {msg}')" 2>/dev/null || echo "⚠️  Error al refrescar catálogo de modelos"
 
 # La MISMA plantilla de propuesta para todos los agentes de Imaginacion (scripts/puente/imaginacion_plantilla.py).
 PLANTILLA="$(python3 "$REPO/scripts/puente/imaginacion_contexto.py" --plantilla linea 2>/dev/null)"
