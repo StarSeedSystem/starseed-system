@@ -252,7 +252,7 @@ class ElSilencioDeLaMac(Base):
     def test_turno_pesado_no_toma_el_turno_mientras_hay_ronda_y_no_gasta_su_plazo(self):
         import turno_pesado as TP
         ahora = time.time()
-        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 2, ahora - 119.0)       # le quedan ~1 s de las 2 min
+        datos, _, _ = R.iniciar(R.archivo_vacio(), "alex", "llamadas", 2, ahora - 115.0)       # le quedan ~5 s de las 2 min: suficiente para que avise antes de caducar
         self.w.escribir_json(R.ARCHIVO, datos)
         antes = (os.environ.get("STARSEED_PRODUCCION_DIR"), TP.CERROJOS, R.AVISO_S)
         os.environ["STARSEED_PRODUCCION_DIR"] = self.tmp
