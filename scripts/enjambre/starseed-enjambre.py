@@ -87,6 +87,11 @@ except Exception:  # pragma: no cover — instalación sin el módulo o sin agy
 # Solo se usa cuando el cupo semanal de Claude está por debajo del 85%.
 # Modelo recomendado: sonnet para escribir, opus solo para fallos difíciles.
 try:
+    import sys
+    import os
+    PUENTE_PATH = os.path.join(DIRECTORIO_ENJAMBRE, "..", "puente")
+    if PUENTE_PATH not in sys.path:
+        sys.path.insert(0, PUENTE_PATH)
     import escritor_claude_plan as _escritor_claude
 
     MODELOS_CLAUDE_DISPONIBLES = _escritor_claude.MODELOS_CLAUDE
