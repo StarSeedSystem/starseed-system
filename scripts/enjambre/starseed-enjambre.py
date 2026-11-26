@@ -82,6 +82,21 @@ except Exception:  # pragma: no cover — instalación sin el módulo o sin agy
 
     MODELOS_ANTIGRAVITY_DISPONIBLES = []
 
+# ── Escritor Claude Plan (claude -p) ─────────────────────────────────────────────
+# Escritor especializado en tareas de planificación y documentación.
+# Solo se usa cuando el cupo semanal de Claude está por debajo del 85%.
+# Modelo recomendado: sonnet para escribir, opus solo para fallos difíciles.
+try:
+    import escritor_claude_plan as _escritor_claude
+
+    MODELOS_CLAUDE_DISPONIBLES = _escritor_claude.MODELOS_CLAUDE
+    CLAUDE_DISPONIBLE = _escritor_claude.claude_esta_disponible()
+except Exception:  # pragma: no cover — instalación sin el módulo
+    _escritor_claude = None
+
+    MODELOS_CLAUDE_DISPONIBLES = []
+    CLAUDE_DISPONIBLE = False
+
 # (COL1012D) Puntos de control: cada 5 min el trabajo a medias de cada agente deja de
 # vivir solo en el disco de esta máquina (contrato: architecture/colmena-relevo-contenedores.md).
 try:
@@ -317,6 +332,11 @@ MODELOS = [
     # llm7/gpt-oss también escribió en la prueba, pero con calidad baja: solo entra en la
     # rotación de una tarea si TODOS sus archivos son Markdown (ver apto_para_tarea).
     "llm7/gpt-oss",
+    # Claude Plan: escritor especializado en tareas de planificación.
+    # Solo se usa cuando el cupo semanal está < 85% (lector_limites_claude).
+    # Modelo recomendado: sonnet para escribir, opus solo para fallos difíciles.
+    "claude/sonnet",
+    "claude/opus",
 ]
 
 # (2026-10-21) OpenCode Zen: modelos GRATIS del propio opencode (Alex cargó su clave con
@@ -4562,6 +4582,31 @@ def escribir_con_antigravity(prompt, modelo, cwd, log, timeout=1800, tid=None):
     )
 
 
+def es_modelo_claude(modelo: str) -> bool:
+    """PURA: ¿este escritor se atiende con Claude CLI? Prefijo `claude/`."""
+    n = str(modelo or "")
+    return n.startswith("claude/")
+
+
+def escribir_con_claude_func(prompt, modelo, cwd, log, timeout=1500, tid=None):
+    """Ejecuta Claude CLI (claude -p) para escribir en el worktree.
+
+    Solo se usa cuando el cupo semanal de Claude está bajo el 85%.
+    Devuelve (rc, salida). Contrato igual que opencode/codex.
+    """
+    if _escritor_claude is None:
+        return 126, (
+            "Claude no escribe aquí: módulo escritor_claude_plan no disponible"
+        )
+    if not CLAUDE_DISPONIBLE:
+        return 126, (
+            "Claude no escribe aquí: no disponible o cupo semanal ≥ 85%"
+        )
+    return _escritor_claude.escribir_con_claude(
+        prompt, modelo, cwd, log, timeout=timeout, tid=tid
+    )
+
+
 def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
     """ÚNICA puerta de escritura del enjambre (2026-09-08, Ola 296 · CX1): elige motor por el
     prefijo del modelo y deja el resto del flujo (tsc → tests → revisión → integración) intacto.
@@ -4577,6 +4622,10 @@ def escribir(prompt, modelo, cwd, log, timeout=1500, tid=None):
         )
     elif es_modelo_antigravity(modelo):
         resultado = escribir_con_antigravity(
+            prompt, modelo, cwd, log, timeout=timeout, tid=tid
+        )
+    elif es_modelo_claude(modelo):
+        resultado = escribir_con_claude_func(
             prompt, modelo, cwd, log, timeout=timeout, tid=tid
         )
     else:
