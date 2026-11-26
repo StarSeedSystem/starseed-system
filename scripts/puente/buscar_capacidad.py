@@ -1412,7 +1412,23 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             if futuro_medios is not None:
                 lineas += [texto_medio(m) for m in futuro_medios.result()]
 
-        sin_trabajo = (
+            # 4 · Agentes potentes (CAP1126A): sugerencias de agentes y modelos por tarea.
+            # Nada se lanza: solo se escriben en ~/.starseed/capacidad-sugerencias.json.
+            sugerencias_result = {"sugerencias": [], "sin_cupo": []}
+            try:
+                import sugerencias_potentes as SP  # noqa: E402
+
+                ctx = SP.contexto_desde_disco(ahora)
+                sugs, sin_cupo = SP.sugerencias_de_olas(
+                    LATIDOS, os.path.join(LATIDOS, "progreso.json"), ctx, ahora
+                )
+                SP.guardar_sugerencias(SP.RUTA_SUGERENCIAS, sugs, sin_cupo)
+                lineas.append(SP.texto_linea(sugs, sin_cupo))
+                sugerencias_result = {"sugerencias": sugs, "sin_cupo": sin_cupo}
+            except Exception as e:  # noqa: BLE001 — este paso nunca frena el botón
+                lineas.append("Agentes potentes: no se pudieron calcular (%s)" % type(e).__name__)
+
+            sin_trabajo = (
             not (estado_mac.get("listas") or [])
             and not (nube["clases"].get("elegibles") or [])
             and not plan.get("reabrir")
@@ -1478,6 +1494,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             "escritores_nube": escritores_nube,
             "mac_cede": (nube.get("mac") or {}).get("cedibles") or [],
             "preguntas": preguntas,
+            "sugerencias_potentes": sugerencias_result,
         }
         return resultado
     except Exception as e:  # noqa: BLE001
