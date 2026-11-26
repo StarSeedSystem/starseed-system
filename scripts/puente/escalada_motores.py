@@ -361,7 +361,9 @@ def es_tarea_publicacion(tarea: Dict[str, Any], asuntos: List[str]) -> bool:
         return False
 
     import re
-    match = re.search(r'desbloquear la publicación\s+([a-f0-9]{7,40})', titulo)
+    # `prioridad_desbloqueo.tarea_de_arreglo` escribe el SHA entre paréntesis
+    # («URGENTE · Desbloquear la publicación (dbbf0ff6e)»); aceptar también el formato suelto.
+    match = re.search(r'desbloquear la publicación\s+\(?\s*([a-f0-9]{7,40})\s*\)?', titulo)
     if not match:
         return False
 
