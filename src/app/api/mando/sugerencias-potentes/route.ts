@@ -80,7 +80,7 @@ export async function GET(peticion: Request): Promise<Response> {
         const o = objeto(v); const id = texto(o.id).trim();
         return id ? [{ id, titulo: texto(o.titulo), tipo: texto(o.tipo), prioridad: numero(o.prioridad) }] : [];
     });
-    return Response.json({ sugerencias, sin_cupo, total: sugerencias.length, visto: texto(fuente.visto) },
+    return Response.json({ sugerencias, sinCupo, total: sugerencias.length, visto: texto(fuente.visto) },
         { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(peticion: Request): Promise<Response> {
