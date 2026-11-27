@@ -20,6 +20,7 @@ import {
     type NivelTerminal,
     type Sistema,
 } from "./ordenes";
+import { esOrdenPermitidaAndroid, obtenerMensajeAndroid } from "./android";
 
 export type MotivoRechazo =
     | "permiso-apagado"
@@ -130,7 +131,12 @@ export function motivoRechazo(nombre: string, ctx: ContextoCliente, ahora: numbe
     const previo = motivoPrevio(nombre, ctx);
     if (previo) return previo;
     const cmd = buscarComando(nombre);
-    return cmd ? motivoGuardas(cmd, ctx, ahora) : "comando-desconocido";
+    if (!cmd) return "comando-desconocido";
+    if (ctx.sistema === "android" && !esOrdenPermitidaAndroid(nombre)) {
+        if (cmd.requiereAdminCompleto) return "requiere-admin-completo";
+        return "sistema-no-soportado";
+    }
+    return motivoGuardas(cmd, ctx, ahora);
 }
 
 export function crearClienteAyudante(ctx: ContextoCliente): ClienteAyudante {
