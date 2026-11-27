@@ -1493,6 +1493,8 @@ export interface NodoAlmacenamiento {
     discoTotalGb?: number;
     rol?: string;
     usoGb?: number;
+    /** ALC1125Js: cuándo se desconectó el medio (ISO), para mostrar «desconectado desde…». */
+    desde?: string;
 }
 
 export interface DatosMedidores {
@@ -2382,7 +2384,7 @@ function filasDeImaginacion(propuestas: PropuestaImaginacion[]): FilaMedidor[] {
 }
 
 /** El detalle completo de un medidor: filas, porqués y acciones. */
-const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, a1: 2, drive: 3 };
+const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, "maggabox · almacén usb (btrfs)": 1.5, a1: 2, drive: 3 };
 
 /** Un GB medido: 0 es un dato (disco lleno), no «sin dato». PURA. */
 function discoMedido(valor: unknown): number | null {
@@ -2393,6 +2395,7 @@ function discoMedido(valor: unknown): number | null {
 export function nombreDeNodoAlmacenamiento(nodoId: string, medio?: string): string {
     const id = nodoId.toLowerCase();
     if (id.includes("drive")) return "Drive"; // DIR1125O
+    if (id === "maggabox-usb" || id.includes("maggabox-usb")) return "Maggabox · almacén USB (btrfs)";
     if (id.includes("maggabox")) return "Maggabox";
     if (/(^|[-_])a1|oracle/.test(id)) return "A1";
     if (id.includes("mac") || medio === "mac") return "Mac";
@@ -2428,6 +2431,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             : [];
         const total = discoMedido(n.discoTotalGb);
         const rol = typeof n.rol === "string" && n.rol.trim() ? n.rol.trim() : undefined;
+        const desde = typeof n.desde === "string" && n.desde.trim() ? n.desde.trim() : undefined;
         salida.push({
             id: id.trim(),
             nombre: nombreDeNodoAlmacenamiento(id, medio),
@@ -2437,6 +2441,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             ...(total !== null ? { discoTotalGb: total } : {}),
             ...(rol ? { rol } : {}),
             ...(uso !== null ? { usoGb: uso } : {}),
+            ...(desde ? { desde } : {}),
         });
     }
     const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
@@ -2459,21 +2464,28 @@ function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
 
 /** (MAG1120) Una fila por nodo con disco libre; estado según lo que le queda. PURA. */
 export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): FilaMedidor[] {
-    return nodos.map((n) => ({
-        id: n.id,
-        titulo: n.nombre,
-        estado: !Number.isFinite(n.discoLibreGb) ? "libre" : n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
-        porque: porqueDeAlmacenamiento(n),
-        detalle: {
-            ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
-            origen: n.medio,
-            almacen: n.almacen,
-            ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
-            ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
-            ...(n.rol ? { rol: n.rol } : {}),
-        },
-        acciones: [],
-    }));
+    return nodos.map((n) => {
+        const discoFinito = Number.isFinite(n.discoLibreGb);
+        const desconectado = !discoFinito && n.desde;
+        return {
+            id: n.id,
+            titulo: n.nombre,
+            estado: desconectado ? "desconectado" : !discoFinito ? "libre" : n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
+            porque: desconectado
+                ? `desconectado desde ${new Date(n.desde!).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                : porqueDeAlmacenamiento(n),
+            detalle: {
+                ...(discoFinito ? { discoLibres: n.discoLibreGb } : {}),
+                origen: n.medio,
+                almacen: n.almacen,
+                ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
+                ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
+                ...(n.rol ? { rol: n.rol } : {}),
+                ...(n.desde ? { desde: n.desde } : {}),
+            },
+            acciones: [],
+        };
+    });
 }
 
 /** (MAG1120) «Nodos con disco libre: Mac (X GB), …». Sin nodos, «sin dato». PURA. */

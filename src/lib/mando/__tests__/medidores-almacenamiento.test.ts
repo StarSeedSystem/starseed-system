@@ -5,6 +5,7 @@ import {
     filasDeAlmacenamiento,
     leerNodosAlmacenamiento,
     nombreDeNodoAlmacenamiento,
+    textoDiscoAlmacenamiento,
 } from "@/lib/mando/medidores";
 
 describe("leerNodosAlmacenamiento", () => {
@@ -110,5 +111,80 @@ describe("filasDeAlmacenamiento", () => {
             { id: "c", nombre: "C", medio: "nube", discoLibreGb: 30, almacen: [] },
         ]);
         expect(filas.map((f) => f.estado)).toEqual(["crítico", "bajo", "libre"]);
+    });
+});
+
+describe("Maggabox · almacén USB (btrfs) · ALC1125Js", () => {
+    it("nombreDeNodoAlmacenamiento reconoce maggabox-usb como 'Maggabox · almacén USB (btrfs)'", () => {
+        expect(nombreDeNodoAlmacenamiento("maggabox-usb")).toBe("Maggabox · almacén USB (btrfs)");
+        expect(nombreDeNodoAlmacenamiento("maggabox-usb", "linux")).toBe("Maggabox · almacén USB (btrfs)");
+    });
+
+    it("leerNodosAlmacenamiento lee el almacén USB con sus subvolúmenes y rol", () => {
+        const nodos = leerNodosAlmacenamiento({
+            nodos: [
+                { nodoId: "maggabox-usb", medio: "linux", discoLibreGb: 420, discoTotalGb: 465, almacen: ["cerebros", "respaldos", "desarrollo", "publico", ".instantaneas"], rol: "almacén USB (btrfs): cerebros, respaldos, instantáneas" },
+            ],
+        });
+        expect(nodos.length).toBe(1);
+        expect(nodos[0].id).toBe("maggabox-usb");
+        expect(nodos[0].nombre).toBe("Maggabox · almacén USB (btrfs)");
+        expect(nodos[0].discoLibreGb).toBe(420);
+        expect(nodos[0].discoTotalGb).toBe(465);
+        expect(nodos[0].almacen).toEqual(["cerebros", "respaldos", "desarrollo", "publico", ".instantaneas"]);
+        expect(nodos[0].rol).toBe("almacén USB (btrfs): cerebros, respaldos, instantáneas");
+    });
+
+    it("filasDeAlmacenamiento muestra 'desconectado' cuando no hay disco medido (NaN) y dice desde cuándo", () => {
+        const filas = filasDeAlmacenamiento([
+            { id: "maggabox-usb", nombre: "Maggabox · almacén USB (btrfs)", medio: "linux", discoLibreGb: Number.NaN, almacen: [], desde: "2026-11-25T10:00:00Z" },
+        ]);
+        expect(filas[0].estado).toBe("desconectado");
+        expect(filas[0].porque).toContain("desconectado");
+        // Fecha formateada en español: 25/11/2026, 10:00
+        expect(filas[0].porque).toContain("25/11/2026");
+    });
+
+    it("filasDeAlmacenamiento muestra el disco libre cuando está montado", () => {
+        const filas = filasDeAlmacenamiento([
+            { id: "maggabox-usb", nombre: "Maggabox · almacén USB (btrfs)", medio: "linux", discoLibreGb: 420, discoTotalGb: 465, almacen: ["cerebros", "respaldos"], rol: "almacén USB (btrfs): cerebros, respaldos, instantáneas" },
+        ]);
+        expect(filas[0].estado).toBe("libre");
+        expect(filas[0].porque).toContain("420 GB de 465 GB");
+        expect(filas[0].porque).toContain("almacén USB (btrfs)");
+        expect(filas[0].detalle).toMatchObject({ discoLibres: 420, discoTotalGb: 465, almacen: ["cerebros", "respaldos"], rol: "almacén USB (btrfs): cerebros, respaldos, instantáneas" });
+    });
+
+    it("textoDiscoAlmacenamiento formatea correctamente el almacén USB", () => {
+        expect(textoDiscoAlmacenamiento({ id: "maggabox-usb", nombre: "Maggabox · almacén USB (btrfs)", medio: "linux", discoLibreGb: 420, discoTotalGb: 465, almacen: [], rol: "almacén USB (btrfs)" })).toBe("420 GB de 465 GB");
+    });
+
+    it("detalleDeMedidor incluye el almacén USB en el resumen y filas", () => {
+        const d = detalleDeMedidor("almacenamiento", {
+            almacenamiento: {
+                nodos: [
+                    { id: "mac-local", nombre: "Mac", medio: "mac", discoLibreGb: 10, almacen: [] },
+                    { id: "maggabox", nombre: "Maggabox", medio: "linux", discoLibreGb: 405, almacen: [] },
+                    { id: "maggabox-usb", nombre: "Maggabox · almacén USB (btrfs)", medio: "linux", discoLibreGb: 420, discoTotalGb: 465, almacen: ["cerebros", "respaldos"], rol: "almacén USB (btrfs)" },
+                    { id: "a1-oracle", nombre: "A1", medio: "nube", discoLibreGb: 9.6, almacen: [] },
+                ],
+            },
+        });
+        expect(d.resumen).toContain("Maggabox · almacén USB (btrfs)");
+        expect(d.resumen).toContain("420 GB de 465 GB");
+        expect(d.filas.map((f) => f.id)).toContain("maggabox-usb");
+    });
+
+    it("el orden de RANGO_ALMACENAMIENTO pone el almacén USB después del Maggabox interno", () => {
+        const nodos = leerNodosAlmacenamiento({
+            nodos: [
+                { nodoId: "a1-oracle", medio: "nube", discoLibreGb: 80 },
+                { nodoId: "maggabox-usb", medio: "linux", discoLibreGb: 420 },
+                { nodoId: "maggabox", medio: "linux", discoLibreGb: 120 },
+                { nodoId: "mac-local", medio: "mac", discoLibreGb: 42 },
+            ],
+        });
+        // Orden esperado: Mac, Maggabox (interno), Maggabox USB, A1
+        expect(nodos.map((n) => n.id)).toEqual(["mac-local", "maggabox", "maggabox-usb", "a1-oracle"]);
     });
 });
