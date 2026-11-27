@@ -58,15 +58,19 @@ class TestModeloClaudeEnRotacion(unittest.TestCase):
 class TestDirectorClaudePlan(unittest.TestCase):
     def test_detiene_agentes_por_cupo_semanal(self):
         """El director debe detener agentes si el cupo semanal de Claude está ≥ 85%."""
-        with mock.patch.object(escritor_claude, "lector_limites_claude") as mock_limite:
-            mock_limite.return_value = {"porcentaje_uso": 90, "valido": False}
-            self.assertFalse(escritor_claude.claude_esta_disponible())
+        with mock.patch.object(escritor_claude, "shutil") as mock_shutil:
+            with mock.patch.object(escritor_claude, "lector_limites_claude") as mock_limite:
+                mock_shutil.which.return_value = "/usr/local/bin/claude"
+                mock_limite.return_value = {"porcentaje_uso": 90, "valido": False}
+                self.assertFalse(escritor_claude.claude_esta_disponible())
 
     def test_permite_agentes_con_cupo_bajo(self):
         """El director debe permitir agentes si el cupo semanal está < 85%."""
-        with mock.patch.object(escritor_claude, "lector_limites_claude") as mock_limite:
-            mock_limite.return_value = {"porcentaje_uso": 70, "valido": True}
-            self.assertTrue(escritor_claude.claude_esta_disponible())
+        with mock.patch.object(escritor_claude, "shutil") as mock_shutil:
+            with mock.patch.object(escritor_claude, "lector_limites_claude") as mock_limite:
+                mock_shutil.which.return_value = "/usr/local/bin/claude"
+                mock_limite.return_value = {"porcentaje_uso": 70, "valido": True}
+                self.assertTrue(escritor_claude.claude_esta_disponible())
 
 
 class TestIntegracionDirector(unittest.TestCase):
