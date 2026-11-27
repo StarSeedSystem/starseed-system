@@ -128,13 +128,14 @@ def orden_claude_plan(
         Lista de argumentos para subprocess
     """
     clave_bin = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
+    # (DIR1126I) Sin «chat»: Claude Code no tiene ese subcomando; el modo no interactivo es `-p`.
     return [
         clave_bin,
-        "chat",
         "-p",
         prompt,
         "--model", modelo,
         "--output-format", "text",
+        "--permission-mode", "plan",
     ]
 
 
@@ -144,18 +145,35 @@ def orden_claude_escribir(
     timeout_s: int = SEGUNDOS_ESCRITURA_CLAUDE,
     modelo: str = "sonnet"
 ) -> list[str]:
-    """Construye la orden `claude-code` para escribir.
+    """Construye la orden de Claude Code para escribir en el worktree.
 
-    Usa `claude` con el comando apropiado para escribir código.
+    (DIR1126I, 26-11) Antes era `claude exec -m … -s workspace-write -C …`, que es la sintaxis
+    de `codex exec`: Claude Code no la entiende, cada intento moría en ~4 s sin tocar nada y la
+    tarea acababa «sin cambios» (DIS1126A, ENJ1126B, NEU1126E-d1b…). Ahora: `claude -p` (no
+    interactivo) con el prompt por stdin, el worktree como directorio de trabajo (cwd del
+    proceso), edición de archivos aceptada y solo las herramientas que hacen falta. Nunca
+    `--dangerously-skip-permissions`.
     """
     clave_bin = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
     return [
         clave_bin,
-        "exec",
-        "-m", modelo,
-        "-s", "workspace-write",
-        "-C", worktree,
+        "-p",
+        "--model", modelo,
+        "--output-format", "text",
+        "--permission-mode", "acceptEdits",
+        "--allowedTools",
+        "Read,Edit,MultiEdit,Write,Glob,Grep,LS,"
+        "Bash(npx tsc:*),Bash(npx vitest:*),Bash(git status:*),Bash(git diff:*),Bash(ls:*)",
     ]
+
+
+def entorno_claude() -> dict:
+    """(DIR1126I) El entorno del proceso sin claves de la API de Anthropic: Claude escribe con la
+    sesión del plan (llavero o CLAUDE_CODE_OAUTH_TOKEN), nunca con una clave de pago."""
+    env = dict(os.environ)
+    for clave in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"):
+        env.pop(clave, None)
+    return env
 
 
 def es_error_cuota_claude(salida: str) -> bool:
@@ -259,14 +277,17 @@ def escribir_con_claude(
             proc = subprocess.Popen(
                 orden,
                 cwd=cwd,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 errors="replace",
-                start_new_session=True
+                start_new_session=True,
+                env=entorno_claude(),
             )
             try:
-                salida, _ = proc.communicate(timeout=timeout)
+                # (DIR1126I) El prompt va por stdin (antes no se pasaba en absoluto).
+                salida, _ = proc.communicate(input=prompt, timeout=timeout)
                 rc = proc.returncode
             except subprocess.TimeoutExpired:
                 try:
@@ -279,9 +300,9 @@ def escribir_con_claude(
             rc = CODIGO_FALLO
             salida = str(e)
 
-    if rc == 0:
-        with open(log, "a", encoding="utf-8") as f:
-            f.write(salida)
+    # (DIR1126I) También cuando falla: sin la salida en el registro nadie veía por qué moría.
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(salida or "")
 
     return rc, salida
 

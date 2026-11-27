@@ -75,12 +75,28 @@ class TestOrdenClaudePlan(unittest.TestCase):
 
 class TestOrdenClaudeEscribir(unittest.TestCase):
     def test_orden_para_escribir_codigo(self):
+        """DIR1126I: es Claude Code (`-p`), no la sintaxis de `codex exec`."""
         orden = escritor_claude.orden_claude_escribir("escribe este código", "/tmp/wt")
-        self.assertIn("exec", orden)
-        self.assertIn("-m", orden)
+        self.assertIn("-p", orden)
+        self.assertIn("--model", orden)
         self.assertIn("sonnet", orden)
-        self.assertIn("-s", orden)
-        self.assertIn("workspace-write", orden)
+        self.assertIn("--permission-mode", orden)
+        self.assertIn("acceptEdits", orden)
+        for prohibido in ("exec", "-s", "workspace-write", "-C", "--dangerously-skip-permissions"):
+            self.assertNotIn(prohibido, orden)
+
+    def test_plan_sin_subcomando_chat(self):
+        orden = escritor_claude.orden_claude_plan("planificar", "/tmp/wt")
+        self.assertNotIn("chat", orden)
+
+    def test_entorno_sin_claves_api(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "x", "ANTHROPIC_AUTH_TOKEN": "y", "OTRA": "z"}):
+            env = escritor_claude.entorno_claude()
+        self.assertNotIn("ANTHROPIC_API_KEY", env)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertEqual(env.get("OTRA"), "z")
 
 
 class TestErroresClaude(unittest.TestCase):
