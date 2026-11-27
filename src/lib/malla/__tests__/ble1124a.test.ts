@@ -71,16 +71,23 @@ describe("filtrarSaludosConWifiDirecto (puro)", () => {
   });
 });
 
+/** Deja correr el saludo que el motor lanza al ver un enlace nuevo (no bloquea el refresco). */
+async function asentar(): Promise<void> {
+  await new Promise((listo) => setTimeout(listo, 0));
+}
+
 describe("el motor no saluda por Bluetooth lo que ya va por Wi-Fi directo", () => {
   it("con Wi-Fi directo activo no manda ningún nl.hola por el enlace", async () => {
     const { red, enviados } = escenario(true);
     await red.refrescar();
+    await asentar();
     expect(enviados.filter((j) => j.includes('"nl.hola"'))).toHaveLength(0);
   });
 
   it("sin Wi-Fi directo sí saluda (el enlace se liga como siempre)", async () => {
     const { red, enviados } = escenario(false);
     await red.refrescar();
+    await asentar();
     expect(enviados.some((j) => j.includes('"nl.hola"'))).toBe(true);
   });
 });
