@@ -38,6 +38,7 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Signal, SignalSubscription } from "@/lib/network/signaling";
 import { hmacFirmar, hmacVerificar } from "@/lib/network/par-crypto";
+import { canalListoParaEnviar } from "@/lib/network/canal-listo";
 import { crearBucle, falloDe, MINUTO_MS, type BucleFondo } from "@/lib/network/bucle-fondo";
 
 /** El mismo contrato mínimo que `webrtc-mesh.ts` necesita de un transporte de señalización. */
@@ -149,7 +150,8 @@ export function crearTransporteSenalPar(opts: {
       // 1) Realtime (si hay un canal vivo de una suscripción activa de este
       //    mismo transporte — ver `subscribe`, que guarda la referencia).
       const canal = canalActivo;
-      if (canal?.ready) {
+      // Solo por el socket abierto: un canal no unido haría un POST REST por señal.
+      if (canal?.ready && canalListoParaEnviar(canal.channel)) {
         try {
           const res = await canal.channel.send({ type: "broadcast", event: BROADCAST_EVENT, payload: sobre });
           if (String(res) === "ok") return true;

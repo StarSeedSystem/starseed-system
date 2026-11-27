@@ -21,7 +21,7 @@
  * Reglas: misma puerta de sesión y rate-limit que `/api/voz/hablar`.
  */
 
-import { createClient } from "@/utils/supabase/server";
+import { claveLimiteDePeticion } from "@/lib/network/canal-listo";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { esDespliegueLocal, exigirSesionSalvoLocal } from "@/lib/aurora/voz-starseed/puerta-local";
 import { claveDe } from "@/lib/mando/modelos-disponibles";
@@ -215,19 +215,11 @@ export async function POST(req: Request): Promise<Response> {
     const puerta = await exigirSesionSalvoLocal(req);
     if (puerta) return puerta;
 
-    // Identificador para el rate-limit (usuario en Vercel; `null` en local).
-    let userId: string | null = null;
-    if (process.env.NODE_ENV === "production" && !esDespliegueLocal(req)) {
-        try {
-            const supabase = await createClient();
-            const { data } = await supabase.auth.getUser();
-            userId = data.user?.id ?? null;
-        } catch {
-            userId = null;
-        }
-    }
+    // Clave del rate-limit: hash de la sesión de la petición. La puerta ya validó al usuario con
+    // `auth.getUser()`; repetirlo aquí duplicaba cada petición a /auth/v1/user.
+    const clave = process.env.NODE_ENV === "production" && !esDespliegueLocal(req) ? claveLimiteDePeticion(req.headers) : "local";
 
-    const rl = rateLimit(`voz-nube:${userId}`, 30, 10 * 60 * 1000);
+    const rl = rateLimit(`voz-nube:${clave}`, 30, 10 * 60 * 1000);
     if (!rl.allowed) {
         return Response.json(
             { error: "Demasiadas síntesis. Inténtalo más tarde." },

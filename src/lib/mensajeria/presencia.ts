@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
+import { canalListoParaEnviar } from "@/lib/network/canal-listo";
 import { puertaA1 } from "@/lib/datos/puerta-a1";
 import { currentUserRef } from "@/lib/sync/entity-state";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
@@ -276,6 +277,8 @@ export function useSalaHilo(hiloId: string | null, miUid: string | null): SalaHi
         const ahora = Date.now();
         if (ahora - ultimoAnuncioRef.current < ESCRIBIENDO_THROTTLE_MS) return;
         ultimoAnuncioRef.current = ahora;
+        // Sin socket unido, `send` haría un POST REST por pulsación (bucle de 484/h medido).
+        if (!canalListoParaEnviar(canalRef.current)) return;
         try {
             void canalRef.current?.send({ type: "broadcast", event: "escribiendo", payload: { userId: miUid } });
         } catch {
