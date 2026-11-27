@@ -1,6 +1,18 @@
 export * from './modelo';
 export * from './capas';
 export * from './alcance';
+export * from './fuentes/tipos';
+export { fuenteCerebros, crearFuenteCerebros } from './fuentes/cerebros';
+export { fuenteConocimiento, crearFuenteConocimiento } from './fuentes/conocimiento';
+export { fuenteEducacion, crearFuenteEducacion } from './fuentes/educacion';
+export {
+  crearBusRamas4D,
+  obtenerBusGlobal,
+  destruirBusGlobal,
+  type BusConfig,
+  type EstadoBus,
+  type BusRamas4D,
+} from './bus';
 export {
   crearEstadoFuerza,
   pasoFuerza,
