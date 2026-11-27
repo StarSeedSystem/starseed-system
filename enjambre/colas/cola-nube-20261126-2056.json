@@ -1,0 +1,35 @@
+{
+ "ola": "oracle-20261126",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "ALM1125H2s",
+   "ola": "almacen-1125",
+   "titulo": "traer_nube trae también las ramas nube/mg-* de la Maggabox · lo que faltó: scripts/puente/test_traer_nube_maggabox_1125.py",
+   "archivos": [
+    "scripts/puente/test_traer_nube_maggabox_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 95,
+   "prompt": "SEGUIMIENTO de ALM1125H2, que ya está integrada (sha 1ed3eb95e3c5). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_traer_nube_maggabox_1125.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: traer_nube trae también las ramas nube/mg-* de la Maggabox\n\n--- encargo original, como contexto ---\nComprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` (lee la sección «Maggabox como medio de trabajo», es la receta exacta) y `memory/orquestacion-economica.md` §24. Alex lo ha pedido muchas veces: la Maggabox (405 GB libres) debe usarse sola cuando la Mac va justa.\n\nPunto 2 de la receta: en `dueno_de_sueltos` añade el patrón `^nube/mg-\\d{8}-\\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$` junto al de `nube/a1-…`. Prueba que una rama `nube/mg-20261126-010203-CTL1124Dc` se reconoce con su tarea y que las de a1 siguen igual.",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial",
+   "modelo": "claude/sonnet"
+  },
+  {
+   "id": "CTL1126Css",
+   "ola": "control-1126",
+   "prioridad": 95,
+   "capacidad": "alta",
+   "titulo": "Android: el paso a pantalla fluida tarda segundos, no minutos, y la ventana dice el modo real · lo que faltó: src/lib/control-remoto/fuente-pantalla.ts, src/lib/control-remoto/pantalla-destino.ts · lo que faltó: src/lib/control-remoto/fuente-pantalla.ts",
+   "archivos": [
+    "src/lib/control-remoto/fuente-pantalla.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de CTL1126Cs, que ya está integrada (sha 260d555c2342). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/control-remoto/fuente-pantalla.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Android: el paso a pantalla fluida tarda segundos, no minutos, y la ventana dice el modo real · lo que faltó: src/lib/control-remoto/fuente-pantalla.ts, src/lib/control-remoto/pantalla-destino.ts\n\n--- encargo original, como contexto ---\nSEGUIMIENTO de CTL1126C, que ya está integrada (sha 0fef560f724b). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/control-remoto/fuente-pantalla.ts, src/lib/control-remoto/pantalla-destino.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Android: el paso a pantalla fluida tarda segundos, no minutos, y la ventana dice el modo real\n\n--- encargo original, como contexto ---\nMedido el 26-11 05:51–05:54Z con la .64, Mac→tableta Android (Maggaboard) por red local: la sesión abrió en 485 ms; por accesibilidad 3 cuadros/s (16 moviendo), latencia 8–99 ms (bien). Se pidió la pantalla fluida a las 05:51:52 (fluida-pedida-por-la-persona ok) y la fuente no pasó a proyección hasta las 05:53:56; mientras tanto control-calidad ya decía codec=H264 1280×798 a 1,5–2,9 cuadros/s y la ventana seguía diciendo «Pantalla por accesibilidad» con el botón «Pedir la pantalla fluida»; al pasar a proyección (7 cuadros/s) el último cuadro llegó negro. Arreglo: el cambio a proyección ocurre en cuanto la persona acepta en el aparato; la ventana enseña el modo y los cuadros reales de la fuente activa y quita el botón cuando ya es fluida; el primer cuadro tras el cambio no es negro (se mantiene el último bueno hasta que llega uno con imagen). Pruebas del selector y de la transición.",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial",
+   "modelo": "claude/sonnet"
+  }
+ ]
+}
