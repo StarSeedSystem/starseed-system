@@ -3,6 +3,7 @@
 """Pruebas puras de Laya en el A1 de Oracle — unidad systemd y órdenes (LYS1018Gb)."""
 
 import os
+import tempfile
 import unittest
 import sys
 
@@ -56,6 +57,78 @@ class OrdenesInstalacion(unittest.TestCase):
                 encontrado = True
                 break
         self.assertTrue(encontrado)
+
+
+def _meminfo(kb):
+    return "MemTotal:       12000000 kB\nMemAvailable:   %d kB\n" % kb
+
+
+class RutaYRam(unittest.TestCase):
+    def test_ruta_por_defecto_estable(self):
+        texto = M.unidad_systemd()
+        self.assertIn("ExecStart=/usr/bin/node /home/starseed/laya/servidor-laya.mjs", texto)
+        self.assertIn("WorkingDirectory=/home/starseed/laya\n", texto)
+        self.assertNotIn("starseed-wt", texto)
+
+    def test_unidad_mantiene_limite_y_reinicio(self):
+        texto = M.unidad_systemd()
+        self.assertIn("MemoryMax=3G", texto)
+        self.assertIn("Restart=on-failure", texto)
+
+    def test_precheck_ram_umbral(self):
+        self.assertFalse(M.precheck_ram(_meminfo(int(3.9 * 1024 * 1024))))
+        self.assertTrue(M.precheck_ram(_meminfo(4 * 1024 * 1024)))
+        self.assertTrue(M.precheck_ram(_meminfo(8 * 1024 * 1024)))
+
+    def test_precheck_ram_sin_dato(self):
+        self.assertFalse(M.precheck_ram(""))
+
+
+class OrdenesCopia(unittest.TestCase):
+    def _raiz(self):
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "native/laya"))
+        with open(os.path.join(d, "native/laya/servidor-laya.mjs"), "w") as f:
+            f.write('import http from "node:http";\nimport { x } from "./util.mjs";\n')
+        with open(os.path.join(d, "native/laya/util.mjs"), "w") as f:
+            f.write("export const x = 1;\n")
+        return d
+
+    def test_incluye_servidor_e_imports_relativos(self):
+        d = self._raiz()
+        self.assertEqual(M.archivos_necesarios(d), ["native/laya/servidor-laya.mjs", "native/laya/util.mjs"])
+
+    def test_ordenes_son_listas_y_sin_ip_ni_claves(self):
+        ordenes = M.ordenes_copia(self._raiz())
+        self.assertEqual(ordenes[0][0], ["mkdir", "-p", "/home/starseed/laya"])
+        for argv, _ in ordenes:
+            self.assertIsInstance(argv, list)
+            texto = " ".join(argv)
+            self.assertNotRegex(texto, r"\d+\.\d+\.\d+\.\d+")
+            self.assertNotIn("KEY", texto)
+        self.assertIn(["tee", "/home/starseed/laya/util.mjs"], [o[0] for o in ordenes])
+
+
+class Verificar(unittest.TestCase):
+    def test_cargado_sin_activar_nada(self):
+        llamadas = []
+
+        def ssh(orden):
+            llamadas.append(orden)
+            if "is-active" in orden:
+                return 0, "active\n"
+            if "curl" in orden:
+                return 0, "200"
+            return 0, ""
+
+        r = M.verificar(ssh)
+        self.assertTrue(r["cargado"] and r["responde"])
+        self.assertFalse([c for c in llamadas if "enable" in c or "start" in c or "restart" in c])
+
+    def test_no_cargado_si_falta_ruta(self):
+        r = M.verificar(lambda o: (1, "inactive") if "test -f" in o or "is-active" in o else (7, ""))
+        self.assertFalse(r["cargado"])
+        self.assertFalse(r["responde"])
 
 
 class RespuestasLayaSimuladas(unittest.TestCase):
