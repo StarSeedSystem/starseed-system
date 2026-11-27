@@ -1,0 +1,25 @@
+{
+ "ola": "oracle-20261127",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "TRM1125G",
+   "prioridad": 74,
+   "capacidad": "alta",
+   "titulo": "Ayudante en Windows: servicio instalado por el instalador con su UAC y las mismas órdenes",
+   "archivos": [
+    "native/src-tauri/src/ayudante_windows.rs",
+    "native/src-tauri/src/ayudante_windows_logica.rs",
+    "native/src-tauri/windows/hooks.nsh",
+    "native/src-tauri/tauri.conf.json",
+    "deploy/ayudante/windows/README.md"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Servicio de Windows que instala el NSIS (installMode perMachine ya está) con su ventana de UAC; órdenes del contrato único (Format-Volume, Get-Disk para almacenes) con guardas en la lógica pura y pruebas.",
+   "ola": "terminal-neuronas-1125",
+   "dependencias_ya_en_main": [
+    "TRM1125J-d3"
+   ]
+  }
+ ]
+}
