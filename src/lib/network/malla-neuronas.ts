@@ -86,6 +86,16 @@ import { recibirResumen, setResumenLocal } from "@/lib/network/radar-remoto-stor
 // (VZF1015Q) Voz medida en la ficha: medidas locales (módulo hoja) + saneado puro.
 import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
 import { normalizarVoz, vozMedida, type VozNodo } from "@/lib/network/capacidades-nodo";
+// (BAP1127C) Empuje por la malla: un par con otra capa pide buscar ya; censo con diagnóstico.
+import {
+  alVerCapasDePar,
+  debeAnotarCenso,
+  leerDiagnosticoPruebas,
+  lineaCenso,
+  registrarLineaCapa,
+} from "@/lib/actualizaciones/empuje-capa";
+import { esVersionDePrueba } from "@/lib/actualizaciones/canal-pruebas";
+import { versionesDeEsteMedio } from "@/lib/actualizaciones/versiones-locales";
 // (AUD1117 · F8) GPU, almacenamiento libre y chip en la ficha: helpers puros de hardware.
 import { normalizarGpu } from "@/lib/neurons/huella";
 import { detectarChip, type Plataforma } from "@/lib/astraura/perfil-hardware";
@@ -170,6 +180,12 @@ export interface FichaDispositivo {
   tipo: NeuronKind;
   plataforma: string;
   versionOS: string;
+  /** Build de la capa que sirve su servidor local (BAP1127C); ausente = sin dato. */
+  capaBuild?: string;
+  /** Versión de la interfaz; sirve para saber si es una app de prueba. */
+  appVersion?: string;
+  /** Rol del aparato para pruebas, medido en origen. */
+  rol?: "aparato-de-prueba" | "director";
   ramClase: ClaseRam;
   /** Modelo de GPU medido por WebGL (normalizado); ausente si el navegador lo oculta. */
   gpu?: string;
@@ -432,6 +448,23 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
   const arch = await import("@/lib/malla/archivo-seguro-real").then((m) => m.datosHolaArchivo()).catch(() => null);
   // (MTZ1109A) Carriles directos propios (órdenes nativas); en la web, sin antenas.
   const lanasFicha = await import("@/lib/malla/lanas-propias").then((m) => m.refrescarLanasPropias().then((x) => x.lanas)).catch(() => null);
+  // (BAP1127C) Build real de la capa y versión de la interfaz: sin dato, el campo no viaja.
+  let capaBuild: string | undefined;
+  let appVersion: string | undefined;
+  try {
+    const versiones = await versionesDeEsteMedio();
+    if (versiones.servidor?.capaBuild) capaBuild = versiones.servidor.capaBuild;
+    if (versiones.interfaz) appVersion = versiones.interfaz;
+  } catch {
+    /* sin versiones medidas: se anuncia sin capa ni app */
+  }
+  let rol: FichaDispositivo["rol"];
+  try {
+    const v = typeof window !== "undefined" ? window.localStorage.getItem("starseed.pruebas.rol.v1") : null;
+    if (v === "aparato-de-prueba" || v === "director") rol = v;
+  } catch {
+    /* sin localStorage: sin rol */
+  }
   return {
     v: 1,
     syncDeviceId: ids.syncDeviceId,
@@ -440,6 +473,9 @@ export async function construirFicha(neuron: Neuron | null): Promise<FichaDispos
     tipo: neuron?.kind || "other",
     plataforma: neuron?.capabilities?.platform || "desconocida",
     versionOS: OS_VERSION,
+    ...(capaBuild ? { capaBuild } : {}),
+    ...(appVersion ? { appVersion } : {}),
+    ...(rol ? { rol } : {}),
     ramClase: claseRam(memoryGb),
     ...(gpu ? { gpu } : {}),
     ...(almacenamientoLibreGb !== undefined ? { almacenamientoLibreGb } : {}),
@@ -710,6 +746,10 @@ export function useMallaNeuronas(deps?: {
   const concienciaRef = useRef<(() => void) | null>(null);
   const publicacionSyncRef = useRef<(() => void) | null>(null);
   const hbSentAtRef = useRef<Map<string, number>>(new Map());
+  // (BAP1127C) Última ficha propia (capa y versión), última búsqueda por par y censo propio.
+  const ultimaFichaPropiaRef = useRef<FichaDispositivo | null>(null);
+  const ultimaBusquedaCapaRef = useRef<Record<string, number>>({});
+  const censoRef = useRef<{ capa: string; ms: number | null }>({ capa: "", ms: null });
   // (RDV13) Control del radar compartido: cuándo se construyó el último resumen
   // local y qué se compartió al final (huella + momento).
   const radarConstruidoAtRef = useRef(0);
@@ -769,6 +809,19 @@ export function useMallaNeuronas(deps?: {
       if (cancelado || !mesh) return;
       meshRef.current = mesh;
 
+      // (BAP1127C) Un par de la misma cuenta con otra capa dispara «buscar ahora»; la
+      // decisión y el suelo de 5 min viven en `empuje-capa`. Solo pide; aplicar es del relevo.
+      const alVerCapaDePar = (par: string, capaPar: string | null | undefined, clave: string) => {
+        const disparo = alVerCapasDePar({
+          par,
+          miCapa: ultimaFichaPropiaRef.current?.capaBuild ?? null,
+          capaPar: capaPar ?? null,
+          esAppDePrueba: esVersionDePrueba(ultimaFichaPropiaRef.current?.appVersion),
+          ultimaBusquedaMs: ultimaBusquedaCapaRef.current[clave] ?? null,
+        });
+        if (disparo) ultimaBusquedaCapaRef.current[clave] = Date.now();
+      };
+
       const unsubPeer = mesh.onPeer({
         onState: (snap) => {
           setPeers((prev) => ({ ...prev, [snap.deviceId]: snap }));
@@ -782,6 +835,7 @@ export function useMallaNeuronas(deps?: {
           }
           if (esMensajeFicha(msg)) {
             setFichas((prev) => ({ ...prev, [deviceId]: fichaRecibida(msg.ficha) }));
+            alVerCapaDePar(msg.ficha.nombre, msg.ficha.capaBuild, msg.ficha.neuronDeviceId);
             // (MTZ1109A) Los carriles que anuncia la ficha (o, si es de una app anterior, los inferidos de su plataforma).
             void import("@/lib/malla/lanas-propias").then((m) => m.registrarLanasVecina(msg.ficha.neuronDeviceId, msg.ficha.lanas, msg.ficha.plataforma)).catch(() => undefined);
             // (MPT1108B) Capacidades de archivo y clave de cifrado de la neurona de mi cuenta que acaba de saludar.
@@ -811,7 +865,9 @@ export function useMallaNeuronas(deps?: {
         },
       });
 
-      const conciencia = capaMeshCompartiendo() ? setupConcienciaSync(mesh, {}) : null;
+      const conciencia = capaMeshCompartiendo()
+        ? setupConcienciaSync(mesh, { onCapacidades: (cap: CapacidadesNodo) => alVerCapaDePar(cap.nodoId, cap.capaBuild, cap.nodoId) })
+        : null;
       concienciaRef.current = () => {
         unsubPeer();
         conciencia?.unsubscribe();
@@ -909,6 +965,30 @@ export function useMallaNeuronas(deps?: {
       const misNeuronas = neuronas.find((n) => n.isThisDevice) ?? null;
       const ficha = await construirFicha(misNeuronas);
       if (cancelado) return;
+      ultimaFichaPropiaRef.current = ficha;
+      // (BAP1127C) Censo propio: con «Diagnóstico de pruebas» encendido, línea inmediata
+      // al cambiar la capa y latido cada 60 s. Apagado por defecto; lo enciende su dueño.
+      const ahoraCenso = Date.now();
+      if (
+        debeAnotarCenso({
+          diagnosticoEncendido: leerDiagnosticoPruebas(),
+          capaAnterior: censoRef.current.capa,
+          capaNueva: ficha.capaBuild ?? "",
+          ultimaMs: censoRef.current.ms,
+          ahoraMs: ahoraCenso,
+        })
+      ) {
+        censoRef.current = { capa: ficha.capaBuild ?? "", ms: ahoraCenso };
+        registrarLineaCapa(
+          lineaCenso(ficha.nombre, {
+            rol: ficha.rol,
+            medio: ficha.plataforma,
+            appVersion: ficha.appVersion,
+            capaBuild: ficha.capaBuild,
+            discoLibreGb: ficha.almacenamientoLibreGb,
+          }),
+        );
+      }
       for (const p of conectados) {
         mesh.sendToPeer(p.deviceId, JSON.stringify({ t: MSG_FICHA, ficha } satisfies MensajeFicha));
         const at = Date.now();
