@@ -297,28 +297,110 @@ def _es_untracked(ruta: str) -> bool:
         return True
 
 
-def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
-    """Crea una tarea en la cola viva para reaplicar el cambio con pruebas."""
+# Prefijos de las colas que corren AHORA (tanda viva). Las colas fuente no se tocan aquí.
+PREFIJOS_TANDA_VIVA = ("cola-auto-", "cola-suenos-")
+
+
+def _cargar_cola(ruta: str) -> Tuple[object, List[Dict]]:
+    """Devuelve (datos, tareas) de una cola, acepte lista o dict con «tareas»."""
+    if not os.path.exists(ruta):
+        return [], []
+    with open(ruta, encoding="utf-8") as f:
+        datos = json.load(f)
+    if isinstance(datos, dict):
+        tareas = datos.get("tareas")
+        return datos, tareas if isinstance(tareas, list) else []
+    return datos, datos if isinstance(datos, list) else []
+
+
+def _escribir_json_atomico(ruta: str, datos: object) -> None:
+    """Escribe el JSON con temporal en la misma carpeta + rename (nunca a medias)."""
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
     try:
-        # Buscar la cola viva más reciente
-        olas = os.path.join(ROOT, "starseed_memory_root", "olas")
-        colas = []
-        for f in os.listdir(olas):
-            if f.startswith("cola-") and f.endswith(".json"):
-                ruta = os.path.join(olas, f)
-                mtime = os.path.getmtime(ruta)
-                colas.append((mtime, ruta))
-        if not colas:
-            return False
-        colas.sort(reverse=True)
-        cola_viva = colas[0][1]
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
-        # Leer cola actual
-        with open(cola_viva, encoding="utf-8") as f:
-            cola = json.load(f)
 
-        # Crear nueva tarea
-        tarea_id = f"REAPLICAR-{time.strftime('%Y%m%d-%H%M%S')}"
+def _ids_en_cola(ruta: str) -> set:
+    """Ids que ya viven en una cola (para no repetirlos)."""
+    _, tareas = _cargar_cola(ruta)
+    return {str(t.get("id")) for t in tareas if isinstance(t, dict) and t.get("id")}
+
+
+def _anadir_tarea_sin_duplicar(ruta: str, tarea: Dict) -> bool:
+    """Añade la tarea si su id no está ya en esa cola. Escritura atómica. True si quedó dentro."""
+    datos, tareas = _cargar_cola(ruta)
+    tid = str(tarea.get("id") or "")
+    if any(isinstance(t, dict) and str(t.get("id")) == tid for t in tareas):
+        return True
+    nueva = list(tareas) + [tarea]
+    if isinstance(datos, dict):
+        datos["tareas"] = nueva
+    else:
+        datos = nueva
+    _escribir_json_atomico(ruta, datos)
+    return True
+
+
+def _ruta_cola_cuarentena(ahora: Optional[float] = None) -> str:
+    """La cola FUENTE de esta cuarentena: olas/cola-cuarentena-AAAAMMDD.json."""
+    fecha = time.strftime("%Y%m%d", time.localtime(ahora)) if ahora is not None else time.strftime("%Y%m%d")
+    nombre = "cola-cuarentena-%s.json" % fecha
+    return os.path.join(ROOT, "starseed_memory_root", "olas", nombre)
+
+
+def _cola_viva_mas_reciente() -> Optional[str]:
+    """La cola de la tanda viva más reciente (cola-auto-*/cola-suenos-*), o None."""
+    olas = os.path.join(ROOT, "starseed_memory_root", "olas")
+    try:
+        nombres = os.listdir(olas)
+    except OSError:
+        return None
+    candidatas = []
+    for nombre in nombres:
+        if not (nombre.startswith(PREFIJOS_TANDA_VIVA) and nombre.endswith(".json")):
+            continue
+        ruta = os.path.join(olas, nombre)
+        try:
+            candidatas.append((os.path.getmtime(ruta), ruta))
+        except OSError:
+            continue
+    if not candidatas:
+        return None
+    candidatas.sort(reverse=True)
+    return candidatas[0][1]
+
+
+def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
+    """Escribe la tarea de reaplicar en su cola FUENTE y, si hay tanda viva, también allí.
+
+    (QUA1125A, 25-11) Antes solo se escribía en la cola viva más reciente; si el orquestador
+    se reiniciaba, la tarea se perdía. La fuente (`cola-cuarentena-AAAAMMDD.json`) sobrevive
+    al reinicio; la tanda viva es solo un aviso para que la coja cuanto antes.
+    """
+    try:
+        fuente = _ruta_cola_cuarentena()
+        viva = _cola_viva_mas_reciente()
+        base = "REAPLICAR-%s" % time.strftime("%Y%m%d-%H%M%S")
+        usados = _ids_en_cola(fuente)
+        if viva:
+            try:
+                usados |= _ids_en_cola(viva)
+            except Exception:
+                pass  # una tanda viva ilegible no puede impedir la cola fuente
+        tarea_id = base
+        sufijo = 2
+        while tarea_id in usados:
+            tarea_id = "%s-%d" % (base, sufijo)
+            sufijo += 1
         nueva_tarea = {
             "id": tarea_id,
             "ola": "DIR1121C",
@@ -335,13 +417,13 @@ def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
             "tipo": "codigo",
             "prioridad": 50,
         }
-        cola.append(nueva_tarea)
-
-        # Escribir de vuelta atómicamente
-        tmp = f"{cola_viva}.tmp-{os.getpid()}"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(cola, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, cola_viva)
+        # La cola fuente es la verdad: si falla, la tarea no existe.
+        _anadir_tarea_sin_duplicar(fuente, nueva_tarea)
+        if viva:
+            try:
+                _anadir_tarea_sin_duplicar(viva, nueva_tarea)
+            except Exception:
+                pass  # la fuente ya la guardó; la tanda viva es solo un aviso
         return True
     except Exception:
         return False
