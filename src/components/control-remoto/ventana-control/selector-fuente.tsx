@@ -35,7 +35,7 @@ export function SelectorFuente({ pedida, real, aviso, onCambiar }: PropsSelector
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <div role="radiogroup" aria-label="Fuente de la pantalla" className="grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+            <div role="radiogroup" aria-label="Fuente de la pantalla" className="grid grid-cols-2 sm:grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/5 p-1">
                 <button
                     ref={automatico}
                     type="button"
