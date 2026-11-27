@@ -12,7 +12,6 @@ import {
   marcarHecha,
   registrarEncuentro,
   resumenAutomaticas,
-  textoNotificacion,
   type BotonEncuentro,
   type RegistroEncuentro,
 } from "@/lib/nfc/encuentros";
@@ -21,6 +20,7 @@ import { ignorar, preferenciasPorDefecto, recordar, type Accion, type Relacion }
 import type { ViaAcercar } from "@/lib/nfc/respaldo";
 import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
 import { notifyFromApp } from "@/lib/notifications/app-notify";
+import { notificacionDeEncuentro } from "@/lib/notificaciones/encuentro-nfc";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 
 interface Props {
@@ -123,8 +123,8 @@ export function SeccionCercania({ propia, ajena, via, relacion, onAccion }: Secc
     });
     setActual({ d, id: reg.id, neuronaId: ajena.neuronaId });
     d.automaticas.forEach((a) => onAccion?.(a, ajena.neuronaId));
-    const txt = textoNotificacion(d, via);
-    if (txt) notifyFromApp({ appId: "nfc", title: txt.titulo, body: txt.cuerpo, icon: "Nfc", dedupeKey: reg.id });
+    const aviso = notificacionDeEncuentro(d, via, reg.id);
+    if (aviso) notifyFromApp(aviso);
   }, [ajena, propia, via, relacion, onAccion]);
 
   const alBoton = (b: BotonEncuentro) => {
