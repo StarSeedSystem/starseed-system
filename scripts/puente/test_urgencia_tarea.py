@@ -11,6 +11,8 @@ class TestMacNoPuedeEmpezarDir1127C(unittest.TestCase):
 
     def setUp(self):
         self._antes = U.MAC_LIBRE
+        # repartir-a-nube.py deja este global según el disco real; otras pruebas lo cargan antes.
+        U.MAC_LIBRE = True
 
     def tearDown(self):
         U.MAC_LIBRE = self._antes
