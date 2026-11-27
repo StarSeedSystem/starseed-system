@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import { dibujarCampo, RADIO_MINIMO_PX } from "../capa-alcance";
+import { relojUnificado, crearRelojSimple } from "@/lib/senales/reloj-unificado";
 
 function ctxFalso() {
   const llamadas: string[] = [];
@@ -35,5 +36,65 @@ describe("dibujarCampo: el alcance estimado se ve rayado y con borde discontinuo
     const b = ctxFalso();
     dibujarCampo(b.ctx, 200, 150, 1_000_000, "#f59e0b", 400, 300);
     expect(b.llamadas.filter((l) => l === "lineTo").length).toBeLessThan(200);
+  });
+});
+
+describe("reloj unificado: capa-alcance usa un solo requestAnimationFrame compartido", () => {
+  afterEach(() => {
+    relojUnificado.cancelar();
+    relojUnificado.registrar(() => {});
+  });
+
+  it("cuenta las peticiones de cuadro", () => {
+    const reloj = crearRelojSimple();
+    expect(reloj.total).toBe(0);
+    reloj.tick();
+    reloj.tick();
+    reloj.tick();
+    expect(reloj.total).toBe(3);
+  });
+
+  it("el mecanismo de reloj comparte un único requestAnimationFrame entre componentes simulados", () => {
+    const mockRaf = vi.fn().mockReturnValue(1);
+    const mockCancel = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", mockRaf);
+    vi.stubGlobal("cancelAnimationFrame", mockCancel);
+
+    const frames: number[] = [];
+    const unregistrar1 = relojUnificado.registrar(() => frames.push(1));
+    const unregistrar2 = relojUnificado.registrar(() => frames.push(2));
+
+    relojUnificado.pedir();
+    expect(mockRaf).toHaveBeenCalledTimes(1);
+
+    relojUnificado.pedir();
+    expect(mockRaf).toHaveBeenCalledTimes(1);
+
+    unregistrar1();
+    unregistrar2();
+    relojUnificado.cancelar();
+    expect(mockCancel).toHaveBeenCalled();
+  });
+
+  it("el clock unificado calcula dt correctamente para animaciones", async () => {
+    const frames: { dt: number }[] = [];
+    let rafCalls = 0;
+
+    const mockRaf = vi.fn().mockImplementation((cb: FrameRequestCallback) => {
+      rafCalls++;
+      if (rafCalls <= 2) {
+        setTimeout(() => cb(rafCalls * 100), 0);
+      }
+      return rafCalls;
+    });
+    vi.stubGlobal("requestAnimationFrame", mockRaf);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    relojUnificado.registrar((dt) => frames.push({ dt }));
+    relojUnificado.pedir();
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(frames.length).toBe(2);
+    expect(frames[0].dt).toBeCloseTo(0, 1);
   });
 });

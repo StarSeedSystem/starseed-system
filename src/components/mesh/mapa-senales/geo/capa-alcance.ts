@@ -3,11 +3,13 @@
  * Mismo mecanismo que `capa-parches.ts` y que el radar de lluvia del Hub: un panel propio con un canvas, que se
  * enciende, se apaga y cambia de opacidad. Los campos se mezclan donde se solapan (cada uno suma su transparencia),
  * como un mapa de cobertura. Lo estimado va siempre más claro y rayado, con borde discontinuo: nunca como lo medido.
+ * Usa el reloj unificado para evitar múltiples requestAnimationFrame simultáneos (270-315 fps).
  */
 
 import type { LeafletNS } from "@/lib/map/leaflet-loader";
 import type { Campo } from "@/lib/senales/geo/cobertura";
 import { radioEnPixeles } from "@/lib/senales/geo/alcances";
+import { relojUnificado } from "@/lib/senales/reloj-unificado";
 
 function rgba(hex: string, a: number): string {
   const h = hex.replace("#", "");
@@ -79,10 +81,8 @@ export function crearCapaAlcance(L: LeafletNS, map: any, id: string, zIndex: num
   canvas.style.position = "absolute";
   canvas.style.pointerEvents = "none";
   let campos: readonly Campo[] = [];
-  let raf = 0;
 
   const dibujar = () => {
-    raf = 0;
     try {
       const size = map.getSize();
       const dpr = window.devicePixelRatio || 1;
@@ -104,16 +104,17 @@ export function crearCapaAlcance(L: LeafletNS, map: any, id: string, zIndex: num
       }
     } catch { /* el mapa se está destruyendo */ }
   };
-  const pedir = () => { if (!raf) raf = requestAnimationFrame(dibujar); };
-  map.on("move zoom moveend zoomend resize viewreset", pedir);
-  pedir();
+  map.on("move zoom moveend zoomend resize viewreset", () => relojUnificado.pedir());
+  relojUnificado.pedir();
+
+  const registrar = relojUnificado.registrar(dibujar);
 
   return {
-    poner: (c) => { campos = c; pedir(); },
+    poner: (c) => { campos = c; relojUnificado.pedir(); },
     opacidad: (o) => { canvas.style.opacity = String(o); },
     quitar: () => {
-      map.off("move zoom moveend zoomend resize viewreset", pedir);
-      if (raf) cancelAnimationFrame(raf);
+      map.off("move zoom moveend zoomend resize viewreset", () => relojUnificado.pedir());
+      registrar();
       try { canvas.remove(); pane.remove(); } catch { /* */ }
     },
   };
