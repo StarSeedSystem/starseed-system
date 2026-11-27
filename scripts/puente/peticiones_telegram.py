@@ -2398,13 +2398,13 @@ def _sintesis_estado() -> None:
         puntuacion = estado.get("puntuacion")
         
         # Determinar hora actual en CDMX
+        # Usa los mismos relojes del agente de síntesis: así hora y fecha
+        # salen de una sola fuente (y se pueden fijar en las pruebas).
         try:
-            import zoneinfo
-            tz = zoneinfo.ZoneInfo(AS.ZONA)
             from datetime import datetime, timezone
-            ahora_cdmx = datetime.now(timezone.utc).astimezone(tz)
-            hora_actual = ahora_cdmx.hour + ahora_cdmx.minute / 60.0
-            fecha_hoy = ahora_cdmx.date().isoformat()
+            ahora_utc = datetime.now(timezone.utc)
+            hora_actual = AS._hora_cdmx(ahora_utc)
+            fecha_hoy = AS._fecha_cdmx(ahora_utc)
         except Exception:
             from datetime import datetime, timezone
             ahora_cdmx = datetime.now(timezone.utc)
