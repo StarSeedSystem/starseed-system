@@ -7710,3 +7710,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 22:51 · mg-oracle-1127-1624
+
+**Lo que se pidió.** Terminar
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (TRM1125Hs, TRM1125E, TRM1125I, LNX1118WB, NOM1125A-d1, CAP-skill-coop-qa-usob). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `TRM1125Hs` — no escribió nada
+- `TRM1125E` — no escribió nada
+- `TRM1125I` — no escribió nada
+- `LNX1118WB` — no escribió nada
+- `NOM1125A-d1` — no escribió nada
+- `CAP-skill-coop-qa-usob` — no escribió nada
