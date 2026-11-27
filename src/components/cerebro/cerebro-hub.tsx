@@ -39,6 +39,7 @@ import ProcesosPanel from "@/components/cerebro/procesos-panel";
 import FusionarDialog from "@/components/cerebro/fusionar-dialog";
 import TelepatiaDialog from "@/components/cerebro/telepatia-dialog";
 import { AjustesCerebroContenido } from "@/components/cerebro/ajustes-cerebro-dialog";
+import { ProcesosAjustesContenido } from "@/components/cerebro/procesos-ajustes";
 import PanelAjustesPilar, { seccionDesdeUrl as seccionAjustesDesdeUrl, type SeccionAjustesPilar } from "@/components/cerebro/panel-ajustes-pilar";
 import { NuevoCerebroPublico } from "@/components/cerebro/nuevo-cerebro-publico";
 import { RejillaPilares, PILARES, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
@@ -609,20 +610,28 @@ export default function CerebroHub() {
           seccionInicial={ajustesSeccion}
           onSeccionChange={setAjustesSeccion}
           onVolverRecomendado={(seccion) => setReinicioAjustes((prev) => ({ seccion, n: (prev?.n ?? 0) + 1 }))}
-          renderContenido={(seccion) => activeBrain ? (
-            <AjustesCerebroContenido
-              key={activeBrain.id}
-              cerebro={activeBrain}
-              seccion={seccion}
-              reinicio={reinicioAjustes}
-              onHecho={() => { void reload(); cerrarAjustesPilar(false); }}
-              onCerrar={() => cerrarAjustesPilar(false)}
-            />
-          ) : (
-            <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm leading-relaxed text-white/55">
-              Elige o crea un cerebro para ver sus ajustes. Los ajustes propios de este pilar se muestran aquí sin quitar ninguna opción.
-            </p>
-          )}
+          renderContenido={(seccion) => {
+            if (pillar === "procesos") {
+              return <ProcesosAjustesContenido key={seccion} seccion={seccion} brainId={activeBrain?.id ?? null} />;
+            }
+            if (activeBrain) {
+              return (
+                <AjustesCerebroContenido
+                  key={activeBrain.id}
+                  cerebro={activeBrain}
+                  seccion={seccion}
+                  reinicio={reinicioAjustes}
+                  onHecho={() => { void reload(); cerrarAjustesPilar(false); }}
+                  onCerrar={() => cerrarAjustesPilar(false)}
+                />
+              );
+            }
+            return (
+              <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm leading-relaxed text-white/55">
+                Elige o crea un cerebro para ver sus ajustes. Los ajustes propios de este pilar se muestran aquí sin quitar ninguna opción.
+              </p>
+            );
+          }}
         />
       )}
       {capsulaOpen && activeBrain && (
