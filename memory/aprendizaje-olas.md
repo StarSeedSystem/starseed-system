@@ -7710,3 +7710,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 07:23 · mg-oracle-1127-0100
+
+**Lo que se pidió.** Pantalla por accesibilidad
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (CTL1126Css, CER1126A-d2, FON1126A-d1, TRM1125C-d1, ALC1125B-d2, TRM1125B-d2-d3). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CTL1126Css` — no escribió nada
+- `CER1126A-d2` — no escribió nada
+- `FON1126A-d1` — no escribió nada
+- `TRM1125C-d1` — no escribió nada
+- `ALC1125B-d2` — no escribió nada
+- `TRM1125B-d2-d3` — no escribió nada
