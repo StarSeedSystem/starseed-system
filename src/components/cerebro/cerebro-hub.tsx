@@ -39,8 +39,9 @@ import ProcesosPanel from "@/components/cerebro/procesos-panel";
 import FusionarDialog from "@/components/cerebro/fusionar-dialog";
 import TelepatiaDialog from "@/components/cerebro/telepatia-dialog";
 import AjustesCerebroDialog from "@/components/cerebro/ajustes-cerebro-dialog";
+import PanelAjustesPilar, { seccionDesdeUrl, type Seccion } from "@/components/cerebro/panel-ajustes-pilar";
 import { NuevoCerebroPublico } from "@/components/cerebro/nuevo-cerebro-publico";
-import { RejillaPilares, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
+import { RejillaPilares, PILARES, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import {
   AYUDA_PESTANA,
@@ -101,6 +102,9 @@ export default function CerebroHub() {
   const [fusionOpen, setFusionOpen] = useState(false);
   const [telepatiaOpen, setTelepatiaOpen] = useState(false);
   const [ajustesOpen, setAjustesOpen] = useState(false);
+  // CER1126A · panel lateral común de ajustes del pilar activo (?ajustes=<seccion>).
+  const [panelPilar, setPanelPilar] = useState<Pilar | null>(null);
+  const [panelSeccion, setPanelSeccion] = useState<Seccion | null>(null);
   const [capsulaOpen, setCapsulaOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [compartidos, setCompartidos] = useState<(Brain & { compartido: true })[]>([]);
@@ -186,6 +190,12 @@ export default function CerebroHub() {
     if (ms && (["archivos", "hub"] as string[]).includes(ms)) setMemSub(ms as MemoryListSub);
     const b = p.get("brain");
     if (b) setActiveBrainId(b);
+    // CER1126A · enlace directo a los ajustes de un pilar: ?tab=<pilar>&ajustes=<seccion>.
+    const seccionUrl = seccionDesdeUrl(p.get("ajustes"));
+    if (seccionUrl) {
+      setPanelSeccion(seccionUrl);
+      setPanelPilar(pilarUrl ?? "memoria");
+    }
   }, []);
 
   // Actualiza los query params al cambiar de sub-vista de Memoria (sin recargar).
@@ -486,6 +496,30 @@ export default function CerebroHub() {
       {/* ── Pilares: 7 botones sin texto cortado (CB1013A · contrato §3) ───── */}
       <RejillaPilares activo={pillar} onElegir={setPillar} hayCerebro={Boolean(activeBrain)} />
 
+      {/* CER1126A · un botón «Ajustes» por pilar: abre el panel lateral común. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-white/45">
+          <SlidersHorizontal className="w-3 h-3" /> Ajustes por pilar:
+        </span>
+        {PILARES.map((p) => (
+          <Button
+            key={p.id}
+            size="sm"
+            variant="outline"
+            className="h-auto cursor-pointer whitespace-normal gap-1.5 py-1 text-xs"
+            disabled={!activeBrain}
+            title={activeBrain ? `Ajustes de ${p.etiqueta}` : "Elige o crea un cerebro para ver sus ajustes"}
+            onClick={() => {
+              setPanelSeccion(null);
+              setPanelPilar(p.id);
+            }}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {p.etiqueta}
+          </Button>
+        ))}
+      </div>
+
       {/* Mapa de interconexión */}
       <div className="rounded-xl border border-white/10 bg-gradient-to-br from-cyan-500/[0.04] via-violet-500/[0.04] to-amber-500/[0.04] p-3">
         <p className="text-[11px] text-white/45 text-center">
@@ -546,6 +580,30 @@ export default function CerebroHub() {
           onOpenChange={(o) => !o && setAjustesOpen(false)}
           cerebro={activeBrain}
           cerebros={brains}
+          onHecho={() => void reload()}
+        />
+      )}
+      {panelPilar && activeBrain && (
+        <PanelAjustesPilar
+          pilar={panelPilar}
+          cerebro={activeBrain}
+          seccionInicial={panelSeccion}
+          onOpenChange={(o) => {
+            if (o) return;
+            setPanelPilar(null);
+            setPanelSeccion(null);
+            if (typeof window !== "undefined") {
+              try {
+                const p = new URLSearchParams(window.location.search);
+                if (p.has("ajustes")) {
+                  p.delete("ajustes");
+                  window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+                }
+              } catch {
+                /* noop */
+              }
+            }
+          }}
           onHecho={() => void reload()}
         />
       )}
