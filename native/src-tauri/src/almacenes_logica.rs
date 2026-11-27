@@ -381,8 +381,8 @@ pub fn listar_almacenes_linux() -> ListarAlmacenes {
                                 .output()
                                 .ok()
                                 .and_then(|o| String::from_utf8(o.stdout).ok())
-                                .and_then(|s| s.lines().nth(1))
-                                .and_then(|l| l.trim().parse::<u64>().ok())
+                                .and_then(|s| s.lines().nth(1).map(|l| l.trim().to_string()))
+                                .and_then(|l| l.parse::<u64>().ok())
                                 .map(|kib| kib * 1024)
                                 .unwrap_or(libre_kib); // fallback
                             (total, libre_kib)
