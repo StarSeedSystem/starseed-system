@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { filasEstaNeurona, textoResultado } from "../esta-neurona";
 import type { Instalada, Medio } from "@/lib/actualizaciones/version-por-medio";
-import type { ResultadoComprobar, DecisionAviso } from "@/lib/actualizaciones/comprobar";
+import type { ResultadoComprobar } from "@/lib/actualizaciones/comprobar";
+import type { DecisionAviso } from "@/lib/actualizaciones/decision-aviso";
 
 function crearInstalada(
   medio: Medio,
