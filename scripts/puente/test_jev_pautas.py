@@ -127,12 +127,21 @@ class Pauta(unittest.TestCase):
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         # (DIR1127F) Hermética: sin esto la prueba llamaba a la Laya REAL de :4470 (que ahora sirve por el A1).
         os.environ["STARSEED_SYSTEMONE_LOCALES"] = "http://127.0.0.1:1/v1/systemone"
-        locales_antes = jev.TRANSPORTE_LOCALES
+        # Hermética también ante lo que otras pruebas dejen puesto: ni BitNet, ni Laya, ni circuito abierto.
+        antes = (jev.TRANSPORTE_LOCALES, jev._local, jev._laya_lista, jev.local_en_pausa,
+                 jev.decidir_con_laya, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS)
         jev.TRANSPORTE_LOCALES = lambda *_a, **_k: None
+        jev._local = lambda: None
+        jev._laya_lista = lambda: False
+        jev.local_en_pausa = lambda *_a, **_k: False
+        jev.decidir_con_laya = lambda *_a, **_k: None
+        jev.TRANSPORTE_EXPLABS = None
+        jev.TRANSPORTE_EXPLABS_DECISIONS = None
         try:
             r = jev.decidir({"tarea": "t"}, {"q": {"type": "noul", "instructions": "?"}})
         finally:
-            jev.TRANSPORTE_LOCALES = locales_antes
+            (jev.TRANSPORTE_LOCALES, jev._local, jev._laya_lista, jev.local_en_pausa,
+             jev.decidir_con_laya, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS) = antes
             os.environ.clear()
             os.environ.update(copia)
             sys.modules.pop("jev_local", None)
