@@ -473,7 +473,7 @@ def _anotar_uso(respuesta, segundos, hoy=None, medio="openrouter", ms=0.0, quien
     for t in tipos or ():
         _sumar(dia.setdefault("por_tipo", {}), t)
         _sumar(uso.setdefault("por_tipo", {}), t)
-    if medio in ("local", "laya-local"):
+    if medio in ("local", "laya-local", "laya"):
         uso["local_fallos_seguidos"] = 0
     # (2026-09-21) El desglose por medio vivia SOLO al nivel global del archivo, y el
     # medidor de Genesis lo busca dentro de cada dia: por eso enseñaba «local 0 ·
@@ -669,6 +669,89 @@ def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
     return None
 
 
+# ── LAY1127B: Laya caliente primero; fría, se calienta sin bloquear ──────────
+# Medido el 27-11: Laya se descargaba por inactividad y, descargada, nadie la usaba
+# (Jev caía a explabs por el plazo): 0 llamadas por Laya en tres días.
+GOBERNADOR = os.path.expanduser("~/.starseed/gobernador.json")
+CALENTAR_MARCA = os.path.expanduser("~/.starseed/laya-calentar.json")
+CALENTAR_PLAZO_S = 600
+CALENTAR_RAM_MIN_MB = 1500
+
+
+def _get_raiz(url, timeout):
+    """GET de verdad; (codigo, texto). Levanta en error de red."""
+    with urllib.request.urlopen(url, timeout=timeout) as resp:
+        return resp.status, resp.read().decode("utf-8")
+
+
+def estado_laya(url=None, transporte=None, timeout=1.0):
+    """{'cargado': bool} según el GET a la raíz del servidor de Laya, o None si no contesta."""
+    p = urlparse(url or LAYA_URL)
+    raiz = "%s://%s/" % (p.scheme or "http", p.netloc)
+    try:
+        codigo, texto = (transporte or _get_raiz)(raiz, min(float(timeout), 1.0))
+        dato = json.loads(texto)
+    except Exception:
+        return None
+    if codigo != 200 or not isinstance(dato, dict) or "cargado" not in dato:
+        return None
+    return {"cargado": bool(dato["cargado"])}
+
+
+def calentar_laya(url=None, ahora=None, leer=None, escribir=None, lanzar=None):
+    """Calienta a Laya en segundo plano si hay RAM y pasaron 10 min desde la última vez.
+
+    RAM: `ram_libre_mb` ≥ 1500 y `presion` < 2 en gobernador.json. La petición mínima
+    se lanza sin esperar su respuesta. True si lanzó el calentamiento.
+    """
+    leer, escribir = leer or _leer, escribir or _escribir
+    ahora = time.time() if ahora is None else ahora
+    gob = leer(GOBERNADOR, {})
+    try:
+        if float(gob.get("ram_libre_mb") or 0) < CALENTAR_RAM_MIN_MB:
+            return False
+        if int(gob.get("presion") or 0) >= 2:
+            return False
+        ultima = float((leer(CALENTAR_MARCA, {}) or {}).get("t") or 0)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if ahora - ultima < CALENTAR_PLAZO_S:
+        return False
+    escribir(CALENTAR_MARCA, {"t": ahora})
+    destino = url or LAYA_URL
+    cuerpo = json.dumps({"state": {}, "questions": {}}).encode("utf-8")
+
+    def _peticion():
+        try:
+            _transporte_local(destino, cuerpo, 120)
+        except Exception:
+            pass
+
+    if lanzar:
+        lanzar(_peticion)
+    else:
+        threading.Thread(target=_peticion, daemon=True).start()
+    return True
+
+
+def _url_laya():
+    """El extremo de Laya (no Colibri) de la lista de locales."""
+    for u in endpoints_locales():
+        if _etiqueta_local(u) == "laya-local":
+            return u
+    return LAYA_URL
+
+
+def _laya_lista():
+    """False si Laya está descargada (y la calienta sin esperar); True si no hay motivo para saltarla."""
+    url = _url_laya()
+    est = estado_laya(url)
+    if est is not None and not est["cargado"]:
+        calentar_laya(url)
+        return False
+    return True
+
+
 def _local():
     """Importación perezosa y tolerante de jev_local; None si el módulo no está."""
     try:
@@ -851,7 +934,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         else:
             local_disponible = False  # el local estaba disponible pero no respondió
     # Capa local Laya (SystemOne) antes del Jev remoto
-    if respuestas is None and intenta_laya:
+    if respuestas is None and intenta_laya and _laya_lista():
         resp_laya = decidir_con_laya(estado, preguntas)
         if resp_laya is not None:
             respuestas = resp_laya
@@ -884,7 +967,9 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     res["medio"] = medio_usado
     res["ms"] = ms
     if medio_usado in ("local", "laya-local", "explabs", "explabs-decisions"):
-        _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
+        # LAY1127B: lo servido por Laya (no Colibri) cuenta en por_medio como «laya».
+        medio_uso = "laya" if modelo_usado == "laya-local" else medio_usado
+        _anotar_uso({}, time.time() - t0, medio=medio_uso, ms=ms, quien=quien, tipos=tipos)
     # (MGM1110B) Captura local del prompt completo para la prueba en sombra. Sin red, sin
     # cerrojo y sin lanzar: ver scripts/puente/jev_captura.py (privacidad en su docstring).
     try:
