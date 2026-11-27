@@ -1402,6 +1402,12 @@ export function iniciarTransporteUniversal(): () => void {
       if (activo) bajas.push(m.iniciarRelevo());
     })
     .catch(() => undefined);
+  // BAP1127D: espejo del registro hacia la dirección (apagado por defecto; solo al par «director»).
+  void import("./espejo-registro-malla")
+    .then((m) => {
+      if (activo) bajas.push(m.iniciarEspejoRegistro());
+    })
+    .catch(() => undefined);
 
   // 1) Malla de la cuenta (el mismo mesh compartido de siempre).
   const conectarMesh = () => {
