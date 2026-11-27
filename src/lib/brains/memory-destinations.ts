@@ -54,6 +54,12 @@ import {
   type ManifiestoAlmacen,
   cerebrosEnManifiesto,
   leerManifiestoDesdeObjeto,
+  sugerirModalidadAlmacen,
+  tipoAlmacenRecomendado,
+  velocidadRecomendada,
+  medidasSaludRecomendadas,
+  acomodarAlmacen,
+  tipoAlmacenComo,
 } from "@/lib/almacenes";
 // Mapa de ubicaciones (parte 1 de ALC1125C): primitivas puras de copias, estado en
 // línea, regla de dos copias y resumen. Aquí se componen a nivel de UN cerebro.
@@ -494,6 +500,7 @@ export function construirMapaUbicacionesCerebro(
     const tipo = detectado?.almacen.tipo ?? declarado.tipo ?? TipoAlmacen.EXTRAIBLE;
     const nombre = declarado.label || detectado?.almacen.nombre || "Almacén del cerebro";
     const enLinea = detectado ? detectado.almacen.medidas.enLinea : false;
+
     const añadir = (ruta: string, modalidad: ModalidadAlmacen) => {
       asegurar(ruta).push({
         almacenId,
@@ -509,6 +516,25 @@ export function construirMapaUbicacionesCerebro(
     for (const [ruta, cerebroId] of Object.entries(declarado.partes ?? {})) {
       if (cerebroId !== brainId) continue;
       añadir(ruta, declarado.modalidad === "cerebro-completo" || !declarado.modalidad ? "parte" : declarado.modalidad);
+    }
+
+    if (detectado) {
+      const sugerencia = acomodarAlmacen({
+        tipo: detectado.almacen.tipo,
+        totalBytes: detectado.almacen.medidas.totalBytes,
+        libreBytes: detectado.almacen.medidas.libreBytes,
+        velocidadLecturaMbps: detectado.almacen.medidas.velocidadLecturaMbps,
+        velocidadEscrituraMbps: detectado.almacen.medidas.velocidadEscrituraMbps,
+        salud: detectado.almacen.medidas.salud,
+        nombre: detectado.almacen.nombre,
+      });
+      const infoAlmacen = tipoAlmacenComo(tipo);
+      const velRec = velocidadRecomendada(tipo);
+      const saludRec = medidasSaludRecomendadas(detectado.almacen.medidas.salud);
+
+      sugerencia.ideas.push(
+        `Tipo: ${infoAlmacen.categoria} · velocidad: ${velRec.tipo} (mín. ${velRec.minMBs} MB/s) · salud: ${saludRec.recomendacion}`,
+      );
     }
   }
 
