@@ -160,8 +160,43 @@ def liberables(progreso, nombres, lineas_ps, vivas, edades, min_edad_s=600):
     return salen
 
 
-def liberar_no_vivas(min_edad_s=600, decir=print):
-    """(DIR1126F) Archiva lo sin guardar en `archivo-wt/<tarea>` y poda los worktrees liberables."""
+def exceso_no_activas(progreso, nombres, lineas_ps, vivas, edades, trabajadores, min_edad_s=60):
+    """PURA (ENJ1126B): nunca más de (trabajadores + 2) worktrees de tareas no activas.
+
+    «No activa» = liberable (ver `liberables`). Si hay más que el tope, devuelve los más viejos
+    que sobran (primero el más antiguo); si no, []."""
+    libres = liberables(progreso, nombres, lineas_ps, vivas, edades, min_edad_s)
+    sobran = len(libres) - (max(0, int(trabajadores)) + 2)
+    if sobran <= 0:
+        return []
+    libres.sort(key=lambda n: (-edades.get(n, 0), n))
+    return libres[:sobran]
+
+
+def _tomar_cerrojo(cerrojo, espera_s):
+    """Cerrojo del integrador: `espera_s=None` espera sin límite; si no, hasta ese plazo. → ¿lo tomó?"""
+    import time
+
+    if espera_s is None:
+        fcntl.flock(cerrojo, fcntl.LOCK_EX)
+        return True
+    limite = time.time() + espera_s
+    while True:
+        try:
+            fcntl.flock(cerrojo, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            if time.time() >= limite:
+                return False
+            time.sleep(1)
+
+
+def liberar_no_vivas(min_edad_s=600, decir=print, solo=None, trabajadores=None, espera_s=None):
+    """(DIR1126F) Archiva lo sin guardar en `archivo-wt/<tarea>` y poda los worktrees liberables.
+
+    ENJ1126B: `solo` limita a esas tareas (el intento que acaba de fallar); `trabajadores`
+    aplica el tope (trabajadores + 2) y libera solo lo que sobra; `espera_s` acota la espera
+    del cerrojo del integrador (None = sin límite, como antes)."""
     import time
 
     olas = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -175,14 +210,21 @@ def liberar_no_vivas(min_edad_s=600, decir=print):
             edades[d] = ahora - os.path.getmtime(os.path.join(WT, d))
         except OSError:
             edades[d] = 0
-    elegidos = liberables(progreso, nombres, H._procesos(), H.tareas_que_laten(olas), edades, min_edad_s)
+    if solo is not None:
+        nombres = [n for n in nombres if n in solo]
+    args = (progreso, nombres, H._procesos(), H.tareas_que_laten(olas), edades)
+    if trabajadores is not None:
+        elegidos = exceso_no_activas(*args, trabajadores, min_edad_s)
+    else:
+        elegidos = liberables(*args, min_edad_s)
     if not elegidos:
         return []
     hoy = datetime.date.today().isoformat()
     hechos, podados = [], []
     os.makedirs(os.path.dirname(H.CERROJO), exist_ok=True)
     with open(H.CERROJO, "w") as cerrojo:
-        fcntl.flock(cerrojo, fcntl.LOCK_EX)  # espera a que el integrador suelte main
+        if not _tomar_cerrojo(cerrojo, espera_s):  # el integrador sigue con main: otra vez será
+            return []
         for n in elegidos:
             ruta = os.path.join(WT, n)
             if sucio(ruta) > 0:

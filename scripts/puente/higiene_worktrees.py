@@ -14,7 +14,9 @@ worktree se conserva.
 
 import json, os, re, subprocess, sys
 
-FIN = {"commit", "sustituida"}
+#: (ENJ1126B, 26-11) También «reasignada» (se fue a la nube), «rechazada» e «integrada»: son
+#: estados finales en esta Mac y sus worktrees (~170 MB) se quedaban para siempre.
+FIN = {"commit", "sustituida", "reasignada", "rechazada", "integrada"}
 
 #: Cerrojo del integrador: si está ocupado no podamos esta vuelta (y no esperamos).
 CERROJO = os.path.expanduser("~/.starseed/cerrojos/integrar.lock")

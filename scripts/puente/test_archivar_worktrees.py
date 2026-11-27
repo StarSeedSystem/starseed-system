@@ -174,3 +174,31 @@ def test_liberables_dir1126f():
     edades["N1"] = 30  # recién creado: aún no ha latido
     salen = A.liberables(progreso, nombres, ps, {"L1"}, edades, min_edad_s=600)
     assert salen == ["P1", "R1", "X10"]
+
+
+def test_exceso_no_activas_tope_trabajadores_mas_2():
+    """ENJ1126B: con 3 trabajadores se admiten 5 worktrees no activos; sobran los más viejos."""
+    nombres = ["A%d" % i for i in range(8)] + ["VIVA"]
+    progreso = {n: {"estado": "pendiente"} for n in nombres}
+    progreso["VIVA"] = {"estado": "en_curso"}
+    edades = {n: 1000 + i for i, n in enumerate(nombres)}  # A7 el más viejo
+    salen = A.exceso_no_activas(progreso, nombres, [], set(), edades, trabajadores=3)
+    assert salen == ["A7", "A6", "A5"]
+    assert A.exceso_no_activas(progreso, nombres[:5], [], set(), edades, trabajadores=3) == []
+
+
+def test_liberar_no_vivas_solo_una_tarea_archiva_y_poda(tmp_path, monkeypatch):
+    repo, wt = _repo_con_worktree(tmp_path)
+    olas = repo / "starseed_memory_root" / "olas"
+    olas.mkdir(parents=True)
+    (olas / "progreso.json").write_text('{"T1": {"estado": "pendiente"}}')
+    (wt / "nuevo.txt").write_text("a medias\n")
+    monkeypatch.setattr(A, "RAIZ", str(repo))
+    monkeypatch.setattr(A, "WT", str(wt.parent))
+    monkeypatch.setattr(A.H, "CERROJO", str(tmp_path / "integrar.lock"))
+    monkeypatch.setattr(A.H, "_procesos", lambda: [])
+    podados = A.liberar_no_vivas(min_edad_s=0, decir=lambda m: None, solo={"OTRA"}, espera_s=2)
+    assert podados == [] and wt.exists()  # no era la tarea pedida
+    podados = A.liberar_no_vivas(min_edad_s=0, decir=lambda m: None, solo={"T1"}, espera_s=2)
+    assert podados == ["T1"] and not wt.exists()
+    assert _g(repo, "show", "archivo-wt/T1:nuevo.txt") == "a medias\n"

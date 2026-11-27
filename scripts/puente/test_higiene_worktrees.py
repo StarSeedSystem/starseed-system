@@ -23,7 +23,13 @@ class TestCandidatos(unittest.TestCase):
             "D": {"estado": "rechazada"},
         }
         nombres = ["A", "B", "C", "D", "E", "_to_delete", ".oculto"]
-        self.assertEqual(hw.candidatos(prog, nombres, []), ["A", "B"])
+        # ENJ1126B: «rechazada» también es final; «en_curso» y lo que no consta, no.
+        self.assertEqual(hw.candidatos(prog, nombres, []), ["A", "B", "D"])
+
+    def test_estados_finales_enj1126b(self):
+        prog = {n: {"estado": e} for n, e in
+                [("R", "reasignada"), ("I", "integrada"), ("P", "pendiente"), ("F", "fallo")]}
+        self.assertEqual(hw.candidatos(prog, list(prog), []), ["I", "R"])
 
     def test_confusion_de_prefijo(self):
         # SP09291 es candidato aunque haya un proceso en starseed-wt/SP092910/

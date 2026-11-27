@@ -2824,6 +2824,62 @@ def disco_retiene_arranques():
         return False
 
 
+_ULTIMO_AVISO_DISCO = {"t": 0.0}
+_WORKERS_TANDA = {"n": 0}
+
+
+def liberar_worktrees(solo=None, min_edad_s=60, con_tope=False):
+    """ENJ1126B: archiva (rama `archivo-wt/<tarea>`) y poda worktrees de tareas SIN proceso ni
+    latido vivo. Nada se borra sin rama de archivo; si algo falla, se conserva. → podados."""
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import archivar_worktrees as _aw
+
+        _aw.RAIZ, _aw.WT = ROOT, WT_BASE
+        podados = _aw.liberar_no_vivas(
+            min_edad_s=min_edad_s,
+            decir=lambda m: evento("aviso", "", "worktrees: " + m),
+            solo=solo,
+            trabajadores=tope_trabajadores_wt() if con_tope else None,
+            espera_s=30,
+        )
+    except Exception as e:
+        evento("aviso", "", "worktrees: no pude liberar (%s)" % str(e)[:120])
+        return []
+    if podados:
+        evento("aviso", "", "worktrees: %d liberados (archivados en archivo-wt/)" % len(podados))
+    return podados
+
+
+def tope_trabajadores_wt():
+    """Trabajadores de esta tanda, para el tope (trabajadores + 2) de worktrees no activos."""
+    return int(_WORKERS_TANDA.get("n") or os.environ.get("STARSEED_WORKERS", "3") or 3)
+
+
+def aviso_disco_sin_espacio():
+    """Una sola vez por hora, en el canal Principal: el tope de disco sigue reteniendo."""
+    ahora = time.time()
+    if ahora - _ULTIMO_AVISO_DISCO["t"] < 3600:
+        return
+    _ULTIMO_AVISO_DISCO["t"] = ahora
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import puente
+
+        puente.decir(
+            "El disco sigue justo aunque se liberaron los worktrees de tareas en espera: "
+            "el enjambre no arranca tareas nuevas hasta que haya espacio.",
+            quien="enjambre",
+            tipo="aviso",
+        )
+    except Exception:
+        pass
+
+
 def esperar_disco_pesado():
     """Con menos del umbral crítico no EMPIEZA ninguna puerta pesada. → segundos esperados."""
     if _gd is None:
@@ -9900,6 +9956,14 @@ def ejecutar_seguro(t):
         else:
             MEDIO_POR_TAREA.pop(t["id"], None)
         latir(t["id"], "hecho")
+        # ENJ1126B: un intento que acaba sin commit y vuelve a la cola suelta su worktree
+        # (con rama de archivo si tenía cambios) y se respeta el tope (trabajadores + 2).
+        try:
+            if estado_final in ("pendiente", "reasignada", "rechazada"):
+                liberar_worktrees(solo={t["id"]}, min_edad_s=0)
+                liberar_worktrees(min_edad_s=60, con_tope=True)
+        except Exception:
+            pass
         # (COL1012D) Integrada o cerrada: su punto de control ya no hace falta.
         try:
             if _puntos_control is not None:
@@ -10285,6 +10349,7 @@ def main():
         if "--workers" in sys.argv
         else int(os.environ.get("STARSEED_WORKERS", "5"))
     )
+    _WORKERS_TANDA["n"] = workers
     solo = (
         set(sys.argv[sys.argv.index("--solo") + 1].split(","))
         if "--solo" in sys.argv
@@ -10487,6 +10552,13 @@ def main():
 
         # GUA1113A: con poco disco no arranca ninguna tarea nueva (se reanuda sola al liberarse).
         _disco_retiene = disco_retiene_arranques()
+        if _disco_retiene:
+            # ENJ1126B: antes de quedarse esperando, se liberan los worktrees de tareas en
+            # espera (sin proceso ni latido): su espacio era justo lo que frenaba a esas tareas.
+            liberar_worktrees(min_edad_s=60)
+            _disco_retiene = disco_retiene_arranques()
+            if _disco_retiene:
+                aviso_disco_sin_espacio()
         # PRI01: ordenar pendientes por prioridad (mayor primero), estable por orden de llegada
         _pendientes_ordenados = (
             []
