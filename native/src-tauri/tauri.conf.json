@@ -55,7 +55,13 @@
     },
     "windows": {
       "nsis": {
-        "installMode": "perMachine"
+        "installMode": "perMachine",
+        "include": "windows/hooks.nsh",
+        "headerImage": "icons/nsis-header.bmp",
+        "welcomeImage": "icons/nsis-welcome.bmp",
+        "license": "LICENSE.txt",
+        "languages": ["Spanish", "English"],
+        "displayLanguageSelector": true
       }
     },
     "linux": {
