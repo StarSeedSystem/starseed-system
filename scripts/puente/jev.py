@@ -85,6 +85,18 @@ TRANSPORTE_LOCALES = None
 #: Cuánto se recuerda al local que respondió más rápido (Alex: 10 min).
 RAPIDO_TTL_S = 600
 
+#: (LAY1127B) Laya: comprobación de estado en la raíz (GET /) con plazo ≤1 s.
+LAYA_ESTADO_TIMEOUT = 1.0
+#: (LAY1127B) Ruta al archivo de marca de calentamiento de Laya (una vez cada 10 min).
+LAYA_CALENTAR = os.path.expanduser("~/.starseed/laya-calentar.json")
+#: (LAY1127B) Ruta al estado del gobernador (RAM libre, presión).
+GOBERNADOR_RUTA = os.path.expanduser("~/.starseed/gobernador.json")
+#: (LAY1127B) Umbrales para calentar Laya: RAM libre ≥ 1500 MB y presión < 2.
+LAYA_CALENTAR_RAM_MB = 1500
+LAYA_CALENTAR_PRESION_MAX = 2
+#: (LAY1127B) Ventana de no-repetición del calentamiento (10 min = 600 s).
+LAYA_CALENTAR_TTL_S = 600
+
 
 def endpoints_locales():
     """Los extremos /v1/systemone locales en orden de prueba, sin repetir.
@@ -669,6 +681,114 @@ def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
     return None
 
 
+def estado_laya(url, timeout=None):
+    """GET a la raíz del servidor de Laya (p. ej. http://127.0.0.1:4470/).
+
+    Devuelve {'cargado': bool} si responde 200 y el JSON tiene la clave 'cargado',
+    None en caso de error de red, timeout, HTTP != 200 o JSON inválido.
+    Plazo por defecto: LAYA_ESTADO_TIMEOUT (≤1 s).
+    """
+    if timeout is None:
+        timeout = LAYA_ESTADO_TIMEOUT
+    # Asegurar que la URL termina en /
+    if not url.endswith("/"):
+        url = url + "/"
+    try:
+        req = urllib.request.Request(
+            url, headers={"Accept": "application/json"}, method="GET"
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                return None
+            texto = resp.read().decode("utf-8")
+            data = json.loads(texto)
+            if isinstance(data, dict) and "cargado" in data:
+                return {"cargado": bool(data["cargado"])}
+    except Exception:
+        pass
+    return None
+
+
+def _leer_gobernador():
+    """Lee ~/.starseed/gobernador.json; devuelve dict o {}."""
+    try:
+        with open(GOBERNADOR_RUTA, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _hay_ram_para_calentar():
+    """True si gobernador reporta ram_libre_mb ≥ LAYA_CALENTAR_RAM_MB y presion < LAYA_CALENTAR_PRESION_MAX."""
+    gob = _leer_gobernador()
+    ram = gob.get("ram_libre_mb")
+    presion = gob.get("presion")
+    if ram is None or presion is None:
+        return False
+    return ram >= LAYA_CALENTAR_RAM_MB and presion < LAYA_CALENTAR_PRESION_MAX
+
+
+def _marca_calentamiento_reciente(ahora=None):
+    """True si laya-calentar.json existe y su 'ultima' es < LAYA_CALENTAR_TTL_S."""
+    ahora = ahora or time.time()
+    try:
+        with open(LAYA_CALENTAR, encoding="utf-8") as f:
+            data = json.load(f) or {}
+        ultima = float(data.get("ultima") or 0)
+        return ahora - ultima < LAYA_CALENTAR_TTL_S
+    except Exception:
+        return False
+
+
+def _escribir_marca_calentamiento(ahora=None):
+    """Escribe marca de calentamiento en laya-calentar.json."""
+    ahora = ahora or time.time()
+    try:
+        os.makedirs(os.path.dirname(LAYA_CALENTAR), exist_ok=True)
+        tmp = LAYA_CALENTAR + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"ultima": ahora}, f)
+        os.replace(tmp, LAYA_CALENTAR)
+    except Exception:
+        pass
+
+
+def intentar_calentar_laya_si_procede(url_root):
+    """Si Laya no está cargada y hay RAM, lanza calentamiento en fondo (no bloquea).
+
+    - Comprueba estado_laya(url_root): si {'cargado': True} → no hace nada (False).
+    - Si {'cargado': False} y _hay_ram_para_calentar() y no hay marca reciente:
+      lanza una petición POST mínima a /v1/systemone SIN esperar respuesta
+      (fire-and-forget), escribe marca en laya-calentar.json, devuelve True.
+    - En cualquier otro caso devuelve False.
+    """
+    estado = estado_laya(url_root)
+    if estado is not None and estado.get("cargado"):
+        return False  # ya cargada
+    if not _hay_ram_para_calentar():
+        return False  # sin RAM suficiente
+    if _marca_calentamiento_reciente():
+        return False  # ya calentado hace <10 min
+
+    # Fire-and-forget: POST mínimo a /v1/systemone
+    endpoint = url_root.rstrip("/") + "/v1/systemone"
+    cuerpo = json.dumps({"state": {"texto": "warmup"}, "questions": {}}, ensure_ascii=False).encode("utf-8")
+
+    def _calentar():
+        try:
+            req = urllib.request.Request(
+                endpoint, data=cuerpo,
+                headers={"Content-Type": "application/json"}, method="POST"
+            )
+            urllib.request.urlopen(req, timeout=2.0).read()
+        except Exception:
+            pass
+
+    threading.Thread(target=_calentar, daemon=True).start()
+    _escribir_marca_calentamiento()
+    return True
+
+
 def _local():
     """Importación perezosa y tolerante de jev_local; None si el módulo no está."""
     try:
@@ -827,7 +947,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     respuestas = None
     medio_usado = None
     modelo_usado = None  # MGM1110B: para la captura local (jev_captura.py)
-    # Pirámide: BitNet local -> Laya local -> Experiential (gratis, /v1/systemone) ->
+    # Pirámide: BitNet local -> Laya (estado + SystemOne) -> Experiential (gratis, /v1/systemone) ->
     # Experiential Decisions (gratis, /v1/decisions, GPT-6 Luna hasta 14-nov) ->
     # OpenRouter remoto (de pago).
     intenta_local = medio in (None, "local")
@@ -850,13 +970,36 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
             modelo_usado = "bitnet"
         else:
             local_disponible = False  # el local estaba disponible pero no respondió
-    # Capa local Laya (SystemOne) antes del Jev remoto
-    if respuestas is None and intenta_laya:
-        resp_laya = decidir_con_laya(estado, preguntas)
-        if resp_laya is not None:
-            respuestas = resp_laya
-            medio_usado = "laya-local"
-            modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
+    # Capa Laya: primero comprueba estado (GET /). Si cargada, usa SystemOne.
+    # Si no cargada y hay RAM, calienta en fondo (fire-and-forget, una vez cada 10 min).
+    laya_url = None
+    if intenta_laya:
+        laya_url = (os.environ.get("STARSEED_LAYA_URL") or "").strip()
+        if not laya_url:
+            laya_url = LAYA_URL
+        # Asegurar que laya_url apunta a la raíz (sin /v1/systemone)
+        if laya_url.endswith("/v1/systemone"):
+            laya_url = laya_url[:-len("/v1/systemone")]
+    if respuestas is None and intenta_laya and laya_url:
+        estado_laya_resp = estado_laya(laya_url)
+        if estado_laya_resp is not None and estado_laya_resp.get("cargado"):
+            # Laya cargada: usar SystemOne
+            resp_laya = decidir_con_laya(estado, preguntas)
+            if resp_laya is not None:
+                respuestas = resp_laya
+                medio_usado = "laya"  # cuenta como 'laya' en por_medio
+                modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
+        elif estado_laya_resp is not None and not estado_laya_resp.get("cargado"):
+            # Laya no cargada: intentar calentar en fondo si hay RAM
+            intentar_calentar_laya_si_procede(laya_url)
+        else:
+            # No se pudo determinar estado (error de red): compatibilidad hacia atrás,
+            # intentar SystemOne directamente (comportamiento previo a LAY1127B)
+            resp_laya = decidir_con_laya(estado, preguntas)
+            if resp_laya is not None:
+                respuestas = resp_laya
+                medio_usado = "laya-local"
+                modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
     # Gratis en la nube antes que de pago: Jev/Clef Flash de Experiential Labs.
     if respuestas is None and intenta_explabs:
         resp_exp, _modelo = _intenta_explabs(estado, preguntas, quien=quien)
@@ -883,7 +1026,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     res = dict(respuestas)
     res["medio"] = medio_usado
     res["ms"] = ms
-    if medio_usado in ("local", "laya-local", "explabs", "explabs-decisions"):
+    if medio_usado in ("local", "laya", "laya-local", "explabs", "explabs-decisions"):
         _anotar_uso({}, time.time() - t0, medio=medio_usado, ms=ms, quien=quien, tipos=tipos)
     # (MGM1110B) Captura local del prompt completo para la prueba en sombra. Sin red, sin
     # cerrojo y sin lanzar: ver scripts/puente/jev_captura.py (privacidad en su docstring).
