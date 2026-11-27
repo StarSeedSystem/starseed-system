@@ -5,6 +5,7 @@ import {
     validarArgs,
     requiereAdminCompleto,
     requiereAyudante,
+    crearClienteAyudante,
     COMANDOS_AYUDANTE,
     type ComandoAyudante,
     type ArgsOrden,
@@ -108,5 +109,81 @@ describe("Cliente del ayudante", () => {
         expect(typeof cliente.registros).toBe("function");
         expect(typeof cliente.reiniciarApp).toBe("function");
         expect(typeof cliente.modoCompleto).toBe("function");
+    });
+});
+
+type Envio = { nombre: string; args: ArgsOrden };
+
+function clienteDePrueba(sistema: Sistema, ayudanteDisponible: boolean) {
+    const enviados: Envio[] = [];
+    const cliente = crearClienteAyudante({
+        enviarOrden: async (nombre, args) => {
+            enviados.push({ nombre, args });
+            return { ok: true, salida: "hecho" };
+        },
+        sistema,
+        ayudanteDisponible,
+    });
+    return { cliente, enviados };
+}
+
+describe("Cliente del ayudante · guardas", () => {
+    it("envía la orden con los argumentos validados", async () => {
+        const { cliente, enviados } = clienteDePrueba("linux", true);
+        const r = await cliente.almacenSalud("ABC123");
+        expect(r).toEqual({ ok: true, salida: "hecho" });
+        expect(enviados).toEqual([{ nombre: "almacen-salud", args: { disco: "ABC123" } }]);
+    });
+
+    it("sin confirmar no envía nada (formatear, reiniciar, actualizar, servicio)", async () => {
+        const { cliente, enviados } = clienteDePrueba("linux", true);
+        const resultados = [
+            await cliente.almacenFormatear("ABC123", false),
+            await cliente.reiniciarApp(false),
+            await cliente.actualizar("stable", false),
+            await cliente.servicioReiniciar("starseed", false),
+        ];
+        for (const r of resultados) expect(r).toEqual({ ok: false, salida: "", error: "argumentos" });
+        expect(enviados).toEqual([]);
+    });
+
+    it("rechaza argumentos fuera de rango sin enviar", async () => {
+        const { cliente, enviados } = clienteDePrueba("macos", true);
+        expect((await cliente.registros("starseed", 0)).error).toBe("argumentos");
+        expect((await cliente.registros("starseed", 10001)).error).toBe("argumentos");
+        expect((await cliente.modoCompleto(1441)).error).toBe("argumentos");
+        expect((await cliente.almacenSalud("")).error).toBe("argumentos");
+        expect(enviados).toEqual([]);
+    });
+
+    it("sin ayudante, las órdenes que lo exigen se niegan y las demás pasan", async () => {
+        const { cliente, enviados } = clienteDePrueba("windows", false);
+        const negada = await cliente.almacenMontar("ABC123", "D:");
+        expect(negada).toEqual({ ok: false, salida: "", error: "ayudante-no-disponible" });
+        const permitida = await cliente.almacenEstado();
+        expect(permitida.ok).toBe(true);
+        expect(enviados.map((e) => e.nombre)).toEqual(["almacen-estado"]);
+    });
+
+    it("en android ninguna orden sale (no existe en ese sistema)", async () => {
+        const { cliente, enviados } = clienteDePrueba("android", true);
+        const r = await cliente.almacenEstado();
+        expect(r).toEqual({ ok: false, salida: "", error: "sistema-no-soportado" });
+        expect((await cliente.modoCompleto(60)).error).toBe("sistema-no-soportado");
+        expect(enviados).toEqual([]);
+    });
+
+    it("la comprobación de sistema va antes que la del ayudante", async () => {
+        const { cliente } = clienteDePrueba("android", false);
+        expect((await cliente.reiniciarApp(true)).error).toBe("sistema-no-soportado");
+    });
+
+    it("propaga el fallo del transporte tal cual", async () => {
+        const cliente = crearClienteAyudante({
+            enviarOrden: async () => ({ ok: false, salida: "", error: "bloqueado" }),
+            sistema: "linux",
+            ayudanteDisponible: true,
+        });
+        expect(await cliente.servicioEstado("starseed")).toEqual({ ok: false, salida: "", error: "bloqueado" });
     });
 });
