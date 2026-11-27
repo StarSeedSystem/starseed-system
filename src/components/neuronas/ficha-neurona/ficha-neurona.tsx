@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import type { Neuron } from "@/lib/neurons/neurons";
 import { SeccionIdentidad } from "./seccion-identidad";
 import { SeccionAparatos } from "./seccion-aparatos";
+import { SeccionPersonalizacion } from "./seccion-personalizacion";
 
 export interface SeccionFicha {
   id: string;
@@ -48,6 +49,7 @@ export function FichaNeurona({ neurona, extras, compacto = false, alCambiar }: P
     () => [
       { id: "identidad", titulo: "Identidad", palabras: "nombre aparato tipo icono color foto", contenido: <SeccionIdentidad neurona={neurona} alCambiar={alCambiar} /> },
       { id: "aparatos", titulo: "Aparatos", palabras: "separar unir vincular renombrar sistema medio", contenido: <SeccionAparatos neurona={neurona} /> },
+      { id: "personalizacion", titulo: "Personalización", palabras: "perfil propuesta ahorro batería relé estación automático", contenido: <SeccionPersonalizacion neurona={neurona} alCambiar={alCambiar} /> },
       ...(extras ?? []),
     ],
     [neurona, extras, alCambiar],

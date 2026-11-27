@@ -239,6 +239,8 @@ export interface NeuronSettings {
   offerPublicInternet?: boolean;
   /** Puerto específico para vínculos privados personalizables (cuando ofrece servicio). */
   publicPort?: number;
+  /** (NEU1126C) Cuándo hace de relé para la malla; lo propone `perfiles-neurona.ts`, siempre a elección de la persona. */
+  releCuando?: "siempre" | "cargando" | "cargando-wifi" | "nunca";
   /**
    * Endpoint del backend Astraura 1.58-bit para ESTA neurona (Adenda 153):
    * local (`http://127.0.0.1:8000`, por defecto), LAN, túnel cloudflared o
