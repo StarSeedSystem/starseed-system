@@ -61,7 +61,7 @@ export const buildIdSeguro = (b) => typeof b === "string" && /^[A-Za-z0-9_-]{1,6
 
 export function leerArgs(argv) {
   const [orden, ...resto] = argv;
-  if (!["armar", "canal", "podar"].includes(orden)) throw new Error("uso: capa.mjs armar|canal|podar …");
+  if (!["armar", "canal", "podar", "protegido", "retirar"].includes(orden)) throw new Error("uso: capa.mjs armar|canal|podar|protegido|retirar …");
   const a = { orden, appMinima: APP_MINIMA };
   for (let i = 0; i < resto.length; i++) {
     const k = resto[i];
@@ -79,11 +79,17 @@ export function leerArgs(argv) {
     else if (k === "--base") a.base = v();
     else if (k === "--assets") a.assets = v();
     else if (k === "--guardar") a.guardar = Number.parseInt(v(), 10);
+    else if (k === "--dir") a.dir = v();
+    else if (k === "--nombre") a.nombre = v();
+    else if (k === "--build") a.build = v();
+    else if (k === "--previas") a.previas = v();
     else throw new Error(`opción desconocida: ${k}`);
   }
-  if (!a.salida) throw new Error("hace falta --salida");
+  if (!a.salida && orden !== "protegido") throw new Error("hace falta --salida");
   if (orden === "armar" && !a.tar === !a.next) throw new Error("hace falta --tar o --next (uno de los dos)");
   if (orden === "canal" && (!a.manifiesto || !a.firma || !a.base)) throw new Error("canal necesita --manifiesto, --firma y --base");
+  if (orden === "protegido" && (!a.dir || !a.nombre)) throw new Error("protegido necesita --dir y --nombre");
+  if (orden === "retirar" && !buildIdSeguro(a.build)) throw new Error("retirar necesita --build válido");
   if (orden === "podar" && (!a.assets || !(a.guardar >= 1))) throw new Error("podar necesita --assets y --guardar ≥ 1");
   if (!/^\d+\.\d+\.\d+$/.test(a.appMinima)) throw new Error(`--app-minima no es una versión x.y.z: ${a.appMinima}`);
   return a;
@@ -209,7 +215,7 @@ export function canalDe(m, firma, base) {
  * De los archivos de un Release (`[{name, createdAt}]`), los de capas viejas: se quedan las `guardar`
  * más recientes (por la fecha de su manifiesto) y todo lo que no sea de una capa (el puntero).
  */
-export function aPodar(assets, guardar) {
+export function aPodar(assets, guardar, protegidas = new Set()) {
   const capas = new Map();
   for (const a of assets) {
     const m = /^servidor-capa-([A-Za-z0-9_-]{1,64})\.(tar\.gz|json|json\.sig)$/.exec(a.name || "");
@@ -223,7 +229,43 @@ export function aPodar(assets, guardar) {
     .sort((x, y) => (x.fecha < y.fecha ? 1 : x.fecha > y.fecha ? -1 : 0))
     .slice(guardar)
     .flatMap((c) => c.nombres)
+    .filter((n) => !protegidas.has(buildDeNombre(n)))
     .sort();
+}
+
+/** La build de un archivo de capa (`servidor-capa-<build>.…`), o null si no es de una capa. */
+export const buildDeNombre = (n) => /^servidor-capa-([A-Za-z0-9_-]{1,64})\.(?:tar\.gz|json|json\.sig)$/.exec(n || "")?.[1] ?? null;
+
+/**
+ * Builds que ninguna poda toca: las que apuntan `latest-servidor.json` y `latest-servidor-prueba.json`
+ * (campo `build_id`) y las listadas en `retiradas.json` (`builds`). Un JSON roto o ausente no protege nada.
+ */
+export function buildsProtegidas({ global, prueba, retiradas }) {
+  const set = new Set();
+  for (const p of [global, prueba]) if (p && buildIdSeguro(p.build_id)) set.add(p.build_id);
+  if (retiradas && Array.isArray(retiradas.builds)) for (const b of retiradas.builds) if (buildIdSeguro(b)) set.add(b);
+  return set;
+}
+
+/** `retiradas.json` con `build` añadida a las `previas` (sin duplicar, orden estable). */
+export function retiradasCon(previas, build, ahoraMs) {
+  const viejas = previas && Array.isArray(previas.builds) ? previas.builds.filter(buildIdSeguro) : [];
+  const builds = [...new Set([...viejas, build])].sort();
+  return { formato: FORMATO, creado_ms: ahoraMs, builds };
+}
+
+function leerJsonOpcional(ruta) {
+  try {
+    return JSON.parse(fs.readFileSync(ruta, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** Los tres punteros tal como están ahora en `dir`: se vuelven a leer en cada llamada. */
+export function protegidasEn(dir) {
+  const leer = (n) => leerJsonOpcional(path.join(path.resolve(dir), n));
+  return buildsProtegidas({ global: leer(NOMBRE_CANAL), prueba: leer("latest-servidor-prueba.json"), retiradas: leer("retiradas.json") });
 }
 
 export function mb(b) {
@@ -348,9 +390,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const a = leerArgs(process.argv.slice(2));
     if (a.orden === "armar") await armar(a);
     else if (a.orden === "canal") canal(a);
-    else {
+    else if (a.orden === "protegido") {
+      // Salida 3 = no borrar (build apuntada o retirada); 0 = se puede borrar.
+      const b = buildDeNombre(a.nombre);
+      if (b && protegidasEn(a.dir).has(b)) {
+        console.log(`· ${a.nombre} protegido (apuntado o retirado)`);
+        process.exit(3);
+      }
+    } else if (a.orden === "retirar") {
+      const r = retiradasCon(a.previas ? leerJsonOpcional(path.resolve(a.previas)) : null, a.build, Date.now());
+      fs.writeFileSync(path.resolve(a.salida), JSON.stringify(r, null, 2) + "\n");
+      console.log(`· retiradas.json: ${r.builds.length} builds`);
+    } else {
       const lista = JSON.parse(fs.readFileSync(path.resolve(a.assets), "utf8"));
-      const borrar = aPodar(Array.isArray(lista) ? lista : lista.assets || [], a.guardar);
+      const borrar = aPodar(Array.isArray(lista) ? lista : lista.assets || [], a.guardar, a.dir ? protegidasEn(a.dir) : new Set());
       fs.writeFileSync(path.resolve(a.salida), borrar.map((n) => `${n}\n`).join(""));
       console.log(`· ${borrar.length} archivos de capas viejas a borrar`);
     }

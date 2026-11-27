@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# StarSeed OS · promover o retirar una capa del servidor local (BAP1127X, 2026-11-27)
+# Contrato: architecture/automejora-pruebas-malla.md §C.8. La clave del updater solo vive en los
+# secretos del CI: promover mueve un puntero (no vuelve a firmar el manifiesto) y retirar firma
+# `retiradas.json`. Es una acción manual de la dirección o de Maggasukha, nunca del bucle.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: StarSeed · promover o retirar capa
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "promover (mueve un puntero) o retirar (firma retiradas.json)"
+        type: choice
+        options: [promover, retirar]
+        required: true
+      build:
+        description: "Build de la capa (la parte tras «servidor-capa-»)"
+        type: string
+        required: true
+      destino:
+        description: "Anillo al que se promueve (solo con «promover»)"
+        type: choice
+        options: [prueba, global]
+        default: prueba
+      motivo:
+        description: "Por qué (queda en el resumen de la ejecución)"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capa-promover
+  cancel-in-progress: false
+
+jobs:
+  promover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Promover o retirar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ACCION: ${{ inputs.accion }}
+          BUILD: ${{ inputs.build }}
+          DESTINO: ${{ inputs.destino }}
+          MOTIVO: ${{ inputs.motivo }}
+        run: |
+          set -euo pipefail
+          if [ "$ACCION" = "promover" ]; then
+            bash native/servidor-local/publicar-capa.sh promover "$BUILD" --a "$DESTINO"
+          else
+            bash native/servidor-local/publicar-capa.sh retirar "$BUILD"
+          fi
+          {
+            echo "**$ACCION** · build \`$BUILD\` · destino \`$DESTINO\`"
+            echo
+            echo "Motivo: $MOTIVO"
+          } >> "$GITHUB_STEP_SUMMARY"
