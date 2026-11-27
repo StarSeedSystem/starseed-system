@@ -41,7 +41,7 @@ import {
     Pencil,
     type LucideIcon,
 } from "lucide-react";
-import { entityCreationOptions } from "@/lib/entity-kinds";
+import { EntityCreationRow } from "@/components/creation/creation-fields";
 
 // ── Áreas ────────────────────────────────────────────────────────────────────
 
@@ -180,42 +180,6 @@ function EditorPanel() {
                 </Button>
             </div>
         </div>
-    );
-}
-
-// ── Fila de creación de entidades ────────────────────────────────────────────
-// Etiquetas, iconos y destinos NO se duplican aquí: se leen del registro
-// canónico `ENTITY_KINDS` + `ENTITY_CREATE_TARGETS` (src/lib/entity-kinds.ts).
-// Así el Centro de Creación referencia la entidad única de tipos del OS.
-
-const ENTITY_LINKS = entityCreationOptions();
-
-function EntityCreationRow({ area }: { area: AreaId }) {
-    return (
-        <section className="space-y-2.5">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-white/40">
-                Crear entidades
-            </h4>
-            <div className="flex flex-wrap gap-1.5">
-                {ENTITY_LINKS.map((e) => {
-                    const Icon = e.icon;
-                    const href = e.createEntity
-                        ? `/crear?area=${area}&createEntity=${e.createEntity}`
-                        : (e.href ?? "/hub");
-                    return (
-                        <Link
-                            key={e.key}
-                            href={href}
-                            title={e.hint}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.05] px-3 py-1.5 text-xs font-medium text-emerald-300/90 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all duration-150 cursor-pointer"
-                        >
-                            <Icon className="w-3.5 h-3.5" />
-                            {e.label}
-                        </Link>
-                    );
-                })}
-            </div>
-        </section>
     );
 }
 
