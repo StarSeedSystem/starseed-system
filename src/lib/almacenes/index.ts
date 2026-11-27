@@ -7,3 +7,4 @@
 export * from "./modelo";
 export * from "./manifiesto";
 export * from "./ubicaciones";
+export * from "./sugerencias";
