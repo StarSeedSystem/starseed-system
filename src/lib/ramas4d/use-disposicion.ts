@@ -21,7 +21,7 @@ export function tipoDisposicionValido(tipo: string): tipo is TipoDisposicion {
   return tipo === 'fuerza' || tipo === 'radial' || tipo === 'espiral' || tipo === 'planos';
 }
 
-async function calcularEnHiloPrincipal(peticion: PeticionDisposicion): Promise<Float32Array> {
+export async function calcularEnHiloPrincipal(peticion: PeticionDisposicion): Promise<Float32Array> {
   return calcularPeticion(peticion);
 }
 
