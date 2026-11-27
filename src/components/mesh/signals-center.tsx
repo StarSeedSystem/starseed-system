@@ -313,15 +313,15 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       <MotorCristalMount />
       {/* Cabecera */}
       {embedded ? (
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-white/85">
-            <Antenna className="h-4 w-4 text-sky-300" /> Señales · antenas de la neurona
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex min-w-0 items-center gap-2 break-words text-sm font-semibold text-white/85">
+            <Antenna className="h-4 w-4 shrink-0 text-sky-300" /> Señales · antenas de la neurona
           </h2>
           <span className="text-[11px] text-white/45">{activeCtrl} controlables activas</span>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-2xl font-bold text-sky-50">
               <Antenna className="h-6 w-6 text-sky-300" /> Señales
             </h1>
@@ -363,7 +363,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             neurona (drawer de sistemas de Astraura → pestaña «Señales»). */}
         {personaRules.antenas > 0 && (
           <span
-            className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200"
+            className="ml-auto inline-flex min-w-0 max-w-full items-center gap-1.5 break-words rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200"
             title={`${personaRules.antenas} antena(s) tienen una regla propia en ${personaRules.personas} personalidad(es) de esta neurona (entrada/salida, ruta o apagado)`}
           >
             <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
@@ -546,21 +546,21 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           const st = STATUS_META[sig.status];
           const disabled = sig.status === "unsupported" || sig.status === "off";
           return (
-            <div key={sig.kind} className={cn("rounded-xl border px-3 py-2.5 transition-colors",
+            <div key={sig.kind} className={cn("min-w-0 rounded-xl border px-3 py-2.5 transition-colors",
               sig.status === "active" ? "border-emerald-500/25 bg-emerald-500/[0.05]"
                 : disabled ? "border-white/8 bg-white/[0.02] opacity-70" : "border-white/10 bg-white/[0.03]")}>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <Icon className={cn("h-4 w-4 shrink-0", sig.controllable ? "text-sky-300" : "text-white/40")} />
-                  <span className="truncate text-[12px] font-semibold text-white/90">{sig.label}</span>
+                  <span className="min-w-0 break-words text-[12px] font-semibold text-white/90">{sig.label}</span>
                 </span>
                 <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider", st.cls)}>
                   <span className={cn("size-1.5 rounded-full", st.dot)} /> {st.label}
                 </span>
               </div>
               <p className="mt-1 text-[10px] leading-snug text-white/55">{sig.detail}</p>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <span className="text-[9px] text-white/40">{sig.bands}</span>
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0 break-words text-[9px] text-white/40">{sig.bands}</span>
                 <span className={cn("text-[8px] font-bold uppercase tracking-wider", sig.controllable ? "text-emerald-300/80" : "text-white/35")}>
                   {sig.controllable ? "emite/recibe" : "solo informa"}
                 </span>
