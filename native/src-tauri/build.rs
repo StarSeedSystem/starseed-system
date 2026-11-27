@@ -53,6 +53,11 @@ const COMANDOS_APP: &[&str] = &[
     "ayudante_desregistrar",
     "ayudante_estado",
     "ayudante_ejecutar",
+    // (TRM1125G) Ayudante privilegiado Windows: servicio instalado por NSIS con UAC y órdenes tipadas (solo Windows).
+    "ayudante_registrar",
+    "ayudante_desregistrar",
+    "ayudante_estado",
+    "ayudante_ejecutar",
     "check_update",
     "reiniciar_para_actualizar",
     "estado_actualizacion",

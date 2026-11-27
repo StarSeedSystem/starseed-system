@@ -203,6 +203,11 @@ mod terminal_remota_logica; // TRM1125B
 mod ayudante_macos; // TRM1125C
 #[cfg(any(target_os = "macos", test))]
 mod ayudante_macos_logica; // TRM1125C
+// (TRM1125G) Ayudante privilegiado Windows: servicio instalado por NSIS con UAC y órdenes tipadas.
+#[cfg(target_os = "windows")]
+mod ayudante_windows; // TRM1125G
+#[cfg(any(target_os = "windows", test))]
+mod ayudante_windows_logica; // TRM1125G
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
 mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
@@ -1074,6 +1079,14 @@ pub fn run() {
         ayudante_macos::ayudante_estado, // TRM1125C (estado del ayudante)
         #[cfg(target_os = "macos")]
         ayudante_macos::ayudante_ejecutar, // TRM1125C (ejecutar orden tipada)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_registrar, // TRM1125G (registrar ayudante Windows Service)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_desregistrar, // TRM1125G (desregistrar ayudante Windows Service)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_estado, // TRM1125G (estado del ayudante Windows)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_ejecutar, // TRM1125G (ejecutar orden tipada Windows)
         acceso_equipo::acceso_equipo_estado, // SEG1111U
         acceso_equipo::acceso_equipo_pedir, // SEG1111U
         acceso_equipo::acceso_equipo_revocar, // SEG1111U
