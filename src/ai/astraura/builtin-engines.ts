@@ -123,10 +123,10 @@ export function webgpuAvailable(): boolean {
   }
 }
 
-async function getWebllmEngine(model: string, onProgress?: (p: string) => void): Promise<any> {
+export async function getWebllmEngine(model: string, onProgress?: (p: string) => void): Promise<any> {
   if (webllmEnginePromise && webllmLoadedModel === model) return webllmEnginePromise;
   webllmLoadedModel = model;
-  webllmEnginePromise = (async () => {
+  const created = (async () => {
     // Import dinámico desde CDN en tiempo de ejecución. Se construye vía
     // Function() para que NI webpack NI TypeScript intenten resolver la URL
     // (no es una dependencia npm; solo existe en el navegador).
@@ -137,7 +137,13 @@ async function getWebllmEngine(model: string, onProgress?: (p: string) => void):
     });
     return engine;
   })();
-  return webllmEnginePromise;
+  webllmEnginePromise = created;
+  // Si la carga falla, no dejamos la promesa rechazada cacheada (permitir reintento).
+  created.catch(() => {
+    webllmEnginePromise = null;
+    webllmLoadedModel = "";
+  });
+  return created;
 }
 
 export async function webllmChat(
@@ -174,10 +180,10 @@ let tfLoadedModel = "";
  * CDN. Import por Function() para que webpack/TS no lo resuelvan (solo existe
  * en el navegador). Cachea el pipeline por modelo.
  */
-async function getTransformersPipeline(model: string, onProgress?: (p: string) => void): Promise<any> {
+export async function getTransformersPipeline(model: string, onProgress?: (p: string) => void): Promise<any> {
   if (tfPipelinePromise && tfLoadedModel === model) return tfPipelinePromise;
   tfLoadedModel = model;
-  tfPipelinePromise = (async () => {
+  const created = (async () => {
     const importFromCdn = new Function("u", "return import(u)") as (u: string) => Promise<any>;
     const mod: any = await importFromCdn("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3");
     const pipe = await mod.pipeline("text-generation", model, {
@@ -191,7 +197,13 @@ async function getTransformersPipeline(model: string, onProgress?: (p: string) =
     });
     return pipe;
   })();
-  return tfPipelinePromise;
+  tfPipelinePromise = created;
+  // Si la carga falla, no dejamos la promesa rechazada cacheada (permitir reintento).
+  created.catch(() => {
+    tfPipelinePromise = null;
+    tfLoadedModel = "";
+  });
+  return created;
 }
 
 export async function transformersChat(

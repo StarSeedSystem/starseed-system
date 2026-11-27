@@ -383,12 +383,17 @@ let porcupineModPromise: Promise<any> | null = null;
 /** Importa `@picovoice/porcupine-web` desde la CDN una sola vez (memoizado). */
 async function importPorcupine(): Promise<any> {
   if (porcupineModPromise) return porcupineModPromise;
-  porcupineModPromise = (async () => {
+  const created = (async () => {
     // `webpackIgnore` / `@vite-ignore`: import de runtime puro, no lo resuelve el bundler.
     const mod: any = await import(/* webpackIgnore: true */ /* @vite-ignore */ PORCUPINE_CDN);
     return mod;
   })();
-  return porcupineModPromise;
+  porcupineModPromise = created;
+  // Si la carga falla, no dejamos la promesa rechazada cacheada (permitir reintento).
+  created.catch(() => {
+    porcupineModPromise = null;
+  });
+  return created;
 }
 
 /**
