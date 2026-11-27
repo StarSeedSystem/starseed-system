@@ -1,13 +1,25 @@
 /**
- * BLE1124A · d2 — no mandar por Bluetooth lo que ya tiene enlace directo por Wi-Fi.
+ * BLE1124A · d2-d3 — no mandar por Bluetooth lo que ya tiene enlace directo por Wi-Fi; respetar el
+ * descanso tras caídas y no insistir contra direcciones caducadas (Android rota la dirección en cada
+ * anuncio).
  *   · Puro: `filtrarSaludosConWifiDirecto` quita solo los saludos de neuronas con Wi-Fi directo; si la
  *     consulta falla, saluda igual (un error nunca deja un enlace sin ligar).
+ *   · Puro: `filtrarSaludosEnDescanso` quita los saludos hacia enlaces caídos (2 s / 5 s / 15 s) o
+ *     mudos (60 s enviando sin recibir); si la consulta falla, saluda igual.
  *   · En el motor: con `enlaceWifiDirecto` en true, `refrescar()` NO manda `nl.hola` por el enlace
  *     Bluetooth; con false, sí lo manda (el enlace se liga como siempre).
+ *   · En el motor: `saludarPendientes()` no saluda por enlaces en descanso (caídos o mudos).
  *   NODE_ENV=test npx vitest run src/lib/malla/__tests__/ble1124a.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { crearRedBle, filtrarSaludosConWifiDirecto, type DepsBle } from "@/lib/malla/bluetooth-directo-motor";
+import {
+  crearRedBle,
+  filtrarSaludosConWifiDirecto,
+  filtrarSaludosEnDescanso,
+  pasoMudezBle,
+  MUDEZ_ENLACE_BLE_INICIAL,
+  type DepsBle,
+} from "@/lib/malla/bluetooth-directo-motor";
 import type { EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
 
 function escenario(conWifi: boolean) {
@@ -89,5 +101,130 @@ describe("el motor no saluda por Bluetooth lo que ya va por Wi-Fi directo", () =
     await red.refrescar();
     await asentar();
     expect(enviados.some((j) => j.includes('"nl.hola"'))).toBe(true);
+  });
+});
+
+describe("filtrarSaludosEnDescanso (puro)", () => {
+  it("quita los saludos hacia enlaces caídos (en descanso tras fallos)", () => {
+    const destinos = [
+      { enlace: "b1", para: "n-caido" },
+      { enlace: "b2", para: "n-activo" },
+    ];
+    const r = filtrarSaludosEnDescanso(destinos, (enlace) => enlace === "b1");
+    expect(r).toEqual([{ enlace: "b2", para: "n-activo" }]);
+  });
+
+  it("quita los saludos hacia enlaces mudos (60 s enviando sin recibir)", () => {
+    const destinos = [
+      { enlace: "b1", para: "n-mudo" },
+      { enlace: "b2", para: "n-activo" },
+    ];
+    const r = filtrarSaludosEnDescanso(destinos, (enlace) => enlace === "b1");
+    expect(r).toEqual([{ enlace: "b2", para: "n-activo" }]);
+  });
+
+  it("si la consulta falla, saluda igual: un error nunca deja un enlace sin ligar", () => {
+    const destinos = [{ enlace: "b1", para: "n-x" }];
+    const r = filtrarSaludosEnDescanso(destinos, () => {
+      throw new Error("estado no disponible");
+    });
+    expect(r).toEqual(destinos);
+  });
+
+  it("deja pasar enlaces que no están en descanso", () => {
+    const destinos = [
+      { enlace: "b1", para: "n-a" },
+      { enlace: "b2", para: "n-b" },
+      { enlace: "b3", para: "n-c" },
+    ];
+    const r = filtrarSaludosEnDescanso(destinos, (enlace) => enlace === "b2");
+    expect(r).toEqual([{ enlace: "b1", para: "n-a" }, { enlace: "b3", para: "n-c" }]);
+  });
+});
+
+describe("pasoMudezBle (puro): vigila mudez — 60 s enviando sin recibir → mudo", () => {
+  const AHORA = 1_800_000_000_000;
+
+  it("sin bytes enviados: no cambia nada", () => {
+    const r = pasoMudezBle(MUDEZ_ENLACE_BLE_INICIAL, { ahora: AHORA, bytesEnviados: 0, bytesRecibidos: 0 });
+    expect(r.mudez).toEqual({ desde: null, mudo: false });
+    expect(r.cambio).toBe("nada");
+  });
+
+  it("primer envío (bytesEnviados > 0, bytesRecibidos = 0): inicia cuenta atrás, aún no mudo", () => {
+    const r = pasoMudezBle(MUDEZ_ENLACE_BLE_INICIAL, { ahora: AHORA, bytesEnviados: 100, bytesRecibidos: 0 });
+    expect(r.mudez.desde).toBe(AHORA);
+    expect(r.mudez.mudo).toBe(false);
+    expect(r.cambio).toBe("nada");
+  });
+
+  it("antes de 60 s: sigue sin ser mudo", () => {
+    const antes = { desde: AHORA - 30_000, mudo: false };
+    const r = pasoMudezBle(antes, { ahora: AHORA, bytesEnviados: 200, bytesRecibidos: 0 });
+    expect(r.mudez.mudo).toBe(false);
+    expect(r.cambio).toBe("nada");
+  });
+
+  it("a los 60 s exactos sin recibir: queda mudo (cambio = 'mudo')", () => {
+    const antes = { desde: AHORA - 60_000, mudo: false };
+    const r = pasoMudezBle(antes, { ahora: AHORA, bytesEnviados: 300, bytesRecibidos: 0 });
+    expect(r.mudez.mudo).toBe(true);
+    expect(r.cambio).toBe("mudo");
+  });
+
+  it("ya mudo: se mantiene mudo sin nuevo cambio", () => {
+    const antes = { desde: AHORA - 70_000, mudo: true };
+    const r = pasoMudezBle(antes, { ahora: AHORA, bytesEnviados: 400, bytesRecibidos: 0 });
+    expect(r.mudez.mudo).toBe(true);
+    expect(r.cambio).toBe("nada");
+  });
+
+  it("llega un byte recibido: sale de mudo (cambio = 'vuelve')", () => {
+    const antes = { desde: AHORA - 70_000, mudo: true };
+    const r = pasoMudezBle(antes, { ahora: AHORA, bytesEnviados: 400, bytesRecibidos: 50 });
+    expect(r.mudez).toEqual({ desde: null, mudo: false });
+    expect(r.cambio).toBe("vuelve");
+  });
+
+  it("bytesRecibidos > 0 sin haber sido mudo: cambio = 'nada'", () => {
+    const antes = { desde: AHORA - 10_000, mudo: false };
+    const r = pasoMudezBle(antes, { ahora: AHORA, bytesEnviados: 100, bytesRecibidos: 50 });
+    expect(r.mudez).toEqual({ desde: null, mudo: false });
+    expect(r.cambio).toBe("nada");
+  });
+
+  it("error en bytes (NaN/negativos) se trata como 0", () => {
+    const r = pasoMudezBle(MUDEZ_ENLACE_BLE_INICIAL, { ahora: AHORA, bytesEnviados: NaN, bytesRecibidos: -1 });
+    expect(r.mudez).toEqual({ desde: null, mudo: false });
+    expect(r.cambio).toBe("nada");
+  });
+});
+
+
+
+describe("el motor no insiste contra direcciones caducadas (Android rota la dirección en cada anuncio)", () => {
+  it("filtrarSaludosEnDescanso quita enlaces caídos: simula dirección caducada tras racha de fallos", () => {
+    const destinos = [
+      { enlace: "b1", para: "n-direccion-caducada" },
+      { enlace: "b2", para: "n-nueva-direccion" },
+    ];
+    // b1 está en descanso (caído tras 6 fallos), b2 no
+    const r = filtrarSaludosEnDescanso(destinos, (enlace) => enlace === "b1");
+    expect(r).toEqual([{ enlace: "b2", para: "n-nueva-direccion" }]);
+  });
+
+  it("tras caída, el siguiente anuncio (nueva dirección) trae un enlace fresco que sí se saluda", () => {
+    // Este test documenta el comportamiento esperado: cuando Android rota la dirección,
+    // el enlace viejo cae (caida) y el nuevo anuncio crea un enlace "b2" sin descanso.
+    const destinosViejos = [{ enlace: "b1", para: "n-android" }];
+    const destinosNuevos = [{ enlace: "b2", para: "n-android" }];
+
+    // b1 en descanso (dirección caducada)
+    const rViejos = filtrarSaludosEnDescanso(destinosViejos, (enlace) => enlace === "b1");
+    expect(rViejos).toEqual([]);
+
+    // b2 fresco (nueva dirección del anuncio) -> se saluda
+    const rNuevos = filtrarSaludosEnDescanso(destinosNuevos, (enlace) => enlace === "b1");
+    expect(rNuevos).toEqual(destinosNuevos);
   });
 });
