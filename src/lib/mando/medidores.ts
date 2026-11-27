@@ -181,6 +181,8 @@ export interface FilaMedidor {
     porque?: string;
     /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
     detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string };
+    /** (MED1126A) Solo en filas de disco: true si ese disco puede recibir datos (bien y con espacio). */
+    usableComoDestino?: boolean;
     desde?: string;
     quien?: string;
     enlace?: string;
@@ -1493,6 +1495,22 @@ export interface NodoAlmacenamiento {
     discoTotalGb?: number;
     rol?: string;
     usoGb?: number;
+    /** (MED1126A) Discos del nodo (Maggabox: interno principal y externo secundario). */
+    discos?: DiscoNodo[];
+}
+
+/** (MED1126A) Un disco de un nodo, tal como lo da el recolector. */
+export interface DiscoNodo {
+    rol: "principal" | "secundario";
+    punto?: string;
+    /** NaN si no se pudo medir. */
+    libreGb: number;
+    totalGb?: number;
+    /** «ok», «aviso» (ámbar: sin montar, SMART dudoso) o «error» (rojo: errores de E/S). */
+    estado: "ok" | "aviso" | "error";
+    montado?: boolean;
+    errores?: number;
+    smart?: string;
 }
 
 export interface DatosMedidores {
@@ -2428,6 +2446,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             : [];
         const total = discoMedido(n.discoTotalGb);
         const rol = typeof n.rol === "string" && n.rol.trim() ? n.rol.trim() : undefined;
+        const discos = leerDiscosNodo(n.discos);
         salida.push({
             id: id.trim(),
             nombre: nombreDeNodoAlmacenamiento(id, medio),
@@ -2437,6 +2456,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             ...(total !== null ? { discoTotalGb: total } : {}),
             ...(rol ? { rol } : {}),
             ...(uso !== null ? { usoGb: uso } : {}),
+            ...(discos.length ? { discos } : {}),
         });
     }
     const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
@@ -2457,12 +2477,89 @@ function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
     return n.rol ? `${cifra} · ${n.rol}` : `${cifra} en ${n.nombre}`;
 }
 
-/** (MAG1120) Una fila por nodo con disco libre; estado según lo que le queda. PURA. */
+/** (MED1126A) Por debajo de esto un disco está en estado crítico y no recibe datos. */
+const LIBRE_CRITICO_GB = 5;
+
+/** «crítico» < 5 GB, «bajo» < 15 GB, «libre» el resto. PURA. */
+function estadoPorLibre(libre: number): string {
+    return libre < LIBRE_CRITICO_GB ? "crítico" : libre < 15 ? "bajo" : "libre";
+}
+
+/** (MED1126A) Lista `discos` del recolector; descarta lo que no tenga rol válido. PURA. */
+function leerDiscosNodo(crudo: unknown): DiscoNodo[] {
+    if (!Array.isArray(crudo)) return [];
+    const salida: DiscoNodo[] = [];
+    for (const item of crudo) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const d = item as Record<string, unknown>;
+        const rol = typeof d.rol === "string" && d.rol.startsWith("secundario") ? "secundario" : d.rol === "principal" ? "principal" : null;
+        if (!rol) continue;
+        const estado = d.estado === "ok" || d.estado === "aviso" || d.estado === "error" ? d.estado : "aviso";
+        const total = discoMedido(d.totalGb);
+        const errores = discoMedido(d.errores);
+        salida.push({
+            rol,
+            libreGb: discoMedido(d.libreGb) ?? Number.NaN,
+            estado,
+            ...(typeof d.punto === "string" && d.punto ? { punto: d.punto } : {}),
+            ...(total !== null ? { totalGb: total } : {}),
+            ...(typeof d.montado === "boolean" ? { montado: d.montado } : {}),
+            ...(errores !== null ? { errores } : {}),
+            ...(typeof d.smart === "string" && d.smart ? { smart: d.smart } : {}),
+        });
+    }
+    return salida;
+}
+
+/** (MED1126A) Destino solo si el disco está bien Y le queda más del umbral crítico. PURA. */
+function discoUsable(d: DiscoNodo): boolean {
+    return d.estado === "ok" && d.montado !== false && Number.isFinite(d.libreGb) && d.libreGb >= LIBRE_CRITICO_GB;
+}
+
+/** (MED1126A) Una fila por disco: «Maggabox · interno (principal)» y «… · disco externo (secundario)». PURA. */
+export function filasDeDiscos(n: NodoAlmacenamiento): FilaMedidor[] {
+    return (n.discos ?? []).map((d) => {
+        const titulo = d.rol === "principal" ? `${n.nombre} · interno (principal)` : `${n.nombre} · disco externo (secundario)`;
+        const medido = Number.isFinite(d.libreGb);
+        const estado = d.estado !== "ok" ? d.estado : medido ? estadoPorLibre(d.libreGb) : "sin dato";
+        const de = d.totalGb !== undefined ? ` de ${d.totalGb} GB` : "";
+        const cifra = medido ? `${d.libreGb} GB${de} libres` : "libres sin medir";
+        const problemas = [
+            d.montado === false ? "sin montar" : "",
+            d.errores ? `${d.errores} errores` : "",
+            d.smart && d.smart.toUpperCase() !== "PASSED" ? `SMART ${d.smart}` : "",
+        ].filter(Boolean);
+        const usable = discoUsable(d);
+        const papel = d.rol === "principal" ? "principal" : "secundario: respaldos y datos no fundamentales";
+        return {
+            id: `${n.id}:${d.rol}`,
+            titulo,
+            estado,
+            porque: [cifra, papel, ...problemas, usable ? "" : "no se usa como destino"].filter(Boolean).join(" · "),
+            detalle: {
+                ...(medido ? { discoLibres: d.libreGb } : {}),
+                origen: n.medio,
+                almacen: d.punto ? [d.punto] : [],
+                ...(d.totalGb !== undefined ? { discoTotalGb: d.totalGb } : {}),
+                rol: papel,
+            },
+            usableComoDestino: usable,
+            acciones: [],
+        };
+    });
+}
+
+/** (MAG1120) Una fila por nodo; con `discos`, una por disco. PURA. */
 export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): FilaMedidor[] {
-    return nodos.map((n) => ({
+    return nodos.flatMap((n) => (n.discos?.length ? filasDeDiscos(n) : [filaDeNodo(n)]));
+}
+
+/** (MAG1120) La fila de un nodo sin lista de discos. Sin libres ni uso medido: «sin dato». PURA. */
+export function filaDeNodo(n: NodoAlmacenamiento): FilaMedidor {
+    return {
         id: n.id,
         titulo: n.nombre,
-        estado: !Number.isFinite(n.discoLibreGb) ? "libre" : n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
+        estado: Number.isFinite(n.discoLibreGb) ? estadoPorLibre(n.discoLibreGb) : n.usoGb !== undefined ? "libre" : "sin dato",
         porque: porqueDeAlmacenamiento(n),
         detalle: {
             ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
@@ -2473,7 +2570,7 @@ export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): Fil
             ...(n.rol ? { rol: n.rol } : {}),
         },
         acciones: [],
-    }));
+    };
 }
 
 /** (MAG1120) «Nodos con disco libre: Mac (X GB), …». Sin nodos, «sin dato». PURA. */
