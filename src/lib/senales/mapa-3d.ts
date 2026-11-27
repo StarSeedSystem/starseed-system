@@ -652,3 +652,47 @@ export function encuadreCamara(
     objetivo: [0, 0, 1.4 * (1 - t)],
   };
 }
+
+/* ── Encuentros NFC en el mapa (contrato: architecture/nfc-neuronas.md §5 y §6) ── */
+
+export interface EncuentroNfc {
+  id: string;
+  nombre: string;
+  /** Posición en el suelo de la escena; sin ella no se coloca (nunca se inventa). */
+  x?: number;
+  z?: number;
+  cuando: number;
+  /** Lo que permitió el encuentro: «no» no aparece nunca. */
+  ubicacion: "privada" | "publica" | "no";
+  propio: boolean;
+}
+
+export interface MarcadorNfc {
+  id: string;
+  nombre: string;
+  x: number;
+  z: number;
+  publico: boolean;
+  reciente: boolean;
+}
+
+/**
+ * Encuentros NFC que se dibujan: solo los que permitieron ubicación y tienen sitio.
+ * Los privados los ve únicamente su dueño; los públicos, cualquiera. Caducan con la ventana de frescura.
+ */
+export function marcadoresNfc(encuentros: readonly EncuentroNfc[], ahora: number): MarcadorNfc[] {
+  const out: MarcadorNfc[] = [];
+  for (const e of encuentros) {
+    if (e.ubicacion === "no") continue;
+    if (e.ubicacion === "privada" && !e.propio) continue;
+    if (e.x === undefined || e.z === undefined || !Number.isFinite(e.x) || !Number.isFinite(e.z)) continue;
+    if (ahora - e.cuando > VENTANA_FRESCURA_MS) continue;
+    const d = Math.hypot(e.x, e.z);
+    const k = d > RADIO_ESCENA ? RADIO_ESCENA / d : 1;
+    out.push({
+      id: e.id, nombre: e.nombre, x: e.x * k, z: e.z * k,
+      publico: e.ubicacion === "publica", reciente: ahora - e.cuando <= RECIENTE_MS,
+    });
+  }
+  return out;
+}
