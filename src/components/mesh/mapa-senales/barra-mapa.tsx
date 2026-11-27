@@ -19,11 +19,11 @@ import { ETIQUETA_CUENTA, FILTROS_CUENTA, type FiltroCuenta } from "@/lib/senale
 import { GlifoIcono } from "./icono-2d";
 import type { VistaCamara } from "./escena-3d";
 
-const SEGMENTO = "inline-flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-0.5";
-const BOTON_SEG = "inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors duration-200";
+const SEGMENTO = "inline-flex max-w-full flex-wrap items-center rounded-lg border border-white/10 bg-white/[0.03] p-0.5";
+const BOTON_SEG = "inline-flex max-w-full cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors duration-200";
 const SEG_ACTIVO = "bg-sky-500/20 text-sky-100";
 const SEG_INACTIVO = "text-white/55 hover:text-white/90";
-const BOTON_ICONO = "inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors duration-200";
+const BOTON_ICONO = "inline-flex max-w-full cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors duration-200";
 
 export function SelectorVista({ vista, onVista }: { vista: VistaMapa; onVista: (v: VistaMapa) => void }) {
   return (
@@ -54,8 +54,8 @@ export interface FiltrosFamiliaProps {
 export function FiltrosFamilia({ resumen, ocultas, onFamilia, onTodas }: FiltrosFamiliaProps) {
   const ninguna = ocultas.length === 0;
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por familia de antena">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-white/40">Antena</span>
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por familia de antena">
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wider text-white/40">Antena</span>
       <button
         type="button"
         aria-pressed={ninguna}
@@ -107,8 +107,8 @@ export interface FiltrosCuentaProps {
 
 export function FiltrosCuenta({ porCuenta, cuenta, onCuenta, ocultarDesconectados, desconectados, onDesconectados }: FiltrosCuentaProps) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por cuenta">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-white/40">De quién</span>
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por cuenta">
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wider text-white/40">De quién</span>
       <div className={SEGMENTO}>
         {FILTROS_CUENTA.map((c) => (
           <button
@@ -152,8 +152,8 @@ export interface ControlesVista3DProps {
 export function ControlesVista3D(p: ControlesVista3DProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-white/40">Altura</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wider text-white/40">Altura</span>
         <div className={SEGMENTO} role="group" aria-label="Qué significa la altura">
           {MODOS_ALTURA.map((m) => (
             <button
@@ -169,7 +169,7 @@ export function ControlesVista3D(p: ControlesVista3DProps) {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-1.5" role="group" aria-label="Cámara y etiquetas">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Cámara y etiquetas">
         <button type="button" onClick={() => p.onCamara("inclinada")} title="Vista inclinada, centrada en esta neurona"
           className={cn(BOTON_ICONO, "border-white/10 bg-white/[0.03] text-white/65 hover:border-white/25 hover:text-white/90")}>
           <LocateFixed className="h-3 w-3" /> Recentrar

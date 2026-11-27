@@ -313,15 +313,15 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       <MotorCristalMount />
       {/* Cabecera */}
       {embedded ? (
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-white/85">
-            <Antenna className="h-4 w-4 text-sky-300" /> Señales · antenas de la neurona
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-white/85">
+            <Antenna className="h-4 w-4 shrink-0 text-sky-300" /> Señales · antenas de la neurona
           </h2>
-          <span className="text-[11px] text-white/45">{activeCtrl} controlables activas</span>
+          <span className="shrink-0 text-[11px] text-white/45">{activeCtrl} controlables activas</span>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-2xl font-bold text-sky-50">
               <Antenna className="h-6 w-6 text-sky-300" /> Señales
             </h1>
@@ -330,8 +330,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
               con el radar de los nodos reales de la malla. Desde aquí llegas a la Red Mesh y a cada configuración.
             </p>
           </div>
-          <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/20">
-            <ExternalLink className="h-3 w-3" /> Red Mesh (mapa 3D)
+          <Link href="/red-mesh" className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/20">
+            <ExternalLink className="h-3 w-3 shrink-0" /> Red Mesh (mapa 3D)
           </Link>
         </div>
       )}
@@ -363,7 +363,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             neurona (drawer de sistemas de Astraura → pestaña «Señales»). */}
         {personaRules.antenas > 0 && (
           <span
-            className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200"
+            className="ml-auto inline-flex max-w-full items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200"
             title={`${personaRules.antenas} antena(s) tienen una regla propia en ${personaRules.personas} personalidad(es) de esta neurona (entrada/salida, ruta o apagado)`}
           >
             <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
@@ -375,7 +375,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           onClick={() => openAstrauraConfig("senales")}
           title="Configura qué señales y antenas usa cada personalidad de Aurora en esta neurona"
           className={cn(
-            "inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1.5 text-[12px] font-medium text-fuchsia-100 transition-colors duration-200 hover:bg-fuchsia-500/20",
+            "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1.5 text-[12px] font-medium text-fuchsia-100 transition-colors duration-200 hover:bg-fuchsia-500/20",
             personaRules.antenas === 0 && "ml-auto",
           )}
         >
@@ -413,9 +413,9 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {/* Vínculos físicos disponibles para el mismo bus de señales. */}
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[12px] font-semibold text-white/90">Transporte mesh · buildwithparallel</p>
+          <p className="min-w-0 text-[12px] font-semibold text-white/90">Transporte mesh · buildwithparallel</p>
           <span className={cn(
-            "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+            "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
             transporteBwp.online
               ? "bg-emerald-500/15 text-emerald-200"
               : "bg-white/[0.06] text-white/45",
@@ -423,7 +423,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             {transporteBwp.online ? "en línea" : "sin vínculo"}
           </span>
           {transporteBwp.totalKbps > 0 && (
-            <span className="ml-auto text-[10px] text-white/50">
+            <span className="ml-auto shrink-0 text-[10px] text-white/50">
               {transporteBwp.totalKbps.toLocaleString("es-MX")} kbps
             </span>
           )}
@@ -457,12 +457,12 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           prueba de síntesis corta (desarmada con motivo si no hay runtime). */}
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="flex items-center gap-2 text-[12px] font-semibold text-white/90">
-            <Volume2 className="h-4 w-4 text-sky-300" /> Voz de borde
+          <p className="flex min-w-0 items-center gap-2 text-[12px] font-semibold text-white/90">
+            <Volume2 className="h-4 w-4 shrink-0 text-sky-300" /> Voz de borde
           </p>
           {vozBorde && (
             <span className={cn(
-              "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+              "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
               vozBorde.runtimeDisponible
                 ? "bg-emerald-500/15 text-emerald-200"
                 : "bg-white/[0.06] text-white/45",
@@ -478,7 +478,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
               ? "Sintetiza una frase corta por el motor único Voz StarSeed"
               : (vozBorde?.motivo ?? "Midiendo el hardware de voz…")}
             className={cn(
-              "ml-auto inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
+              "ml-auto inline-flex max-w-full cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
               vozBorde?.runtimeDisponible
                 ? "border-sky-500/30 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20"
                 : "cursor-not-allowed border-white/10 bg-black/20 text-white/40",
@@ -496,14 +496,14 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {/* Estado de la malla web (funciona desde el navegador, sin hardware) */}
       <div className={cn("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2",
         webMeshOn ? "border-emerald-400/25 bg-emerald-500/[0.06]" : "border-amber-400/25 bg-amber-500/[0.06]")}>
-        <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold", webMeshOn ? "text-emerald-200" : "text-amber-200")}>
-          <span className={cn("size-2 rounded-full", webMeshOn ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
+        <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-[11px] font-semibold", webMeshOn ? "text-emerald-200" : "text-amber-200")}>
+          <span className={cn("size-2 shrink-0 rounded-full", webMeshOn ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
           {webMeshOn ? "Malla web activa" : "Malla web · inicia sesión"}
         </span>
-        <span className="text-[10px] text-white/50">
+        <span className="min-w-0 text-[10px] text-white/50">
           {webMeshOn ? "relé por servidor · funciona sin radio" : "con sesión, el relé web transmite sin radio"}
         </span>
-        <span className="ml-auto rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
+        <span className="ml-auto shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-200">
           relé siempre on
         </span>
       </div>
