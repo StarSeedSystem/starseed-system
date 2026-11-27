@@ -205,6 +205,73 @@ class SanadorSesionesTest(unittest.TestCase):
         self.assertIn("mac", mensaje.lower())
         self.assertIn("/renovar", mensaje.lower())
 
+    def test_escalado_abre_inicio_sesion_en_vez_de_autoservicio(self):
+        """SES1126: con abridor disponible, prepara el inicio de sesión y no manda el aviso viejo."""
+        llamadas = []
+        mensajes = []
+
+        def abrir_falso(sesion, motivo, intentos):
+            llamadas.append((sesion, motivo, tuple(intentos)))
+            return {"ok": True, "via": "terminal", "detalle": "Terminal abierta"}
+
+        def enviar_falso(texto):
+            mensajes.append(texto)
+            return {"ok": True}
+
+        s = SS.SanadorSesiones(estado_file=self.estado_file, abrir_fn=abrir_falso)
+        r = s._escalado("claude", "sesión caducada", ["r1"], enviar_fn=enviar_falso)
+
+        self.assertEqual(len(llamadas), 1)
+        self.assertEqual(llamadas[0][0], "claude")
+        self.assertEqual(mensajes, [])
+        self.assertEqual(r.get("escalado"), "inicio_sesion")
+        self.assertEqual(r.get("via"), "terminal")
+        self.assertFalse(r.get("ok"))
+
+    def test_aviso_no_mas_de_una_vez_cada_6_horas(self):
+        """SES1126: el aviso de una sesión se repite como muy pronto a las 6 h."""
+        momentos = [datetime(2026, 11, 27, 8, 0, 0)]
+        llamadas = []
+
+        def abrir_falso(sesion, motivo, intentos):
+            llamadas.append(sesion)
+            return {"ok": True, "via": "terminal"}
+
+        s = SS.SanadorSesiones(
+            estado_file=self.estado_file,
+            abrir_fn=abrir_falso,
+            ahora_fn=lambda: momentos[0],
+        )
+
+        s._escalado("claude", "m", ["r1"])
+        self.assertEqual(len(llamadas), 1)
+
+        momentos[0] = datetime(2026, 11, 27, 13, 59, 0)
+        r = s._escalado("claude", "m", ["r1"])
+        self.assertEqual(len(llamadas), 1)
+        self.assertEqual(r.get("escalado"), "ya_enviado")
+
+        momentos[0] = datetime(2026, 11, 27, 14, 0, 0)
+        s._escalado("claude", "m", ["r1"])
+        self.assertEqual(len(llamadas), 2)
+
+    def test_comprobar_todas_inicio_sesion_no_es_error_interno(self):
+        """SES1126: preparar el inicio de sesión no cuenta como error interno del sanador."""
+        s = SS.SanadorSesiones(estado_file=self.estado_file, log_file=self.log_file)
+        s.registrar("claude", lambda: {"ok": False, "motivo": "sin sesión"}, [
+            lambda: {"ok": False, "motivo": "no se puede sola"},
+        ])
+        s.abrir_fn = lambda sesion, motivo, intentos: {
+            "ok": True, "via": "telegram", "detalle": "enlace enviado",
+        }
+
+        from io import StringIO
+        salida = StringIO()
+        code = s.comprobar_todas(salida)
+
+        self.assertEqual(code, 0)
+        self.assertIn("inicio de sesión", salida.getvalue().lower())
+
     def test_fallo_red_no_escala(self):
         """Un fallo de red (timeout, URLError) no escala, solo espera."""
         s = SS.SanadorSesiones()

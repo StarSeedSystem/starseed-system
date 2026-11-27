@@ -22,6 +22,7 @@ Una caída de red (sin DNS o sin salida) no escala: espera.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -45,6 +46,7 @@ RecetaFn = Callable[[], dict[str, Any]]
 AhoraFn = Callable[[], datetime]
 EnviarFn = Callable[[str], dict[str, Any]]
 LogFn = Callable[[str, str, dict[str, Any], float], None]
+AbrirFn = Callable[[str, str, list[str]], dict[str, Any]]
 
 # ─────────────────────────────── Resolución de binarios ───────────────────────────────
 
@@ -148,6 +150,39 @@ def _enviar_escalado_telegram(mensaje: str, ruta_env: str | None = None) -> dict
         return entorno.enviar_telegram(mensaje, Path(ruta_env))
     except Exception as e:
         return {"ok": False, "motivo": f"error enviando: {e}"}
+
+
+def _abrir_inicio_sesion_defecto(sesion: str, motivo: str, intentos: list[str]) -> dict[str, Any]:
+    """Delega en abrir_inicio_sesion.py (SES1126).
+
+    Ese módulo genera el guion de inicio de sesión, lo abre en la neurona de
+    Maggasukha o manda el enlace por el canal Principal. Aquí solo se le pide;
+    si todavía no está instalado, se devuelve ``sin_modulo`` para que el
+    sanador use el aviso antiguo sin romperse.
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+        abridor = importlib.import_module("abrir_inicio_sesion")
+    except Exception:
+        return {"ok": False, "sin_modulo": True}
+
+    for nombre in ("abrir_sesion", "abrir_para_sesion", "abrir"):
+        fn = getattr(abridor, nombre, None)
+        if not callable(fn):
+            continue
+        try:
+            resultado = fn(sesion, motivo=motivo, intentos=intentos)
+        except TypeError:
+            try:
+                resultado = fn(sesion)
+            except Exception as e:
+                return {"ok": False, "motivo": f"abrir_inicio_sesion: {e}"}
+        except Exception as e:
+            return {"ok": False, "motivo": f"abrir_inicio_sesion: {e}"}
+        if isinstance(resultado, dict):
+            return resultado
+        return {"ok": False, "motivo": "abridor devolvió un tipo inesperado"}
+    return {"ok": False, "sin_modulo": True}
 
 
 # Patrones de secretos para redactar (sin look-behind variable-width)
