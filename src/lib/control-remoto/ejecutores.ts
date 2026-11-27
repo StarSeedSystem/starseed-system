@@ -234,9 +234,36 @@ export async function ejecutarEnApp(
             };
             return ejecutarPruebaControlCon(args, camino);
         }
+        case "terminal-ejecutar": {
+            // TRM1125B: la web no ejecuta nada; pide a Rust, que decide con el permiso del aparato (apagado por defecto).
+            const orden = ordenDeTerminal(String(args.comando), (args.args ?? {}) as Args);
+            if (orden === null) throw new Error("argumentos");
+            const [{ puenteNativo }, { ejecutarTerminal, resumenResultado }] = await Promise.all([import("@/lib/nativa/puente"), import("@/lib/nativa/terminal-cliente")]);
+            const r = await ejecutarTerminal(puenteNativo().llamar, orden, { nivel: "usuario" }); // administrador: solo por el ayudante (TRM1125C)
+            if (!r.ok) throw new Error(r.motivo);
+            return { ...r.valor, resumen: resumenResultado(r.valor) };
+        }
+        case "terminal-cerrar": {
+            const [{ puenteNativo }, { cancelarTerminal }] = await Promise.all([import("@/lib/nativa/puente"), import("@/lib/nativa/terminal-cliente")]);
+            const r = await cancelarTerminal(puenteNativo().llamar);
+            if (!r.ok) throw new Error(r.motivo);
+            return { cerrada: true };
+        }
         default:
             throw new Error("accion-desconocida");
     }
+}
+
+/** La orden de una línea para Rust a partir de un comando tipado; null si algún argumento no es un token simple (nada de shell). */
+export function ordenDeTerminal(comando: string, args: Args): string | null {
+    const partes = [comando];
+    for (const [k, v] of Object.entries(args)) {
+        if (v === true) partes.push(`--${k}`);
+        else if (v === false || v === "" || v === undefined) continue;
+        else if ((typeof v === "string" || typeof v === "number") && /^[\w./:@-]+$/.test(String(v))) partes.push(`--${k}`, String(v));
+        else return null;
+    }
+    return partes.join(" ");
 }
 
 /**
