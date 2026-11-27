@@ -1,10 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { CAPACIDADES, HINT_INSTALACION, leerSobre, resolverComando, validarEntrada } from "../agent-reach-comandos";
 
-const argv = (cap: string, cuerpo: Record<string, unknown>, login = false) => {
+const argv = (cap: string, cuerpo: Record<string, unknown>, login = false): string[] => {
   const r = resolverComando(cap, cuerpo, { login });
-  if (!r.ok) throw new Error(`${cap}: ${r.motivo} · ${r.error}`);
+  if (!r.ok) {
+    const { motivo, error } = r as { ok: false; motivo: string; error: string };
+    throw new Error(`${cap}: ${motivo} · ${error}`);
+  }
   return r.argv;
+};
+
+const expectError = (r: ReturnType<typeof resolverComando>, motivo: string) => {
+  expect(r.ok).toBe(false);
+  if (!r.ok) {
+    const { motivo: m } = r as { ok: false; motivo: string; error: string };
+    expect(m).toBe(motivo);
+  }
 };
 
 describe("Agent-Reach v1.6 · mapa de capacidades (INV1025A)", () => {
@@ -30,8 +41,7 @@ describe("Agent-Reach v1.6 · mapa de capacidades (INV1025A)", () => {
   it("una capacidad desconocida (o heredada de Object) no pasa", () => {
     for (const c of ["shell", "__proto__", "constructor", "toString"]) {
       const r = resolverComando(c, { q: "x" });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.motivo).toBe("DESCONOCIDA");
+      expectError(r, "DESCONOCIDA");
     }
   });
 
@@ -39,8 +49,7 @@ describe("Agent-Reach v1.6 · mapa de capacidades (INV1025A)", () => {
     for (const c of ["reddit", "reddit-search", "twitter"]) {
       expect((CAPACIDADES as Record<string, { conSesion?: boolean }>)[c]?.conSesion).toBe(true);
       const r = resolverComando(c, { url: "https://www.reddit.com/r/x" });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.motivo).toBe("NEED_LOGIN_BLOQUEADO");
+      expectError(r, "NEED_LOGIN_BLOQUEADO");
     }
     expect(argv("reddit", { url: "https://www.reddit.com/r/x" }, true)).toEqual(["read", "https://www.reddit.com/r/x"]);
   });
@@ -68,8 +77,7 @@ describe("validarEntrada · SSRF y argumentos", () => {
     expect(validarEntrada("q", "--help")).not.toBeNull();
     expect(validarEntrada("ref", "-x/y")).not.toBeNull();
     const r = resolverComando("web-search", { q: "-rf" });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.motivo).toBe("BAD_INPUT");
+    expectError(r, "BAD_INPUT");
   });
 
   it("q hasta 300 caracteres, sin controles y sin vacío", () => {
