@@ -9556,6 +9556,20 @@ def ejecutar(t, intento=1):
         )
     )
     bloqueante = revision_bloqueante(rev)
+    # (PUE1127A) Un «arreglo de compilación» no puede borrar código, comandos ni pruebas para
+    # compilar (AB6CDD5AA, 27-11). Solo se evalúan esas tareas; la rama se conserva.
+    try:
+        import puerta_arreglos as _pa
+
+        _va = _pa.veredicto(diff) if _pa.es_arreglo_de_compilacion(t) else {"ok": True}
+    except Exception:
+        _va = {"ok": True}  # sin el módulo, todo sigue como antes
+    if not _va["ok"]:
+        nota_pa = "puerta de arreglos: " + "; ".join(_va["motivos"])
+        set_estado(tid, estado="rechazada", modelo=modelo_ok, segundos=int(time.time() - t0), nota=nota_pa)
+        evento("rechazada", tid, nota_pa + "; rama ola/%s conservada" % tid)
+        limpiar_worktree(tid, borrar_rama=False)
+        return
     # Al revisor se le pide expresamente que NO bloquee por no ver el diff entero, y aun así lo
     # hace (Ola 233, C7: «el diff está truncado» sobre un commit que había pasado tsc y vitest).
     # Si el MOTIVO del bloqueo es solo eso, se degrada a aviso: el corte del diff es nuestro.
