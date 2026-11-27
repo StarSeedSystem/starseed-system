@@ -5,9 +5,11 @@ Contrato: architecture/laya-y-habilidades.md §5. Cada escritor del enjambre rec
 (≤ 60 palabras) de la habilidad de ingeniería que encaja con su tarea: las mismas de
 `src/ai/astraura/habilidades/` (MIT, Matt Pocock), copiadas aquí como datos. Si el local de
 Laya (/v1/systemone) responde en ≤ 3 s, `elegir_con_laya` decide con `answer_confidence`
-(la calibrada, §1) y no las palabras del título/prompt (`tarjeta_para`). `con_habilidad(prompt, tarea)` añade la tarjeta al FINAL del prompt. Módulo PURO con red, reloj y respuesta de Laya inyectables: las pruebas no usan red ni cargan modelos.
+(la calibrada, §1) y no las palabras del título/prompt (`tarjeta_para`). `con_habilidad(prompt, tarea)` añade la tarjeta al FINAL del prompt. Módulo PURO con red, reloj y respuesta de Laya inyectables: las pruebas no usan red ni cargan modelos. (LAY1127C) Si Laya no llega al plazo porque se descargó por inactividad, `calentar_si_toca` la deja cargando en un hilo daemon sin bloquear al escritor.
 """
 import json
+import os
+import threading
 import time
 import unicodedata
 import urllib.request
@@ -15,6 +17,17 @@ import urllib.request
 TITULO_BLOQUE = "Cómo trabajar (habilidad de Matt Pocock, MIT)"
 UMBRAL_LAYA = 0.5
 PLAZO_LAYA_S = 3.0
+
+# (LAY1127C) Laya se descarga tras 10 min sin uso y su primera petición tarda ~28 s: no llega
+# al plazo de 3 s y el enjambre nunca la usa. Al fallar por plazo se lanza un calentamiento en
+# un hilo daemon (no bloquea) como mucho una vez cada 10 min; la marca es la misma que usará Jev.
+URL_LAYA = "http://127.0.0.1:4470/v1/systemone"
+RUTA_CALENTAR = "~/.starseed/laya-calentar.json"
+RUTA_GOBERNADOR = "~/.starseed/gobernador.json"
+VENTANA_CALENTAR_S = 600.0
+RAM_MINIMA_MB = 1500
+PRESION_MAXIMA = 2
+PLAZO_CALENTAR_S = 60.0
 
 # Palabras ya sin acentos, se comparan contra el texto normalizado.
 PALABRAS = {
@@ -69,15 +82,106 @@ def _transporte_laya(url, cuerpo, plazo):
     with urllib.request.urlopen(peticion, timeout=plazo) as respuesta:
         return respuesta.status, respuesta.read().decode("utf-8")
 
-def elegir_con_laya(tarea, transporte=None, url=None, reloj=None, plazo=PLAZO_LAYA_S):
+# ── calentamiento de Laya sin bloquear (LAY1127C) ───────────────────────────
+def puede_calentar(gobernador, marca, ahora, ventana=VENTANA_CALENTAR_S):
+    """PURA. Nunca con presión ≥ 2 ni RAM libre < 1500 MB; como mucho una vez por ventana."""
+    if isinstance(gobernador, dict):
+        presion = gobernador.get("presion")
+        if isinstance(presion, (int, float)) and presion >= PRESION_MAXIMA:
+            return False
+        ram = gobernador.get("ram_libre_mb")
+        if isinstance(ram, (int, float)) and ram < RAM_MINIMA_MB:
+            return False
+    if isinstance(marca, dict):
+        marca = marca.get("t")
+    ultimo = float(marca) if isinstance(marca, (int, float)) else None
+    return ultimo is None or ahora - ultimo >= ventana
+
+def raiz_descargada(texto):
+    """PURA. ¿La raíz o el estado del servidor dicen `cargado: false`?"""
+    try:
+        datos = json.loads(texto)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(datos, dict) and datos.get("cargado") is False
+
+def _leer_json(ruta):
+    """Lee un JSON de disco; {} si no está, no se puede o no es un objeto."""
+    try:
+        with open(os.path.expanduser(ruta), encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+def _escribir_marca(ruta, ahora):
+    """Escribe la marca compartida {t: epoch} de forma atómica; False si no se pudo."""
+    try:
+        destino = os.path.expanduser(ruta)
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        tmp = destino + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"t": float(ahora)}, f)
+        os.replace(tmp, destino)
+        return True
+    except OSError:
+        return False
+
+def _lanzar_daemon(trabajo):
+    """Arranca `trabajo` en un hilo daemon: el escritor nunca espera a Laya."""
+    threading.Thread(target=trabajo, daemon=True).start()
+
+def calentar_si_toca(url=None, transporte=None, reloj=None, gobernador=None,
+                     marca=None, ruta_marca=None, lanzador=None,
+                     ventana=VENTANA_CALENTAR_S):
+    """Lanza SIN BLOQUEAR una petición mínima a Laya si toca; True si la lanzó.
+    No calienta con presión ≥ 2 ni RAM libre < 1500 MB, ni más de una vez por ventana;
+    deja la marca {t: epoch} compartida (la misma que usará Jev).
+    """
+    ahora = (reloj or time.time)()
+    url = url or URL_LAYA
+    if gobernador is None:
+        gobernador = _leer_json(RUTA_GOBERNADOR)
+    if marca is None:
+        marca = _leer_json(ruta_marca or RUTA_CALENTAR)
+    if not puede_calentar(gobernador, marca, ahora, ventana):
+        return False
+    transporte = transporte or _transporte_laya
+    cuerpo = json.dumps({"state": "calentamiento", "questions": {}},
+                        ensure_ascii=False).encode("utf-8")
+
+    def trabajo():
+        try:
+            transporte(url, cuerpo, PLAZO_CALENTAR_S)
+        except Exception:
+            pass
+
+    _escribir_marca(ruta_marca or RUTA_CALENTAR, ahora)
+    (lanzador or _lanzar_daemon)(trabajo)
+    return True
+
+def elegir_con_laya(tarea, transporte=None, url=None, reloj=None, plazo=PLAZO_LAYA_S,
+                    calentador=None):
     """Decisión de Laya local (/v1/systemone); None si no llega a tiempo o responde mal.
     Devuelve {"tarjeta": dict|None, "motor": str}: tarjeta None = respondió y eligió «ninguna».
     El umbral usa `answer_confidence` (calibrada, §1), NUNCA `confidence`; si llega tarde o duda,
     None: se decide con las palabras (nunca bloqueando, §2).
     """
-    url = url or "http://127.0.0.1:4470/v1/systemone"
+    url = url or URL_LAYA
+    # Con transporte inyectado (pruebas) no se calienta salvo que se inyecte `calentador`:
+    # el calentamiento es un efecto de producción y jamás debe tocar la red en una prueba.
+    transporte_real = transporte is None
     transporte = transporte or _transporte_laya
     reloj = reloj or time.time
+
+    def _calienta():
+        if calentador is None and not transporte_real:
+            return
+        try:
+            (calentador or calentar_si_toca)(url)
+        except Exception:
+            pass
+
     cuerpo = json.dumps(
         {"state": _texto_tarea(tarea).strip(), "questions": _preguntas_laya()},
         ensure_ascii=False,
@@ -85,9 +189,18 @@ def elegir_con_laya(tarea, transporte=None, url=None, reloj=None, plazo=PLAZO_LA
     t0 = reloj()
     try:
         codigo, texto = transporte(url, cuerpo, plazo)
-    except Exception:
+    except Exception as error:
+        texto_error = ("%s" % error).lower()
+        if isinstance(error, TimeoutError) or "timed out" in texto_error or "timeout" in texto_error:
+            _calienta()
         return None
-    if reloj() - t0 > plazo or codigo != 200:
+    if reloj() - t0 > plazo:
+        _calienta()
+        return None
+    if raiz_descargada(texto):
+        _calienta()
+        return None
+    if codigo != 200:
         return None
     try:
         res = json.loads(texto)
