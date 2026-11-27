@@ -157,7 +157,61 @@ ESTADOS = {
 }
 
 
-# ── decisiones (puras) ──────────────────────────────────────────────────────────
+def auto_lanzar(sugerencias, cupos, ajustes, ahora):
+    """PURA: elige N agentes sugeridos para lanzar automáticamente."""
+    produccion_config = os.path.expanduser("~/.starseed/produccion/agentes-potentes.json")
+    try:
+        with open(produccion_config, "r") as f:
+            if not json.load(f).get("auto", False):
+                return []
+    except (OSError, ValueError):
+        return []
+
+    lanzados_path = os.path.expanduser("~/.starseed/agentes-potentes-lanzados.jsonl")
+    hoy = time.strftime("%Y-%m-%d", time.localtime(ahora))
+    contados = 0
+    if os.path.exists(lanzados_path):
+        with open(lanzados_path, "r") as f:
+            for line in f:
+                try:
+                    registro = json.loads(line)
+                    if time.strftime("%Y-%m-%d", time.localtime(registro["time"])) == hoy:
+                        contados += 1
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    
+    n_diario = ajustes.get("N", 4)
+    if contados >= n_diario:
+        return []
+
+    protegidos = ajustes.get("protegidos", [])
+    elegibles = []
+    for s in sugerencias:
+        if contados >= n_diario:
+            break
+        archivos = s.get("archivos") or s.get("destino") or s.get("ruta")
+        if archivos:
+            para_rechazar = False
+            for p in protegidos:
+                if isinstance(archivos, str) and archivos.startswith(p):
+                    para_rechazar = True
+                    break
+                if isinstance(archivos, list) and any(str(a).startswith(p) for a in archivos):
+                    para_rechazar = True
+                    break
+            if para_rechazar:
+                continue
+        coste = str(s.get("coste_estimado", "")).lower().strip()
+        cupo = s.get("cupo_hoy", 0)
+        if s.get("prioridad", 0) >= 90 and coste not in ["pagado", "pago"] and "sin clave api" in coste and cupo > 0:
+            elegibles.append(s)
+            contados += 1
+    
+    with open(lanzados_path, "a") as f:
+        for e in elegibles:
+            f.write(json.dumps({"id": e["id"], "time": ahora}) + "\n")
+            
+    return elegibles
 
 def puede_reabrir(marcas, ahora, espera_s=REABRIR_ESPERA_S, maximo=REAPERTURAS_MAX):
     """PURA. ¿Se puede reabrir una tarea con estas reaperturas vigentes (marcas de tiempo)?"""
@@ -1413,10 +1467,9 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                 lineas += [texto_medio(m) for m in futuro_medios.result()]
 
             # 4 · Agentes potentes (CAP1126A): sugerencias de agentes y modelos por tarea.
-            # Nada se lanza: solo se escriben en ~/.starseed/capacidad-sugerencias.json.
             sugerencias_result = {"sugerencias": [], "sin_cupo": []}
             try:
-                import sugerencias_potentes as SP  # noqa: E402
+                import sugerencias_potentes as SP
 
                 ctx = SP.contexto_desde_disco(ahora)
                 sugs, sin_cupo = SP.sugerencias_de_olas(
@@ -1425,7 +1478,13 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                 SP.guardar_sugerencias(SP.RUTA_SUGERENCIAS, sugs, sin_cupo)
                 lineas.append(SP.texto_linea(sugs, sin_cupo))
                 sugerencias_result = {"sugerencias": sugs, "sin_cupo": sin_cupo}
-            except Exception as e:  # noqa: BLE001 — este paso nunca frena el botón
+                # Lanzar agentes potentes automáticamente (con aprobación de Maggasukha)
+                if aplicar and sugs:
+                    lanzados_autos = auto_lanzar(sugs, cupos={}, ajustes={"N": 4}, ahora=ahora)
+                    if lanzados_autos:
+                        hechas.append("agentes potentes auto-lanzados: %d" % len(lanzados_autos))
+                        sumados += len(lanzados_autos)
+            except Exception as e:
                 lineas.append("Agentes potentes: no se pudieron calcular (%s)" % type(e).__name__)
 
             sin_trabajo = (
