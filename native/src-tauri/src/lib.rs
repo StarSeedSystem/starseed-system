@@ -53,6 +53,9 @@ mod ble_linux_logica;
 mod ble_linux;
 mod ble_muestras; // BLE1115C
 mod ble_trama;
+// BAP1127Y: espejo del registro por aparato, en su propio archivo y con rotación de tres piezas.
+mod registro_espejo;
+mod registro_espejo_logica;
 // CTL1123E: diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE.
 #[allow(dead_code)]
 mod ble_enlace_diagnostico;
@@ -971,6 +974,7 @@ pub fn run() {
                 ble::ble_pedir_permiso,
                 ble::ble_registro,
                 ble::ble_registro_anexar,
+                registro_espejo::registro_espejo_anexar, // BAP1127Y
                 ble::ble_canal_rapido,      // BLE1109B
                 ble::ble_enlace_ligado,     // BLE1109B
                 ble::ble_registro_compartir, // BLE1109B
