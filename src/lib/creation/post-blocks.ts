@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
+import { serializarBloqueRich } from "./serializacion-bloques-rich";
 
 /** Tipos de bloque. Los 5 primeros son LEGADOS (markdown en el cuerpo). */
 export type PostBlockType =
@@ -194,34 +195,14 @@ export function newBlockId(): string {
 
 /** Limpia campos transitorios/vacíos de un bloque para guardarlo en ss:meta. */
 export function serializeBlock(b: PostBlock): PostBlock {
-    const out: PostBlock = { id: b.id, type: b.type };
-    const put = <K extends keyof PostBlock>(k: K, v: PostBlock[K]) => {
-        if (v !== undefined && v !== null && v !== "") out[k] = v;
-    };
-    put("text", b.text);
-    put("url", b.url);
-    put("name", b.name);
-    put("code", b.code);
-    put("language", b.language);
-    if (typeof b.lat === "number" && Number.isFinite(b.lat)) out.lat = b.lat;
-    if (typeof b.lng === "number" && Number.isFinite(b.lng)) out.lng = b.lng;
-    put("place", b.place);
-    put("chartType", b.chartType);
-    if (Array.isArray(b.data) && b.data.length > 0) {
-        out.data = b.data
-            .map((d) => ({ label: String(d?.label ?? ""), value: Number(d?.value) }))
-            .filter((d) => Number.isFinite(d.value));
-    }
-    put("system", b.system);
-    put("persona", b.persona);
-    if (b.ref && typeof b.ref === "object" && b.ref.kind && b.ref.id) out.ref = b.ref;
-    if (b.marco && typeof b.marco === "object") out.marco = normalizarMarco(b.marco);
-    return out;
+    return serializarBloqueRich(b);
 }
 
 /** Serializa una lista de bloques (para embeber en ss:meta.blocks). */
 export function serializeBlocks(list: PostBlock[]): PostBlock[] {
-    return (list || []).map(serializeBlock);
+    return (list || [])
+        .filter((b): b is PostBlock => !!b && isRichBlock(b.type))
+        .map(serializeBlock);
 }
 
 // (Ola 224) Tope de tamaño para la metadata `ss:meta`. Viaja embebida en el body
