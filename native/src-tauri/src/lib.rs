@@ -918,8 +918,8 @@ pub fn run() {
     // la repite esta macro local en las dos plataformas y la lista de escritorio
     // (`ventana_remota` de APR1019A: xcap no se compila para móvil, ver
     // Cargo.toml) queda en su propio bloque `#[cfg(desktop)]`.
-    macro_rules! registrar_comandos {
-        ($builder:ident [$($solo_desktop:path),* $(,)?]) => {
+macro_rules! registrar_comandos {
+        ($builder:ident [ $( $(#[$attr:meta])* $path:path ),* $(,)? ]) => {
             $builder = $builder.invoke_handler(tauri::generate_handler![
                 check_update,
                 reiniciar_para_actualizar,
@@ -952,15 +952,6 @@ pub fn run() {
                 nativa::carpetas_conceder,
                 nativa::carpetas_revocar,
                 nativa::carpetas_nas,
-                nativa::serie_puertos,
-                nativa::serie_abrir,
-                nativa::serie_escribir,
-                nativa::serie_cerrar,
-                nativa::capas_estado,
-                nativa::capas_descargar,
-                nativa::capas_verificar,
-                nativa::capas_borrar,
-                nativa::nas_listar,
                 nativa::nas_leer,
                 almacenes::almacenes_listar,
                 malla_local::malla_local_enviar,
@@ -1057,7 +1048,7 @@ pub fn run() {
                 aparato_huella::huella_aparato_generar,
                 aparato_huella::huella_aparato_actual,
                 aparato_huella::huella_aparato_verificar,
-                $($solo_desktop,)*
+                $( $(#[$attr])* $path ),*
             ]);
         };
     }

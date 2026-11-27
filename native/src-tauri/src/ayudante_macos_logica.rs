@@ -269,7 +269,7 @@ mod pruebas {
 
     #[test]
     fn almacen_formatear_rechaza_serie_no_autorizada() {
-        let mut args = HashMap::new()
+        let mut args = HashMap::new();
         args.insert("serie".into(), "NO_AUTORIZADA".into());
         let params = ParametrosOrden {
             orden: OrdenAyudante::AlmacenFormatear,
