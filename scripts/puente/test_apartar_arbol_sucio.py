@@ -247,6 +247,57 @@ class ApartarArbolSucioTest(unittest.TestCase):
         self.assertEqual(len(tareas), 1)
         self.assertEqual(tareas[0]["id"], "REAPLICAR-20261125-213001")
 
+    def test_cola_fuente_es_atomica_y_no_deja_temporales(self):
+        """La cola fuente se escribe completa (JSON válido) sin dejar archivos .tmp-* sueltos."""
+        self.escribe("app.ts", "const a = 2\n")
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        temporales = [n for n in os.listdir(olas) if ".tmp-" in n]
+        self.assertEqual(temporales, [])
+        fuentes = self.colas_fuente()
+        self.assertEqual(len(fuentes), 1)
+        with open(fuentes[0], encoding="utf-8") as f:
+            self.assertIsInstance(json.load(f), list)
+
+    def test_avisa_solo_a_la_tanda_viva_mas_reciente(self):
+        """Con varias `cola-auto-*`, la tarea se añade a la más reciente y las viejas no se tocan."""
+        self.escribe("app.ts", "const a = 2\n")
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas, exist_ok=True)
+        vieja = os.path.join(olas, "cola-auto-1008-100000.json")
+        reciente = os.path.join(olas, "cola-auto-1008-160157.json")
+        for ruta in (vieja, reciente):
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump([{"id": "OTRA", "ola": "X"}], f)
+        os.utime(vieja, (1_700_000_000, 1_700_000_000))
+        os.utime(reciente, (1_700_000_100, 1_700_000_100))
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        with open(reciente, encoding="utf-8") as f:
+            vivas = json.load(f)
+        with open(vieja, encoding="utf-8") as f:
+            antiguas = json.load(f)
+        self.assertEqual(len(vivas), 2)
+        self.assertEqual(len(antiguas), 1)
+
+    def test_tanda_viva_con_formato_dict_conserva_sus_tareas(self):
+        """Si la tanda viva es `{"tareas": [...]}`, se conserva la clave y lo que ya había."""
+        self.escribe("app.ts", "const a = 2\n")
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas, exist_ok=True)
+        viva = os.path.join(olas, "cola-auto-1008-160157.json")
+        with open(viva, "w", encoding="utf-8") as f:
+            json.dump({"ola": "X", "tareas": [{"id": "OTRA", "ola": "X"}]}, f)
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        with open(viva, encoding="utf-8") as f:
+            datos = json.load(f)
+        self.assertEqual(datos["ola"], "X")
+        self.assertEqual(len(datos["tareas"]), 2)
+        self.assertEqual(datos["tareas"][0]["id"], "OTRA")
+        self.assertTrue(any(t["id"].startswith("REAPLICAR-") for t in datos["tareas"]))
+
     def test_nunca_borra_sin_copia_verificada(self):
         """Nunca borra archivos sin haber verificado la copia en cuarentena."""
         self.escribe("app.ts", "const a = 2\n")
