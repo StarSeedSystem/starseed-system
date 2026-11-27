@@ -55,7 +55,7 @@ import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
-import ElegirFondoInicial, { CATALOGO_FONDOS, FONDOS_OFICIALES } from "@/components/onboarding/elegir-fondo-inicial";
+import ElegirFondoInicial, { CATALOGO_FONDOS, FONDOS_OFICIALES, type OpcionFondoInicial } from "@/components/onboarding/elegir-fondo-inicial";
 import {
   DIAS_APLAZAMIENTO_FONDO, VERSION_CATALOGO_FONDOS, catalogoFondoAlDia, debeMostrarElegirFondo,
 } from "@/lib/onboarding/fondo-inicial";
