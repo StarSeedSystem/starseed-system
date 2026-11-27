@@ -125,9 +125,14 @@ class Pauta(unittest.TestCase):
         os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
+        # (DIR1127F) Hermética: sin esto la prueba llamaba a la Laya REAL de :4470 (que ahora sirve por el A1).
+        os.environ["STARSEED_SYSTEMONE_LOCALES"] = "http://127.0.0.1:1/v1/systemone"
+        locales_antes = jev.TRANSPORTE_LOCALES
+        jev.TRANSPORTE_LOCALES = lambda *_a, **_k: None
         try:
             r = jev.decidir({"tarea": "t"}, {"q": {"type": "noul", "instructions": "?"}})
         finally:
+            jev.TRANSPORTE_LOCALES = locales_antes
             os.environ.clear()
             os.environ.update(copia)
             sys.modules.pop("jev_local", None)

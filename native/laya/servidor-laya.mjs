@@ -123,7 +123,10 @@ export function crearManejador() {
     // `/health` lo consulta el Mando (src/app/api/mando/jev/route.ts); antes solo existía `/status` y Laya salía caído.
     if (metodo === "GET" && (url === "/status" || url === "/health" || url === "/")) {
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ cargado, ramLibreMb: obtenerRamLibreMb(), motivo: cargado ? "ok" : "descargado por inactividad" }));
+      // (DIR1127F) `remoto`: sin RAM aquí, las decisiones las sirve la Laya de STARSEED_LAYA_REMOTO (Jev la cuenta lista).
+      const ram = obtenerRamLibreMb();
+      const remoto = !cargado && ram < MIN_RAM_MB && Boolean((process.env.STARSEED_LAYA_REMOTO || "").trim());
+      return res.end(JSON.stringify({ cargado, remoto, ramLibreMb: ram, motivo: cargado ? "ok" : remoto ? "sirve por la Laya remota" : "descargado por inactividad" }));
     }
 
     if (metodo === "POST" && url === "/v1/systemone") {

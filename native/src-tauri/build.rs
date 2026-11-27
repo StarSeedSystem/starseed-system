@@ -118,6 +118,7 @@ const COMANDOS_APP: &[&str] = &[
     "ble_pedir_permiso",
     "ble_registro",
     "ble_registro_anexar",
+    "registro_espejo_anexar", // BAP1127Y: espejo de registros por aparato (DIR1127F lo añade al manifiesto)
     "ble_canal_rapido",       // BLE1109B
     "ble_enlace_ligado",      // BLE1109B
     "ble_registro_compartir", // BLE1109B

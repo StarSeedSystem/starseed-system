@@ -129,3 +129,17 @@ class TestDecidirLaya(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLayaRemotaDir1127F(unittest.TestCase):
+    """DIR1127F: la Laya de la Mac sin RAM que reenvía al A1 (`remoto: true`) cuenta como lista."""
+
+    def test_remoto_cuenta_como_cargada(self):
+        def transporte(_url, _plazo):
+            return 200, '{"cargado": false, "remoto": true, "ramLibreMb": 900}'
+        self.assertEqual(jev.estado_laya("http://127.0.0.1:4470/v1/systemone", transporte=transporte), {"cargado": True})
+
+    def test_sin_remoto_sigue_descargada(self):
+        def transporte(_url, _plazo):
+            return 200, '{"cargado": false, "ramLibreMb": 900}'
+        self.assertEqual(jev.estado_laya("http://127.0.0.1:4470/v1/systemone", transporte=transporte), {"cargado": False})

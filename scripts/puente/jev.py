@@ -695,7 +695,8 @@ def estado_laya(url=None, transporte=None, timeout=1.0):
         return None
     if codigo != 200 or not isinstance(dato, dict) or "cargado" not in dato:
         return None
-    return {"cargado": bool(dato["cargado"])}
+    # (DIR1127F) Una Laya sin RAM que reenvía a la de otro nodo (`remoto: true`) también sirve decisiones.
+    return {"cargado": bool(dato["cargado"]) or bool(dato.get("remoto"))}
 
 
 def calentar_laya(url=None, ahora=None, leer=None, escribir=None, lanzar=None):
