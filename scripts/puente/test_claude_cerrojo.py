@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """Pruebas para claude_cerrojo.py (CLA1126A)."""
 
+import contextlib
 import os
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -55,6 +55,19 @@ class TestLeerEntornoClaudeToken(unittest.TestCase):
         with mock.patch.dict(os.environ, {"CLAUDE_CODE_OAUTH_TOKEN": "del-entorno"}):
             token = C.leer_entorno_claude_token(self.env_file)
             self.assertEqual(token, "del-entorno")
+
+    def test_soporta_comillas_simples(self):
+        self.env_file.write_text("CLAUDE_CODE_OAUTH_TOKEN='sk-ant-simple'\n")
+        token = C.leer_entorno_claude_token(self.env_file)
+        self.assertEqual(token, "sk-ant-simple")
+
+    def test_ignora_comentarios_y_export_con_espacios(self):
+        self.env_file.write_text(
+            '# CLAUDE_CODE_OAUTH_TOKEN="no-es-esta"\n'
+            'export  CLAUDE_CODE_OAUTH_TOKEN="la-buena"\n'
+        )
+        token = C.leer_entorno_claude_token(self.env_file)
+        self.assertEqual(token, "la-buena")
 
 
 class TestPrepararEnvClaude(unittest.TestCase):
@@ -142,6 +155,26 @@ class TestCerrojoClaudeAuto(unittest.TestCase):
     def test_esta_ocupado_false_si_no_existe(self):
         self.assertFalse(C.esta_ocupado(ruta=Path("/no/existe/lock")))
 
+    def test_crea_el_archivo_y_su_directorio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = Path(tmp) / "nuevo" / "test.lock"
+            with C.cerrojo_claude_auto(ruta=ruta, espera_maxima=1, sondeo=0.01):
+                self.assertTrue(ruta.exists())
+
+    def test_espera_maxima_cero_falla_sin_esperar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = Path(tmp) / "test.lock"
+            import fcntl
+            fd_otro = open(ruta, "a")
+            fcntl.flock(fd_otro, fcntl.LOCK_EX)
+            try:
+                with self.assertRaises(TimeoutError):
+                    with C.cerrojo_claude_auto(ruta=ruta, espera_maxima=0, sondeo=0.01):
+                        pass
+            finally:
+                fcntl.flock(fd_otro, fcntl.LOCK_UN)
+                fd_otro.close()
+
 
 class TestAvisoNoLogueado(unittest.TestCase):
     def test_envia_aviso(self):
@@ -161,6 +194,62 @@ class TestAvisoNoLogueado(unittest.TestCase):
             avisos.append(tarea)
         C.avisar_no_logueado(fake_decir, None)
         self.assertIsNone(avisos[0])
+
+    def test_dice_que_hacer(self):
+        avisos = []
+        C.avisar_no_logueado(lambda texto, *_: avisos.append(texto), "t")
+        texto = avisos[0]
+        self.assertIn("setup-token", texto)
+        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", texto)
+        self.assertIn(".starseed/env", texto)
+
+    def test_no_filtra_el_token(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_OAUTH_TOKEN": "sk-secreto-123"}):
+            avisos = []
+            C.avisar_no_logueado(lambda texto, *_: avisos.append(texto), None)
+        self.assertNotIn("sk-secreto-123", avisos[0])
+
+
+class TestAvisoUnicoAlCorrerClaude(unittest.TestCase):
+    """El aviso «Not logged in» sale UNA sola vez por proceso, no en cada intento."""
+
+    def setUp(self):
+        M._reset_aviso_no_logueado()
+        self.avisos = []
+
+    def tearDown(self):
+        M._reset_aviso_no_logueado()
+
+    def _decir(self, texto, quien, tipo, tarea):
+        self.avisos.append({"texto": texto, "quien": quien, "tipo": tipo, "tarea": tarea})
+
+    def _correr_not_logged(self):
+        with mock.patch.object(M, "_correr", return_value=(0, "Not logged in · Please run /login")), \
+             mock.patch.object(M, "cerrojo_claude_auto", lambda *a, **k: contextlib.nullcontext()), \
+             mock.patch.object(M, "preparar_env_claude", side_effect=lambda env: env):
+            return M.correr(["claude", "-p", "hola"], canal_decir=self._decir, tarea_id="t-1")
+
+    def test_un_solo_aviso_entre_dos_intentos(self):
+        self._correr_not_logged()
+        self._correr_not_logged()
+        self.assertEqual(len(self.avisos), 1)
+        self.assertEqual(self.avisos[0]["quien"], "claude-cerrojo")
+        self.assertEqual(self.avisos[0]["tipo"], "aviso")
+
+    def test_sin_no_logueado_no_avisa(self):
+        with mock.patch.object(M, "_correr", return_value=(0, "using your subscription")), \
+             mock.patch.object(M, "cerrojo_claude_auto", lambda *a, **k: contextlib.nullcontext()), \
+             mock.patch.object(M, "preparar_env_claude", side_effect=lambda env: env):
+            M.correr(["claude", "-p", "hola"], canal_decir=self._decir, tarea_id="t-1")
+        self.assertEqual(self.avisos, [])
+
+    def test_orden_manual_no_toma_cerrojo_ni_avisa(self):
+        def cerrojo_prohibido(*a, **k):
+            raise AssertionError("una orden manual no debe tomar el cerrojo automático")
+        with mock.patch.object(M, "_correr", return_value=(0, "Not logged in · Please run /login")), \
+             mock.patch.object(M, "cerrojo_claude_auto", cerrojo_prohibido):
+            M.correr(["claude", "chat"], canal_decir=self._decir, tarea_id="t-1")
+        self.assertEqual(self.avisos, [])
 
 
 class TestResetAviso(unittest.TestCase):
