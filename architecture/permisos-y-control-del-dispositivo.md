@@ -497,7 +497,58 @@ aquí, si una fila no está concedida o si los orígenes o plataformas de una fi
 macOS (título en la barra de menús), Windows y Linux; que «Quitar el acceso al equipo ahora» funciona con la
 página colgada; que el icono vuelve al reiniciar; que tras el «sí» el instalador de Ollama se abre; que la web
 publicada sigue funcionando sin `core:default` (ninguna llamada a `plugin:tray|`/`plugin:menu|` en `src/`); y
-que la app de Nexus y la de Café siguen igual sin IPC.
+que la app de Nexus y de Café siguen igual sin IPC.
+
+#### §4.8.3 La terminal entre neuronas: ejecución con salida en vivo (TRM1125B)
+
+Contrato: `architecture/terminal-entre-neuronas.md` y `architecture/control-remoto-entre-neuronas.md`
+(sus reglas siguen en pie). Añade a §4.8 dos comandos nativos que **no abren una vía nueva**: usan la
+misma concesión «acceso al equipo» de §4.8, que se da **en el propio aparato** con su diálogo nativo y
+se ve y se quita con su icono. Están **apagados por defecto**; ningún voto ni orden remota los enciende.
+
+- **Qué comandos y con qué permiso:** `terminal_ejecutar` (corre una orden y devuelve el resultado) y
+  `terminal_cancelar` («Terminar»: mata el proceso en curso). Su permiso (`allow-terminal-ejecutar`,
+  `allow-terminal-cancelar`) vive en `capabilities/acceso-equipo.json`, **solo escritorio**, **solo la
+  ventana `main`** y **solo** la web publicada de StarSeed OS y su servidor local (`OS+local`); los
+  comandos se registran en `lib.rs`, `COMANDOS_APP` (`build.rs`) y la fila de §4.8.1. En Android/iOS no
+  existen. El nivel **administrador** no añade ningún permiso de sistema: va por el **ayudante con
+  privilegios** (TRM1125C), nunca por `sudo` con contraseña.
+- **Dos niveles, y qué permite cada uno** (`terminal_remota_logica.rs`, lógica pura con sus pruebas):
+  `usuario` es la terminal de la cuenta sin privilegios y **solo ejecuta directo** las órdenes sin
+  ninguna clase de riesgo; una orden con riesgo se **rechaza** aquí (`necesita-nivel-administrador`) y
+  debe confirmarse antes, en la capa que la sella. `administrador` permite ejecutar todo, pero las
+  órdenes de riesgo se confirman **una a una**. La clasificación es la misma red de §4.8 (borrar,
+  sistema/permisos/procesos, credenciales, mensajes fuera, instalar y órdenes opacas): es una red, no
+  una garantía; lo que de verdad acota es la concesión, el aviso visible y el registro.
+- **Salida en vivo por tuberías, sin PTY** (no hay crate nuevo): la orden corre con `sh -c` (Windows
+  `cmd /C`) con `stdout`/`stderr` como tuberías; dos hilos leen línea a línea y emiten los eventos
+  `terminal:stdout` y `terminal:stderr` `{orden, linea}` a la página, que los pinta en tiempo real. Una
+  sola orden a la vez por aparato (candado); si ya hay una, responde `ocupado`.
+- **Topes:** tiempo máximo (defecto 30 s), salida máxima (defecto 100 KB) y orden de hasta 8 000
+  caracteres. Al agotarse el tiempo o al pulsar «Terminar» se mata el proceso hijo (`child.kill`) y el
+  resultado lo dice (`tiempo_agotado`, `truncada`). Los topes se pueden acortar por llamada
+  (`tiempo_max_ms`, `salida_max_bytes`), nunca alargar más allá de lo razonable.
+- **Sellado y anti-repetición:** las órdenes que llegan por la malla van selladas con lo que ya existe
+  (`src/lib/control-remoto/sellado.ts` y `orden.ts`: firma, `seq`, caducidad y topes de ritmo) y se
+  verifican **antes** de invocar el comando; `terminal_ejecutar` ejecuta lo que la página ya validó y,
+  además, vuelve a exigir la concesión «acceso al equipo» en Rust. **Con el aparato bloqueado no entra
+  nada**, como en §4.7. Las contraseñas **nunca viajan**: no hay campo de contraseña ni `sudo` con
+  contraseña en ningún camino.
+- **Registro:** cada suceso va al registro encadenado de §4.8 (`acceso-equipo.log`, SHA-256):
+  `rechazada-nivel` con sus clases, `ejecutada` con la orden (hasta 2 000 caracteres) y `terminada` con
+  el código de salida; **nunca la salida** de la orden. En `enlaces.log` solo una línea `[terminal]` por
+  suceso, sin la orden. Así queda legible quién, cuándo y qué se ejecutó.
+- **Qué falta y por qué no se finge:** el nivel administrador real (ayudante con privilegios, TRM1125C),
+  la pantalla de la terminal en la web y el trozo que pinta los eventos son de otras piezas de la
+  cadena; hasta que existan, los comandos están listos en Rust y ninguna página los llama todavía. La
+  salida completa se devuelve al final, pero en esta primera versión los hilos solo emiten los eventos
+  (la captura por canales llega con la pantalla). Sin PTY no hay programas interactivos de pantalla
+  completa: eso también espera a la pieza que decida si entra un crate de PTY.
+
+**Lo que solo un aparato puede confirmar:** que el icono «● Acceso al equipo» sale mientras la terminal
+ejecuta; que «Terminar» corta una orden larga y el proceso hijo no queda vivo; que el tope de tiempo
+mata a los 30 s; que las órdenes con riesgo se rechazan en `usuario` y se confirman en `administrador`;
+y que el registro encadenado sigue íntegro (`registro_integro`) tras varias ejecuciones.
 
 
 ---

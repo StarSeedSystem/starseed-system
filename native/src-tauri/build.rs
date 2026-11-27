@@ -44,8 +44,13 @@ const COMANDOS_APP: &[&str] = &[
     // (SEG1111U) Solo escritorio y con «acceso al equipo» (acceso_equipo.rs); su permiso solo lo da
     // capabilities/acceso-equipo.json. Inventario: architecture/permisos-y-control-del-dispositivo.md §4.8.1.
     "run_terminal",
-    // (TRM1125B) Terminal entre neuronas: ejecución nativa con salida en vivo (comando terminal_ejecutar).
-    // Solo escritorio, con «acceso al equipo» y nivel concedido (usuario/administrador vía ayudante TRM1125C).
+    // (TRM1125B) Terminal entre neuronas: `terminal_ejecutar` corre en el aparato controlado lo que permite
+    // el nivel concedido, con salida en vivo por tuberías (eventos `terminal:stdout`/`terminal:stderr`),
+    // topes de tiempo y de salida, y `terminal_cancelar` corta la orden en curso con «Terminar». Solo
+    // escritorio, con «acceso al equipo» dado EN el aparato; el nivel `administrador` solo va por el
+    // ayudante con privilegios (TRM1125C), nunca `sudo` con contraseña. Su permiso vive en
+    // capabilities/acceso-equipo.json. Inventario y detalle: architecture/permisos-y-control-del-dispositivo.md
+    // §4.8.1 y §4.8.3.
     "terminal_ejecutar",
     "terminal_cancelar",
     "check_update",
