@@ -417,7 +417,7 @@ def auto_lanzar(sugerencias, cupos, ajustes, ahora):
 
     cada lanzamiento se registra en ~/.starseed/agentes-potentes-lanzados.jsonl.
     Engancha el lanzamiento real usando la MISMA función que ya usaría una aprobación manual
-    (no inventes otra vía).
+    (correr_agy_fondo de motores_director.py, no inventes otra vía).
     """
     import json
     import os
@@ -510,23 +510,49 @@ def auto_lanzar(sugerencias, cupos, ajustes, ahora):
         return {"ok": True, "lanzados": 0, "mensaje": "no hay candidatas para lanzar hoy"}
 
     # Lanzar cada sugerencia usando la misma función que aprobación manual
-    # El modo ya viene definido en cada sugerencia ('plan' por defecto)
+    # Importar aquí para evitar import circular en algunos contextos
+    from motores_director import correr_agy_fondo
+
     lanzados = []
     registro_path = os.path.expanduser("~/.starseed/agentes-potentes-lanzados.jsonl")
 
     for s in a_lanzar:
         tarea_id = s.get("id", "")
         modelo = s.get("modelo", "")
-        modo = s.get("modo", "plan")
         prioridad = s.get("prioridad", 0)
+
+        # Construir prompt a partir de los datos de la sugerencia y tarea
+        titulo = s.get("titulo", "")
+        tipo = s.get("tipo", "")
+        motivo = s.get("motivo", "")
+
+        # Prompt simple para agy en modo plan
+        prompt = f"""Tarea: {titulo}
+
+Tipo: {tipo}
+Motivo: {motivo}
+
+Por favor, crea un plan para esta tarea usando Antigravity CLI en modo plan. No ejecutes código, solo propone el plan."""
+        
+        # Ejecutar lanzamiento con correr_agy_fondo (modo plan)
+        try:
+            resultado = correr_agy_fondo(
+                prompt=prompt,
+                papel="director_presidente",
+                segundos=600,  # 10 min timeout
+            )
+        except Exception as e:
+            resultado = None
 
         # Registrar en el historial de lanzamientos
         fila_registro = {
             "id": tarea_id,
             "modelo": modelo,
-            "modo": modo,
+            "modo": "plan",
             "prioridad": prioridad,
             "timestamp": datetime.fromtimestamp(ahora, tz=timezone.utc).isoformat(),
+            "lanzamiento_exitoso": resultado is not None and bool(resultado.texto) if resultado else False,
+            "resultado_texto": resultado.texto if resultado else "",
         }
         try:
             # Cargar registro existente
@@ -561,7 +587,7 @@ def auto_lanzar(sugerencias, cupos, ajustes, ahora):
         lanzados.append({
             "id": tarea_id,
             "modelo": modelo,
-            "modo": modo,
+            "modo": "plan",
             "prioridad": prioridad,
         })
 
