@@ -30,6 +30,10 @@
     "allow-run-terminal",
     "allow-terminal-ejecutar",
     "allow-terminal-cancelar",
+    "allow-ayudante-registrar",
+    "allow-ayudante-desregistrar",
+    "allow-ayudante-estado",
+    "allow-ayudante-ejecutar",
     "allow-acceso-equipo-estado",
     "allow-acceso-equipo-pedir",
     "allow-acceso-equipo-revocar"
