@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "sesiones-1126",
+   "prioridad": 94,
+   "capacidad": "alta",
+   "id": "SES1126A-d1",
+   "titulo": "Los directores inician las sesiones: abren la Terminal o el enlace en la neurona de Maggasukha, avisan por Telegram y siguen solos (parte 1 de 3)",
+   "archivos": [
+    "scripts/puente/sanador_sesiones.py"
+   ],
+   "depende": [],
+   "prompt": "Regla permanente de Maggasukha (26-11, ver «Lo único que hace Maggasukha» en metagenesis.md): lo único que hace él es poner claves e iniciar sesión; todo lo demás lo hacen los directores. Hoy el sanador de sesiones (scripts/puente/sanador_sesiones.py) termina en «escalado autoservicio» y las CLI de la Mac (claude, gh, agy, codex, vercel) se quedan sin sesión hasta que alguien se lo pide en el chat. Hacer abrir_inicio_sesion.py: (1) para cada sesión caída que solo una persona puede renovar, genera un guion .command (macOS) / .sh (Linux) que lanza el inicio de sesión (`claude auth login` + `claude setup-token`, `gh auth login --web`, …) y, si hace falta una clave, la pide con `read -s` y la guarda en ~/.starseed/env (600) sin imprimirla nunca; (2) en la neurona donde está Maggasukha lo abre con `open -a Terminal <guion>.command` (sin AppleScript ni permisos de automatización); si no hay sesión gráfica, manda al canal Principal con Telegram el enlace de inicio de sesión o el comando exacto; (3) un vigía espera el archivo de estado del guion, comprueba (`claude auth status`, `gh auth status`…) y avisa una sola vez en el canal Principal; (4) nunca más de un aviso por sesión cada 6 h; (5) el sanador llama a esto en vez de «escalado autoservicio». Modelo: ~/.starseed/opus1125s/sesion_claude.sh y esperar_sesion_claude.sh de la dirección. Pruebas sin abrir nada real (simular open, Telegram y las CLI).\n\n## PARTE 1 DE 3 (la dirección dividió SES1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: scripts/puente/sanador_sesiones.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SES1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "terminal-neuronas-1125",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "revisor": {
+    "origen": "TRM1125B-d2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "id": "TRM1125B-d2-d3",
+   "titulo": "Terminal entre neuronas: ejecución nativa con salida en vivo (comando terminal_ejecutar) (parte 2 de 3) (parte 3 de 3)",
+   "archivos": [
+    "architecture/permisos-y-control-del-dispositivo.md"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Ejecuta en el aparato controlado lo que permite el nivel concedido, con salida en vivo por tuberías (sin PTY si no hay crate), tope de tiempo y de salida, cancelación con «Terminar», y registro. La lógica de decisión (¿se permite esta orden con este permiso?) en terminal_remota_logica.rs con pruebas. Nivel administrador: solo a través del ayudante con privilegios (TRM1125C), nunca sudo con contraseña.\n\n## PARTE 2 DE 3 (la dirección dividió TRM1125B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: native/src-tauri/build.rs, native/src-tauri/capabilities/default.json, architecture/permisos-y-control-del-dispositivo.md. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## PARTE 3 DE 3 (la dirección dividió TRM1125B-d2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: architecture/permisos-y-control-del-dispositivo.md. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor_quitadas": [
+    "TRM1125B-d2-d2"
+   ]
+  },
+  {
+   "ola": "cerebros-neuronas-1126",
+   "prioridad": 84,
+   "capacidad": "alta",
+   "id": "SEN1126C-d2",
+   "titulo": "Señales en la app nativa: las antenas dicen lo que hace la app, no lo que no hace el navegador (parte 2 de 2)",
+   "archivos": [
+    "src/components/mesh/__tests__/signals-center-nativo.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Medido el 26-11 en la app nativa de macOS (.64): la parte baja de Señales enseña textos del navegador dentro de la app: «Web Bluetooth no soportado en este navegador», «Sin API», «Web Serial no soportado», «Instalar StarSeed OS (app)» y «StarSeed OS en Mac · recomendado» estando ya en la app. En Tauri (detección nativa que ya usa el proyecto) cada antena enseña lo que la app nativa sí hace (BLE, serie/USB, Wi‑Fi, malla) o «no disponible en este aparato» con el motivo real, y no se ofrece instalar la app dentro de la app. En la web todo sigue igual. Prueba con plataforma tauri-escritorio y con web.\n\n## PARTE 2 DE 2 (la dirección dividió SEN1126C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mesh/__tests__/signals-center-nativo.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SEN1126C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SEN1126C-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "TRM1125B-d2-d3",
+   "SES1126A-d1",
+   "SEN1126C-d2"
+  ]
+ }
+}
