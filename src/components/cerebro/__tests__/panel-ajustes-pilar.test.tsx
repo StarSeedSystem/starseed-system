@@ -10,12 +10,17 @@ import PanelAjustesPilar, {
   valoresRecomendadosDeSeccion,
   type SeccionAjustesPilar,
 } from "../panel-ajustes-pilar";
+import { ProcesosAjustesContenido } from "../procesos-ajustes";
 
 expect.extend(matchers);
 afterEach(cleanup);
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/cerebro");
+  vi.resetModules();
+  if (typeof window !== "undefined") {
+    window.localStorage.clear();
+  }
 });
 
 function montar(props: { seccionInicial?: SeccionAjustesPilar | null } = {}) {
@@ -33,6 +38,30 @@ function montar(props: { seccionInicial?: SeccionAjustesPilar | null } = {}) {
         pilar="memoria"
         pilarEtiqueta="Memorias"
         seccionInicial={props.seccionInicial}
+        renderContenido={renderContenido}
+        onVolverRecomendado={onVolverRecomendado}
+        onSeccionChange={onSeccionChange}
+      />
+    </AppearanceProvider>,
+  );
+  return { renderContenido, onVolverRecomendado, onSeccionChange, onOpenChange };
+}
+
+function montarProcesos(seccionInicial?: SeccionAjustesPilar | null) {
+  const onVolverRecomendado = vi.fn();
+  const onSeccionChange = vi.fn();
+  const onOpenChange = vi.fn();
+  const renderContenido = vi.fn((seccion: SeccionAjustesPilar) => (
+    <ProcesosAjustesContenido key={seccion} seccion={seccion} brainId={null} />
+  ));
+  render(
+    <AppearanceProvider>
+      <PanelAjustesPilar
+        open
+        onOpenChange={onOpenChange}
+        pilar="procesos"
+        pilarEtiqueta="Procesos activos"
+        seccionInicial={seccionInicial}
         renderContenido={renderContenido}
         onVolverRecomendado={onVolverRecomendado}
         onSeccionChange={onSeccionChange}
@@ -117,5 +146,35 @@ describe("PanelAjustesPilar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sí, volver" }));
     expect(onVolverRecomendado).toHaveBeenCalledTimes(1);
     expect(onVolverRecomendado).toHaveBeenCalledWith("privacidad");
+  });
+});
+
+describe("PanelAjustesPilar con pilar Procesos", () => {
+  it("monta y muestra contenido de General (tipos visibles, intervalo, servidores ocultos)", () => {
+    const { renderContenido } = montarProcesos();
+    expect(screen.getByTestId("panel-ajustes-pilar")).toBeInTheDocument();
+    expect(screen.getByText("Tipos visibles")).toBeInTheDocument();
+    expect(screen.getByText("Intervalo de monitoreo")).toBeInTheDocument();
+    expect(screen.getByText("Servidores ocultos")).toBeInTheDocument();
+    expect(renderContenido).toHaveBeenLastCalledWith("general");
+  });
+
+  it("abre la sección Avanzado por enlace directo ?tab=procesos&ajustes=avanzado", () => {
+    window.history.replaceState(null, "", "/cerebro?tab=procesos&ajustes=avanzado");
+    const { renderContenido } = montarProcesos();
+    expect(renderContenido).toHaveBeenLastCalledWith("avanzado");
+    expect(screen.getByText("Umbrales de aviso")).toBeInTheDocument();
+  });
+
+  it("filtra la búsqueda en el pilar Procesos", () => {
+    montarProcesos();
+    fireEvent.change(screen.getByLabelText("Buscar en los ajustes"), { target: { value: "avanzado" } });
+    expect(screen.getByRole("button", { name: "Avanzado" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "General" })).toBeNull();
+  });
+
+  it("enlace directo genera URL correcta para procesos", () => {
+    expect(enlaceAjustes("procesos", "avanzado")).toBe("?tab=procesos&ajustes=avanzado");
+    expect(urlConAjustes("/cerebro?brain=x", "procesos", "general")).toBe("/cerebro?brain=x&tab=procesos&ajustes=general");
   });
 });
