@@ -7,6 +7,12 @@
 // reloj: la petición YA trae las respuestas — nunca se espera a Laya aquí.
 import type { TaskProfile } from "./router";
 import { puntoDecision, UMBRAL_POR_DEFECTO } from "@/lib/astraura/laya/puntos-decision";
+import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
+import {
+  PLAZO_LAYA_CORTO_MS, anunciaLaya, cuerpoDecisionLaya, elegirParLaya,
+  respuestasLayaDeCuerpo, relojLayaCorto, conPlazoLaya,
+  type NodoLayaMalla, type PreguntaLayaMalla, type RelojLayaCorto,
+} from "@/lib/network/laya-por-malla";
 
 /** Una respuesta individual de Laya/Jev, con su forma real de sistema uno. */
 export interface RespuestaLaya {
@@ -133,4 +139,103 @@ export function refinarConLaya(
   } catch {
     return clasificacion;
   }
+}
+
+/* ---- LAY1127E: Laya en cada neurona, con vuelta exacta al router de siempre ---- */
+
+export const CLAVE_AJUSTE_LAYA = "starseed.astraura.laya.v1";
+export const CLAVE_AJUSTE_LAYA_ANTERIOR = "starseed.astraura.laya";
+
+/** Almacén local mínimo; se inyecta para probar sin disco ni navegador. */
+export interface AlmacenLaya {
+  getItem: (clave: string) => string | null;
+  setItem?: (clave: string, valor: string) => void;
+}
+
+/** localStorage de la neurona, si existe; nunca lanza (modo privado o SSR). */
+export function almacenLocalLaya(): AlmacenLaya | null {
+  try {
+    const local = typeof localStorage === "undefined" ? null : localStorage;
+    return local ? { getItem: (clave: string) => local.getItem(clave) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ENCENDIDO por defecto; un valor guardado (el viejo incluido) manda y NUNCA se pisa. */
+export function leerAjusteLaya(almacen?: AlmacenLaya | null): boolean {
+  const lugar = almacen === undefined ? almacenLocalLaya() : almacen;
+  try {
+    const guardado = lugar?.getItem(CLAVE_AJUSTE_LAYA);
+    const anterior = guardado === null ? lugar?.getItem(CLAVE_AJUSTE_LAYA_ANTERIOR) : null;
+    const valor = guardado ?? anterior;
+    if (valor === null || valor === undefined) return true;
+    return valor !== "false" && valor !== "0" && valor !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export interface PedidoLayaCorto {
+  cuentaId: string;
+  estado: string;
+  preguntas: Record<string, PreguntaLayaMalla>;
+  /** Ficha medida de ESTA neurona: solo con Laya anunciada se prueba el local. */
+  miFicha?: CapacidadesNodo | null;
+  /** Vecinos ya conectados; `elegirParLaya` filtra por cuenta y capacidad. */
+  nodos?: readonly NodoLayaMalla[];
+  almacen?: AlmacenLaya | null;
+  layaLocal?: (cuerpo: string) => Promise<unknown>;
+  reloj?: RelojLayaCorto;
+}
+
+export type ResultadoLayaCorto<T> =
+  | { origen: "local" | "malla"; respuestas: RespuestasLaya; ms: number }
+  | { origen: "router"; respuesta: T; ms: number; motivo: string };
+
+/** Solo respuestas con forma de decisión; las formas raras se descartan. */
+function respuestasUtiles(cuerpo: unknown): RespuestasLaya | null {
+  const crudas = respuestasLayaDeCuerpo(cuerpo);
+  if (!crudas) return null;
+  const salida: Record<string, RespuestaLaya> = {};
+  for (const [nombre, valor] of Object.entries(crudas)) {
+    if (valor && typeof valor === "object" && !Array.isArray(valor)) {
+      salida[nombre] = valor as RespuestaLaya;
+    }
+  }
+  return Object.keys(salida).length > 0 ? salida : null;
+}
+
+/**
+ * Las decisiones cortas de Astraura se resuelven PRIMERO en Laya de esta neurona
+ * (si la ficha la anuncia), después en un vecino de la MISMA cuenta (laya-por-malla),
+ * con un plazo total de 2 s. Si no hay respuesta, se devuelve EXACTAMENTE lo que
+ * daría el router de siempre (`router()`), sin reescribirlo. Sin red, disco ni
+ * reloj propios: todo entra por `p`.
+ */
+export async function decidirCortoConLaya<T>(
+  p: PedidoLayaCorto, router: () => T | Promise<T>,
+): Promise<ResultadoLayaCorto<T>> {
+  const reloj = p.reloj ?? relojLayaCorto();
+  const inicio = reloj.ahora();
+  const restante = (): number => Math.max(0, PLAZO_LAYA_CORTO_MS - (reloj.ahora() - inicio));
+  const volver = async (motivo: string): Promise<ResultadoLayaCorto<T>> => ({
+    origen: "router", respuesta: await router(), ms: reloj.ahora() - inicio, motivo,
+  });
+
+  if (!leerAjusteLaya(p.almacen)) return volver("Laya apagada por el ajuste local de esta neurona");
+  const cuerpo = cuerpoDecisionLaya(p.estado, p.preguntas);
+  const local = p.layaLocal;
+  if (local && anunciaLaya(p.miFicha)) {
+    const respuesta = await conPlazoLaya(() => local(cuerpo), restante(), reloj);
+    const utiles = respuestasUtiles(respuesta);
+    if (utiles) return { origen: "local", respuestas: utiles, ms: reloj.ahora() - inicio };
+  }
+  const vecino = elegirParLaya(p.nodos ?? [], p.cuentaId, p.miFicha?.nodoId);
+  if (vecino) {
+    const respuesta = await conPlazoLaya(() => vecino.responder(cuerpo), restante(), reloj);
+    const utiles = respuestasUtiles(respuesta);
+    if (utiles) return { origen: "malla", respuestas: utiles, ms: reloj.ahora() - inicio };
+  }
+  return volver("Laya no respondió a tiempo en esta neurona ni en la malla de la cuenta");
 }
