@@ -49,7 +49,7 @@ fn series_autorizadas(app: &AppHandle) -> Vec<String> {
 fn ruta_config(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_config_dir()
         .map(|d| d.join("ayudante-series-autorizadas.json"))
-        .ok_or_else(|| "sin carpeta de configuración".into())
+        .map_err(|e| format!("sin carpeta de configuración: {e}"))
 }
 
 /// Dónde se guarda el registro del ayudante.
@@ -188,7 +188,7 @@ fn estado(app: &AppHandle) -> EstadoAyudante {
         if version.major >= 13 {
             (true, String::new())
         } else {
-            (false, format!("macOS {} demasiado antiguo: se necesita 13.0 (Ventura) o posterior para SMAppService", version))
+            (false, format!("macOS {}.{} demasiado antiguo: se necesita 13.0 (Ventura) o posterior para SMAppService", version.major, version.minor))
         }
     };
     EstadoAyudante {
