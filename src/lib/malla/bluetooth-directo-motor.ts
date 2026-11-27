@@ -62,6 +62,7 @@ import {
   datosAsociadosSecreto,
   enlaceDeIdBle,
   enlacesBle,
+  filtrarSaludosEnDescanso,
   idEnlaceBle,
   leerControlEnlace,
   leerEstadoBle,
@@ -121,6 +122,8 @@ import {
 } from "./canal-rapido-ajuste"; // BLE1109B
 import type { EnlaceDisponible } from "./eleccion-enlace";
 import type { CanalArchivos } from "@/lib/network/archivos-malla";
+
+export { filtrarSaludosEnDescanso };
 
 /** (BLE1110A) Espejo continuo del registro: cada tanto, lo nuevo, acotado en bytes y a prioridad mínima. */
 const ESPERA_ESPEJO_CONTINUO_BLE_MS = 25_000;
@@ -283,24 +286,6 @@ export function filtrarSaludosConWifiDirecto(
   return destinos.filter((d) => {
     try {
       return conWifiDirecto(d.para) !== true;
-    } catch {
-      return true;
-    }
-  });
-}
-
-/**
- * (BLE1124A) Quita los saludos hacia enlaces en descanso tras una caída (2 s, 5 s, 15 s) o ya dados por mudos:
- * insistir contra una dirección caducada solo llena el registro de «sin acuse» y no acerca el ligado. Si la
- * consulta falla, se saluda igual: un error de lectura nunca deja un enlace sin ligar. Puro.
- */
-export function filtrarSaludosEnDescanso(
-  destinos: ReadonlyArray<{ enlace: string; para: string }>,
-  enDescanso: (enlace: string) => boolean,
-): Array<{ enlace: string; para: string }> {
-  return destinos.filter((d) => {
-    try {
-      return enDescanso(d.enlace) !== true;
     } catch {
       return true;
     }
