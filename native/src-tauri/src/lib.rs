@@ -56,6 +56,9 @@ mod ble_trama;
 // CTL1123E: diagnóstico puro para evitar listo-tarde y le-connection-abort-by-local en BLE.
 #[allow(dead_code)]
 mod ble_enlace_diagnostico;
+// BAP1127Y: espejo del registro por aparato con rotación propia (comando nativo).
+mod registro_espejo_logica;
+mod registro_espejo;
 // (PTA1108B) El webview, las descargas de Rust y el proxy de la puerta de internet de la malla (contrato §5.3 c).
 mod puerta_proxy;
 // (UBI1114K) La posición del aparato por la vía nativa: CoreLocation en macOS, LocationManager en Android.
@@ -971,6 +974,7 @@ pub fn run() {
                 ble::ble_pedir_permiso,
                 ble::ble_registro,
                 ble::ble_registro_anexar,
+                registro_espejo::registro_espejo_anexar, // BAP1127Y
                 ble::ble_canal_rapido,      // BLE1109B
                 ble::ble_enlace_ligado,     // BLE1109B
                 ble::ble_registro_compartir, // BLE1109B
