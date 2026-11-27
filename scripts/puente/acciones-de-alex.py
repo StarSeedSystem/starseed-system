@@ -1076,10 +1076,131 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     }
 
 
+# ─── DIS1126B · estados de «Te toca a ti»: lo que Maggasukha acepta cambia algo y se ve en todos los canales ───
+RUTA_ESTADOS = os.path.join(RAIZ, "starseed_memory_root", "mando", "acciones-estado.json")
+RUTA_DOSSIERS = os.path.join(RAIZ, "starseed_memory_root", "mando", "dossiers-pendientes.json")
+ETIQUETAS_ESTADO = {
+    "pendiente": "pendiente", "aceptada_con_condiciones": "aceptada con condiciones",
+    "preparando": "preparando el dossier", "lista_para_aprobar": "lista para aprobar",
+    "aprobada": "aprobada", "rechazada": "rechazada",
+}
+TRANSICIONES = {
+    "pendiente": {"aceptada_con_condiciones", "lista_para_aprobar", "aprobada", "rechazada"},
+    "aceptada_con_condiciones": {"preparando", "rechazada"},
+    "preparando": {"lista_para_aprobar", "rechazada"},
+    "lista_para_aprobar": {"aprobada", "rechazada"},
+    "aprobada": set(), "rechazada": set(),
+}
+#: Acciones que ya no se piden: se cierran solas (Drive ya tiene `drive.file` en la Mac y en el A1).
+PREFIJOS_OBSOLETOS = ("drive-escritura-",)
+
+
+def leer_estados(ruta=None):
+    try:
+        with open(ruta or RUTA_ESTADOS, encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _guardar_json(ruta, datos):
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(ruta + ".tmp", ruta)
+
+
+def texto_de_estado(titulo, estado, condiciones="", por="Maggasukha"):
+    """PURA: el MISMO texto en todos los canales (Telegram, Genesis, MetaGenesis, bus)."""
+    t = "Te toca a ti · %s: %s (%s)." % (titulo or "acción", ETIQUETAS_ESTADO.get(estado, estado), por or "Maggasukha")
+    if condiciones:
+        t += " Condiciones: %s." % " ".join(str(condiciones).split())[:400]
+    if estado == "preparando":
+        t += " El director de diseño prepara el dossier por caso y te lo envía por este canal."
+    elif estado == "lista_para_aprobar":
+        t += " Nada se gasta hasta que la apruebes."
+    elif estado == "aprobada":
+        t += " Se ejecuta ahora."
+    return t
+
+
+def _difundir_bus(texto):
+    """Mismo texto al bus de eventos (lo ven Genesis y MetaGenesis). Nunca lanza."""
+    try:
+        import puerta_datos_cliente as P
+        P.Puerta.desde_entorno(rol="enjambre").publicar_evento("te-toca", "te_toca_estado", texto[:1500], datos={})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def registrar_estado(id_accion, nuevo, condiciones="", por="Maggasukha", canal="", titulo="", ruta=None, difundir=None):
+    """Cambia el estado de una acción si la transición es válida, lo guarda y lo dice en los canales."""
+    estados = leer_estados(ruta)
+    ficha = estados.get(id_accion) or {"estado": "pendiente", "condiciones": "", "historial": []}
+    actual = ficha["estado"]
+    if nuevo not in TRANSICIONES.get(actual, set()):
+        return {"ok": False, "estado": actual, "error": "no puede pasar de %s a %s" % (actual, nuevo),
+                "texto": "Te toca a ti · %s sigue %s: falta ese paso antes de %s%s." % (
+                    titulo or id_accion, ETIQUETAS_ESTADO.get(actual, actual), ETIQUETAS_ESTADO.get(nuevo, nuevo),
+                    " (el dossier que pediste)" if actual in ("aceptada_con_condiciones", "preparando") else "")}
+    conds = condiciones or ficha.get("condiciones") or ""
+    cuando = __import__("time").strftime("%Y-%m-%d %H:%M")
+    estados[id_accion] = {"estado": nuevo, "condiciones": conds, "por": por, "canal": canal, "cuando": cuando,
+                          "historial": (ficha.get("historial") or [])[-20:] + [[cuando, nuevo, canal]]}
+    try:
+        _guardar_json(ruta or RUTA_ESTADOS, estados)
+    except OSError:
+        pass
+    texto = texto_de_estado(titulo or id_accion, nuevo, conds, por)
+    (difundir or _difundir_bus)(texto)
+    return {"ok": True, "estado": nuevo, "texto": texto, "condiciones": conds}
+
+
+def aceptar_accion_con_condiciones(id_accion, condiciones="", por="Maggasukha", canal="", titulo="",
+                                   ruta=None, ruta_dossiers=None, difundir=None):
+    """Sin condiciones: lista para aprobar. Con ellas: se encola el dossier por caso y pasa a «preparando»."""
+    if not str(condiciones or "").strip():
+        return registrar_estado(id_accion, "lista_para_aprobar", por=por, canal=canal, titulo=titulo,
+                                ruta=ruta, difundir=difundir)
+    res = registrar_estado(id_accion, "aceptada_con_condiciones", condiciones, por, canal, titulo, ruta, difundir)
+    if not res["ok"]:
+        return res
+    cola = leer_estados(ruta_dossiers or RUTA_DOSSIERS)
+    pend = [d for d in cola.get("pendientes", []) if d.get("id") != id_accion]
+    pend.append({"id": id_accion, "titulo": titulo, "condiciones": condiciones, "canal": canal})
+    try:
+        _guardar_json(ruta_dossiers or RUTA_DOSSIERS, {"pendientes": pend})
+    except OSError:
+        pass
+    return registrar_estado(id_accion, "preparando", por="director de diseño", canal=canal, titulo=titulo,
+                            ruta=ruta, difundir=difundir)
+
+
+def anotar_flujo(acciones, estados):
+    """PURA: añade `estado_flujo` y `condiciones` a cada acción para que el medidor los enseñe."""
+    salida = []
+    for a in acciones or []:
+        ids = [a.get("id")] + list(a.get("ids_acciones") or [])
+        ficha = next((estados[i] for i in ids if i in estados), {})
+        salida.append(dict(a, estado_flujo=ficha.get("estado", "pendiente"), condiciones=ficha.get("condiciones", "")))
+    return salida
+
+
+def cerrar_obsoletas(acciones):
+    """PURA: quita las acciones que ya no hacen falta (p. ej. `drive-escritura-…`)."""
+    return [a for a in acciones or [] if not str(a.get("id") or "").startswith(PREFIJOS_OBSOLETOS)]
+
+
+def _final(acciones):
+    """Lo que ve Alex: sin lo obsoleto y con el estado de cada acción."""
+    return anotar_flujo(cerrar_obsoletas(acciones), leer_estados())
+
+
 def guardar_lista(acciones):
     """Deja la lista donde la lee Genesis (`/api/mando/acciones`). Nunca lanza."""
     try:
-        datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
+        datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": _final(acciones)}
         os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
         tmp = SALIDA + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -1101,6 +1222,14 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
     propuestas = _hfa._leer(base, "propuestas.json", [])
     if isinstance(propuestas, dict):
         propuestas = propuestas.get("propuestas") or []
+    # DIS1126B: el estado manda. Con condiciones aceptadas no se aprueba (ni se gasta) hasta que el dossier esté listo.
+    sel = next((p for p in propuestas if str(p.get("id") or "") == pid), {})
+    est = registrar_estado("higgsfield-%s" % pid, "aprobada" if aprobada else "rechazada", por=por, canal="metagenesis",
+                           titulo="Higgsfield · %s (%s)" % (sel.get("pieza") or "pieza", sel.get("modelo") or "modelo"),
+                           ruta=os.path.join(base, "acciones-estado.json") if base_hf else None,
+                           difundir=(lambda _t: None) if base_hf else None)
+    if not est["ok"]:
+        return {"ok": False, "error": est["texto"], "estado": est["estado"]}
     propuesta = next((p for p in propuestas if str(p.get("id") or "") == pid), None)
     if propuesta is None:
         return {"ok": False, "error": "No existe la propuesta %s" % pid}
@@ -1207,6 +1336,7 @@ def main():
         construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
                            a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google(),
                            retiradas=leer_retiradas(), uso=uso_por_pasarela()))
+    acciones = _final(acciones)
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

@@ -579,32 +579,9 @@ def _clientes_de_encargo() -> Any:
 
 
 def _registrar_accion_alex_drive_escritura(detalle: str) -> None:
-    """Registra una acción clara para Alex cuando Drive no tiene permiso de escritura."""
-    try:
-        acciones_path = os.path.join(DIR, "acciones-de-alex.json")
-        acciones = leer_json(acciones_path, [])
-        accion = {
-            "id": f"drive-escritura-{int(time.time())}",
-            "tipo": "google-oauth-escritura",
-            "titulo": "Volver a autorizar Drive con permiso de escritura",
-            "descripcion": (
-                "El token actual de Google solo tiene permiso de lectura. "
-                "Para usar el modo de encargo (carpetas y panel en Drive), "
-                "necesitas reautorizar con scope 'drive' o 'drive.file'.\n\n"
-                "Paso exacto:\n"
-                "  cd /Users/alex/Documents/starseed-os-main && "
-                "~/.starseed/herramientas/alta-cuentas-google.py alex --scopes drive,drive.file\n\n"
-                f"Detalle técnico: {detalle}"
-            ),
-            "estado": "pendiente",
-            "creada": time.time(),
-        }
-        # Evitar duplicados
-        if not any(a.get("tipo") == "google-oauth-escritura" and a.get("estado") == "pendiente" for a in acciones):
-            acciones.append(accion)
-            escribir_json(acciones_path, acciones)
-    except Exception as e:
-        log("No se pudo registrar acción para Alex:", e)
+    """DIS1126B: ya NO se le pide nada a Maggasukha. `cuentas/alex-docs.json` tiene drive.file; si algún día hace
+    falta un inicio de sesión, el director abre la Terminal con el guion o manda el enlace (regla del 26-11)."""
+    log("Drive sin permiso de escritura (lo resuelve el director, sin pedir nada):", detalle)
 
 
 def atender(p: dict[str, Any]) -> None:
@@ -1533,6 +1510,39 @@ def _guardar_condicion(texto: str) -> int:
     return len(_casos_pendientes())
 
 
+_ACC: Any = None
+
+
+def _acciones() -> Any:
+    """DIS1126B: el módulo de «Te toca a ti» (su nombre lleva guion: se carga por ruta)."""
+    global _ACC
+    if _ACC is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "acciones_de_alex_tg", os.path.join(os.path.dirname(os.path.abspath(__file__)), "acciones-de-alex.py"))
+        _ACC = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_ACC)
+    return _ACC
+
+
+def _titulo_caso(c: dict[str, Any]) -> str:
+    return "Higgsfield · %s (%s)" % (c.get("pieza") or "pieza", c.get("modelo") or "modelo")
+
+
+def _aceptar_con_condiciones(texto: str) -> None:
+    """Maggasukha acepta con condiciones: cada caso pendiente pasa a «preparando» y se encola su dossier."""
+    casos = _casos_pendientes()
+    _guardar_condicion(texto)
+    if not casos:
+        decir("Condición guardada, Maggasukha. No hay casos pendientes ahora; se aplicará a los que lleguen.")
+        return
+    A = _acciones()
+    for c in casos:
+        A.aceptar_accion_con_condiciones("higgsfield-%s" % c.get("id"), texto, canal="telegram",
+                                         titulo=_titulo_caso(c), difundir=decir)
+    decir("Dime «desarrolla todo» y te envío el dossier de cada caso (%s), uno a uno." % DOSSIER)
+
+
 def _enviar_caso(i: int, casos: list[dict[str, Any]]) -> None:
     c = casos[i]
     sistema = ("Eres «Audiovisual y diseño» de MetaGenesis. Escribe en español para Maggasukha, sin markdown "
@@ -1543,6 +1553,11 @@ def _enviar_caso(i: int, casos: list[dict[str, Any]]) -> None:
     # La firma va en el propio texto: `decir` no la repite si ya está.
     decir("Caso %d de %d\n%s\n\n¿Cómo lo ves, Maggasukha? Respóndeme y paso al siguiente.\n\n"
           "— Audiovisual y diseño · %s" % (i + 1, len(casos), cuerpo or pedido, modelo or "—"))
+    try:
+        _acciones().registrar_estado("higgsfield-%s" % c.get("id"), "lista_para_aprobar", por="director de diseño",
+                                     canal="telegram", titulo=_titulo_caso(c), difundir=decir)
+    except Exception as e:  # noqa: BLE001
+        log("estado del dossier no actualizado:", e)
 
 
 def _iniciar_conjunto(texto: str, update_id: int) -> None:
@@ -1818,9 +1833,7 @@ def recibir(upd: dict[str, Any]) -> None:
     if _atender_respuesta_corta(texto, update_id):
         return
     if _COND.search(texto):
-        n = _guardar_condicion(texto)
-        decir("Condición guardada, Maggasukha: antes de aprobar nada te envío %s, un dossier por caso "
-              "(%d caso(s) pendiente(s)). Dime «desarrolla todo» y los vemos uno a uno." % (DOSSIER, n))
+        _aceptar_con_condiciones(texto)
         return
     if _CONJUNTO.search(texto):
         _iniciar_conjunto(texto, update_id)
@@ -1989,6 +2002,11 @@ def _comando_higgsfield_aprobar(pid: str, *, subir_a_drive=None) -> None:
     if propuesta is None:
         decir(f"Propuesta {pid} no encontrada.")
         return
+    est = _acciones().registrar_estado("higgsfield-%s" % pid, "aprobada", por="Maggasukha", canal="telegram",
+                                       titulo=_titulo_caso(propuesta), difundir=decir)
+    if not est["ok"]:
+        decir(est["texto"])
+        return
     aprobacion = hfa.aprobar(propuesta, "Maggasukha")
     _hfa_guardar_aprobacion(aprobacion)
     decir(f"Aprobada {pid}. Ejecutando…")
@@ -2020,9 +2038,13 @@ def _comando_higgsfield_rechazar(pid: str) -> None:
     if propuesta is None:
         decir(f"Propuesta {pid} no encontrada.")
         return
+    est = _acciones().registrar_estado("higgsfield-%s" % pid, "rechazada", por="Maggasukha", canal="telegram",
+                                       titulo=_titulo_caso(propuesta), difundir=decir)
+    if not est["ok"]:
+        decir(est["texto"])
+        return
     aprobacion = hfa.rechazar(propuesta, "Maggasukha", motivo="rechazada por Maggasukha")
     _hfa_guardar_aprobacion(aprobacion)
-    decir(f"Rechazada {pid}.")
 
 
 def _comando_higgsfield_presupuesto(args: str) -> None:
