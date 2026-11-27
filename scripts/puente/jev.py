@@ -621,6 +621,39 @@ def _transporte_local(endpoint, cuerpo, timeout):
         return resp.status, resp.read().decode("utf-8")
 
 
+#: (DIR1127H) Plazo para una Laya que sirve por la de otro nodo (`remoto: true` en su GET /).
+TOPE_LAYA_REMOTA_S = 5.0
+_remota_cache = {}
+
+
+def _laya_es_remota(endpoint, ahora=None):
+    """¿Ese /v1/systemone es una Laya que reenvía a otro nodo? GET / con 1 s, recordado 60 s. Nunca lanza."""
+    ahora = time.time() if ahora is None else ahora
+    p = urlparse(endpoint)
+    raiz = "%s://%s/" % (p.scheme or "http", p.netloc)
+    visto = _remota_cache.get(raiz)
+    if visto and ahora - visto[0] < 60:
+        return visto[1]
+    try:
+        codigo, texto = _get_raiz(raiz, 1.0)
+        remota = codigo == 200 and bool((json.loads(texto) or {}).get("remoto"))
+    except Exception:
+        remota = False
+    _remota_cache[raiz] = (ahora, remota)
+    return remota
+
+
+#: Caracteres del estado que viajan a una Laya remota (medido: 600 car. = 206 tokens = 3,8 s en el A1; 300 ≈ 2 s).
+TOPE_ESTADO_REMOTO = 300
+
+
+def cuerpo_compacto(estado, preguntas, tope=TOPE_ESTADO_REMOTO):
+    """PURA: el cuerpo de /v1/systemone con el estado recortado a `tope` caracteres (las preguntas, enteras)."""
+    texto = estado if isinstance(estado, str) else json.dumps(estado, ensure_ascii=False)
+    corto = texto if len(texto) <= tope else texto[: tope - 1] + "…"
+    return json.dumps({"state": corto, "questions": preguntas}, ensure_ascii=False).encode("utf-8")
+
+
 def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
     """Consulta a los locales de /v1/systemone: Laya (4470) y Colibri (4480).
 
@@ -646,8 +679,14 @@ def decidir_con_laya(estado, preguntas, timeout=1.5, url=None):
     transporte = TRANSPORTE_LOCALES or _transporte_local
     for endpoint in endpoints:
         t0 = time.time()
+        # (DIR1127H) La Laya de la Mac sin RAM reenvía al A1 por el túnel: 1,2-2 s. Con 1,5 s se perdía casi siempre
+        # (medido: 3 de 3 «None» con un aviso de 1500 caracteres) y Jev caía a la nube. Solo con transporte real.
+        remota = TRANSPORTE_LOCALES is None and _laya_es_remota(endpoint)
+        plazo = max(timeout, TOPE_LAYA_REMOTA_S) if remota else timeout
+        # El A1 (2 núcleos ARM) tarda ~17 ms por token: 455 tokens = 12 s. A la remota va un estado compacto.
+        envio = cuerpo_compacto(estado, preguntas) if remota else cuerpo
         try:
-            codigo, texto = transporte(endpoint, cuerpo, timeout)
+            codigo, texto = transporte(endpoint, envio, plazo)
         except Exception:
             continue
         if codigo != 200:

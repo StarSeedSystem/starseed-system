@@ -143,3 +143,19 @@ class TestLayaRemotaDir1127F(unittest.TestCase):
         def transporte(_url, _plazo):
             return 200, '{"cargado": false, "ramLibreMb": 900}'
         self.assertEqual(jev.estado_laya("http://127.0.0.1:4470/v1/systemone", transporte=transporte), {"cargado": False})
+
+
+class TestCuerpoCompactoDir1127H(unittest.TestCase):
+    """DIR1127H: a una Laya remota (A1) viaja el estado recortado; las preguntas, enteras."""
+
+    def test_recorta_estado_largo(self):
+        import json as _j
+        c = _j.loads(jev.cuerpo_compacto({"aviso": "x" * 2000}, {"q": {"type": "noul", "instructions": "¿?"}}, tope=600))
+        self.assertLessEqual(len(c["state"]), 600)
+        self.assertTrue(c["state"].endswith("…"))
+        self.assertEqual(c["questions"]["q"]["instructions"], "¿?")
+
+    def test_estado_corto_intacto(self):
+        import json as _j
+        c = _j.loads(jev.cuerpo_compacto({"a": 1}, {}))
+        self.assertEqual(c["state"], '{"a": 1}')
