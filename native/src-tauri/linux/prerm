@@ -1,0 +1,78 @@
+#!/bin/sh
+# prerm · Desinstala starseed-ayudante y su regla sudoers (TRM1125H)
+# Se ejecuta antes de desinstalar el paquete .deb/.rpm.
+# Idempotente: se puede ejecutar varias veces sin efectos adversos.
+
+set -eu
+
+readonly AYUDANTE_DESTINO="/usr/local/sbin/starseed-ayudante"
+readonly SUDOERS_ARCHIVO="/etc/sudoers.d/starseed-ayudante"
+readonly LOG_DIR="/var/log/starseed-ayudante"
+readonly CONFIG_DIR="/etc/starseed"
+readonly ALMACENES_AUTORIZADOS="${CONFIG_DIR}/almacenes-autorizados.json"
+readonly VERSION_ARCHIVO="${CONFIG_DIR}/version"
+
+msg() { echo "[PRERM] $*"; }
+err() { echo "[PRERM ERROR] $*" >&2; }
+
+# ──────────────────────────────────────────────────────────────
+# Eliminar regla sudoers
+# ──────────────────────────────────────────────────────────────
+
+if [ -f "${SUDOERS_ARCHIVO}" ]; then
+    msg "Eliminando regla sudoers ${SUDOERS_ARCHIVO}..."
+    rm -f "${SUDOERS_ARCHIVO}"
+else
+    msg "Regla sudoers ${SUDOERS_ARCHIVO} no existe (ya eliminada)"
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Eliminar el ayudante
+# ──────────────────────────────────────────────────────────────
+
+if [ -f "${AYUDANTE_DESTINO}" ]; then
+    msg "Eliminando ayudante ${AYUDANTE_DESTINO}..."
+    rm -f "${AYUDANTE_DESTINO}"
+else
+    msg "Ayudante ${AYUDANTE_DESTINO} no existe (ya eliminado)"
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Limpiar directorios de runtime (solo si están vacíos)
+# ──────────────────────────────────────────────────────────────
+
+if [ -d "/run/starseed-ayudante" ]; then
+    if [ -z "$(ls -A /run/starseed-ayudante 2>/dev/null)" ]; then
+        msg "Eliminando directorio /run/starseed-ayudante (vacío)..."
+        rmdir /run/starseed-ayudante 2>/dev/null || true
+    else
+        msg "Directorio /run/starseed-ayudante no vacío, se conserva"
+    fi
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Opcional: limpiar configuración y logs (comentado por seguridad)
+# ──────────────────────────────────────────────────────────────
+# Descomente las siguientes líneas si desea PURGA completa (purge, no remove).
+# En una desinstalación normal (remove) se conservan los datos del usuario.
+
+# if [ -d "${LOG_DIR}" ]; then
+#     if [ -z "$(ls -A "${LOG_DIR}" 2>/dev/null)" ]; then
+#         msg "Eliminando directorio de logs ${LOG_DIR} (vacío)..."
+#         rmdir "${LOG_DIR}" 2>/dev/null || true
+#     fi
+# fi
+
+# if [ -d "${CONFIG_DIR}" ]; then
+#     if [ -z "$(ls -A "${CONFIG_DIR}" 2>/dev/null)" ]; then
+#         msg "Eliminando directorio de configuración ${CONFIG_DIR} (vacío)..."
+#         rmdir "${CONFIG_DIR}" 2>/dev/null || true
+#     fi
+# fi
+
+# Nota: El grupo 'starseed' NO se elimina automáticamente, pues puede
+# tener otros usuarios o usos. El administrador del sistema decide
+# si eliminarlo con: groupdel starseed
+
+msg "prerm completado correctamente."
+exit 0

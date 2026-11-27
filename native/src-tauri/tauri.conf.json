@@ -60,7 +60,17 @@
     },
     "linux": {
       "deb": {
-        "depends": ["gstreamer1.0-nice", "gstreamer1.0-plugins-bad"]
+        "depends": ["gstreamer1.0-nice", "gstreamer1.0-plugins-bad", "jq", "policykit-1"],
+        "postinst": "linux/postinst",
+        "prerm": "linux/prerm"
+      },
+      "rpm": {
+        "depends": ["gstreamer1.0-nice", "gstreamer1.0-plugins-bad", "jq", "polkit"],
+        "postinst": "linux/postinst",
+        "prerm": "linux/prerm"
+      },
+      "appimage": {
+        "resources": ["recursos/ayudante-linux-activar.sh"]
       }
     }
   },
