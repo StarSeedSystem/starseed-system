@@ -345,7 +345,7 @@ export class ActorBanco {
             const { SesionHacia } = await import("@/lib/control-remoto/canal");
             return new SesionHacia(origen);
         });
-        const sesion = crearSesion(o.origen);
+        const sesion = await crearSesion(o.origen);
         let resultado: { ok: boolean; motivo: string };
         try {
             const args = {
