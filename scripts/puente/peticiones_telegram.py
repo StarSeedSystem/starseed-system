@@ -1540,8 +1540,9 @@ def _enviar_caso(i: int, casos: list[dict[str, Any]]) -> None:
     pedido = "Caso %s · proyecto %s · pieza %s · modelo %s · %s" % (
         c.get("id"), c.get("proyecto"), c.get("pieza"), c.get("modelo"), c.get("motivo", ""))
     cuerpo, modelo = llm([{"role": "system", "content": sistema}, {"role": "user", "content": pedido}], 900)
-    decir("Caso %d de %d\n%s\n\n¿Cómo lo ves, Maggasukha? Respóndeme y paso al siguiente."
-          % (i + 1, len(casos), cuerpo or pedido), modelo or "")
+    # La firma va en el propio texto: `decir` no la repite si ya está.
+    decir("Caso %d de %d\n%s\n\n¿Cómo lo ves, Maggasukha? Respóndeme y paso al siguiente.\n\n"
+          "— Audiovisual y diseño · %s" % (i + 1, len(casos), cuerpo or pedido, modelo or "—"))
 
 
 def _iniciar_conjunto(texto: str, update_id: int) -> None:
