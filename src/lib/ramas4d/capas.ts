@@ -1,4 +1,5 @@
 import { Nodo, Grafo4D } from './modelo';
+import { Observador, podarGrafo } from './alcance';
 
 export type CapaQuintaDimension =
   | 'conciencia'
@@ -97,8 +98,10 @@ function expandirFiltroCapas(filtro: FiltroCapasQuintaDimension): string[] {
 
 export function filtrarGrafoPorCapasQuintaDimension(
   grafo: Grafo4D,
-  filtro: FiltroCapasQuintaDimension
+  filtro: FiltroCapasQuintaDimension,
+  observador?: Observador
 ): Grafo4D {
   const capasExpandidas = expandirFiltroCapas(filtro);
-  return filtrarPorCapas(grafo, capasExpandidas);
+  const grafoVisible = podarGrafo(grafo, observador ?? { id: '' });
+  return filtrarPorCapas(grafoVisible, capasExpandidas);
 }

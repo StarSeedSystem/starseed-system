@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { visiblePara, podarGrafo, Observador } from '../alcance';
+import { podarGrafo as podarGrafoPublico, visiblePara as visibleParaPublica } from '../index';
+import { filtrarGrafoPorCapasQuintaDimension } from '../capas';
 import { AlcanceNodo, Arista, Grafo4D, Nodo } from '../modelo';
 
 function crearNodo(id: string, alcance: AlcanceNodo, dueno: string): Nodo {
@@ -116,5 +118,45 @@ describe('podarGrafo', () => {
     const resultado = podarGrafo(crearGrafo(nodos), observador);
     expect(Array.from(resultado.nodos.keys())).toEqual(['contacto', 'grupo', 'publico']);
     expect(Object.keys(resultado.nodos.get('contacto')!)).not.toContain('contenido');
+  });
+});
+
+describe('alcance aplicado en el motor de Ramas 4D', () => {
+  it('el índice público del motor expone la poda y la regla de visibilidad', () => {
+    expect(podarGrafoPublico).toBe(podarGrafo);
+    expect(visibleParaPublica).toBe(visiblePara);
+  });
+
+  it('el filtro de la quinta dimensión poda lo privado ajeno antes de filtrar por capas', () => {
+    const grafo = crearGrafo(
+      [
+        { ...crearNodo('ajeno', 'privado', 'otra'), capas: ['sistema-educativo'] },
+        { ...crearNodo('publico', 'publico', 'otra'), capas: ['sistema-educativo'] },
+        { ...crearNodo('propio', 'privado', 'yo'), capas: ['sistema-educativo'] },
+      ],
+      [{ de: 'publico', a: 'ajeno', tipo: 'cita', t: 1, intensidad: 1 }]
+    );
+    grafo.ramas.set('propio', ['ajeno']);
+
+    const resultado = filtrarGrafoPorCapasQuintaDimension(
+      grafo,
+      { sistema: ['educativo'] },
+      crearObservador('yo')
+    );
+
+    expect(Array.from(resultado.nodos.keys())).toEqual(['publico', 'propio']);
+    expect(resultado.aristas).toEqual([]);
+    expect(resultado.ramas.has('propio')).toBe(false);
+  });
+
+  it('sin observador el filtro de la quinta dimensión solo deja lo público', () => {
+    const grafo = crearGrafo([
+      { ...crearNodo('ajeno', 'privado', 'otra'), capas: ['sistema-educativo'] },
+      { ...crearNodo('publico', 'publico', 'otra'), capas: ['sistema-educativo'] },
+    ]);
+
+    const resultado = filtrarGrafoPorCapasQuintaDimension(grafo, { sistema: ['educativo'] });
+
+    expect(Array.from(resultado.nodos.keys())).toEqual(['publico']);
   });
 });

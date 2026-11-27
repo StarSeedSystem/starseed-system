@@ -1,5 +1,6 @@
 export * from './modelo';
 export * from './capas';
+export * from './alcance';
 export {
   crearEstadoFuerza,
   pasoFuerza,
