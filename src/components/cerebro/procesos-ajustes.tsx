@@ -4,6 +4,12 @@ import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { usarPreferenciasProcesos, limitesDeCerebro, guardarLimites } from "@/lib/cerebros/procesos-preferencias";
 import type { TipoProceso } from "@/lib/cerebros/procesos";
+import type { SeccionAjustesPilar } from "@/components/cerebro/panel-ajustes-pilar";
+
+export interface ProcesosAjustesProps {
+  brainId: string | null;
+  seccion?: SeccionAjustesPilar | null;
+}
 
 const tiposDisponibles: { id: TipoProceso; etiqueta: string }[] = [
   { id: "genesis", etiqueta: "Genesis" },
