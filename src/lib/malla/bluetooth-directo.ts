@@ -309,6 +309,24 @@ export function podarLigadurasBle(lista: readonly LigaduraBle[], abiertos: Reado
 export const MAX_SALUDOS_A_CIEGAS = 6;
 
 /**
+ * (BLE1124A) Quita los saludos hacia enlaces en descanso tras una caída (2 s, 5 s, 15 s) o ya dados por mudos:
+ * insistir contra una dirección caducada solo llena el registro de «sin acuse» y no acerca el ligado. Si la
+ * consulta falla, se saluda igual: un error de lectura nunca deja un enlace sin ligar. Puro.
+ */
+export function filtrarSaludosEnDescanso(
+  destinos: ReadonlyArray<{ enlace: string; para: string }>,
+  enDescanso: (enlace: string) => boolean,
+): Array<{ enlace: string; para: string }> {
+  return destinos.filter((d) => {
+    try {
+      return enDescanso(d.enlace) !== true;
+    } catch {
+      return true;
+    }
+  });
+}
+
+/**
  * saludosBle — a quién saludar ahora y por qué enlace. En un enlace que ESTE aparato abrió por el anuncio,
  * a la neurona que el anuncio reconoció; en uno sin reconocer (el otro conectó, o el anuncio no decía
  * cuál), a las neuronas de la cuenta y vinculadas que aún no están ligadas (≤ 6): solo la de verdad lo
