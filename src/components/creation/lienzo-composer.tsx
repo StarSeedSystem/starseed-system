@@ -52,11 +52,14 @@ import { SocialCrosspost } from "@/components/creation/social-crosspost";
 import {
     isRichBlock,
     newBlockId,
-    serializeBlocks,
     MAX_SS_META_BYTES,
     type PostBlock,
     type PostBlockType,
 } from "@/lib/creation/post-blocks";
+import { blockHasContent, bloquesRicosParaMeta } from "@/lib/creation/lienzo-bloques";
+
+// Compatibilidad: los llamadores (y las pruebas) siguen importándolo de aquí.
+export { blockHasContent } from "@/lib/creation/lienzo-bloques";
 import type { DashboardWidget } from "@/components/dashboard/dashboard-types";
 import {
     Type,
@@ -108,41 +111,6 @@ function makeBlock(type: PostBlockType): PostBlock {
         base.data = [{ label: "", value: 0 }];
     }
     return base;
-}
-
-/** ¿El bloque tiene contenido significativo (para validar antes de publicar)? */
-export function blockHasContent(b: PostBlock): boolean {
-    switch (b.type) {
-        case "texto":
-        case "enlace":
-            return Boolean((b.text && b.text.trim()) || (b.url && b.url.trim()));
-        case "imagen":
-        case "archivo":
-        case "portada":
-        case "widget":
-        case "repo":
-        case "pizarra":
-        // Adenda 67 · P4: ambos bloques nuevos se validan por su URL.
-        case "penpot":
-        case "video":
-            return Boolean(b.url && b.url.trim());
-        case "codigo":
-        case "pagina":
-            return Boolean(b.code && b.code.trim());
-        case "agente":
-            return Boolean((b.system && b.system.trim()) || (b.name && b.name.trim()));
-        case "mapa":
-            return typeof b.lat === "number" && typeof b.lng === "number";
-        case "grafica":
-            return Boolean(b.data && b.data.some((d) => d.label.trim() || Number.isFinite(d.value)));
-        case "protomolecula":
-            return Boolean(b.code && b.code.trim());
-        case "referencia":
-        case "entidad":
-            return Boolean(b.ref && b.ref.id);
-        default:
-            return false;
-    }
 }
 
 // ── Accesibilidad de los controles del bloque ────────────────────────────────
@@ -349,7 +317,7 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
         }
 
         // Bloques RICOS → ss:meta.blocks (el renderer los pinta; no van como markdown).
-        const richBlocks = serializeBlocks(blocks.filter((b) => isRichBlock(b.type)));
+        const richBlocks = bloquesRicosParaMeta(blocks);
         const primaryTipo = tags[0] || defaultTagFor(dest);
         // (Adenda 219) Marcos de forma por URL: la tarjeta del feed los aplica a la
         // foto/vídeo principal aunque el bloque viaje como markdown.
