@@ -61,7 +61,9 @@ describe("contrato web ↔ app nativa", () => {
 
   it("cada comando propio tiene su permiso y una capability que lo concede (tauri ≥ 2.11.1, APP1107B)", () => {
     const lib = rust("lib.rs");
-    const nombres = (bloque: string) => [...bloque.matchAll(/([a-z_][a-z0-9_:]*?)(?:,|\s*$)/gm)].map((m) => m[1].split("::").pop()!).filter(Boolean);
+    // (SUP1127A) Los comentarios no son comandos: «// … capacidad, turnarse lector/tarjeta, …» (NFC1126B) sumaba
+    // «capacidad» y «tarjeta» como registrados y el contrato salía rojo con un diff sin la causa a la vista.
+    const nombres = (bloque: string) => [...bloque.replace(/\/\/[^\n]*/g, "").matchAll(/([a-z_][a-z0-9_:]*?)(?:,|\s*$)/gm)].map((m) => m[1].split("::").pop()!).filter(Boolean);
     const comunes = nombres(lib.match(/generate_handler!\[([\s\S]*?)\$\(\s*(?:\$\(#\[\$attr\]\)\*\s*)?\$(?:solo_desktop|path)\b/)![1]);
     const escritorio = nombres(lib.match(/#\[cfg\(desktop\)\]\s*registrar_comandos!\(builder \[([\s\S]*?)\]\);/)![1]);
     expect(comunes.length).toBeGreaterThan(25);
