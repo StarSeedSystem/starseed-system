@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "REAPLICAR-20261125-213001",
+   "ola": "DIR1121C",
+   "titulo": "Reaplicar cambios de main en cuarentena (2 archivos)",
+   "archivos": [
+    "src/components/creation/creation-center.tsx",
+    "src/lib/entity-kinds.ts"
+   ],
+   "depende": [],
+   "prompt": "Los siguientes archivos estaban en main con cambios sin commit >15 min y fueron apartados a cuarentena en /Users/alex/.starseed/cuarentena/20261125-212952. MANIFIESTO.json tiene los detalles.\n\nArchivos: src/components/creation/creation-center.tsx, src/lib/entity-kinds.ts\n\nTu tarea: reaplicar estos cambios en un worktree limpio, pasando tsc y vitest. Si los cambios son válidos, intégralos. Si son basura, descártalos y avisa.",
+   "tipo": "codigo",
+   "prioridad": 50
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "REAPLICAR-20261125-213001"
+  ]
+ }
+}
