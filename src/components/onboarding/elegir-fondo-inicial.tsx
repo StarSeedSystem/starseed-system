@@ -3,10 +3,13 @@
 /** PASO «ELIGE TU FONDO» (Ola 1018F · FSH1018J · architecture/fondos-shaders.md §3): el fondo actual
  * va primero y sigue debajo; sets oficiales y catálogo se combinan para perfil y apps, se guardan en
  * «Fondos» (`fondos-biblioteca`), viajan como `ConfigFondo` y «Ahora no» aplaza siete días. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Image as ImageIcon, Loader2, Smartphone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { aplazarElegirFondo } from "@/lib/onboarding/fondo-inicial";
+import {
+  aplazarElegirFondo, elegirFondoUnico, incorporarFondo, modoVistaPrevia, opcionElegida, opcionesFondoCompletas,
+  TARJETAS_ANADIR_FONDO, type OrigenAnadirFondo,
+} from "@/lib/onboarding/fondo-inicial";
 import type { AmbitoFondo, ConfigFondo } from "@/lib/appearance/alcance-fondos";
 import { guardarSet } from "@/lib/appearance/fondos-biblioteca";
 import { useMyLibraryDestinations } from "@/lib/library/entity-library";
@@ -21,6 +24,8 @@ export interface ElegirFondoInicialProps {
   perfilId?: string; apps?: Array<{ id: string; nombre: string }>;
   onGuardar?: (config: ConfigFondo, itemId?: string) => void | Promise<void>;
   onAplazar?: (aplazadoHasta: string) => void | Promise<void>; className?: string;
+  /** Abre el selector de Librería o de archivos y devuelve el fondo añadido (null = cancelado). */
+  onAnadir?: (origen: OrigenAnadirFondo) => Promise<OpcionFondoInicial | null>;
 }
 const CREADO = "2026-10-18T00:00:00.000Z";
 const MAPA: Record<string, EfectoFondoId> = { "diseno-cosmos-violeta": "aurora", "diseno-aurora-suave": "aurora",
@@ -35,21 +40,32 @@ const ACTUAL: OpcionFondoInicial = { id: "actual", nombre: "Fondo actual", descr
 
 export function ElegirFondoInicial({
   fondoActual = ACTUAL, oficiales = FONDOS_OFICIALES, catalogo = CATALOGO_FONDOS,
-  perfilId = "perfil", apps = [], onGuardar, onAplazar, className,
+  perfilId = "perfil", apps = [], onGuardar, onAplazar, onAnadir, className,
 }: ElegirFondoInicialProps) {
-  const [elegidos, setElegidos] = useState<string[]>([fondoActual.id]);
+  const [elegido, setElegido] = useState<string>(fondoActual.id);
+  const [propios, setPropios] = useState<OpcionFondoInicial[]>([]);
+  const [movimientoReducido, setMovimientoReducido] = useState(false);
+  useEffect(() => { setMovimientoReducido(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false); }, []);
   const [alcances, setAlcances] = useState<AmbitoFondo[]>(["perfil"]);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const destino = useMyLibraryDestinations().destinations[0] ?? null;
-  const opciones = [fondoActual, ...oficiales, ...catalogo];
-  const alternar = (id: string): void => setElegidos((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const opciones = opcionesFondoCompletas([fondoActual], oficiales, catalogo, propios);
+  const actual = opcionElegida(opciones, elegido);
+  const modo = modoVistaPrevia({ webgpu: typeof navigator !== "undefined" && "gpu" in navigator, movimientoReducido, rendimientoBajo: false, activa: true });
+  const elegir = (id: string): void => setElegido((a) => elegirFondoUnico(a, id));
+  const anadir = async (origen: OrigenAnadirFondo): Promise<void> => {
+    const nuevo = await onAnadir?.(origen);
+    if (!nuevo) return;
+    setPropios((p) => incorporarFondo(p, nuevo));
+    elegir(nuevo.id);
+  };
   const alternarAlcance = (a: AmbitoFondo): void => setAlcances((s) => (s.includes(a) ? s.filter((x) => x !== a) : [...s, a]));
 
   const guardar = async (): Promise<void> => {
     setGuardando(true);
     try {
-      const sets = opciones.flatMap((o) => (elegidos.includes(o.id) && o.set ? [o.set] : []));
+      const sets = actual?.set ? [actual.set] : [];
       const set: SetFondo | null = sets.length ? {
         formato: FORMATO_SET, version: 1, id: `fondo-inicial-${Date.now()}`, nombre: "Fondo de bienvenida",
         autor: "Yo", licencias: [...new Set(sets.flatMap((s) => s.licencias))], base: null,
@@ -72,9 +88,9 @@ export function ElegirFondoInicial({
       <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35">El fondo de tu StarSeed</p>
       <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Fondos disponibles">
         {opciones.map((o, i) => {
-          const activo = elegidos.includes(o.id);
+          const activo = actual?.id === o.id;
           return (
-            <button key={o.id} type="button" onClick={() => alternar(o.id)} aria-pressed={activo}
+            <button key={o.id} type="button" onClick={() => elegir(o.id)} aria-pressed={activo}
               className={cn("flex cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60",
                 activo ? "border-fuchsia-400/70 bg-fuchsia-500/[0.12]" : "border-white/10 bg-white/[0.03] hover:border-fuchsia-400/40")}>
               <span className="flex h-8 w-12 shrink-0 items-center justify-center rounded-md border border-white/10 bg-gradient-to-br from-fuchsia-500/20 to-cyan-400/15">
@@ -88,7 +104,15 @@ export function ElegirFondoInicial({
             </button>
           );
         })}
+        {TARJETAS_ANADIR_FONDO.map((t) => (
+          <button key={t.origen} type="button" onClick={() => void anadir(t.origen)}
+            className="flex cursor-pointer flex-col items-start rounded-xl border border-dashed border-white/20 p-2.5 text-left transition-colors hover:border-fuchsia-400/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60">
+            <span className="text-[12.5px] font-semibold">{t.titulo}</span>
+            <span className="text-[10.5px] text-white/50">{t.ayuda}</span>
+          </button>
+        ))}
       </div>
+      {actual && <p data-modo-vista-previa={modo} aria-live="polite" className="text-center text-[11px] text-white/70">Vista previa: {actual.nombre}</p>}
       <div className="flex flex-wrap items-center justify-center gap-2" role="group" aria-label="Dónde se aplica">
         <span className="text-[10px] uppercase tracking-wider text-white/40">Se aplica a</span>
         {(["perfil", "app"] as const).map((a) => (
