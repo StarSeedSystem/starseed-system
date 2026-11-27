@@ -1,0 +1,13 @@
+{
+  "formato": 1,
+  "descripcion": "Umbrales numéricos de las pruebas (BAP1127P · D.5, decididos por Maggasukha el 27-11). Ids canónicos de config/pruebas-equivalencias.json. «min» = el valor debe ser ≥; «max» = ≤; «igual» = exacto. Nivel «anillo» = pasar el anillo de prueba; «publica» = candidata a versión pública (si falta, vale el del anillo).",
+  "tolerancia_regresion": 0.15,
+  "pruebas": {
+    "B4-MT-A1": {"medida": "cuadros_por_s", "anillo": {"min": 5}, "publica": {"min": 15}, "nota": "vídeo/control por la malla"},
+    "B2-MT-A1": {"medida": "apertura_s", "anillo": {"max": 2}, "nota": "apertura ≤ 2 s"},
+    "B1-MT-A1": {"medida": "enlace_s", "anillo": {"max_excl": 10}, "nota": "enlace < 10 s"},
+    "B5-MT-A1": {"medida": "reanudacion_s", "anillo": {"max_excl": 5}, "nota": "reanudación < 5 s"},
+    "B3-MT-A1": {"medida": "hash", "anillo": {"igual": "esperado"}, "nota": "hash exacto: la medida es {valor, esperado}"},
+    "PRB-LLAMADA-CONECTA": {"medida": "conecta_s", "anillo": {"max": 20}, "ref": "banco_llamadas_logica.CONECTA_S", "nota": "WebRTC conecta ≤ 20 s tras contestar; copiado del banco, no inventado"}
+  }
+}
