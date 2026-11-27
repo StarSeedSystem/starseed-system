@@ -68,6 +68,8 @@ import {
 import { hablar } from "@/lib/aurora/voz-unica";
 
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
+import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
+import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 import { PanelReticula } from "@/components/malla/panel-reticula";
 import { PanelMapaViasVivo } from "@/components/malla/panel-mapa-vias";
 import { MotorCristalMount, useMotorCristal } from "@/components/malla/motor-cristal-mount";
@@ -109,6 +111,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   const [signals, setSignals] = useState<SignalSource[]>([]);
   const [busy, setBusy] = useState<SignalKind | null>(null);
   const [webMeshOn, setWebMeshOn] = useState(false);
+  // NFC1126P: lo que llega por una etiqueta NFC se evalúa antes de abrirse.
+  const [recibidoNfc, setRecibidoNfc] = useState<{ resultado: ResultadoEscaneo; url?: string } | null>(null);
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
 
@@ -296,8 +300,30 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           );
         });
       } else if (sig.kind === "nfc") {
-        const R = (window as unknown as { NDEFReader?: new () => { scan: () => Promise<void> } }).NDEFReader;
-        if (R) { await new R().scan(); toast("Acerca una etiqueta NFC…"); }
+        type RegistroNdef = { recordType: string; data?: DataView };
+        type LecturaNdef = { message: { records: RegistroNdef[] } };
+        type LectorNdef = { scan: () => Promise<void>; onreading: ((e: LecturaNdef) => void) | null };
+        const R = (window as unknown as { NDEFReader?: new () => LectorNdef }).NDEFReader;
+        if (R) {
+          const lector = new R();
+          lector.onreading = (e) => {
+            const dec = new TextDecoder();
+            const textos = e.message.records
+              .filter((r) => (r.recordType === "url" || r.recordType === "text") && r.data)
+              .map((r) => dec.decode(r.data));
+            const url = textos.find((t) => /^[a-z][a-z0-9+.-]*:/i.test(t));
+            // Una etiqueta pasiva no trae firma que comprobar: se evalúa sin reputación (queda «sin historial»).
+            const resultado = evaluarRecibido({
+              tipo: url ? "enlace" : "tarjeta",
+              emisor: { firmaValida: true },
+              url,
+              texto: textos.join("\n") || undefined,
+            });
+            setRecibidoNfc({ resultado, url });
+          };
+          await lector.scan();
+          toast("Acerca una etiqueta NFC…");
+        }
         else toast.error("Web NFC no disponible en este dispositivo");
       }
       setTimeout(() => void detectSignals(meshRef.current).then(setSignals), 600);
@@ -598,6 +624,18 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {tab === "redmesh" && <RedMeshCenter embedded showMap={!compact} showPrivacy={false} hideHeader />}
 
       {tab === "router" && <RouterCenter />}
+
+      {recibidoNfc && (
+        <VeredictoSeguridad
+          resultado={recibidoNfc.resultado}
+          onAbrir={() => {
+            const { url } = recibidoNfc;
+            setRecibidoNfc(null);
+            if (url && /^https?:/i.test(url)) window.open(url, "_blank", "noopener,noreferrer");
+          }}
+          onRechazar={() => setRecibidoNfc(null)}
+        />
+      )}
 
       {/* MAP1114B — pestaña «Mapa»: mis neuronas y las de mi cuenta sobre un mapa (fase 1). */}
       {tab === "mapa" && <PestanaMapa compacto={compact || undefined} />}
