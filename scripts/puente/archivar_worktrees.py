@@ -18,7 +18,7 @@ publican.
   python3 scripts/puente/archivar_worktrees.py            # solo cuenta (no toca nada)
   python3 scripts/puente/archivar_worktrees.py --aplicar  # archiva y poda
 """
-import datetime, fcntl, json, os, subprocess, sys
+import datetime, fcntl, json, os, re, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import higiene_worktrees as H  # noqa: E402
@@ -128,6 +128,79 @@ def tamano_mb(ruta):
         return int(out.split()[0]) // 1024
     except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
         return 0
+
+
+#: (DIR1126F, 26-11) Estados en los que ningún agente de ESTA Mac usa ya el worktree: la tarea
+#: vuelve a crear el suyo si la retoma, y su rama `ola/<tarea>` no se toca. Medido el 26-11: cada
+#: intento fallido vuelve a «pendiente» y el orquestador conserva su worktree (~170 MB,
+#: `limpiar_worktree` está en contención), así que 30 intentos rápidos llenaron el disco y la
+#: guardia de 10 GB paró el enjambre dos veces en la tarde.
+ESTADOS_LIBERABLES = {"pendiente", "reasignada", "rechazada", "integrada", "commit", "sustituida"}
+
+
+def liberables(progreso, nombres, lineas_ps, vivas, edades, min_edad_s=600):
+    """PURA: worktrees que se pueden archivar y podar sin quitarle nada a nadie.
+
+    Fuera: los que empiezan por `_`/`.`, los que laten (`vivas`), los que no están en un estado
+    liberable, los más nuevos que `min_edad_s` (un arranque en curso aún no ha latido) y los
+    que algún proceso nombra."""
+    salen = []
+    for nombre in sorted(nombres):
+        if not nombre or nombre[0] in "_." or nombre in vivas:
+            continue
+        entrada = progreso.get(nombre)
+        if not isinstance(entrada, dict) or entrada.get("estado") not in ESTADOS_LIBERABLES:
+            continue
+        if edades.get(nombre, 0) < min_edad_s:
+            continue
+        patron = re.compile(r"starseed-wt/" + re.escape(nombre) + r"(?:$|[^A-Za-z0-9_-])")
+        if any(patron.search(l or "") for l in lineas_ps):
+            continue
+        salen.append(nombre)
+    return salen
+
+
+def liberar_no_vivas(min_edad_s=600, decir=print):
+    """(DIR1126F) Archiva lo sin guardar en `archivo-wt/<tarea>` y poda los worktrees liberables."""
+    import time
+
+    olas = os.path.join(RAIZ, "starseed_memory_root", "olas")
+    progreso = H._leer_progreso(os.path.join(olas, "progreso.json"))
+    nombres = [d for d in os.listdir(WT) if os.path.isdir(os.path.join(WT, d))
+               and not os.path.islink(os.path.join(WT, d))]
+    ahora = time.time()
+    edades = {}
+    for d in nombres:
+        try:
+            edades[d] = ahora - os.path.getmtime(os.path.join(WT, d))
+        except OSError:
+            edades[d] = 0
+    elegidos = liberables(progreso, nombres, H._procesos(), H.tareas_que_laten(olas), edades, min_edad_s)
+    if not elegidos:
+        return []
+    hoy = datetime.date.today().isoformat()
+    hechos, podados = [], []
+    os.makedirs(os.path.dirname(H.CERROJO), exist_ok=True)
+    with open(H.CERROJO, "w") as cerrojo:
+        fcntl.flock(cerrojo, fcntl.LOCK_EX)  # espera a que el integrador suelte main
+        for n in elegidos:
+            ruta = os.path.join(WT, n)
+            if sucio(ruta) > 0:
+                ok, rama = archivar(ruta, n, hoy)
+                if not ok:
+                    decir("SE QUEDA   %s (%s)" % (n, rama))
+                    continue
+                hechos.append({"tarea": n, "rama": rama, "fecha": hoy})
+            rc, out = git(RAIZ, "worktree", "remove", ruta, timeout=600)
+            if rc == 0:
+                podados.append(n)
+            else:
+                decir("no podado %s: %s" % (n, out.strip()[:120]))
+    if hechos:
+        with open(os.path.join(olas, "archivo-worktrees.jsonl"), "a", encoding="utf-8") as f:
+            for h in hechos:
+                f.write(json.dumps(h, ensure_ascii=False) + "\n")
+    return podados
 
 
 def main(argv):

@@ -159,3 +159,18 @@ def test_archivar_dos_veces_no_pisa_la_rama_anterior(tmp_path):
     ok, rama = A.archivar(str(wt), "T1", "2026-10-20")
     assert ok and rama == "archivo-wt/T1-2026-10-20"
     assert _g(repo, "show", "archivo-wt/T1:a.txt") == "primera\n"
+
+
+def test_liberables_dir1126f():
+    """DIR1126F: los intentos fallidos («pendiente») y los reasignados se liberan; lo vivo no."""
+    progreso = {
+        "P1": {"estado": "pendiente"}, "R1": {"estado": "reasignada"}, "C1": {"estado": "en_curso"},
+        "L1": {"estado": "pendiente"}, "N1": {"estado": "pendiente"}, "X1": {"estado": "pendiente"},
+        "X10": {"estado": "pendiente"},
+    }
+    nombres = ["P1", "R1", "C1", "L1", "N1", "X1", "X10", "_traer", "SIN"]
+    ps = ["opencode run --dir /Users/a/Documents/starseed-wt/X1 algo"]
+    edades = {n: 3600 for n in nombres}
+    edades["N1"] = 30  # recién creado: aún no ha latido
+    salen = A.liberables(progreso, nombres, ps, {"L1"}, edades, min_edad_s=600)
+    assert salen == ["P1", "R1", "X10"]

@@ -799,6 +799,11 @@ def main():
 
                         archivar_worktrees.main(["--aplicar"])
                         print("higiene: poco disco: worktrees terminados archivados y podados", flush=True)
+                        # (DIR1126F) Y los de intentos fallidos que volvieron a «pendiente», reasignados,
+                        # rechazados o integrados: nadie los usa aquí y la tarea crea uno nuevo si vuelve.
+                        liberados = archivar_worktrees.liberar_no_vivas()
+                        if liberados:
+                            print("higiene: poco disco: %d worktrees sin uso archivados y podados" % len(liberados), flush=True)
                 except Exception as e:  # noqa: BLE001
                     print(
                         "higiene worktrees: %s: %s" % (type(e).__name__, e), flush=True
