@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "medidor-almacen-1126",
+   "prioridad": 99,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "id": "MED1126A-d1",
+   "titulo": "MetaGenesis: el medidor de almacenamiento de los nodos se ve en el pulso (Maggabox interno 500 GB principal y disco externo secundario) (parte 1 de 3)",
+   "archivos": [
+    "src/components/mando/centro-mando.tsx",
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha lo ha pedido muchísimas veces (25-11 y 26-11): ver en MetaGenesis el almacenamiento del nodo Maggabox. Diagnóstico de la dirección (26-11, 16:25): el medidor existe en la API (`/api/mando/medidores?clave=almacenamiento` devuelve «Mac 13 GB de 228,3 · Maggabox 397 GB de 453 · A1 9,1 · Drive 0 de 2048») y `medidor-abrible.tsx` sabe abrirlo (rama `clave === \"almacenamiento\"`), pero NINGUNA pastilla del pulso lo abre: en `centro-mando.tsx` la lista `pastillas` solo tiene memoria, BitNet, disco y Google Drive en la familia «maquina», y `LUGAR_EN_PULSO` no tiene `almacenamiento`. Por eso en /metagenesis no aparece la palabra «Almacenamiento» en ningún sitio. Hacer: (1) en `centro-mando.tsx`, una pastilla con `clave: \"almacenamiento\"`, título «Nodos y almacenamiento», valor «Maggabox N GB libres» y detalle corto con los demás (Mac, disco externo, A1, Drive); `LUGAR_EN_PULSO.almacenamiento = [\"maquina\", 2]`; la familia «maquina» se titula «Esta Mac y los nodos»; al pulsarla se abre el medidor `almacenamiento` debajo de su familia, como las demás. Los datos salen de la misma API (como mucho una petición cada 60 s, no en cada render). (2) El disco externo de la Maggabox (`/srv/starseed-almacen`, btrfs, por USB 2.0) entra como fila propia y SECUNDARIA: `sonda_maggabox.py` ya hace `df -BG /srv/starseed-almacen`; `recopilar-capacidades-nodos.py` debe sacar en el nodo maggabox una lista `discos` con el interno (`/`, rol «principal», el de 500 GB) y el externo (rol «secundario: respaldos y datos no fundamentales», con el estado que da el ayudante `starseed-almacen estado` de la Maggabox: montado, errores, SMART). Si el externo no está montado o da errores, su fila lo dice en ámbar o rojo y nada lo usa como destino. (3) En `medidores.ts` (`leerAlmacenamientoNodos`, `NodoAlmacenamiento` y las filas del medidor) las filas «Maggabox · interno (principal)» y «Maggabox · disco externo (secundario)» con libres y total. (4) Pruebas: vitest de que la pastilla aparece con datos simulados y abre el medidor; prueba de Python del recolector con salidas de df y del ayudante simuladas. Sustituye a ALC1125Js.\n\n## PARTE 1 DE 3 (la dirección dividió MED1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mando/centro-mando.tsx, src/lib/mando/medidores.ts, src/app/api/mando/medidores/route.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MED1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ]
+}
