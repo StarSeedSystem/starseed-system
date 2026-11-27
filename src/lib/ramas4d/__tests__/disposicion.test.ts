@@ -1,4 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import {
+  calcularPeticion,
+  type PeticionDisposicion,
+} from '../disposicion.worker';
+import {
+  calcularDisposicion,
+  calcularEnHiloPrincipal,
+  tipoDisposicionValido,
+} from '../use-disposicion';
 import {
   crearEstadoFuerza,
   disposicionEspiralTemporal,
@@ -127,6 +136,181 @@ describe('disposicion planos por capa', () => {
   it('es determinista', () => {
     const a = disposicionPlanosPorCapa(['x', 'y', 'x']);
     const b = disposicionPlanosPorCapa(['x', 'y', 'x']);
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+});
+
+describe('tipoDisposicionValido', () => {
+  it('acepta los cuatro tipos válidos', () => {
+    expect(tipoDisposicionValido('fuerza')).toBe(true);
+    expect(tipoDisposicionValido('radial')).toBe(true);
+    expect(tipoDisposicionValido('espiral')).toBe(true);
+    expect(tipoDisposicionValido('planos')).toBe(true);
+  });
+
+  it('rechaza tipos inválidos', () => {
+    expect(tipoDisposicionValido('invalido')).toBe(false);
+    expect(tipoDisposicionValido('')).toBe(false);
+    expect(tipoDisposicionValido('fuerza2')).toBe(false);
+  });
+});
+
+describe('calcularPeticion (worker puro)', () => {
+  function cadena(n: number): AristaDisposicion[] {
+    const aristas: AristaDisposicion[] = [];
+    for (let i = 0; i < n - 1; i++) aristas.push({ de: i, a: i + 1, intensidad: 1 });
+    return aristas;
+  }
+
+  it('calcula disposición por fuerzas', () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 10, aristas: cadena(10), opciones: { semilla: 1, iteraciones: 10 } };
+    const posiciones = calcularPeticion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(30);
+  });
+
+  it('calcula disposición radial', () => {
+    const peticion: PeticionDisposicion = { modo: 'radial', padres: [-1, 0, 0, 1] };
+    const posiciones = calcularPeticion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(12);
+    expect(posiciones[0]).toBe(0);
+    expect(posiciones[1]).toBe(0);
+    expect(posiciones[2]).toBe(0);
+  });
+
+  it('calcula disposición espiral temporal', () => {
+    const peticion: PeticionDisposicion = { modo: 'espiral', tiempos: [0, 1, 2, 3] };
+    const posiciones = calcularPeticion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(12);
+  });
+
+  it('calcula disposición planos por capa', () => {
+    const peticion: PeticionDisposicion = { modo: 'planos', capas: ['a', 'a', 'b'] };
+    const posiciones = calcularPeticion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(9);
+  });
+
+  it('es determinista con la misma semilla', () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 8, aristas: cadena(8), opciones: { semilla: 42, iteraciones: 50 } };
+    const a = calcularPeticion(peticion);
+    const b = calcularPeticion(peticion);
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+});
+
+describe('calcularDisposicion (integración worker/hilo)', () => {
+  function cadena(n: number): AristaDisposicion[] {
+    const aristas: AristaDisposicion[] = [];
+    for (let i = 0; i < n - 1; i++) aristas.push({ de: i, a: i + 1, intensidad: 1 });
+    return aristas;
+  }
+
+  it('calcula disposición por fuerzas en hilo principal (fallback)', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 12, aristas: cadena(12), opciones: { semilla: 7, iteraciones: 20 } };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(36);
+  });
+
+  it('calcula disposición radial en hilo principal', async () => {
+    const peticion: PeticionDisposicion = { modo: 'radial', padres: [-1, 0, 1, 0] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(12);
+  });
+
+  it('calcula disposición espiral en hilo principal', async () => {
+    const peticion: PeticionDisposicion = { modo: 'espiral', tiempos: [0, 10, 20] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(9);
+  });
+
+  it('calcula disposición planos en hilo principal', async () => {
+    const peticion: PeticionDisposicion = { modo: 'planos', capas: ['a', 'b', 'a'] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(9);
+  });
+
+  it('es determinista con la misma semilla', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 10, aristas: cadena(10), opciones: { semilla: 99, iteraciones: 30 } };
+    const a = await calcularDisposicion(peticion);
+    const b = await calcularDisposicion(peticion);
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+
+  it('calcularEnHiloPrincipal es función pura y determinista', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 6, aristas: cadena(6), opciones: { semilla: 5, iteraciones: 15 } };
+    const a = await calcularEnHiloPrincipal(peticion);
+    const b = await calcularEnHiloPrincipal(peticion);
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+});
+
+describe('calcularDisposicion fallback a hilo principal (sin Worker)', () => {
+  let WorkerOriginal: typeof Worker | undefined;
+
+  beforeEach(() => {
+    WorkerOriginal = globalThis.Worker;
+    vi.stubGlobal('Worker', undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (WorkerOriginal) {
+      globalThis.Worker = WorkerOriginal;
+    }
+  });
+
+  function cadena(n: number): AristaDisposicion[] {
+    const aristas: AristaDisposicion[] = [];
+    for (let i = 0; i < n - 1; i++) aristas.push({ de: i, a: i + 1, intensidad: 1 });
+    return aristas;
+  }
+
+  it('calcula disposición por fuerzas en hilo principal cuando no hay Worker', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 12, aristas: cadena(12), opciones: { semilla: 7, iteraciones: 20 } };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(36);
+  });
+
+  it('calcula disposición radial en hilo principal cuando no hay Worker', async () => {
+    const peticion: PeticionDisposicion = { modo: 'radial', padres: [-1, 0, 1, 0] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(12);
+  });
+
+  it('calcula disposición espiral en hilo principal cuando no hay Worker', async () => {
+    const peticion: PeticionDisposicion = { modo: 'espiral', tiempos: [0, 10, 20] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(9);
+  });
+
+  it('calcula disposición planos en hilo principal cuando no hay Worker', async () => {
+    const peticion: PeticionDisposicion = { modo: 'planos', capas: ['a', 'b', 'a'] };
+    const posiciones = await calcularDisposicion(peticion);
+    expect(posiciones).toBeInstanceOf(Float32Array);
+    expect(posiciones.length).toBe(9);
+  });
+
+  it('produce resultados idénticos a calcularEnHiloPrincipal directo', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 10, aristas: cadena(10), opciones: { semilla: 42, iteraciones: 30 } };
+    const viaFallback = await calcularDisposicion(peticion);
+    const directo = await calcularEnHiloPrincipal(peticion);
+    expect(Array.from(viaFallback)).toEqual(Array.from(directo));
+  });
+
+  it('es determinista en el fallback con la misma semilla', async () => {
+    const peticion: PeticionDisposicion = { modo: 'fuerza', n: 10, aristas: cadena(10), opciones: { semilla: 99, iteraciones: 30 } };
+    const a = await calcularDisposicion(peticion);
+    const b = await calcularDisposicion(peticion);
     expect(Array.from(a)).toEqual(Array.from(b));
   });
 });
