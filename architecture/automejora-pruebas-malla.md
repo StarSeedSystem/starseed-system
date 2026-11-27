@@ -30,6 +30,21 @@
 21. **IA local por SO.** El instalador en Python cubre macOS y Linux; Windows y Android quedan fuera de esta ola (Android solo Needle y delega en pares). El runtime de BitNet se toma de `nodo-bitnet.sh` del repo «IA 1.58 bit» fijado por commit y SHA si Maggasukha lo aprueba.
 22. **Disco.** La precondición de disco mira el nodo donde se trabaja, no la Mac de dirección (medido 7,5-9,4 GB libres).
 
+
+## D. Decisiones de Maggasukha (2026-11-27: «de tus preguntas haz lo que recomiendes»)
+
+Adoptadas las recomendaciones de la dirección. Mandan junto con la sección C.
+
+1. **Anillo de prueba para el canal global: SÍ.** Al canal global de capas solo llega lo promovido tras pasar la batería en el anillo de prueba. La variable del repo `SERVIDOR_CAPAS_ANILLO=prueba` se enciende **cuando BAP1127B (publicar al anillo) y BAP1127X (promover/retirar en el CI) estén integrados y una promoción de prueba haya funcionado**; antes no, para no dejar a las apps globales sin capas. La web y la PWA siguen saliendo por autopublicar → Vercel.
+2. **Lanzamiento oficial: se detiene en «lista para aprobar».** `config/lanzamientos.json` pasa a `auto_por_defecto: false` (hecho, DIR1127B). La versión pública sale solo con el Aprobar de Maggasukha desde Genesis; el bucle la prepara con su evidencia y se la pide una vez en «Te toca a ti». El interruptor del panel sigue existiendo por si él lo vuelve a encender.
+3. **Propuestas del bucle → enjambre: solas, con topes.** Una propuesta con evidencia (id de prueba, registros, umbral incumplido) entra sola en la cola como tarea BAP de prioridad baja, con un máximo de 3 por iteración y nunca sobre archivos protegidos (§8); pasa las mismas puertas que cualquier tarea (tsc, vitest/pytest, revisión, commit-seguro, CI). El botón «Mandar al enjambre» queda para lo que no tenga evidencia. Nada de eso es una versión pública (punto 2).
+4. **Capa rápida compilada en el A1 con una segunda clave: NO por ahora.** El A1 mide 2 núcleos, 11 GB de RAM (≈3 libres) y 8,7 GB de disco libre; la capa se sigue construyendo en GitHub. Se revisa cuando haya un nodo con recursos (o la Maggabox reparada como espejo LAN, decisión aparte).
+5. **Umbrales de la batería B4:** **≥5 cuadros/s** por la malla para que una capa pase el anillo de prueba; **≥15 cuadros/s** (objetivo de PRU1124A) para que una versión sea candidata a pública. Apertura ≤2 s, B1 enlace <10 s, B5 reanudación <5 s, B3 hash exacto, llamadas con los umbrales del banco.
+6. **Instalador de BitNet:** desde el repo «IA 1.58 bit» (`nodo-bitnet.sh`) **fijado por commit y SHA**, sin copiar el código; macOS y Linux en esta ola.
+7. **Firmantes:** una atestación de máquina («pruebas») + el Aprobar de Maggasukha (C.11); el multirrol se añade cuando haya comprobaciones deterministas por rol.
+8. **Interruptores por aparato** («Diagnóstico de pruebas», «Recibir diagnóstico (dirección)», permiso de control): solo los enciende Maggasukha en cada aparato; la dirección se los recordará en «Te toca a ti» cuando el bucle los necesite.
+9. **Dónde corre la ola:** el enjambre de la Mac con pruebas dirigidas ligeras (C.20); lo pesado, en la CI de GitHub.
+
 ## 0. Petición y alcance
 
 Maggasukha (27-11): actualizar las neuronas al instante con los cambios de las pruebas P2P; que MetaGenesis se autovincule a los aparatos por la malla, haga los controles, analice registros y señales (procesamiento, almacenamiento, red); que agentes locales BitNet 1.58 / Needle en cada nodo propongan mejoras; volver a probar y repetir hasta una versión que pase todo; al final firman directores y supervisores y se lanza como versión pública. Lo más fundamental primero.
