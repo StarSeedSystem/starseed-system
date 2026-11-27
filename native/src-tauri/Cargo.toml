@@ -92,6 +92,11 @@ flate2 = "1"
 base64 = "0.22"
 # AND1115K: verificación ECDSA P-256 (r‖s) de las órdenes de control en Rust puro (sin C: compila en Android sin NDK extra).
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic", "pkcs8", "std"] }
+# (NFC1126B) NFC de las neuronas en Android: SIN crate nuevo, a propósito. Lector (ReaderMode) y tarjeta (HCE con el AID de
+# StarSeed) son Kotlin (android/NfcStarSeed.kt + HceStarSeed.kt) que build.rs inyecta en el proyecto generado
+# (`gen/android`, que no se versiona) y Rust habla con ellos por archivos, como la ubicación. `tauri-plugin-nfc` no entra:
+# solo lee NDEF y su permiso `nfc:default` daría a la web más de lo que usa. Comandos: src/nfc.rs; permisos `allow-nfc-*`
+# en capabilities/default.json (web publicada y servidor local); prueba: src/lib/nativa/__tests__/nfc-android-contrato.test.ts.
 # CTL1119E: el Secret Service (llavero del sistema) va solo en las dependencias de Linux, más abajo (SUP1121C).
 # (SUP1121C) base64 ya está arriba (AND1114L; «std» va en sus features por defecto): repetirla aquí era
 # «duplicate key» y cargo no leía el manifiesto.
