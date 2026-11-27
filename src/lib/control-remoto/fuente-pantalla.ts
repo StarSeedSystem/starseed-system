@@ -162,3 +162,39 @@ export function lineaProyeccionNoAceptada(cuadros: number, estado: EstadoCuadros
     return `control-fuente paso=fluida-no-aceptada resultado=sin-respuesta-de-la-persona motivo=sin-consentimiento cuadros=${n} estado=${estado} sigue=accesibilidad`;
 }
 
+// ── CTL1126Css · paso a pantalla fluida en segundos y ventana con el modo real ───────────────────
+
+/** Por debajo de esta luminancia media (0–255) un cuadro se toma por negro (el que llega al arrancar la proyección). */
+export const LUMINANCIA_NEGRO = 6;
+
+/**
+ * El «Sí» de la persona ya está dado en el aparato pero la fuente que escribe cuadros sigue siendo accesibilidad:
+ * hay que pasar a proyección YA (en la lectura siguiente), sin esperar al fin del plazo ni a otra orden.
+ */
+export function debePasarAProyeccion(cap: unknown, real: FuenteReal | null): boolean {
+    return real === "accesibilidad" && proyeccionConcedida(cap);
+}
+
+/** La fuente que manda para la ventana: lo que dice el aparato ahora; si no dijo nada, lo último conocido. */
+export function fuenteVigente(cap: unknown, ultima: FuenteReal | null): FuenteReal | null {
+    return fuenteActivaDe(cap) ?? ultima;
+}
+
+/** El botón «Pedir la pantalla fluida» solo existe mientras la pantalla va por accesibilidad. */
+export function mostrarBotonFluida(real: FuenteReal | null): boolean {
+    return real === "accesibilidad";
+}
+
+/** ¿Un cuadro con esta luminancia media (0–255) es negro? Sin dato válido no se da por negro. */
+export function esCuadroNegro(luminanciaMedia: number | undefined): boolean {
+    return luminanciaMedia !== undefined && Number.isFinite(luminanciaMedia) && luminanciaMedia < LUMINANCIA_NEGRO;
+}
+
+/**
+ * Qué hacer con el cuadro que llega. Tras un cambio de fuente, un cuadro negro no se pinta mientras haya uno bueno
+ * guardado: se mantiene el último bueno hasta que llegue uno con imagen. Fuera de un cambio se pinta siempre.
+ */
+export function decidirCuadro(e: { cambiandoFuente: boolean; luminanciaMedia?: number; hayCuadroBueno: boolean }): "pintar" | "mantener" {
+    return e.cambiandoFuente && e.hayCuadroBueno && esCuadroNegro(e.luminanciaMedia) ? "mantener" : "pintar";
+}
+
