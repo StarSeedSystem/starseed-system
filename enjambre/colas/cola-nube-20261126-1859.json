@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "prioridad": 88,
+   "ola": "terminal-neuronas-1125",
+   "id": "TRM1125J-d1",
+   "titulo": "Ayudante: un solo contrato de órdenes tipadas para todos los sistemas y su cliente para Genesis, PoliGenesis, Astraura, Protomolécula y cont (parte 1 de 3)",
+   "archivos": [
+    "src/lib/ayudante/ordenes.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Sección «En todas las versiones nativas» del contrato: catálogo único de órdenes tipadas (almacenes: estado, salud, formatear, montar, desmontar, verificar; servicios propios de StarSeed; actualizar app; registros; reiniciar app; modo completo con caducidad), qué parámetros lleva cada una, sus guardas y en qué sistemas existe; y el cliente que usan Genesis, PoliGenesis, Astraura, la Protomolécula y el control remoto (siempre con el permiso del dueño en ese aparato). Pruebas.\n\n## PARTE 1 DE 3 (la dirección dividió TRM1125J: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ayudante/ordenes.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRM1125J",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "TRM1125A"
+   ]
+  },
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 88,
+   "capacidad": "alta",
+   "id": "RES1126A-d1",
+   "titulo": "Pantallas chicas: nada se sale por la derecha en Señales ni en ninguna sección (parte 1 de 2)",
+   "archivos": [
+    "src/components/mesh/signals-center.tsx",
+    "src/components/mesh/mapa-senales/barra-mapa.tsx",
+    "src/components/mesh/mapa-senales/barra-resumen.tsx"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: «algunos elementos de la sección de Señales se salen de la pantalla hacia la derecha en pantallas chicas; revísalo que no ocurra en ninguna sección y arréglalo». En Señales: filas de pastillas (antena, de quién, altura), la fila del panel «Control entre neuronas» (id + «Pedir controlarla desde aquí» + «Modo de pruebas de llamadas…»), las tarjetas de antenas y el mapa: flex con flex-wrap y min-w-0, rejillas con minmax(0,1fr), anchos fijos solo con max-w-full, textos largos que parten (sin truncar: textos-no-cortados.test.ts). Prueba estática nueva sin-desborde-horizontal.test.ts que recorre src/components y src/app y falla con anchos fijos mayores de 360 px sin max-w, whitespace-nowrap en filas sin envoltura, o grid-cols fijos sin variante para pantallas chicas; arregla lo que encuentre en todas las secciones (en lotes si son muchas). Sin cambiar el aspecto en pantallas grandes.\n\n## PARTE 1 DE 2 (la dirección dividió RES1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mesh/signals-center.tsx, src/components/mesh/mapa-senales/barra-mapa.tsx, src/components/mesh/mapa-senales/barra-resumen.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RES1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "id": "ALC1125Js",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas · lo que faltó: src/lib/mando/medidores.ts",
+   "archivos": [
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de ALC1125J, que ya está integrada (sha fd0d50f2e69b). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/mando/medidores.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas\n\n--- encargo original, como contexto ---\nContrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 7 del contrato. (1) La sonda de la Maggabox mide también /srv/starseed-almacen (usado, libre, si está montado y, si se puede leer sin root, la salud) y el medidor de almacenamiento de MetaGenesis lo muestra como medio propio «Maggabox · almacén USB (btrfs)», distinto del disco interno; si no está montado dice «desconectado» y desde cuándo, nunca 0 GB inventados. (2) almacen_maggabox.py (sin root, por ssh con las opciones de respaldo_maggabox.py: AddressFamily=inet y known_hosts_starseed_nodo): instantáneas de solo lectura diarias de los subvolúmenes respaldos y cerebros en .instantaneas con retención 7 diarias + 4 semanales, y la orden «destinos» que dice qué va a cada subvolumen (pesado regenerable del enjambre → desarrollo; respaldos y versiones → respaldos). (3) Actualiza la tabla de medios de almacenamiento-distribuido.md. Pruebas con dobles de ssh.",
+   "prioridad": 84,
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "TRM1125J-d1",
+   "RES1126A-d1",
+   "ALC1125Js"
+  ]
+ }
+}
