@@ -22,6 +22,7 @@ import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
 import { notifyFromApp } from "@/lib/notifications/app-notify";
 import { notificacionDeEncuentro } from "@/lib/notificaciones/encuentro-nfc";
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { anadirConocida, anadirVinculo, CLAVE_ENCUENTROS, CLAVE_ESTADO_CERCANIA, leerEstado } from "@/lib/nfc/estado-cercania";
 
 interface Props {
   decision: DecisionEncuentro;
@@ -85,7 +86,7 @@ export function HojaCerca({ decision, via, onBoton, onCerrar }: Props) {
 
 export default HojaCerca;
 
-const CLAVE_REGISTRO = "starseed.nfc.encuentros.v1";
+const CLAVE_REGISTRO = CLAVE_ENCUENTROS;
 
 function leerRegistro(): RegistroEncuentro[] {
   try {
@@ -122,6 +123,14 @@ export function SeccionCercania({ propia, ajena, via, relacion, onAccion }: Secc
       return sig;
     });
     setActual({ d, id: reg.id, neuronaId: ajena.neuronaId });
+    // Un mismo estado para las cuatro puertas: el encuentro deja vínculo y persona conocida.
+    const nombre = d.perfil.tipo === "completo" ? d.perfil.cuenta.valor : "Neurona cercana";
+    const est = anadirConocida(
+      anadirVinculo(leerEstado(safeGet(CLAVE_ESTADO_CERCANIA)), { id: reg.id, neuronaId: ajena.neuronaId, via, desde: reg.en }),
+      { neuronaId: ajena.neuronaId, nombre, via, vista: reg.en },
+    );
+    safeSet(CLAVE_ESTADO_CERCANIA, JSON.stringify(est));
+    window.dispatchEvent(new Event("starseed:nfc-cercania"));
     d.automaticas.forEach((a) => onAccion?.(a, ajena.neuronaId));
     const aviso = notificacionDeEncuentro(d, via, reg.id);
     if (aviso) notifyFromApp(aviso);

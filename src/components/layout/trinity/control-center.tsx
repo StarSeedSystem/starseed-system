@@ -31,6 +31,7 @@ import { SmartHomeTab } from "./tabs/smart-home-tab";
 import { NotificationsTab } from "./tabs/notifications-tab";
 // Adenda 98: administración de conexiones de la neurona (red externa + malla).
 import { ConnectionsTab } from "./tabs/connections-tab";
+import { MosaicoCercania } from "@/components/nfc/cercania-puertas";
 import { FlorDeLaVida } from "./horizon/flor-de-la-vida";
 import { BarraSecciones, type SeccionBarra } from "./logic/barra-secciones";
 import { CabeceraControl } from "./logic/cabecera-control";
@@ -283,6 +284,7 @@ export function ControlCenter() {
                                                 "motion-safe:data-[state=active]:animate-in motion-safe:data-[state=active]:fade-in-0 motion-safe:data-[state=active]:slide-in-from-bottom-1 motion-safe:duration-200",
                                             )}
                                         >
+                                            {s.id === "quick" && <div className="mb-3"><MosaicoCercania /></div>}
                                             <Contenido />
                                         </TabsPrimitive.Content>
                                     );

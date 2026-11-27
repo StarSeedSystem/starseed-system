@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFiltradoBots } from "@/lib/agentes-red/use-agentes-red";
 import Link from "next/link";
 import { TabsContent } from "@/components/ui/tabs";
+import { CercaniaSocial } from "@/components/nfc/cercania-puertas";
 import {
     Sparkles, Users2, TrendingUp, Compass, Radio, Search, Hash, LayoutGrid,
     Image as ImageIcon, Video, Music, Link as LinkIcon, Type, Loader2, UserPlus, Users as UsersIcon,
@@ -281,6 +282,7 @@ function ParaTiTab({ pool }: { pool: CulturalPool }) {
 
     return (
         <div className="space-y-4">
+            <CercaniaSocial />
             <FeedAlgorithmSelector
                 algorithm={algorithm}
                 weights={weights}

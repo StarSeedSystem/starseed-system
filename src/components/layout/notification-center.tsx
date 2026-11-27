@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { EncuentrosEnNotificaciones } from "@/components/nfc/cercania-puertas";
 import { useNotifications, type AppNotification, type NotificationCategory } from "@/context/notifications-context";
 
 const CATEGORY_META: Record<NotificationCategory, { label: string; icon: typeof Bell; color: string }> = {
@@ -95,6 +96,7 @@ export function NotificationCenter() {
           </div>
         </div>
 
+        <EncuentrosEnNotificaciones />
         {/* Tabs */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
           <ScrollArea className="border-b">
