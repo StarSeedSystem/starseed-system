@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "titulo": "Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "t": "2026-11-07 14:56:25",
+   "id": "IMG-agentes-reimaginada-agentes-reimaginadab",
+   "ola": "",
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable. # Reimaginación accionable\n\n## Intención conservada\nEvitar que una promesa rechazada en carga de modelo quede en caché y contamine intentos posteriores, con reintentos limitados y sin agotar créditos.\n\n## Problema\nCuando una carga falla por timeout, red, 429/402, la promesa rechazada puede persistir en caché. Los intentos siguientes reutilizan el fallo en lugar de reintentar.\n\n## Enfoque genérico y seguro\nNo se asumen nombres de archivos. La tarea es de descubrimiento + especificación, no edición.\n\n1. **Inventario de carga de modelos**\n   - Recorrer `src/lib/` y `src/components/` para identifi Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nrechazada por la dirección (07-11): la rama de la nube (919fe2af0) añade 8.483 archivos ajenos (.agent/, -W, xai-proxy.js) y nada del encargo\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "IMG-agentes-reimaginada-agentes-reimaginadab"
+  ]
+ }
+}
