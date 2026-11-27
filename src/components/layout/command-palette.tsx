@@ -507,9 +507,13 @@ export function CommandPalette() {
     }
 
     const matchedActions = rankEntries(quickActions, q).map((e) => ({ ...e, group: GROUP_ACTIONS }));
-    const matchedDestinations = rankEntries(destinationEntries, q).map((e) => ({ ...e, group: GROUP_ALL }));
+    const entryById = new Map(destinationEntries.map((e) => [e.id, e] as const));
+    const matchedDestinations = rankDestinations(destinations, q)
+      .map((d) => entryById.get(d.id))
+      .filter((e): e is PaletteEntry => !!e)
+      .map((e) => ({ ...e, group: GROUP_ALL }));
     return [...matchedActions, ...matchedDestinations];
-  }, [query, quickActions, destinationEntries, recentsSnapshot]);
+  }, [query, quickActions, destinations, destinationEntries, recentsSnapshot]);
 
   // Atajo global Cmd/Ctrl+K — FASE DE CAPTURA (ver nota de conflicto arriba).
   useEffect(() => {
