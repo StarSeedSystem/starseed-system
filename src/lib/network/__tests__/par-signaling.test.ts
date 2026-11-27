@@ -34,6 +34,8 @@ function crearClienteFalso() {
   let fromError: unknown = null;
 
   const channel = {
+    // `send()` solo usa el socket si el canal está unido (`canalListoParaEnviar`).
+    state: "joined",
     on: vi.fn((_type: string, _filter: unknown, cb: BroadcastHandler) => {
       handlers.push(cb);
       return channel;
