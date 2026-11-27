@@ -23,9 +23,13 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import registro_pruebas_logica as RPL  # noqa: E402
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -52,6 +56,15 @@ ORDEN_PRUEBA_CONTROL = "prueba-control"
 FUENTES_VALIDAS = ("auto", "proyeccion", "malla")
 MAX_DURACION_MS = 120_000
 MIN_DURACION_MS = 10_000
+CADUCA_ORDEN_MS = 300_000
+ESPERA_RESULTADO_S = 30.0
+
+EQUIVALENCIAS_JSON = RAIZ_REPO / "config" / "pruebas-equivalencias.json"
+DATOS_APP = Path(os.environ.get("STARSEED_APP_DATOS") or Path.home() / "Library/Application Support/app.starseed.os")
+BANCO_DIR = Path(os.environ.get("STARSEED_PRODUCCION_DIR") or Path.home() / ".starseed" / "produccion") / "banco-llamadas"
+_RE_HUELLA = re.compile(r"^[0-9a-f]{64}$")
+_RE_NOMBRE = re.compile(r"^[^\s/]{1,64}$")
+_ERRORES_FUENTE = ("SSH_ERROR", "SSH_TIMEOUT", "SSH_EXCEPTION", "SIN_ACCESO", "ADB_")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -378,6 +391,22 @@ def _publicar_chat_director(mensaje: str, tipo: str = "aviso") -> None:
 # Subcomandos
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _fines_canonicos() -> dict[str, dict[str, Any]]:
+    """BAP1127Z: `fin` del registro (también las manuales) por id canónico."""
+    fines: dict[str, dict[str, Any]] = {}
+    for o in RPL.leer_registro(REGISTRO_JSONL):
+        if o.get("tipo") != "fin":
+            continue
+        canon = RPL.id_canonico(str(o.get("id") or ""), EQUIVALENCIAS_JSON)
+        if canon:
+            fines[canon] = o
+    return fines
+
+
+def _canon(prueba_id: str) -> str:
+    return RPL.id_canonico(prueba_id, EQUIVALENCIAS_JSON) or prueba_id
+
+
 def cmd_listar(args: argparse.Namespace) -> int:
     try:
         bateria = cargar_bateria()
@@ -406,18 +435,9 @@ def cmd_siguiente(args: argparse.Namespace) -> int:
     if not pruebas:
         print("Batería vacía.")
         return 1
-    # Buscar la primera que no tenga entrada de fin en registro.jsonl
-    hechas = set()
-    if REGISTRO_JSONL.exists():
-        for linea in REGISTRO_JSONL.read_text(encoding="utf-8").splitlines():
-            try:
-                obj = json.loads(linea)
-                if obj.get("tipo") == "fin":
-                    hechas.add(obj.get("id"))
-            except json.JSONDecodeError:
-                pass
+    hechas = set(_fines_canonicos())
     for p in pruebas:
-        if p["id"] not in hechas:
+        if _canon(p["id"]) not in hechas:
             print(p["id"])
             return 0
     print("Todas las pruebas tienen registro de fin.")
@@ -457,6 +477,33 @@ def cmd_empezar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _recoger_aparatos(inicio: datetime, fin: datetime) -> tuple[dict[str, dict[str, list[str]]], dict[str, str]]:
+    """BAP1127Z: espejo-<aparato>.log primero; SSH/adb solo si el aparato no tiene ninguna línea."""
+    logs: dict[str, dict[str, list[str]]] = {}
+    fuentes: dict[str, str] = {}
+    desde, hasta = inicio.isoformat(), fin.isoformat()
+    for aparato in APARATOS:
+        texto = "\n".join(_leer_archivo_log(DATOS_APP / f"espejo-{aparato}.log"))
+        espejo = RPL.lineas_espejo(texto, desde, hasta)
+        if espejo:
+            logs[aparato], fuentes[aparato] = {"espejo.log": espejo}, "espejo"
+            continue
+        if aparato == "mac":
+            logs[aparato] = _recoger_logs_mac(inicio, fin)
+            fuente = "espejo"  # enlaces.log de la Mac es el agregado del espejo
+        elif aparato == "maggabox":
+            logs[aparato] = _recoger_logs_maggabox(inicio, fin)
+            fuente = "ssh"
+        else:
+            logs[aparato] = _recoger_logs_tableta(inicio, fin)
+            fuente = "adb"
+        reales = [x for v in logs[aparato].values() for x in v if not x.startswith(_ERRORES_FUENTE)]
+        for nombre in logs[aparato]:
+            logs[aparato][nombre] = [x for x in logs[aparato][nombre] if not x.startswith(_ERRORES_FUENTE)]
+        fuentes[aparato] = fuente if reales else "sin-acceso"
+    return logs, fuentes
+
+
 def cmd_recoger(args: argparse.Namespace) -> int:
     # Leer inicio desde registro.jsonl
     inicio = None
@@ -476,15 +523,14 @@ def cmd_recoger(args: argparse.Namespace) -> int:
     fin = datetime.now(timezone.utc)
     print(f"Recogiendo logs entre {inicio.isoformat()} y {fin.isoformat()}...")
 
-    logs: dict[str, dict[str, list[str]]] = {}
-    if "mac" in APARATOS:
-        logs["mac"] = _recoger_logs_mac(inicio, fin)
-    if "maggabox" in APARATOS:
-        logs["maggabox"] = _recoger_logs_maggabox(inicio, fin)
-    if "tableta" in APARATOS:
-        logs["tableta"] = _recoger_logs_tableta(inicio, fin)
-
+    logs, fuentes = _recoger_aparatos(inicio, fin)
     dir_ev = _guardar_evidencias(args.id, inicio, logs)
+    resumen = {
+        "id": args.id,
+        "ventana": {"inicio": inicio.isoformat(), "fin": fin.isoformat()},
+        "aparatos": {a: {"lineas": sum(len(v) for v in logs[a].values()), "fuente": fuentes[a]} for a in logs},
+    }
+    (dir_ev / "resumen.json").write_text(json.dumps(resumen, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Evidencias guardadas en {dir_ev}")
 
     if getattr(args, "captura", False):
@@ -494,6 +540,46 @@ def cmd_recoger(args: argparse.Namespace) -> int:
         for aparato in APARATOS:
             captura_aparatos.capturar(aparato, "foto", 0, args.id)
     return 0
+
+
+def cmd_lanzar(args: argparse.Namespace) -> int:
+    """BAP1127Z: escribe la orden `prueba-control` en el buzón del banco y espera el .resultado.json."""
+    if not _RE_NOMBRE.match(args.id or "") or not _RE_NOMBRE.match(args.origen or ""):
+        print("id u origen no válidos (sin espacios ni «/», ≤ 64).")
+        return 1
+    if not _RE_HUELLA.match(args.destino or ""):
+        print("destino no válido: se espera la huella de 64 hex.")
+        return 1
+    if not MIN_DURACION_MS <= args.duracion <= MAX_DURACION_MS:
+        print(f"duración fuera de rango ({MIN_DURACION_MS}–{MAX_DURACION_MS} ms).")
+        return 1
+    if args.fuente not in FUENTES_VALIDAS:
+        print(f"fuente no válida: {', '.join(FUENTES_VALIDAS)}.")
+        return 1
+    BANCO_DIR.mkdir(parents=True, exist_ok=True)
+    resultado = BANCO_DIR / f"{args.id}.resultado.json"
+    resultado.unlink(missing_ok=True)
+    orden = {
+        "v": 1, "tipo": ORDEN_PRUEBA_CONTROL, "id": args.id, "origen": args.origen, "destino": args.destino,
+        "duracion_ms": args.duracion, "fuente": args.fuente, "caduca_ms": int(time.time() * 1000) + CADUCA_ORDEN_MS,
+    }
+    tmp = BANCO_DIR / f"orden.json.tmp-{os.getpid()}"
+    tmp.write_text(json.dumps(orden), encoding="utf-8")
+    os.replace(tmp, BANCO_DIR / "orden.json")
+    limite = time.monotonic() + ESPERA_RESULTADO_S
+    while True:
+        if resultado.exists():
+            try:
+                datos = json.loads(resultado.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                datos = None
+            if isinstance(datos, dict):
+                print(f"{'ok' if datos.get('ok') else 'fallo'}: {datos.get('motivo', '')}")
+                return 0 if datos.get("ok") else 1
+        if time.monotonic() >= limite:
+            print("sin respuesta de la app de dirección")
+            return 2
+        time.sleep(min(0.5, ESPERA_RESULTADO_S / 10))
 
 
 def cmd_evaluar(args: argparse.Namespace) -> int:
@@ -573,21 +659,15 @@ def cmd_informe(args: argparse.Namespace) -> int:
         return 1
     pruebas = filtrar_bateria(bateria, None, args.ronda)
 
-    # Leer resultados de registro.jsonl
-    resultados_map: dict[str, dict[str, Any]] = {}
-    if REGISTRO_JSONL.exists():
-        for linea in REGISTRO_JSONL.read_text(encoding="utf-8").splitlines():
-            try:
-                obj = json.loads(linea)
-                if obj.get("tipo") == "fin":
-                    resultados_map[obj["id"]] = {"resultado": obj["resultado"], "nota": obj.get("nota")}
-            except json.JSONDecodeError:
-                pass
+    resultados_map = {
+        k: {"resultado": o.get("resultado") or "pendiente", "nota": o.get("nota")}
+        for k, o in _fines_canonicos().items()
+    }
 
     filas = []
     for p in pruebas:
         rid = p["id"]
-        res_info = resultados_map.get(rid, {"resultado": "pendiente", "nota": None})
+        res_info = resultados_map.get(_canon(rid), {"resultado": "pendiente", "nota": None})
         filas.append(
             {
                 "id": rid,
@@ -600,7 +680,8 @@ def cmd_informe(args: argparse.Namespace) -> int:
 
     md = formatear_informe(filas, args.ronda)
     print(md)
-    _publicar_chat_director(md, "hecho")
+    if not getattr(args, "sin_publicar", False):
+        _publicar_chat_director(md, "hecho")
     return 0
 
 
@@ -629,6 +710,14 @@ def main(argv: list[str] | None = None) -> int:
     p_recoger.add_argument("--captura", action="store_true", help="Captura también la pantalla de cada aparato")
     p_recoger.set_defaults(func=cmd_recoger)
 
+    p_lanzar = sub.add_parser("lanzar", help="Lanza una prueba-control entre neuronas por el buzón del banco")
+    p_lanzar.add_argument("id", help="ID de la orden (sin espacios ni «/»)")
+    p_lanzar.add_argument("--origen", required=True, help="Neurona que ejecuta la prueba")
+    p_lanzar.add_argument("--destino", required=True, help="Huella (64 hex) de la neurona destino")
+    p_lanzar.add_argument("--duracion", type=int, default=60_000, help="Duración en ms (10000–120000)")
+    p_lanzar.add_argument("--fuente", default="auto", help="auto | proyeccion | malla")
+    p_lanzar.set_defaults(func=cmd_lanzar)
+
     p_eval = sub.add_parser("evaluar", help="Aplica criterios debe/no_debe a las evidencias recogidas")
     p_eval.add_argument("id", help="ID de la prueba")
     p_eval.set_defaults(func=cmd_evaluar)
@@ -641,6 +730,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_inf = sub.add_parser("informe", help="Genera tabla Markdown de resultados para el Chat Director")
     p_inf.add_argument("--ronda", type=int, help="Filtrar por ronda")
+    p_inf.add_argument("--sin-publicar", action="store_true", help="No publica en el Chat Director")
     p_inf.set_defaults(func=cmd_informe)
 
     args = parser.parse_args(argv)
