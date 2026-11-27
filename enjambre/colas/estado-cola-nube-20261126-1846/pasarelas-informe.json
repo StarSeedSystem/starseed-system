@@ -1,0 +1,197 @@
+{
+ "t": "2026-11-26 18:27:29",
+ "pasarelas": [
+  {
+   "modelo": "qwen2.5:0.5b",
+   "variable": null,
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 2.5,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "particle-ai/particle-1:free",
+   "variable": "OPENROUTER_API_KEY",
+   "http": 429,
+   "estado": "saturada",
+   "segundos": 3.1,
+   "mensaje": "{\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"particle-ai/particle-1:free is temporarily rate-limited upstream. Please retry shortly, or add your own provider key to use your own limits: ht…",
+   "modelo_anterior": "nex-agi/nex-n2.5-pro:free",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "minimaxai/minimax-m3.1-flash",
+   "variable": "NVIDIA_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 3.4,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gemini-3.5-flash-lite",
+   "variable": "GEMINI_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 0.8,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "openai/gpt-oss-20b",
+   "variable": "GROQ_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 0.6,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "qwen/qwen3-coder-plus:free",
+   "variable": "XKIRO_API_KEY",
+   "http": 404,
+   "estado": "modelo_fuera",
+   "segundos": 0.5,
+   "mensaje": "Model \"qwen/qwen3-coder-plus:free\" does not exist.",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "deepseek/deepseek-v4.1-flash-1017-free",
+   "variable": "TOKENROUTER_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 4.9,
+   "mensaje": "",
+   "modelo_anterior": "z-ai/glm-5.3-free",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gpt-4o-mini",
+   "variable": "AIHUBMIX_API_KEY",
+   "http": 403,
+   "estado": "sin_cupo",
+   "segundos": 0.3,
+   "mensaje": "Your account balance is insufficient. Please recharge your account to continue using the API. (tid: 2026112700271695828273538919529)",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "free/glm-5.3-flash",
+   "variable": "STARSEED_PASARELA_APINEX_KEY",
+   "http": 402,
+   "estado": "sin_cupo",
+   "segundos": 0.7,
+   "mensaje": "Make a single top-up of $5 or more to unlock 25M free tokens daily for life. Top up at https://apinex.bond/billing",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "deepseek-v4-pro",
+   "variable": "DEEPSEEK_API_KEY",
+   "http": 402,
+   "estado": "sin_cupo",
+   "segundos": 1.1,
+   "mensaje": "Insufficient Balance (request_id: 54c3c6d8-a316-417c-bd95-9e05208729f5)",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "grok-4.6",
+   "variable": "XAI_API_KEY",
+   "http": 403,
+   "estado": "sin_cupo",
+   "segundos": 0.4,
+   "mensaje": "Your team 57448b5a-d437-43bc-aa7f-45482615ff1d has either used all available credits or reached its monthly spending limit. To continue making API requests, please purchase more credits or raise your spending limit.",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "Qwen/Qwen2.5-72B-Instruct",
+   "variable": "HF_TOKEN",
+   "http": 402,
+   "estado": "sin_cupo",
+   "segundos": 0.3,
+   "mensaje": "Purchase pre-paid credits to continue using Inference Providers. Alternatively, subscribe to PRO to get monthly included credits.",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "auto",
+   "variable": "FREELLMAPI_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 1.5,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "abliterated-model",
+   "variable": "ABLITERATION_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 1.4,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gemini-3.8-flash-medium",
+   "variable": null,
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 5.1,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "qwen2.5:4b",
+   "variable": null,
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 0.0,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gpt-4o",
+   "variable": null,
+   "http": 429,
+   "estado": "sin_cupo",
+   "segundos": 1.0,
+   "mensaje": "escritura: cuota de ChatGPT agotada",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "glm-5.3-flash-free",
+   "variable": null,
+   "http": 404,
+   "estado": "modelo_fuera",
+   "segundos": 0.2,
+   "mensaje": "opencode-zen no configurado",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "jev-latest",
+   "variable": "EXPLABS_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 0.8,
+   "mensaje": "",
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  }
+ ]
+}

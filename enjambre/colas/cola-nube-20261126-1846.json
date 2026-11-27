@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 80,
+   "id": "MV1125C-d1",
+   "titulo": "Ramas 4D: disposición 3D en un Web Worker (fuerza con octree, árbol radial, espiral temporal, planos por capa) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/disposicion.ts",
+    "src/lib/ramas4d/octree.ts",
+    "src/lib/ramas4d/disposicion.worker.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Implementa la física propia (sin librerías nuevas): fuerza 3D con aproximación Barnes-Hut sobre un octree (octree.ts), resortes por arista según intensidad, y tres disposiciones más: árbol radial (para rutas y carpetas), espiral temporal (eje del tiempo) y planos por capa (una capa por altura). Todo en funciones puras deterministas con semilla; disposicion.worker.ts corre los pasos fuera del hilo principal y devuelve Float32Array de posiciones; use-disposicion.ts es el hook de React que habla con el worker, con caída a hilo principal si no hay Worker. Pruebas: determinismo con semilla, convergencia (energía baja), 5 000 nodos en un paso < 200 ms en Node.\n\n## PARTE 1 DE 2 (la dirección dividió MV1125C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/disposicion.ts, src/lib/ramas4d/octree.ts, src/lib/ramas4d/disposicion.worker.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "MV1125B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "MV1125C-d1"
+  ]
+ }
+}
