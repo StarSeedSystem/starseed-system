@@ -1,0 +1,101 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 78,
+   "id": "MV1125E-d2",
+   "titulo": "Ramas 4D: la cuarta dimensión (línea de tiempo, en vivo, rebobinar y velocidad) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/__tests__/tiempo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Estado del grafo en un instante t a partir de los eventos: grafoEnInstante, ventana [t0,t1], reproductor (play, pausa, velocidad x0.25–x64, en vivo) como máquina de estados pura; enfriamiento de recuerdos (brillo baja despacio sin uso, nunca borra). Pruebas de reproducción, ventanas y enfriamiento.\n\n## PARTE 2 DE 2 (la dirección dividió MV1125E: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/__tests__/tiempo.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125E",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "MV1125E-d1"
+   ]
+  },
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 78,
+   "id": "MV1125Db",
+   "titulo": "Ramas 4D: zoom semántico (galaxias que se abren en sistemas, planetas y contenido) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/agrupar.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Agrupación jerárquica para el zoom semántico del contrato: por dueño, cerebro, entidad, carpeta o comunidad; nivelDeDetalle(distancia) → qué grupos se muestran colapsados (un cuerpo con tamaño = suma de pesos) y cuáles abiertos; respeta un tope de cuerpos visibles. Funciones puras. Pruebas con grafos de 10, 1 000 y 20 000 nodos.\n\n## PARTE 1 DE 2 (la dirección dividió MV1125D: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/agrupar.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/45911248591`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: e 100644 src/lib/ramas4d/agrupar.ts\nAuto-merging src/lib/ramas4d/index.ts\nCONFLICT (content): Merge conflict in src/lib/ramas4d/index.ts\nerror: could not apply 4ccd52c91... multiverso-1125 · MV1125D-d1: Ramas 4D: zoom semántico (galaxias que se abren en sistemas, planetas y contenido) (parte 1 de 2)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/45911248591:refs/remotes/origin/nube/45911248591\"` y `git cherry-pick --no-commit af7e80c8e20e 4ccd52c91a04`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/ramas4d/__tests__/agrupar.test.ts, src/lib/ramas4d/agrupar.ts, src/lib/ramas4d/index.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "MV1125D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/45911248591",
+   "dependencias_ya_en_main": [
+    "MV1125B"
+   ]
+  },
+  {
+   "ola": "almacenes-cerebros-1125",
+   "prioridad": 76,
+   "capacidad": "alta",
+   "id": "ALC1125E-d1",
+   "titulo": "Almacenes: fragmentación cifrada con Reed-Solomon y reparto democrático entre nodos (parte 1 de 2)",
+   "archivos": [
+    "src/lib/almacenes/reed-solomon.ts",
+    "src/lib/almacenes/fragmentos.ts",
+    "src/lib/almacenes/reparto.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 5: Reed-Solomon k de n en TypeScript propio (GF(2^8)), cifrado AES-GCM con WebCrypto antes de fragmentar (la llave nunca va en el fragmento), colocación por ofertas, salud y diversidad (no todo en el mismo aparato, red o persona), reparación cuando un nodo se va y cupo por reciprocidad. Pruebas: reconstruir con cualquier k, fallar con k-1, fragmento manipulado detectado.\n\n## PARTE 1 DE 2 (la dirección dividió ALC1125E: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/almacenes/reed-solomon.ts, src/lib/almacenes/fragmentos.ts, src/lib/almacenes/reparto.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALC1125E",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "ALC1125A"
+   ]
+  },
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "medio": "nube",
+   "t_reasignada": 1795470337.643998,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 430,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-agent-reach-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:15"
+   },
+   "id": "CAP-skill-agent-reach-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 02:26:39\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "MV1125Db",
+   "MV1125E-d2",
+   "ALC1125E-d1",
+   "CAP-skill-agent-reach-usob"
+  ]
+ }
+}
