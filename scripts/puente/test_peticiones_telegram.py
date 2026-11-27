@@ -110,7 +110,7 @@ def test_tg_maneja_errores_http():
 
 
 def test_decir_divide_mensajes_largos():
-    """decir divide mensajes > 3900 chars en múltiples sendMessage."""
+    """decir divide mensajes > 3900 chars en múltiples sendMessage (con firma)."""
     original_chat = mod.CHAT
     original_token = mod.TOKEN
     mod.CHAT = "123"
@@ -125,7 +125,8 @@ def test_decir_divide_mensajes_largos():
             decir(texto_largo)
         assert len(llamadas) == 3
         assert all(l[0] == "sendMessage" for l in llamadas)
-        assert sum(len(l[1]["text"]) for l in llamadas) == 8000
+        # La firma añade ~31 chars: "\n\n<i>— Audiovisual y diseño</i>"
+        assert sum(len(l[1]["text"]) for l in llamadas) == 8031
     finally:
         mod.CHAT = original_chat
         mod.TOKEN = original_token

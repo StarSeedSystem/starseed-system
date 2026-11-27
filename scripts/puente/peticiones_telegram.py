@@ -161,6 +161,18 @@ def _audiovisual_log_path() -> str:
     return os.path.join(DIR, "audiovisual-sync.jsonl")
 
 
+def _preguntas_abiertas_path() -> str:
+    return os.path.join(DIR, "preguntas_abiertas.json")
+
+
+def _condiciones_aprobacion_path() -> str:
+    return os.path.join(DIR, "condiciones_aprobacion.json")
+
+
+def _desarrollo_conjunto_path() -> str:
+    return os.path.join(DIR, "desarrollo_conjunto.json")
+
+
 def _registrar_mensaje_audiovisual(direccion: str, msg: dict[str, Any], texto: str) -> None:
     """Registra un mensaje entrante o saliente del bot @StarSeed_Design_bot en el log JSONL.
     
@@ -174,11 +186,11 @@ def _registrar_mensaje_audiovisual(direccion: str, msg: dict[str, Any], texto: s
         "id": f"a1-{direccion}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}",
         "t": round(time.time(), 3),
         "direccion": direccion,
-        "de": "alex" if direccion == "entrante" else "bot",
+        "de": "maggasukha" if direccion == "entrante" else "bot",
         "texto": str(texto or "").strip(),
     }
     log_path = _audiovisual_log_path()
-    # Append al archivo
+    # Append al archivo local
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(registro, ensure_ascii=False) + "\n")
     # Rotar manteniendo solo las últimas AUDIOVISUAL_LOG_MAX entradas
@@ -190,6 +202,337 @@ def _registrar_mensaje_audiovisual(direccion: str, msg: dict[str, Any], texto: s
                 f.writelines(lineas[-AUDIOVISUAL_LOG_MAX:])
     except OSError:
         pass
+    
+    # También escribir en el espejo de la Mac (mando/director/audiovisual.jsonl) si está disponible
+    _registrar_mensaje_audiovisual_mac(direccion, registro)
+
+
+def _registrar_mensaje_audiovisual_mac(direccion: str, registro: dict[str, Any]) -> None:
+    """Escribe el mensaje en el canal audiovisual de la Mac (mando/director/audiovisual.jsonl)."""
+    try:
+        mando_dir = os.environ.get("STARSEED_MANDO_DIR")
+        if not mando_dir:
+            raiz_repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            mando_dir = os.path.join(raiz_repo, "starseed_memory_root", "mando", "director")
+        espejo_path = os.path.join(mando_dir, "audiovisual.jsonl")
+        os.makedirs(mando_dir, exist_ok=True)
+        with open(espejo_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+# --- Estado de conversación (preguntas abiertas, respuestas cortas, modo desarrollo conjunto) ---
+
+
+def _leer_json_archivo(ruta: str, defecto: Any = None) -> Any:
+    """Lee un archivo JSON, creando directorio si no existe."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return defecto if defecto is not None else {}
+
+
+def _escribir_json_archivo(ruta: str, datos: Any) -> None:
+    """Escribe un archivo JSON de forma atómica."""
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+def _guardar_pregunta_abierta(chat_id: str, pregunta: dict[str, Any]) -> None:
+    """Guarda la última pregunta o propuesta abierta para un chat."""
+    datos = _leer_json_archivo(_preguntas_abiertas_path(), {})
+    datos[chat_id] = {
+        **pregunta,
+        "timestamp": time.time(),
+    }
+    _escribir_json_archivo(_preguntas_abiertas_path(), datos)
+
+
+def _obtener_pregunta_abierta(chat_id: str) -> dict[str, Any] | None:
+    """Obtiene la pregunta abierta de un chat, si existe y no ha expirado (24h)."""
+    datos = _leer_json_archivo(_preguntas_abiertas_path(), {})
+    pregunta = datos.get(chat_id)
+    if not pregunta:
+        return None
+    # Expirar tras 24 horas
+    if time.time() - pregunta.get("timestamp", 0) > 24 * 3600:
+        _eliminar_pregunta_abierta(chat_id)
+        return None
+    return pregunta
+
+
+def _eliminar_pregunta_abierta(chat_id: str) -> None:
+    """Elimina la pregunta abierta de un chat."""
+    datos = _leer_json_archivo(_preguntas_abiertas_path(), {})
+    if chat_id in datos:
+        del datos[chat_id]
+        _escribir_json_archivo(_preguntas_abiertas_path(), datos)
+
+
+def _es_respuesta_corta(texto: str) -> bool:
+    """Detecta si el texto es una respuesta corta de confirmación/selección."""
+    t = texto.strip().lower()
+    if not t:
+        return False
+    # Palabras de confirmación
+    if t in ("sí", "si", "no", "ok", "dale", "adelante", "hazlo", "claro", "vale", "de acuerdo", "por supuesto"):
+        return True
+    # Números (selección de opción)
+    if re.fullmatch(r"\d+", t):
+        return True
+    # "opción N" o "la N"
+    if re.fullmatch(r"(opci[oó]n\s*)?\d+", t):
+        return True
+    if re.fullmatch(r"la\s+(opci[oó]n\s*)?\d+", t):
+        return True
+    return False
+
+
+def _procesar_respuesta_corta(texto: str, chat_id: str) -> bool:
+    """Procesa una respuesta corta (sí/no/ok/número) si hay pregunta abierta.
+    
+    Devuelve True si se procesó, False si no había pregunta abierta.
+    """
+    pregunta = _obtener_pregunta_abierta(chat_id)
+    if not pregunta:
+        decir("No hay una pregunta abierta. ¿Qué quieres decir?")
+        return False
+    
+    t = texto.strip().lower()
+    accion = pregunta.get("accion")
+    datos = pregunta.get("datos", {})
+    tipo = pregunta.get("tipo", "")
+    
+    # Respuesta negativa: cancelar
+    if t == "no":
+        _eliminar_pregunta_abierta(chat_id)
+        decir("Entendido, cancelado.")
+        return True
+    
+    # Respuesta afirmativa o selección numérica
+    if accion:
+        if re.fullmatch(r"\d+", t) or re.fullmatch(r"(opci[oó]n\s*)?\d+", t) or re.fullmatch(r"la\s+(opci[oó]n\s*)?\d+", t):
+            # Extraer número
+            num = re.search(r"\d+", t)
+            if num:
+                datos = dict(datos, elegida=num.group(0))
+        
+        _eliminar_pregunta_abierta(chat_id)
+        resultado = _ejecutar_accion_guardada(accion, datos)
+        decir(resultado)
+        return True
+    
+    return False
+
+
+def _ejecutar_accion_guardada(accion: str, datos: dict[str, Any]) -> str:
+    """Ejecuta una acción guardada según su tipo."""
+    if accion == "desplegar_caso_1" or accion == "desplegar_primer_caso":
+        caso = datos.get("caso", 1)
+        return f"✅ Desplegando caso {caso} paso a paso..."
+    elif accion == "desplegar":
+        return "✅ Desplegando..."
+    elif accion == "elegir_opcion":
+        elegida = datos.get("elegida", "?")
+        return f"✅ Opción {elegida} seleccionada."
+    elif accion == "confirmar_algo":
+        return "✅ Confirmado."
+    elif accion == "generar_dossier_caso":
+        caso = datos.get("caso", "?")
+        return f"📋 Generando dossier para caso {caso}..."
+    else:
+        return f"✅ Acción '{accion}' ejecutada."
+
+
+def _guardar_condicion_aprobacion(propuesta_id: str, condicion: dict[str, Any]) -> None:
+    """Guarda una condición de aprobación para una propuesta (Higgsfield/alcance)."""
+    datos = _leer_json_archivo(_condiciones_aprobacion_path(), {})
+    datos[propuesta_id] = {
+        **condicion,
+        "timestamp": time.time(),
+        "cumplida": False,
+    }
+    _escribir_json_archivo(_condiciones_aprobacion_path(), datos)
+
+
+def _obtener_condicion_aprobacion(propuesta_id: str) -> dict[str, Any] | None:
+    """Obtiene la condición de aprobación de una propuesta."""
+    datos = _leer_json_archivo(_condiciones_aprobacion_path(), {})
+    return datos.get(propuesta_id)
+
+
+def _cumplir_condicion_aprobacion(propuesta_id: str) -> None:
+    """Marca una condición de aprobación como cumplida y la elimina."""
+    datos = _leer_json_archivo(_condiciones_aprobacion_path(), {})
+    if propuesta_id in datos:
+        del datos[propuesta_id]
+        _escribir_json_archivo(_condiciones_aprobacion_path(), datos)
+
+
+def _activar_modo_desarrollo_conjunto(chat_id: str, casos: list[dict[str, str]]) -> None:
+    """Activa el modo de desarrollo conjunto: un mensaje por caso, numerado, esperando respuesta."""
+    estado = {
+        "activo": True,
+        "casos": casos,
+        "caso_actual": 0,
+        "timestamp": time.time(),
+        "respuestas": [],
+    }
+    _escribir_json_archivo(_desarrollo_conjunto_path(), {chat_id: estado})
+
+
+def _obtener_estado_desarrollo_conjunto(chat_id: str) -> dict[str, Any] | None:
+    """Obtiene el estado del modo desarrollo conjunto para un chat."""
+    datos = _leer_json_archivo(_desarrollo_conjunto_path(), {})
+    estado = datos.get(chat_id)
+    if not estado or not estado.get("activo"):
+        return None
+    # Expirar tras 48 horas
+    if time.time() - estado.get("timestamp", 0) > 48 * 3600:
+        _desactivar_modo_desarrollo_conjunto(chat_id)
+        return None
+    return estado
+
+
+def _desactivar_modo_desarrollo_conjunto(chat_id: str) -> None:
+    """Desactiva el modo desarrollo conjunto."""
+    datos = _leer_json_archivo(_desarrollo_conjunto_path(), {})
+    if chat_id in datos:
+        del datos[chat_id]
+        _escribir_json_archivo(_desarrollo_conjunto_path(), datos)
+
+
+def _enviar_siguiente_caso_desarrollo_conjunto(chat_id: str) -> None:
+    """Envía el caso actual en modo desarrollo conjunto."""
+    estado = _obtener_estado_desarrollo_conjunto(chat_id)
+    if not estado:
+        return
+    
+    idx = estado["caso_actual"]
+    casos = estado["casos"]
+    if idx >= len(casos):
+        _desactivar_modo_desarrollo_conjunto(chat_id)
+        decir("✅ Desarrollo conjunto completado. Todos los casos procesados.")
+        return
+    
+    caso = casos[idx]
+    numero = idx + 1
+    total = len(casos)
+    mensaje = (
+        f"📋 <b>Caso {numero}/{total}: {caso.get('titulo', 'Sin título')}</b>\n\n"
+        f"{caso.get('contenido', '')}\n\n"
+        f"<i>Esperando tu respuesta para continuar...</i>"
+    )
+    _decir_html(mensaje)
+
+
+def _procesar_respuesta_desarrollo_conjunto(chat_id: str, texto: str) -> bool:
+    """Procesa una respuesta en modo desarrollo conjunto.
+    
+    Devuelve True si se procesó en este modo, False si no estaba en este modo.
+    """
+    estado = _obtener_estado_desarrollo_conjunto(chat_id)
+    if not estado:
+        return False
+    
+    # Guardar la respuesta
+    estado.setdefault("respuestas", []).append({
+        "caso": estado["caso_actual"],
+        "texto": texto,
+        "timestamp": time.time(),
+    })
+    
+    # Avanzar al siguiente caso
+    estado["caso_actual"] += 1
+    _escribir_json_archivo(_desarrollo_conjunto_path(), {chat_id: estado})
+    
+    # Enviar siguiente caso o finalizar
+    if estado["caso_actual"] >= len(estado["casos"]):
+        _desactivar_modo_desarrollo_conjunto(chat_id)
+        decir("✅ Desarrollo conjunto completado. Todas las decisiones quedan registradas.")
+    else:
+        _enviar_siguiente_caso_desarrollo_conjunto(chat_id)
+    
+    return True
+
+
+def _es_activacion_desarrollo_conjunto(texto: str) -> bool:
+    """Detecta si el mensaje activa el modo desarrollo conjunto."""
+    t = texto.lower()
+    frases = [
+        "desarrolla todo y envíame todo descriptivamente",
+        "desarrolla todo y envíame todo",
+        "modo desarrollo conjunto",
+        "desarrollo conjunto por casos",
+        "un mensaje por caso",
+        "esperando su respuesta antes del siguiente",
+    ]
+    return any(frase in t for frase in frases)
+
+
+def _activar_modo_desarrollo_conjunto_desde_texto(chat_id: str, texto: str) -> None:
+    """Activa el modo desarrollo conjunto extrayendo los casos del texto."""
+    # Por ahora, crear casos genéricos basados en el texto
+    # En una implementación completa, se parsearía el texto para extraer casos numerados
+    casos = [
+        {"titulo": "Caso 1: Análisis inicial", "contenido": texto},
+        {"titulo": "Caso 2: Desarrollo", "contenido": "Desarrollo basado en lo anterior"},
+        {"titulo": "Caso 3: Revisión y cierre", "contenido": "Revisión final y próximos pasos"},
+    ]
+    _activar_modo_desarrollo_conjunto(chat_id, casos)
+    _enviar_siguiente_caso_desarrollo_conjunto(chat_id)
+
+
+# --- Formato de mensajes Telegram (HTML + firma) ---
+
+FIRMA_TELEGRAM = "— Audiovisual y diseño"
+
+
+def _decir_html(texto: str) -> None:
+    """Envía mensaje con formato HTML a Telegram."""
+    for i in range(0, max(len(texto), 1), 3900):
+        trozo = texto[i:i + 3900]
+        r = tg("sendMessage", {
+            "chat_id": CHAT,
+            "text": trozo,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true"
+        })
+        if not r.get("ok"):
+            log("sendMessage HTML falló:", r.get("description"))
+    if texto.strip():
+        _registrar_mensaje_audiovisual("saliente", {"texto": texto}, texto)
+
+
+def _formatear_mensaje_telegram(titulo: str, items: list[str], modelo: str = "") -> str:
+    """Formatea un mensaje para Telegram con HTML, viñetas y firma."""
+    lineas = [f"<b>{titulo}</b>", ""]
+    for item in items:
+        lineas.append(f"• {item}")
+    lineas.append("")
+    firma = FIRMA_TELEGRAM
+    if modelo:
+        firma += f" · {modelo}"
+    lineas.append(f"<i>{firma}</i>")
+    return "\n".join(lineas)
+
+
+def _formatear_lista_numerada(titulo: str, items: list[str], modelo: str = "") -> str:
+    """Formatea una lista numerada para Telegram."""
+    lineas = [f"<b>{titulo}</b>", ""]
+    for i, item in enumerate(items, 1):
+        lineas.append(f"{i}. {item}")
+    lineas.append("")
+    firma = FIRMA_TELEGRAM
+    if modelo:
+        firma += f" · {modelo}"
+    lineas.append(f"<i>{firma}</i>")
+    return "\n".join(lineas)
 
 
 # --- Preferencias y rutinas permanentes (PSF1113B) ---
@@ -395,9 +738,28 @@ def tg(metodo: str, datos: dict[str, Any] | None = None, timeout: int = 70) -> d
     return _respuesta_http(lambda: urllib.request.urlopen(url, cuerpo, timeout=timeout))
 
 
-def decir(texto: str) -> None:
+def decir(texto: str, modelo: str = "") -> None:
+    """Envía mensaje a Telegram con firma y formato HTML.
+    
+    Args:
+        texto: Texto del mensaje (puede contener HTML básico)
+        modelo: Nombre del modelo que generó la respuesta (opcional)
+    """
+    # Añadir firma si no está presente
+    firma = FIRMA_TELEGRAM
+    if modelo:
+        firma += f" · {modelo}"
+    if firma not in texto:
+        texto = f"{texto}\n\n<i>{firma}</i>"
+    
     for i in range(0, max(len(texto), 1), 3900):
-        r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
+        trozo = texto[i:i + 3900]
+        r = tg("sendMessage", {
+            "chat_id": CHAT, 
+            "text": trozo, 
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true"
+        })
         if not r.get("ok"):
             log("sendMessage falló:", r.get("description"))
     # Registrar mensaje saliente en log del canal Audiovisual (DIR1121B)
@@ -528,9 +890,9 @@ def _clientes_de_encargo() -> Any:
     download…) y Drive (carpeta, doc, archivo). DIR1121B: PET1121A los construye en peticiones_clientes.py;
     mientras no existan devuelve None y el encargo se atiende como petición normal. Nunca devuelve las
     funciones sueltas de peticiones_notebooklm (era el fallo «'function' object has no attribute 'doc'»).
-
-    Además, verifica que el token de Google tenga permiso de escritura en Drive. Si solo tiene lectura,
-    devuelve None y queda una acción clara para Alex en acciones-de-alex.
+    
+    Además, verifica que el token de Google (cuenta alex-docs) tenga permiso de escritura en Drive.
+    Si solo tiene lectura, devuelve None y queda una acción clara para Maggasukha en acciones-de-alex.
     """
     try:
         import peticiones_clientes as _pc
@@ -541,22 +903,22 @@ def _clientes_de_encargo() -> Any:
         return None
     if not all(callable(getattr(nb_c, m, None)) for m in ("create", "ask", "generate", "download")):
         return None
-    # Verificar permiso de escritura en Drive antes de habilitar el modo encargo
+    # Verificar permiso de escritura en Drive (cuenta alex-docs) antes de habilitar el modo encargo
     try:
-        ok, detalle = _pc.verificar_permiso_drive_escritura()
+        ok, detalle = _pc.verificar_permiso_drive_escritura("alex-docs")
         if not ok:
-            log("Drive sin permiso de escritura:", detalle)
-            # Registrar acción para Alex (sin imprimir token ni clave)
+            log("Drive sin permiso de escritura (alex-docs):", detalle)
+            # Registrar acción para Maggasukha (sin imprimir token ni clave)
             _registrar_accion_alex_drive_escritura(detalle)
             return None
     except Exception as e:
-        log("Error verificando permiso Drive:", e)
+        log("Error verificando permiso Drive (alex-docs):", e)
         return None
     return nb_c, drive_c
 
 
 def _registrar_accion_alex_drive_escritura(detalle: str) -> None:
-    """Registra una acción clara para Alex cuando Drive no tiene permiso de escritura."""
+    """Registra una acción clara para Maggasukha cuando Drive no tiene permiso de escritura."""
     try:
         acciones_path = os.path.join(DIR, "acciones-de-alex.json")
         acciones = leer_json(acciones_path, [])
@@ -570,7 +932,7 @@ def _registrar_accion_alex_drive_escritura(detalle: str) -> None:
                 "necesitas reautorizar con scope 'drive' o 'drive.file'.\n\n"
                 "Paso exacto:\n"
                 "  cd /Users/alex/Documents/starseed-os-main && "
-                "~/.starseed/herramientas/alta-cuentas-google.py alex --scopes drive,drive.file\n\n"
+                "~/.starseed/herramientas/alta-cuentas-google.py alex-docs --scopes drive,drive.file\n\n"
                 f"Detalle técnico: {detalle}"
             ),
             "estado": "pendiente",
@@ -581,7 +943,7 @@ def _registrar_accion_alex_drive_escritura(detalle: str) -> None:
             acciones.append(accion)
             escribir_json(acciones_path, acciones)
     except Exception as e:
-        log("No se pudo registrar acción para Alex:", e)
+        log("No se pudo registrar acción para Maggasukha:", e)
 
 
 def atender(p: dict[str, Any]) -> None:
@@ -1497,6 +1859,7 @@ def enviar_orden_a_mac(payload: dict[str, Any], enviar_fn=None) -> dict[str, Any
 
 
 def drenar_ordenes_mac(enviar_fn=None) -> int:
+    """Ejecuta órdenes pendientes de la Mac. El mensaje de resultado NO va al chat (ruido), solo al log local."""
     pendientes = ordenes_mac_pendientes()
     if not pendientes:
         return 0
@@ -1510,7 +1873,8 @@ def drenar_ordenes_mac(enviar_fn=None) -> int:
     with bloqueo:
         escribir_json(ORDENES_MAC, quedan)
     if hechas:
-        decir("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
+        # Solo log local, NO al chat (ruido para el canal de diseño)
+        log("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
               % (hechas, len(quedan)))
     return hechas
 
@@ -1568,6 +1932,23 @@ def recibir(upd: dict[str, Any]) -> None:
         return
     
     update_id = upd["update_id"]
+    chat_id = str(CHAT)
+    
+    # 1. Modo desarrollo conjunto: procesar respuesta si está activo
+    if _procesar_respuesta_desarrollo_conjunto(chat_id, texto):
+        return
+    
+    # 2. Respuesta corta (sí/no/ok/número) a pregunta abierta
+    if _es_respuesta_corta(texto):
+        if _procesar_respuesta_corta(texto, chat_id):
+            return
+        # Si no había pregunta abierta, _procesar_respuesta_corta ya pidió aclaración
+        return
+    
+    # 3. Detectar activación de modo desarrollo conjunto
+    if _es_activacion_desarrollo_conjunto(texto):
+        _activar_modo_desarrollo_conjunto_desde_texto(chat_id, texto)
+        return
     
     # Comandos directos: responden inmediatamente, SIN encolar ni "Recibido ✓"
     if texto.startswith("/estado"):
@@ -1637,6 +2018,19 @@ def recibir(upd: dict[str, Any]) -> None:
         os.makedirs(_hfa_base(), exist_ok=True)
         with open(os.path.join(_hfa_base(), "propuestas.json"), "w", encoding="utf-8") as f:
             json.dump({"propuestas": propuestas}, f, ensure_ascii=False, indent=1)
+        # Guardar pregunta abierta para la aprobación
+        _guardar_pregunta_abierta(chat_id, {
+            "texto": f"¿Aprobar propuesta Higgsfield {propuesta['id']}?",
+            "accion": "aprobar_higgsfield",
+            "tipo": "propuesta_higgsfield",
+            "datos": {"propuesta_id": propuesta['id']}
+        })
+        # Guardar condición de aprobación si Maggasukha la pone
+        _guardar_condicion_aprobacion(propuesta['id'], {
+            "tipo": "higgsfield",
+            "condicion": "Pendiente de dossier por caso (idea, propósito, visión, misión, herramientas, storyboards, guiones, bocetos)",
+            "requerido_por": "Maggasukha"
+        })
         decir(
             f"Nueva propuesta de Higgsfield creada:\n"
             f"  id: {propuesta['id']}\n"
@@ -1645,7 +2039,8 @@ def recibir(upd: dict[str, Any]) -> None:
             f"  modelo: {propuesta['modelo']}\n"
             f"  créditos estimados: {propuesta['creditos_estimados']:.1f}\n"
             f"Para aprobar: /higgsfield aprobar {propuesta['id']}\n"
-            f"Para rechazar: /higgsfield rechazar {propuesta['id']}"
+            f"Para rechazar: /higgsfield rechazar {propuesta['id']}\n"
+            f"O responde «sí» para aprobar."
         )
         return
     

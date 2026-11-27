@@ -276,16 +276,17 @@ class ClienteDrive:
         return fid, enlace
 
 
-def verificar_permiso_drive_escritura() -> tuple[bool, str]:
+def verificar_permiso_drive_escritura(alias: str = "alex-docs") -> tuple[bool, str]:
     """Verifica si el token de Google tiene permiso de escritura en Drive.
     
     Usa tokeninfo para comprobar scopes. No imprime ni guarda el token.
+    Por defecto verifica la cuenta alex-docs (drive.file).
     
     Returns:
         Tupla (tiene_escritura, mensaje_detalle).
     """
     try:
-        tok = token_google()
+        tok = token_google(alias)
         url = f"https://www.googleapis.com/oauth2/v3/tokeninfo?access_token={urllib.parse.quote(tok)}"
         with urllib.request.urlopen(url, timeout=30) as resp:
             info = json.loads(resp.read().decode("utf-8"))
@@ -293,7 +294,7 @@ def verificar_permiso_drive_escritura() -> tuple[bool, str]:
         drive_scope = "https://www.googleapis.com/auth/drive" in scopes
         drive_file_scope = "https://www.googleapis.com/auth/drive.file" in scopes
         if drive_scope or drive_file_scope:
-            return True, "Permiso de escritura confirmado (drive/drive.file)"
-        return False, f"Solo permiso de lectura. Scopes: {', '.join(scopes)}"
+            return True, f"Permiso de escritura confirmado (drive/drive.file) en cuenta {alias}"
+        return False, f"Solo permiso de lectura en cuenta {alias}. Scopes: {', '.join(scopes)}"
     except Exception as e:
-        return False, f"No se pudo verificar permiso: {e}"
+        return False, f"No se pudo verificar permiso en cuenta {alias}: {e}"
