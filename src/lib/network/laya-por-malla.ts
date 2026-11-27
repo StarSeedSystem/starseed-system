@@ -6,6 +6,8 @@
  * Puro: fetch, reloj y admisión inyectables; las pruebas corren sin red.
  */
 
+import type { CapacidadesNodo } from "./capacidades-nodo";
+
 export const LAYA_MALLA_NS = "capacidad.decision.laya.";
 export const LAYA_MALLA_MAX_PREGUNTAS = 20; // tope de preguntas por petición
 export const LAYA_MALLA_MAX_TOKENS = 8_192; // tope de tokens estimados (ventana de laya-multilingual)
@@ -116,5 +118,78 @@ export async function manejarPeticionLayaMalla(
   } catch (e) {
     const causa = e instanceof Error ? e.message : "desconocido";
     return { ok: false, motivo: `Rechazo: no se pudo hablar con el servidor local de Laya (${causa}).` };
+  }
+}
+
+/* ---- LAY1127E: decisión corta en cualquier neurona (local → malla → router) ---- */
+
+/** Plazo TOTAL de la decisión corta: nunca se espera más de 2 s a Laya. */
+export const PLAZO_LAYA_CORTO_MS = 2_000;
+
+/** Un vecino que ofrece Laya por la malla; siempre de la MISMA cuenta. */
+export interface NodoLayaMalla {
+  nodoId: string;
+  cuentaId?: string;
+  ficha?: CapacidadesNodo;
+  responder: (cuerpo: string) => Promise<unknown>;
+}
+
+export interface SiestaLayaCorta { promesa: Promise<void>; cancelar: () => void }
+export interface RelojLayaCorto {
+  ahora: () => number;
+  dormir: (ms: number) => SiestaLayaCorta;
+}
+
+/** Reloj real para el router; las pruebas inyectan el suyo y nunca esperan 2 s. */
+export function relojLayaCorto(): RelojLayaCorto {
+  return {
+    ahora: () => Date.now(),
+    dormir: (ms) => {
+      let id: ReturnType<typeof setTimeout> | undefined;
+      const promesa = new Promise<void>((resolver) => { id = setTimeout(resolver, ms); });
+      return { promesa, cancelar: () => { if (id !== undefined) clearTimeout(id); } };
+    },
+  };
+}
+
+/** La ficha anuncia Laya cargada cuando una de sus capas es `laya` o `laya@versión`. */
+export function anunciaLaya(ficha: Pick<CapacidadesNodo, "capas"> | null | undefined): boolean {
+  return (ficha?.capas ?? []).some((capa) => /^laya(?:@|$)/i.test(capa));
+}
+
+/** Solo pares conectados de la cuenta que pide, con Laya anunciada en su ficha; nunca otras cuentas. */
+export function elegirParLaya(
+  nodos: readonly NodoLayaMalla[], cuentaId: string, miNodoId?: string,
+): NodoLayaMalla | null {
+  if (!cuentaId) return null;
+  return nodos.find((n) => n.cuentaId === cuentaId && n.nodoId !== miNodoId && anunciaLaya(n.ficha)) ?? null;
+}
+
+/** El mismo cuerpo nativo (`state`/`questions`) que el relé y el servidor local de Laya. */
+export function cuerpoDecisionLaya(
+  estado: string, preguntas: Record<string, PreguntaLayaMalla>,
+): string {
+  return JSON.stringify({ state: estado, questions: preguntas });
+}
+
+/** Lee `answers` del formato system_one; null si no hay respuestas utilizables. */
+export function respuestasLayaDeCuerpo(cuerpo: unknown): Record<string, unknown> | null {
+  const answers = (esObjeto(cuerpo) ? cuerpo.answers : null);
+  return esObjeto(answers) ? answers as Record<string, unknown> : null;
+}
+
+/** Carrera contra el plazo que quede: respuesta, o null si vence/falla (nunca lanza). */
+export async function conPlazoLaya<T>(
+  tarea: () => Promise<T>, ms: number, reloj: RelojLayaCorto,
+): Promise<T | null> {
+  if (ms <= 0) return null;
+  const espera = reloj.dormir(ms);
+  try {
+    return await Promise.race([
+      Promise.resolve().then(tarea).catch(() => null),
+      espera.promesa.then((): T | null => null),
+    ]);
+  } finally {
+    espera.cancelar();
   }
 }
