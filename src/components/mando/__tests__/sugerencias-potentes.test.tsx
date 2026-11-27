@@ -124,24 +124,6 @@ describe("SugerenciasPotentes", () => {
         expect(aprobadas.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("enseña las que no tienen cupo", async () => {
-        render(<SugerenciasPotentes />);
-
-        await screen.findByText("Sin cupo (1)");
-        expect(screen.getByText("Reparar medidor")).toBeInTheDocument();
-        expect(screen.getByText("Sin cupo")).toBeInTheDocument();
-    });
-
-    it("enseña las aprobadas con su estado", async () => {
-        render(<SugerenciasPotentes />);
-
-        await screen.findByText("Aprobadas (1)");
-        const enCurso = screen.getAllByText("En curso");
-        expect(enCurso.length).toBeGreaterThanOrEqual(1);
-        const aprobadas = screen.getAllByText("Puente Telegram");
-        expect(aprobadas.length).toBeGreaterThanOrEqual(2);
-    });
-
     it("pide confirmación al aprobar una sugerencia de pago", async () => {
         const pagoMock = {
             sugerencias: [
@@ -211,5 +193,63 @@ describe("SugerenciasPotentes", () => {
         render(<SugerenciasPotentes />);
 
         expect(screen.getByRole("status", { name: /Cargando sugerencias/i })).toBeInTheDocument();
+    });
+
+    it("muestra estado vacío cuando la carga falla con error HTTP", async () => {
+        globalThis.fetch = vi.fn(async () => {
+            return new Response(JSON.stringify({ error: "fallo" }), { status: 500 });
+        }) as unknown as typeof fetch;
+
+        render(<SugerenciasPotentes />);
+
+        await screen.findByText(/Sin sugerencias de agentes potentes ahora mismo/i);
+    });
+
+    it("muestra estado vacío sin sugerencias ni sin cupo", async () => {
+        const vacioMock = {
+            sugerencias: [],
+            sin_cupo: [],
+            total: 0,
+            visto: "2026-11-26T12:00:00.000Z",
+        };
+        globalThis.fetch = vi.fn(async (entrada: RequestInfo | URL) => {
+            const url = String(entrada);
+            if (url.includes("/api/mando/sugerencias-potentes")) {
+                return new Response(JSON.stringify(vacioMock), { status: 200 });
+            }
+            if (url.includes("/api/mando/sugerencias-aprobadas")) {
+                return new Response(JSON.stringify({ aprobadas: [] }), { status: 200 });
+            }
+            return new Response(JSON.stringify({}), { status: 404 });
+        }) as unknown as typeof fetch;
+
+        render(<SugerenciasPotentes />);
+
+        await screen.findByText(/Sin sugerencias de agentes potentes ahora mismo/i);
+    });
+
+    it("rechaza una sugerencia y recarga", async () => {
+        const usuario = userEvent.setup();
+        render(<SugerenciasPotentes />);
+
+        await screen.findByText("Sugerencias (2)");
+        const btnsRechazar = screen.getAllByRole("button", { name: /Rechazar/i });
+        await usuario.click(btnsRechazar[0]);
+
+        await screen.findByText("Sugerencias (2)");
+    });
+
+    it("abre el menú 'Aprobar tipo' y selecciona una duración", async () => {
+        const usuario = userEvent.setup();
+        render(<SugerenciasPotentes />);
+
+        await screen.findByText("Sugerencias (2)");
+        const btnsTipo = screen.getAllByRole("button", { name: /Aprobar tipo/i });
+        await usuario.click(btnsTipo[0]);
+
+        const btns8Horas = screen.getAllByRole("button", { name: /8 horas/i });
+        await usuario.click(btns8Horas[0]);
+
+        await screen.findByText("Sugerencias (2)");
     });
 });
