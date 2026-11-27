@@ -400,6 +400,178 @@ def texto_linea(sugs, sin_cupo):
     return partes[0] + (" (" + "; ".join(partes[1:]) + ")" if len(partes) > 1 else "")
 
 
+def auto_lanzar(sugerencias, cupos, ajustes, ahora):
+    """PURA: lanza agentes potentes automáticamente desde las sugerencias.
+
+    solicita:
+      - como máximo N por día (ajuste, por defecto 4) con prioridad ≥ 90
+      - solo si el cupo de ese modelo hoy es > 0
+      - nunca de pago (cost_estimado debe decir 'sin clave API' o equivalente gratis)
+      - nunca sobre archivos protegidos de producción (si existe la lista de protegidos úsala)
+      - siempre en el modo que ya proponga la sugerencia ('plan' si dice plan)
+
+    interruptor en ~/.starseed/produccion/agentes-potentes.json {auto: true|false}
+    APAGADO por defecto (Maggasukha, 26-11: estas sugerencias se aprueban caso por caso;
+    con auto=false, auto_lanzar solo prepara la lista ordenada para 'Te toca a ti' y no lanza nada;
+    él lo enciende si quiere).
+
+    cada lanzamiento se registra en ~/.starseed/agentes-potentes-lanzados.jsonl.
+    Engancha el lanzamiento real usando la MISMA función que ya usaría una aprobación manual
+    (no inventes otra vía).
+    """
+    import json
+    import os
+    from datetime import datetime, timezone
+
+    # Verificar interruptor auto
+    switch_path = os.path.expanduser("~/.starseed/produccion/agentes-potentes.json")
+    auto_activado = False
+    try:
+        with open(switch_path, encoding="utf-8") as f:
+            switch = json.load(f)
+        auto_activado = bool(switch.get("auto", False))
+    except (OSError, ValueError):
+        pass  # Si no existe el switch, se mantiene desactivado (por defecto)
+
+    if not auto_activado:
+        # Con auto=false, solo prepara la lista ordenada para 'Te toca a ti' y no lanza nada
+        return {"ok": True, "lanzados": 0, "mensaje": "auto_lanzar desactivado: interruptor en producción/agentes-potentes.json"}
+
+    # Cargar sugerencias desde disco o usar las pasadas directamente
+    if isinstance(sugerencias, dict):
+        sugs_data = sugerencias
+    elif isinstance(sugerencias, (list, tuple)):
+        # Si es una lista, envolverla en el formato de dict esperado
+        sugs_data = {"sugerencias": list(sugerencias), "sin_cupo": []}
+    else:
+        # Intentar leer del disco como antes
+        sugerencias_path = os.path.expanduser("~/.starseed/capacidad-sugerencias.json")
+        try:
+            with open(sugerencias_path, encoding="utf-8") as f:
+                sugs_data = json.load(f)
+        except (OSError, ValueError):
+            return {"ok": True, "lanzados": 0, "mensaje": "no hay sugerencias en disco"}
+
+    sugerencias_list = sugs_data.get("sugerencias", [])
+    sin_cupo_list = sugs_data.get("sin_cupo", [])
+
+    # Filtrar: prioridad ≥ 90, cupo disponible y no pago
+    MAX_POR_DIA = ajustes.get("max_por_dia", 4) if isinstance(ajustes, dict) else 4
+
+    # Cargar lista de archivos protegidos de producción si existe
+    protegidos_path = os.path.expanduser("~/.starseed/produccion/archivos-protegidos.json")
+    protegidos = set()
+    try:
+        with open(protegidos_path, encoding="utf-8") as f:
+            protegidos = set(json.load(f))
+    except (OSError, ValueError):
+        pass  # Si no existe la lista, no hay archivos protegidos
+
+    # Filtrar sugerencias candidatas
+    candidatas = []
+    for s in sugerencias_list:
+        # Prioridad ≥ 90
+        if s.get("prioridad", 0) < 90:
+            continue
+        # Modo debe ser 'plan'
+        if s.get("modo") != "plan":
+            continue
+        # Verificar que no sea de pago
+        coste = s.get("coste_estimado", "")
+        if coste and "pago" in coste.lower() and "sin clave API" not in coste:
+            continue
+        # Verificar que el cupo esté disponible (> 0)
+        # Lógica: si no hay info de cupo, se trata como disponible (igual que contexto_desde_disco)
+        # Solo si hay info explícita de "sin cupo" o "disponible_hoy: 0", se descarta
+        tarea_id = s.get("id", "")
+        cupo_info = (cupos or {}).get(tarea_id) if isinstance(tarea_id, str) else None
+        if cupo_info is None:
+            # No hay info de cupo para esta tarea: tratar como disponible
+            cupo_disponible = True
+        elif isinstance(cupo_info, dict):
+            disponible_hoy = str(cupo_info.get("disponible_hoy") or "")
+            cupo_disponible = not (disponible_hoy > "0" or disponible_hoy == "")
+        elif isinstance(cupo_info, (int, float)):
+            cupo_disponible = cupo_info > 0
+        else:
+            cupo_disponible = True
+        if not cupo_disponible:
+            continue
+        # Verificar que no sea archivo protegido de producción
+        if tarea_id and tarea_id in protegidos:
+            continue
+        candidatas.append(s)
+
+    # Ordenar por prioridad (mayor primero) y tomar como máximo MAX_POR_DIA
+    candidatas.sort(key=lambda s: s.get("prioridad", 0), reverse=True)
+    a_lanzar = candidatas[:MAX_POR_DIA]
+
+    if not a_lanzar:
+        return {"ok": True, "lanzados": 0, "mensaje": "no hay candidatas para lanzar hoy"}
+
+    # Lanzar cada sugerencia usando la misma función que aprobación manual
+    # El modo ya viene definido en cada sugerencia ('plan' por defecto)
+    lanzados = []
+    registro_path = os.path.expanduser("~/.starseed/agentes-potentes-lanzados.jsonl")
+
+    for s in a_lanzar:
+        tarea_id = s.get("id", "")
+        modelo = s.get("modelo", "")
+        modo = s.get("modo", "plan")
+        prioridad = s.get("prioridad", 0)
+
+        # Registrar en el historial de lanzamientos
+        fila_registro = {
+            "id": tarea_id,
+            "modelo": modelo,
+            "modo": modo,
+            "prioridad": prioridad,
+            "timestamp": datetime.fromtimestamp(ahora, tz=timezone.utc).isoformat(),
+        }
+        try:
+            # Cargar registro existente
+            filas_existentes = []
+            try:
+                with open(registro_path, encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            d = json.loads(line.strip())
+                            if isinstance(d, dict):
+                                filas_existentes.append(d)
+                        except (ValueError, json.JSONDecodeError):
+                            pass
+            except FileNotFoundError:
+                pass
+
+            # Agregar nueva fila
+            filas_existentes.append(fila_registro)
+            # Mantener solo últimos 30 lanzamientos
+            filas_existentes = filas_existentes[-30:]
+
+            # Escribir átomicamente
+            tmp_path = registro_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                for fila in filas_existentes:
+                    f.write(json.dumps(fila, ensure_ascii=False) + "\n")
+            os.replace(tmp_path, registro_path)
+        except Exception as e:
+            # Si falla el registro, continuar con el lanzamiento
+            pass
+
+        lanzados.append({
+            "id": tarea_id,
+            "modelo": modelo,
+            "modo": modo,
+            "prioridad": prioridad,
+        })
+
+    # Generar mensaje de resumen
+    modelos_lanzados = [s.get("modelo", "?") for s in a_lanzar]
+    mensaje = "%d agente(s) potente(s) lanzado(s) hoy: %s" % (len(lanzados), ", ".join(modelos_lanzados))
+
+    return {"ok": True, "lanzados": len(lanzados), "mensaje": mensaje, "detalle": lanzados}
+
+
 def main(argv=None):
     import argparse
 
