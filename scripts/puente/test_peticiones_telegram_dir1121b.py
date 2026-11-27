@@ -29,7 +29,7 @@ def test_encargo_sin_clientes_con_artefactos_se_atiende_como_notebooklm(monkeypa
     assert ("notebooklm", "notebooklm") in hechos
     assert _estados(hechos)[-1] == "hecha"
     assert not [h for h in hechos if h[0] == "fallida"]
-    assert len([d for d in dichos if "encargo" in d]) == 1
+    assert not [d for d in dichos if "encargo" in d]  # DIS1126A: el aviso ya no va al chat
 
 
 def test_encargo_sin_clientes_y_sin_artefactos_responde(monkeypatch):

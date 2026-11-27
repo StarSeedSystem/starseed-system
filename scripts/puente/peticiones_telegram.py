@@ -395,7 +395,29 @@ def tg(metodo: str, datos: dict[str, Any] | None = None, timeout: int = 70) -> d
     return _respuesta_http(lambda: urllib.request.urlopen(url, cuerpo, timeout=timeout))
 
 
-def decir(texto: str) -> None:
+def _para_telegram(texto: str) -> str:
+    """DIS1126A: nombre correcto (Maggasukha, nunca «Alex») y sin markdown crudo (### , **, * )."""
+    t = re.sub(r"\bAlex\b", "Maggasukha", str(texto or ""))
+    t = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"(?m)^(\s*)[*-]\s+", r"\1• ", t)
+    return t
+
+
+def _reflejar_en_mac(direccion: str, texto: str) -> None:
+    """DIS1126A: cada mensaje del bot del A1 llega también al canal audiovisual de la Mac (bus de eventos)."""
+    try:
+        import puerta_datos_cliente as P
+        P.Puerta.desde_entorno(rol="enjambre").publicar_evento(
+            "audiovisual-a1", "audiovisual_mensaje", texto[:1500], datos={"direccion": direccion})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def decir(texto: str, modelo: str = "") -> None:
+    texto = _para_telegram(texto)
+    if modelo and "— Audiovisual y diseño" not in texto:
+        texto = "%s\n\n— Audiovisual y diseño · %s" % (texto, modelo)
     for i in range(0, max(len(texto), 1), 3900):
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
@@ -403,6 +425,7 @@ def decir(texto: str) -> None:
     # Registrar mensaje saliente en log del canal Audiovisual (DIR1121B)
     if texto.strip():
         _registrar_mensaje_audiovisual("saliente", {"texto": texto}, texto)
+        _reflejar_en_mac("saliente", texto)
 
 
 def subir(ruta: str, nombre: str) -> str:
@@ -598,8 +621,8 @@ def atender(p: dict[str, Any]) -> None:
             plan = dict(plan, tipo=tipo)
             if not p.get("avisado_sin_encargo"):
                 actualizar(p["id"], avisado_sin_encargo=True)
-                decir("El modo de encargo por frentes (carpeta y panel en Drive) aún no está listo. "
-                      "Atiendo tu mensaje como petición normal.")
+                # DIS1126A: ya no se avisa en el chat; queda en el registro
+                log("modo de encargo por frentes no listo; atiendo como petición normal")
         if tipo == "encargo":
             atender_encargo(p, plan)
         elif tipo == "alcance":
@@ -973,7 +996,8 @@ def responder(p: dict[str, Any]) -> None:
     if not texto:
         raise RuntimeError("los modelos gratuitos no respondieron")
     actualizar(p["id"], respuesta=texto, modelo=modelo)
-    decir("%s\n\n— MetaGenesis · %s" % (texto, modelo))
+    _recordar_pregunta_abierta(texto, p["texto"])
+    decir(texto, modelo)
 
 
 def trabajar() -> None:
@@ -1424,6 +1448,130 @@ def _registrar_mensaje_recibido(texto: str) -> None:
         pass
 
 
+# ─── DIS1126A · pregunta abierta, condiciones y modo conjunto ────────────────────────
+CONVERSACION = os.path.join(DIR, "conversacion.json")
+CONDICIONES = os.path.join(DIR, "condiciones.json")
+VIDA_PREGUNTA_S = 12 * 3600
+_SI = {"si", "sí", "ok", "okay", "vale", "dale", "adelante", "hazlo", "claro", "perfecto", "yes", "va", "listo"}
+_NO = {"no", "nop", "cancela", "cancelar", "olvídalo", "olvidalo", "déjalo", "dejalo"}
+
+
+def _recordar_pregunta_abierta(respuesta: str, texto_usuario: str) -> None:
+    """Guarda la propuesta abierta del bot (con su acción concreta) si la respuesta acaba en pregunta."""
+    cuerpo = str(respuesta or "").strip()
+    if not cuerpo.endswith("?"):
+        escribir_json(CONVERSACION, {})
+        return
+    opciones = re.findall(r"(?m)^\s*(\d{1,2})[.)]\s+(.+)$", cuerpo)
+    escribir_json(CONVERSACION, {
+        "t": time.time(), "pregunta": cuerpo.splitlines()[-1][:400], "contexto": cuerpo[-1500:],
+        "origen": str(texto_usuario or "")[:400], "opciones": {n: o[:300] for n, o in opciones},
+        "accion": "responder"})
+
+
+def _respuesta_corta(texto: str) -> str:
+    """'si' · 'no' · 'opcion:<n>' · '' si no es una respuesta corta."""
+    t = re.sub(r"[¡!.,;¿?\s]+", " ", texto.lower()).strip()
+    if t in _SI:
+        return "si"
+    if t in _NO:
+        return "no"
+    m = re.fullmatch(r"(?:opci[oó]n |la )?(\d{1,2})", t)
+    return "opcion:" + m.group(1) if m else ""
+
+
+def _atender_respuesta_corta(texto: str, update_id: int) -> bool:
+    """Una respuesta corta ejecuta la acción de la última pregunta abierta; sin pregunta, pide aclarar."""
+    clase = _respuesta_corta(texto)
+    if not clase:
+        return False
+    abierta = leer_json(CONVERSACION, {})
+    if not isinstance(abierta, dict) or time.time() - float(abierta.get("t") or 0) > VIDA_PREGUNTA_S:
+        decir("Maggasukha, no tengo ninguna pregunta abierta. ¿A qué te refieres con «%s»?" % texto[:60])
+        return True
+    escribir_json(CONVERSACION, {})
+    if clase == "no":
+        decir("Entendido, Maggasukha. Lo dejo.")
+        return True
+    elegida = ""
+    if clase.startswith("opcion:"):
+        elegida = (abierta.get("opciones") or {}).get(clase[7:], "")
+        if not elegida:
+            decir("Maggasukha, no hay opción %s en mi última pregunta." % clase[7:])
+            return True
+    orden = ("Maggasukha respondió «%s» a tu propuesta. Ejecútala ahora, sin volver a preguntar.\n"
+             "Propuesta: %s\nContexto: %s%s" % (texto, abierta.get("pregunta", ""), abierta.get("contexto", ""),
+                                                ("\nOpción elegida: " + elegida) if elegida else ""))
+    with bloqueo:
+        cola = leer_json(COLA, [])
+        cola.append({"id": update_id, "texto": orden, "recibida": time.time(), "estado": "nueva", "intentos": 0,
+                     "plan": {"tipo": "respuesta", "fuente": "cuaderno", "drive_id": "", "artefactos": [],
+                              "urls": {"youtube": [], "drive": [], "web": []}, "resumen": "confirmación"}})
+        escribir_json(COLA, cola[-200:])
+    hay_trabajo.set()
+    return True
+
+
+_COND = re.compile(r"\b(env[ií]a(?:me)?|m[aá]nda(?:me)?)\b.{0,40}\bantes\b", re.I | re.S)
+_CONJUNTO = re.compile(r"\b(desarroll\w+|d[eé]jame|vamos a)\b.{0,80}\b(juntos|por este canal)\b|"
+                       r"\benv[ií]ame todo\b.{0,60}\b(canal|descriptivamente)\b", re.I | re.S)
+DOSSIER = ("idea, propósito, visión, misión, herramientas, storyboards, guiones profesionales multiformato, "
+           "bocetos")
+
+
+def _casos_pendientes() -> list[dict[str, Any]]:
+    aprobadas = _hfa_aprobaciones()
+    return [p for p in _hfa_propuestas() if str(p.get("id")) not in aprobadas]
+
+
+def _guardar_condicion(texto: str) -> int:
+    """La petición «envíame antes…» es una CONDICIÓN de las aprobaciones pendientes, no una preferencia."""
+    datos = leer_json(CONDICIONES, [])
+    datos = datos if isinstance(datos, list) else []
+    datos.append({"t": time.time(), "texto": texto[:800], "aplica": ["higgsfield", "alcance"]})
+    escribir_json(CONDICIONES, datos[-30:])
+    return len(_casos_pendientes())
+
+
+def _enviar_caso(i: int, casos: list[dict[str, Any]]) -> None:
+    c = casos[i]
+    sistema = ("Eres «Audiovisual y diseño» de MetaGenesis. Escribe en español para Maggasukha, sin markdown "
+               "(sin # ni **), con viñetas «•», el dossier de UN caso: %s. Máximo 1.400 caracteres." % DOSSIER)
+    pedido = "Caso %s · proyecto %s · pieza %s · modelo %s · %s" % (
+        c.get("id"), c.get("proyecto"), c.get("pieza"), c.get("modelo"), c.get("motivo", ""))
+    cuerpo, modelo = llm([{"role": "system", "content": sistema}, {"role": "user", "content": pedido}], 900)
+    decir("Caso %d de %d\n%s\n\n¿Cómo lo ves, Maggasukha? Respóndeme y paso al siguiente."
+          % (i + 1, len(casos), cuerpo or pedido), modelo or "")
+
+
+def _iniciar_conjunto(texto: str, update_id: int) -> None:
+    casos = _casos_pendientes()
+    if not casos:
+        decir("Maggasukha, no tengo casos pendientes que desarrollar. Dime cuáles quieres y los vemos uno a uno.")
+        return
+    escribir_json(CONVERSACION, {})
+    escribir_json(os.path.join(DIR, "conjunto.json"), {"casos": casos, "indice": 0, "decisiones": []})
+    threading.Thread(target=_enviar_caso, args=(0, casos), daemon=True).start()
+
+
+def _avanzar_conjunto(texto: str) -> bool:
+    """Registra lo que decide Maggasukha sobre el caso actual y envía el siguiente (uno por mensaje)."""
+    ruta = os.path.join(DIR, "conjunto.json")
+    est = leer_json(ruta, {})
+    if not isinstance(est, dict) or not est.get("casos") or est.get("indice", 0) >= len(est["casos"]):
+        return False
+    i = int(est["indice"])
+    est["decisiones"].append({"caso": est["casos"][i].get("id"), "decision": texto[:800], "t": time.time()})
+    est["indice"] = i + 1
+    escribir_json(ruta, est)
+    if i + 1 >= len(est["casos"]):
+        decir("Decisiones registradas (%d caso(s)). Nada se ejecuta sin tu aprobación, Maggasukha." % (i + 1))
+        escribir_json(ruta, {})
+        return True
+    threading.Thread(target=_enviar_caso, args=(i + 1, est["casos"]), daemon=True).start()
+    return True
+
+
 # ─── ACC1121D · órdenes del director desde el bot del A1 ─────────────────────────────
 
 
@@ -1509,9 +1657,8 @@ def drenar_ordenes_mac(enviar_fn=None) -> int:
             quedan.append(payload)
     with bloqueo:
         escribir_json(ORDENES_MAC, quedan)
-    if hechas:
-        decir("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
-              % (hechas, len(quedan)))
+    if hechas:  # DIS1126A: solo registro, nunca ruido en el canal de diseño
+        log("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)." % (hechas, len(quedan)))
     return hechas
 
 
@@ -1664,6 +1811,22 @@ def recibir(upd: dict[str, Any]) -> None:
         decir(respuesta_orden)
         return
 
+    # DIS1126A: lo que escribe Maggasukha se refleja en la Mac; luego respuesta corta, condición y modo conjunto
+    _registrar_mensaje_audiovisual("entrante", upd, texto)
+    _reflejar_en_mac("entrante", texto)
+    if _atender_respuesta_corta(texto, update_id):
+        return
+    if _COND.search(texto):
+        n = _guardar_condicion(texto)
+        decir("Condición guardada, Maggasukha: antes de aprobar nada te envío %s, un dossier por caso "
+              "(%d caso(s) pendiente(s)). Dime «desarrolla todo» y los vemos uno a uno." % (DOSSIER, n))
+        return
+    if _CONJUNTO.search(texto):
+        _iniciar_conjunto(texto, update_id)
+        return
+    if _avanzar_conjunto(texto):
+        return
+
     # PET1116E: Para peticiones reales (no comandos), SIEMPRE encolar PRIMERO y responder "Recibido ✓"
     with bloqueo:
         cola = leer_json(COLA, [])
@@ -1675,9 +1838,6 @@ def recibir(upd: dict[str, Any]) -> None:
     
     # Registrar texto del mensaje (sin claves) en archivo privado
     _registrar_mensaje_recibido(texto)
-    # Registrar mensaje entrante en log del canal Audiovisual (DIR1121B)
-    _registrar_mensaje_audiovisual("entrante", upd, texto)
-    
     # Procesar reglas permanentes en try/except: un fallo NO pierde el mensaje
     try:
         # PSF1113B: Detectar y procesar reglas permanentes (recuerda/cada día/siempre/para cada/a partir de ahora)
