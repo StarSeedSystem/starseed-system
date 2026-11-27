@@ -1252,6 +1252,17 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
+    // MED1126A: la pastilla «Nodos y almacenamiento» pide esta clave sola cada 60 s. Se lee
+    // `capacidades-nodos.json` directamente (una lectura de disco barata) para que la cifra sea
+    // fresca y no dependa de la reunión compartida ni de su caché de 90 s. La misma lectura que
+    // usa `reunir()`: pastilla y medidor no pueden discrepar.
+    if (clave === "almacenamiento") {
+        const almacenamiento = await leerAlmacenamientoNodos().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { almacenamiento }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     // GEM1119D: la ventana desplegable de la pastilla pide esta clave sola.
     if (clave === "antigravity") {
         const antigravity = await leerAntigravity();
