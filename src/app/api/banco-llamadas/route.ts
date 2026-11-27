@@ -13,6 +13,7 @@ import path from "node:path";
 import { mandoHabilitado } from "@/lib/mando/guardian";
 import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { sanearInforme } from "@/lib/banco-llamadas/informe";
+import { leerOrdenPruebaControl, type OrdenPruebaControl } from "@/lib/banco-llamadas/actor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,7 +60,13 @@ export async function GET(req: Request) {
     }
     const dir = enMac() ? await carpetaDelBanco() : null;
     if (!dir) return Response.json({ disponible: false }, { headers: { "cache-control": "no-store" } });
-    const [orden, calma, app] = await Promise.all([leerJson(path.join(dir, "orden.json")), leerJson(path.join(dir, "calma.json")), leerJson(path.join(dir, "app.json"))]);
+    const [ordenRaw, calma, app] = await Promise.all([leerJson(path.join(dir, "orden.json")), leerJson(path.join(dir, "calma.json")), leerJson(path.join(dir, "app.json"))]);
+    // BAP1127J: validar orden prueba-control si es de ese tipo
+    let orden: unknown = ordenRaw;
+    if (ordenRaw && typeof ordenRaw === "object" && (ordenRaw as Record<string, unknown>).tipo === "prueba-control") {
+        const validada = leerOrdenPruebaControl(ordenRaw);
+        orden = validada; // null si inválida, la orden validada si ok
+    }
     return Response.json({ disponible: true, orden, calma, app }, { headers: { "cache-control": "no-store" } });
 }
 

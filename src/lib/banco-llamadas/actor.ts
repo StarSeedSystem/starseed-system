@@ -65,6 +65,48 @@ export interface EstadoApp {
 
 export const COMPROBAR_SESION_MS = 120_000;
 
+/** BAP1127J: orden de prueba de control entre neuronas. */
+export interface OrdenPruebaControl {
+    v: 1;
+    tipo: "prueba-control";
+    id: string;
+    origen: string;
+    destino: string;
+    duracion_ms: number;
+    fuente: "auto" | "proyeccion" | "malla";
+    caduca_ms: number;
+}
+
+const RE_HUELLA = /^[0-9a-f]{64}$/;
+const RE_NOMBRE = /^[^\s/]{1,64}$/;
+const MIN_DURACION_MS = 10_000;
+const MAX_DURACION_MS = 120_000;
+
+/** Valida una orden `prueba-control`. Devuelve `OrdenPruebaControl` o `null` si es inválida.
+ * No verifica expiración (caduca_ms): eso se hace en el actor con su reloj inyectado. */
+export function leerOrdenPruebaControl(x: unknown): OrdenPruebaControl | null {
+    if (!x || typeof x !== "object") return null;
+    const o = x as Record<string, unknown>;
+    if (o.v !== 1 || o.tipo !== "prueba-control") return null;
+    if (typeof o.id !== "string" || !RE_NOMBRE.test(o.id)) return null;
+    if (typeof o.origen !== "string" || !RE_NOMBRE.test(o.origen)) return null;
+    if (typeof o.destino !== "string" || !RE_HUELLA.test(o.destino)) return null;
+    if (typeof o.duracion_ms !== "number" || !Number.isInteger(o.duracion_ms)) return null;
+    if (o.duracion_ms < MIN_DURACION_MS || o.duracion_ms > MAX_DURACION_MS) return null;
+    if (typeof o.fuente !== "string" || !["auto", "proyeccion", "malla"].includes(o.fuente)) return null;
+    if (typeof o.caduca_ms !== "number" || !Number.isFinite(o.caduca_ms)) return null;
+    return {
+        v: 1,
+        tipo: "prueba-control",
+        id: o.id,
+        origen: o.origen,
+        destino: o.destino,
+        duracion_ms: o.duracion_ms,
+        fuente: o.fuente as OrdenPruebaControl["fuente"],
+        caduca_ms: o.caduca_ms,
+    };
+}
+
 /** `orden.json` v1 con forma estricta, o null (una orden rara no se interpreta a medias). */
 export function leerOrdenBanco(x: unknown): OrdenBanco | null {
     if (!x || typeof x !== "object") return null;
@@ -135,6 +177,10 @@ export interface DepsActor {
     publicar?: (e: EstadoApp) => void;
     /** BAN1115D: ¿este aparato tiene clave propia? (null = no se sabe) y su código. */
     llave?: () => Promise<{ tiene: boolean | null; codigo: string | null }>;
+    /** BAP1127J: escribe el resultado de una orden prueba-control como `<id>.resultado.json`. */
+    escribirResultado?: (id: string, resultado: { ok: boolean; motivo: string }) => Promise<void>;
+    /** BAP1127J: fábrica de SesionHacia para pruebas (inyectada, en producción usa la real). */
+    crearSesionHacia?: (origen: string) => { orden(nombre: string, args?: Args): Promise<RespuestaOrden> };
 }
 
 export interface Armado {
@@ -235,13 +281,24 @@ export class ActorBanco {
     /** Una vuelta del sondeo. Devuelve qué hizo (para las pruebas y la banda). */
     async vuelta(): Promise<string> {
         const a = this.armado;
+        const r = await this.d.leer().catch(() => null);
+        // BAP1127J: primero intenta leer una orden prueba-control (independiente de la serie armada)
+        const ordenPrueba = leerOrdenPruebaControl(r?.orden);
+        if (ordenPrueba) {
+            if (!this.hechas.has(`prueba:${ordenPrueba.id}`)) {
+                this.hechas.add(`prueba:${ordenPrueba.id}`);
+                return await this.ejecutarPruebaControl(ordenPrueba);
+            }
+            // Ya procesada: no hay nueva orden de prueba
+            return "sin-orden-prueba";
+        }
+        // Órdenes de llamada (requieren serie armada)
         if (!a) return "apagado";
         if (this.enMarcha) return "en-llamada";
         if (this.d.ahora() >= a.hasta) {
             this.apagar("vencida");
             return "vencida";
         }
-        const r = await this.d.leer().catch(() => null);
         const orden = leerOrdenBanco(r?.orden);
         if (!orden || this.hechas.has(`${orden.serie}:${orden.n}`)) {
             if (this.d.ahora() - this.ultimoSondeo >= VIDA_SONDEO_MS) {
@@ -266,6 +323,57 @@ export class ActorBanco {
         } finally {
             this.enMarcha = false;
         }
+    }
+
+    /** BAP1127J: ejecuta una orden prueba-control abriendo SesionHacia(origen) y enviando la orden. */
+    private async ejecutarPruebaControl(o: OrdenPruebaControl): Promise<string> {
+        const k = `prueba id=${o.id} origen=${o.origen} destino=${o.destino}`;
+        if (o.caduca_ms <= this.d.ahora()) {
+            this.d.marcar(`rechaza ${k} motivo=orden-caducada`, o.destino);
+            if (this.d.escribirResultado) {
+                try { await this.d.escribirResultado(o.id, { ok: false, motivo: "orden-caducada" }); } catch {}
+            }
+            return "caducada";
+        }
+        this.d.marcar(`inicio ${k} dur_ms=${o.duracion_ms} fuente=${o.fuente}`, o.destino);
+        if (!this.d.escribirResultado) {
+            this.d.marcar(`rechaza ${k} motivo=sin-escritura`, o.destino);
+            return "sin-escritura";
+        }
+        const crearSesion = this.d.crearSesionHacia ?? (async (origen: string) => {
+            // Producción: importación dinámica de la SesionHacia real
+            const { SesionHacia } = await import("@/lib/control-remoto/canal");
+            return new SesionHacia(origen);
+        });
+        const sesion = crearSesion(o.origen);
+        let resultado: { ok: boolean; motivo: string };
+        try {
+            const args = {
+                destino: o.destino,
+                duracionMs: o.duracion_ms,
+                fuente: o.fuente,
+            };
+            const r = await sesion.orden("prueba-control", args);
+            if (r.ok) {
+                resultado = { ok: true, motivo: "aceptada" };
+            } else {
+                // Mapear motivos del ejecutor a los esperados
+                const motivo = r.motivo === "sin-permiso" ? "sin-permiso" :
+                              r.motivo === "no-aceptado" ? "no-aceptado" :
+                              r.motivo === "duracion" ? "duracion" : r.motivo;
+                resultado = { ok: false, motivo };
+            }
+        } catch (e) {
+            resultado = { ok: false, motivo: e instanceof Error ? e.message : "fallo" };
+        }
+        try {
+            await this.d.escribirResultado(o.id, resultado);
+        } catch {
+            this.d.marcar(`rechaza ${k} motivo=escritura-fallo`, o.destino);
+            return "escritura-fallo";
+        }
+        this.d.marcar(`fin ${k} ok=${resultado.ok} motivo=${resultado.motivo}`, o.destino);
+        return resultado.ok ? "prueba-aceptada" : `prueba-rechazada:${resultado.motivo}`;
     }
 
     private calma(c: unknown, o: OrdenBanco, fase: "inicio" | "fin"): void {
