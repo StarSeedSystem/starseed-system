@@ -2517,7 +2517,7 @@ function discoUsable(d: DiscoNodo): boolean {
 }
 
 /** (MED1126A) Una fila por disco: «Maggabox · interno (principal)» y «… · disco externo (secundario)». PURA. */
-export function filasDeDiscos(n: NodoAlmacenamiento): FilaMedidor[] {
+function filasDeDiscos(n: NodoAlmacenamiento): FilaMedidor[] {
     return (n.discos ?? []).map((d) => {
         const titulo = d.rol === "principal" ? `${n.nombre} · interno (principal)` : `${n.nombre} · disco externo (secundario)`;
         const medido = Number.isFinite(d.libreGb);
@@ -2555,7 +2555,7 @@ export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): Fil
 }
 
 /** (MAG1120) La fila de un nodo sin lista de discos. Sin libres ni uso medido: «sin dato». PURA. */
-export function filaDeNodo(n: NodoAlmacenamiento): FilaMedidor {
+function filaDeNodo(n: NodoAlmacenamiento): FilaMedidor {
     return {
         id: n.id,
         titulo: n.nombre,
