@@ -284,8 +284,28 @@ const GRUPOS_PULSO: { id: GrupoPulso; titulo: string }[] = [
     { id: "trabajo", titulo: "El trabajo ahora" },
     { id: "entrega", titulo: "Lo que sale" },
     { id: "modelos", titulo: "Modelos y créditos" },
-    { id: "maquina", titulo: "Esta Mac" },
+    { id: "maquina", titulo: "Esta Mac y los nodos" },
 ];
+
+/** MED1126A: «Maggabox 397 GB libres» + el resto de nodos en el detalle. PURA. */
+export function pastillaDeAlmacenamiento(
+    filas: readonly FilaMedidor[],
+): { valor: string; detalle: string; tono: "ok" | "aviso" | "peligro" } | null {
+    if (!filas.length) return null;
+    const libre = (f: FilaMedidor) => {
+        const g = f.detalle?.discoLibres;
+        return typeof g === "number" && Number.isFinite(g) ? `${Math.round(g)} GB` : "sin dato";
+    };
+    const magga = filas.find((f) => f.titulo === "Maggabox");
+    const principal = magga ?? filas[0];
+    const resto = filas.filter((f) => f !== principal).map((f) => `${f.titulo} ${libre(f)}`);
+    const peor = filas.some((f) => f.estado === "crítico") ? "peligro" : filas.some((f) => f.estado === "bajo") ? "aviso" : "ok";
+    return {
+        valor: `${principal.titulo} ${libre(principal)} libres`,
+        detalle: resto.join(" · "),
+        tono: peor,
+    };
+}
 /** Dónde va cada pastilla: por su `clave` o, si no abre medidor, por su título. */
 const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     "ola-activa": ["trabajo", 0],
@@ -313,6 +333,7 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     contenedores: ["modelos", 5],
     memoria: ["maquina", 0],
     disco: ["maquina", 1],
+    almacenamiento: ["maquina", 2],
     "BitNet 1.58": ["maquina", 2],
     "Google Drive": ["maquina", 3],
 };
@@ -774,6 +795,7 @@ export function CentroMando() {
 
     // Un solo medidor abierto a la vez: el panel es uno y vive debajo de la rejilla.
     const [medidorAbierto, setMedidorAbierto] = useState<ClaveMedidor | null>(null);
+    const [filasNodos, setFilasNodos] = useState<FilaMedidor[]>([]);
     /**
      * (2026-10-24, IMG1024B) El ámbito del pulso, de `?ambito=` (contrato de la Ola 1024I). Esta consola
      * es la de MetaGenesis: sin ámbito (o con uno que no es del contrato) el medidor «Imaginación» es el
@@ -1159,6 +1181,33 @@ export function CentroMando() {
             window.clearTimeout(inicial);
             window.clearInterval(cada);
             document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
+    // MED1126A: nodos y almacenamiento para su pastilla; una petición cada 60 s, no por render.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const r = await fetch("/api/mando/medidores?clave=almacenamiento", { cache: "no-store" });
+                if (!r.ok) return;
+                const d = (await r.json()) as { detalle?: DetalleMedidor };
+                if (vivo) setFilasNodos(d.detalle?.filas ?? []);
+            } catch {
+                // Sin dato: la pastilla no aparece.
+            } finally {
+                enCurso = false;
+            }
+        };
+        const inicial = window.setTimeout(() => void cargar(true), 1200);
+        const cada = window.setInterval(() => void cargar(), 60_000);
+        return () => {
+            vivo = false;
+            window.clearTimeout(inicial);
+            window.clearInterval(cada);
         };
     }, []);
 
@@ -1919,6 +1968,20 @@ export function CentroMando() {
                                       },
                                   ]
                                 : []),
+                            ...(() => {
+                                const p = pastillaDeAlmacenamiento(filasNodos);
+                                return p
+                                    ? [
+                                          {
+                                              clave: "almacenamiento" as const,
+                                              titulo: "Nodos y almacenamiento",
+                                              valor: p.valor,
+                                              tono: p.tono as TonoMedidor,
+                                              detalle: p.detalle,
+                                          },
+                                      ]
+                                    : [];
+                            })(),
                             ...(almacenamiento?.drive?.montado
                                 ? [
                                       {
