@@ -217,9 +217,9 @@ export function EstaNeurona() {
         {filas.length > 0 ? (
           <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
             {filas.map((f) => (
-              <div key={f.etiqueta} className="flex min-w-0 gap-2">
+              <div key={f.etiqueta} className="flex min-w-0 flex-wrap gap-x-2">
                 <dt className="shrink-0 text-muted-foreground">{f.etiqueta}</dt>
-                <dd className="min-w-0 truncate font-mono text-foreground/90" title={f.valor}>
+                <dd className="min-w-0 break-words font-mono text-foreground/90" title={f.valor}>
                   {f.valor}
                 </dd>
               </div>

@@ -9,6 +9,11 @@ function crearInstalada(
   version: string | null = "1.2.3",
   fuente: Instalada["fuente"] = "info_neurona",
   info: Instalada["info"] = {
+    app_version: "1.2.3",
+    app_nombre: "StarSeed OS",
+    identificador: "os.starseed.app",
+    escritorio: true,
+    actualizador: true,
     sistema: "os",
     plataforma: "macos",
     so_version: "14.5",
@@ -91,6 +96,11 @@ describe("NEU1126B-d4 · esta-neurona · funciones puras", () => {
 
     it("funciona con medio android", () => {
       const inst = crearInstalada("android", "1.2.3", "info_neurona", {
+        app_version: "1.2.3",
+        app_nombre: "StarSeed OS",
+        identificador: "os.starseed.app",
+        escritorio: false,
+        actualizador: false,
         sistema: "os",
         plataforma: "android",
         so_version: "14",
