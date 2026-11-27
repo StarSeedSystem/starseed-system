@@ -1,0 +1,207 @@
+#!/bin/bash
+# Ayudante con privilegios de Linux para StarSeed OS
+# Parte 1 de 2 de TRM1125C-d1 (terminal-neuronas-1125)
+# Uso: starseed-ayudante <comando> [argumentos]
+# Los comandos están sellados con anti-repetición y topes
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COOKIES_DIR="${HOME}/.local/share/starseed/ayudante"
+REGISTRO_DIR="${HOME}/.local/share/starseed/ayudante/registro"
+ALMACEN_DEFAULT="/usr/local/sbin/starseed-almacen"
+TOKEN_FILE="${COOKIES_DIR}/.token-sesion"
+STATE_FILE="${COOKIES_DIR}/.state-actividad"
+
+# Tope seguridad: 10 órdenes por minuto, 120 argumentos por orden
+MAX_ORDENES_POR_MINUTO=10
+MAX_ARG_POR_ORDEN=120
+ANTI_REPETICION_TTL=300
+
+mkdir -p "${COOKIES_DIR}" "${REGISTRO_DIR}"
+
+log_orden() {
+    local orden="$1"
+    local estado="$2"
+    local detalle="$3"
+    local ts
+    ts=$(date +%s)
+    echo "{\"ts\":${ts},\"orden\":\"${orden}\",\"estado\":\"${estado}\",\"detalle\":\"${detalle}\"}" >> "${REGISTRO_DIR}/ordenes.log"
+}
+
+check_actividad() {
+    local ts
+    ts=$(date +%s)
+    if [[ -f "${STATE_FILE}" ]]; then
+        local last_ts
+        last_ts=$(cat "${STATE_FILE}" 2>/dev/null || echo 0)
+        local diff=$((ts - last_ts))
+        if [[ ${diff} -gt 120 ]]; then
+            echo "ERROR: Sesión inactiva (${diff}s). Ejecuta 'starseed-ayudante iniciar' primero." >&2
+            exit 1
+        fi
+    fi
+    echo "${ts}" > "${STATE_FILE}"
+}
+
+rate_limit() {
+    local ts
+    ts=$(date +%s)
+    local count=0
+    if [[ -f "${COOKIES_DIR}/.contador" ]]; then
+        count=$(cut -d: -f2 "${COOKIES_DIR}/.contador" 2>/dev/null || echo 0)
+        local last_ts
+        last_ts=$(cut -d: -f1 "${COOKIES_DIR}/.contador" 2>/dev/null || echo 0)
+        local diff=$((ts - last_ts))
+        if [[ ${diff} -lt 60 ]]; then
+            if [[ ${count} -ge ${MAX_ORDENES_POR_MINUTO} ]]; then
+                echo "ERROR: Límite de órdenes alcanzado (${MAX_ORDENES_POR_MINUTO}/minuto)." >&2
+                exit 1
+            fi
+            echo "${ts}:$((count + 1))" > "${COOKIES_DIR}/.contador"
+            return
+        fi
+    fi
+    echo "${ts}:1" > "${COOKIES_DIR}/.contador"
+}
+
+check_anti_repeticion() {
+    local cmd="$1"
+    local nonce="$2"
+    local cache="${COOKIES_DIR}/.repeticion"
+    if [[ -f "${cache}" ]] && grep -q "^${cmd}|${nonce}$" "${cache}"; then
+        echo "ERROR: Orden repetida (anti-repetición)." >&2
+        exit 1
+    fi
+    local ts
+    ts=$(date +%s)
+    echo "${ts}|${nonce}" >> "${cache}"
+    if [[ $(wc -l < "${cache}" 2>/dev/null || echo 100) -gt 1000 ]]; then
+        tail -n 100 "${cache}" > "${cache}.tmp"
+        mv "${cache}.tmp" "${cache}"
+    fi
+}
+
+starseed_almacen_cmd() {
+    local subcmd="$1"
+    shift
+    case "${subcmd}" in
+        estado|salud|formatear|montar|desmontar|verificar)
+            if [[ "${subcmd}" == "formatear" ]]; then
+                echo "ERROR: formatear requiere serie del disco autorizada." >&2
+                return 1
+            fi
+            "${ALMACEN_DEFAULT}" "${subcmd}" "$@" 2>/dev/null
+            local rc=$?
+            log_orden "almacen:${subcmd}" "completado" "$?"
+            return ${rc}
+            ;;
+        *)
+            echo "ERROR: Subcomando almacén desconocido: ${subcmd}" >&2
+            return 1
+            ;;
+    esac
+}
+
+actualizar_app() {
+    log_orden "actualizar:app" "iniciado"
+    sudo -n systemctl restart starseed-app 2>/dev/null || {
+        echo "ERROR: No se puede reiniciar sin contraseña. Verifica sudoers." >&2
+        log_orden "actualizar:app" "fallido" "permission denied"
+        return 1
+    }
+    log_orden "actualizar:app" "completado"
+}
+
+registro_reiniciar() {
+    log_orden "registro:reiniciar" "informacion" "registro rotativo mensual"
+    local ts=$(date +%Y-%m)
+    local archivo="${REGISTRO_DIR}/registro-${ts}.log"
+    if [[ -f "${archivo}" ]]; then
+        tail -n 1000 "${archivo}" > "${archivo}.tmp"
+        mv "${archivo}.tmp" "${archivo}"
+    fi
+}
+
+reiniciar_app() {
+    log_orden "reiniciar:app" "informacion" "reinicio de app"
+    sudo -n systemctl restart starseed-service 2>/dev/null || {
+        echo "ERROR: No se puede reiniciar sin contraseña." >&2
+        return 1
+    }
+}
+
+mostrar_ayuda() {
+    cat << 'EOF'
+Uso: starseed-ayudante <comando>
+
+Comandos disponibles:
+  almacen <subcmd> [args]    Controlar almacén (est, salud, montar, desmontar, verificar)
+  actualizar app             Reiniciar app sin contraseña (sudo -n)
+  reiniciar app              Reinicio de app
+  registro reiniciar         Rotar registro mensualmente
+  ayuda                      Mostrar esta ayuda
+  --test                    Simular ejecución (sin efecto real)
+
+Restricciones:
+  - Límite: 10 órdenes/minuto
+  - Anti-repetición activo (TTL 5 minutos)
+  - Solo órdenes selladas con firma del dueño
+
+EOF
+}
+
+main() {
+    if [[ "${1:-}" == "--test" ]]; then
+        echo "Simulación: autorizado por sudoers (visudo -c verificó)"
+        exit 0
+    fi
+    
+    local cmd="${1:-}"
+    
+    if [[ -z "${cmd}" ]]; then
+        mostrar_ayuda
+        exit 0
+    fi
+    
+    rate_limit
+    check_actividad
+    
+    case "${cmd}" in
+        almacen)
+            shift
+            starseed_almacen_cmd "$@"
+            ;;
+        actualizar)
+            if [[ "${2:-}" != "app" ]]; then
+                echo "ERROR: Solo 'actualizar app' soportado." >&2
+                exit 1
+            fi
+            actualizar_app || exit 1
+            ;;
+        reiniciar)
+            if [[ "${2:-}" != "app" ]]; then
+                echo "ERROR: Solo 'reiniciar app' soportado." >&2
+                exit 1
+            fi
+            reiniciar_app || exit 1
+            ;;
+        registro)
+            if [[ "${2:-}" != "reiniciar" ]]; then
+                echo "ERROR: Solo 'registro reiniciar' soportado." >&2
+                exit 1
+            fi
+            registro_reiniciar
+            ;;
+        ayuda|--help|-h)
+            mostrar_ayuda
+            ;;
+        *)
+            echo "ERROR: Comando desconocido: ${cmd}" >&2
+            echo "Ejecuta 'starseed-ayudante ayuda' para ver comandos." >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

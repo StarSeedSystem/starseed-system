@@ -1,0 +1,2 @@
+Cmnd_Alias STARSEED = /usr/local/bin/starseed-ayudante
+starseed ALL=(ALL) NOPASSWD: STARSEED
