@@ -7,6 +7,7 @@ import {
     type PostBlock,
 } from "@/lib/creation/post-blocks";
 import { normalizarMarco } from "@/lib/profile/marco-foto";
+import { sourceRefToBlockPatch } from "@/components/creation/creation-blocks";
 
 const marco = { forma: "corazon" as const, x: 3, y: -4, escala: 1.4, borde: 3 };
 
@@ -63,6 +64,13 @@ describe("referencia y entidad", () => {
         const sinId = serializeBlock({ id: "r2", type: "entidad", ref: { kind: "page", id: "" } });
         expect(futuro.ref).toBeUndefined();
         expect(sinId.ref).toBeUndefined();
+    });
+
+    it("el editor no guarda referencias sin id que serializeBlock descartaría", () => {
+        const sinId: PostBlock = { id: "r3", type: "referencia", ...sourceRefToBlockPatch({ kind: "library", label: "Sin id" }) };
+        expect(serializeBlock(sinId)).toEqual({ id: "r3", type: "referencia", text: "Sin id" });
+        const conId: PostBlock = { id: "r4", type: "referencia", ...sourceRefToBlockPatch({ kind: "brain", brainId: "b", label: "Cerebro" }) };
+        expect(serializeBlock(conId).ref).toEqual({ kind: "brain", id: "b", label: "Cerebro", route: "/cerebro" });
     });
 
     it("una entidad con ruta canónica viaja intacta", () => {

@@ -27,6 +27,7 @@ import {
     buildSandboxDoc,
     type PostBlock,
     type PostBlockType,
+    type PostBlockRef,
     type PostBlockRefKind,
     type ChartKind,
     type CodeLang,
@@ -94,49 +95,45 @@ export const NEW_BLOCK_DEFS: BlockDef[] = [
 
 // ── SourceRef → parche de bloque `referencia` ────────────────────────────────
 
+/** `serializeBlock` descarta las referencias sin id: no las guardamos en el editor. */
+function conRef(ref: PostBlockRef | undefined, campos: Partial<PostBlock> = {}): Partial<PostBlock> {
+    return { ...campos, ...(ref?.id ? { ref } : {}) };
+}
+
 /** Traduce la SourceRef del SourcePicker a los campos de un bloque `referencia`. */
 export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
     if (r.kind === "device" || r.kind === "url") {
         // Archivo subido o URL externa: referencia de tipo file/url.
         const kind: PostBlockRefKind = r.kind === "device" ? "file" : "url";
-        return {
-            url: r.url,
-            name: r.name,
-            text: r.label,
-            ref: { kind, id: r.url || r.name || "recurso", url: r.url, label: r.label || r.name },
-        };
+        const id = r.url || r.name || "recurso";
+        return conRef({ kind, id, url: r.url, label: r.label || r.name }, { url: r.url, name: r.name, text: r.label });
     }
     if (r.kind === "library") {
-        return {
-            text: r.label,
-            ref: {
-                kind: "library",
-                id: r.library?.id || "",
-                libraryKind: r.library?.kind,
-                label: r.label,
-                route: "/library",
-            },
-        };
+        return conRef(
+            r.library?.id
+                ? { kind: "library", id: r.library.id, libraryKind: r.library.kind, label: r.label, route: "/library" }
+                : undefined,
+            { text: r.label },
+        );
     }
     if (r.kind === "folder") {
-        return {
-            text: r.label,
-            ref: {
-                kind: "folder",
-                id: r.library?.id || "",
-                libraryKind: r.library?.kind,
-                folderId: r.folderId ?? null,
-                label: r.label,
-                route: "/library",
-            },
-        };
+        return conRef(
+            r.library?.id
+                ? {
+                      kind: "folder",
+                      id: r.library.id,
+                      libraryKind: r.library.kind,
+                      folderId: r.folderId ?? null,
+                      label: r.label,
+                      route: "/library",
+                  }
+                : undefined,
+            { text: r.label },
+        );
     }
     if (r.kind === "file") {
-        return {
-            url: r.url,
-            name: r.name,
-            text: r.label,
-            ref: {
+        return conRef(
+            {
                 kind: "file",
                 id: r.itemId || r.url || "archivo",
                 itemId: r.itemId,
@@ -146,13 +143,14 @@ export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
                 label: r.label || r.name,
                 route: "/library",
             },
-        };
+            { url: r.url, name: r.name, text: r.label },
+        );
     }
-    if (r.kind === "brain") {
-        return { text: r.label, ref: { kind: "brain", id: r.brainId || "", label: r.label, route: "/cerebro" } };
-    }
-    // neuron
-    return { text: r.label, ref: { kind: "neuron", id: r.neuronId || "", label: r.label, route: "/cerebro" } };
+    const id = r.kind === "brain" ? r.brainId : r.neuronId;
+    return conRef(
+        id ? { kind: r.kind, id, label: r.label, route: "/cerebro" } : undefined,
+        { text: r.label },
+    );
 }
 
 const FIELD = "bg-black/30 border-white/10 text-sm";
@@ -193,6 +191,8 @@ export function RichBlockEditor({
             return <VideoEditor block={block} patch={patch} />;
         case "protomolecula":
             return <ProtomoleculaEditor block={block} patch={patch} />;
+        case "respuesta-viva":
+            return <RespuestaVivaEditor block={block} patch={patch} />;
         default:
             return null;
     }
@@ -341,6 +341,26 @@ function ProtomoleculaEditor({ block, patch }: EditorProps) {
             <Button type="button" size="sm" variant="ghost" className="h-7 cursor-pointer text-[11px]" onClick={() => patch({ code: undefined })}>
                 Cambiar molécula
             </Button>
+        </div>
+    );
+}
+
+// ── Respuesta viva (OpenUI) ──────────────────────────────────────────────────
+
+function RespuestaVivaEditor({ block, patch }: EditorProps) {
+    return (
+        <div className="space-y-2">
+            <p className="rounded-lg border border-sky-400/20 bg-sky-500/5 px-2.5 py-1.5 text-[11px] text-sky-200/80">
+                La respuesta viva guarda solo el texto OpenUI Lang; viaja en el bloque tal como lo escribes aquí.
+            </p>
+            <Textarea
+                placeholder="root = Card()"
+                rows={7}
+                spellCheck={false}
+                value={block.code || ""}
+                onChange={(e) => patch({ code: e.target.value })}
+                className={cn(FIELD, "font-mono text-[12px] leading-relaxed")}
+            />
         </div>
     );
 }
