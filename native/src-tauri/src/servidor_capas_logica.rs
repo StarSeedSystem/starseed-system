@@ -80,6 +80,14 @@ pub const MARGEN_DISCO: u64 = 512 * 1024 * 1024;
 /// Avisos de capas malas que se recuerdan (las más viejas se olvidan).
 pub const MAX_MALAS: usize = 20;
 
+/// (BAP1127F) Retirada firmada: archivo del Release `servidor-local` y su `.sig` de minisign.
+pub const RETIRADAS: &str = "retiradas.json";
+pub const RETIRADAS_SIG: &str = "retiradas.json.sig";
+/// Tope del archivo y de su firma (solo una lista de builds).
+pub const TOPE_RETIRADAS: u64 = 64 * 1024;
+pub const FORMATO_RETIRADAS: u64 = 1;
+pub const MAX_RETIRADAS: usize = 200;
+
 /// Lo que toda capa debe traer para poder lanzarse (como el paquete del instalador).
 pub const REQUERIDOS: [&str; 6] =
     ["server.js", ".next/BUILD_ID", "starseed-arranque.cjs", "guarda.cjs", "migracion-origen.js", "starseed-servidor.json"];
@@ -798,6 +806,63 @@ pub fn evaluar_humo(sha_servido: Option<&str>, sha_capa: Option<&str>, estado_pa
     }
 }
 
+// ───────────────────────────── BAP1127F · retirada firmada ─────────────────────────────
+
+/// `retiradas.json` ya leído: `{formato:1, creado_ms, builds:[…]}`. El CI lo firma con la clave del updater.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Retiradas {
+    pub formato: u32,
+    pub creado_ms: u64,
+    pub builds: Vec<String>,
+}
+
+/// Lo que cambia al aplicar una retirada: el estado nuevo y las builds que de verdad tocaron algo.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CambiosRetiradas {
+    pub estado: EstadoCapas,
+    pub aplicadas: Vec<String>,
+}
+
+impl Retiradas {
+    /// Valida los campos ya leídos del JSON: formato 1, ≤ `MAX_RETIRADAS` builds y ids seguros.
+    pub fn validar(formato: u64, creado_ms: u64, builds: Vec<String>) -> Result<Retiradas, String> {
+        if formato != FORMATO_RETIRADAS {
+            return Err(format!("formato {formato} de retiradas desconocido"));
+        }
+        if builds.len() > MAX_RETIRADAS {
+            return Err(format!("más de {MAX_RETIRADAS} builds retiradas"));
+        }
+        if let Some(b) = builds.iter().find(|b| !build_id_seguro(b)) {
+            return Err(format!("build no válida «{b}»"));
+        }
+        Ok(Retiradas { formato: FORMATO_RETIRADAS as u32, creado_ms, builds })
+    }
+}
+
+/// Aplica una retirada firmada: marca malas las builds (tope `MAX_MALAS`), quita la pendiente retirada y,
+/// si la activa lo está, vuelve a la anterior (o al instalador si también está retirada).
+pub fn aplicar_retiradas(e: &EstadoCapas, r: &Retiradas) -> CambiosRetiradas {
+    let mut n = e.clone();
+    let mut aplicadas = Vec::new();
+    for b in &r.builds {
+        let en_uso = [&n.activa, &n.anterior, &n.pendiente].iter().any(|x| x.as_deref() == Some(b.as_str()));
+        let nueva = !n.malas.iter().any(|m| m == b);
+        if en_uso {
+            let a_prueba = n.pendiente.as_deref() == Some(b.as_str());
+            n = tras_fallo(&n, &Eleccion::Capa { build: b.clone(), a_prueba }, "retirada firmada");
+        } else if nueva {
+            n.malas.push(b.clone());
+            while n.malas.len() > MAX_MALAS {
+                n.malas.remove(0);
+            }
+        }
+        if en_uso || nueva {
+            aplicadas.push(b.clone());
+        }
+    }
+    CambiosRetiradas { estado: n, aplicadas }
+}
+
 #[cfg(test)]
 mod humo_prueba {
     use super::*;
@@ -1299,5 +1364,70 @@ mod anillo_prueba {
         assert_eq!(cada_ms(true), CADA_MS_PRUEBA);
         assert_eq!(cada_ms(false), CADA_MS);
         assert!(CANAL_PRUEBA.ends_with("latest-servidor-prueba.json"));
+    }
+}
+
+#[cfg(test)]
+mod retiradas_firmadas {
+    use super::*;
+
+    fn lista(builds: &[&str]) -> Retiradas {
+        Retiradas { formato: 1, creado_ms: 7, builds: builds.iter().map(|b| b.to_string()).collect() }
+    }
+    fn estado(act: Option<&str>, ant: Option<&str>, pen: Option<&str>) -> EstadoCapas {
+        let o = |s: Option<&str>| s.map(String::from);
+        EstadoCapas { activa: o(act), anterior: o(ant), pendiente: o(pen), ..Default::default() }
+    }
+
+    #[test]
+    fn sin_retiradas_no_cambia_nada() {
+        let e = estado(Some("A"), Some("Z"), Some("P"));
+        let c = aplicar_retiradas(&e, &lista(&[]));
+        assert_eq!(c.estado, e);
+        assert!(c.aplicadas.is_empty());
+    }
+
+    #[test]
+    fn pendiente_retirada_se_quita_y_queda_mala() {
+        let e = EstadoCapas { intentos: 2, ..estado(Some("A"), Some("Z"), Some("P")) };
+        let c = aplicar_retiradas(&e, &lista(&["P"]));
+        assert_eq!((c.estado.pendiente.clone(), c.estado.intentos), (None, 0));
+        assert!(c.estado.malas.contains(&"P".to_string()));
+        assert_eq!((c.estado.activa.as_deref(), c.estado.anterior.as_deref()), (Some("A"), Some("Z")));
+    }
+
+    #[test]
+    fn activa_retirada_vuelve_a_la_anterior() {
+        let c = aplicar_retiradas(&estado(Some("A"), Some("Z"), None), &lista(&["A"]));
+        assert_eq!((c.estado.activa.as_deref(), c.estado.anterior.as_deref()), (Some("Z"), None));
+        assert!(c.estado.malas.contains(&"A".to_string()));
+        assert!(c.estado.aviso.as_deref().unwrap().contains("retirada"));
+    }
+
+    #[test]
+    fn activa_y_anterior_retiradas_van_al_instalador() {
+        let c = aplicar_retiradas(&estado(Some("A"), Some("Z"), None), &lista(&["A", "Z"]));
+        assert_eq!((c.estado.activa, c.estado.anterior), (None, None));
+        assert_eq!(c.estado.malas, vec!["A".to_string(), "Z".to_string()]);
+    }
+
+    #[test]
+    fn respeta_max_malas_y_no_repite() {
+        let nombres: Vec<String> = (0..MAX_MALAS + 5).map(|i| format!("M{i}")).collect();
+        let refs: Vec<&str> = nombres.iter().map(String::as_str).collect();
+        let c = aplicar_retiradas(&estado(Some("A"), None, None), &lista(&refs));
+        assert_eq!(c.estado.malas.len(), MAX_MALAS);
+        let otra = aplicar_retiradas(&c.estado, &lista(&["M24"]));
+        assert!(otra.aplicadas.is_empty());
+    }
+
+    #[test]
+    fn validar_es_estricto() {
+        let b = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(Retiradas::validar(1, 9, b(&["B1"])).unwrap().builds, b(&["B1"]));
+        assert!(Retiradas::validar(2, 9, vec![]).is_err());
+        assert!(Retiradas::validar(1, 9, b(&["../x"])).is_err());
+        let muchas = (0..=MAX_RETIRADAS).map(|i| format!("B{i}")).collect();
+        assert!(Retiradas::validar(1, 9, muchas).is_err());
     }
 }
