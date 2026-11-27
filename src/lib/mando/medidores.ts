@@ -180,7 +180,16 @@ export interface FilaMedidor {
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
     /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
-    detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string };
+    detalle?: {
+        discoLibres?: number;
+        origen?: string;
+        almacen?: string[];
+        discoTotalGb?: number;
+        usoGb?: number;
+        rol?: string;
+        /** (ALC1125Js) El almacén USB de la Maggabox puede estar desmontado: no se inventa un 0 GB. */
+        conectado?: boolean;
+    };
     desde?: string;
     quien?: string;
     enlace?: string;
@@ -1493,6 +1502,9 @@ export interface NodoAlmacenamiento {
     discoTotalGb?: number;
     rol?: string;
     usoGb?: number;
+    /** (ALC1125Js) Solo en el almacén USB de la Maggabox: si está montado y desde cuándo se midió. */
+    conectado?: boolean;
+    desde?: string;
 }
 
 export interface DatosMedidores {
@@ -2399,6 +2411,33 @@ export function nombreDeNodoAlmacenamiento(nodoId: string, medio?: string): stri
     if (medio === "linux") return "Linux";
     if (medio === "nube") return "Nube";
     return nodoId;
+}
+
+/**
+ * (ALC1125Js) El almacén USB de la Maggabox llega dentro de `almacen` como una línea de la sonda:
+ * «Maggabox · almacén USB (btrfs) · libre 418 GB · desde …» o «… · desconectado desde …». Se lee
+ * aparte para que sea un MEDIO PROPIO, distinto del disco interno, y para no convertir un
+ * desmontado en un 0 GB inventado. PURA.
+ */
+export const NOMBRE_ALMACEN_SRV_MAGGABOX = "Maggabox · almacén USB (btrfs)";
+const RUTA_ALMACEN_SRV_MAGGABOX = "/srv/starseed-almacen";
+
+export function leerAlmacenSrvMaggabox(
+    almacen: readonly string[],
+): { libreGb: number | null; conectado: boolean; desde?: string } | null {
+    const linea = almacen.find((a) => a.includes(NOMBRE_ALMACEN_SRV_MAGGABOX));
+    if (!linea) return null;
+    const desde = /desde\s+(.+)$/i.exec(linea)?.[1]?.trim();
+    if (/desconectado/i.test(linea)) {
+        return { libreGb: null, conectado: false, ...(desde ? { desde } : {}) };
+    }
+    const medido = /libre\s+([\d.,]+)\s*GB/i.exec(linea);
+    const libre = medido ? Number(medido[1].replace(",", ".")) : Number.NaN;
+    return {
+        libreGb: Number.isFinite(libre) ? libre : null,
+        conectado: true,
+        ...(desde ? { desde } : {}),
+    };
 }
 
 /**
