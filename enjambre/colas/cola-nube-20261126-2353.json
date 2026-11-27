@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "ALC1125Js",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas · lo que faltó: src/lib/mando/medidores.ts",
+   "archivos": [
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de ALC1125J, que ya está integrada (sha fd0d50f2e69b). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/mando/medidores.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Maggabox: el disco nuevo (/srv/starseed-almacen) en el medidor de MetaGenesis, los respaldos y sus instantáneas\n\n--- encargo original, como contexto ---\nContrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 7 del contrato. (1) La sonda de la Maggabox mide también /srv/starseed-almacen (usado, libre, si está montado y, si se puede leer sin root, la salud) y el medidor de almacenamiento de MetaGenesis lo muestra como medio propio «Maggabox · almacén USB (btrfs)», distinto del disco interno; si no está montado dice «desconectado» y desde cuándo, nunca 0 GB inventados. (2) almacen_maggabox.py (sin root, por ssh con las opciones de respaldo_maggabox.py: AddressFamily=inet y known_hosts_starseed_nodo): instantáneas de solo lectura diarias de los subvolúmenes respaldos y cerebros en .instantaneas con retención 7 diarias + 4 semanales, y la orden «destinos» que dice qué va a cada subvolumen (pesado regenerable del enjambre → desarrollo; respaldos y versiones → respaldos). (3) Actualiza la tabla de medios de almacenamiento-distribuido.md. Pruebas con dobles de ssh.",
+   "prioridad": 84,
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "ALC1125Js"
+  ]
+ }
+}
