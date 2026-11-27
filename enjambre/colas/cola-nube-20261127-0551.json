@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "terminal-neuronas-1125",
+   "prioridad": 76,
+   "capacidad": "alta",
+   "id": "TRM1125C-d1",
+   "titulo": "Ayudante con privilegios de Linux (instalación local única) con órdenes tipadas y modo completo con caducidad (parte 1 de 2)",
+   "archivos": [
+    "deploy/ayudante/linux/starseed-ayudante",
+    "deploy/ayudante/linux/instalar.sh",
+    "deploy/ayudante/linux/test_ayudante.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Generaliza /usr/local/sbin/starseed-almacen de la Maggabox (está descrito en el contrato): órdenes tipadas con guardas (almacenes, servicios propios de StarSeed, actualizar app, registros, reiniciar app) y «modo completo» que el dueño activa en el aparato con caducidad y registro. instalar.sh lo instala con una regla de sudoers limitada al ayudante (visudo -c antes de moverla). Pruebas: bash -n y simulación de las guardas.\n\n## PARTE 1 DE 2 (la dirección dividió TRM1125C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: deploy/ayudante/linux/starseed-ayudante, deploy/ayudante/linux/instalar.sh, deploy/ayudante/linux/test_ayudante.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRM1125C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "TRM1125A"
+   ]
+  },
+  {
+   "id": "ALC1125K",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Astraura sugiere modalidad y acomodo de cada almacén (el dueño decide)",
+   "archivos": [
+    "src/lib/almacenes/sugerencias.ts",
+    "src/lib/almacenes/__tests__/sugerencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Por velocidad medida, tamaño, salud y uso: p. ej. un USB lento como respaldo, un SSD para el cerebro activo, un disco viejo con avisos de salud como secundario. Solo sugiere; nunca aplica sin aceptación. Pruebas.",
+   "prioridad": 68,
+   "dependencias_ya_en_main": [
+    "ALC1125A",
+    "ALC1125C-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "TRM1125C-d1",
+   "ALC1125K"
+  ]
+ }
+}
