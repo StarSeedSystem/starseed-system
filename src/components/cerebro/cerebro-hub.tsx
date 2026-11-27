@@ -38,9 +38,12 @@ import ConectoresPanel from "@/components/cerebro/conectores-panel";
 import ProcesosPanel from "@/components/cerebro/procesos-panel";
 import FusionarDialog from "@/components/cerebro/fusionar-dialog";
 import TelepatiaDialog from "@/components/cerebro/telepatia-dialog";
-import AjustesCerebroDialog from "@/components/cerebro/ajustes-cerebro-dialog";
+import PanelAjustesPilar, {
+  ajustesDesdeBusqueda,
+  type SeccionAjustes,
+} from "@/components/cerebro/panel-ajustes-pilar";
 import { NuevoCerebroPublico } from "@/components/cerebro/nuevo-cerebro-publico";
-import { RejillaPilares, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
+import { RejillaPilares, PILARES, pilarDesdeUrl, type Pilar } from "@/components/cerebro/pilares";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import {
   AYUDA_PESTANA,
@@ -100,7 +103,8 @@ export default function CerebroHub() {
   const [nuevoPublico, setNuevoPublico] = useState(false);
   const [fusionOpen, setFusionOpen] = useState(false);
   const [telepatiaOpen, setTelepatiaOpen] = useState(false);
-  const [ajustesOpen, setAjustesOpen] = useState(false);
+  const [ajustesPilarOpen, setAjustesPilarOpen] = useState(false);
+  const [ajustesSeccion, setAjustesSeccion] = useState<SeccionAjustes>("general");
   const [capsulaOpen, setCapsulaOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [compartidos, setCompartidos] = useState<(Brain & { compartido: true })[]>([]);
@@ -186,6 +190,12 @@ export default function CerebroHub() {
     if (ms && (["archivos", "hub"] as string[]).includes(ms)) setMemSub(ms as MemoryListSub);
     const b = p.get("brain");
     if (b) setActiveBrainId(b);
+    // Enlace directo ?tab=<pilar>&ajustes=<seccion>: abre el panel del pilar en esa sección.
+    const { seccion } = ajustesDesdeBusqueda(window.location.search);
+    if (seccion) {
+      setAjustesSeccion(seccion);
+      setAjustesPilarOpen(true);
+    }
   }, []);
 
   // Actualiza los query params al cambiar de sub-vista de Memoria (sin recargar).
@@ -204,7 +214,49 @@ export default function CerebroHub() {
     }
   }, []);
 
+  // Panel común de ajustes del pilar activo (CER1126A): mismos apartados en los
+  // siete pilares y enlace directo ?tab=<pilar>&ajustes=<seccion>.
+  const abrirAjustesPilar = useCallback((seccion: SeccionAjustes = "general") => {
+    setAjustesSeccion(seccion);
+    setAjustesPilarOpen(true);
+    if (typeof window === "undefined") return;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.set("tab", pillar);
+      p.set("ajustes", seccion);
+      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+    } catch {
+      /* noop */
+    }
+  }, [pillar]);
+
+  const cambiarSeccionAjustes = useCallback((seccion: SeccionAjustes) => {
+    setAjustesSeccion(seccion);
+    if (typeof window === "undefined") return;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.set("tab", pillar);
+      p.set("ajustes", seccion);
+      window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
+    } catch {
+      /* noop */
+    }
+  }, [pillar]);
+
+  const cerrarAjustesPilar = useCallback((abierto: boolean) => {
+    setAjustesPilarOpen(abierto);
+    if (abierto || typeof window === "undefined") return;
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.delete("ajustes");
+      window.history.replaceState(null, "", `${window.location.pathname}${p.toString() ? `?${p.toString()}` : ""}`);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
   const activeBrain = visibles.find((b) => b.id === activeBrainId) ?? null;
+  const pilarActivo = PILARES.find((p) => p.id === pillar) ?? PILARES[0];
   const esActivoCompartido = activeBrain ? ("compartido" in activeBrain && (activeBrain as { compartido?: boolean }).compartido === true) : false;
 
   // Adenda 149 · nombres/iconos de las personalidades conectadas al cerebro
@@ -405,8 +457,8 @@ export default function CerebroHub() {
                       size="sm"
                       variant="outline"
                       className="gap-1.5 border-white/15 text-white/80 cursor-pointer whitespace-normal h-auto"
-                      onClick={() => setAjustesOpen(true)}
-                      title={`Ajustes de «${activeBrain.name}»: medios, seguridad, privacidad, vinculación y sincronización`}
+                      onClick={() => abrirAjustesPilar()}
+                      title={`Ajustes de «${activeBrain.name}»: los mismos apartados en todos los pilares (General, Privacidad y permisos, Sincronía y Avanzado)`}
                     >
                       <SlidersHorizontal className="w-4 h-4" />
                       Ajustes
@@ -497,6 +549,27 @@ export default function CerebroHub() {
       </div>
 
       {/* ── Panel del pilar activo ──────────────────────────── */}
+      {/* Botón «Ajustes» de ESTE pilar: abre el panel lateral común en su sección general. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-white/45">Ajustes de «{pilarActivo.etiqueta}»</p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 border-white/15 text-white/80 cursor-pointer whitespace-normal h-auto"
+          onClick={() => {
+            if (!activeBrain) {
+              toast.info("Elige o crea un cerebro para ajustar este pilar.");
+              return;
+            }
+            abrirAjustesPilar();
+          }}
+          title={`Ajustes de «${pilarActivo.etiqueta}»: los mismos apartados en todos los pilares`}
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          Ajustes
+        </Button>
+      </div>
+
       {/* Neuronas y Procesos activos son de la CUENTA: no requieren cerebro. */}
       <div className="pt-1">
         {pillar === "neuronas" && <NeuronasPanel brainId={activeBrain?.id ?? null} brainName={activeBrain?.name} />}
@@ -540,13 +613,15 @@ export default function CerebroHub() {
           onHecho={() => void reload()}
         />
       )}
-      {ajustesOpen && activeBrain && (
-        <AjustesCerebroDialog
+      {ajustesPilarOpen && activeBrain && (
+        <PanelAjustesPilar
           open
-          onOpenChange={(o) => !o && setAjustesOpen(false)}
+          onOpenChange={cerrarAjustesPilar}
+          pilar={pillar}
           cerebro={activeBrain}
-          cerebros={brains}
           onHecho={() => void reload()}
+          seccionInicial={ajustesSeccion}
+          onSeccionChange={cambiarSeccionAjustes}
         />
       )}
       {capsulaOpen && activeBrain && (
