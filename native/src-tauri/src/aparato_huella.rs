@@ -56,21 +56,13 @@ fn obtener_sal(app: &tauri::AppHandle) -> Result<String, String> {
 /// Obtiene el ANDROID_ID nativo (Settings.Secure.ANDROID_ID).
 /// En otras plataformas, devuelve error (no hay equivalente nativo).
 fn obtener_id_android(app: &tauri::AppHandle) -> Result<String, String> {
+    // (DIR1127D) `tauri_plugin_android` no existe en este proyecto y rompía la compilación de la .65 en Android.
+    // Hasta que haya un puente Kotlin para Settings.Secure.ANDROID_ID, Android no tiene huella nativa y lo
+    // dice: la web decide con su propia huella y nunca se adopta nada solo.
     #[cfg(target_os = "android")]
     {
-        let resultado = tauri_plugin_android::android_context()
-            .map_err(|e| format!("Contexto Android: {e}"))?;
-        let androide_id = resultado
-            .call("getString", &["android_id"], None)
-            .map_err(|e| format!("obtener ANDROID_ID: {e}"))?;
-        let androide_id_str = androide_id
-            .downcast::<String>()
-            .map_err(|e| format!("ANDROID_ID no es String: {e}"))?
-            .clone();
-        if androide_id_str.is_empty() {
-            return Err("ANDROID_ID vacío".into());
-        }
-        Ok(androide_id_str)
+        let _ = app;
+        Err("ANDROID_ID aún sin puente nativo en esta versión".into())
     }
 
     #[cfg(not(target_os = "android"))]

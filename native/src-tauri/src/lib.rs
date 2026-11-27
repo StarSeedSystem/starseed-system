@@ -886,23 +886,20 @@ pub fn run() {
             // NEU1125A-d1: Verificación de identidad del aparato al arranque
             // Si la huella guardada no es la de este aparato, NO se adopta nada solo:
             // se marca "aparato nuevo" para la ventana de NEU1125B.
+            // (DIR1127D) Rompía la compilación de la .65 en Android: `.await` dentro del `setup` (que no es async),
+            // la función sin su módulo y dos literales seguidos en `eprintln!`. Ahora corre en segundo plano.
             #[cfg(target_os = "android")]
             {
-                use tauri::Manager;
-                match huella_aparato_verificar(app.handle()).await {
-                    Ok(coincide) => {
-                        if !coincide {
-                            eprintln!(
-                                "[aparato_huella] Al arranque: huella distinta → marca 'aparato nuevo' para NEU1125B. "
-                                "Ninguna adopción automática sin elección explícita del usuario."
-                            );
-                            // Aquí se podría disparar un evento o bandera para que la web
-                            // muestre la ventana de "Este aparato es nuevo". La decisión
-                            // final la toma la persona, no el sistema.
-                        }
+                let h = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    match aparato_huella::verificar_huella(h).await {
+                        // La ventana «Este aparato es nuevo» la muestra la web (VentanaNeuronaGlobal); la decisión
+                        // final la toma la persona, no el sistema.
+                        Ok(false) => eprintln!("[aparato_huella] Al arranque: huella distinta → marca 'aparato nuevo' para NEU1125B. Ninguna adopción automática sin elección explícita del usuario."),
+                        Ok(true) => {}
+                        Err(e) => eprintln!("[aparato_huella] Error al verificar huella al arranque: {e}"),
                     }
-                    Err(e) => eprintln!("[aparato_huella] Error al verificar huella al arranque: {e}"),
-                }
+                });
             }
             Ok(())
         });

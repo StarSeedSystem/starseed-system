@@ -237,7 +237,7 @@ fn info_sys_block(dispositivo: &str) -> (String, bool) {
 
     let serie = std::fs::read_to_string(&ruta_serial)
         .ok()
-        .or_else(|| std::fs::read_to_string(&ruta_serial_alt))
+        .or_else(|| std::fs::read_to_string(&ruta_serial_alt).ok()) // DIR1127D: Result → Option (rompía Linux)
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
 
@@ -451,6 +451,44 @@ pub fn listar_almacenes_linux() -> ListarAlmacenes {
     }
 }
 
+/// (DIR1127D) `diskutil <args>` (salida plist) convertida a JSON con `plutil`, sin crates externos.
+#[cfg(target_os = "macos")]
+fn plist_a_json(args: &[&str]) -> Option<serde_json::Value> {
+    use std::io::Write;
+    let salida = Command::new("diskutil").args(args).output().ok()?;
+    if !salida.status.success() {
+        return None;
+    }
+    let mut hijo = Command::new("plutil")
+        .args(["-convert", "json", "-o", "-", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .ok()?;
+    hijo.stdin.take()?.write_all(&salida.stdout).ok()?;
+    let fin = hijo.wait_with_output().ok()?;
+    if !fin.status.success() {
+        return None;
+    }
+    serde_json::from_slice(&fin.stdout).ok()
+}
+
+/// (DIR1127D) Identificadores de `diskutil list -plist`: la clave `AllDisks` (lista de textos); si viniera
+/// como lista de discos, su `DeviceIdentifier`.
+#[cfg(target_os = "macos")]
+fn ids_de_diskutil(v: &serde_json::Value) -> Vec<String> {
+    if let Some(todos) = v.get("AllDisks").and_then(|a| a.as_array()) {
+        return todos.iter().filter_map(|x| x.as_str().map(String::from)).collect();
+    }
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|d| d.get("DeviceIdentifier").and_then(|x| x.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Lista almacenes en macOS.
 #[cfg(target_os = "macos")]
 pub fn listar_almacenes_macos() -> ListarAlmacenes {
@@ -459,45 +497,18 @@ pub fn listar_almacenes_macos() -> ListarAlmacenes {
 
     // diskutil list -plist da info de todos los discos
     // diskutil info -plist <disk> da info detallada de uno
-    let out = Command::new("diskutil").args(["list", "-plist"]).output();
-
-    let discos = match out {
-        Ok(out) if out.status.success() => String::from_utf8(out.stdout).ok(),
-        _ => None,
-    };
-
-    let discos_json: Option<serde_json::Value> = discos
-        .and_then(|s| plist::from_str::<serde_json::Value>(&s).ok())
-        .or_else(|| {
-            // Fallback: intentar parsear como JSON si plist falla
-            discos.and_then(|s| serde_json::from_str(&s).ok())
-        });
-
-    if let Some(discos_val) = discos_json {
-        // diskutil list -plist devuelve un array de discos
-        if let Some(array) = discos_val.as_array() {
-            for disco in array {
-                let identifier = disco
-                    .get("DeviceIdentifier")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+    // (DIR1127D) Sin el crate `plist` (no está en Cargo.toml y rompía la compilación de la .65 en macOS):
+    // `plutil -convert json` del propio sistema convierte la salida a JSON.
+    if let Some(discos_val) = plist_a_json(&["list", "-plist"]) {
+        {
+            let ids = ids_de_diskutil(&discos_val);
+            for identifier in ids.iter().map(|s| s.as_str()) {
                 if identifier.is_empty() {
                     continue;
                 }
 
                 // Obtener info detallada de este disco
-                let info_out = Command::new("diskutil")
-                    .args(["info", "-plist", identifier])
-                    .output();
-
-                let info_json = match info_out {
-                    Ok(out) if out.status.success() => String::from_utf8(out.stdout).ok(),
-                    _ => None,
-                };
-
-                let info_val: Option<serde_json::Value> = info_json
-                    .and_then(|s| plist::from_str::<serde_json::Value>(&s).ok())
-                    .or_else(|| info_json.and_then(|s| serde_json::from_str(&s).ok()));
+                let info_val = plist_a_json(&["info", "-plist", identifier]);
 
                 if let Some(info) = info_val {
                     let mount_point = info
