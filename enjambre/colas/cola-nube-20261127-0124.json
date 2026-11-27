@@ -1,0 +1,135 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "id": "LAY1127B",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 96,
+   "capacidad": "media",
+   "titulo": "Jev usa a Laya local de verdad: primero si está caliente, la calienta cuando hay RAM y cuenta el medio «laya»",
+   "archivos": [
+    "scripts/puente/jev.py",
+    "scripts/puente/test_jev_laya_1127.py"
+   ],
+   "depende": [],
+   "prompt": "LAY1127B · Medido el 27-11: ~/.starseed/jev-uso.json → el 25-11 2486 llamadas por explabs y 48 locales; el 26-11 1070 y 108; hoy 153 y 2; NINGUNA por Laya. Laya en la Mac responde en GET http://127.0.0.1:4470/ con {\"cargado\":false,\"motivo\":\"descargado por inactividad\"}: como nadie la usa se descarga, y como está descargada nadie la usa (Jev cae a explabs por el plazo). QUÉ HACER en scripts/puente/jev.py (lee primero cómo elige medio: LAYA_URL, STARSEED_LAYA_URL, la lista de locales y el registro de uso por_medio): (1) estado_laya(url) que hace GET a la raíz del servidor de Laya con plazo ≤1 s y devuelve {'cargado': bool} o None; (2) si Laya está cargada, Jev la prueba PRIMERO para decisiones (antes que explabs); (3) si no está cargada y la Mac tiene RAM (lee ~/.starseed/gobernador.json: ram_libre_mb ≥ 1500 y presion < 2), lanza un calentamiento en segundo plano (una petición mínima sin esperar la respuesta, como mucho una vez cada 10 min, marca en ~/.starseed/laya-calentar.json) y esta llamada sigue por el medio habitual; (4) cada llamada servida por Laya cuenta en jev-uso por_medio como 'laya'. Funciones puras con inyección (transporte, reloj, lector de archivos) y tests pytest sin red (≥6): caliente → laya primero; fría con RAM → calienta una vez y no bloquea; fría sin RAM → no calienta; plazo de 10 min; cuenta 'laya'. Copia el archivo cambiado a ~/.local/bin NO (eso lo hace la dirección). REGLAS: ≤120 líneas nuevas por archivo; prueba: `python3 -m pytest scripts/puente/test_jev_laya_1127.py -q` y las pruebas existentes de jev (`python3 -m pytest scripts/puente/test_jev*.py -q`) siguen verdes; sin --no-verify."
+  },
+  {
+   "id": "CAP1127B",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 96,
+   "capacidad": "media",
+   "titulo": "Los directores ejecutan solos las renovaciones que «Buscar capacidad» marca como «te necesita · ejecutar»",
+   "archivos": [
+    "scripts/puente/director_flujo.py",
+    "scripts/puente/test_director_flujo_renovar_1127.py"
+   ],
+   "depende": [],
+   "prompt": "CAP1127B · Regla permanente de Maggasukha (26-11): lo que se le diría que haga en la terminal lo hacen los directores. Medido el 27-11: buscar_capacidad.py dejaba «Experiential Labs: te necesita · ejecutar: python3 scripts/puente/explabs_promos.py actualizar», «TokenRouter/AIHubMix: te necesita · ejecutar: python3 scripts/puente/renovador-pasarelas.py» y nadie lo ejecutaba (la dirección lo hizo a mano y funcionó). QUÉ HACER en scripts/puente/director_flujo.py (mira aplicar_buscar_capacidad hacia la línea 654 y cómo lee ~/.starseed/buscar-capacidad.json): nueva acción aplicar_renovaciones(ahora, correr) que lee las líneas de buscar-capacidad.json, extrae los comandos tras «ejecutar:» y ejecuta SOLO los de una lista blanca exacta (['python3','scripts/puente/explabs_promos.py','actualizar'] y ['python3','scripts/puente/renovador-pasarelas.py']), como listas de argumentos sin shell, como mucho una vez por hora cada uno (marca en ~/.starseed/renovaciones-directores.json), con tope de 300 s, y registra una línea con el resultado. Cualquier otro comando se ignora (nunca ejecuta texto libre). Engánchala donde director_flujo programa sus acciones, con el mismo patrón que aplicar_buscar_capacidad. Tests pytest (≥6) con correr simulado: lista blanca, texto libre ignorado, una vez por hora, tope, sin shell. REGLAS: ≤120 líneas nuevas por archivo; prueba `python3 -m pytest scripts/puente/test_director_flujo_renovar_1127.py -q` y las de director_flujo siguen verdes; sin --no-verify."
+  },
+  {
+   "id": "LAY1127C",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 95,
+   "capacidad": "media",
+   "titulo": "El enjambre deja de perder a Laya por estar fría: calentamiento sin bloquear en habilidades_enjambre",
+   "archivos": [
+    "scripts/enjambre/habilidades_enjambre.py",
+    "scripts/enjambre/test_habilidades_laya_1127.py"
+   ],
+   "depende": [],
+   "prompt": "LAY1127C · scripts/enjambre/habilidades_enjambre.py elige la habilidad de cada escritor con elegir_con_laya si Laya (/v1/systemone) responde en ≤3 s; con Laya descargada por inactividad nunca llega a tiempo y el enjambre nunca la usa. QUÉ HACER: cuando la llamada falla por plazo (o la raíz del servidor dice cargado=false), lanza un calentamiento que NO bloquea (hilo daemon con una petición mínima, como mucho una vez cada 10 min, marca compartida ~/.starseed/laya-calentar.json con el mismo formato {t: epoch} que usará jev) y devuelve None como hoy; la siguiente tarea ya la encuentra caliente. Nunca calienta si ~/.starseed/gobernador.json dice presion ≥ 2 o ram_libre_mb < 1500. Funciones puras con inyección y tests pytest (≥5) sin red. El orquestador corre una copia en ~/.local/bin: NO la toques (la dirección la copia tras integrar). REGLAS: ≤120 líneas nuevas por archivo; prueba `python3 -m pytest scripts/enjambre/test_habilidades_laya_1127.py -q`; sin --no-verify."
+  },
+  {
+   "id": "LAY1127D",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 94,
+   "capacidad": "media",
+   "titulo": "Medidor «Laya en cada medio» en MetaGenesis: dónde corre, si está cargada y quién la usa",
+   "archivos": [
+    "scripts/puente/medidor_laya.py",
+    "scripts/puente/test_medidor_laya.py"
+   ],
+   "depende": [],
+   "prompt": "LAY1127D · Maggasukha (27-11): «no veo que Laya se esté aplicando a cada sistema de las neuronas y nodos y de nuestros servidores de MetaGenesis aparte de Jev». Hoy no hay forma de verlo. Crea scripts/puente/medidor_laya.py: (1) PURA resumen(mac_raiz, a1_estado, jev_uso, hoy) que devuelve {'medios': [{'medio':'mac','servicio':bool,'cargado':bool|None,'motivo':str}, {'medio':'a1',...}], 'llamadas_hoy': {'jev_laya': n, 'jev_otros': n}, 'texto': '…una línea en español…'} a partir de: la respuesta JSON de GET 127.0.0.1:4470/ en la Mac, el estado del A1 (systemctl is-active starseed-laya + GET 4470 por oracle_nodo.ssh, nunca imprimas la IP) y ~/.starseed/jev-uso.json (dias[hoy].por_medio; 'laya' es el medio de Laya). Lo no medido es None y en el texto «sin dato». (2) main: mide, imprime el texto y escribe ~/.starseed/medidor-laya.json con {t, ...resumen}; --json lo imprime en JSON. Busca cómo los demás medidores de ~/.starseed/*.json llegan al pulso de MetaGenesis (grep 'medidores-credito' o 'disco-enjambre' en src/app/api/mando) y escribe en el mismo formato para que la dirección lo enganche después (NO toques src/ en esta tarea). Tests pytest sin red (≥6). REGLAS: ≤120 líneas nuevas por archivo; prueba `python3 -m pytest scripts/puente/test_medidor_laya.py -q`; sin --no-verify; nunca IPs ni claves."
+  },
+  {
+   "id": "LAY1127E",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 93,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "titulo": "Astraura en cada neurona usa a Laya por la malla cuando hay un nodo con Laya, con vuelta al router de siempre",
+   "archivos": [
+    "src/ai/astraura/router-laya.ts",
+    "src/lib/network/laya-por-malla.ts",
+    "src/ai/astraura/__tests__/router-laya-malla-1127.test.ts"
+   ],
+   "depende": [],
+   "prompt": "LAY1127E · Ya existen src/ai/astraura/router-laya.ts y src/lib/network/laya-por-malla.ts, pero Maggasukha no ve a Laya aplicada en las neuronas. Lee ambos y src/ai/astraura/router.ts para saber (a) si router-laya se consulta por defecto o solo con un ajuste, (b) cómo laya-por-malla descubre un nodo con Laya (capacidades de la ficha: CapacidadesNodo en src/lib/network/capacidades-nodo.ts) y (c) qué pasa si no responde. QUÉ HACER: que, en cualquier neurona, las decisiones cortas de Astraura (las que router-laya ya sabe tipar) vayan PRIMERO a Laya local si la neurona la tiene, si no a un nodo de la MISMA cuenta que anuncie Laya cargada por la malla (laya-por-malla), con plazo ≤2 s y vuelta exacta al router de siempre si falla; un ajuste local 'starseed.astraura.laya.v1' (localStorage con try/catch) permite apagarlo, ENCENDIDO por defecto (respeta la regla de migrar configs persistidas: si existe el valor viejo, no lo pises). Nada de otras cuentas, nada por Supabase. Tests vitest (≥6): local caliente → local; sin local y par con Laya → par; par lento → router; ajuste apagado → router; otra cuenta ignorada. REGLAS: ≤120 líneas nuevas por archivo; prueba `npx vitest run src/ai/astraura/__tests__/router-laya-malla-1127.test.ts`; nada de next build ni servidores; sin --no-verify."
+  },
+  {
+   "id": "CAP1127C",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 92,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "titulo": "Agentes potentes (Antigravity) arrancan solos dentro de su cupo gratis, con interruptor y tope diario",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_agentes_potentes_auto_1127.py"
+   ],
+   "depende": [],
+   "prompt": "CAP1127C · Medido el 27-11: ~/.starseed/capacidad-sugerencias.json tenía 94 sugerencias de agentes potentes (rust_nativo → claude-opus-5-5-high por Antigravity, ui_typescript → gemini-4-neon-high…) con la regla «nada se lanza sin aprobación», y ninguna se lanzó; Antigravity usa la cuenta de Google de Maggasukha (sin clave API, sin pago). Maggasukha (27-11) pide que los directores usen las capacidades al máximo de forma autónoma. QUÉ HACER en scripts/puente/buscar_capacidad.py (lee cómo genera las sugerencias y cómo se lanzaría una; busca 'sugerencias' y 'Antigravity'): auto_lanzar(sugerencias, cupos, ajustes, ahora) PURA que elige como mucho N por día (ajuste, por defecto 4) con prioridad ≥ 90, solo si el cupo de ese modelo hoy es > 0, nunca de pago (coste_estimado debe decir 'sin clave API' o equivalente gratis), nunca sobre archivos protegidos de producción (si existe la lista de protegidos úsala), y siempre en el modo que ya proponga la sugerencia ('plan' si dice plan); interruptor en ~/.starseed/produccion/agentes-potentes.json {auto: true|false} APAGADO por defecto (Maggasukha, 26-11: estas sugerencias se aprueban caso por caso; con auto=false, auto_lanzar solo prepara la lista ordenada para «Te toca a ti» y no lanza nada; él lo enciende si quiere); cada lanzamiento se registra en ~/.starseed/agentes-potentes-lanzados.jsonl. Engancha el lanzamiento real usando la MISMA función que ya usaría una aprobación manual (no inventes otra vía). Tests pytest (≥6): tope diario, cupo 0, prioridad baja, interruptor apagado, coste de pago rechazado. REGLAS: ≤120 líneas nuevas por archivo; prueba `python3 -m pytest scripts/puente/test_agentes_potentes_auto_1127.py -q`; sin --no-verify; nunca --dangerously-skip-permissions en Antigravity."
+  },
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 82,
+   "id": "MV1125F-d3",
+   "titulo": "Ramas 4D: capas, perspectiva relativa y alcance (privacidad) del Multiverso (parte 3 de 3)",
+   "archivos": [
+    "src/lib/ramas4d/__tests__/alcance.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). capas.ts: catálogo de capas de la quinta dimensión (conciencia, capacidades, señales, alcance, sistema: político, educativo, cultural, social, IA, creación, MetaGenesis; universos paralelos = variaciones y versiones) y filtrarPorCapas. perspectiva(grafo, centro) recentra en una persona, grupo, comunidad o neurona. alcance.ts: visiblePara(nodo, observador) con la regla del contrato: lo privado ajeno NO aparece ni cuenta; podarGrafo(grafo, observador) quita nodos y aristas que el observador no puede ver (una arista visible nunca revela un nodo invisible). Pruebas de privacidad exhaustivas: dueño, contacto, miembro de grupo, extraño, público.\n\n## PARTE 3 DE 3 (la dirección dividió MV1125F: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/__tests__/alcance.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "revisor_quitadas": [
+    "MV1125F-d2"
+   ]
+  },
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 78,
+   "id": "MV1125D-d2",
+   "titulo": "Ramas 4D: zoom semántico (galaxias que se abren en sistemas, planetas y contenido) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/__tests__/agrupar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Agrupación jerárquica para el zoom semántico del contrato: por dueño, cerebro, entidad, carpeta o comunidad; nivelDeDetalle(distancia) → qué grupos se muestran colapsados (un cuerpo con tamaño = suma de pesos) y cuáles abiertos; respeta un tope de cuerpos visibles. Funciones puras. Pruebas con grafos de 10, 1 000 y 20 000 nodos.\n\n## PARTE 2 DE 2 (la dirección dividió MV1125D: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/__tests__/agrupar.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "revisor_quitadas": [
+    "MV1125D-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "MV1125D-d2",
+   "CAP1127B",
+   "LAY1127B",
+   "LAY1127C",
+   "LAY1127D",
+   "LAY1127E",
+   "CAP1127C"
+  ]
+ }
+}
