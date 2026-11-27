@@ -31,6 +31,13 @@ import {
 import { AjustesMedios } from "@/components/cerebro/ajustes-medios";
 import { AjustesSeguridad } from "@/components/cerebro/ajustes-seguridad";
 import { AjustesSync } from "@/components/cerebro/ajustes-sync";
+import {
+  SELECT,
+  combinar,
+  juntar,
+  leerCarpetas,
+  objetivoDe,
+} from "@/components/cerebro/ajustes-cerebro-dialog";
 import { PILARES, type Pilar } from "@/components/cerebro/pilares";
 
 export type Seccion = "general" | "privacidad" | "sincronia" | "avanzado";
@@ -75,35 +82,7 @@ export function reinicioDeSeccion(seccion: Seccion): Partial<AjustesObjetivo> {
   }
 }
 
-type Objetivo = { tipo: "cerebro" } | { tipo: "memoria" | "carpeta"; id: string };
-type Carpeta = { id: string; nombre: string };
-const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
 const etiquetaDe = (s: Seccion) => SECCIONES.find((x) => x.id === s)?.etiqueta ?? s;
-function objetivoDe(destino: string): Objetivo {
-  const [tipo, ...resto] = destino.split(":");
-  const id = resto.join(":");
-  return (tipo === "memoria" || tipo === "carpeta") && id ? { tipo, id } : { tipo: "cerebro" };
-}
-function leerCarpetas(brainId: string): Carpeta[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const ids = JSON.parse(window.localStorage.getItem(`starseed.brain.${brainId}.memoryRoots`) ?? "[]") as unknown;
-    const raices = JSON.parse(window.localStorage.getItem("starseed.memory.roots.v1") ?? "[]") as unknown;
-    const nombres = new Map<string, string>();
-    if (Array.isArray(raices)) for (const r of raices) {
-      if (!r || typeof r !== "object" || !("id" in r)) continue;
-      const f = r as { id: unknown; name?: unknown };
-      nombres.set(String(f.id), typeof f.name === "string" && f.name ? f.name : String(f.id));
-    }
-    return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string").map((id) => ({ id, nombre: nombres.get(id) ?? id })) : [];
-  } catch { return []; }
-}
-function combinar(base: AjustesObjetivo, parcial: Partial<AjustesObjetivo>): AjustesObjetivo {
-  return { ...base, ...parcial, medios: { capacidades: { ...base.medios.capacidades, ...(parcial.medios?.capacidades ?? {}) }, almacenamiento: parcial.medios?.almacenamiento ?? base.medios.almacenamiento }, sync: parcial.sync ?? base.sync, acceso: parcial.acceso ?? base.acceso };
-}
-function juntar(a: Partial<AjustesObjetivo>, b: Partial<AjustesObjetivo>): Partial<AjustesObjetivo> {
-  return { ...a, ...b, medios: b.medios ?? a.medios, sync: b.sync ?? a.sync, acceso: b.acceso ?? a.acceso };
-}
 
 export interface PanelAjustesPilarProps {
   pilar: Pilar;

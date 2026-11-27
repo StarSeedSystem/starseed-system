@@ -20,15 +20,15 @@ export interface AjustesCerebroDialogProps {
   cerebros: Brain[];
   onHecho?: () => void;
 }
-type Objetivo = { tipo: "cerebro" } | { tipo: "memoria" | "carpeta"; id: string };
-type Carpeta = { id: string; nombre: string };
-const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
-function objetivoDe(destino: string): Objetivo {
+export type Objetivo = { tipo: "cerebro" } | { tipo: "memoria" | "carpeta"; id: string };
+export type Carpeta = { id: string; nombre: string };
+export const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-black/40 px-2 text-sm text-white";
+export function objetivoDe(destino: string): Objetivo {
   const [tipo, ...resto] = destino.split(":");
   const id = resto.join(":");
   return (tipo === "memoria" || tipo === "carpeta") && id ? { tipo, id } : { tipo: "cerebro" };
 }
-function leerCarpetas(brainId: string): Carpeta[] {
+export function leerCarpetas(brainId: string): Carpeta[] {
   if (typeof window === "undefined") return [];
   try {
     const ids = JSON.parse(window.localStorage.getItem(`starseed.brain.${brainId}.memoryRoots`) ?? "[]") as unknown;
@@ -42,10 +42,10 @@ function leerCarpetas(brainId: string): Carpeta[] {
     return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string").map((id) => ({ id, nombre: nombres.get(id) ?? id })) : [];
   } catch { return []; }
 }
-function combinar(base: AjustesObjetivo, parcial: Partial<AjustesObjetivo>): AjustesObjetivo {
+export function combinar(base: AjustesObjetivo, parcial: Partial<AjustesObjetivo>): AjustesObjetivo {
   return { ...base, ...parcial, medios: { capacidades: { ...base.medios.capacidades, ...(parcial.medios?.capacidades ?? {}) }, almacenamiento: parcial.medios?.almacenamiento ?? base.medios.almacenamiento }, sync: parcial.sync ?? base.sync, acceso: parcial.acceso ?? base.acceso };
 }
-function juntar(a: Partial<AjustesObjetivo>, b: Partial<AjustesObjetivo>): Partial<AjustesObjetivo> {
+export function juntar(a: Partial<AjustesObjetivo>, b: Partial<AjustesObjetivo>): Partial<AjustesObjetivo> {
   return { ...a, ...b, medios: b.medios ?? a.medios, sync: b.sync ?? a.sync, acceso: b.acceso ?? a.acceso };
 }
 export default function AjustesCerebroDialog({ open, onOpenChange, cerebro, onHecho }: AjustesCerebroDialogProps) {
