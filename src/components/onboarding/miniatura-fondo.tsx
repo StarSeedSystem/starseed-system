@@ -7,7 +7,8 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ShaderInstance } from "shaders/js";
-import type { BackgroundLayer, SetFondo } from "@/lib/appearance/background-layers";
+import type { BackgroundLayer } from "@/lib/appearance/background-layers";
+import type { SetFondo } from "@/lib/appearance/sets-fondo";
 import { CapaShader } from "@/components/backgrounds/capa-shader";
 import { modoVistaPrevia, type ModoVistaPrevia } from "@/lib/onboarding/fondo-inicial";
 import { planFondo, EFECTOS_FONDO, type EfectoFondoId } from "@/lib/protomolecula/atomos/fondo-shader";
