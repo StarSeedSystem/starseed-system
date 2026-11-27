@@ -188,6 +188,7 @@
     "allow-clave-aparato-olvidar",
     "allow-huella-aparato-generar",
     "allow-huella-aparato-actual",
-    "allow-huella-aparato-verificar"
+    "allow-huella-aparato-verificar",
+    "allow-almacenes-listar"
   ]
 }

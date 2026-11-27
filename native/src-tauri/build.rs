@@ -99,6 +99,7 @@ const COMANDOS_APP: &[&str] = &[
     "capas_borrar",
     "nas_listar",
     "nas_leer",
+    "almacenes_listar",
     "malla_local_enviar",
     "malla_local_estado",
     "malla_local_recibidos",

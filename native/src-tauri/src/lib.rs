@@ -82,6 +82,9 @@ mod avisos_mensajes;
 mod banco_latido;
 mod carpetas;
 mod disco;
+// ALC1125B: almacenes — detección nativa de medios de almacenamiento (macOS, Linux, Windows, Android).
+mod almacenes_logica;
+mod almacenes;
 // (EFI1119B) Estado de energía del aparato (batería, ahorro, temperatura) para el modo «auto».
 mod energia;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
@@ -954,6 +957,7 @@ pub fn run() {
                 nativa::capas_borrar,
                 nativa::nas_listar,
                 nativa::nas_leer,
+                almacenes::almacenes_listar,
                 malla_local::malla_local_enviar,
                 malla_local::malla_local_estado,
                 malla_local::malla_local_recibidos,
