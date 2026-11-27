@@ -21,6 +21,7 @@ import {
     SILENCIO_CUADRO_MS,
     ayudaFluida,
     estadoCuadros,
+    mostrarBotonFluida,
     rotuloFuenteMedida,
     textoCuadros,
     type EstadoCuadros,
@@ -489,7 +490,7 @@ function FilaFuente({ p }: { p: PropsVentanaControl }) {
                     {ayuda}
                 </span>
             )}
-            {real === "accesibilidad" && p.alPedirFluida && (
+            {mostrarBotonFluida(real) && p.alPedirFluida && (
                 <button type="button" onClick={p.alPedirFluida} className="min-h-[32px] cursor-pointer rounded-full border border-white/15 px-3 text-[11px] text-white/85 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/80">
                     Pedir la pantalla fluida
                 </button>

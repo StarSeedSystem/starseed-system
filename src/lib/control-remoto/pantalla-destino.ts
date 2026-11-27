@@ -22,7 +22,7 @@ import { claveParadaNativa } from "./palabras"; // CTL1117C
 import { canalDatosOk, configuracionIce, filtrarRespuesta, instantaneaMedio, permitirCandidato, registrarConexion } from "./medio-estado"; // CTL1117B
 import { ESPERA_ICE_MS, PARTE_CUADRO_DIRECTO, PARTE_CUADRO_MAX, ReensambladorCuadro, UMBRALES_MALLA, UMBRALES_MALLA_DIRECTO, debeCederOrden, leerParteCuadro, lineaEmpuje, lineaVia, planPorCamino, esperaSinCuadro, nivelParaCuadroGrande, crearMedidorCaudal, actualizarCaudal, calcularKbps, type MedidorCaudal } from "./cuadro-malla";
 import { CUADROS_POR_MEDIDA, EMPUJE_TOPE_MS, FPS_OBJETIVO_MALLA, RITMO_INICIAL, fpsDesdeIntervalo, intervaloEmpujeMs, mediaCoste, siguienteRitmo, adaptarIntervaloParaFps, type EstadoRitmo } from "./ritmo-pantalla";
-import { FUENTE_DEFECTO, fuenteRealValida, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
+import { FUENTE_DEFECTO, debePasarAProyeccion, decidirCuadro, fuenteRealValida, fuenteVigente, type FuentePedida, type FuenteReal } from "./fuente-pantalla";
 import { type AjustesSesion, AJUSTES_DEFECTO } from "./ajustes-sesion";
 import { comprobarWebRtcUtilizable, decidirViaPantalla } from "./canal"; // CTL1119F
 import { esLinuxEscritorio } from "./webrtc-linux";
@@ -242,7 +242,7 @@ export interface DepsDestino {
     /** CTL1118M · la pantalla por la malla cuando no hay WebRTC (sin esto, como antes: se cierra). */
     malla?: {
         hayWebRtc: () => boolean;
-        crearLienzo: () => { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void };
+        crearLienzo: () => { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; luminancia?(jpeg: Uint8Array): Promise<number | undefined>; liberar(): void };
         /** El enlace real de las órdenes ahora (directo/capa y medio). */
         enlace: () => { camino: "directo" | "capa" | "sin-determinar"; medio: string | null };
         esperar: (ms: number) => Promise<void>;
@@ -297,7 +297,11 @@ export class PantallaDestino {
     private enMalla = false; // CTL1118M
     /** CTL1124E: true mientras una orden `pantalla-cuadro` está en vuelo (las lecturas le ceden el carril). */
     private pantallaEnCurso = false;
-    private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; liberar(): void } | null = null;
+    private lienzoMalla: { pintar(jpeg: Uint8Array, ancho: number, alto: number): Promise<boolean>; flujo(): unknown; elemento?(): unknown; luminancia?(jpeg: Uint8Array): Promise<number | undefined>; liberar(): void } | null = null;
+    /** CTL1126Css: hasta cuándo (ms epoch) el cambio de fuente sigue «reciente»: un cuadro negro en ese lapso no tapa el último bueno. */
+    private cambioFuenteHasta = 0;
+    private pasandoAProyeccion = false;
+    private intentosProyeccion = 0;
     private inicioConexion = 0;
     /** CTL1119B: estado de calidad (cuadros, acuses, métricas). */
     private calidad: EstadoCalidad = { cuadros: [], acuses: [], ultimoRegistro: 0, medioActual: "sin-determinar", lado: "controlador" };
@@ -680,6 +684,16 @@ export class PantallaDestino {
             const ancho = Number(res.ancho) || 0;
             const alto = Number(res.alto) || 0;
             if (ancho > 0 && alto > 0 && (this.snap.pantalla?.ancho !== ancho || this.snap.pantalla?.alto !== alto)) this.poner({ pantalla: { ancho, alto, giro: 0 } });
+            // CTL1126Css: tras el cambio de fuente, un cuadro negro no se pinta mientras haya uno bueno: se mantiene el último hasta que llegue uno con imagen.
+            if (pintados > 0 && l.luminancia && this.d.ahora() < this.cambioFuenteHasta) {
+                const luminanciaMedia = await l.luminancia(jpeg).catch(() => undefined);
+                if (decidirCuadro({ cambiandoFuente: true, luminanciaMedia, hayCuadroBueno: true }) === "mantener") {
+                    desde = p0.num;
+                    await m.esperar(plan.pausaMs);
+                    continue;
+                }
+                if (luminanciaMedia !== undefined) this.cambioFuenteHasta = 0;
+            }
             // DIR1125B: el cuadro solo se da por visto si se PINTÓ. Antes `desde` avanzaba antes de pintar: si el primer cuadro fallaba y la
             // pantalla del otro aparato no cambiaba, el aparato contestaba «nuevo: false» para siempre y la ventana queda negra sin una línea.
             if (!(await l.pintar(jpeg, ancho, alto).catch(() => false))) {
@@ -829,10 +843,21 @@ export class PantallaDestino {
         const r = await this.orden("leer-aparato", {}, "ver");
         if (this.cerrada || !r.ok) return;
         // CTL1118F: la fuente REAL ahora (si la fluida se aceptó o se cortó a media sesión, la ventana lo sabe sin reabrir nada).
-        const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
+        const cap = (r.resultado as { capacidades?: unknown } | undefined)?.capacidades;
+        const real = fuenteVigente(cap, fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente));
         if (real && real !== this.snap.fuente) {
             this.anotar(`control-fuente lado=controlador fuente=${real} antes=${this.snap.fuente ?? "ninguna"}`);
+            this.marcarCambioFuente(real);
             this.poner({ fuente: real });
+        }
+        // CTL1126Css: la persona ya dio el «Sí» en el aparato y la fuente sigue siendo accesibilidad: se pasa a proyección en esta lectura.
+        if (debePasarAProyeccion(cap, real) && !this.pasandoAProyeccion && this.intentosProyeccion < 3) {
+            this.pasandoAProyeccion = true;
+            this.intentosProyeccion += 1;
+            this.anotar("control-fuente lado=controlador paso=paso-a-proyeccion motivo=persona-acepto");
+            void this.pedirFluida().finally(() => {
+                this.pasandoAProyeccion = false;
+            });
         }
         const a = (r.resultado as { aparato?: Record<string, unknown> } | undefined)?.aparato;
         if (a && typeof a === "object") {
@@ -866,6 +891,7 @@ export class PantallaDestino {
         this.anotar(`control-fuente lado=controlador paso=fluida-pedida-por-la-persona resultado=${r.ok ? "ok" : "rechazo"} motivo=${this.motivoCorto(r.motivo)}`);
         const real = fuenteRealValida((r.resultado as { fuente?: unknown } | undefined)?.fuente);
         if (r.ok && real && !this.cerrada) {
+            this.marcarCambioFuente(real);
             this.poner({ fuente: real });
             this.poner({ estado: "en-vivo", motivo: undefined });
             this.anotar(`control-fuente lado=controlador fuente=${real} fluida-pedida=si`);
@@ -874,6 +900,11 @@ export class PantallaDestino {
             this.cada(REFRESCO_APARATO_MS, () => void this.leerAparato());
         }
         return r.ok;
+    }
+
+    /** CTL1126Css: al pasar a proyección se abre un lapso en que un cuadro negro no tapa el último bueno. */
+    private marcarCambioFuente(nueva: FuenteReal): void {
+        if (nueva === "proyeccion" && this.snap.fuente && this.snap.fuente !== nueva) this.cambioFuenteHasta = this.d.ahora() + 6000;
     }
 
     private async medir(): Promise<void> {
@@ -1259,6 +1290,28 @@ function crearLienzoMalla() {
                 return true;
             } catch {
                 return pintarConImagen(ctx, canvas, jpeg, ancho, alto);
+            } finally {
+                bmp?.close();
+            }
+        },
+        /** CTL1126Css: luminancia media (0–255) del JPEG, muestreada en 8×8; undefined si no se pudo decodificar. */
+        async luminancia(jpeg: Uint8Array): Promise<number | undefined> {
+            if (typeof createImageBitmap !== "function") return undefined;
+            let bmp: ImageBitmap | null = null;
+            try {
+                bmp = await createImageBitmap(new Blob([jpeg as BlobPart], { type: "image/jpeg" }));
+                const mini = document.createElement("canvas");
+                mini.width = 8;
+                mini.height = 8;
+                const c = mini.getContext("2d");
+                if (!c) return undefined;
+                c.drawImage(bmp, 0, 0, 8, 8);
+                const d = c.getImageData(0, 0, 8, 8).data;
+                let suma = 0;
+                for (let i = 0; i < d.length; i += 4) suma += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+                return suma / 64;
+            } catch {
+                return undefined;
             } finally {
                 bmp?.close();
             }
