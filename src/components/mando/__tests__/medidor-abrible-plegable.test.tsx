@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelMedidor, agruparFilasPorEstado } from "@/components/mando/medidor-abrible";
-import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import type { ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
 const filas: FilaMedidor[] = [
     { id: "A1", titulo: "Escribe uno", estado: "escribiendo", acciones: [] },
@@ -110,5 +110,97 @@ describe("PanelMedidor con secciones plegables", () => {
 
         fireEvent.click(abrir);
         await waitFor(() => expect(within(cerradas).getByText("Cerrada de ayer")).toBeInTheDocument());
+    });
+});
+
+describe("PanelMedidor con clave 'capacidad'", () => {
+    const sugerenciasMock = {
+        sugerencias: [
+            {
+                id: "TG1",
+                titulo: "Puente Telegram",
+                tipo: "ui_typescript",
+                agente: "Antigravity",
+                modelo: "gemini-4-neon-high",
+                motivo: "UI/TypeScript: neon-high para componentes y estilos",
+                coste_estimado: "sin clave API (Antigravity, cuenta de Google de Alex)",
+                cupo_queda: "12 llamadas hoy disponibles",
+                modo: "plan" as const,
+                prioridad: 95,
+                visto: "2026-11-26T12:00:00.000Z",
+            },
+        ],
+        sin_cupo: [],
+        total: 1,
+        visto: "2026-11-26T12:00:00.000Z",
+    };
+
+    const aprobadasMock = {
+        aprobadas: [
+            {
+                id: "TG1",
+                titulo: "Puente Telegram",
+                tipo: "ui_typescript",
+                agente: "Antigravity",
+                modelo: "gemini-4-neon-high",
+                motivo: "UI/TypeScript: neon-high para componentes y estilos",
+                coste_estimado: "sin clave API (Antigravity, cuenta de Google de Alex)",
+                cupo_queda: "12 llamadas hoy disponibles",
+                modo: "plan" as const,
+                prioridad: 95,
+                visto: "2026-11-26T12:00:00.000Z",
+                estado: "en_curso" as const,
+                aprobada_en: "2026-11-26T11:30:00.000Z",
+                duracion_aprobacion: 8,
+            },
+        ],
+    };
+
+    beforeEach(() => {
+        globalThis.fetch = vi.fn(async (entrada: RequestInfo | URL) => {
+            const url = String(entrada);
+            if (url.includes("/api/mando/comprobar")) {
+                return new Response(JSON.stringify({ comprobacion: null }), { status: 200 });
+            }
+            if (url.includes("/api/mando/sugerencias-potentes") && !url.includes("accion")) {
+                return new Response(JSON.stringify(sugerenciasMock), { status: 200 });
+            }
+            if (url.includes("/api/mando/sugerencias-aprobadas")) {
+                return new Response(JSON.stringify(aprobadasMock), { status: 200 });
+            }
+            if (url.includes("/api/mando/medidores")) {
+                return new Response(JSON.stringify({ detalle: { clave: "capacidad", titulo: "Capacidad", resumen: "", filas: [], acciones: [], vacio: "" } }), { status: 200 });
+            }
+            return new Response(JSON.stringify({}), { status: 404 });
+        }) as unknown as typeof fetch;
+    });
+
+    afterEach(() => {
+        globalThis.fetch = fetchOriginal;
+        cleanup();
+    });
+
+    it("renderiza SugerenciasPotentes cuando la clave es 'capacidad'", async () => {
+        const claveCapacidad = "capacidad" as ClaveMedidor | "capacidad";
+        render(<PanelMedidor clave={claveCapacidad} alCerrar={() => undefined} />);
+
+        await screen.findByText("Sugerencias (1)");
+        const sugerencias = screen.getAllByText("Puente Telegram");
+        expect(sugerencias.length).toBeGreaterThanOrEqual(1);
+        const antigravity = screen.getAllByText("Antigravity");
+        expect(antigravity.length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByRole("button", { name: /^Aprobar$/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Rechazar/i })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Aprobar tipo/i })).toBeInTheDocument();
+    });
+
+    it("enseña las aprobadas con su estado en el medidor capacidad", async () => {
+        const claveCapacidad = "capacidad" as ClaveMedidor | "capacidad";
+        render(<PanelMedidor clave={claveCapacidad} alCerrar={() => undefined} />);
+
+        await screen.findByText("Aprobadas (1)");
+        expect(screen.getByText("En curso")).toBeInTheDocument();
+        const aprobadas = screen.getAllByText("Puente Telegram");
+        expect(aprobadas.length).toBeGreaterThanOrEqual(1);
     });
 });

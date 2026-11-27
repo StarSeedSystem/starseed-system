@@ -30,6 +30,7 @@ import type { EnMarcha } from "@/lib/mando/en-marcha"; // MED1111E
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { PanelVersiones } from "@/components/mando/panel-versiones";
 import { PanelPruebas } from "@/components/mando/panel-pruebas"; // PRB1111V
+import { SugerenciasPotentes } from "@/components/mando/sugerencias-potentes";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
@@ -548,7 +549,7 @@ export function PanelMedidor({
     alCambiar,
     alAbrirMedidor,
 }: {
-    clave: ClaveMedidor;
+    clave: ClaveMedidor | "capacidad";
     /** PRB1111V: abre otro medidor (el panel «Versiones» lleva a «Pruebas»). */
     alAbrirMedidor?: (clave: ClaveMedidor) => void;
     alAccionar?: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
@@ -732,7 +733,7 @@ export function PanelMedidor({
             // Se recarga ANTES de contestar y la recarga ya no toca la respuesta: así el
             // panel enseña el estado nuevo Y lo que dijo el botón, en vez de uno sin otro.
             setRespuesta("…");
-            const dicho = await alAccionar(clave, a, f, texto);
+            const dicho = await alAccionar(clave as ClaveMedidor, a, f, texto);
             await cargar();
             setRespuesta(dicho);
         },
@@ -898,7 +899,9 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {clave === "pruebas" ? (
+            {(clave as ClaveMedidor | "capacidad") === "capacidad" ? (
+                <SugerenciasPotentes />
+            ) : clave === "pruebas" ? (
                 <PanelPruebas />
             ) : clave === "versiones" ? (
                 <PanelVersiones alAbrirPruebas={alAbrirMedidor ? () => alAbrirMedidor("pruebas") : undefined} />
