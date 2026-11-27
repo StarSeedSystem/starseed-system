@@ -1,0 +1,163 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "prioridad": 88,
+   "ola": "terminal-neuronas-1125",
+   "id": "TRM1125J-d2",
+   "titulo": "Ayudante: un solo contrato de órdenes tipadas para todos los sistemas y su cliente para Genesis, PoliGenesis, Astraura, Protomolécula y cont (parte 2 de 3)",
+   "archivos": [
+    "src/lib/ayudante/cliente.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. Sección «En todas las versiones nativas» del contrato: catálogo único de órdenes tipadas (almacenes: estado, salud, formatear, montar, desmontar, verificar; servicios propios de StarSeed; actualizar app; registros; reiniciar app; modo completo con caducidad), qué parámetros lleva cada una, sus guardas y en qué sistemas existe; y el cliente que usan Genesis, PoliGenesis, Astraura, la Protomolécula y el control remoto (siempre con el permiso del dueño en ese aparato). Pruebas.\n\n## PARTE 2 DE 3 (la dirección dividió TRM1125J: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ayudante/cliente.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "TRM1125J",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "TRM1125J-d1"
+   ]
+  },
+  {
+   "ola": "cerebros-neuronas-1126",
+   "prioridad": 87,
+   "capacidad": "alta",
+   "id": "SEN1126A-d2",
+   "titulo": "Paleta y dock: Cuenta, Neuronas, cada pilar de Cerebros y Control remoto se encuentran (parte 2 de 2)",
+   "archivos": [
+    "src/components/layout/__tests__/command-palette-destinos.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Medido el 26-11 en la MaggaBook con la .64: en la paleta (cmd+k) «Neuronas» solo encuentra «Configurar Neurona» (Aurora) y «Cuenta» no encuentra la cuenta; la página de control remoto (src/app/control-remoto/page.tsx) no está en la paleta ni en el dock. Añade destinos con sinónimos en los idiomas que ya usa la paleta: Cuenta; Cuenta › Neuronas (neurona, aparatos, dispositivos); Cerebros › cada pilar (?tab=); Control remoto (control, terminal, pantalla). Si el dock tiene una lista de accesos configurable, Control remoto se ofrece en ella sin fijarse solo. Prueba de que cada búsqueda encuentra su destino.\n\n## PARTE 2 DE 2 (la dirección dividió SEN1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/layout/__tests__/command-palette-destinos.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SEN1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SEN1126A-d1"
+   ]
+  },
+  {
+   "id": "NFC1126K",
+   "ola": "nfc-1126",
+   "prioridad": 85,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "titulo": "NFC (11): sala de sonido compartida — motor de cola común, sincronía con reloj común, quién controla y mezcla de fuentes",
+   "archivos": [
+    "src/lib/sala-sonido/motor.ts",
+    "src/lib/sala-sonido/reloj.ts",
+    "src/lib/sala-sonido/mezcla.ts",
+    "src/lib/sala-sonido/__tests__/nfc1126k.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/nfc-neuronas.md §11. Lógica de una sala de sonido a la que se unen varias neuronas (por NFC o desde Señales): cola común en la que cualquiera añade audio propio (archivo, sonido, producción), estado de reproducción compartido por la malla con reloj común (desfase objetivo < 50 ms, corrección de deriva), modos de control (una neurona, las elegidas, todas) y modos de mezcla (varias fuentes encima con nivel, ecualizador y limitador por fuente, o turnos) con Web Audio. Visibilidad de lo que suena (público, contactos, sala, nada). Sin interfaz: solo el motor y pruebas con relojes y transportes simulados."
+  },
+  {
+   "id": "NFC1126P",
+   "ola": "nfc-1126",
+   "prioridad": 85,
+   "capacidad": "alta",
+   "titulo": "NFC (16): Astraura ciber multicapa revisa todo lo recibido por un vínculo — seguro, sugerencia, aviso o alerta",
+   "archivos": [
+    "src/lib/security/vinculos-escaner.ts",
+    "src/lib/security/scanner.ts",
+    "src/components/nfc/veredicto-seguridad.tsx",
+    "src/lib/security/__tests__/nfc1126p.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/nfc-neuronas.md §14. Antes de abrir cualquier tarjeta, enlace, archivo, app, cerebro o permiso que llegue por un vínculo: firma y reputación del emisor, análisis del enlace y del archivo con `src/lib/security/scanner.ts`, permisos pedidos y explicación corta. Veredicto: seguro (abre), sugerencia, aviso (confirmar) o alerta (bloquea con motivo). Las decisiones de la persona ajustan los siguientes veredictos. Pruebas con casos maliciosos simulados (enlace con dominio parecido, ejecutable disfrazado, permiso excesivo)."
+  },
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 82,
+   "titulo": "Ramas 4D: capas, perspectiva relativa y alcance (privacidad) del Multiverso (parte 2 de 3)",
+   "archivos": [
+    "src/lib/ramas4d/alcance.ts"
+   ],
+   "depende": [],
+   "segundos": 8,
+   "t": "2026-11-26 18:26:30",
+   "modelos_fallidos": [],
+   "id": "MV1125F-d2b",
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). capas.ts: catálogo de capas de la quinta dimensión (conciencia, capacidades, señales, alcance, sistema: político, educativo, cultural, social, IA, creación, MetaGenesis; universos paralelos = variaciones y versiones) y filtrarPorCapas. perspectiva(grafo, centro) recentra en una persona, grupo, comunidad o neurona. alcance.ts: visiblePara(nodo, observador) con la regla del contrato: lo privado ajeno NO aparece ni cuenta; podarGrafo(grafo, observador) quita nodos y aristas que el observador no puede ver (una arista visible nunca revela un nodo invisible). Pruebas de privacidad exhaustivas: dueño, contacto, miembro de grupo, extraño, público.\n\n## PARTE 2 DE 3 (la dirección dividió MV1125F: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/alcance.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## REPARACIÓN\nTu intento no tocó tus archivos declarados: src/lib/ramas4d/alcance.ts no existen o no cambiaron. Créalos o modifícalos según el contrato.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol",
+   "dependencias_ya_en_main": [
+    "MV1125F-d1"
+   ]
+  },
+  {
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 80,
+   "id": "QUA1125A-d2",
+   "titulo": "Cuarentena de main: la tarea de reaplicar va a una cola fuente (no solo a la tanda viva) (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_apartar_arbol_sucio.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (21:31): _crear_tarea_reaplicar de scripts/puente/apartar_arbol_sucio.py metió REAPLICAR-20261125-213001 solo en la tanda viva (cola-auto-*); el orquestador se reinició y la tarea se perdió (la dirección la copió a mano a olas/cola-lienzo-hermes-1125.json). Haz que la tarea se escriba en una cola FUENTE propia (olas/cola-cuarentena-AAAAMMDD.json, escritura atómica, sin duplicar ids) además de avisar a la tanda viva si existe. Prueba unittest.\n\n## PARTE 2 DE 2 (la dirección dividió QUA1125A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: scripts/puente/test_apartar_arbol_sucio.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "QUA1125A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "QUA1125A-d1"
+   ]
+  },
+  {
+   "ola": "multiverso-1125",
+   "prioridad": 80,
+   "id": "MV1125C-d2",
+   "titulo": "Ramas 4D: disposición 3D en un Web Worker (fuerza con octree, árbol radial, espiral temporal, planos por capa) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/ramas4d/use-disposicion.ts",
+    "src/lib/ramas4d/__tests__/disposicion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Implementa la física propia (sin librerías nuevas): fuerza 3D con aproximación Barnes-Hut sobre un octree (octree.ts), resortes por arista según intensidad, y tres disposiciones más: árbol radial (para rutas y carpetas), espiral temporal (eje del tiempo) y planos por capa (una capa por altura). Todo en funciones puras deterministas con semilla; disposicion.worker.ts corre los pasos fuera del hilo principal y devuelve Float32Array de posiciones; use-disposicion.ts es el hook de React que habla con el worker, con caída a hilo principal si no hay Worker. Pruebas: determinismo con semilla, convergencia (energía baja), 5 000 nodos en un paso < 200 ms en Node.\n\n## PARTE 2 DE 2 (la dirección dividió MV1125C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/ramas4d/use-disposicion.ts, src/lib/ramas4d/__tests__/disposicion.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MV1125C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "MV1125C-d1"
+   ]
+  },
+  {
+   "ola": "almacenes-cerebros-1125",
+   "prioridad": 78,
+   "id": "ALC1125C-d2",
+   "titulo": "Cerebros: mapa de ubicaciones de carpetas y memorias en los almacenes, con copias y en línea (parte 2 de 3)",
+   "archivos": [
+    "src/lib/brains/memory-destinations.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 3: cada cerebro sabe dónde vive cada carpeta o memoria, cuántas copias hay y cuáles están en línea; regla de al menos dos copias en medios distintos para lo fundamental, con aviso claro si un extraíble es la única; una parte fuera de línea se muestra fuera de línea, no desaparece. Amplía memory-destinations.ts sin romper lo actual.\n\n## PARTE 2 DE 3 (la dirección dividió ALC1125C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/brains/memory-destinations.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "ALC1125C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "ALC1125C-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "MV1125F-d2b",
+   "MV1125C-d2",
+   "TRM1125J-d2",
+   "ALC1125C-d2",
+   "NFC1126K",
+   "SEN1126A-d2",
+   "NFC1126P",
+   "QUA1125A-d2"
+  ]
+ }
+}
