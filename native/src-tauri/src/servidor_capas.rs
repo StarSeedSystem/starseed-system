@@ -866,6 +866,30 @@ pub fn tras_lista(el: &c::Eleccion) {
     }
 }
 
+/// (BAP1127G) Prueba de humo de una capa PENDIENTE ya «lista»: el `sha` que sirve el Node local frente al
+/// de su `public/version.json`, y `GET /` con 200. `Some(motivo)` = mala (el llamador la para y vuelve atrás).
+pub fn humo(el: &c::Eleccion, puerto: u16) -> Option<String> {
+    let build = el.build()?;
+    let dir = leer(&interno().dir)?;
+    let sha_capa = web_de_dir(&dir.join(build)).sha;
+    let (version_json, estado) = crate::servidor_local::humo_http(puerto);
+    let sha_servido = version_json.as_deref().and_then(r::de_version_json).and_then(|w| w.sha);
+    match c::evaluar_humo(sha_servido.as_deref(), sha_capa.as_deref(), estado) {
+        c::Humo::Ok(sha) => {
+            registrar(&format!("humo ok build={} sha={sha}", c::corto(build)));
+            None
+        }
+        c::Humo::SinDato(m) => {
+            registrar(&format!("humo sin dato motivo={m}"));
+            None
+        }
+        c::Humo::Mal(m) => {
+            registrar(&format!("humo fallo motivo={m}"));
+            Some(format!("humo: {m}"))
+        }
+    }
+}
+
 /// La capa elegida no pasó la salud: mala y vuelta atrás. Su Node ya terminó (no arrancó, o se
 /// cayó): su carpeta se borra ya, no se volverá a usar.
 pub fn tras_fallo(el: &c::Eleccion, motivo: &str) {

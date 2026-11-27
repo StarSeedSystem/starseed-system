@@ -769,6 +769,63 @@ pub fn elegir_puntero(global: Option<Canal>, prueba: Option<Canal>) -> Option<(C
     }
 }
 
+// ─────────────── BAP1127G · prueba de humo HTTP antes de promover una capa pendiente ───────────────
+
+/// Veredicto de la prueba de humo de una capa pendiente.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Humo {
+    /// La página da 200 y el `sha` servido es el de la capa.
+    Ok(String),
+    /// Falta el `sha` en el servido o en la capa: se registra, pero la capa NO se marca mala.
+    SinDato(String),
+    /// La página no responde bien o sirve otra build: la capa es mala.
+    Mal(String),
+}
+
+/// Compara lo que sirve el Node local (`sha` de su `/version.json`, estado de `GET /`) con el `sha` del
+/// `public/version.json` empaquetado en la capa. La página manda: sin 200 es mala aunque falte algún `sha`.
+pub fn evaluar_humo(sha_servido: Option<&str>, sha_capa: Option<&str>, estado_pagina: Option<u16>) -> Humo {
+    match estado_pagina {
+        None => return Humo::Mal("la página no respondió".into()),
+        Some(200) => {}
+        Some(e) => return Humo::Mal(format!("la página dio {e}")),
+    }
+    match (sha_servido, sha_capa) {
+        (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => Humo::Ok(a.to_string()),
+        (Some(a), Some(b)) => Humo::Mal(format!("sirve el sha {a} y la capa trae {b}")),
+        (None, _) => Humo::SinDato("el /version.json servido no trae sha".into()),
+        (_, None) => Humo::SinDato("la capa no trae sha".into()),
+    }
+}
+
+#[cfg(test)]
+mod humo_prueba {
+    use super::*;
+
+    #[test]
+    fn mismo_sha_y_200_pasa() {
+        assert_eq!(evaluar_humo(Some("abc1234567"), Some("ABC1234567"), Some(200)), Humo::Ok("abc1234567".into()));
+    }
+
+    #[test]
+    fn otro_sha_es_mala() {
+        assert!(matches!(evaluar_humo(Some("aaaaaaa"), Some("bbbbbbb"), Some(200)), Humo::Mal(_)));
+    }
+
+    #[test]
+    fn pagina_mal_es_mala_aunque_falte_sha() {
+        assert!(matches!(evaluar_humo(Some("aaaaaaa"), Some("aaaaaaa"), Some(500)), Humo::Mal(_)));
+        assert!(matches!(evaluar_humo(None, None, None), Humo::Mal(_)));
+        assert!(matches!(evaluar_humo(None, None, Some(302)), Humo::Mal(_)));
+    }
+
+    #[test]
+    fn sin_sha_en_un_lado_es_sin_dato() {
+        assert!(matches!(evaluar_humo(None, Some("aaaaaaa"), Some(200)), Humo::SinDato(_)));
+        assert!(matches!(evaluar_humo(Some("aaaaaaa"), None, Some(200)), Humo::SinDato(_)));
+    }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;

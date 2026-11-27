@@ -256,6 +256,16 @@ fn arrancar(app: AppHandle) {
         let rescatar = !std::mem::replace(&mut rescate_hecho, true);
         match lanzar_y_esperar(&app, &rutas, registro.as_ref(), puerto_previo, espera, rescatar) {
             Ok(puerto) => {
+                // (BAP1127G) Humo HTTP solo a la capa PENDIENTE, antes de promoverla.
+                if eleccion.a_prueba() {
+                    if let Some(motivo) = crate::servidor_capas::humo(&eleccion, puerto) {
+                        detener_proceso();
+                        crate::servidor_capas::tras_fallo(&eleccion, &motivo);
+                        escribir_registro(registro.as_ref(), &format!("[servidor-local] la capa nueva no pasó el humo ({motivo}): se vuelve a la anterior"));
+                        recargar = true;
+                        continue;
+                    }
+                }
                 crate::servidor_capas::tras_lista(&eleccion);
                 // (NOT1108A) El registro del origen: el principal (la primera vez) y este uso.
                 let _cambio_origen = crate::origen_local::tras_servir(&app, puerto);
@@ -601,6 +611,25 @@ fn codigo_http(respuesta: &str) -> Option<u32> {
         return None;
     }
     linea.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// (BAP1127G) Dos GET al Node local (10 s cada uno, con el pase como cookie): el cuerpo de `/version.json`
+/// y el estado exacto de `/`. None si no se pudo leer.
+pub fn humo_http(puerto: u16) -> (Option<String>, Option<u16>) {
+    let leer = |ruta: &str| -> Option<(u16, String)> {
+        let dir = std::net::SocketAddr::from(([127, 0, 0, 1], puerto));
+        let mut s = TcpStream::connect_timeout(&dir, Duration::from_secs(10)).ok()?;
+        let _ = s.set_read_timeout(Some(Duration::from_secs(10)));
+        let _ = s.set_write_timeout(Some(Duration::from_secs(10)));
+        s.write_all(peticion_pagina(puerto, ruta, &interno().pase).as_bytes()).ok()?;
+        let mut crudo = Vec::new();
+        let _ = s.take(256 * 1024).read_to_end(&mut crudo);
+        let t = String::from_utf8_lossy(&crudo).into_owned();
+        let codigo = codigo_http(&t)? as u16;
+        Some((codigo, t.split_once("\r\n\r\n").map(|x| x.1.to_string()).unwrap_or_default()))
+    };
+    let version = leer("/version.json").filter(|(c, _)| *c == 200).map(|x| x.1);
+    (version, leer("/").map(|x| x.0))
 }
 
 /// (CAP1125A) Una pasada: pide la página y dice si responde con un estado menor que 500.
