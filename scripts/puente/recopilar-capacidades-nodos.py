@@ -94,7 +94,31 @@ def _ficha_maggabox(sonda: Any, **medidas: Any) -> Dict[str, Any]:
     return _ficha("maggabox", "linux", sonda, nucleos=sonda.get("cpu"), ram=sonda.get("ramLibreMb"),
                   cpu=0, disco=sonda.get("discoLibreGb"), almacen=almacen, capas=sonda.get("capas"), **medidas)
 
-def _fuente(leer: Optional[Callable[[str], Any]], ruta: str) -> Dict[str, Any]:
+def _discos_maggabox(sonda: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """MED1126A · los dos discos de la Maggabox: el interno (`/`, principal) y el externo (`/srv/starseed-almacen`,
+    secundario). El externo en ámbar (sin estado) o rojo (desmontado, errores, SMART mal) NO se usa como destino."""
+    interno = {"id": "interno", "ruta": "/", "rol": "principal", "libreGb": _numero(sonda.get("discoLibreGb")),
+               "totalGb": _numero(sonda.get("discoTotalGb")), "estado": "ok", "usable": True}
+    ext = sonda.get("almacenExterno")
+    ext = ext if isinstance(ext, dict) else {}
+    montado, errores, smart = ext.get("montado"), int(_numero(ext.get("errores"))), ext.get("smart") or ""
+    if montado is False: estado, motivo = "rojo", "no está montado"
+    elif errores > 0: estado, motivo = "rojo", "%d errores" % errores
+    elif smart == "fallo": estado, motivo = "rojo", "SMART con fallo"
+    elif montado is None: estado, motivo = "ambar", "sin estado del ayudante"
+    elif not smart: estado, motivo = "ambar", "SMART sin leer"
+    else: estado, motivo = "ok", ""
+    montado_ok = montado is True
+    externo = {"id": "externo", "ruta": "/srv/starseed-almacen",
+               "rol": "secundario: respaldos y datos no fundamentales",
+               "libreGb": _numero(sonda.get("discoLibreSrvGb")) if montado_ok else 0.0,
+               "totalGb": _numero(sonda.get("discoTotalSrvGb")) if montado_ok else 0.0,
+               "montado": montado, "errores": errores, "smart": smart,
+               "estado": estado, "usable": estado == "ok"}
+    if motivo: externo["motivo"] = motivo
+    return [interno, externo]
+
+def _fuente(leer:Optional[Callable[[str], Any]], ruta: str) -> Dict[str, Any]:
     try:
         if leer is None:
             with open(ruta, encoding="utf-8") as archivo: valor = json.load(archivo)
@@ -186,6 +210,7 @@ def recopilar(read_fn: Optional[Callable[[str], Any]] = None,
 
     maggabox = _ficha_maggabox(sonda, **medidas)
     if sonda.get("discoTotalGb"): maggabox["discoTotalGb"] = sonda["discoTotalGb"]
+    maggabox["discos"] = _discos_maggabox(sonda)
 
     a1_datos = _fuente(read_fn, RUTA_A1)
     extra_a1: Dict[str, Any] = {}

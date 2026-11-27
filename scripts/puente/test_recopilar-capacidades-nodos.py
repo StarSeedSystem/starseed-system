@@ -146,10 +146,6 @@ class Recopilar(unittest.TestCase):
         self.assertEqual(json.loads(capturado[R.RUTA_SALIDA]), {"nodos": [{"nodoId": "mac-local"}]})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class DIR1125O(unittest.TestCase):
     """DIR1125O · la Mac medida de verdad, el A1 desde oracle.json, el total de la Maggabox y el Drive como cuarto medio."""
 
@@ -177,3 +173,58 @@ class DIR1125O(unittest.TestCase):
 
     def test_sin_drive_montado_no_aparece(self):
         self.assertEqual(len(R.recopilar(lambda r: {}, lambda: {}, drive_fn=lambda: None)["nodos"]), 3)
+
+
+class MED1126A(unittest.TestCase):
+    """MED1126A · la Maggabox lista sus dos discos: interno principal y externo secundario con su estado."""
+
+    def discos(self, **extra):
+        sonda = dict(discoLibreGb=397, discoTotalGb=453, discoLibreSrvGb=418, discoTotalSrvGb=500, **extra)
+        n = R.recopilar(lambda r: {}, lambda: sonda)["nodos"][1]
+        return {d["id"]: d for d in n["discos"]}
+
+    def ext(self, montado, errores, smart):
+        return dict(montado=montado, errores=errores, smart=smart)
+
+    def test_interno_principal_y_externo_ok(self):
+        d = self.discos(almacenExterno=self.ext(True, 0, "ok"))
+        i, e = d["interno"], d["externo"]
+        self.assertEqual((i["ruta"], i["rol"], i["libreGb"], i["totalGb"]), ("/", "principal", 397.0, 453.0))
+        self.assertTrue(e["rol"].startswith("secundario"))
+        self.assertEqual((e["libreGb"], e["totalGb"], e["estado"], e["usable"]), (418.0, 500.0, "ok", True))
+
+    def test_externo_desmontado_en_rojo_y_sin_uso(self):
+        e = self.discos(almacenExterno=self.ext(False, 0, "ok"))["externo"]
+        self.assertEqual((e["estado"], e["usable"], e["libreGb"]), ("rojo", False, 0.0))
+
+    def test_externo_con_errores_o_smart_mal_en_rojo(self):
+        self.assertEqual(self.discos(almacenExterno=self.ext(True, 3, "ok"))["externo"]["estado"], "rojo")
+        self.assertEqual(self.discos(almacenExterno=self.ext(True, 0, "fallo"))["externo"]["estado"], "rojo")
+
+    def test_externo_sin_estado_del_ayudante_en_ambar_y_sin_uso(self):
+        e = self.discos()["externo"]
+        self.assertEqual((e["estado"], e["usable"]), ("ambar", False))
+
+    def test_ayudante_en_texto_y_json(self):
+        import sonda_maggabox as S
+        self.assertEqual(S.parse_estado_externo("Montado: sí\nErrores: 0\nSMART: PASSED\n"), self.ext(True, 0, "ok"))
+        self.assertEqual(S.parse_estado_externo('{"montado": false, "errores": 2, "smart": "FAILED"}'), self.ext(False, 2, "fallo"))
+        self.assertEqual(S.parse_estado_externo(""), self.ext(None, 0, ""))
+
+    def test_sonda_pide_el_estado_al_ayudante(self):
+        import sonda_maggabox as S
+        cab = "Filesystem 1G-blocks Used Available Use% Mounted on\n"
+        class Salida:
+            def __init__(self, out): self.stdout, self.returncode = out, 0
+        def ssh(argv, **kw):
+            if "starseed-almacen" in argv: return Salida("montado: sí\nerrores: 0\nsmart: ok")
+            if "/srv/starseed-almacen" in argv: return Salida(cab + "/dev/sda1 500G 82G 418G 17% /srv/starseed-almacen")
+            if "df" in argv: return Salida(cab + "/dev/sdb1 453G 56G 397G 13% /")
+            return Salida("")
+        out = S.sonda_maggabox(ssh)
+        self.assertEqual(out["almacenExterno"], self.ext(True, 0, "ok"))
+        self.assertEqual((out["discoLibreGb"], out["discoLibreSrvGb"], out["discoTotalSrvGb"]), (397, 418, 500))
+
+
+if __name__ == "__main__":
+    unittest.main()

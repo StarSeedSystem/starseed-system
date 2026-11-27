@@ -60,6 +60,41 @@ def _parsedf_campo(output: str, i: int) -> int:
     return 0
 
 
+def parse_estado_externo(output: str) -> Dict[str, Any]:
+    """MED1126A · lo que dice `starseed-almacen estado` del disco externo: JSON o líneas `clave: valor`.
+    Devuelve `montado` (True/False/None si no lo dice), `errores` (int) y `smart` («ok», «fallo» o ""). Nunca lanza."""
+    vacio: Dict[str, Any] = {"montado": None, "errores": 0, "smart": ""}
+    if not output.strip():
+        return vacio
+    datos: Dict[str, Any] = {}
+    try:
+        crudo = json.loads(output)
+        datos = crudo if isinstance(crudo, dict) else {}
+    except ValueError:
+        for linea in output.splitlines():
+            clave, sep, valor = linea.partition(":") if ":" in linea else linea.partition("=")
+            if sep:
+                datos[clave.strip().lower()] = valor.strip()
+
+    def texto(*claves: str) -> str:
+        for c in claves:
+            if datos.get(c) is not None:
+                return str(datos[c]).strip().lower()
+        return ""
+
+    montado_t = texto("montado", "mounted")
+    montado: Optional[bool] = None
+    if montado_t in ("sí", "si", "yes", "true", "1", "montado"):
+        montado = True
+    elif montado_t in ("no", "false", "0", "desmontado"):
+        montado = False
+    errores_t = texto("errores", "errors")
+    errores = int(errores_t) if errores_t.isdigit() else 0
+    smart_t = texto("smart")
+    smart = "" if not smart_t else ("ok" if smart_t in ("ok", "passed", "pass", "bien") else "fallo")
+    return {"montado": montado, "errores": errores, "smart": smart}
+
+
 def _parsefree_mb(output: str) -> int:
     for line in output.splitlines():
         if line.startswith("Mem:"):
@@ -112,6 +147,7 @@ def _consultar_estado(ssh_fn: Callable[..., Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    estado_ext = _ejecutar_ssh(SSH_BASE + ["starseed-almacen", "estado"], ssh_fn)
     df_libre_srv = _parsedf_bg(df_out_srv) if df_out_srv else None
     df_total_srv = _parsedf_campo(df_out_srv, 1) if df_out_srv else None
     df_usado_srv = _parsedf_campo(df_out_srv, 2) if df_out_srv else None
@@ -122,6 +158,7 @@ def _consultar_estado(ssh_fn: Callable[..., Any]) -> Dict[str, Any]:
         "discoLibreSrvGb": df_libre_srv,
         "discoTotalSrvGb": df_total_srv,
         "discoUsadoSrvGb": df_usado_srv,
+        "almacenExterno": parse_estado_externo(estado_ext),
         "ramLibreMb": _parsefree_mb(free_out),
         "cpu": int(cpu_out) if cpu_out.isdigit() else 2,
         "contenedores": has_docker or has_podman,
