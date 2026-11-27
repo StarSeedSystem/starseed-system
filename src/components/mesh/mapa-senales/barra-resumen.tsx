@@ -9,7 +9,7 @@ import { Bluetooth, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ResumenMapa, ResumenVivo } from "@/lib/senales/mapa-3d";
 
-const CHIP = "rounded-full border px-2 py-0.5";
+const CHIP = "max-w-full rounded-full border px-2 py-0.5 break-words";
 
 export interface BarraResumenProps {
   resumen: ResumenMapa;
@@ -29,7 +29,7 @@ export interface BarraResumenProps {
 export function BarraResumen(p: BarraResumenProps) {
   const { resumen, vivo } = p;
   return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
       <span className={cn(CHIP, "border-white/10 bg-white/[0.04] font-semibold text-white/80")}>
         {resumen.total} {resumen.total === 1 ? "señal" : "señales"}
       </span>
@@ -64,7 +64,7 @@ export function BarraResumen(p: BarraResumenProps) {
           </span>
         </>
       )}
-      <span className="ml-auto flex items-center gap-1.5">
+      <span className="ml-auto flex max-w-full flex-wrap items-center gap-1.5">
         {p.bleSoportado && (
           <button
             type="button"
