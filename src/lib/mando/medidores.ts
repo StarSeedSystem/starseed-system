@@ -180,7 +180,7 @@ export interface FilaMedidor {
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
     /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
-    detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string };
+    detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string; estadoDisco?: string; motivoDisco?: string };
     desde?: string;
     quien?: string;
     enlace?: string;
@@ -1493,6 +1493,10 @@ export interface NodoAlmacenamiento {
     discoTotalGb?: number;
     rol?: string;
     usoGb?: number;
+    /** MED1126A: estado del disco que reporta el ayudante del nodo («montado», «sin montar», «aviso» o «error»). */
+    estadoDisco?: string;
+    /** MED1126A: motivo corto del estado (errores o SMART), para la fila. */
+    motivoDisco?: string;
 }
 
 export interface DatosMedidores {
@@ -2401,6 +2405,98 @@ export function nombreDeNodoAlmacenamiento(nodoId: string, medio?: string): stri
     return nodoId;
 }
 
+/** MED1126A: un texto útil del disco, o `undefined` si no lo es. PURA. */
+function textoDeDisco(valor: unknown): string | undefined {
+    return typeof valor === "string" && valor.trim() ? valor.trim() : undefined;
+}
+
+/** MED1126A: «secundario: respaldos…» → «secundario»; el interno siempre es el principal. PURA. */
+function rolCortoDeDisco(rol: string, esInterno: boolean): string {
+    const primero = rol.split(/[:\s]/)[0]?.toLowerCase();
+    if (primero === "principal") return "principal";
+    if (primero === "secundario") return "secundario";
+    return esInterno ? "principal" : "secundario";
+}
+
+/** MED1126A: estado del disco según `montado`, `errores`, `smart` y el estado del ayudante. PURA. */
+function estadoDeDisco(d: Record<string, unknown>): string | undefined {
+    const errores = d.errores;
+    const hayErrores = Array.isArray(errores)
+        ? errores.some((e) => typeof e === "string" && e.trim() !== "")
+        : typeof errores === "string" && errores.trim() !== "";
+    const smart = textoDeDisco(d.smart) ?? "";
+    const estado = textoDeDisco(d.estado) ?? "";
+    if (hayErrores || /fallo|error|fail|malo|reallocat/i.test(smart)) return "error";
+    if (d.montado === false || /no montado|desmontad|unmount/i.test(estado)) return "sin montar";
+    if (/aviso|warning|caution|degrad/i.test(smart) || /aviso|warning/i.test(estado)) return "aviso";
+    return undefined;
+}
+
+/** MED1126A: el motivo corto del estado, sin inventarlo. PURA. */
+function motivoDeDisco(d: Record<string, unknown>): string | undefined {
+    const errores = d.errores;
+    const unico = textoDeDisco(errores);
+    const lista = Array.isArray(errores)
+        ? errores.filter((e): e is string => typeof e === "string" && e.trim() !== "").map((e) => e.trim())
+        : unico
+          ? [unico]
+          : [];
+    if (lista.length) return lista.join("; ");
+    const smart = textoDeDisco(d.smart);
+    if (smart) return `SMART: ${smart}`;
+    return textoDeDisco(d.estado);
+}
+
+/**
+ * MED1126A: los `discos` de un nodo (interno principal y externo secundario) como filas
+ * propias. Si no hay lista, devuelve vacío y se usa la ficha de siempre. PURA.
+ */
+function discosDeNodo(
+    n: Record<string, unknown>,
+    id: string,
+    nombreBase: string,
+    medio: string,
+): NodoAlmacenamiento[] {
+    const crudos = Array.isArray(n.discos) ? n.discos : [];
+    const salida: NodoAlmacenamiento[] = [];
+    crudos.forEach((item, i) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return;
+        const d = item as Record<string, unknown>;
+        const ruta =
+            textoDeDisco(d.ruta) ?? textoDeDisco(d.path) ?? textoDeDisco(d.puntoMontaje) ?? (i === 0 ? "/" : "");
+        const rol = textoDeDisco(d.rol) ?? textoDeDisco(d.role) ?? "";
+        const esInterno = ruta === "/" || /^principal/i.test(rol);
+        const clase = esInterno ? "interno" : "disco externo";
+        const libre =
+            discoMedido(d.libreGb) ??
+            discoMedido(d.libre_gb) ??
+            discoMedido(d.discoLibreGb) ??
+            discoMedido(d.disco_libre_gb) ??
+            discoMedido(d.freeGb);
+        const total =
+            discoMedido(d.totalGb) ??
+            discoMedido(d.total_gb) ??
+            discoMedido(d.discoTotalGb) ??
+            discoMedido(d.sizeGb);
+        const uso = discoMedido(d.usoGb) ?? discoMedido(d.uso_gb);
+        const estado = estadoDeDisco(d);
+        const motivo = motivoDeDisco(d);
+        salida.push({
+            id: `${id}:${clase.replace(/\s+/g, "-")}`,
+            nombre: `${nombreBase} · ${clase} (${rolCortoDeDisco(rol, esInterno)})`,
+            medio,
+            discoLibreGb: libre ?? Number.NaN,
+            almacen: ruta ? [ruta] : [],
+            ...(total !== null ? { discoTotalGb: total } : {}),
+            ...(rol ? { rol } : {}),
+            ...(uso !== null ? { usoGb: uso } : {}),
+            ...(estado ? { estadoDisco: estado } : {}),
+            ...(motivo ? { motivoDisco: motivo } : {}),
+        });
+    });
+    return salida;
+}
+
 /**
  * (MAG1120) Fichas de disco de `capacidades-nodos.json`, sin inventar lo que no se midió:
  * solo entra un nodo con `discoLibreGb` numérico. Acepta `{ nodos: [...] }` o el array. PURA.
@@ -2415,6 +2511,12 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
         const id = typeof n.nodoId === "string" ? n.nodoId : typeof n.id === "string" ? n.id : "";
         if (!id.trim()) continue;
         const medio = typeof n.medio === "string" && n.medio.trim() ? n.medio.trim() : "desconocido";
+        const nombreBase = nombreDeNodoAlmacenamiento(id, medio);
+        const discos = discosDeNodo(n, id.trim(), nombreBase, medio);
+        if (discos.length) {
+            salida.push(...discos);
+            continue;
+        }
         const disco =
             discoMedido(n.discoLibreGb) ??
             discoMedido(n.disco_libre_gb) ??
@@ -2430,7 +2532,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
         const rol = typeof n.rol === "string" && n.rol.trim() ? n.rol.trim() : undefined;
         salida.push({
             id: id.trim(),
-            nombre: nombreDeNodoAlmacenamiento(id, medio),
+            nombre: nombreBase,
             medio,
             discoLibreGb: disco ?? Number.NaN,
             almacen,
@@ -2439,8 +2541,11 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
             ...(uso !== null ? { usoGb: uso } : {}),
         });
     }
-    const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
-    return salida.sort((a, b) => rango(a) - rango(b) || a.id.localeCompare(b.id));
+    const baseDe = (n: NodoAlmacenamiento) => n.nombre.split(" · ")[0].toLowerCase();
+    const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[baseDe(n)] ?? 9;
+    const sub = (n: NodoAlmacenamiento) =>
+        n.nombre.includes("interno") ? 0 : n.nombre.includes("disco externo") ? 1 : 0;
+    return salida.sort((a, b) => rango(a) - rango(b) || sub(a) - sub(b) || a.id.localeCompare(b.id));
 }
 
 /** DIR1125O: «10.6 GB de 228 GB», o en el Drive «StarSeed usa 1.2 GB de 2048 GB». PURA. */
@@ -2452,28 +2557,48 @@ export function textoDiscoAlmacenamiento(n: NodoAlmacenamiento): string {
 
 /** DIR1125O: el porqué de la fila: cuánto queda, de cuánto y para qué es ese medio. Sin datos nuevos, el texto de siempre. PURA. */
 function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
-    if (n.discoTotalGb === undefined && n.usoGb === undefined && !n.rol) return `disco libre en ${n.nombre} (${n.medio})`;
     const cifra = Number.isFinite(n.discoLibreGb) ? `${textoDiscoAlmacenamiento(n)} libres` : textoDiscoAlmacenamiento(n);
+    if (n.estadoDisco === "sin montar") return `no está montado · ${n.rol ?? "no se usa como destino"}`;
+    if (n.estadoDisco === "error") {
+        return `con errores${n.motivoDisco ? `: ${n.motivoDisco}` : ""} · no se usa como destino`;
+    }
+    if (n.estadoDisco === "aviso") return `${cifra}${n.motivoDisco ? ` · aviso: ${n.motivoDisco}` : " · aviso"}`;
+    if (n.discoTotalGb === undefined && n.usoGb === undefined && !n.rol) return `disco libre en ${n.nombre} (${n.medio})`;
     return n.rol ? `${cifra} · ${n.rol}` : `${cifra} en ${n.nombre}`;
 }
 
 /** (MAG1120) Una fila por nodo con disco libre; estado según lo que le queda. PURA. */
 export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): FilaMedidor[] {
-    return nodos.map((n) => ({
-        id: n.id,
-        titulo: n.nombre,
-        estado: !Number.isFinite(n.discoLibreGb) ? "libre" : n.discoLibreGb < 5 ? "crítico" : n.discoLibreGb < 15 ? "bajo" : "libre",
-        porque: porqueDeAlmacenamiento(n),
-        detalle: {
-            ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
-            origen: n.medio,
-            almacen: n.almacen,
-            ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
-            ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
-            ...(n.rol ? { rol: n.rol } : {}),
-        },
-        acciones: [],
-    }));
+    return nodos.map((n) => {
+        const estadoDisco =
+            n.estadoDisco === "error" || n.estadoDisco === "sin montar" || n.estadoDisco === "aviso"
+                ? n.estadoDisco
+                : undefined;
+        const porLibre = !Number.isFinite(n.discoLibreGb)
+            ? "libre"
+            : n.discoLibreGb < 5
+              ? "crítico"
+              : n.discoLibreGb < 15
+                ? "bajo"
+                : "libre";
+        return {
+            id: n.id,
+            titulo: n.nombre,
+            estado: estadoDisco ?? porLibre,
+            porque: porqueDeAlmacenamiento(n),
+            detalle: {
+                ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
+                origen: n.medio,
+                almacen: n.almacen,
+                ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
+                ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
+                ...(n.rol ? { rol: n.rol } : {}),
+                ...(estadoDisco ? { estadoDisco } : {}),
+                ...(n.motivoDisco ? { motivoDisco: n.motivoDisco } : {}),
+            },
+            acciones: [],
+        };
+    });
 }
 
 /** (MAG1120) «Nodos con disco libre: Mac (X GB), …». Sin nodos, «sin dato». PURA. */
@@ -2489,6 +2614,69 @@ export function avisoDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): str
     if (medios.size > 1) return undefined;
     const nombres = nodos.map((n) => n.nombre).join(", ");
     return `Medio único: solo ${nombres} declara disco libre; no hay otro medio medido para repartir ni comparar.`;
+}
+
+/** MED1126A: lo que enseña la pastilla del pulso sobre los nodos. */
+export interface PastillaAlmacenamiento {
+    titulo: string;
+    valor: string;
+    detalle: string;
+    tono: "normal" | "aviso" | "peligro" | "ok";
+}
+
+function cifraDeFilaAlmacenamiento(f: FilaMedidor | undefined): number | null {
+    const n = f?.detalle?.discoLibres;
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+function textoCortoDeFilaAlmacenamiento(f: FilaMedidor): string {
+    const nombre = /externo/i.test(f.titulo) ? "externo" : f.titulo.split(" · ")[0];
+    const libre = cifraDeFilaAlmacenamiento(f);
+    if (libre !== null) return `${nombre} ${libre} GB`;
+    const uso = f.detalle?.usoGb;
+    if (typeof uso === "number" && Number.isFinite(uso)) return `${nombre} usa ${uso} GB`;
+    return `${nombre} ${f.estado ?? "sin dato"}`;
+}
+
+function tonoDePastillaAlmacenamiento(filas: readonly FilaMedidor[]): PastillaAlmacenamiento["tono"] {
+    const estados = filas.map((f) => (f.estado ?? "").toLowerCase());
+    if (estados.some((e) => /error|sin montar|crítico|critico/.test(e))) return "peligro";
+    if (estados.some((e) => /aviso|bajo/.test(e))) return "aviso";
+    if (filas.some((f) => cifraDeFilaAlmacenamiento(f) !== null || typeof f.detalle?.usoGb === "number")) return "ok";
+    return "normal";
+}
+
+/**
+ * MED1126A: la pastilla «Nodos y almacenamiento» del pulso. El valor es la Maggabox
+ * interna (principal); el detalle, el resto de medios medidos. PURA.
+ */
+export function pastillaDeAlmacenamiento(detalle: DetalleMedidor | null): PastillaAlmacenamiento {
+    const titulo = "Nodos y almacenamiento";
+    const filas = detalle?.filas ?? [];
+    if (!filas.length) {
+        return {
+            titulo,
+            valor: "sin dato",
+            detalle: "Maggabox, Mac, A1 y Drive se miden cada 10 min",
+            tono: "normal",
+        };
+    }
+    const maggabox =
+        filas.find((f) => /maggabox/i.test(f.titulo) && !/externo/i.test(f.titulo)) ??
+        filas.find((f) => /maggabox/i.test(f.titulo));
+    const libre = cifraDeFilaAlmacenamiento(maggabox);
+    const valor = maggabox
+        ? libre !== null
+            ? `Maggabox ${libre} GB libres`
+            : `Maggabox ${maggabox.estado ?? "sin dato"}`
+        : "Maggabox sin dato";
+    const otros = filas.filter((f) => f !== maggabox).map(textoCortoDeFilaAlmacenamiento);
+    return {
+        titulo,
+        valor,
+        detalle: otros.length ? otros.join(" · ") : "sin otros medios medidos",
+        tono: tonoDePastillaAlmacenamiento(filas),
+    };
 }
 
 export function detalleDeMedidor(

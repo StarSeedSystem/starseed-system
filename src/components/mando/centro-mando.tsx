@@ -37,7 +37,7 @@ import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
 import { MedidorConsumo } from "@/components/mando/medidor-consumo";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { cargaDePublicacion, falloDePublicacion, nombreDeAmbito } from "@/lib/mando/medidores";
+import { cargaDePublicacion, falloDePublicacion, nombreDeAmbito, pastillaDeAlmacenamiento } from "@/lib/mando/medidores";
 import { RESERVA_PORCENTAJE, TOKENS_BASE_POR_TURNO } from "@/lib/mando/creditos-antigravity";
 import {
     CLAVES_RESUMEN_PULSO,
@@ -284,7 +284,7 @@ const GRUPOS_PULSO: { id: GrupoPulso; titulo: string }[] = [
     { id: "trabajo", titulo: "El trabajo ahora" },
     { id: "entrega", titulo: "Lo que sale" },
     { id: "modelos", titulo: "Modelos y créditos" },
-    { id: "maquina", titulo: "Esta Mac" },
+    { id: "maquina", titulo: "Esta Mac y los nodos" },
 ];
 /** Dónde va cada pastilla: por su `clave` o, si no abre medidor, por su título. */
 const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
@@ -313,8 +313,10 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     contenedores: ["modelos", 5],
     memoria: ["maquina", 0],
     disco: ["maquina", 1],
-    "BitNet 1.58": ["maquina", 2],
-    "Google Drive": ["maquina", 3],
+    // MED1126A: el almacenamiento de todos los nodos (Maggabox interno y externo incluidos).
+    almacenamiento: ["maquina", 2],
+    "BitNet 1.58": ["maquina", 3],
+    "Google Drive": ["maquina", 4],
 };
 
 /**
@@ -805,6 +807,9 @@ export function CentroMando() {
     // mientras la nube tenía 4 agentes escribiendo. Ahora cuenta agentes, no tareas, y
     // cuenta los de todos los medios porque el detalle sale de la misma llamada.
     const [medidoresResumen, setMedidoresResumen] = useState<ResumenMedidoresPulso | null>(null);
+    // MED1126A: el detalle de «Almacenamiento» para la pastilla (Maggabox interno/externo,
+    // Mac, A1 y Drive). Se pide aparte y como mucho una vez cada 60 s, nunca en cada render.
+    const [medidorAlmacenamiento, setMedidorAlmacenamiento] = useState<DetalleMedidor | null>(null);
     const enCursoMedidoresRef = useRef(false);
 
     const cargarMedidoresResumen = useCallback(async (forzar = false) => {
@@ -862,6 +867,36 @@ export function CentroMando() {
             document.removeEventListener("visibilitychange", alVolver);
         };
     }, [cargarMedidoresResumen]);
+
+    // MED1126A: la pastilla «Nodos y almacenamiento» lee el medidor de almacenamiento con
+    // su propia cadencia (60 s), para no pedirlo en cada render ni sumarlo al lote de 20 s.
+    const cargarAlmacenamientoNodos = useCallback(async () => {
+        if (document.visibilityState === "hidden") return;
+        try {
+            const r = await fetch("/api/mando/medidores?clave=almacenamiento", { cache: "no-store" });
+            if (!r.ok) {
+                setMedidorAlmacenamiento(null);
+                return;
+            }
+            const d = (await r.json()) as { detalle?: DetalleMedidor };
+            setMedidorAlmacenamiento(d.detalle ?? null);
+        } catch {
+            setMedidorAlmacenamiento(null);
+        }
+    }, []);
+
+    useEffect(() => {
+        void cargarAlmacenamientoNodos();
+        const cada = window.setInterval(() => void cargarAlmacenamientoNodos(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargarAlmacenamientoNodos();
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, [cargarAlmacenamientoNodos]);
 
     useEffect(() => {
         let vivo = true;
@@ -1919,6 +1954,13 @@ export function CentroMando() {
                                       },
                                   ]
                                 : []),
+                            {
+                                // MED1126A: Maggasukha lo pidió muchas veces. La pastilla enseña la
+                                // Maggabox interna (principal) y, debajo, Mac, disco externo, A1 y
+                                // Drive; al pulsarla se abre el medidor «almacenamiento».
+                                clave: "almacenamiento" as const,
+                                ...pastillaDeAlmacenamiento(medidorAlmacenamiento),
+                            },
                             ...(almacenamiento?.drive?.montado
                                 ? [
                                       {
