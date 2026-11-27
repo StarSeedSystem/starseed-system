@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "control-1124",
+   "revisor": {
+    "origen": "BLE1124A-d2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "BLE1124A-d1"
+   ],
+   "id": "BLE1124A-d2-d2",
+   "titulo": "Bluetooth hacia Android no llega a ligar desde macOS ni desde Linux (parte 2 de 2) (parte 2 de 3)",
+   "archivos": [
+    "src/lib/malla/bluetooth-directo-motor.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido con la .63 (24-11): la Mac manda «hola · b3» a la Maggaboard cada 30 s y recibe «envio-fallido … sin acuse por Bluetooth tras 4 intentos» (370 en la cola del registro, «caída … racha 16»), «redescubriendo · 3 conexiones seguidas sin llegar a listo»; la Maggabox va por «ble conectar neurona=e0b9faf2 · intento 22» con «org.bluez.Error.Failed: le-connection-abort-by-local» y direcciones aleatorias distintas en cada anuncio. CTL1123E dejó solo el diagnóstico. Arregla la causa (lado Android: anuncio y servidor GATT con la app delante y en segundo plano; lado central: no insistir contra direcciones caducadas, respetar el descanso) y no mandes por Bluetooth lo que ya tiene enlace directo por la Wi-Fi. Lógica pura con pruebas (vitest/cargo test); nada de bajar frenos de seguridad: el permiso sigue apagado por defecto, nadie acepta por la persona, firma y antirrepetición intactas. Evidencia completa en starseed_memory_root/pruebas/registro-pruebas.md (sección .63).\n\n## PARTE 2 DE 2 (la dirección dividió BLE1124A: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: native/src-tauri/src/ble_macos.rs, src/lib/malla/bluetooth-directo-motor.ts, src/lib/malla/__tests__/ble1124a.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## PARTE 2 DE 3 (la dirección dividió BLE1124A-d2: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/malla/bluetooth-directo-motor.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "dependencias_ya_en_main": [
+    "BLE1124A-d2-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "BLE1124A-d2-d2"
+  ]
+ }
+}
