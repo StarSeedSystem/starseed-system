@@ -308,7 +308,7 @@ export function PanelTeToca({ acciones, alCerrar, alCambiar }: PanelTeTocaProps)
                                             ) : (
                                                 <Check className="h-3 w-3" aria-hidden />
                                             )}
-                                            Aprobar
+                                            {a.etiqueta_aprobar || "Aprobar"}
                                         </button>
                                     ) : null}
 
@@ -327,7 +327,7 @@ export function PanelTeToca({ acciones, alCerrar, alCambiar }: PanelTeTocaProps)
                                                     ) : (
                                                         <X className="h-3 w-3" aria-hidden />
                                                     )}
-                                                    Confirmar rechazo
+                                                    {a.etiqueta_rechazar ? `Confirmar: ${a.etiqueta_rechazar}` : "Confirmar rechazo"}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -346,7 +346,7 @@ export function PanelTeToca({ acciones, alCerrar, alCambiar }: PanelTeTocaProps)
                                                 className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-1 text-[11px] font-medium text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
                                             >
                                                 <X className="h-3 w-3" aria-hidden />
-                                                Rechazar
+                                                {a.etiqueta_rechazar || "Rechazar"}
                                             </button>
                                         )
                                     ) : null}

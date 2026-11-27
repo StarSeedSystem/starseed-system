@@ -20,6 +20,9 @@ export interface AccionAlex {
     prompt?: string;
     aprobable?: boolean;
     rechazable?: boolean;
+    /** ACC1126A: texto propio de los botones (p. ej. «Ya recargué» / «Retirar» en una recarga de pago). */
+    etiqueta_aprobar?: string;
+    etiqueta_rechazar?: string;
     comando_rechazar?: string;
     comando_higgsfield?: string;
     comando_telegram?: string;

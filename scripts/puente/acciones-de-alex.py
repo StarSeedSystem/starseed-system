@@ -218,6 +218,131 @@ ESTADOS_HUMANOS = {
 }
 
 
+#: (ACC1126A, 26-11) Pasarelas que Alex decidió RETIRAR en vez de recargar: `{clave: {cuando, por, firma}}`.
+#: La firma es la respuesta del servidor que se le enseñó: si la pasarela cambia de respuesta, se vuelve a preguntar.
+RETIRADAS = os.path.join(RAIZ, "starseed_memory_root", "mando", "pasarelas-retiradas.json")
+
+#: Qué desbloquea pagar en cada pasarela que hoy pide recarga. Solo hechos medidos o publicados por ellas.
+DESBLOQUEA_RECARGA = {
+    "apinex": "una recarga ÚNICA de 5 $ o más desbloquea 25 M de tokens gratis al día para siempre (lo dice su propia API)",
+    "deepseek": "saldo de pago por uso para deepseek-v4-pro (no hay cupo gratuito: cada tarea gasta del saldo)",
+    "xai": "créditos de pago del equipo para grok (se gastan rápido: el 16-09 se acabaron en una tarde)",
+    "huggingface": "créditos de Inference Providers (el gratuito, 0,10 $/mes, se repone solo al empezar el mes)",
+    "aihubmix": "saldo para seguir usando sus recursos gratuitos",
+}
+
+#: Enlace exacto de pago cuando la respuesta del servidor no trae uno. Nunca se paga por él: es para Alex.
+ENLACE_PAGO = {
+    "deepseek": "https://platform.deepseek.com/top_up",
+    "huggingface": "https://huggingface.co/settings/billing",
+}
+
+
+def firma_respuesta(mensaje):
+    """PURA: la respuesta del servidor sin lo que cambia en cada llamada (ids de petición, tid, uuids)."""
+    texto = re.sub(r"\((?:request_id|tid)[^)]*\)", "", str(mensaje or ""), flags=re.I)
+    texto = re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "#", texto, flags=re.I)
+    return re.sub(r"\s+", " ", texto).strip()[:200]
+
+
+def enlace_de_pago(clave, mensaje, catalogo=None):
+    """PURA: el enlace que da la propia respuesta («Top up at https://…»); si no, el conocido; si no, el del catálogo."""
+    hallado = re.search(r"https?://[^\s\"'<>)]+", str(mensaje or ""))
+    if hallado:
+        return hallado.group(0).rstrip(".,;")
+    if clave in ENLACE_PAGO:
+        return ENLACE_PAGO[clave]
+    return ((catalogo if catalogo is not None else _pas.CATALOGO).get(clave) or {}).get("enlace", "")
+
+
+def accion_recarga(p, info, retiradas=None, uso=None):
+    """PURA (ACC1126A). La tarjeta «decide la recarga» de una pasarela que pide pagar, o None.
+
+    Sale cuando la sonda dice «sin cupo» y la respuesta es de las de «paga para seguir». No sale si Alex ya la
+    retiró con esa MISMA respuesta (una sola vez por pasarela hasta que cambie lo que contesta).
+    """
+    estado = str(p.get("estado") or "")
+    mensaje = str(p.get("mensaje") or "").strip()
+    if estado != _pas.SIN_CUPO or not _pas.pide_recarga(mensaje):
+        return None
+    clave = str(p.get("clave") or "")
+    if info.get("humano") is False:
+        return None
+    firma = firma_respuesta(mensaje)
+    retirada = (retiradas or {}).get(clave)
+    if isinstance(retirada, dict) and str(retirada.get("firma") or "") == firma:
+        return None
+    nombre = info.get("nombre", clave)
+    usadas = int((uso or {}).get(clave) or 0)
+    enlace = enlace_de_pago(clave, mensaje)
+    desbloquea = DESBLOQUEA_RECARGA.get(clave, "seguir usando esta pasarela")
+    modelo = str(p.get("modelo") or "?")
+    return {
+        "id": "pasarela-%s-recarga" % clave,
+        "categoria": "pago",
+        "titulo": "%s pide una recarga de pago: ¿recargar o retirar?" % nombre,
+        "por_que": "Su API contesta (http %s): «%s». Mientras no decidas, está fuera de la rotación y no se repone sola."
+                   % (p.get("http"), mensaje),
+        "urgencia": "media",
+        "como_hacerlo": ("1. Mira lo que pide y lo que desbloquea. 2. Si quieres pagarlo, hazlo tú en el enlace y pulsa "
+                         "«Ya recargué»: la sonda la mide al momento y, si escribe, vuelve a la rotación. 3. Si no, pulsa "
+                         "«Retirar»: sale de la rotación y no se vuelve a preguntar mientras conteste lo mismo."),
+        "comando": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --aprobar pasarela-%s-recarga" % clave,
+        "comando_rechazar": PREFIJO + "python3 scripts/puente/acciones-de-alex.py --rechazar pasarela-%s-recarga" % clave,
+        "enlace": enlace,
+        "aprobable": True,
+        "rechazable": True,
+        "etiqueta_aprobar": "Ya recargué",
+        "etiqueta_rechazar": "Retirar",
+        "por_que_no_lo_hago_yo": "es un pago con tu dinero: la decisión es tuya y el sistema nunca paga nada",
+        "detalle": "Desbloquea: %s · aporta a la rotación: %s · tareas hechas antes con ella: %d · firma: %s"
+                   % (desbloquea, modelo, usadas, firma[:80]),
+        "firma": firma,
+    }
+
+
+def leer_retiradas(ruta=None):
+    try:
+        with open(ruta or RETIRADAS, encoding="utf-8") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, dict) else {}
+    except Exception:
+        return {}
+
+
+def retirar_pasarela(clave, firma, por="Alex (MetaGenesis)", ruta=None):
+    """Anota la retirada (con la respuesta que se le enseñó). Nunca borra nada: solo añade o actualiza su entrada."""
+    ruta = ruta or RETIRADAS
+    datos = leer_retiradas(ruta)
+    datos[clave] = {"cuando": __import__("time").strftime("%Y-%m-%d %H:%M"), "por": por, "firma": firma}
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    tmp = ruta + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+    return datos[clave]
+
+
+def uso_por_pasarela(ruta=None):
+    """Cuántas tareas del enjambre escribió cada pasarela (por el prefijo del modelo en progreso.json). Nunca lanza."""
+    ruta = ruta or os.path.join(RAIZ, "starseed_memory_root", "olas", "progreso.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            datos = json.load(f)
+    except Exception:
+        return {}
+    tareas = datos.get("tareas", datos) if isinstance(datos, dict) else {}
+    cuenta = {}
+    for t in (tareas.values() if isinstance(tareas, dict) else []):
+        if not isinstance(t, dict) or t.get("estado") not in ("commit", "integrada"):
+            continue
+        modelo = str(t.get("modelo") or "")
+        if "/" in modelo:
+            pref = modelo.split("/", 1)[0]
+            cuenta[pref] = cuenta.get(pref, 0) + 1
+    return cuenta
+
+
 def _entorno_con_env():
     """El entorno del proceso MÁS `~/.starseed/env`, que es donde viven de verdad las
     variables del enjambre: el director corre desde launchd y no las hereda."""
@@ -429,7 +554,7 @@ def _cuentas_google(dir_cuentas=None, sondear=False):
 
 
 def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None, ahora=None,
-                       cuentas_google=None):
+                       cuentas_google=None, retiradas=None, uso=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
@@ -530,6 +655,11 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
 
     for p in pasarelas or []:
         estado = str(p.get("estado") or "")
+        # ACC1126A: «sin cupo» que en realidad es «paga para seguir» → decisión de pago (recargar o retirar).
+        recarga = accion_recarga(p, catalogo.get(str(p.get("clave") or "")) or {}, retiradas=retiradas, uso=uso)
+        if recarga:
+            acciones.append(recarga)
+            continue
         if estado not in ESTADOS_HUMANOS:
             continue
         clave = str(p.get("clave") or "")
@@ -892,6 +1022,8 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         a1_tiene_token=a1_tiene_token,
         ahora=ahora,
         cuentas_google=cuentas,
+        retiradas=leer_retiradas() if real else None,
+        uso=uso_por_pasarela() if real else None,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -994,7 +1126,8 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
     if regenerar:
         vivas = registrar_pedido_diario(
             construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                               a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google()))
+                               a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google(),
+                               retiradas=leer_retiradas(), uso=uso_por_pasarela()))
         guardar_lista(vivas)
         quedan = len(vivas)
     return {
@@ -1009,15 +1142,41 @@ def _resolver_higgsfield(id_accion, aprobada, por="Alex (MetaGenesis)", motivo="
     }
 
 
-def aprobar_accion(id_accion, por="Alex (MetaGenesis)", base_hf=None, regenerar=True):
+def es_id_de_recarga(id_accion):
+    """PURA: «pasarela-apinex-recarga» es la decisión de pago de apinex."""
+    texto = str(id_accion or "")
+    return texto.startswith("pasarela-") and texto.endswith("-recarga")
+
+
+def aprobar_accion(id_accion, por="Alex (MetaGenesis)", base_hf=None, regenerar=True, medir=None):
     if str(id_accion or "").startswith("higgsfield-"):
         return _resolver_higgsfield(id_accion, True, por=por, base_hf=base_hf, regenerar=regenerar)
+    if es_id_de_recarga(id_accion):
+        # «Ya recargué»: no se cree el botón; se MIDE la pasarela otra vez y la lista se rehace con esa medida.
+        res = verificar(id_accion, medir=medir)
+        res["ok"] = True
+        res["vuelve_a_la_rotacion"] = bool(res.get("hecha"))
+        return res
     return {"ok": False, "error": "Esta acción se comprueba con --verificar, no se aprueba aquí"}
 
 
-def rechazar_accion(id_accion, por="Alex (MetaGenesis)", motivo="Rechazada por Alex desde MetaGenesis", base_hf=None, regenerar=True):
+def rechazar_accion(id_accion, por="Alex (MetaGenesis)", motivo="Rechazada por Alex desde MetaGenesis", base_hf=None, regenerar=True,
+                    ruta_retiradas=None):
     if str(id_accion or "").startswith("higgsfield-"):
         return _resolver_higgsfield(id_accion, False, por=por, motivo=motivo, base_hf=base_hf, regenerar=regenerar)
+    if es_id_de_recarga(id_accion):
+        # «Retirar»: se anota con la respuesta que tenía; no se vuelve a preguntar mientras conteste lo mismo.
+        clave = clave_de_accion(id_accion)
+        medida = next((p for p in _pasarelas() if str(p.get("clave") or "") == clave), {})
+        anotada = retirar_pasarela(clave, firma_respuesta(medida.get("mensaje")), por=por, ruta=ruta_retiradas)
+        quedan = None
+        if regenerar:
+            vivas = registrar_pedido_diario(
+                construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(), a1_tiene_token=a1_tiene_clave(),
+                                   cuentas_google=_cuentas_google(), retiradas=leer_retiradas(), uso=uso_por_pasarela()))
+            guardar_lista(vivas)
+            quedan = len(vivas)
+        return {"ok": True, "id": id_accion, "estado": "retirada", "por": por, "cuando": anotada["cuando"], "quedan": quedan}
     return {"ok": False, "error": "Esta acción solo se resuelve al corregir su causa y recomprobar"}
 
 
@@ -1046,7 +1205,8 @@ def main():
         return 0
     acciones = registrar_pedido_diario(
         construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                           a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google()))
+                           a1_tiene_token=a1_tiene_clave(), cuentas_google=_cuentas_google(),
+                           retiradas=leer_retiradas(), uso=uso_por_pasarela()))
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)
