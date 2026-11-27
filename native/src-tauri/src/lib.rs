@@ -1048,6 +1048,16 @@ macro_rules! registrar_comandos {
                 aparato_huella::huella_aparato_generar,
                 aparato_huella::huella_aparato_actual,
                 aparato_huella::huella_aparato_verificar,
+                // (DIR1127G) Restaurados: AB6CDD5AA los quitó sin motivo al «arreglar» la .66.
+                nativa::serie_puertos,
+                nativa::serie_abrir,
+                nativa::serie_escribir,
+                nativa::serie_cerrar,
+                nativa::capas_estado,
+                nativa::capas_descargar,
+                nativa::capas_verificar,
+                nativa::capas_borrar,
+                nativa::nas_listar,
                 $( $(#[$attr])* $path ),*
             ]);
         };

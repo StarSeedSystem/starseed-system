@@ -914,7 +914,15 @@ pub fn humo(el: &c::Eleccion, puerto: u16) -> Option<String> {
     let build = el.build()?;
     let dir = leer(&interno().dir)?;
     let sha_capa = web_de_dir(&dir.join(build)).sha;
+    // (DIR1127G) `servidor_local` solo existe en escritorio: en Android rompía la compilación de la .66. Allí el humo
+    // queda «sin dato» (nunca marca mala una capa) hasta que el servidor de la APK tenga su propio GET.
+    #[cfg(desktop)]
     let (version_json, estado) = crate::servidor_local::humo_http(puerto);
+    #[cfg(not(desktop))]
+    let (version_json, estado): (Option<String>, Option<u16>) = {
+        let _ = puerto;
+        (None, None)
+    };
     let sha_servido = version_json.as_deref().and_then(r::de_version_json).and_then(|w| w.sha);
     match c::evaluar_humo(sha_servido.as_deref(), sha_capa.as_deref(), estado) {
         c::Humo::Ok(sha) => {

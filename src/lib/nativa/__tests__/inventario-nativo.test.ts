@@ -147,7 +147,7 @@ describe("mínimo privilegio (SEG1111U)", () => {
     expect(cuerpo).toContain("al::clasificar(&cmd)");
     expect(cuerpo).toContain("acceso_equipo::confirmar(");
     // No está en la lista común (la de Android/iOS) del registro de comandos.
-    const comunes = lib.match(/generate_handler!\[([\s\S]*?)\$\(\$solo_desktop/)![1];
+    const comunes = lib.match(/generate_handler!\[([\s\S]*?)\$\(\s*(?:\$\(#\[\$attr\]\)\*\s*)?\$(?:solo_desktop|path)\b/)![1];
     expect(comunes).not.toMatch(/\brun_terminal\b/);
   });
 
