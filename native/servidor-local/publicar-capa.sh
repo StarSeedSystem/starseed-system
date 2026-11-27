@@ -4,7 +4,11 @@
 # Contrato: architecture/apps-autonomas-sin-internet.md §10. Lo usan .github/workflows/native-build.yml
 # (job `servidor-capa`) y .github/workflows/servidor-capa.yml (cada publicación de la web).
 #
-#   bash native/servidor-local/publicar-capa.sh <servidor-next.tar> [<etiqueta del release versionado>]
+#   bash native/servidor-local/publicar-capa.sh [--anillo global|prueba] [--simular] <servidor-next.tar> [<etiqueta>]
+#
+#   --anillo global   (por defecto) puntero `latest-servidor.json`, el que mira toda la app.
+#   --anillo prueba   puntero `latest-servidor-prueba.json`; NO toca `latest-servidor.json` (BAP1127B, §4.2).
+#   --simular         imprime los comandos `gh` sin red ni firma (no arma nada).
 #
 # Entorno:
 #   TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD)  la clave del UPDATER (secreto del repo). Sin ella no se firma
@@ -20,13 +24,38 @@
 # ════════════════════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-TAR="${1:?uso: publicar-capa.sh <servidor-next.tar> [etiqueta]}"
-ETIQUETA="${2:-}"
+ANILLO="global"
+SIMULAR=0
+POS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --anillo) ANILLO="${2:?--anillo pide global o prueba}"; shift 2 ;;
+    --simular) SIMULAR=1; shift ;;
+    *) POS+=("$1"); shift ;;
+  esac
+done
+case "$ANILLO" in global|prueba) ;; *) echo "anillo desconocido: $ANILLO (global|prueba)" >&2; exit 2 ;; esac
+PUNTERO="latest-servidor.json"
+[ "$ANILLO" = "prueba" ] && PUNTERO="latest-servidor-prueba.json"
+TAR="${POS[0]:?uso: publicar-capa.sh [--anillo global|prueba] [--simular] <servidor-next.tar> [etiqueta]}"
+ETIQUETA="${POS[1]:-}"
 SALIDA="${SALIDA_CAPA:-dist-capa}"
-REPO="${GITHUB_REPOSITORY:?falta GITHUB_REPOSITORY}"
+if [ "$SIMULAR" = "1" ]; then REPO="${GITHUB_REPOSITORY:-org/repo}"; else REPO="${GITHUB_REPOSITORY:?falta GITHUB_REPOSITORY}"; fi
 CANAL="servidor-local"
 GUARDAR="${GUARDAR_CAPAS:-4}"
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+gh() { if [ "$SIMULAR" = "1" ]; then echo "gh $*"; else command gh "$@"; fi; }
+
+if [ "$SIMULAR" = "1" ]; then
+  # Sin red ni firma: solo se muestran las subidas que haría.
+  BUILD="simulada"
+  ARCH="$SALIDA/servidor-capa-$BUILD.tar.gz"; MAN="$SALIDA/servidor-capa-$BUILD.json"
+  [ -n "$ETIQUETA" ] && gh release upload "$ETIQUETA" "$ARCH" "$MAN" "$MAN.sig" "$SALIDA/$PUNTERO" --clobber -R "$REPO"
+  gh release upload "$CANAL" "$ARCH" "$MAN" "$MAN.sig" --clobber -R "$REPO"
+  gh release upload "$CANAL" "$SALIDA/$PUNTERO" --clobber -R "$REPO"
+  exit 0
+fi
 
 rm -rf "$SALIDA"
 node "$AQUI/capa.mjs" armar --tar "$TAR" --salida "$SALIDA"
@@ -44,11 +73,11 @@ fi
 npx --yes @tauri-apps/cli@2 signer sign "$MAN" > /dev/null
 test -s "$MAN.sig"
 node "$AQUI/capa.mjs" canal --manifiesto "$MAN" --firma "$MAN.sig" \
-  --base "https://github.com/$REPO/releases/download/$CANAL" --salida "$SALIDA/latest-servidor.json"
+  --base "https://github.com/$REPO/releases/download/$CANAL" --salida "$SALIDA/$PUNTERO"
 
 # 1 · Junto a sus instaladores (release versionado, borrador): para revisarla y de archivo.
 if [ -n "$ETIQUETA" ]; then
-  gh release upload "$ETIQUETA" "$ARCH" "$MAN" "$MAN.sig" "$SALIDA/latest-servidor.json" --clobber -R "$REPO" \
+  gh release upload "$ETIQUETA" "$ARCH" "$MAN" "$MAN.sig" "$SALIDA/$PUNTERO" --clobber -R "$REPO" \
     || echo "::warning::No se pudo adjuntar la capa $BUILD al release $ETIQUETA."
 fi
 
@@ -62,7 +91,7 @@ if ! gh release view "$CANAL" -R "$REPO" > /dev/null 2>&1; then
     --notes "Canal de las capas del servidor local de StarSeed OS (architecture/apps-autonomas-sin-internet.md §10). Lo escribe el CI; la app solo usa lo que verifica con la clave del updater."
 fi
 gh release upload "$CANAL" "$ARCH" "$MAN" "$MAN.sig" --clobber -R "$REPO"
-gh release upload "$CANAL" "$SALIDA/latest-servidor.json" --clobber -R "$REPO"
+gh release upload "$CANAL" "$SALIDA/$PUNTERO" --clobber -R "$REPO"
 echo "::notice::Capa $BUILD publicada en el canal $CANAL."
 
 # 3 · Poda: se quedan las $GUARDAR capas más recientes.
@@ -73,5 +102,5 @@ while IFS= read -r n; do
 done < "$SALIDA/borrar.txt"
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  echo "Canal: https://github.com/$REPO/releases/download/$CANAL/latest-servidor.json → $BUILD" >> "$GITHUB_STEP_SUMMARY"
+  echo "Canal: https://github.com/$REPO/releases/download/$CANAL/$PUNTERO → $BUILD" >> "$GITHUB_STEP_SUMMARY"
 fi

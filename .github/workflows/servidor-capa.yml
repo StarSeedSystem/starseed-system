@@ -91,7 +91,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # "1" solo en un push con la variable puesta, o a mano marcando «publicar».
           PUBLICAR_CANAL: ${{ ((vars.SERVIDOR_CAPAS_CANAL == '1' && github.event_name == 'push') || inputs.publicar) && '1' || '0' }}
-        run: bash native/servidor-local/publicar-capa.sh servidor-next.tar
+        run: bash native/servidor-local/publicar-capa.sh --anillo "${{ vars.SERVIDOR_CAPAS_ANILLO == 'prueba' && 'prueba' || 'global' }}" servidor-next.tar
       - uses: actions/upload-artifact@v4
         if: always()
         with:

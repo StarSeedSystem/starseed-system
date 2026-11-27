@@ -672,7 +672,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PUBLICAR_CANAL: ${{ vars.SERVIDOR_CAPAS_CANAL }}
-        run: bash native/servidor-local/publicar-capa.sh .servidor-local/servidor-next.tar "${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}"
+        run: bash native/servidor-local/publicar-capa.sh --anillo "${{ vars.SERVIDOR_CAPAS_ANILLO == 'prueba' && 'prueba' || 'global' }}" .servidor-local/servidor-next.tar "${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CANALES DE ACTUALIZACIÓN por sistema (2026-10-09). tauri-action solo sabe
