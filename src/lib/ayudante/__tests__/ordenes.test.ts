@@ -165,12 +165,15 @@ describe("Cliente del ayudante · guardas", () => {
         expect(enviados.map((e) => e.nombre)).toEqual(["almacen-estado"]);
     });
 
-    it("en android ninguna orden sale (no existe en ese sistema)", async () => {
+    it("en android solo salen las órdenes de almacenes permitidas (estado, salud, verificar)", async () => {
         const { cliente, enviados } = clienteDePrueba("android", true);
         const r = await cliente.almacenEstado();
-        expect(r).toEqual({ ok: false, salida: "", error: "sistema-no-soportado" });
+        expect(r.ok).toBe(true);
+        expect((await cliente.almacenSalud("ABC123")).ok).toBe(true);
+        expect((await cliente.almacenVerificar("ABC123")).ok).toBe(true);
         expect((await cliente.modoCompleto(60)).error).toBe("sistema-no-soportado");
-        expect(enviados).toEqual([]);
+        expect((await cliente.servicioEstado("starseed")).error).toBe("sistema-no-soportado");
+        expect(enviados.map((e) => e.nombre)).toEqual(["almacen-estado", "almacen-salud", "almacen-verificar"]);
     });
 
     it("la comprobación de sistema va antes que la del ayudante", async () => {
