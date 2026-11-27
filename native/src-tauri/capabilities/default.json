@@ -141,6 +141,7 @@
     "allow-ble-pedir-permiso",
     "allow-ble-registro",
     "allow-ble-registro-anexar",
+    "allow-registro-espejo-anexar",
     "allow-ble-canal-rapido",
     "allow-ble-enlace-ligado",
     "allow-ble-registro-compartir",

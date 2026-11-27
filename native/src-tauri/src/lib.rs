@@ -87,6 +87,8 @@ mod almacenes_logica;
 mod almacenes;
 // (EFI1119B) Estado de energía del aparato (batería, ahorro, temperatura) para el modo «auto».
 mod energia;
+mod registro_espejo;
+mod registro_espejo_logica;
 // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router (architecture/wifi-directo.md).
 mod enlace_wifi;
 mod enlace_wifi_logica;
@@ -971,6 +973,7 @@ pub fn run() {
                 ble::ble_pedir_permiso,
                 ble::ble_registro,
                 ble::ble_registro_anexar,
+                registro_espejo::registro_espejo_anexar,
                 ble::ble_canal_rapido,      // BLE1109B
                 ble::ble_enlace_ligado,     // BLE1109B
                 ble::ble_registro_compartir, // BLE1109B
@@ -1079,15 +1082,18 @@ pub fn run() {
         ollama_instalador::ollama_instalador_descargar, // MOD1110B
         ollama_instalador::ollama_instalador_cancelar, // MOD1110B
         ollama_instalador::ollama_instalador_abrir, // MOD1110B
+        registro_espejo::registro_espejo_anexar,
     ]);
-    #[cfg(all(not(desktop), not(all(target_os = "android", starseed_servidor_android))))]
-    registrar_comandos!(builder []);
     // AND1114L: la APK con servidor local atiende el estado y el relevo de capa como escritorio.
     #[cfg(all(target_os = "android", starseed_servidor_android))]
     registrar_comandos!(builder [
         servidor_local_android::servidor_local_estado,
         servidor_local_android::servidor_local_actualizar,
         servidor_local_android::servidor_local_buscar,
+    ]);
+    #[cfg(all(not(desktop), not(all(target_os = "android", starseed_servidor_android))))]
+    registrar_comandos!(builder [
+        registro_espejo::registro_espejo_anexar,
     ]);
 
     builder
