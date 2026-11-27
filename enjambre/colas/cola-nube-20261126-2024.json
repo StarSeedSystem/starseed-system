@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 80,
+   "id": "QUA1125A-d1",
+   "titulo": "Cuarentena de main: la tarea de reaplicar va a una cola fuente (no solo a la tanda viva) (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/apartar_arbol_sucio.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 (21:31): _crear_tarea_reaplicar de scripts/puente/apartar_arbol_sucio.py metió REAPLICAR-20261125-213001 solo en la tanda viva (cola-auto-*); el orquestador se reinició y la tarea se perdió (la dirección la copió a mano a olas/cola-lienzo-hermes-1125.json). Haz que la tarea se escriba en una cola FUENTE propia (olas/cola-cuarentena-AAAAMMDD.json, escritura atómica, sin duplicar ids) además de avisar a la tanda viva si existe. Prueba unittest.\n\n## PARTE 1 DE 2 (la dirección dividió QUA1125A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: scripts/puente/apartar_arbol_sucio.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "QUA1125A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "id": "CRE1125C",
+   "titulo": "Fix tipos de bloque en lienzo-composer.tsx",
+   "archivos": [
+    "src/components/creation/lienzo-composer.tsx"
+   ],
+   "depende": [],
+   "prompt": "Corregir la validación y tipos de bloques rico en lienzo-composer.tsx: asegurar que los tipos 'evento', 'entidad' y 'prototipo' tengan validación correcta en blockHasContent y serialización. Revisar líneas 132-142. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "QUA1125A-d1",
+   "CRE1125C"
+  ]
+ }
+}
