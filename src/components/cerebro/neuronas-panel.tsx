@@ -67,6 +67,10 @@ import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
 import InsomneFicha from "@/components/cerebro/insomne-ficha";
+import { FichaNeurona } from "@/components/neuronas/ficha-neurona/ficha-neurona";
+import { SeccionPermisos } from "@/components/neuronas/ficha-neurona/seccion-permisos";
+import { SeccionPapelRed } from "@/components/neuronas/ficha-neurona/seccion-papel-red";
+import { SeccionSalud } from "@/components/neuronas/ficha-neurona/seccion-salud";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 import {
    Battery,
@@ -609,6 +613,25 @@ function NeuronCard({
 
       {/* ── Siempre disponible (pantalla cerrada) · neurona insomne (INS1027D) ── */}
       <InsomneFicha neurona={n} />
+
+      {/* ── Ficha única de la neurona (NEU1126B): identidad, aparatos, permisos, papel en la red y salud. ── */}
+      <details className="group rounded-xl border border-white/8 bg-white/[0.02]">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-white/80">
+          Ficha de la neurona
+          <span className="ml-auto text-[10px] font-normal text-white/40 group-open:hidden">ver</span>
+        </summary>
+        <div className="px-2 pb-2">
+          <FichaNeurona
+            neurona={n}
+            alCambiar={onChanged}
+            extras={[
+              { id: "permisos", titulo: "Permisos", palabras: "control remoto terminal archivos sincronía aceptar sin preguntar", contenido: <SeccionPermisos neurona={n} alCambiar={onChanged} /> },
+              { id: "papel", titulo: "Papel en la red", palabras: "relé servidor almacén cómputo horario enchufado wifi", contenido: <SeccionPapelRed neurona={n} alCambiar={onChanged} /> },
+              { id: "salud", titulo: "Salud", palabras: "latido latencia versión avisos batería", contenido: <SeccionSalud neurona={n} /> },
+            ]}
+          />
+        </div>
+      </details>
 
       {/* ── Vínculo con esta neurona (VIN1107A): vías y latencia, sincronizaciones, capas compartidas, ajustes.
              Las neuronas de este panel son las de TU cuenta: personales y privadas. ── */}

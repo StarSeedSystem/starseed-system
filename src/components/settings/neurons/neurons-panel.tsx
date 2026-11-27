@@ -38,6 +38,10 @@ import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-cho
 // (VER1107B) «Esta neurona» (versión, medio, sistema, aparato, servidor local y actualizaciones) y la
 // versión que anuncia cada neurona por la presencia, con «Pedir actualización».
 import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
+import { FichaNeurona } from "@/components/neuronas/ficha-neurona/ficha-neurona";
+import { SeccionPermisos } from "@/components/neuronas/ficha-neurona/seccion-permisos";
+import { SeccionPapelRed } from "@/components/neuronas/ficha-neurona/seccion-papel-red";
+import { SeccionSalud } from "@/components/neuronas/ficha-neurona/seccion-salud";
 import { AparatoEnNeurona } from "@/components/settings/neurons/aparato-en-neurona";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
@@ -322,6 +326,25 @@ export function NeuronsPanel() {
                 miNombre={neurons.find((x) => x.isThisDevice)?.name}
                 capacidades={n.capabilities as unknown as Record<string, unknown>}
               />
+
+              {/* Ficha única de la neurona (NEU1126B): identidad, aparatos, permisos, papel en la red y salud. */}
+              <details className="group rounded-xl border border-white/8 bg-white/[0.02]">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold">
+                  Ficha de la neurona
+                  <span className="ml-auto text-[10px] font-normal text-muted-foreground group-open:hidden">ver</span>
+                </summary>
+                <div className="px-2 pb-2">
+                  <FichaNeurona
+                    neurona={n}
+                    alCambiar={() => void refresh()}
+                    extras={[
+                      { id: "permisos", titulo: "Permisos", palabras: "control remoto terminal archivos sincronía aceptar sin preguntar", contenido: <SeccionPermisos neurona={n} alCambiar={() => void refresh()} /> },
+                      { id: "papel", titulo: "Papel en la red", palabras: "relé servidor almacén cómputo horario enchufado wifi", contenido: <SeccionPapelRed neurona={n} alCambiar={() => void refresh()} /> },
+                      { id: "salud", titulo: "Salud", palabras: "latido latencia versión avisos batería", contenido: <SeccionSalud neurona={n} /> },
+                    ]}
+                  />
+                </div>
+              </details>
 
               {/* Permisos (6 switches) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
