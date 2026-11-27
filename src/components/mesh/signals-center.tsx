@@ -69,6 +69,7 @@ import { hablar } from "@/lib/aurora/voz-unica";
 
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
 import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
+import { describirCapacidad, qrATarjeta } from "@/lib/nfc/respaldo";
 import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 import { PanelReticula } from "@/components/malla/panel-reticula";
 import { PanelMapaViasVivo } from "@/components/malla/panel-mapa-vias";
@@ -113,6 +114,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   const [webMeshOn, setWebMeshOn] = useState(false);
   // NFC1126P: lo que llega por una etiqueta NFC se evalúa antes de abrirse.
   const [recibidoNfc, setRecibidoNfc] = useState<{ resultado: ResultadoEscaneo; url?: string } | null>(null);
+  // NFC1126G: sin Web NFC se ofrece el respaldo universal (BLE muy cerca o QR con la misma tarjeta).
+  const [respaldoNfc, setRespaldoNfc] = useState<{ vias: string; qr: string; leida?: string } | null>(null);
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
 
@@ -324,7 +327,11 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           await lector.scan();
           toast("Acerca una etiqueta NFC…");
         }
-        else toast.error("Web NFC no disponible en este dispositivo");
+        else {
+          const cap = describirCapacidad({ nfc: "ninguno", ble: typeof navigator !== "undefined" && "bluetooth" in navigator, pantalla: true });
+          setRespaldoNfc({ vias: [cap.via, ...cap.respaldo].filter(Boolean).join(" → "), qr: "" });
+          toast("Sin NFC en este aparato: usa el respaldo (BLE o QR)");
+        }
       }
       setTimeout(() => void detectSignals(meshRef.current).then(setSignals), 600);
     } catch (e) {
@@ -624,6 +631,23 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       {tab === "redmesh" && <RedMeshCenter embedded showMap={!compact} showPrivacy={false} hideHeader />}
 
       {tab === "router" && <RouterCenter />}
+
+      {respaldoNfc && (
+        <div data-testid="respaldo-nfc" className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+          <p>Vías para acercar sin NFC: {respaldoNfc.vias || "ninguna"}.</p>
+          <input
+            value={respaldoNfc.qr}
+            onChange={(e) => {
+              const r = qrATarjeta(e.target.value);
+              setRespaldoNfc({ ...respaldoNfc, qr: e.target.value, leida: r.ok ? r.tarjeta.neuronaId : e.target.value ? r.motivo : undefined });
+            }}
+            placeholder="Pega aquí el texto del QR (ssn1:…)"
+            className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1"
+          />
+          {respaldoNfc.leida && <p>Tarjeta: {respaldoNfc.leida}</p>}
+          <button type="button" className="cursor-pointer text-white/60 underline" onClick={() => setRespaldoNfc(null)}>Cerrar</button>
+        </div>
+      )}
 
       {recibidoNfc && (
         <VeredictoSeguridad
