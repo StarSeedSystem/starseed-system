@@ -55,7 +55,9 @@ import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
-import ElegirFondoInicial, { CATALOGO_FONDOS, FONDOS_OFICIALES } from "@/components/onboarding/elegir-fondo-inicial";
+import ElegirFondoInicial, { CATALOGO_FONDOS, FONDOS_OFICIALES, type OpcionFondoInicial } from "@/components/onboarding/elegir-fondo-inicial";
+import type { OrigenAnadirFondo } from "@/lib/onboarding/fondo-inicial";
+import { EXTENSION_SET, MAX_SET_BYTES, importarSet } from "@/lib/appearance/sets-fondo";
 import {
   DIAS_APLAZAMIENTO_FONDO, VERSION_CATALOGO_FONDOS, catalogoFondoAlDia, debeMostrarElegirFondo,
 } from "@/lib/onboarding/fondo-inicial";
@@ -124,6 +126,29 @@ import {
 } from "lucide-react";
 
 // ── narraciones de Astraura por paso ─────────────────────────────────────
+/** (FON1126Ab) «Añadir» del paso «Elige tu fondo»: abre el selector de archivos y valida el set
+ * (`.starseed-fondo.json`) con el catálogo instalado. Cancelar o un archivo malo no rompe el rito. */
+async function anadirFondo(origen: OrigenAnadirFondo): Promise<OpcionFondoInicial | null> {
+  if (origen === "libreria") {
+    toast.info("Los fondos de la Librería se instalan desde la Biblioteca; mientras, usa «Desde mis archivos».");
+    return null;
+  }
+  const { cargarCatalogo } = await import("@/lib/appearance/catalogo-shaders");
+  const archivo = await new Promise<File | null>((resolver) => {
+    const entrada = document.createElement("input");
+    entrada.type = "file";
+    entrada.accept = `${EXTENSION_SET},.json,application/json`;
+    entrada.onchange = () => resolver(entrada.files?.[0] ?? null);
+    entrada.oncancel = () => resolver(null);
+    entrada.click();
+  });
+  if (!archivo) return null;
+  if (archivo.size > MAX_SET_BYTES) { toast.error("Ese archivo pesa demasiado para ser un fondo."); return null; }
+  const r = importarSet(await archivo.text(), { catalogo: await cargarCatalogo() });
+  if (!r.ok) { toast.error(`No es un fondo válido: ${r.motivos[0] ?? "formato desconocido"}`); return null; }
+  return { id: r.set.id, nombre: r.set.nombre, set: r.set };
+}
+
 const STEP_NARRATION: Record<number, string> = {
   0: "Hola, soy Astraura. Te doy la bienvenida a StarSeed. Voy a guiarte para dejar tu cuenta lista: solo aceptas y eliges, yo me encargo del resto. Puedo acompañarte por voz o seguimos en texto, como prefieras.",
   1: "Primero tu cuenta: tu nombre oficial y un @handle único en la red. Te propongo opciones y todo se puede editar después.",
@@ -970,6 +995,8 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                       perfilId={handle || "perfil"}
                       onGuardar={guardarFondo}
                       onAplazar={aplazarFondo}
+                      onAnadir={anadirFondo}
+                      onPersonalizar={async (o) => o}
                     />
                     <p className="text-center text-[10px] leading-snug text-white/45">
                       «Ahora no» lo aplaza {DIAS_APLAZAMIENTO_FONDO} días; puedes seguir con la guía sin elegir nada.
