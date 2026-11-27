@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { fetchMyEntities, type OsEntityType } from "@/lib/os-social";
@@ -19,6 +20,11 @@ import {
     tagsForDest,
     type CreationDest,
 } from "@/components/creation/creation-config";
+import {
+    ENTITY_CREATE_ORDER,
+    ENTITY_CREATE_TARGETS,
+    entityCreationOptions,
+} from "@/lib/entity-kinds";
 import { BookOpen, Users2, Search, Check } from "lucide-react";
 
 // ── Entidades propias (destino "propia") ─────────────────────────────────────
@@ -295,5 +301,45 @@ export function TagSelector({ dest, value, onChange, className }: TagSelectorPro
                 )}
             </div>
         </div>
+    );
+}
+
+// ── Fila de creación de entidades ────────────────────────────────────────────
+// Etiquetas, iconos y destinos NO se duplican aquí: se leen del registro
+// canónico `ENTITY_KINDS` + `ENTITY_CREATE_TARGETS` (src/lib/entity-kinds.ts).
+// El orden lo manda `ENTITY_CREATE_ORDER`; `entityCreationOptions()` mezcla el
+// metadato visual con su destino para que la fila no repita ninguno.
+
+export function EntityCreationRow({ area }: { area: string }) {
+    const opciones = entityCreationOptions();
+    const fichas = ENTITY_CREATE_ORDER.flatMap((key) => {
+        const opcion = opciones.find((o) => o.key === key);
+        return opcion && ENTITY_CREATE_TARGETS[key] ? [opcion] : [];
+    });
+    return (
+        <section className="space-y-2.5">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-white/40">
+                Crear entidades
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+                {fichas.map((e) => {
+                    const Icon = e.icon;
+                    const href = e.createEntity
+                        ? `/crear?area=${area}&createEntity=${e.createEntity}`
+                        : (e.href ?? "/hub");
+                    return (
+                        <Link
+                            key={e.key}
+                            href={href}
+                            title={e.hint}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.05] px-3 py-1.5 text-xs font-medium text-emerald-300/90 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all duration-150 cursor-pointer"
+                        >
+                            <Icon className="w-3.5 h-3.5" />
+                            {e.label}
+                        </Link>
+                    );
+                })}
+            </div>
+        </section>
     );
 }
