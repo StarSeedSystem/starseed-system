@@ -2,7 +2,9 @@
  * Sin claves en el repo: usa SPOTIFY_CLIENT_ID (PKCE, sin secreto) y el token
  * del usuario, que llega en `Authorization: Bearer` y nunca se guarda ni se registra.
  *   GET ?accion=autorizar&desafio=…&estado=…&redirect=…  → { url }
- *   GET ?accion=estado        → { premium, aparatos, cola }
+ *   GET ?accion=estado&neurona=…  → { premium, aparatos, cola, fuentes, enlaces }
+ *     `fuentes`: la cola como FuenteAudio de la sala (aportadas por `neurona`);
+ *     sin Premium, `enlaces`: la URL abrible de cada pista
  *   POST { accion: AccionSpotify } → control (solo Premium; si no, 403 con el motivo)
  */
 import { NextResponse } from "next/server";
@@ -10,11 +12,14 @@ import { NextResponse } from "next/server";
 import {
   API_SPOTIFY,
   construirUrlAutorizacion,
+  enlaceDePista,
   esPremium,
+  fuenteDesdePista,
   interpretarCola,
   interpretarDispositivos,
   planControl,
   type AccionSpotify,
+  type PistaSpotify,
   type PeticionSpotify,
 } from "@/lib/sala-sonido/spotify";
 
@@ -48,7 +53,7 @@ export async function GET(req: Request): Promise<Response> {
   }
   const t = token(req);
   if (!t) return NextResponse.json({ error: "Inicia sesión en Spotify." }, { status: 401 });
-  const [perfil, aparatos, cola] = await Promise.all([
+  const [perfil, aparatos, colaRes] = await Promise.all([
     llamar(t, { ruta: "/me" }),
     llamar(t, { ruta: "/me/player/devices" }),
     llamar(t, { ruta: "/me/player/queue" }),
@@ -56,11 +61,16 @@ export async function GET(req: Request): Promise<Response> {
   if (perfil.status === 401) return NextResponse.json({ error: "La sesión de Spotify caducó." }, { status: 401 });
   const p = (await leer(perfil)) as { product?: string } | null;
   const premium = esPremium(p?.product);
+  const neurona = u.searchParams.get("neurona") || "spotify";
+  const cola = interpretarCola(await leer(colaRes));
+  const pistas: PistaSpotify[] = [...(cola.sonando ? [cola.sonando] : []), ...cola.siguientes];
   return NextResponse.json({
     premium,
     ...(premium ? {} : { aviso: "Sin Premium solo se ofrecen enlaces: Spotify no permite controlar la reproducción." }),
     aparatos: interpretarDispositivos(await leer(aparatos)),
-    cola: interpretarCola(await leer(cola)),
+    cola,
+    fuentes: pistas.map((x) => fuenteDesdePista(x, neurona)),
+    ...(premium ? {} : { enlaces: pistas.map((x) => ({ uri: x.uri, url: enlaceDePista(x.uri) })) }),
   });
 }
 
