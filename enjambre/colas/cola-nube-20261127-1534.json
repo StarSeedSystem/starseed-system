@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "id": "NFC1126N",
+   "ola": "nfc-1126",
+   "prioridad": 83,
+   "capacidad": "media",
+   "titulo": "NFC (14): nodos de audio por lugar — audioguías de museos, zonas y nodos informativos con preferencias de reproducción",
+   "archivos": [
+    "src/lib/nfc/nodo-audio.ts",
+    "src/components/nfc/audioguia.tsx",
+    "src/lib/nfc/__tests__/nfc1126n.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/nfc-neuronas.md §12. Un nodo o etiqueta ofrece audio (audioguía, descripción de zona, nodo informativo). Preferencias del visitante: reproducir al acercarse, preguntar o no; idioma (traductor universal si existe); volumen; guardar en la Biblioteca. Funciona sin conexión si el audio está en el nodo o descargado. Configuración del nodo desde la ventana de nodo NFC (NFC1126F). Pruebas.",
+   "dependencias_ya_en_main": [
+    "NFC1126F"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-083744.json": [
+   "NFC1126N"
+  ]
+ }
+}
