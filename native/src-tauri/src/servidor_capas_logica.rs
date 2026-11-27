@@ -80,6 +80,15 @@ pub const MARGEN_DISCO: u64 = 512 * 1024 * 1024;
 /// Avisos de capas malas que se recuerdan (las más viejas se olvidan).
 pub const MAX_MALAS: usize = 20;
 
+/// (BAP1127F) Retirada firmada: el archivo del Release `servidor-local` y su `.sig` de minisign.
+pub const RETIRADAS: &str = "retiradas.json";
+pub const RETIRADAS_SIG: &str = "retiradas.json.sig";
+/// Tope del archivo y de su firma (los dos son diminutos: solo una lista de builds).
+pub const TOPE_RETIRADAS: u64 = 64 * 1024;
+/// Formato y número máximo de builds de `retiradas.json`.
+pub const FORMATO_RETIRADAS: u32 = 1;
+pub const MAX_RETIRADAS: usize = 200;
+
 /// Lo que toda capa debe traer para poder lanzarse (como el paquete del instalador).
 pub const REQUERIDOS: [&str; 6] =
     ["server.js", ".next/BUILD_ID", "starseed-arranque.cjs", "guarda.cjs", "migracion-origen.js", "starseed-servidor.json"];
@@ -769,6 +778,178 @@ pub fn elegir_puntero(global: Option<Canal>, prueba: Option<Canal>) -> Option<(C
     }
 }
 
+// ───────────────────────────── Retirada firmada ─────────────────────────────
+
+/// `retiradas.json`: `{formato:1, creado_ms, builds:[…]}`. El CI lo firma con la clave del updater.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Retiradas {
+    pub formato: u32,
+    pub creado_ms: u64,
+    pub builds: Vec<String>,
+}
+
+/// Lo que cambia al aplicar una retirada: el estado nuevo y las builds que de verdad tocaron algo.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CambiosRetiradas {
+    pub estado: EstadoCapas,
+    pub aplicadas: Vec<String>,
+}
+
+/// Lector mínimo y estricto del JSON del contrato (objeto plano, enteros y una lista de textos).
+struct LectorJson<'a> {
+    s: &'a [u8],
+    i: usize,
+}
+
+impl<'a> LectorJson<'a> {
+    fn new(s: &'a str) -> Self {
+        Self { s: s.as_bytes(), i: 0 }
+    }
+
+    fn espacio(&mut self) {
+        while self.s.get(self.i).is_some_and(u8::is_ascii_whitespace) {
+            self.i += 1;
+        }
+    }
+
+    fn como(&mut self, c: u8) -> bool {
+        self.espacio();
+        if self.s.get(self.i) == Some(&c) {
+            self.i += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn exigir(&mut self, c: u8) -> Result<(), String> {
+        self.como(c).then_some(()).ok_or_else(|| format!("se esperaba «{}»", c as char))
+    }
+
+    fn texto(&mut self) -> Result<String, String> {
+        self.exigir(b'"')?;
+        let ini = self.i;
+        while let Some(&c) = self.s.get(self.i) {
+            match c {
+                b'"' => {
+                    let t = std::str::from_utf8(&self.s[ini..self.i])
+                        .map_err(|_| "texto no válido".to_string())?
+                        .to_string();
+                    self.i += 1;
+                    return Ok(t);
+                }
+                b'\\' => return Err("escape no admitido".into()),
+                _ => self.i += 1,
+            }
+        }
+        Err("texto sin cerrar".into())
+    }
+
+    fn entero(&mut self) -> Result<u64, String> {
+        self.espacio();
+        let ini = self.i;
+        while self.s.get(self.i).is_some_and(u8::is_ascii_digit) {
+            self.i += 1;
+        }
+        if ini == self.i {
+            return Err("se esperaba un número".into());
+        }
+        std::str::from_utf8(&self.s[ini..self.i])
+            .ok()
+            .and_then(|t| t.parse().ok())
+            .ok_or_else(|| "número fuera de rango".into())
+    }
+
+    fn builds(&mut self) -> Result<Vec<String>, String> {
+        self.exigir(b'[')?;
+        let mut v = Vec::new();
+        if self.como(b']') {
+            return Ok(v);
+        }
+        loop {
+            v.push(self.texto()?);
+            if v.len() > MAX_RETIRADAS {
+                return Err(format!("más de {MAX_RETIRADAS} builds retiradas"));
+            }
+            if !self.como(b',') {
+                self.exigir(b']')?;
+                return Ok(v);
+            }
+        }
+    }
+
+    fn fin(&mut self) -> Result<(), String> {
+        self.espacio();
+        if self.i == self.s.len() {
+            Ok(())
+        } else {
+            Err("sobra contenido después del objeto".into())
+        }
+    }
+}
+
+impl Retiradas {
+    /// Parser estricto: solo el objeto del contrato, formato 1, `creado_ms` y builds válidas.
+    pub fn de_json(texto: &str) -> Result<Retiradas, String> {
+        let mut l = LectorJson::new(texto);
+        l.exigir(b'{')?;
+        let (mut formato, mut creado_ms, mut builds) = (None, None, None);
+        if !l.como(b'}') {
+            loop {
+                let clave = l.texto()?;
+                l.exigir(b':')?;
+                match clave.as_str() {
+                    "formato" => {
+                        formato = Some(u32::try_from(l.entero()?).map_err(|_| "formato fuera de rango")?);
+                    }
+                    "creado_ms" => creado_ms = Some(l.entero()?),
+                    "builds" => builds = Some(l.builds()?),
+                    _ => return Err(format!("campo desconocido «{clave}»")),
+                }
+                if !l.como(b',') {
+                    l.exigir(b'}')?;
+                    break;
+                }
+            }
+        }
+        l.fin()?;
+        let formato = formato.ok_or("falta «formato»")?;
+        if formato != FORMATO_RETIRADAS {
+            return Err(format!("formato {formato} de retiradas desconocido"));
+        }
+        let creado_ms = creado_ms.ok_or("falta «creado_ms»")?;
+        let builds = builds.ok_or("falta «builds»")?;
+        if let Some(b) = builds.iter().find(|b| !build_id_seguro(b)) {
+            return Err(format!("build no válida «{b}»"));
+        }
+        Ok(Retiradas { formato, creado_ms, builds })
+    }
+}
+
+/// (BAP1127F) Aplica una retirada firmada: marca malas las builds (tope `MAX_MALAS`), quita la pendiente
+/// retirada y, si la activa lo está, vuelve a la anterior (o al instalador si también está retirada).
+pub fn aplicar_retiradas(e: &EstadoCapas, r: &Retiradas) -> CambiosRetiradas {
+    let mut n = e.clone();
+    let mut aplicadas = Vec::new();
+    for b in &r.builds {
+        let en_uso = n.activa.as_deref() == Some(b) || n.anterior.as_deref() == Some(b) || n.pendiente.as_deref() == Some(b);
+        let nueva = !n.malas.iter().any(|m| m == b);
+        if en_uso {
+            let a_prueba = n.pendiente.as_deref() == Some(b);
+            n = tras_fallo(&n, &Eleccion::Capa { build: b.clone(), a_prueba }, "retirada firmada");
+        } else if nueva {
+            n.malas.push(b.clone());
+            while n.malas.len() > MAX_MALAS {
+                n.malas.remove(0);
+            }
+        }
+        if en_uso || nueva {
+            aplicadas.push(b.clone());
+        }
+    }
+    CambiosRetiradas { estado: n, aplicadas }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
@@ -1242,5 +1423,64 @@ mod anillo_prueba {
         assert_eq!(cada_ms(true), CADA_MS_PRUEBA);
         assert_eq!(cada_ms(false), CADA_MS);
         assert!(CANAL_PRUEBA.ends_with("latest-servidor-prueba.json"));
+    }
+}
+
+#[cfg(test)]
+mod retiradas_firmadas {
+    use super::*;
+
+    fn lista(builds: &[&str]) -> Retiradas {
+        Retiradas { formato: 1, creado_ms: 7, builds: builds.iter().map(|b| b.to_string()).collect() }
+    }
+
+    #[test]
+    fn sin_retiradas_no_cambia_nada() {
+        let e = EstadoCapas { activa: Some("A".into()), anterior: Some("Z".into()), pendiente: Some("P".into()), ..Default::default() };
+        let c = aplicar_retiradas(&e, &lista(&[]));
+        assert_eq!(c.estado, e);
+        assert!(c.aplicadas.is_empty());
+    }
+
+    #[test]
+    fn pendiente_retirada_se_quita_y_queda_mala() {
+        let e = EstadoCapas { activa: Some("A".into()), anterior: Some("Z".into()), pendiente: Some("P".into()), intentos: 2, ..Default::default() };
+        let c = aplicar_retiradas(&e, &lista(&["P"]));
+        assert_eq!((c.estado.pendiente.clone(), c.estado.intentos), (None, 0));
+        assert!(c.estado.malas.contains(&"P".to_string()));
+        assert_eq!((c.estado.activa.as_deref(), c.estado.anterior.as_deref()), (Some("A"), Some("Z")));
+    }
+
+    #[test]
+    fn activa_retirada_vuelve_a_la_anterior() {
+        let e = EstadoCapas { activa: Some("A".into()), anterior: Some("Z".into()), ..Default::default() };
+        let c = aplicar_retiradas(&e, &lista(&["A"]));
+        assert_eq!((c.estado.activa.as_deref(), c.estado.anterior.as_deref()), (Some("Z"), None));
+        assert!(c.estado.malas.contains(&"A".to_string()));
+        assert!(c.estado.aviso.as_deref().unwrap().contains("retirada"));
+    }
+
+    #[test]
+    fn activa_y_anterior_retiradas_van_al_instalador() {
+        let e = EstadoCapas { activa: Some("A".into()), anterior: Some("Z".into()), ..Default::default() };
+        let c = aplicar_retiradas(&e, &lista(&["A", "Z"]));
+        assert_eq!((c.estado.activa, c.estado.anterior), (None, None));
+        assert_eq!(c.estado.malas, vec!["A".to_string(), "Z".to_string()]);
+    }
+
+    #[test]
+    fn parser_estricto() {
+        let ok = "{\n  \"formato\": 1,\n  \"creado_ms\": 1794077943000,\n  \"builds\": [\"B1\", \"B2\"]\n}";
+        let r = Retiradas::de_json(ok).unwrap();
+        assert_eq!((r.formato, r.creado_ms, r.builds), (1, 1794077943000, vec!["B1".to_string(), "B2".to_string()]));
+        assert!(Retiradas::de_json(r#"{"formato":2,"creado_ms":1,"builds":[]}"#).is_err());
+        assert!(Retiradas::de_json(r#"{"formato":1,"creado_ms":1,"builds":["../x"]}"#).is_err());
+        assert!(Retiradas::de_json(r#"{"formato":1,"builds":[]}"#).is_err());
+        assert!(Retiradas::de_json("{").is_err());
+        let muchas = format!(
+            r#"{{"formato":1,"creado_ms":1,"builds":[{}]}}"#,
+            (0..=MAX_RETIRADAS).map(|i| format!("\"B{i}\"")).collect::<Vec<_>>().join(",")
+        );
+        assert!(Retiradas::de_json(&muchas).is_err());
     }
 }

@@ -431,6 +431,36 @@ fn bajar_puntero(url: &str) -> Result<c::Canal, String> {
     canal_de_json(&serde_json::from_slice(&texto_canal).map_err(|e| format!("canal ilegible: {e}"))?)
 }
 
+/// (BAP1127F) Un archivo del MISMO Release que el puntero (global, de prueba o canal local de pruebas).
+fn url_del_release(nombre: &str) -> String {
+    match url_canal().rsplit_once('/') {
+        Some((base, _)) => format!("{base}/{nombre}"),
+        None => nombre.to_string(),
+    }
+}
+
+/// (BAP1127F) Baja, verifica y aplica la retirada firmada. Sin archivo, sin firma buena o con un JSON
+/// que no cumple el contrato no se toca nada: se devuelve el motivo para el registro.
+fn aplicar_retiradas_firmadas(clave: &str) -> Result<Vec<String>, String> {
+    let bytes = bajar_bytes(&url_del_release(c::RETIRADAS), c::TOPE_RETIRADAS)
+        .map_err(|e| format!("sin {} ({e})", c::RETIRADAS))?;
+    let firma = bajar_bytes(&url_del_release(c::RETIRADAS_SIG), c::TOPE_RETIRADAS)
+        .map_err(|e| format!("sin {} ({e})", c::RETIRADAS_SIG))?;
+    let firma = std::str::from_utf8(&firma).map_err(|_| "la firma no es texto".to_string())?;
+    verificar_firma(&bytes, firma, clave, c::RETIRADAS)
+        .map_err(|e| format!("la firma no vale ({e})"))?;
+    let texto = std::str::from_utf8(&bytes).map_err(|_| "retiradas.json no es texto".to_string())?;
+    let r = c::Retiradas::de_json(texto)?;
+    let mut aplicadas = Vec::new();
+    cambiar_estado(|e| {
+        let cambios = c::aplicar_retiradas(e, &r);
+        aplicadas = cambios.aplicadas;
+        cambios.estado
+    })
+    .ok_or_else(|| "sin carpeta de capas".to_string())?;
+    Ok(aplicadas)
+}
+
 // ───────────────────────────── JSON ─────────────────────────────
 
 fn texto(v: &Value, k: &str) -> Option<String> {
@@ -1223,6 +1253,16 @@ fn buscar() -> Result<(), String> {
         None => return Err(global.err().unwrap_or_else(|| "sin puntero".into())),
     };
     registrar(&format!("puntero={anillo} build={}", canal.build_id));
+    let estado = leer_estado(&dir);
+    // (BAP1127F) Antes de decidir: una retirada firmada manda, aunque el puntero siga anunciando esa build.
+    match aplicar_retiradas_firmadas(&clave) {
+        Ok(aplicadas) => {
+            for b in &aplicadas {
+                registrar(&format!("retirada build={b}"));
+            }
+        }
+        Err(motivo) => registrar(&format!("retiradas ignoradas motivo={motivo}")),
+    }
     let estado = leer_estado(&dir);
     let mas_reciente = [estado.activa.as_deref(), estado.pendiente.as_deref()]
         .into_iter()
