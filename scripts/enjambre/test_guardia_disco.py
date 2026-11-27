@@ -55,6 +55,10 @@ class Base(unittest.TestCase):
             "STARSEED_DISCO_ARCHIVO_MAX_MB": "1",
             "STARSEED_DISCO_ARBOL_CRECE_MB": "100",
             "STARSEED_DISCO_SONDEO_S": "0.1",
+            # (DIR1126J) Las pruebas del freno se escribieron con 10/5 GB: se fijan aquí para que
+            # prueben la LÓGICA; los valores por defecto (6/4) tienen su propia prueba.
+            "STARSEED_DISCO_LIBRE_AVISO_GB": "10",
+            "STARSEED_DISCO_LIBRE_CRITICO_GB": "5",
         }
         p = patch.dict(os.environ, env)
         p.start()
@@ -468,3 +472,13 @@ class TestEstadoParaGenesis(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUmbralesPorDefectoDir1126J(unittest.TestCase):
+    def test_por_defecto_6_4_2(self):
+        """DIR1126J: sin variables de entorno, no arrancan tareas con < 6 GB, ni puertas pesadas con < 4."""
+        limpio = {k: v for k, v in os.environ.items() if not k.startswith("STARSEED_DISCO_LIBRE_")}
+        with patch.dict(os.environ, limpio, clear=True):
+            self.assertEqual(GD.LIMITES["STARSEED_DISCO_LIBRE_AVISO_GB"][0], 6)
+            self.assertEqual(GD.LIMITES["STARSEED_DISCO_LIBRE_CRITICO_GB"][0], 4)
+            self.assertEqual(GD.LIMITES["STARSEED_DISCO_LIBRE_PARO_GB"][0], 2)

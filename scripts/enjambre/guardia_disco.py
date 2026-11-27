@@ -48,8 +48,12 @@ LIMITES = {
     "STARSEED_DISCO_ARCHIVO_MAX_MB": (200, "MB", "ningún archivo del worktree puede pasar de esto (vigía y commits)"),
     "STARSEED_DISCO_ARBOL_CRECE_MB": (2048, "MB", "lo que puede crecer el worktree entero durante una tarea"),
     "STARSEED_DISCO_RLIMIT_MB": (4096, "MB", "tope del núcleo (RLIMIT_FSIZE) por archivo para el agente; 0 = sin tope"),
-    "STARSEED_DISCO_LIBRE_AVISO_GB": (10, "GB", "con menos libre no arranca ninguna tarea nueva"),
-    "STARSEED_DISCO_LIBRE_CRITICO_GB": (5, "GB", "con menos libre tampoco arrancan las puertas pesadas (tsc, vitest)"),
+    # (DIR1126J, 26-11) 10 → 6 y 5 → 4. Con 10 GB la Mac (228 GB, swap que sube y baja 2–3 GB)
+    # pasaba la tarde parada con 9,x GB libres sin ningún riesgo real. Desde DIR1126H (un solo
+    # target de Rust para toda la Mac) y DIR1126F (el vigilante archiva y poda los worktrees sin
+    # uso con < 15 GB) ya no hay crecimientos de varios GB por tarea; el paro de 2 GB no cambia.
+    "STARSEED_DISCO_LIBRE_AVISO_GB": (6, "GB", "con menos libre no arranca ninguna tarea nueva"),
+    "STARSEED_DISCO_LIBRE_CRITICO_GB": (4, "GB", "con menos libre tampoco arrancan las puertas pesadas (tsc, vitest)"),
     "STARSEED_DISCO_LIBRE_PARO_GB": (2, "GB", "con menos libre se corta al agente que está escribiendo"),
     "STARSEED_DISCO_HISTERESIS_GB": (0.5, "GB", "margen por encima del umbral para soltar el freno"),
     "STARSEED_DISCO_SONDEO_S": (5, "s", "cada cuánto mira el vigía el worktree"),

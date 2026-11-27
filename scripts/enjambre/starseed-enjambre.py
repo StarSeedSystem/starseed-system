@@ -6927,6 +6927,11 @@ def asegurar_modelo_opencode(modelo):
     # reasignar una tarea a Codex igual que a cualquier otro modelo.
     if es_modelo_codex(modelo):
         return codex_disponible()
+    # (DIR1126J, 26-11) Los escritores `claude/` tampoco pasan por opencode (Claude Code, `claude -p`):
+    # sin esto un «modelo: claude/sonnet» pedido en la cola o desde Genesis no se reconocía y la
+    # tarea seguía con la rotación gratuita.
+    if es_modelo_claude(modelo):
+        return bool(CLAUDE_DISPONIBLE)
     # (2026-09-09) CAUSA RAIZ de «la nube no escribe nada»: npm install -g opencode-ai deja
     # SOLO un opencode.jsonc de 50 bytes y NUNCA un opencode.json. Al no existir el archivo
     # esta funcion salia por el except y jamas escribia el bloque provider; sin el, opencode
