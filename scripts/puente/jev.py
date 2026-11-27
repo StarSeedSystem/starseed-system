@@ -136,6 +136,123 @@ def _recordar_rapido(url, ms, ahora=None):
         _escribir(USO, uso)
 
 
+#: (LAY1127B) Laya local: raíz del servidor para sonda de estado (GET / con plazo ≤1 s).
+LAYA_ESTADO_URL = os.environ.get("STARSEED_LAYA_ESTADO_URL", "http://127.0.0.1:4470/")
+#: Plazo para la sonda de estado de Laya (1 s).
+LAYA_ESTADO_TIEMPO_S = 1.0
+#: Archivo del gobernador de la Mac (RAM, presión).
+GOBERNADOR_RUTA = os.path.expanduser(
+    os.environ.get("STARSEED_GOBERNADOR", "~/.starseed/gobernador.json")
+)
+#: Umbral de RAM libre (MB) para permitir calentamiento de Laya.
+GOBERNADOR_RAM_LIBRE_MB = 1500
+#: Umbral de presión (menor es mejor) para permitir calentamiento.
+GOBERNADOR_PRESION_MAX = 2
+#: Archivo de control de calentamiento de Laya (evita calentar más de una vez cada 10 min).
+LAYA_CALENTAR_RUTA = os.path.expanduser(
+    os.environ.get("STARSEED_LAYA_CALENTAR", "~/.starseed/laya-calentar.json")
+)
+#: TTL del calentamiento (10 min = 600 s).
+LAYA_CALENTAR_TTL_S = 600
+
+
+def _transporte_get(url, timeout):
+    """GET real a una URL; (codigo, texto). Levanta en error de red o HTTP."""
+    req = urllib.request.Request(url, headers={"User-Agent": "starseed-jev/1.0"}, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status, resp.read().decode("utf-8")
+
+
+def estado_laya(url=None, transporte=None, ahora=None):
+    """Consulta el estado de Laya (GET a la raíz con plazo ≤1 s).
+
+    Devuelve {'cargado': bool} si la sonda responde 200 con JSON válido,
+    None si hay timeout, error de red, código != 200 o JSON inválido.
+    `transporte` permite inyectar un falso en pruebas: (url, timeout) -> (codigo, texto).
+    """
+    url = url or LAYA_ESTADO_URL
+    transporte = transporte or _transporte_get
+    try:
+        codigo, texto = transporte(url, LAYA_ESTADO_TIEMPO_S)
+    except Exception:
+        return None
+    if codigo != 200:
+        return None
+    try:
+        data = json.loads(texto)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    cargado = bool(data.get("cargado"))
+    return {"cargado": cargado}
+
+
+def _leer_gobernador():
+    """Lee el archivo del gobernador; dict o {} si no existe/inválido."""
+    return _leer(GOBERNADOR_RUTA, {})
+
+
+def _gobernador_permite_calentar(ahora=None):
+    """True si el gobernador reporta RAM libre ≥1500 MB y presión <2."""
+    g = _leer_gobernador()
+    ram = int(g.get("ram_libre_mb") or 0)
+    presion = float(g.get("presion") or 99)
+    return ram >= GOBERNADOR_RAM_LIBRE_MB and presion < GOBERNADOR_PRESION_MAX
+
+
+def _ultimo_calentamiento(ahora=None):
+    """Timestamp del último calentamiento, o 0 si nunca/ expirado (>10 min)."""
+    data = _leer(LAYA_CALENTAR_RUTA, {})
+    hasta = float(data.get("hasta") or 0)
+    if hasta > (ahora or time.time()):
+        return data.get("ts", 0)
+    return 0
+
+
+def _registrar_calentamiento(ahora=None):
+    """Marca un calentamiento ahora (válido 10 min)."""
+    ahora = ahora or time.time()
+    _escribir(LAYA_CALENTAR_RUTA, {"ts": ahora, "hasta": ahora + LAYA_CALENTAR_TTL_S})
+
+
+def maybe_calentar_laya(transporte=None, ahora=None):
+    """Si Laya está fría y el gobernador permite, lanza calentamiento en fondo (no bloquea).
+
+    - Llama a `estado_laya` para saber si está cargada.
+    - Si ya está cargada: no hace nada.
+    - Si no está cargada y el gobernador permite (RAM ≥1500, presión <2) y no se
+      calentó en los últimos 10 min: dispara UNA petición POST mínima a /v1/systemone
+      SIN esperar la respuesta (fire-and-forget en hilo daemon).
+    - Si no hay gobernador o no permite: no hace nada.
+    Devuelve True si lanzó calentamiento, False en caso contrario.
+    """
+    ahora = ahora or time.time()
+    # ¿Ya está cargada?
+    est = estado_laya(transporte=transporte, ahora=ahora)
+    if est and est.get("cargado"):
+        return False
+    # ¿Permite el gobernador?
+    if not _gobernador_permite_calentar(ahora):
+        return False
+    # ¿Throttle 10 min?
+    if _ultimo_calentamiento(ahora):
+        return False
+    # Lanza en hilo daemon (fire-and-forget)
+    def _calentar():
+        try:
+            tp = transporte or _transporte_local
+            endpoint = os.environ.get("STARSEED_LAYA_URL", LAYA_URL)
+            cuerpo = json.dumps({"state": {}, "questions": {}}, ensure_ascii=False).encode("utf-8")
+            tp(endpoint, cuerpo, 2.0)
+        except Exception:
+            pass
+    hilo = threading.Thread(target=_calentar, daemon=True)
+    hilo.start()
+    _registrar_calentamiento(ahora)
+    return True
+
+
 def clave():
     """La clave de OpenRouter, del entorno o de los archivos de claves. Nunca se imprime."""
     v = os.environ.get("OPENROUTER_API_KEY")
@@ -852,11 +969,19 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
             local_disponible = False  # el local estaba disponible pero no respondió
     # Capa local Laya (SystemOne) antes del Jev remoto
     if respuestas is None and intenta_laya:
-        resp_laya = decidir_con_laya(estado, preguntas)
-        if resp_laya is not None:
-            respuestas = resp_laya
-            medio_usado = "laya-local"
-            modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
+        # (LAY1127B) Primero sonda el estado de Laya (GET / con plazo ≤1 s)
+        est = estado_laya(ahora=time.time())
+        if est and est.get("cargado"):
+            # Laya está cargada: la probamos PRIMERO (antes que explabs)
+            resp_laya = decidir_con_laya(estado, preguntas)
+            if resp_laya is not None:
+                respuestas = resp_laya
+                medio_usado = "laya"
+                modelo_usado = resp_laya.get("motor") if isinstance(resp_laya, dict) else None
+        else:
+            # Laya no está cargada: si hay RAM, calienta en fondo (no bloquea)
+            maybe_calentar_laya(ahora=time.time())
+            # Esta llamada sigue por el medio habitual (explabs, etc.)
     # Gratis en la nube antes que de pago: Jev/Clef Flash de Experiential Labs.
     if respuestas is None and intenta_explabs:
         resp_exp, _modelo = _intenta_explabs(estado, preguntas, quien=quien)
