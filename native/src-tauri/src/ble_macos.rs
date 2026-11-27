@@ -110,7 +110,8 @@ struct Mac {
     psm_publicado: Option<u16>,
     /// (BLE1109B) Conexiones seguidas que no llegaron a «listo» por dirección (3 → se olvida el `CBPeripheral` y se
     /// redescubre por su anuncio: Android rota su dirección y el objeto guardado deja de conectar).
-    fallos_conexion: HashMap<String, u32>,
+    /// (BLE1124A) Guarda también cuándo fue el último intento, para respetar el descanso (2 s, 5 s y 15 s).
+    intentos_conexion: HashMap<String, (u64, u32)>,
 }
 
 /// Los objetos de CoreBluetooth no son `Send`: solo se tocan en la cola `app.starseed.ble` (por
@@ -374,7 +375,7 @@ fn al_cambiar_estado() {
         let viejos: Vec<Retained<CBPeripheral>> = con_mac(|m| {
             let v = m.perifericos.drain().map(|(_, x)| x.p).collect();
             m.vistos.clear();
-            m.fallos_conexion.clear();
+            m.intentos_conexion.clear();
             v
         })
         .unwrap_or_default();
@@ -508,17 +509,36 @@ fn al_ver(p: &CBPeripheral, anuncio: &NSDictionary<NSString, AnyObject>, rssi: &
 const PLAZO_CONEXION_MS: u64 = 15_000;
 /// (BLE1109B) Conexiones seguidas sin llegar a «listo» tras las que se olvida el `CBPeripheral` guardado y se redescubre.
 const FALLOS_PARA_REDESCUBRIR: u32 = 3;
+/// (BLE1124A) Una dirección solo se intenta si su anuncio se oyó hace menos que esto: Android rota su dirección
+/// privada y, contra una caducada, el controlador aborta (`le-connection-abort-by-local`) sin llegar a ligar.
+const VIGENCIA_DIRECCION_MS: u64 = 5_000;
+
+/// (BLE1124A) ¿La dirección se oyó hace poco? Puro.
+fn direccion_vigente(visto_ms: u64, ahora: u64) -> bool {
+    ahora.saturating_sub(visto_ms) <= VIGENCIA_DIRECCION_MS
+}
+
+/// (BLE1124A) ¿Toca reintentar esa dirección? Respeta el descanso escalonado del núcleo (2 s, 5 s y 15 s tras
+/// cada fallo seguido) y no insiste mientras no se cumpla. Puro.
+fn toca_intentar(ultimo: Option<(u64, u32)>, ahora: u64) -> bool {
+    match ultimo {
+        None => true,
+        Some((t, fallos)) => ahora.saturating_sub(t) >= bt::espera_reconexion(fallos),
+    }
+}
 
 /// (BLE1109B) Una conexión a esta dirección no llegó a «listo» (caducó, falló o se cayó antes). A la tercera seguida se
 /// olvida el `CBPeripheral` y se reinicia el escaneo: el siguiente anuncio crea uno nuevo (Android rota su dirección y,
 /// con el objeto viejo, macOS repetía «Device disconnected without being ready» sin fin: reason 762).
 fn contar_fallo_conexion(id: &str) {
+    let ahora = ahora_ms();
     let (fallos, central) = match con_mac(|m| {
-        let n = m.fallos_conexion.entry(id.to_string()).or_insert(0);
-        *n += 1;
-        let n = *n;
+        let e = m.intentos_conexion.entry(id.to_string()).or_insert((ahora, 0));
+        e.0 = ahora;
+        e.1 = e.1.saturating_add(1);
+        let n = e.1;
         if n >= FALLOS_PARA_REDESCUBRIR {
-            m.fallos_conexion.remove(id);
+            m.intentos_conexion.remove(id);
             m.vistos.remove(id);
             (n, Some(m.central.clone()))
         } else {
@@ -563,8 +583,23 @@ fn conectar(direccion: &str) {
         if m.parado || m.perifericos.contains_key(direccion) {
             return None;
         }
-        let (p, _) = m.vistos.get(direccion)?;
-        let p = p.clone();
+        let (p, visto_ms) = {
+            let (p, t) = m.vistos.get(direccion)?;
+            (p.clone(), *t)
+        };
+        // (BLE1124A) No insistir contra una dirección caducada: el anuncio que la trajo ya no sirve para conectar.
+        // Se olvida (el siguiente anuncio, con la dirección nueva de Android, la vuelve a traer).
+        if !direccion_vigente(visto_ms, ahora) {
+            m.vistos.remove(direccion);
+            return None;
+        }
+        // (BLE1124A) Descanso tras fallos: ni la misma dirección antes de su espera (2 s, 5 s, 15 s).
+        let ultimo = m.intentos_conexion.get(direccion).copied();
+        if !toca_intentar(ultimo, ahora) {
+            return None;
+        }
+        let fallos = ultimo.map(|(_, f)| f).unwrap_or(0);
+        m.intentos_conexion.insert(direccion.to_string(), (ahora, fallos));
         m.perifericos.insert(
             direccion.to_string(),
             PerifericoMac { p: p.clone(), entrada: None, listo: false, salida: None, bloqueado_desde: None, tardes: 0, reintentos_suscripcion: 0, psm: None, desde_ms: ahora },
@@ -696,7 +731,7 @@ fn al_suscribirse(p: &CBPeripheral, c: &CBCharacteristic, error: Option<&NSError
     }
     nucleo::nota(Some(&format!("c:{id}")), "suscrito", &format!("notificaciones de SALIDA activas, paquete {paquete}"));
     nucleo::al_conectar(&format!("c:{id}"), "central", Some(&id), paquete.clamp(bt::PAQUETE_MIN, bt::PAQUETE_MAX));
-    con_mac(|m| m.fallos_conexion.remove(&id)); // (BLE1109B) esta dirección sí conectó
+    con_mac(|m| m.intentos_conexion.remove(&id)); // (BLE1109B) esta dirección sí conectó
     // (BLE1109B) El PSM del canal rápido NO se lee aquí: el núcleo lo pide (`leer_psm`) cuando el enlace queda ligado por GATT.
     // Así ninguna lectura extra compite con el saludo firmado.
     bombear_central(&id);
@@ -887,7 +922,7 @@ fn arrancar_en_cola() {
         pendiente: None,
         turno: 0,
         psm_publicado: None,
-        fallos_conexion: HashMap::new(),
+        intentos_conexion: HashMap::new(),
     });
     // Los dos gestores avisan de su estado en esta misma cola (`…DidUpdateState:`).
 }
@@ -1187,4 +1222,28 @@ fn bucle_canal(plataforma: &str, canal: &CBL2CAPChannel, parar: &AtomicBool) -> 
     entra.close();
     sale.close();
     motivo
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::{direccion_vigente, toca_intentar, VIGENCIA_DIRECCION_MS};
+
+    #[test]
+    fn una_direccion_caducada_no_se_intenta() {
+        assert!(direccion_vigente(1_000, 1_000), "recién oída");
+        assert!(direccion_vigente(1_000, 1_000 + VIGENCIA_DIRECCION_MS), "justo en el límite");
+        assert!(!direccion_vigente(1_000, 1_000 + VIGENCIA_DIRECCION_MS + 1), "caducada: no se insiste");
+    }
+
+    #[test]
+    fn el_descanso_tras_fallos_se_respeta() {
+        assert!(toca_intentar(None, 0), "sin intentos, ya");
+        assert!(!toca_intentar(Some((10_000, 1)), 11_999), "tras 1 fallo, 2 s");
+        assert!(toca_intentar(Some((10_000, 1)), 12_000));
+        assert!(!toca_intentar(Some((10_000, 2)), 14_999), "tras 2 fallos, 5 s");
+        assert!(toca_intentar(Some((10_000, 2)), 15_000));
+        assert!(!toca_intentar(Some((10_000, 3)), 24_999), "tras 3 fallos, 15 s");
+        assert!(toca_intentar(Some((10_000, 3)), 25_000));
+        assert!(toca_intentar(Some((10_000, 9)), 25_000), "después, 15 s fijos");
+    }
 }
