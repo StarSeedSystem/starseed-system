@@ -182,7 +182,7 @@ export function verificarReciprocidad(
 ): boolean {
   const totalOfrecido = ofertasPropias
     .filter((o) => o.nodoId === nodo.id)
-    .reduce((sum, o) => sum + o.bytesOfrecidos, 0n);
+.reduce((sum, o) => sum + o.bytesOfrecidos, BigInt(0));
 
   return totalOfrecido >= bytesConsumidos;
 }
@@ -196,9 +196,9 @@ export function calcularCuota(
   demandaTotal: bigint,
   opciones: { maxPorNodo?: bigint } = {}
 ): Map<string, bigint> {
-  const totalOfrecido = ofertas.reduce((sum, o) => sum + o.bytesOfrecidos, 0n);
-  if (totalOfrecido === 0n || demandaTotal === 0n) {
-    return new Map(ofertas.map((o) => [o.nodoId, 0n]));
+  const totalOfrecido = ofertas.reduce((sum, o) => sum + o.bytesOfrecidos, BigInt(0));
+  if (totalOfrecido === BigInt(0) || demandaTotal === BigInt(0)) {
+    return new Map(ofertas.map((o) => [o.nodoId, BigInt(0)]));
   }
 
   const cuotas = new Map<string, bigint>();
@@ -207,25 +207,25 @@ export function calcularCuota(
   // Primera pasada: calcular cuotas proporcionales
   for (const oferta of ofertas) {
     const proporcion = Number(oferta.bytesOfrecidos) / Number(totalOfrecido);
-    let cuota = (demandaTotal * BigInt(Math.floor(proporcion * 10000))) / 10000n;
+    let cuota = (demandaTotal * BigInt(Math.floor(proporcion * 10000))) / BigInt(10000);
     if (cuota > maxPorNodo) cuota = maxPorNodo;
     cuotas.set(oferta.nodoId, cuota);
   }
 
   // Ajustar para que sume exactamente demandaTotal (redistribuir sobrante)
-  let suma = Array.from(cuotas.values()).reduce((a, b) => a + b, 0n);
+  let suma = Array.from(cuotas.values()).reduce((a, b) => a + b, BigInt(0));
   let diferencia = demandaTotal - suma;
 
   // Redistribuir diferencia respetando maxPorNodo
-  while (diferencia !== 0n) {
+  while (diferencia !== BigInt(0)) {
     let redistribuido = false;
     for (const oferta of ofertas) {
-      if (diferencia === 0n) break;
+      if (diferencia === BigInt(0)) break;
       const actual = cuotas.get(oferta.nodoId)!;
       if (actual < maxPorNodo) {
         const puedeTomar = maxPorNodo - actual;
-        const tomar = diferencia > 0n ? (puedeTomar < diferencia ? puedeTomar : diferencia) : -((-diferencia) < puedeTomar ? -diferencia : puedeTomar);
-        if (tomar !== 0n) {
+        const tomar = diferencia > BigInt(0) ? (puedeTomar < diferencia ? puedeTomar : diferencia) : -((-diferencia) < puedeTomar ? -diferencia : puedeTomar);
+        if (tomar !== BigInt(0)) {
           cuotas.set(oferta.nodoId, actual + tomar);
           diferencia -= tomar;
           redistribuido = true;

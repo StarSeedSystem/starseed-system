@@ -5,7 +5,7 @@
  * La llave NUNCA va en el fragmento. Los nodos guardan fragmentos opacos.
  */
 
-export type ClaveCifrado = Uint8Array; // 32 bytes para AES-256
+export type ClaveCifrado = Uint8Array<ArrayBuffer>; // 32 bytes para AES-256
 
 export interface FragmentoMetadata {
   /** Índice del fragmento (0 a n-1). */
@@ -53,7 +53,7 @@ function hashRapido(datos: Uint8Array): string {
  * Importa una clave raw como CryptoKey para AES-GCM.
  */
 async function importarClave(clave: ClaveCifrado): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", clave, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", clave as BufferSource, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]) as Promise<CryptoKey>;
 }
 
 /**
@@ -73,7 +73,7 @@ export async function cifrarDatos(
   const cifradoConTag = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     cryptoKey,
-    datos
+    datos as BufferSource
   );
 
   // WebCrypto devuelve ciphertext || authTag concatenados
@@ -107,9 +107,9 @@ export async function descifrarDatos(
 
   try {
     const descifrado = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
+      { name: "AES-GCM", iv: iv as BufferSource },
       cryptoKey,
-      cifradoConTag
+      cifradoConTag as BufferSource
     );
     return new Uint8Array(descifrado);
   } catch {
@@ -250,7 +250,7 @@ export async function derivarClave(passphrase: string, salt: Uint8Array, iteraci
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(passphrase),
+    encoder.encode(passphrase) as BufferSource,
     "PBKDF2",
     false,
     ["deriveBits"]
@@ -259,7 +259,7 @@ export async function derivarClave(passphrase: string, salt: Uint8Array, iteraci
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt as BufferSource,
       iterations: iteraciones,
       hash: "SHA-256",
     },
