@@ -48,6 +48,11 @@ const COMANDOS_APP: &[&str] = &[
     // Solo escritorio, con «acceso al equipo» y nivel concedido (usuario/administrador vía ayudante TRM1125C).
     "terminal_ejecutar",
     "terminal_cancelar",
+    // (TRM1125C) Ayudante privilegiado macOS: registro SMAppService y órdenes tipadas (solo macOS).
+    "ayudante_registrar",
+    "ayudante_desregistrar",
+    "ayudante_estado",
+    "ayudante_ejecutar",
     "check_update",
     "reiniciar_para_actualizar",
     "estado_actualizacion",

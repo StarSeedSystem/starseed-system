@@ -195,6 +195,11 @@ mod acceso_equipo_logica; // SEG1111U
 mod terminal_remota; // TRM1125B
 #[cfg(any(desktop, test))]
 mod terminal_remota_logica; // TRM1125B
+// (TRM1125C) Ayudante privilegiado macOS: registro SMAppService y órdenes tipadas.
+#[cfg(target_os = "macos")]
+mod ayudante_macos; // TRM1125C
+#[cfg(any(target_os = "macos", test))]
+mod ayudante_macos_logica; // TRM1125C
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
 mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
@@ -1057,6 +1062,14 @@ pub fn run() {
         run_terminal, // SEG1111U (solo escritorio y con «acceso al equipo»)
         terminal_remota::terminal_ejecutar, // TRM1125B (terminal remota con salida en vivo)
         terminal_remota::terminal_cancelar, // TRM1125B (cancelar orden en curso)
+        #[cfg(target_os = "macos")]
+        ayudante_macos::ayudante_registrar, // TRM1125C (registrar ayudante SMAppService)
+        #[cfg(target_os = "macos")]
+        ayudante_macos::ayudante_desregistrar, // TRM1125C (desregistrar ayudante)
+        #[cfg(target_os = "macos")]
+        ayudante_macos::ayudante_estado, // TRM1125C (estado del ayudante)
+        #[cfg(target_os = "macos")]
+        ayudante_macos::ayudante_ejecutar, // TRM1125C (ejecutar orden tipada)
         acceso_equipo::acceso_equipo_estado, // SEG1111U
         acceso_equipo::acceso_equipo_pedir, // SEG1111U
         acceso_equipo::acceso_equipo_revocar, // SEG1111U
