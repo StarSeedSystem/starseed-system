@@ -7710,3 +7710,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 18:40 · mg-oracle-1127-1209
+
+**Lo que se pidió.** IA 1.58 bit
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (BAP1127O, NFC1126Q, BAP1127N, NFC1126Ds). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `BAP1127O` — no escribió nada
+- `NFC1126Q` — no escribió nada
+- `BAP1127N` — no escribió nada
+- `NFC1126Ds` — no escribió nada
