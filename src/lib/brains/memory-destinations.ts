@@ -55,6 +55,19 @@ import {
   cerebrosEnManifiesto,
   leerManifiestoDesdeObjeto,
 } from "@/lib/almacenes";
+// Mapa de ubicaciones (parte 1 de ALC1125C): primitivas puras de copias, estado en
+// línea, regla de dos copias y resumen. Aquí se componen a nivel de UN cerebro.
+import {
+  esFundamental,
+  obtenerResumenCerebro,
+  validarReglaDosCopias,
+  type CopiaUbicacion,
+  type MapaUbicacionesCerebro,
+  type UbicacionCarpeta,
+  type EstadoCarpeta,
+  type ResumenUbicacionesCerebro,
+  type ResultadoValidacionDosCopias,
+} from "@/lib/almacenes";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -117,6 +130,8 @@ export interface AlmacenMemoryDestination {
   numeroSerie?: string;
   /** Modalidad del almacén (cerebro-completo, parte, replica, respaldo-vivo, neurona-nodo, secundario). */
   modalidad?: ModalidadAlmacen;
+  /** Tipo de medio (extraíble, disco interno, red, nube, neurona, nodo) para el mapa de ubicaciones. */
+  tipo?: TipoAlmacen;
   /** Cerebros completos que viven en este almacén. */
   cerebros?: string[];
   /** Partes (carpetas → cerebroId) que viven en este almacén. */
@@ -210,6 +225,10 @@ function normalizeAlmacen(raw: unknown): AlmacenMemoryDestination {
     idVolumen: typeof r.idVolumen === "string" && r.idVolumen ? r.idVolumen : undefined,
     numeroSerie: typeof r.numeroSerie === "string" && r.numeroSerie ? r.numeroSerie : undefined,
     modalidad: r.modalidad,
+    tipo:
+      typeof r.tipo === "string" && (Object.values(TipoAlmacen) as string[]).includes(r.tipo)
+        ? (r.tipo as TipoAlmacen)
+        : undefined,
     cerebros: Array.isArray(r.cerebros) ? r.cerebros.filter((c): c is string => typeof c === "string") : undefined,
     partes: r.partes && typeof r.partes === "object" ? (r.partes as Record<string, string>) : undefined,
     cifrado: r.cifrado === true,
@@ -372,6 +391,197 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
   } catch {
     return null;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mapa de ubicaciones del cerebro (ALC1125C · parte 2)                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Almacén físico detectado por la neurona junto a su manifiesto portable.
+ * El manifiesto dice QUÉ cerebros y partes guarda ese medio aunque ahora mismo
+ * esté desconectado: por eso una parte fuera de línea se muestra fuera de línea
+ * y no desaparece del mapa.
+ */
+export interface AlmacenDetectado {
+  almacen: Almacen;
+  manifiesto?: ManifiestoAlmacen;
+}
+
+/** Entrada para construir el mapa de ubicaciones de UN cerebro. */
+export interface MapaUbicacionesCerebroParams {
+  brainId: string;
+  /** Carpetas o memorias que deben aparecer aunque no tengan ninguna copia. */
+  rutas?: string[];
+  /** Almacenes físicos detectados por la neurona, con su manifiesto si lo hay. */
+  almacenes?: AlmacenDetectado[];
+  /** Destinos configurados; su `almacen` declara partes aunque el medio esté apagado. */
+  destinos?: MemoryDestinationsConfig;
+}
+
+function copiaFisica(
+  almacen: Almacen,
+  almacenId: string,
+  ruta: string,
+  modalidad: ModalidadAlmacen,
+  fundamental: boolean,
+): CopiaUbicacion {
+  return {
+    almacenId,
+    almacenTipo: almacen.tipo,
+    almacenNombre: almacen.nombre,
+    modalidad,
+    enLinea: almacen.medidas.enLinea,
+    rutaEnAlmacen: ruta,
+    esFundamental: fundamental,
+  };
+}
+
+/** Quita copias repetidas de la misma carpeta en el mismo almacén. */
+function dedupCopias(copias: CopiaUbicacion[]): CopiaUbicacion[] {
+  const vistas = new Set<string>();
+  const out: CopiaUbicacion[] = [];
+  for (const c of copias) {
+    const clave = `${c.almacenId}|${c.rutaEnAlmacen}`;
+    if (vistas.has(clave)) continue;
+    vistas.add(clave);
+    out.push(c);
+  }
+  return out;
+}
+
+/**
+ * Construye el mapa de ubicaciones de UN cerebro con lo que declaran los
+ * manifiestos de los almacenes detectados y su propio destino «almacen».
+ * PURA: no toca disco ni red. Toda parte declarada aparece siempre; si el medio
+ * no está en línea su copia sale con `enLinea:false` en vez de desaparecer.
+ */
+export function construirMapaUbicacionesCerebro(
+  params: MapaUbicacionesCerebroParams,
+): MapaUbicacionesCerebro {
+  const brainId = params.brainId;
+  const porRuta = new Map<string, CopiaUbicacion[]>();
+  const asegurar = (ruta: string): CopiaUbicacion[] => {
+    const existentes = porRuta.get(ruta);
+    if (existentes) return existentes;
+    const nuevas: CopiaUbicacion[] = [];
+    porRuta.set(ruta, nuevas);
+    return nuevas;
+  };
+
+  for (const ruta of params.rutas ?? []) asegurar(ruta);
+
+  for (const { almacen, manifiesto } of params.almacenes ?? []) {
+    if (!manifiesto) continue;
+    const lectura = leerManifiestoDesdeObjeto(manifiesto);
+    if (!lectura.ok || !lectura.manifiesto) continue;
+    if (!cerebrosEnManifiesto(lectura.manifiesto).includes(brainId)) continue;
+    const almacenId = lectura.manifiesto.idVolumen || almacen.idVolumen;
+    if (lectura.manifiesto.cerebros.includes(brainId)) {
+      asegurar("/").push(copiaFisica(almacen, almacenId, "/", "cerebro-completo", true));
+    }
+    for (const [ruta, cerebroId] of Object.entries(lectura.manifiesto.partes)) {
+      if (cerebroId !== brainId) continue;
+      const modalidad = almacen.carpetas?.[ruta] ?? "parte";
+      asegurar(ruta).push(copiaFisica(almacen, almacenId, ruta, modalidad, esFundamental(modalidad)));
+    }
+  }
+
+  const declarado = params.destinos?.almacen;
+  if (declarado?.enabled) {
+    const detectado = (params.almacenes ?? []).find((a) => a.almacen.idVolumen === declarado.idVolumen);
+    const almacenId = declarado.idVolumen || declarado.backendId || "almacen-declarado";
+    const tipo = detectado?.almacen.tipo ?? declarado.tipo ?? TipoAlmacen.EXTRAIBLE;
+    const nombre = declarado.label || detectado?.almacen.nombre || "Almacén del cerebro";
+    const enLinea = detectado ? detectado.almacen.medidas.enLinea : false;
+    const añadir = (ruta: string, modalidad: ModalidadAlmacen) => {
+      asegurar(ruta).push({
+        almacenId,
+        almacenTipo: tipo,
+        almacenNombre: nombre,
+        modalidad,
+        enLinea,
+        rutaEnAlmacen: ruta,
+        esFundamental: esFundamental(modalidad),
+      });
+    };
+    if (declarado.cerebros?.includes(brainId)) añadir("/", "cerebro-completo");
+    for (const [ruta, cerebroId] of Object.entries(declarado.partes ?? {})) {
+      if (cerebroId !== brainId) continue;
+      añadir(ruta, declarado.modalidad === "cerebro-completo" || !declarado.modalidad ? "parte" : declarado.modalidad);
+    }
+  }
+
+  const carpetas: Record<string, UbicacionCarpeta> = {};
+  for (const [ruta, copias] of porRuta) {
+    carpetas[ruta] = { ruta, cerebroId: brainId, copias: dedupCopias(copias) };
+  }
+  return {
+    [brainId]: { cerebroId: brainId, carpetas, fechaActualizacion: new Date().toISOString() },
+  };
+}
+
+/** Estado de una carpeta o memoria dentro del mapa de ubicaciones. */
+export interface InformeUbicacionCarpeta {
+  ruta: string;
+  estado: EstadoCarpeta;
+  fundamental: boolean;
+  totalCopias: number;
+  copiasEnLinea: number;
+  almacenes: string[];
+}
+
+/** Informe del mapa de ubicaciones de un cerebro, listo para la UI. */
+export interface InformeUbicacionesCerebro {
+  cerebroId: string;
+  carpetas: InformeUbicacionCarpeta[];
+  resumen: ResumenUbicacionesCerebro;
+  reglaDosCopias: ResultadoValidacionDosCopias;
+  avisos: string[];
+}
+
+/**
+ * Resume el mapa de ubicaciones de un cerebro: dónde vive cada carpeta, cuántas
+ * copias hay, cuántas en línea y los avisos (dos copias en medios distintos;
+ * extraíble como única copia; parte fuera de línea que no desaparece). PURA.
+ */
+export function informeUbicacionesCerebro(
+  mapa: MapaUbicacionesCerebro,
+  cerebroId: string,
+): InformeUbicacionesCerebro {
+  const cerebro = mapa[cerebroId];
+  const submapa: MapaUbicacionesCerebro = cerebro ? { [cerebroId]: cerebro } : {};
+  const resumen = obtenerResumenCerebro(submapa, cerebroId);
+  const reglaDosCopias = validarReglaDosCopias(submapa);
+  const carpetas: InformeUbicacionCarpeta[] = [];
+  const avisos: string[] = [];
+
+  for (const [ruta, carpeta] of Object.entries(cerebro?.carpetas ?? {})) {
+    const totalCopias = carpeta.copias.length;
+    const copiasEnLinea = carpeta.copias.filter((c) => c.enLinea).length;
+    const fundamental = carpeta.copias.some((c) => c.esFundamental);
+    const estado: EstadoCarpeta =
+      totalCopias === 0 ? "sin_copias" : copiasEnLinea > 0 ? "en_linea" : "fuera_de_linea";
+    carpetas.push({
+      ruta,
+      estado,
+      fundamental,
+      totalCopias,
+      copiasEnLinea,
+      almacenes: carpeta.copias.map((c) => c.almacenNombre),
+    });
+    if (estado === "fuera_de_linea") {
+      avisos.push(
+        `«${ruta}» está fuera de línea en todos sus medios; se muestra fuera de línea y no desaparece.`,
+      );
+    } else if (estado === "sin_copias") {
+      avisos.push(`«${ruta}» no tiene ninguna copia registrada en los almacenes.`);
+    }
+  }
+
+  for (const inc of reglaDosCopias.incumplimientos) avisos.push(inc.mensaje);
+
+  return { cerebroId, carpetas, resumen, reglaDosCopias, avisos };
 }
 
 /* ------------------------------------------------------------------ */
