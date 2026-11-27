@@ -5,13 +5,20 @@ import json
 import time
 from unittest.mock import MagicMock, patch
 
-# Mock del entorno para pruebas
-STARSEED_ROOT = "/home/runner/work/_temp/starseed-wt/CAP1127C"
-os.environ["STARSEED_ROOT"] = STARSEED_ROOT
 
 # Importamos la función objetivo
 # Asumiendo que vamos a editar scripts/puente/buscar_capacidad.py para añadir auto_lanzar
 from scripts.puente.buscar_capacidad import auto_lanzar
+
+
+# (DIR1127G, 27-11) Antes fijaba STARSEED_ROOT a una ruta de la nube para TODO el proceso de pruebas (rompía
+# reconstruir_mando y buscar_capacidad en la autopublicación) y escribía en el ~/.starseed REAL: dejó
+# agentes-potentes.json en {"auto": true}. Ahora cada prueba usa un HOME temporal.
+@pytest.fixture(autouse=True)
+def _casa_temporal(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    os.makedirs(tmp_path / ".starseed" / "produccion", exist_ok=True)
+    yield
 
 def test_auto_lanzar_disabled():
     # Interruptor apagado
