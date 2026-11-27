@@ -6,7 +6,7 @@ import {
   type Relacion, type UbicacionEncuentro,
 } from "@/lib/nfc/preferencias";
 import {
-  describirCapacidad, viasDisponibles,
+  describirCapacidad, viasDisponibles, type EntornoNfc,
 } from "@/lib/nfc/respaldo";
 
 const h = (c: string, n: number) => c.repeat(n);
@@ -178,7 +178,7 @@ it("sanear filtra acciones sensibles para cuentas ajenas - automaticas", () => {
 
 describe("respaldo - pruebas puras", () => {
   it("describirCapacidad devuelve via y nfc", () => {
-    const conTodo = { nfc: "lector", ble: true, pantalla: true };
+    const conTodo: EntornoNfc = { nfc: "lector", ble: true, pantalla: true };
     const resultado = describirCapacidad(conTodo);
     expect(resultado.via).toBe("nfc");
     expect(resultado.nfc).toBe("lector");
@@ -186,18 +186,18 @@ describe("respaldo - pruebas puras", () => {
   });
 
   it("viasDisponibles con todo", () => {
-    expect(viasDisponibles({ nfc: "lector", ble: true, pantalla: true })).toEqual(["nfc", "ble", "qr"]);
+    expect(viasDisponibles({ nfc: "lector", ble: true, pantalla: true } as EntornoNfc)).toEqual(["nfc", "ble", "qr"]);
   });
 
   it("viasDisponibles solo NFC", () => {
-    expect(viasDisponibles({ nfc: "lector", ble: false, pantalla: false })).toEqual(["nfc"]);
+    expect(viasDisponibles({ nfc: "lector", ble: false, pantalla: false } as EntornoNfc)).toEqual(["nfc"]);
   });
 
   it("viasDisponibles solo QR", () => {
-    expect(viasDisponibles({ nfc: "web", ble: false, pantalla: true })).toEqual(["qr"]);
+    expect(viasDisponibles({ nfc: "web", ble: false, pantalla: true } as EntornoNfc)).toEqual(["qr"]);
   });
 
   it("viasDisponibles sin NFC ni BLE", () => {
-    expect(viasDisponibles({ nfc: "ninguno", ble: false, pantalla: false })).toEqual([]);
+    expect(viasDisponibles({ nfc: "ninguno", ble: false, pantalla: false } as EntornoNfc)).toEqual([]);
   });
 });
