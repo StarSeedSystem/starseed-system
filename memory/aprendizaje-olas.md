@@ -7710,3 +7710,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 06:23 · mg-oracle-1126-2121
+
+**Lo que se pidió.** Make a single top-up of $5 or more to unlock 25M free tokens daily for life. Top up at https://apinex.bond/billing
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (ACC1126A, SEN1126A-d2, NEU1126F-d3, MED1126A-d1b, QUA1125A-d2, SEN1126B-d1). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `ACC1126A` — no escribió nada
+- `SEN1126A-d2` — no escribió nada
+- `NEU1126F-d3` — no escribió nada
+- `MED1126A-d1b` — no escribió nada
+- `QUA1125A-d2` — no escribió nada
+- `SEN1126B-d1` — no escribió nada
