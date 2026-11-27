@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 96,
+   "capacidad": "alta",
+   "revisor_quitadas": [
+    "NEU1125A-d3"
+   ],
+   "id": "NEU1126E-d1",
+   "titulo": "Con la .65 aparece la ventana de configuración de neurona en cada aparato que comparte neurona con otro distinto (y en los nuevos) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/neurons/revision-identidad.ts",
+    "src/lib/neurons/__tests__/revision-identidad.test.ts",
+    "src/components/settings/neurons/aparato-nuevo-dialogo.tsx"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11 00:15 CST: «la ventana de configuración de neuronas emergente, la que reconoce si es un dispositivo nuevo o uno con una neurona ya establecida y ofrece fusionar o que sea una nueva neurona: ESO YA LO HABÍAMOS DESARROLLADO Y SE SUPONE QUE YA ERA FUNCIONAL; cuando entre la próxima actualización de prueba debe aparecer esa ventana para dejarlo bien». Hoy la tableta Maggaboard y el teléfono Maggadroid comparten la neurona e0b9faf2 y la ventana no salió (la adopción por huella, asegurarIdentidadAlArrancar en neurons.ts / adopcion-neurona.ts, adoptó en silencio). (1) Antes de escribir, explica en el informe por qué no salió la ventana existente (neurona-bienvenida-acciones.ts, neuron-setup.tsx, aparato-en-neurona.tsx) y arréglalo en su causa. (2) Revisión de identidad UNA vez al arrancar la versión nueva: si la fila de la neurona tiene dos o más aparatos vivos con huella distinta (capabilities.aparatos), en CADA uno aparece la ventana de NEU1125B: «Este aparato comparte la neurona «X» con «Y». Recomendado: una neurona por aparato», con «Crear una neurona propia» (nombre propuesto: el nombre del aparato), «Seguir en la misma neurona (fusionadas)» y «Más tarde» (queda el aviso en Cuenta › Neuronas). Por defecto se propone que el aparato que se unió después cree la suya y el que estaba primero conserve la neurona y su nombre. (3) Nunca elige por la persona, nunca borra nada (lápida en la fila que se deja). Pruebas: dos aparatos de la misma neurona con huella distinta ven la ventana; uno solo, no; «Más tarde» deja el aviso.\n\n## PARTE 1 DE 2 (la dirección dividió NEU1126E: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/neurons/revision-identidad.ts, src/lib/neurons/__tests__/revision-identidad.test.ts, src/components/settings/neurons/aparato-nuevo-dialogo.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NEU1126E",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "NEU1125B-d3"
+   ]
+  },
+  {
+   "ola": "capacidad-potente-1126",
+   "prioridad": 92,
+   "rol": "diseno",
+   "revisor": {
+    "origen": "CAP1126D-d1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "id": "CAP1126D-d1-d3",
+   "titulo": "Mando: aprobar o rechazar cada sugerencia de agente potente desde «Buscar más capacidad» (parte 1 de 2) (parte 3 de 3)",
+   "archivos": [
+    "src/components/mando/medidor-abrible.tsx"
+   ],
+   "depende": [],
+   "prompt": "En el panel de «Buscar más capacidad» (medidor-abrible.tsx) aparece «Agentes potentes sugeridos»: una tarjeta por sugerencia de ~/.starseed/capacidad-sugerencias.json con la tarea, el agente y modelo, el modo (plan o escribir), el motivo, el coste estimado y el cupo que queda (Antigravity, Claude semana/sesión, créditos de cada proveedor), y botones «Aprobar», «Rechazar» y «Aprobar las de este tipo durante… (1 h, 8 h, 24 h)». Lo aprobado va a ~/.starseed/capacidad-aprobadas.json (lo leen CAP1126B/C) y se ve su resultado (en curso, integrada, falló, plan dejado). Lo de pago por token pide confirmación con el coste estimado. Identidad Trinity Liquid Crystal, pantallas chicas. Prueba de montaje y de la ruta.\n\n## PARTE 1 DE 2 (la dirección dividió CAP1126D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/mando/sugerencias-potentes.tsx, src/app/api/mando/sugerencias-potentes/route.ts, src/components/mando/medidor-abrible.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## PARTE 3 DE 3 (la dirección dividió CAP1126D-d1: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mando/medidor-abrible.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "dependencias_ya_en_main": [
+    "CAP1126D-d1-d2"
+   ]
+  },
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 91,
+   "capacidad": "alta",
+   "id": "CTL1126F-d3",
+   "titulo": "Neurona con varios aparatos: cada aparato en su ventana o pestaña y modo espejo (la misma acción en todos a la vez) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/control-remoto/__tests__/espejo-aparatos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: el control a veces llegaba al teléfono y a veces a la tableta (compartían neurona). Cuando varios aparatos usan una neurona: se elige cada aparato (CTL1126E), cada uno se controla en su ventana o pestaña, y hay un «modo espejo» que ejecuta las mismas órdenes en todos los aparatos de la neurona a la vez, en tiempo real, desde la pantalla de cualquiera de ellos. Cada aparato conserva su permiso y su aviso de «te están controlando»; si uno no tiene permiso, el espejo lo salta y lo dice. Pruebas con dos aparatos falsos: selección, pestañas y espejo.\n\n## PARTE 3 DE 3 (la dirección dividió CTL1126F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/control-remoto/__tests__/espejo-aparatos.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTL1126F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CTL1126F-d2"
+   ]
+  },
+  {
+   "id": "CRE1125E",
+   "titulo": "Revisar bloques rich en creation-blocks.tsx",
+   "archivos": [
+    "src/components/creation/creation-blocks.tsx"
+   ],
+   "depende": [],
+   "prompt": "Verificar y corregir la serialización de bloques rich: blocks, referencia, entidad, protomolécula. Asegurar que serializeBlocks maneje todos los tipos correctamente. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-205021.json": [
+   "NEU1126E-d1",
+   "CAP1126D-d1-d3",
+   "CTL1126F-d3",
+   "CRE1125E"
+  ]
+ }
+}
