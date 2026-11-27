@@ -20,6 +20,7 @@ import {
   esFundamental,
   obtenerEstadoCarpeta,
   obtenerResumenCerebro,
+  construirMapaDesdeManifiestos,
   type ResultadoValidacionDosCopias,
   type EstadoCarpeta,
 } from "../ubicaciones";
@@ -634,6 +635,233 @@ describe("ubicaciones de almacenes (mapa de ubicaciones)", () => {
       const resumen = obtenerResumenCerebro(mapa);
       expect(resumen.advertenciasExtraibleUnico).toBe(1);
       expect(resumen.incumplimientosDosCopias).toBe(1);
+    });
+  });
+
+  describe("construirMapaDesdeManifiestos", () => {
+    it("construye mapa desde manifiestos de almacenes con cerebros completos", () => {
+      const manifiestos = [
+        {
+          versionFormato: 1,
+          idVolumen: "vol-interno-001",
+          numeroSerie: "SN-INTERNO-456",
+          dueño: "usuario-1",
+          cerebros: ["cerebro-1", "cerebro-2"],
+          partes: {},
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+      ];
+
+      const almacenPorIdVolumen = new Map<string, Almacen>();
+      almacenPorIdVolumen.set("vol-interno-001", almacenDiscoInterno);
+
+      const mapa = construirMapaDesdeManifiestos(manifiestos, almacenPorIdVolumen);
+
+      expect(mapa["cerebro-1"]).toBeDefined();
+      expect(mapa["cerebro-2"]).toBeDefined();
+      expect(mapa["cerebro-1"]?.carpetas["/"]).toBeDefined();
+      expect(mapa["cerebro-1"]?.carpetas["/"].copias.length).toBe(1);
+      expect(mapa["cerebro-1"]?.carpetas["/"].copias[0].modalidad).toBe("cerebro-completo");
+      expect(mapa["cerebro-1"]?.carpetas["/"].copias[0].esFundamental).toBe(true);
+      expect(mapa["cerebro-1"]?.carpetas["/"].copias[0].enLinea).toBe(true);
+    });
+
+    it("construye mapa desde manifiestos con partes (carpetas específicas)", () => {
+      // Usamos un almacen sin carpetas definidas para que use el default "parte"
+      const almacenSinCarpetas: Almacen = crearAlmacen({
+        idVolumen: "vol-usb-test",
+        numeroSerie: "SN-USB-TEST",
+        tipo: "extraible",
+        nombre: "USB Test",
+        modalidad: "parte",
+        medidas: {
+          totalBytes: BigInt(32_000_000_000),
+          libreBytes: BigInt(28_000_000_000),
+          velocidadLecturaMbps: 100,
+          velocidadEscrituraMbps: 80,
+          salud: "buena",
+          sistemaArchivos: "exFAT",
+          enLinea: true,
+          neuronaId: "neurona-001",
+        },
+      });
+
+      const manifiestos = [
+        {
+          versionFormato: 1,
+          idVolumen: "vol-usb-test",
+          numeroSerie: "SN-USB-TEST",
+          dueño: "usuario-1",
+          cerebros: [],
+          partes: {
+            "/cerebros/privado": "cerebro-1",
+            "/respaldos": "cerebro-1",
+          },
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+      ];
+
+      const almacenPorIdVolumen = new Map<string, Almacen>();
+      almacenPorIdVolumen.set("vol-usb-test", almacenSinCarpetas);
+
+      const mapa = construirMapaDesdeManifiestos(manifiestos, almacenPorIdVolumen);
+
+      expect(mapa["cerebro-1"]).toBeDefined();
+      expect(mapa["cerebro-1"]?.carpetas["/cerebros/privado"]).toBeDefined();
+      expect(mapa["cerebro-1"]?.carpetas["/respaldos"]).toBeDefined();
+      expect(mapa["cerebro-1"]?.carpetas["/cerebros/privado"].copias[0].modalidad).toBe("parte");
+      expect(mapa["cerebro-1"]?.carpetas["/respaldos"].copias[0].modalidad).toBe("parte");
+    });
+
+    it("ignora manifiestos de almacenes no encontrados en el mapa", () => {
+      const manifiestos = [
+        {
+          versionFormato: 1,
+          idVolumen: "vol-inexistente",
+          numeroSerie: "SN-XXXX",
+          dueño: "usuario-1",
+          cerebros: ["cerebro-1"],
+          partes: {},
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+      ];
+
+      const almacenPorIdVolumen = new Map<string, Almacen>();
+      // No agregamos el almacen al mapa
+
+      const mapa = construirMapaDesdeManifiestos(manifiestos, almacenPorIdVolumen);
+
+      expect(Object.keys(mapa).length).toBe(0);
+    });
+
+    it("combina múltiples manifiestos en un solo mapa para la misma carpeta", () => {
+      // Dos manifiestos con partes en la misma carpeta
+      const manifiestos = [
+        {
+          versionFormato: 1,
+          idVolumen: "vol-interno-001",
+          numeroSerie: "SN-INTERNO-456",
+          dueño: "usuario-1",
+          cerebros: [],
+          partes: {
+            "/cerebros/privado": "cerebro-1",
+          },
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+        {
+          versionFormato: 1,
+          idVolumen: "vol-usb-test",
+          numeroSerie: "SN-USB-TEST",
+          dueño: "usuario-1",
+          cerebros: [],
+          partes: {
+            "/cerebros/privado": "cerebro-1",
+          },
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+      ];
+
+      const almacenSinCarpetas: Almacen = crearAlmacen({
+        idVolumen: "vol-usb-test",
+        numeroSerie: "SN-USB-TEST",
+        tipo: "extraible",
+        nombre: "USB Test",
+        modalidad: "parte",
+        medidas: {
+          totalBytes: BigInt(32_000_000_000),
+          libreBytes: BigInt(28_000_000_000),
+          velocidadLecturaMbps: 100,
+          velocidadEscrituraMbps: 80,
+          salud: "buena",
+          sistemaArchivos: "exFAT",
+          enLinea: true,
+          neuronaId: "neurona-001",
+        },
+      });
+
+      const almacenPorIdVolumen = new Map<string, Almacen>();
+      almacenPorIdVolumen.set("vol-interno-001", almacenDiscoInterno);
+      almacenPorIdVolumen.set("vol-usb-test", almacenSinCarpetas);
+
+      const mapa = construirMapaDesdeManifiestos(manifiestos, almacenPorIdVolumen);
+
+      expect(mapa["cerebro-1"]).toBeDefined();
+      // Debe tener dos copias para /cerebros/privado (una de cada manifiesto)
+      const carpetaPrivado = mapa["cerebro-1"]?.carpetas["/cerebros/privado"];
+      expect(carpetaPrivado?.copias.length).toBe(2);
+      // Ambas son "parte" porque vienen de la sección "partes" de los manifiestos
+      const modalidades = carpetaPrivado?.copias.map((c) => c.modalidad).sort() ?? [];
+      expect(modalidades).toEqual(["parte", "parte"]);
+      // Y deben ser de almacenes distintos
+      const almacenesIds = carpetaPrivado?.copias.map((c) => c.almacenId).sort() ?? [];
+      expect(almacenesIds).toEqual(["vol-interno-001", "vol-usb-test"]);
+    });
+
+    it("usa la modalidad del almacen.carpetas para partes si existe", () => {
+      const almacenConCarpetas: Almacen = crearAlmacen({
+        idVolumen: "vol-usb-test-2",
+        numeroSerie: "SN-USB-TEST-2",
+        tipo: "extraible",
+        nombre: "USB Test 2",
+        modalidad: "parte",
+        medidas: {
+          totalBytes: BigInt(32_000_000_000),
+          libreBytes: BigInt(28_000_000_000),
+          velocidadLecturaMbps: 100,
+          velocidadEscrituraMbps: 80,
+          salud: "buena",
+          sistemaArchivos: "exFAT",
+          enLinea: true,
+          neuronaId: "neurona-001",
+        },
+        carpetas: {
+          "/datos/especiales": "respaldo-vivo",
+        },
+      });
+
+      const manifiestos = [
+        {
+          versionFormato: 1,
+          idVolumen: "vol-usb-test-2",
+          numeroSerie: "SN-USB-TEST-2",
+          dueño: "usuario-1",
+          cerebros: [],
+          partes: {
+            "/datos/especiales": "cerebro-1",
+            "/datos/normal": "cerebro-1",
+          },
+          cifrado: true,
+          algoritmosCifrado: ["AES-GCM"],
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        },
+      ];
+
+      const almacenPorIdVolumen = new Map<string, Almacen>();
+      almacenPorIdVolumen.set("vol-usb-test-2", almacenConCarpetas);
+
+      const mapa = construirMapaDesdeManifiestos(manifiestos, almacenPorIdVolumen);
+
+      const carpetaEspecial = mapa["cerebro-1"]?.carpetas["/datos/especiales"];
+      const carpetaNormal = mapa["cerebro-1"]?.carpetas["/datos/normal"];
+
+      expect(carpetaEspecial?.copias[0].modalidad).toBe("respaldo-vivo");
+      expect(carpetaNormal?.copias[0].modalidad).toBe("parte"); // default
     });
   });
 });
