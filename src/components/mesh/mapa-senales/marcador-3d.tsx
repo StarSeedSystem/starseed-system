@@ -30,15 +30,33 @@ import { AnilloPunteado } from "./suelo-3d";
 const PLANO: [number, number, number] = [-Math.PI / 2, 0, 0];
 const COLOR_SIMULADA = "#fbbf24";
 
+const PERIODO_PULSO_S = 2.4;
+const INTERVALO_PULSO_S = 1 / 24;
+
+/** Fase 0…1 del pulso en el instante `t` (segundos del reloj de la escena). */
+export function faseDelPulso(t: number): number {
+  return (t % PERIODO_PULSO_S) / PERIODO_PULSO_S;
+}
+
+/** ¿Ya pasó el intervalo mínimo desde la última actualización del pulso? */
+export function tocaActualizarPulso(t: number, ultimo: number): boolean {
+  return ultimo < 0 || t < ultimo || t - ultimo >= INTERVALO_PULSO_S;
+}
+
 /** Onda que nace del marcador y se desvanece: solo para lo oído «ahora mismo». */
 function Pulso({ radio, color }: { radio: number; color: string }) {
   const malla = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
+  const ultimo = useRef(-1);
+  useFrame(({ clock, invalidate }) => {
     const m = malla.current;
     if (!m) return;
-    const t = (clock.elapsedTime % 2.4) / 2.4;
+    // Un pulso no necesita 60 cuadros: se actualiza como mucho a ~24 por segundo.
+    if (!tocaActualizarPulso(clock.elapsedTime, ultimo.current)) return;
+    ultimo.current = clock.elapsedTime;
+    const t = faseDelPulso(clock.elapsedTime);
     m.scale.setScalar(1 + t * 2.4);
     (m.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t);
+    invalidate();
   });
   return (
     <mesh ref={malla} rotation={PLANO}>
