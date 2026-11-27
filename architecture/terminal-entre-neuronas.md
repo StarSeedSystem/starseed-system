@@ -55,6 +55,24 @@ Protomolécula, el control remoto y cualquier otra función que administre una n
 solo discos autorizados por su serie, montar, desmontar, verificar). Lo instaló Maggasukha una vez;
 la dirección lo usa con `sudo -n` sin contraseña. Es el modelo de las órdenes tipadas de arriba.
 
+## Ajustes remotos completos (REM1126A · 26-11-2026, Maggasukha)
+
+Desde cualquier neurona (Ajustes, Astraura, Protomolécula) se leen y cambian los ajustes de otra
+neurona vinculada. Código: `src/lib/control-remoto/ajustes-remotos.ts`; pantalla:
+`ficha-neurona/ficha-remota.tsx` (sección «Ajustes de esta neurona» de Cuenta › Neuronas).
+
+- **Tres órdenes tipadas** por el mismo canal sellado, firmado y con tope que usa la terminal:
+  `leer-ajustes` (sin argumentos), `poner-ajuste` (`clave`, `valor`, `ambito`: permiso, ajuste o
+  apariencia) y `deshacer-ajuste` (`id` del registro). Argumentos estrictos; lo demás se rechaza.
+- **Permiso «configurar a distancia»**: apagado de fábrica. Lo enciende la persona dueña en ESE
+  aparato; ninguna orden remota ni voto de comunidad lo enciende. Apagado, ni se leen ni se cambian.
+- **Lo de seguridad no se cambia a distancia**: permisos de control (`agent`, `terminal`,
+  `alcance`), claves y firma, aceptar controladores y el propio permiso. Se ven, sin interruptor.
+- **Registro en los dos lados** (quien manda y el aparato cambiado): quién, cuándo, clave, valor
+  anterior y nuevo. `deshacer-ajuste` devuelve el valor anterior y exige el mismo permiso.
+- Pendiente de cableado (otra tarea): registrar las tres órdenes en el vocabulario de `niveles.ts`
+  con `validarArgsAjusteRemoto`, nivel «modificar», y persistir el estado en el aparato.
+
 ## Puertas de la ola
 
 Pruebas de cada archivo; tsc; sin dependencias npm ni crates nuevos (si no hay PTY en el árbol, la
