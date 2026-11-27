@@ -1,0 +1,159 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "id": "BAP1127E",
+   "ola": "bap-1127",
+   "prioridad": 95,
+   "capacidad": "media",
+   "titulo": "Registro de pruebas único con el formato real y tabla de equivalencias de ids",
+   "archivos": [
+    "scripts/puente/registro_pruebas_logica.py",
+    "scripts/puente/test_registro_pruebas_logica.py",
+    "config/pruebas-equivalencias.json"
+   ],
+   "depende": [],
+   "prompt": "BAP1127E · Correcciones C.12 y C.14. (1) Nuevo scripts/puente/registro_pruebas_logica.py (puro, stdlib): normalizar(linea) acepta el esquema manual de starseed_memory_root/pruebas/registro.jsonl {fecha, version, ronda, prueba, resultado, nota} (→ {tipo:'fin', id, version, resultado, nota, t, ronda}) y el del conductor tal cual; leer_registro(ruta) tolerante a líneas rotas; lineas_espejo(texto, desde_iso, hasta_iso) para los archivos espejo-<aparato>.log (cada línea empieza por la hora ISO de recepción) y también para el formato real de enlaces.log '<iso> web (nombre) <iso> …' (ble.rs:1763-1775); ultimo_censo(texto) → {neurona: campos} de las líneas 'censo neurona=… rol=… plataforma=… app=… capa=… mem=… disco=… ia=…' ('-' → None); id_canonico(id, tabla) que traduce ids de batería (B1-MT-A1…), de registro (B4-MAC-A-TABLETA, PIN-BLE-MAC…) y de comprobaciones ('prueba N') a un id canónico. (2) config/pruebas-equivalencias.json: la tabla inicial con los ids reales que encuentres en scripts/puente/pruebas_malla.py (batería), en starseed_memory_root/pruebas/registro.jsonl y en scripts/puente/comprobaciones_prueba.py (léelos; no inventes). (3) Tests pytest sin red (≥8 casos): manual → fin; líneas rotas; ventana del espejo; censo con '-'; equivalencias ida y vuelta; id desconocido → None. NO toques pruebas_malla.py (eso va en BAP1127Z) ni publiques nada. Aceptación: python3 -m pytest scripts/puente/test_registro_pruebas_logica.py -q pasa. REGLAS COMUNES: ≤3 archivos y ≤120 líneas nuevas por archivo; vuelve a anclar cada cita con grep en tu HEAD; pruebas SOLO dirigidas y ligeras (npx vitest run <archivo>, python3 -m pytest <archivo>, rustc --edition 2021 --test <x>_logica.rs -o /tmp/<x> && /tmp/<x>); NUNCA cargo build/test del crate, next build ni servidores en la Mac; sin --no-verify; nunca claves, IPs ni rutas de usuario en registros o código; contrato: architecture/automejora-pruebas-malla.md (la sección C de correcciones MANDA)."
+  },
+  {
+   "id": "BAP1127C",
+   "ola": "bap-1127",
+   "prioridad": 94,
+   "capacidad": "media",
+   "titulo": "Empuje por la malla y censo: un par con otra capa dispara la búsqueda al instante",
+   "archivos": [
+    "src/lib/actualizaciones/empuje-capa.ts",
+    "src/lib/actualizaciones/__tests__/empuje-capa.test.ts",
+    "src/lib/network/malla-neuronas.ts"
+   ],
+   "depende": [],
+   "prompt": "BAP1127C · Correcciones C.1, C.3 y C.7. Con capaBuild ya en CapacidadesNodo (BAP1127H): (1) nuevo empuje-capa.ts con funciones PURAS: debeBuscarPorPar({miCapa, capaPar, esAppDePrueba, ultimaBusquedaMs, ahoraMs}) → true solo si soy app de prueba, el par tiene una capa distinta y no vacía, y pasaron ≥5 min desde la última búsqueda (mismo suelo que servidor_relevo_logica.rs BUSCAR_CAPA_MIN_MS); lineaCenso(nombre, caps) con el formato exacto 'censo neurona=<nombre sin espacios> rol=<rol|-> plataforma=<p> app=<v|-> capa=<b|-> mem=<MB|-> disco=<GB|-> ia=<ids|->' (sin IP ni rutas); debeAnotarCenso({diagnosticoEncendido, capaAnterior, capaNueva, ultimaMs, ahoraMs}) → true si el diagnóstico está encendido y (cambió la capa — inmediata, sin freno — o pasaron ≥60 s). Y un pequeño efecto `alVerCapasDePar` que, si debeBuscarPorPar, invoca el comando Tauri servidor_local_buscar (ya existe) y registra '[capas] empuje desde <par>'. (2) malla-neuronas.ts: al recibir la ficha/capacidades de un par de la MISMA cuenta, llama a alVerCapasDePar con el mínimo de líneas; y escribe la línea de censo propia con el anexado al registro que ya use ese archivo cuando debeAnotarCenso lo diga (ajuste 'Diagnóstico de pruebas' = localStorage `starseed.pruebas.diagnostico.v1`, apagado por defecto). (3) Tests vitest de las tres funciones puras (≥8 casos). Aceptación: npx vitest run src/lib/actualizaciones/__tests__/empuje-capa.test.ts pasa. REGLAS COMUNES: ≤3 archivos y ≤120 líneas nuevas por archivo; vuelve a anclar cada cita con grep en tu HEAD; pruebas SOLO dirigidas y ligeras (npx vitest run <archivo>, python3 -m pytest <archivo>, rustc --edition 2021 --test <x>_logica.rs -o /tmp/<x> && /tmp/<x>); NUNCA cargo build/test del crate, next build ni servidores en la Mac; sin --no-verify; nunca claves, IPs ni rutas de usuario en registros o código; contrato: architecture/automejora-pruebas-malla.md (la sección C de correcciones MANDA).",
+   "dependencias_ya_en_main": [
+    "BAP1127H"
+   ]
+  },
+  {
+   "id": "BAP1127Y",
+   "ola": "bap-1127",
+   "prioridad": 94,
+   "capacidad": "alta",
+   "titulo": "Archivo de espejo por aparato con rotación propia (comando nativo)",
+   "archivos": [
+    "native/src-tauri/src/registro_espejo_logica.rs",
+    "native/src-tauri/src/registro_espejo.rs",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "BAP1127Y · Corrección C.12. Hoy lo que llega de otros aparatos se anexa a enlaces.log con ble_registro_anexar (native/src-tauri/src/ble.rs:1763-1775), que rota a 1 MiB (ble.rs:600): con 3 aparatos espejando se pierde la evidencia. (1) registro_espejo_logica.rs (solo-std, con #[cfg(test)]): sanear_nombre(aparato) → [a-z0-9-] ≤32; acotar_lineas(lineas) → ≤200 líneas de ≤400 caracteres; debe_rotar(bytes_actuales, nuevos, tope=2 MiB); nombres_rotacion(base) → base, base.1, base.2 (3 archivos). (2) registro_espejo.rs: comando Tauri registro_espejo_anexar(aparato: String, lineas: Vec<String>) que escribe en la MISMA carpeta de datos donde vive enlaces.log (mira cómo la calcula ble.rs) el archivo espejo-<aparato>.log, anteponiendo la hora ISO de recepción a cada línea, y rota con debe_rotar. (3) lib.rs: registra el comando igual que está registrado ble_registro_anexar (y en capabilities solo si ble_registro_anexar lo necesita; si hiciera falta un 4.º archivo, anótalo en el commit). Aceptación: rustc --edition 2021 --test native/src-tauri/src/registro_espejo_logica.rs pasa (≥6 casos). REGLAS COMUNES: ≤3 archivos y ≤120 líneas nuevas por archivo; vuelve a anclar cada cita con grep en tu HEAD; pruebas SOLO dirigidas y ligeras (npx vitest run <archivo>, python3 -m pytest <archivo>, rustc --edition 2021 --test <x>_logica.rs -o /tmp/<x> && /tmp/<x>); NUNCA cargo build/test del crate, next build ni servidores en la Mac; sin --no-verify; nunca claves, IPs ni rutas de usuario en registros o código; contrato: architecture/automejora-pruebas-malla.md (la sección C de correcciones MANDA).",
+   "modelo": "claude/sonnet"
+  },
+  {
+   "ola": "claude-sesion-1126",
+   "prioridad": 93,
+   "capacidad": "alta",
+   "id": "CLA1126A-d2",
+   "titulo": "Claude Code de la Mac deja de perder la sesión: token de larga duración para lo automático, un uso a la vez y medidor sin martillear (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_claude_cerrojo.py"
+   ],
+   "depende": [],
+   "prompt": "Medido el 26-11: desde las 03:33 CST `claude` en la Mac dice «Not logged in · Please run /login» aunque Maggasukha inicia sesión a menudo; la credencial por defecto del llavero («Claude Code-credentials») se reescribió por última vez a las 03:33 y medidor_claude_terminal.py lanza `claude` unas 6 veces por hora (carpeta ~/.starseed/medidores-entrada) además de los motores del director: las renovaciones del token a la vez se pisan y una deja la sesión inválida. Arreglo: (1) todo uso AUTOMÁTICO de `claude` toma CLAUDE_CODE_OAUTH_TOKEN de ~/.starseed/env si existe (token de larga duración que Maggasukha crea él mismo con `claude setup-token`; nunca ANTHROPIC_API_KEY ni ANTHROPIC_AUTH_TOKEN; nunca se imprime ni se copia a otro sitio); (2) un cerrojo (flock) para que solo corra un `claude` automático a la vez; (3) el medidor de uso como mucho cada 30 min y nunca mientras otro `claude` automático corre; (4) si sale «Not logged in», un solo aviso claro en el canal Principal (con Telegram) diciendo qué hacer, sin reintentos en bucle. Pruebas del cerrojo, del entorno (sin claves de API) y del aviso único.\n\n## PARTE 2 DE 2 (la dirección dividió CLA1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: scripts/puente/test_claude_cerrojo.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CLA1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "CLA1126A-d1"
+   ]
+  },
+  {
+   "id": "BAP1127I",
+   "ola": "bap-1127",
+   "prioridad": 91,
+   "capacidad": "media",
+   "titulo": "Ejecutor de «prueba-control» que acepta al instante y termina por registro",
+   "archivos": [
+    "src/lib/control-remoto/niveles.ts",
+    "src/lib/control-remoto/ejecutores.ts",
+    "src/lib/control-remoto/__tests__/prueba-control-ejecutor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "BAP1127I · Contrato §5.4. Es la parte 2 de PRU1126A: no la dupliques. Contexto verificado: src/lib/control-remoto/prueba-control.ts valida la orden (huella de destino de 64 hex, duración de 10 a 120 s en :14-15, fuente auto|proyeccion|malla) y prepara el informe, pero 'prueba-control' no está en ACCIONES (src/lib/control-remoto/niveles.ts:199-300) ni tiene ejecutor en src/lib/control-remoto/ejecutores.ts; hoy solo Mac→X se puede lanzar desde la dirección y 4 de las 6 direcciones de B4 quedan sin medir. QUÉ HACER: (1) niveles.ts: registra 'prueba-control' con nivel 'controlar', el validador de prueba-control.ts y una descripción 'que' clara. (2) ejecutores.ts: ejecutor que, en el aparato ORIGEN que recibe la orden firmada, abre una sesión de control hacia el destino durante la duración pedida por el mismo camino que usa la pantalla 'Controlar' (búscalo; no crees otro), la cierra al terminar, anota 'prueba-control inicio|fin destino=<8 hex> dur=<s> resultado=<ok|espera-permiso|ocupado|fallo:motivo>' y responde con el informe de prueba-control.ts. Si el destino o el origen tienen el permiso de control apagado, responde 'espera-permiso' sin intentar nada: NUNCA enciende permisos. Si hay una llamada en curso, responde 'ocupado'. (3) tests vitest con dobles del camino de control: duración fuera de rango rechazada; permiso apagado ⇒ espera-permiso; ok ⇒ inicio y fin anotados; llamada en curso ⇒ ocupado; la acción está en ACCIONES con nivel controlar. REGLAS: ≤120 líneas nuevas por archivo; nunca registres huellas completas ni IPs; pruebas en el A1 o la nube.\n\nCORRECCIONES OBLIGATORIAS (prevalecen sobre lo de arriba): C.5: el ejecutor contesta {estado:'aceptada', id} de inmediato (mandarOrden espera 15 s, canal.ts:27) y lanza la prueba en segundo plano; el fin se anuncia escribiendo la línea 'prueba-fin id=<id> resultado=<ok|fallo|sin-dato> …' en el registro (nada de esperar respuesta larga). Documenta en un comentario de cabecera las sesiones necesarias (Mac→origen y origen→destino aceptadas con permiso, sesion.ts pasos 2, 4 y 13). Nivel requerido 'controlar'; sin permiso encendido en el aparato, rechaza con motivo. REGLAS COMUNES: ≤3 archivos y ≤120 líneas nuevas por archivo; vuelve a anclar cada cita con grep en tu HEAD; pruebas SOLO dirigidas y ligeras (npx vitest run <archivo>, python3 -m pytest <archivo>, rustc --edition 2021 --test <x>_logica.rs -o /tmp/<x> && /tmp/<x>); NUNCA cargo build/test del crate, next build ni servidores en la Mac; sin --no-verify; nunca claves, IPs ni rutas de usuario en registros o código; contrato: architecture/automejora-pruebas-malla.md (la sección C de correcciones MANDA)."
+  },
+  {
+   "ola": "cerebros-neuronas-1126",
+   "prioridad": 91,
+   "capacidad": "alta",
+   "id": "NEU1126B-d1",
+   "titulo": "Una sola ficha de neurona, la misma en Cerebros › Neuronas, Cuenta › Neuronas y Señales (parte 1 de 4)",
+   "archivos": [
+    "src/components/neuronas/ficha-neurona/ficha-neurona.tsx",
+    "src/components/neuronas/ficha-neurona/seccion-identidad.tsx",
+    "src/components/neuronas/ficha-neurona/seccion-aparatos.tsx"
+   ],
+   "depende": [],
+   "prompt": "Petición de Maggasukha (26-11): mejorar la configuración de cada neurona para que sea fácil. Hoy una neurona se configura en tres sitios con opciones distintas: Cerebros › Neuronas (NeuronCard en src/components/cerebro/neuronas-panel.tsx, 1190 líneas), Cuenta › Neuronas (src/components/settings/neurons/neurons-panel.tsx, esta-neurona.tsx, aparato-en-neurona.tsx) y Señales › «Ajustes de mi neurona» (ajustes-centro.tsx). Crea UNA ficha (src/components/neuronas/ficha-neurona/) con secciones plegables y buscables: Identidad (nombre, nombre de este aparato, tipo/icono, color, foto), Aparatos (los aparatos de la neurona con nombre, sistema, medio y última vez; renombrar un aparato; separar en neurona propia; unir a otra — reutiliza aparato-en-neurona.tsx), Permisos (control remoto, terminal entre neuronas, archivos, sincronía, aceptar sin preguntar: todos apagados por defecto, cada uno lo enciende la persona dueña en su aparato, nada se enciende solo), Papel en la red (relé, servidor, almacén, cómputo, horario, solo enchufado/solo Wi‑Fi), Salud (latido, latencia, versión, avisos). Cerebros › Neuronas y Cuenta › Neuronas la usan ya en esta tarea (Señales la usará en modo compacto cuando NEU1126A esté dentro). Regla del modo eficiente: no se quita ninguna opción, función ni ajuste guardado que existe hoy; cada opción actual sigue en la ficha y sus pruebas siguen pasando. Pantallas chicas completas; textos que no se cortan (textos-no-cortados.test.ts). Prueba de montaje con una neurona de un aparato y otra de dos.\n\n## PARTE 1 DE 4 (la dirección dividió NEU1126B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/neuronas/ficha-neurona/ficha-neurona.tsx, src/components/neuronas/ficha-neurona/seccion-identidad.tsx, src/components/neuronas/ficha-neurona/seccion-aparatos.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NEU1126B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "NEU1126A-d2",
+    "NEU1125B-d3"
+   ]
+  },
+  {
+   "ola": "neuronas-remoto-1126",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "id": "NEU1126F-d3",
+   "titulo": "Una neurona, un estado: archivos, ajustes y datos se igualan al instante en todos sus aparatos conectados (parte 3 de 3)",
+   "archivos": [
+    "architecture/neuronas-aparatos.md"
+   ],
+   "depende": [],
+   "prompt": "Maggasukha, 26-11: «como son una neurona, las modificaciones de cualquier archivo o configuración, toda la información, debe modificarse en todos los aparatos vinculados a esa neurona al instante que estén conectados, por las funciones de sincronización de la neurona en todos sus medios». Primero inventario (en el informe): qué se sincroniza hoy entre aparatos de una neurona (ajustes en localStorage, cerebros, archivos, sesiones) y qué no. Luego: sincronía por la malla P2P (cualquier medio: red local, BLE, relé) entre aparatos de la MISMA neurona, por campo y con fecha (gana el más reciente sin pisar otros campos), cola de cambios mientras no hay enlace y registro de conflictos. Lo que es propio del aparato (su clave de control, sus permisos del sistema, su huella) nunca se copia. Contrato architecture/neuronas-aparatos.md. Pruebas de fusión por campo y de la cola sin enlace.\n\n## PARTE 3 DE 3 (la dirección dividió NEU1126F: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: architecture/neuronas-aparatos.md. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NEU1126F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "NEU1126F-d2"
+   ]
+  },
+  {
+   "ola": "nfc-1126",
+   "prioridad": 90,
+   "capacidad": "alta",
+   "id": "NFC1126A-d1",
+   "titulo": "NFC de las neuronas (1/8): lógica pura — tarjeta de neurona firmada, preferencias por relación y decisión de opciones (parte 1 de 2)",
+   "archivos": [
+    "src/lib/nfc/tarjeta.ts",
+    "src/lib/nfc/preferencias.ts",
+    "src/lib/nfc/decidir.ts"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/nfc-neuronas.md (contrato de Maggasukha, 26-11). Implementa solo la lógica pura, sin interfaz ni nativo: (1) `tarjeta.ts`: formato de la tarjeta de neurona (§1: versión, id de neurona, identidad de cuenta según privacidad, clave efímera, firma, nonce, hora con validez 30 s, ofertas, transportes), codificar/decodificar a bytes NDEF (≤ 1 KB) y verificar (firma, caducidad, nonce repetido) usando las utilidades de firma que ya tenga el repo (busca Ed25519/X25519 en src/lib); (2) `preferencias.ts`: modelo de preferencias por relación (misma cuenta, otra cuenta reconocida, otra nueva, nodo propio, nodo público, etiqueta) con excepciones por neurona concreta, valores por defecto seguros del §3, ignorar y recordar; (3) `decidir.ts`: dada la tarjeta propia, la ajena, la relación y las preferencias, devuelve qué se muestra, qué acciones se ofrecen y cuáles son automáticas (catálogo del §4); nunca automático con desconocidas salvo mostrar opciones. Pruebas exhaustivas de cada caso.\n\n## PARTE 1 DE 2 (la dirección dividió NFC1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/nfc/tarjeta.ts, src/lib/nfc/preferencias.ts, src/lib/nfc/decidir.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NFC1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "NFC1126A-d1",
+   "NEU1126B-d1",
+   "BAP1127Y",
+   "BAP1127I",
+   "BAP1127E",
+   "BAP1127C",
+   "NEU1126F-d3",
+   "CLA1126A-d2"
+  ]
+ }
+}
