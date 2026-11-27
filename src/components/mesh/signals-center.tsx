@@ -69,10 +69,13 @@ import { hablar } from "@/lib/aurora/voz-unica";
 
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
 import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
+import { OfertaNodoDisplay } from "@/components/nfc/oferta-nodo-display";
 import { describirCapacidad, qrATarjeta } from "@/lib/nfc/respaldo";
 import { SeccionCercania } from "@/components/nfc/hoja-cerca";
 import { AjustesOfertas, RegistroYVinculos } from "@/components/nfc/cercania-puertas";
 import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
+import type { ConfigNodo } from "@/lib/nfc/nodo-oferta";
+import type { OfertaNodo, TipoOferta } from "@/lib/nfc/nodo-oferta";
 import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 import { PanelReticula } from "@/components/malla/panel-reticula";
 import { PanelMapaViasVivo } from "@/components/malla/panel-mapa-vias";
@@ -120,6 +123,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   // NFC1126G: sin Web NFC se ofrece el respaldo universal (BLE muy cerca o QR con la misma tarjeta).
   const [respaldoNfc, setRespaldoNfc] = useState<{ vias: string; qr: string; leida?: string } | null>(null);
   const [tarjetaCerca, setTarjetaCerca] = useState<TarjetaNeurona | null>(null);
+  // Nodo NFC cuya oferta se está mostrando (al pulsar «Abrir la oferta del nodo»).
+  const [ofertaNodoAbierta, setOfertaNodoAbierta] = useState<ConfigNodo | null>(null);
   // Tarjeta propia mínima: solo aporta el id y los transportes comunes para decidir qué se puede ofrecer.
   const propiaCerca = useMemo<TarjetaNeurona>(() => ({
     version: 1, neuronaId: thisDeviceId(), clavePublica: "", cuenta: { modo: "nada" }, claveEfimera: "",
@@ -347,6 +352,24 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
       toast.error(e instanceof Error ? e.message : "No se pudo completar la acción");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const manejarAccionCercania = (accion: string, neuronaId: string) => {
+    if (accion === "abrir_oferta_nodo" && tarjetaCerca) {
+      const ofertas: OfertaNodo[] = tarjetaCerca.ofertas.map((o) => {
+        const tipo = o as TipoOferta;
+        return { tipo, titulo: o, destino: o };
+      });
+      setOfertaNodoAbierta({
+        version: 1,
+        tipo: "neurona",
+        nombre: tarjetaCerca.neuronaId,
+        ofertas,
+        acciones: [],
+        privacidad: { guarda: "nada", retencionDias: 0 },
+        mapa: "privada",
+      });
     }
   };
 
@@ -665,7 +688,14 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         ajena={tarjetaCerca}
         via="qr"
         relacion="cuenta_nueva"
+        onAccion={manejarAccionCercania}
       />
+      {ofertaNodoAbierta && (
+        <OfertaNodoDisplay
+          config={ofertaNodoAbierta}
+          onCerrar={() => setOfertaNodoAbierta(null)}
+        />
+      )}
       <AjustesOfertas />
       <RegistroYVinculos />
 
