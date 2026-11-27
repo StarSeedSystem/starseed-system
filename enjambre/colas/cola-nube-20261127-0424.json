@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "cerebros-neuronas-1126",
+   "prioridad": 85,
+   "capacidad": "alta",
+   "id": "SEN1126B-d1",
+   "titulo": "Señales: el mapa 3D deja de pedir 270–315 cuadros por segundo (parte 1 de 2)",
+   "archivos": [
+    "src/components/mesh/mapa-senales/escena-3d.tsx",
+    "src/components/mesh/mapa-senales/marcador-3d.tsx",
+    "src/components/mesh/mapa-senales/geo/capa-alcance.ts"
+   ],
+   "depende": [],
+   "prompt": "Medido el 25-11 en la MaggaBook con la 0.5.1-prueba.64: con Señales abierta la app pide 270–315 requestAnimationFrame por segundo (varios bucles a la vez: escena-3d.tsx, useFrame en marcador-3d.tsx, capa-alcance.ts y capa-parches.ts). Un solo reloj por cuadro; el lienzo se detiene cuando la página está oculta o fuera de la vista (IntersectionObserver) y cuando no hay nada que mover (frameloop a demanda); en modo eficiente, ritmo reducido. El aspecto no cambia. Prueba que cuente las peticiones de cuadro con reloj falso.\n\n## PARTE 1 DE 2 (la dirección dividió SEN1126B: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mesh/mapa-senales/escena-3d.tsx, src/components/mesh/mapa-senales/marcador-3d.tsx, src/components/mesh/mapa-senales/geo/capa-alcance.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SEN1126B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "SEN1126B-d1"
+  ]
+ }
+}
