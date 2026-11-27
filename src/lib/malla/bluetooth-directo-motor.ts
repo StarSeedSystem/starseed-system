@@ -140,6 +140,12 @@ export interface DepsBle {
   vinculos(): VinculoMinimo[];
   /** Ids de las neuronas de tu cuenta que conoce la web (para saludar por enlaces sin reconocer). */
   neuronasCuenta?(): string[];
+  /**
+   * (BLE1124A) ¿Esa neurona ya tiene un enlace directo por Wi-Fi AHORA? Si sí, no se la saluda por Bluetooth:
+   * lo que ya va por la red directa no necesita latido por el aire (que con direcciones rotatorias acaba en
+   * «sin acuse»). Ausente: se saluda como antes.
+   */
+  enlaceWifiDirecto?(neurona: string): boolean;
   firmar(cuerpo: unknown): Promise<unknown | null>;
   verificar(sobre: unknown): Promise<{ cuerpo: unknown; huella?: string; valido: boolean }>;
   /** Un `tu.*` de un enlace ligado → transporte universal (ya acusó la app). */
@@ -262,6 +268,25 @@ export const ESPERA_SESION_BLE_MS = 4_000;
 export const ESCALA_CAIDA_BLE_MS = [2_000, 5_000, 15_000] as const;
 export function esperaCaidaBle(racha: number): number {
   return ESCALA_CAIDA_BLE_MS[Math.min(Math.max(1, Math.floor(racha)), ESCALA_CAIDA_BLE_MS.length) - 1];
+}
+
+/**
+ * (BLE1124A) Quita los saludos Bluetooth hacia neuronas que YA tienen un enlace directo por Wi-Fi: lo que va
+ * por la red directa no necesita latido por el aire Bluetooth (que, con direcciones rotatorias de Android,
+ * acaba en «sin acuse» y rachas que se repiten). Si la consulta falla, se saluda igual: un error de lectura
+ * nunca deja un enlace sin ligar. Puro.
+ */
+export function filtrarSaludosConWifiDirecto(
+  destinos: ReadonlyArray<{ enlace: string; para: string }>,
+  conWifiDirecto: (neurona: string) => boolean,
+): Array<{ enlace: string; para: string }> {
+  return destinos.filter((d) => {
+    try {
+      return conWifiDirecto(d.para) !== true;
+    } catch {
+      return true;
+    }
+  });
 }
 
 /**
@@ -1184,16 +1209,19 @@ export function crearRedBle(deps: DepsBle): RedBle {
     const yo = await deps.yo();
     if (!yo) return;
     conClave = await hayClave();
-    const destinos = saludosBle({
-      enlaces: estado.enlaces,
-      ligaduras,
-      vinculos: deps.vinculos(),
-      cuenta: deps.neuronasCuenta?.() ?? [],
-      conClave,
-      yo: yo.neurona,
-      ultimoHola,
-      ahora: deps.ahora(),
-    });
+    const destinos = filtrarSaludosConWifiDirecto(
+      saludosBle({
+        enlaces: estado.enlaces,
+        ligaduras,
+        vinculos: deps.vinculos(),
+        cuenta: deps.neuronasCuenta?.() ?? [],
+        conClave,
+        yo: yo.neurona,
+        ultimoHola,
+        ahora: deps.ahora(),
+      }),
+      (neurona) => deps.enlaceWifiDirecto?.(neurona) === true,
+    );
     await Promise.all(destinos.map((d) => saludar(d.enlace, d.para, false)));
   }
 
@@ -1356,11 +1384,12 @@ export function bluetoothDirectoActivo(): RedBle | null {
 }
 
 async function depsReales(): Promise<DepsBle> {
-  const [{ puenteNativo }, sync, { identidadDispositivo }, rn] = await Promise.all([
+  const [{ puenteNativo }, sync, { identidadDispositivo }, rn, wifi] = await Promise.all([
     import("@/lib/nativa/puente"),
     import("./sincronizacion-neuronas-motor"),
     import("@/lib/network/identidad-dispositivo"),
     import("./red-local-nativa-motor"),
+    import("./enlace-wifi-motor"),
   ]);
   const motor = sync.motorSync();
   motor.cargar();
@@ -1421,6 +1450,15 @@ async function depsReales(): Promise<DepsBle> {
       return [...reales, ...guardados.filter((v) => !vistos.has(v.neurona))];
     },
     neuronasCuenta: () => Array.from(new Set([...config.conocidas, ...espejo.idsNeuronasCuentaCacheados()])),
+    // (BLE1124A) Lo que ya va por un enlace Wi-Fi directo activo no se saluda por Bluetooth.
+    enlaceWifiDirecto: (neurona) => {
+      try {
+        const e = wifi.motorWifiActivo()?.instantanea().estado;
+        return !!e && e.fase === "activo" && e.otro === neurona;
+      } catch {
+        return false;
+      }
+    },
     firmar,
     sesiones: crearSesionesCifradas({ ahora: () => Date.now(), firmar }),
     exigirCifrado: rn.exigirCifradoRedLocal,
