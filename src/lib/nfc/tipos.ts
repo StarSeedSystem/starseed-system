@@ -24,3 +24,26 @@ export type {
 export { ACCIONES, ACCIONES_SENSIBLES, ACCIONES_SOLO_PROPIAS, RELACIONES } from "./preferencias";
 
 export type { DecisionEncuentro, EntradaDecision, PerfilMostrado } from "./decidir";
+
+export type {
+  TipoAudio,
+  ModoReproduccion,
+  ConfigAudioNodo,
+  PreferenciasAudioVisitante,
+  PreferenciasAudioResueltas,
+  AudioDisponible,
+  ResultadoConfigAudio,
+} from "./nodo-audio";
+export {
+  TIPO_AUDIO,
+  MODO_REPRODUCCION,
+  VOLUMEN_DEFECTO,
+  IDIOMA_DEFECTO,
+  configAudioPorDefecto,
+  validarConfigAudio,
+  resolverPreferenciasAudio,
+  audioDisponibleOffline,
+  filtrarAudioPorIdioma,
+  tipoAudioValido,
+  modoReproduccionValido,
+} from "./nodo-audio";
