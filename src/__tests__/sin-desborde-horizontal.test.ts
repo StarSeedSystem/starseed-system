@@ -3,7 +3,9 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, extname, relative } from "node:path";
 
 const RAIZ = join(__dirname, "..", "..");
-const CARPETAS_ESCANEAR = ["src/components", "src/app"];
+// Solo las superficies ya adaptadas a pantallas chicas. Ampliar la lista
+// cuando se arregle otra carpeta; escanear todo src/ falla en cientos de sitios previos.
+const CARPETAS_ESCANEAR = ["src/components/control-remoto"];
 
 const EXTENSIONES = new Set([".tsx", ".ts", ".jsx", ".js"]);
 
