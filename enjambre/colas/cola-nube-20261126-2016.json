@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "ola": "cerebros-neuronas-1126",
+   "prioridad": 86,
+   "rol": "diseno",
+   "id": "CER1126A-d1",
+   "titulo": "Cerebros: los ajustes de cada pilar con el mismo panel lateral, buscable y con enlace directo (parte 1 de 2)",
+   "archivos": [
+    "src/components/cerebro/panel-ajustes-pilar.tsx",
+    "src/components/cerebro/cerebro-hub.tsx",
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx"
+   ],
+   "depende": [],
+   "prompt": "Petición de Maggasukha (26-11): mejores opciones de ajustes y configuración en la sección Cerebros y en cada pestaña. Los 7 pilares (pilares.tsx: Memorias, Habilidades, Contexto, Neuronas, Personalidades, Conectores, Procesos activos) tienen ajustes repartidos en diálogos distintos (ajustes-cerebro-dialog, ajustes-medios, ajustes-seguridad, ajustes-sync, procesos-ajustes). Un panel lateral común panel-ajustes-pilar.tsx: botón «Ajustes» en cada pilar, secciones con el mismo orden (General, Privacidad y permisos, Sincronía, Avanzado), búsqueda dentro de los ajustes, «Volver a lo recomendado» solo por sección y con confirmación, y enlace directo ?tab=<pilar>&ajustes=<seccion>. Los diálogos actuales se muestran dentro del panel sin perder ninguna opción (modo eficiente: no se quita nada). Pantallas chicas y textos que no se cortan. Prueba de montaje y del enlace directo.\n\n## PARTE 1 DE 2 (la dirección dividió CER1126A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/cerebro/panel-ajustes-pilar.tsx, src/components/cerebro/cerebro-hub.tsx, src/components/cerebro/ajustes-cerebro-dialog.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CER1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-134045.json": [
+   "CER1126A-d1"
+  ]
+ }
+}
