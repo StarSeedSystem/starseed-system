@@ -2,7 +2,7 @@
  * Astraura ciber multicapa para lo que llega por un vínculo (NFC1126P).
  * Módulo puro: sin red, sin disco. Contrato: architecture/nfc-neuronas.md §14.
  */
-import { scanText } from "./scanner";
+import { scanRecibido } from "./scanner";
 
 export type Veredicto = "seguro" | "sugerencia" | "aviso" | "alerta";
 export type TipoRecibido = "tarjeta" | "enlace" | "archivo" | "app" | "cerebro" | "permiso";
@@ -165,7 +165,7 @@ function analizarEmisor(e: EmisorVinculo): Motivo[] {
 }
 
 function analizarTexto(texto: string): Motivo[] {
-  const hallazgos = scanText(texto);
+  const hallazgos = scanRecibido(texto);
   if (hallazgos.length === 0) return [];
   const grave = hallazgos.some((h) => h.severity === "critical" || h.severity === "high");
   return [
@@ -204,6 +204,7 @@ export function evaluarRecibido(r: Recibido, opciones: OpcionesEscaneo = {}): Re
     ...(r.nombreArchivo ? analizarArchivo(r.nombreArchivo) : []),
     ...(r.permisos?.length ? analizarPermisos(r.permisos, r.permisosEsperados) : []),
     ...(r.texto ? analizarTexto(r.texto) : []),
+    ...(r.url ? analizarTexto(r.url) : []),
   ];
   const motivos = bruto.map((m) => ajustar(m, opciones.decisiones ?? []));
   const veredicto = motivos.reduce<Veredicto>(

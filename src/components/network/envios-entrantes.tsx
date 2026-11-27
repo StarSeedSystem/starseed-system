@@ -52,6 +52,8 @@ import {
   type VeredictoIA,
 } from "@/lib/network/inspeccion-archivos";
 import type { PeticionInspeccionIA, ResultadoInspeccionIA } from "@/lib/network/inspeccion-ia";
+import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
+import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 
 /* ══════════════════════════ Utilidades ══════════════════════════ */
 
@@ -458,6 +460,20 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
   }, [envio.archivos, real]);
   const nivelLocal = nivelDeEnvio(Array.from(locales.values()));
 
+  // NFC1126P: lo que llega por un vínculo pasa por el escáner de Astraura ciber antes de aceptarse.
+  const escaneos = useMemo(() => {
+    const m = new Map<string, ResultadoEscaneo>();
+    // Llegó por el canal de la malla: la ausencia de verificación no es una firma inválida.
+    const firmado = true;
+    for (const a of envio.archivos) {
+      m.set(a.id, evaluarRecibido({ tipo: "archivo", emisor: { firmaValida: firmado }, nombreArchivo: a.nombre, texto: envio.mensaje }));
+    }
+    return m;
+  }, [envio.archivos, envio.verificacion, envio.mensaje]);
+  const bloqueados = useMemo(() => new Set(envio.archivos.filter((a) => escaneos.get(a.id)?.bloquea).map((a) => a.id)), [envio.archivos, escaneos]);
+  const aEvaluar = Array.from(escaneos.values());
+  const veredictoEnvio = aEvaluar.find((r) => r.bloquea) ?? aEvaluar.find((r) => r.requiereConfirmar) ?? aEvaluar.find((r) => r.motivos.length > 0);
+
   // Lo que llega se preselecciona, salvo lo marcado como peligro (nunca va solo).
   useEffect(() => {
     const nuevos = envio.archivos.filter((a) => a.fase === "pendiente-aceptar" && !vistos.current.has(a.id));
@@ -465,10 +481,10 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
     for (const a of nuevos) vistos.current.add(a.id);
     setSeleccion((s) => {
       const n = new Set(s);
-      for (const a of nuevos) if (locales.get(a.id)?.nivel !== "peligro") n.add(a.id);
+      for (const a of nuevos) if (locales.get(a.id)?.nivel !== "peligro" && !bloqueados.has(a.id)) n.add(a.id);
       return n;
     });
-  }, [envio.archivos, locales]);
+  }, [envio.archivos, locales, bloqueados]);
 
   // Con el archivo ya aquí, la inspección se repite con sus bytes REALES.
   const blobDe = acciones.blobDe;
@@ -486,8 +502,9 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
     }
   }, [envio.archivos, blobDe]);
 
-  const marcados = Array.from(seleccion).filter((id) => pendientes.has(id));
-  const conPeligro = Array.from(pendientes).filter((id) => locales.get(id)?.nivel === "peligro" || (ia.fase === "lista" && ia.veredicto.porArchivo[envio.archivos.findIndex((a) => a.id === id)]?.nivel === "peligro"));
+  const marcados = Array.from(seleccion).filter((id) => pendientes.has(id) && !bloqueados.has(id));
+  const aceptables = Array.from(pendientes).filter((id) => !bloqueados.has(id));
+  const conPeligro = aceptables.filter((id) => escaneos.get(id)?.requiereConfirmar || locales.get(id)?.nivel === "peligro" || (ia.fase === "lista" && ia.veredicto.porArchivo[envio.archivos.findIndex((a) => a.id === id)]?.nivel === "peligro"));
   const iaDe = (a: EstadoTransferencia) => (ia.fase === "lista" ? ia.veredicto.porArchivo[envio.archivos.indexOf(a)] : undefined);
 
   const marcar = (ids: string[], v: boolean) =>
@@ -513,7 +530,7 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
       return;
     }
     setConfirmarPeligro(false);
-    acciones.aceptar(Array.from(pendientes));
+    acciones.aceptar(aceptables);
   };
   const preguntarIA = async () => {
     if (!acciones.inspeccionarIA) return;
@@ -616,6 +633,12 @@ export function VentanaEnvio({ envio, acciones, onMinimizar }: { envio: EnvioEnt
           </button>
         )}
       </div>
+
+      {veredictoEnvio && (
+        <div className="px-4 pb-2 sm:px-5">
+          <VeredictoSeguridad resultado={veredictoEnvio} />
+        </div>
+      )}
 
       {panelIA && acciones.inspeccionarIA && (
         <section className={cn(CLASE_ITEM, "mx-4 mb-2 space-y-2 p-3 sm:mx-5")} aria-label="Inspección con IA">

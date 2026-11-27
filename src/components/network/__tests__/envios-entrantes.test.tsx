@@ -105,14 +105,12 @@ describe("VentanaEnvio", () => {
     expect(ac.rechazar).toHaveBeenCalledWith(["a", "b", "c", "d"]);
   });
 
-  it("«Aceptar todos» pide confirmar si hay algo marcado como peligro (nunca va solo)", () => {
+  it("«Aceptar todos» nunca incluye lo que el escáner bloquea (ejecutable disfrazado)", () => {
     const [envio] = agruparEnvios(archivos);
     const ac = acciones();
     render(<VentanaEnvio envio={envio} acciones={ac} />);
     fireEvent.click(screen.getByRole("button", { name: "Aceptar todos" }));
-    expect(ac.aceptar).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /Confirmar: aceptar también 1 con peligro/ }));
-    expect(ac.aceptar).toHaveBeenCalledWith(["a", "b", "c", "d"]);
+    expect(ac.aceptar).toHaveBeenCalledWith(["a", "b", "d"]);
   });
 
   it("la casilla de una carpeta marca y desmarca sus archivos; «Seleccionar todo» también", () => {

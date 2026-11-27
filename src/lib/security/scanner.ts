@@ -352,6 +352,25 @@ export function scanText(text: unknown): Finding[] {
   }
 }
 
+/**
+ * Escanea lo que llega por un vínculo: texto, URL (también decodificada, para
+ * ver claves ocultas en la query) u objeto JSON (tarjeta, cerebro). Nunca lanza.
+ */
+export function scanRecibido(valor: unknown): Finding[] {
+  try {
+    if (typeof valor !== "string") return scanDeep(valor);
+    let decodificado = valor;
+    try {
+      decodificado = decodeURIComponent(valor);
+    } catch {
+      /* se queda el texto crudo */
+    }
+    return scanText(decodificado === valor ? valor : `${valor}\n${decodificado}`);
+  } catch {
+    return [];
+  }
+}
+
 interface WalkState {
   findings: Finding[];
   nodes: number;
