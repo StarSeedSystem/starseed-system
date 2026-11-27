@@ -35,7 +35,7 @@ function crearWorker(): Worker | null {
   }
 }
 
-function calcularEnHiloPrincipal(peticion: PeticionDisposicion): Float32Array {
+async function calcularEnHiloPrincipal(peticion: PeticionDisposicion): Promise<Float32Array> {
   const { calcularPeticion } = await import('./disposicion.worker');
   return calcularPeticion(peticion as any);
 }
