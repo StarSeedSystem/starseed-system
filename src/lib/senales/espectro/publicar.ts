@@ -10,12 +10,16 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { esFaltaDeEsquema } from "@/lib/mensajeria/sesiones-vivas";
+import { esperaTrasFallos } from "./leer-senales";
 
 const TABLA = "os_senales_publicas";
 const PERIODO_MS = 45000;
 let ultimaEjecucion = 0;
 let esquemaAusente = false;
 let proximoReintento = 0;
+// Fallos seguidos (400, red…): cada uno alarga la espera, con tope, en vez de reintentar en bucle.
+let fallosSeguidos = 0;
+let esperaHastaMs = 0;
 
 export interface FilaPublicable {
   device_id: string;
@@ -48,10 +52,20 @@ export async function publicarSenales(deps: {
     esquemaAusente = false;
   }
 
+  if (fallosSeguidos > 0 && ahoraMs < esperaHastaMs) {
+    return { ok: false, publicadas: 0, motivo: "En espera tras un fallo anterior" };
+  }
+
   if (ahoraMs - ultimaEjecucion < PERIODO_MS) return { ok: false, publicadas: 0, motivo: "Demasiado pronto" };
 
   const supabase = deps.cliente ?? createClient();
-  
+
+  const fallar = (motivo: string): { ok: false; publicadas: 0; motivo: string } => {
+    fallosSeguidos += 1;
+    esperaHastaMs = ahoraMs + esperaTrasFallos(fallosSeguidos);
+    return { ok: false, publicadas: 0, motivo };
+  };
+
   try {
     if (deps.deviceIdsAEliminar && deps.deviceIdsAEliminar.length > 0) {
       for (const deviceId of deps.deviceIdsAEliminar) {
@@ -61,7 +75,7 @@ export async function publicarSenales(deps: {
           .eq("owner_id", deps.uid!)
           .eq("device_id", deviceId);
         if (delErr && !esFaltaDeEsquema(delErr)) {
-          return { ok: false, publicadas: 0, motivo: "Error al eliminar filas antiguas" };
+          return fallar("Error al eliminar filas antiguas");
         }
       }
     }
@@ -78,13 +92,15 @@ export async function publicarSenales(deps: {
         proximoReintento = ahoraMs + 5 * 60000;
         return { ok: false, publicadas: 0, motivo: "las señales públicas aún no están activadas en este servidor" };
       }
-      return { ok: false, publicadas: 0, motivo: upsertErr.message };
+      return fallar(upsertErr.message);
     }
 
+    fallosSeguidos = 0;
+    esperaHastaMs = 0;
     ultimaEjecucion = ahoraMs;
     return { ok: true, publicadas: propias.length };
-  } catch (e: any) {
-    return { ok: false, publicadas: 0, motivo: e.message };
+  } catch (e: unknown) {
+    return fallar(e instanceof Error ? e.message : "Error desconocido");
   }
 }
 
@@ -92,4 +108,6 @@ export function reiniciarEstadoPublicar(): void {
   ultimaEjecucion = 0;
   esquemaAusente = false;
   proximoReintento = 0;
+  fallosSeguidos = 0;
+  esperaHastaMs = 0;
 }

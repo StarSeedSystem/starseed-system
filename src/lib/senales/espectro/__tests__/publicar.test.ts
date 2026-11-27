@@ -140,4 +140,36 @@ describe("publicarSenales", () => {
     expect(res.ok).toBe(false);
     expect(res.motivo).toBe("Demasiado pronto");
   });
+
+  it("tras un error 400 no reintenta hasta pasar la espera creciente", async () => {
+    const mockSupabase = {
+      from: vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockResolvedValue({ error: { code: "400", message: "bad request" } }),
+    };
+    const base = Date.now() + 60000;
+    const r1 = await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base) });
+    expect(r1.ok).toBe(false);
+    expect(r1.motivo).toBe("bad request");
+
+    const r2 = await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base + 30000) });
+    expect(r2.motivo).toBe("En espera tras un fallo anterior");
+    expect(mockSupabase.upsert).toHaveBeenCalledTimes(1);
+
+    // Segundo fallo: la espera se duplica (90 s).
+    await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base + 50000) });
+    const r4 = await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base + 120000) });
+    expect(r4.motivo).toBe("En espera tras un fallo anterior");
+    expect(mockSupabase.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("un éxito borra la espera", async () => {
+    const upsert = vi.fn()
+      .mockResolvedValueOnce({ error: { code: "X", message: "fallo" } })
+      .mockResolvedValue({ error: null });
+    const mockSupabase = { from: vi.fn().mockReturnThis(), upsert };
+    const base = Date.now() + 60000;
+    await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base) });
+    const r = await publicarSenales({ cliente: mockSupabase as any, uid: "u", filas: [], ahora: new Date(base + 50000) });
+    expect(r.ok).toBe(true);
+  });
 });
