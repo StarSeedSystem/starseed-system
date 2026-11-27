@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { crearRedBle, filtrarSaludosConWifiDirecto, type DepsBle } from "@/lib/malla/bluetooth-directo-motor";
 import type { EstadoBleNativo } from "@/lib/malla/bluetooth-directo";
+import { saludosBle } from "@/lib/malla/bluetooth-directo";
 
 function escenario(conWifi: boolean) {
   const reloj = { ahora: 1_800_000_000_000 };
@@ -89,5 +90,47 @@ describe("el motor no saluda por Bluetooth lo que ya va por Wi-Fi directo", () =
     await red.refrescar();
     await asentar();
     expect(enviados.some((j) => j.includes('"nl.hola"'))).toBe(true);
+  });
+
+  it("filtra correctamente saludos con múltiples enlaces y Wi-Fi diferenciado", async () => {
+    const reloj = { ahora: 1_800_000_000_000 };
+    const estado: EstadoBleNativo = {
+      disponible: true,
+      activo: true,
+      radio: "encendida",
+      motivo: "",
+      plataforma: "android",
+      roles: ["central", "periferico"],
+      l2cap: true,
+      anunciando: true,
+      con_cuenta: false,
+      vecinos: [],
+      enlaces: [
+        { id: "b1", rol: "central", vecino: null, neurona: "n-wifi", rssi: -55, paquete: 182, rtt_ms: 40, kbps: 160, pendientes: 0, bytes_enviados: 0, bytes_recibidos: 0, abierto_hace_ms: 0 },
+        { id: "b2", rol: "central", vecino: null, neurona: "n-ble-only", rssi: -58, paquete: 181, rtt_ms: 45, kbps: 140, pendientes: 0, bytes_enviados: 0, bytes_recibidos: 0, abierto_hace_ms: 0 },
+      ],
+      ultimo_seq: 0,
+      max_cuerpo: 16 * 1024,
+      limite_mensajes: 120,
+      limite_ventana_ms: 10_000,
+      paquete_max: 512,
+    };
+    const wifiDirectoActivo = new Set<string>(["n-wifi"]);
+    const s = saludosBle({
+      enlaces: estado.enlaces,
+      ligaduras: [],
+      vinculos: [
+        { neurona: "n-wifi", nombre: "Wifi", huella: "fp-wifi" },
+        { neurona: "n-ble-only", nombre: "BleOnly", huella: "fp-ble-only" },
+      ],
+      cuenta: [],
+      conClave: false,
+      yo: "n-yo",
+      ultimoHola: {},
+      ahora: reloj.ahora,
+    });
+    expect(s).toHaveLength(2);
+    const filtrados = filtrarSaludosConWifiDirecto(s, (n) => wifiDirectoActivo.has(n));
+    expect(filtrados.map((x) => x.para)).toEqual(["n-ble-only"]);
   });
 });
