@@ -192,6 +192,66 @@ export function newBlockId(): string {
     return `blk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const REF_KINDS: readonly PostBlockRefKind[] = [
+    "brain",
+    "library",
+    "folder",
+    "file",
+    "page",
+    "profile",
+    "group",
+    "community",
+    "event",
+    "neuron",
+    "url",
+];
+
+const CODE_LANGS: readonly CodeLang[] = ["html", "css", "js", "jsx"];
+const CHART_KINDS: readonly ChartKind[] = ["bar", "line", "area", "pie"];
+
+function textoLimpio(v: unknown): string | undefined {
+    return typeof v === "string" && v.trim() !== "" ? v : undefined;
+}
+
+/**
+ * Normaliza una referencia (`referencia`/`entidad`) a una COPIA con sólo los
+ * campos conocidos. Descarta referencias sin `kind` válido o sin `id`, para que
+ * un ss:meta corrupto no pinte tarjetas rotas ni arrastre campos ajenos.
+ */
+function normalizarRef(raw: unknown): PostBlockRef | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.kind !== "string" || !(REF_KINDS as readonly string[]).includes(r.kind)) return undefined;
+    const id = textoLimpio(r.id)?.trim();
+    if (!id) return undefined;
+    const out: PostBlockRef = { kind: r.kind as PostBlockRefKind, id };
+    const label = textoLimpio(r.label);
+    if (label) out.label = label;
+    const route = textoLimpio(r.route);
+    if (route) out.route = route;
+    const url = textoLimpio(r.url);
+    if (url) out.url = url;
+    if (r.folderId === null) out.folderId = null;
+    else {
+        const folderId = textoLimpio(r.folderId);
+        if (folderId) out.folderId = folderId;
+    }
+    const itemId = textoLimpio(r.itemId);
+    if (itemId) out.itemId = itemId;
+    const libraryKind = textoLimpio(r.libraryKind);
+    if (libraryKind) out.libraryKind = libraryKind;
+    return out;
+}
+
+function numeroValido(v: unknown): number | undefined {
+    if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+    if (typeof v === "string" && v.trim() !== "") {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : undefined;
+    }
+    return undefined;
+}
+
 /** Limpia campos transitorios/vacíos de un bloque para guardarlo en ss:meta. */
 export function serializeBlock(b: PostBlock): PostBlock {
     const out: PostBlock = { id: b.id, type: b.type };
@@ -202,19 +262,21 @@ export function serializeBlock(b: PostBlock): PostBlock {
     put("url", b.url);
     put("name", b.name);
     put("code", b.code);
-    put("language", b.language);
+    if (b.language && (CODE_LANGS as readonly string[]).includes(b.language)) out.language = b.language;
     if (typeof b.lat === "number" && Number.isFinite(b.lat)) out.lat = b.lat;
     if (typeof b.lng === "number" && Number.isFinite(b.lng)) out.lng = b.lng;
     put("place", b.place);
-    put("chartType", b.chartType);
+    if (b.chartType && (CHART_KINDS as readonly string[]).includes(b.chartType)) out.chartType = b.chartType;
     if (Array.isArray(b.data) && b.data.length > 0) {
-        out.data = b.data
-            .map((d) => ({ label: String(d?.label ?? ""), value: Number(d?.value) }))
-            .filter((d) => Number.isFinite(d.value));
+        const data = b.data
+            .map((d) => ({ label: String(d?.label ?? ""), value: numeroValido(d?.value) }))
+            .filter((d): d is ChartDatum => d.value !== undefined);
+        if (data.length > 0) out.data = data;
     }
     put("system", b.system);
     put("persona", b.persona);
-    if (b.ref && typeof b.ref === "object" && b.ref.kind && b.ref.id) out.ref = b.ref;
+    const ref = normalizarRef(b.ref);
+    if (ref) out.ref = ref;
     if (b.marco && typeof b.marco === "object") out.marco = normalizarMarco(b.marco);
     return out;
 }
@@ -257,38 +319,26 @@ export function parseBlocks(raw: unknown): PostBlock[] {
         if (o.language === "html" || o.language === "css" || o.language === "js" || o.language === "jsx") {
             b.language = o.language;
         }
-        if (typeof o.lat === "number") b.lat = o.lat;
-        if (typeof o.lng === "number") b.lng = o.lng;
+        if (typeof o.lat === "number" && Number.isFinite(o.lat)) b.lat = o.lat;
+        if (typeof o.lng === "number" && Number.isFinite(o.lng)) b.lng = o.lng;
         if (typeof o.place === "string") b.place = o.place;
         if (o.chartType === "bar" || o.chartType === "line" || o.chartType === "area" || o.chartType === "pie") {
             b.chartType = o.chartType;
         }
         if (Array.isArray(o.data)) {
-            b.data = o.data
+            const data = o.data
                 .map((d) => {
                     const dd = (d ?? {}) as Record<string, unknown>;
-                    return { label: String(dd.label ?? ""), value: Number(dd.value) };
+                    return { label: String(dd.label ?? ""), value: numeroValido(dd.value) };
                 })
-                .filter((d) => Number.isFinite(d.value));
+                .filter((d): d is ChartDatum => d.value !== undefined);
+            if (data.length > 0) b.data = data;
         }
         if (typeof o.system === "string") b.system = o.system;
         if (typeof o.persona === "string") b.persona = o.persona;
         if (o.marco && typeof o.marco === "object") b.marco = normalizarMarco(o.marco);
-        if (o.ref && typeof o.ref === "object") {
-            const rr = o.ref as Record<string, unknown>;
-            if (typeof rr.kind === "string" && typeof rr.id === "string") {
-                b.ref = {
-                    kind: rr.kind as PostBlockRefKind,
-                    id: rr.id,
-                    label: typeof rr.label === "string" ? rr.label : undefined,
-                    route: typeof rr.route === "string" ? rr.route : undefined,
-                    url: typeof rr.url === "string" ? rr.url : undefined,
-                    folderId: typeof rr.folderId === "string" ? rr.folderId : rr.folderId === null ? null : undefined,
-                    itemId: typeof rr.itemId === "string" ? rr.itemId : undefined,
-                    libraryKind: typeof rr.libraryKind === "string" ? rr.libraryKind : undefined,
-                };
-            }
-        }
+        const ref = normalizarRef(o.ref);
+        if (ref) b.ref = ref;
         out.push(b);
     }
     return out;

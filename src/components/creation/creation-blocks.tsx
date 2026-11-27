@@ -96,6 +96,14 @@ export const NEW_BLOCK_DEFS: BlockDef[] = [
 
 /** Traduce la SourceRef del SourcePicker a los campos de un bloque `referencia`. */
 export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
+    // Elige el primer identificador no vacío: una referencia sin `id` la
+    // descartaría `serializeBlock`, y la tarjeta del feed no se pintaría.
+    const idDe = (...vals: Array<string | null | undefined>) =>
+        vals.find((v): v is string => typeof v === "string" && v.trim() !== "")?.trim() || "";
+    // Al cambiar de recurso, limpia los campos del anterior: `patch` mezcla, no
+    // reemplaza, y una URL vieja sobreviviría en el bloque serializado.
+    const sinMedio = { url: undefined, name: undefined } as const;
+
     if (r.kind === "device" || r.kind === "url") {
         // Archivo subido o URL externa: referencia de tipo file/url.
         const kind: PostBlockRefKind = r.kind === "device" ? "file" : "url";
@@ -103,15 +111,16 @@ export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
             url: r.url,
             name: r.name,
             text: r.label,
-            ref: { kind, id: r.url || r.name || "recurso", url: r.url, label: r.label || r.name },
+            ref: { kind, id: idDe(r.url, r.name, r.label, "recurso"), url: r.url, label: r.label || r.name },
         };
     }
     if (r.kind === "library") {
         return {
+            ...sinMedio,
             text: r.label,
             ref: {
                 kind: "library",
-                id: r.library?.id || "",
+                id: idDe(r.library?.id, r.label, "biblioteca"),
                 libraryKind: r.library?.kind,
                 label: r.label,
                 route: "/library",
@@ -120,10 +129,11 @@ export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
     }
     if (r.kind === "folder") {
         return {
+            ...sinMedio,
             text: r.label,
             ref: {
                 kind: "folder",
-                id: r.library?.id || "",
+                id: idDe(r.library?.id, r.folderId, r.label, "carpeta"),
                 libraryKind: r.library?.kind,
                 folderId: r.folderId ?? null,
                 label: r.label,
@@ -138,7 +148,7 @@ export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
             text: r.label,
             ref: {
                 kind: "file",
-                id: r.itemId || r.url || "archivo",
+                id: idDe(r.itemId, r.url, r.name, r.label, "archivo"),
                 itemId: r.itemId,
                 url: r.url,
                 libraryKind: r.library?.kind,
@@ -149,10 +159,18 @@ export function sourceRefToBlockPatch(r: SourceRef): Partial<PostBlock> {
         };
     }
     if (r.kind === "brain") {
-        return { text: r.label, ref: { kind: "brain", id: r.brainId || "", label: r.label, route: "/cerebro" } };
+        return {
+            ...sinMedio,
+            text: r.label,
+            ref: { kind: "brain", id: idDe(r.brainId, r.label, "cerebro"), label: r.label, route: "/cerebro" },
+        };
     }
     // neuron
-    return { text: r.label, ref: { kind: "neuron", id: r.neuronId || "", label: r.label, route: "/cerebro" } };
+    return {
+        ...sinMedio,
+        text: r.label,
+        ref: { kind: "neuron", id: idDe(r.neuronId, r.label, "neurona"), label: r.label, route: "/cerebro" },
+    };
 }
 
 const FIELD = "bg-black/30 border-white/10 text-sm";
