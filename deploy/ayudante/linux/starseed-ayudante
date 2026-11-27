@@ -1,0 +1,542 @@
+#!/usr/bin/env bash
+# starseed-ayudante · Ayudante con privilegios para StarSeed OS (TRM1125C)
+# Órdenes tipadas con guardas: almacenes, servicios, actualizar, registros, reiniciar, modo-completo.
+# Modo completo: activación por el dueño en el aparato con caducidad y registro encadenado.
+# Instalado en /usr/local/sbin/starseed-ayudante con regla sudoers limitada.
+
+set -euo pipefail
+
+readonly VERSION="1.0.0"
+readonly ALMACENES_AUTORIZADOS="/etc/starseed/almacenes-autorizados.json"
+
+# Rutas que pueden ser /var/... (instalado) o /tmp/... (desarrollo/sin root)
+AYUDANTE_LOG_DIR="/var/log/starseed-ayudante"
+AYUDANTE_LOG_FILE="${AYUDANTE_LOG_DIR}/ordenes.log"
+MODO_COMPLETO_ESTADO="/run/starseed-ayudante/modo-completo.json"
+ULTIMAS_EJECUCIONES="/run/starseed-ayudante/ultimas-ejecuciones"
+
+# Verificar si podemos escribir en los directorios del sistema; si no, usar /tmp
+if ! mkdir -p "${AYUDANTE_LOG_DIR}" /run/starseed-ayudante 2>/dev/null || ! touch "${AYUDANTE_LOG_DIR}/.test_write" 2>/dev/null; then
+    AYUDANTE_LOG_DIR="/tmp/starseed-ayudante"
+    AYUDANTE_LOG_FILE="${AYUDANTE_LOG_DIR}/ordenes.log"
+    MODO_COMPLETO_ESTADO="/tmp/starseed-ayudante/modo-completo.json"
+    ULTIMAS_EJECUCIONES="/tmp/starseed-ayudante/ultimas-ejecuciones"
+    mkdir -p "${AYUDANTE_LOG_DIR}" /tmp/starseed-ayudante
+else
+    rm -f "${AYUDANTE_LOG_DIR}/.test_write" 2>/dev/null
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Utilidades
+# ──────────────────────────────────────────────────────────────
+
+log_orden() {
+    local orden="$1"
+    local args="$2"
+    local resultado="$3"
+    local codigo="$4"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local entrada
+    entrada=$(jq -nc --arg t "$timestamp" --arg o "$orden" --arg a "$args" --arg r "$resultado" --arg c "$codigo" \
+        '{timestamp: $t, orden: $o, args: $a, resultado: $r, codigo: ($c|tonumber)}')
+    local hash_anterior=""
+    if [[ -f "${AYUDANTE_LOG_FILE}" ]]; then
+        hash_anterior=$(tail -1 "${AYUDANTE_LOG_FILE}" | jq -r '.hash // ""')
+    fi
+    local hash
+    hash=$(printf "%s%s" "${hash_anterior}" "${entrada}" | sha256sum | cut -d' ' -f1)
+    local final
+    final=$(jq -nc --argjson e "${entrada}" --arg h "${hash}" '$e + {hash: $h}')
+    printf "%s\n" "${final}" >> "${AYUDANTE_LOG_FILE}"
+}
+
+requiere_root() {
+    if [[ ${EUID} -ne 0 ]]; then
+        echo "ERROR: Esta orden requiere root (ejecute con sudo)" >&2
+        log_orden "$1" "$2" "fallo_sin_root" 1
+        exit 1
+    fi
+}
+
+anti_repeticion() {
+    local clave="$1"
+    local archivo="${ULTIMAS_EJECUCIONES}/${clave//\//_}"
+    mkdir -p "${ULTIMAS_EJECUCIONES}"
+    local ahora
+    ahora=$(date +%s)
+    if [[ -f "${archivo}" ]]; then
+        local ultima
+        ultima=$(cat "${archivo}")
+        if (( ahora - ultima < 2 )); then
+            echo "ERROR: Anti-repetición: espere 2 segundos entre ejecuciones iguales" >&2
+            log_orden "$2" "$3" "anti_repeticion" 1
+            exit 1
+        fi
+    fi
+    echo "${ahora}" > "${archivo}"
+}
+
+leer_json() {
+    local archivo="$1"
+    if [[ -f "${archivo}" ]]; then
+        cat "${archivo}"
+    else
+        echo "{}"
+    fi
+}
+
+escribir_json() {
+    local archivo="$1"
+    local contenido="$2"
+    mkdir -p "$(dirname "${archivo}")"
+    printf "%s" "${contenido}" > "${archivo}"
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: almacenes
+# ──────────────────────────────────────────────────────────────
+
+cmd_almacenes() {
+    local sub="${1:-}"
+    shift || true
+    case "${sub}" in
+        estado)
+            local montado="no"
+            local espacio_libre=0
+            local errores=0
+            if mountpoint -q /srv/starseed-almacen 2>/dev/null; then
+                montado="sí"
+                espacio_libre=$(df -BG /srv/starseed-almacen 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//')
+                errores=$(btrfs device stats /srv/starseed-almacen 2>/dev/null | awk -F'[= ]+' '/error/ {sum+=$2} END {print sum+0}')
+            fi
+            jq -nc --arg m "${montado}" --argjson l "${espacio_libre}" --argjson e "${errores}" \
+                '{montado: $m, espacio_libre_gb: $l, errores: $e}'
+            log_orden "almacenes estado" "{}" "ok" 0
+            ;;
+        salud)
+            local smart="desconocido"
+            local temp=0
+            if command -v smartctl >/dev/null 2>&1 && [[ -b /dev/sda ]]; then
+                smart=$(smartctl -H /dev/sda 2>/dev/null | grep -i "result" | head -1 | awk '{print $NF}' | tr '[:upper:]' '[:lower:]')
+                temp=$(smartctl -A /dev/sda 2>/dev/null | grep -i temperature | head -1 | awk '{print $10}' | sed 's/°C//')
+            fi
+            jq -nc --arg s "${smart}" --argjson t "${temp}" '{smart: $s, temperatura_c: $t}'
+            log_orden "almacenes salud" "{}" "ok" 0
+            ;;
+        formatear)
+            requiere_root "almacenes formatear" "$*"
+            anti_repeticion "almacenes/formatear" "almacenes formatear" "$*"
+            local serie=""
+            while [[ $# -gt 0 ]]; do
+                case $1 in
+                    --serie) serie="$2"; shift 2 ;;
+                    *) echo "Argumento desconocido: $1" >&2; exit 1 ;;
+                esac
+            done
+            if [[ -z "${serie}" ]]; then
+                echo "ERROR: --serie es obligatorio" >&2
+                log_orden "almacenes formatear" "{\"serie\":\"\"}" "fallo_sin_serie" 1
+                exit 1
+            fi
+            local autorizadas
+            autorizadas=$(leer_json "${ALMACENES_AUTORIZADOS}" | jq -r '.series[]?' 2>/dev/null || echo "")
+            if ! grep -qx "${serie}" <<< "${autorizadas}"; then
+                echo "ERROR: Serie no autorizada" >&2
+                log_orden "almacenes formatear" "{\"serie\":\"${serie}\"}" "serie_no_autorizada" 1
+                exit 1
+            fi
+            local disco
+            disco=$(lsblk -dno NAME,SERIAL | grep "${serie}" | awk '{print $1}')
+            if [[ -z "${disco}" ]]; then
+                echo "ERROR: Disco no encontrado" >&2
+                log_orden "almacenes formatear" "{\"serie\":\"${serie}\"}" "disco_no_encontrado" 1
+                exit 1
+            fi
+            mkfs.btrfs -f "/dev/${disco}" 2>&1 | tail -5
+            log_orden "almacenes formatear" "{\"serie\":\"${serie}\",\"disco\":\"/dev/${disco}\"}" "ok" 0
+            ;;
+        montar)
+            requiere_root "almacenes montar" "$*"
+            anti_repeticion "almacenes/montar" "almacenes montar" "$*"
+            mount /srv/starseed-almacen 2>&1
+            log_orden "almacenes montar" "{}" "ok" 0
+            ;;
+        desmontar)
+            requiere_root "almacenes desmontar" "$*"
+            anti_repeticion "almacenes/desmontar" "almacenes desmontar" "$*"
+            umount /srv/starseed-almacen 2>&1
+            log_orden "almacenes desmontar" "{}" "ok" 0
+            ;;
+        verificar)
+            requiere_root "almacenes verificar" "$*"
+            anti_repeticion "almacenes/verificar" "almacenes verificar" "$*"
+            btrfsck /dev/sda1 2>&1 | tail -10
+            log_orden "almacenes verificar" "{}" "ok" 0
+            ;;
+        *)
+            echo "Suborden desconocida: ${sub}" >&2
+            echo "Uso: almacenes {estado|salud|formatear|montar|desmontar|verificar}" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: servicios
+# ──────────────────────────────────────────────────────────────
+
+cmd_servicios() {
+    local sub="${1:-}"
+    shift || true
+    case "${sub}" in
+        lista)
+            local servicios=("starseed-malla" "starseed-almacen" "starseed-actualizador" "starseed-red" "starseed-voz")
+            local json="["
+            local primero=true
+            for s in "${servicios[@]}"; do
+                local existe=false
+                if systemctl is-enabled --quiet "${s}" 2>/dev/null || systemctl list-unit-files | grep -q "^${s}\.service"; then
+                    existe=true
+                fi
+                if [[ "${primero}" == true ]]; then primero=false; else json+=","; fi
+                json+=$(jq -nc --arg n "${s}" --argjson e "${existe}" '{nombre: $n, existe: $e}')
+            done
+            json+="]"
+            echo "${json}"
+            log_orden "servicios lista" "{}" "ok" 0
+            ;;
+        estado)
+            local nombre="${1:-}"
+            if [[ -z "${nombre}" ]]; then
+                echo "ERROR: nombre de servicio requerido" >&2
+                exit 1
+            fi
+            if ! systemctl list-unit-files | grep -q "^${nombre}\.service"; then
+                echo "ERROR: Servicio no existe" >&2
+                log_orden "servicios estado" "{\"servicio\":\"${nombre}\"}" "no_existe" 1
+                exit 1
+            fi
+            local activo="no"
+            local pid=0
+            if systemctl is-active --quiet "${nombre}"; then
+                activo="sí"
+                pid=$(systemctl show --property=MainPID --value "${nombre}")
+            fi
+            jq -nc --arg a "${activo}" --argjson p "${pid}" '{activo: $a, pid: $p}'
+            log_orden "servicios estado" "{\"servicio\":\"${nombre}\"}" "ok" 0
+            ;;
+        iniciar|parar|reiniciar)
+            requiere_root "servicios ${sub}" "$*"
+            anti_repeticion "servicios/${sub}" "servicios ${sub}" "$*"
+            local nombre="${1:-}"
+            if [[ -z "${nombre}" ]]; then
+                echo "ERROR: nombre de servicio requerido" >&2
+                exit 1
+            fi
+            systemctl "${sub}" "${nombre}" 2>&1
+            log_orden "servicios ${sub}" "{\"servicio\":\"${nombre}\"}" "ok" 0
+            ;;
+        *)
+            echo "Suborden desconocida: ${sub}" >&2
+            echo "Uso: servicios {lista|estado|iniciar|parar|reiniciar}" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: actualizar
+# ──────────────────────────────────────────────────────────────
+
+cmd_actualizar() {
+    local sub="${1:-}"
+    shift || true
+    case "${sub}" in
+        estado)
+            local version_actual
+            version_actual=$(cat /etc/starseed/version 2>/dev/null || echo "desconocida")
+            local hay_actualizacion="no"
+            if [[ -f /var/lib/starseed/actualizacion_disponible ]]; then
+                hay_actualizacion="sí"
+            fi
+            jq -nc --arg v "${version_actual}" --arg h "${hay_actualizacion}" \
+                '{version_actual: $v, hay_actualizacion: $h}'
+            log_orden "actualizar estado" "{}" "ok" 0
+            ;;
+        buscar)
+            local disponible="no"
+            local version=""
+            if curl -sf "https://api.starseed-os.vercel.app/v1/version" -o /tmp/starseed_version.json 2>/dev/null; then
+                version=$(jq -r '.version' /tmp/starseed_version.json 2>/dev/null || echo "")
+                local actual
+                actual=$(cat /etc/starseed/version 2>/dev/null || echo "0.0.0")
+                if [[ "${version}" != "${actual}" && -n "${version}" ]]; then
+                    disponible="sí"
+                    echo "${version}" > /var/lib/starseed/actualizacion_disponible
+                fi
+            fi
+            jq -nc --arg d "${disponible}" --arg v "${version}" '{disponible: $d, version: $v}'
+            log_orden "actualizar buscar" "{}" "ok" 0
+            ;;
+        aplicar)
+            requiere_root "actualizar aplicar" "$*"
+            anti_repeticion "actualizar/aplicar" "actualizar aplicar" "$*"
+            if [[ ! -f /var/lib/starseed/actualizacion_disponible ]]; then
+                echo "ERROR: No hay actualización disponible" >&2
+                log_orden "actualizar aplicar" "{}" "sin_actualizacion" 1
+                exit 1
+            fi
+            local version
+            version=$(cat /var/lib/starseed/actualizacion_disponible)
+            echo "Aplicando actualización ${version}..."
+            log_orden "actualizar aplicar" "{\"version\":\"${version}\"}" "ok" 0
+            ;;
+        *)
+            echo "Suborden desconocida: ${sub}" >&2
+            echo "Uso: actualizar {estado|buscar|aplicar}" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: registros
+# ──────────────────────────────────────────────────────────────
+
+cmd_registros() {
+    local sub="${1:-}"
+    shift || true
+    case "${sub}" in
+        leer)
+            local lineas=50
+            local servicio=""
+            while [[ $# -gt 0 ]]; do
+                case $1 in
+                    --lineas) lineas="$2"; shift 2 ;;
+                    --servicio) servicio="$2"; shift 2 ;;
+                    *) echo "Argumento desconocido: $1" >&2; exit 1 ;;
+                esac
+            done
+            local logs=()
+            if [[ -n "${servicio}" ]]; then
+                mapfile -t logs < <(journalctl -u "${servicio}" -n "${lineas}" --no-pager -o cat 2>/dev/null || true)
+            else
+                mapfile -t logs < <(tail -n "${lineas}" "${AYUDANTE_LOG_FILE}" 2>/dev/null || true)
+            fi
+            local json="["
+            local primero=true
+            for l in "${logs[@]}"; do
+                if [[ "${primero}" == true ]]; then primero=false; else json+=","; fi
+                json+=$(jq -nc --arg l "${l}" '{linea: $l}')
+            done
+            json+="]"
+            jq -nc --argjson l "${json}" '{lineas: $l}'
+            log_orden "registros leer" "{\"lineas\":${lineas},\"servicio\":\"${servicio}\"}" "ok" 0
+            ;;
+        *)
+            echo "Suborden desconocida: ${sub}" >&2
+            echo "Uso: registros leer [--lineas N] [--servicio NOMBRE]" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: reiniciar
+# ──────────────────────────────────────────────────────────────
+
+cmd_reiniciar() {
+    local que="${1:-}"
+    shift || true
+    case "${que}" in
+        app)
+            requiere_root "reiniciar app" "$*"
+            anti_repeticion "reiniciar/app" "reiniciar app" "$*"
+            systemctl restart starseed-app 2>&1
+            log_orden "reiniciar app" "{}" "ok" 0
+            ;;
+        *)
+            echo "Objetivo desconocido: ${que}" >&2
+            echo "Uso: reiniciar app" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Órdenes: modo-completo
+# ──────────────────────────────────────────────────────────────
+
+cmd_modo_completo() {
+    local sub="${1:-}"
+    shift || true
+    case "${sub}" in
+        activar)
+            requiere_root "modo-completo activar" "$*"
+            anti_repeticion "modo-completo/activar" "modo-completo activar" "$*"
+            local caducidad_min=""
+            while [[ $# -gt 0 ]]; do
+                case $1 in
+                    --caducidad-min) caducidad_min="$2"; shift 2 ;;
+                    *) echo "Argumento desconocido: $1" >&2; exit 1 ;;
+                esac
+            done
+            if [[ -z "${caducidad_min}" ]]; then
+                echo "ERROR: --caducidad-min es obligatorio (1-1440 minutos)" >&2
+                log_orden "modo-completo activar" "{}" "falta_caducidad" 1
+                exit 1
+            fi
+            if (( caducidad_min < 1 || caducidad_min > 1440 )); then
+                echo "ERROR: Caducidad debe estar entre 1 y 1440 minutos (24h)" >&2
+                log_orden "modo-completo activar" "{\"caducidad_min\":${caducidad_min}}" "caducidad_invalida" 1
+                exit 1
+            fi
+            local expira
+            expira=$(date -u -d "+${caducidad_min} minutes" +"%Y-%m-%dT%H:%M:%SZ")
+            local estado
+            estado=$(jq -nc --arg e "${expira}" '{activo: true, expira: $e}')
+            escribir_json "${MODO_COMPLETO_ESTADO}" "${estado}"
+            echo "Modo completo activado. Expira: ${expira}"
+            log_orden "modo-completo activar" "{\"caducidad_min\":${caducidad_min},\"expira\":\"${expira}\"}" "ok" 0
+            ;;
+        desactivar)
+            requiere_root "modo-completo desactivar" "$*"
+            anti_repeticion "modo-completo/desactivar" "modo-completo desactivar" "$*"
+            escribir_json "${MODO_COMPLETO_ESTADO}" '{"activo":false,"expira":null}'
+            echo "Modo completo desactivado"
+            log_orden "modo-completo desactivar" "{}" "ok" 0
+            ;;
+        estado)
+            local estado
+            estado=$(leer_json "${MODO_COMPLETO_ESTADO}")
+            local activo
+            activo=$(echo "${estado}" | jq -r '.activo // false')
+            local expira
+            expira=$(echo "${estado}" | jq -r '.expira // null')
+            local expira_en=0
+            if [[ "${activo}" == "true" && "${expira}" != "null" ]]; then
+                local ahora
+                ahora=$(date -u +%s)
+                local expira_ts
+                expira_ts=$(date -u -d "${expira}" +%s 2>/dev/null || echo 0)
+                if (( expira_ts > ahora )); then
+                    expira_en=$((expira_ts - ahora))
+                else
+                    activo="false"
+                    expira="null"
+                    escribir_json "${MODO_COMPLETO_ESTADO}" '{"activo":false,"expira":null}'
+                fi
+            fi
+            jq -nc --argjson a "${activo}" --arg e "${expira}" --argjson s "${expira_en}" \
+                '{activo: $a, expira: $e, expira_en_segundos: $s}'
+            log_orden "modo-completo estado" "{}" "ok" 0
+            ;;
+        *)
+            echo "Suborden desconocida: ${sub}" >&2
+            echo "Uso: modo-completo {activar|desactivar|estado}" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Orden: estado
+# ──────────────────────────────────────────────────────────────
+
+cmd_estado() {
+    local modo_completo
+    modo_completo=$(cmd_modo_completo estado 2>/dev/null || echo '{"activo":false}')
+    local almacenes
+    almacenes=$(cmd_almacenes estado 2>/dev/null || echo '{"montado":"no"}')
+    local servicios
+    servicios=$(cmd_servicios lista 2>/dev/null || echo '[]')
+    jq -nc --argjson mc "${modo_completo}" --argjson a "${almacenes}" --argjson s "${servicios}" \
+        '{modo_completo: $mc, almacenes: $a, servicios: $s}'
+    log_orden "estado" "{}" "ok" 0
+}
+
+# ──────────────────────────────────────────────────────────────
+# Ayuda
+# ──────────────────────────────────────────────────────────────
+
+mostrar_ayuda() {
+    cat <<'EOF'
+starseed-ayudante v1.0.0 · Ayudante con privilegios para StarSeed OS
+
+USO:
+    starseed-ayudante <orden> [suborden] [argumentos]
+
+ÓRDENES:
+    almacenes     Gestiona almacenes (estado, salud, formatear, montar, desmontar, verificar)
+    servicios     Controla servicios propios de StarSeed (lista, estado, iniciar, parar, reiniciar)
+    actualizar    Gestiona actualizaciones de la app (estado, buscar, aplicar)
+    registros     Lee registros del sistema y del ayudante (leer)
+    reiniciar     Reinicia la app StarSeed (app)
+    modo-completo Activa modo administrador completo con caducidad (activar, desactivar, estado)
+    estado        Muestra estado general del sistema
+
+EJEMPLOS:
+    starseed-ayudante almacenes estado
+    sudo starseed-ayudante almacenes formatear --serie ABC123
+    starseed-ayudante servicios lista
+    sudo starseed-ayudante servicios reiniciar starseed-malla
+    starseed-ayudante actualizar buscar
+    sudo starseed-ayudante actualizar aplicar
+    starseed-ayudante registros leer --lineas 20 --servicio starseed-malla
+    sudo starseed-ayudante reiniciar app
+    sudo starseed-ayudante modo-completo activar --caducidad-min 60
+    starseed-ayudante modo-completo estado
+    sudo starseed-ayudante modo-completo desactivar
+    starseed-ayudante estado
+
+NOTAS:
+    - Órdenes que modifican el sistema requieren root (sudo).
+    - Modo completo: solo el dueño lo activa en el aparato, con caducidad (1 min - 24 h) y registro encadenado.
+    - Todas las órdenes quedan registradas en /var/log/starseed-ayudante/ordenes.log (encadenado por SHA-256).
+    - Anti-repetición: misma orden con mismos args en < 2s se rechaza.
+EOF
+}
+
+# ──────────────────────────────────────────────────────────────
+# Principal
+# ──────────────────────────────────────────────────────────────
+
+main() {
+    local orden="${1:-}"
+    shift || true
+
+    case "${orden}" in
+        --help|-h|ayuda|"")
+            mostrar_ayuda
+            ;;
+        almacenes)
+            cmd_almacenes "$@"
+            ;;
+        servicios)
+            cmd_servicios "$@"
+            ;;
+        actualizar)
+            cmd_actualizar "$@"
+            ;;
+        registros)
+            cmd_registros "$@"
+            ;;
+        reiniciar)
+            cmd_reiniciar "$@"
+            ;;
+        modo-completo)
+            cmd_modo_completo "$@"
+            ;;
+        estado)
+            cmd_estado
+            ;;
+        *)
+            echo "ERROR: Orden desconocida: ${orden}" >&2
+            echo "Use 'starseed-ayudante --help' para ver las órdenes disponibles." >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
