@@ -13,7 +13,7 @@ const AHORA = 1_800_000_000_000, FRESCO_MS = 15 * 60_000, LAT_A = 19.4326, LON_A
 
 /** Fila tal como la guardaría `os_senales_publicas` (con `ficha`, que la lectura nunca usa). */
 interface Fila {
-  id: string; owner: string; capa: "publica" | "comunidad" | "privada"; comunidad: string | null;
+  id: string; owner: string; owner_id: string; device_id: string; capa: "publica" | "comunidad" | "privada"; comunidad: string | null;
   medio: Medio; banda: string; frecuencia_khz: number | null; ancho_khz: number | null; fuerza_dbm: number | null;
   calidad: number | null; origen: "medida" | "declarada" | "estimada"; zona: string | null;
   medido_en: number; fuente: string; vinculo_tipo: "neurona"; vinculo_id: string;
@@ -34,7 +34,7 @@ function publicar(owner: string, propias: readonly SenalEspectro[], eleccion: El
     eleccion: { publicar: eleccion, comunidades: [...(o.comunidades ?? [])], incluirZona: !!o.zona },
     propias: [...propias], ocupacion: [], zonaGruesa: o.zona ?? null, deviceId: `dev-${owner}`, ahora,
   }).map((f) => ({
-    id: f.id, owner, capa: f.capa, comunidad: f.comunidad, medio: f.medio, banda: f.banda,
+    id: f.id, owner, owner_id: owner, device_id: `dev-${owner}`, capa: f.capa, comunidad: f.comunidad, medio: f.medio, banda: f.banda,
     frecuencia_khz: f.frecuenciaKhz, ancho_khz: f.anchoKhz, fuerza_dbm: f.fuerzaDbm,
     calidad: f.calidad, origen: f.origen, zona: f.zona, medido_en: f.medidoEn, fuente: f.fuente,
     vinculo_tipo: "neurona", vinculo_id: `neu-${owner}`, compatibles: [], ficha: { lat: LAT_A, lon: LON_A },
@@ -69,7 +69,7 @@ describe("red completa en el modelo del mapa", () => {
     ...publicar(B, [senal("b-bt", "bluetooth")], { bluetooth: "comunidad" }, { comunidades: ["c1"] }),
   ];
   filas.push({ ...publicar(A, [senal("a-priv", "wifi")], { wifi: "comunidad" }, { comunidades: ["c1"] })[0], capa: "privada", comunidad: null });
-  filas.push({ ...filas[0], id: "b-vieja", owner: B, vinculo_id: "neu-b", medio: "lora", medido_en: AHORA - 20 * 60_000 });
+  filas.push({ ...filas[0], id: "b-vieja", owner: B, owner_id: B, device_id: "dev-cuenta-b", medio: "lora", medido_en: AHORA - 20 * 60_000 });
   const miembros = { [C]: ["c1"], [D]: [] };
 
   it("C (miembro de c1) ve las tres; D (no miembro) solo las públicas y frescas", async () => {
@@ -86,7 +86,7 @@ describe("red completa en el modelo del mapa", () => {
     const a = await modeloDelMapa(srv.cliente(A), A);
     const c = await modeloDelMapa(srv.cliente(C), C);
     const d = await modeloDelMapa(srv.cliente(D), D);
-    expect(a.senales.some((s) => s.id.endsWith("a-priv"))).toBe(true);
+    expect(a.senales.some((s) => s.id.endsWith("a-priv"))).toBe(false); // la lectura omite las propias
     expect(c.senales.some((s) => s.id.endsWith("a-priv"))).toBe(false);
     expect(d.senales.some((s) => s.id.endsWith("a-priv"))).toBe(false);
   });
