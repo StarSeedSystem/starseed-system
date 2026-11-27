@@ -80,8 +80,12 @@ export function crearCapaParches(L: LeafletNS, map: any, id: string, zIndex: num
       }
     } catch { /* el mapa se está destruyendo */ }
   };
-  const pedir = () => { if (!raf) raf = requestAnimationFrame(dibujar); };
+  // Un solo cuadro pendiente a la vez, y ninguno con la página oculta: al volver se repinta una vez.
+  const oculta = () => typeof document !== "undefined" && document.hidden === true;
+  const pedir = () => { if (!raf && !oculta()) raf = requestAnimationFrame(dibujar); };
+  const alCambiarVisibilidad = () => { if (!oculta()) pedir(); };
   map.on("move zoom moveend zoomend resize viewreset", pedir);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", alCambiarVisibilidad);
   pedir();
 
   return {
@@ -89,6 +93,7 @@ export function crearCapaParches(L: LeafletNS, map: any, id: string, zIndex: num
     opacidad: (o) => { canvas.style.opacity = String(o); },
     quitar: () => {
       map.off("move zoom moveend zoomend resize viewreset", pedir);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", alCambiarVisibilidad);
       if (raf) cancelAnimationFrame(raf);
       try { canvas.remove(); pane.remove(); } catch { /* */ }
     },
