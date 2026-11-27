@@ -27,6 +27,7 @@ import { Centro3D } from "./centro-3d";
 import { Marcador3D } from "./marcador-3d";
 import { Medio3D } from "./medio-3d";
 import { FACTOR_ETIQUETA } from "./etiqueta-3d";
+import { useBucleFotogramas, type EstadoAnimacion } from "./bucle-fotogramas";
 
 export type VistaCamara = "inclinada" | "cenital";
 export interface OrdenCamara { vista: VistaCamara; n: number }
@@ -71,11 +72,13 @@ interface ControlesOrbita {
 }
 
 /** Vuelos de cámara: a un preset (cenital/inclinada) o a la señal elegida. */
-function Camara({ orden, seleccionId, foco, reducido }: {
+function Camara({ orden, seleccionId, foco, reducido, enVuelo, setEnVuelo }: {
   orden: OrdenCamara | null;
   seleccionId: string | null;
   foco: [number, number, number] | null;
   reducido: boolean;
+  enVuelo: boolean;
+  setEnVuelo: (v: boolean) => void;
 }) {
   const controles = useThree((s) => s.controls) as unknown as ControlesOrbita | null;
   const camara = useThree((s) => s.camera);
@@ -103,8 +106,9 @@ function Camara({ orden, seleccionId, foco, reducido }: {
     if (!orden) return;
     const e = encuadre(tamanoRef.current.width, tamanoRef.current.height, orden.vista);
     destino.current = { objetivo: e.objetivo, posicion: e.posicion };
+    setEnVuelo(true);
     invalidar();
-  }, [orden, invalidar]);
+  }, [orden, invalidar, setEnVuelo]);
 
   useEffect(() => {
     const f = focoRef.current;
@@ -112,28 +116,19 @@ function Camara({ orden, seleccionId, foco, reducido }: {
     const objetivo = new THREE.Vector3(f[0], f[1], f[2]);
     const delta = objetivo.clone().sub(controles.target);
     destino.current = { objetivo, posicion: camara.position.clone().add(delta) };
+    setEnVuelo(true);
     invalidar();
-  }, [seleccionId, controles, camara, invalidar]);
+  }, [seleccionId, controles, camara, invalidar, setEnVuelo]);
 
   // Si la persona toma el control, el vuelo se cancela al instante.
   useEffect(() => {
     if (!controles) return;
-    const cancelar = () => { destino.current = null; };
+    const cancelar = () => { destino.current = null; setEnVuelo(false); };
     controles.addEventListener("start", cancelar);
     return () => controles.removeEventListener("start", cancelar);
-  }, [controles]);
+  }, [controles, setEnVuelo]);
 
-  useFrame((_, dt) => {
-    const d = destino.current;
-    if (!d || !controles) return;
-    const k = reducido ? 1 : 1 - Math.exp(-6 * Math.min(dt, 0.1));
-    controles.target.lerp(d.objetivo, k);
-    camara.position.lerp(d.posicion, k);
-    controles.update();
-    const llegado = controles.target.distanceTo(d.objetivo) < 0.02 && camara.position.distanceTo(d.posicion) < 0.05;
-    if (llegado) destino.current = null;
-    else invalidar();
-  });
+  // La animación de vuelo se maneja en el bucle centralizado de Escena3D
   return null;
 }
 
@@ -228,16 +223,104 @@ function GestorEtiquetas({ marcadores, candidatas, prioritarias, onVisibles }: {
 }
 
 export default function Escena3D(p: EscenaProps) {
+  const contenedorRef = useRef<HTMLDivElement>(null);
   const sel = p.marcadores.find((m) => m.id === p.seleccionId) ?? null;
   const selMedio = p.medios.find((m) => m.id === p.seleccionId) ?? null;
   const foco: [number, number, number] | null = sel
     ? [sel.x, sel.y * 0.6, sel.z]
     : selMedio ? [selMedio.x, selMedio.y * 0.6, selMedio.z] : p.seleccionId === "yo" ? [0, 0, 0] : null;
-  const visible = usePestanaVisible();
-  // Solo se pinta sin parar si algo se mueve de verdad Y la pestaña se ve.
-  const animado = visible && !p.reducido && (p.girar || p.marcadores.some((m) => m.reciente && !m.tenue));
+
+  const hayPulsos = p.marcadores.some((m) => m.reciente && !m.tenue && !p.reducido);
+  const [enVuelo, setEnVuelo] = useState(false);
+  const estadoAnimacion: EstadoAnimacion = useMemo(
+    () => ({ girar: p.girar && !p.reducido, hayPulsos, camaraEnVuelo: enVuelo }),
+    [p.girar, p.reducido, hayPulsos, enVuelo]
+  );
+
+  const { animado } = useBucleFotogramas(estadoAnimacion, p.reducido, contenedorRef);
+
   const [conEtiqueta, setConEtiqueta] = useState<ReadonlySet<string>>(() => new Set(p.seleccionId ? [p.seleccionId] : []));
   const prioritarias = useMemo(() => [p.seleccionId, p.apuntadaId], [p.seleccionId, p.apuntadaId]);
+
+  // Refs para el bucle centralizado de animación
+  const controlesRef = useRef<ControlesOrbita | null>(null);
+  const camaraRef = useRef<THREE.Camera | null>(null);
+  const invalidarRef = useRef<() => void>(() => {});
+  const destinoRef = useRef<{ objetivo: THREE.Vector3; posicion: THREE.Vector3 } | null>(null);
+  const tamanoRef = useRef({ width: 0, height: 0 });
+  const focoRef = useRef(foco);
+  focoRef.current = foco;
+
+  // Capturar refs de three para el useFrame centralizado
+  const controles = useThree((s) => s.controls) as unknown as ControlesOrbita | null;
+  const camara = useThree((s) => s.camera);
+  const invalidar = useThree((s) => s.invalidate);
+  const tamano = useThree((s) => s.size);
+  controlesRef.current = controles;
+  camaraRef.current = camara;
+  invalidarRef.current = invalidar;
+  tamanoRef.current = tamano;
+
+  // Encuadre inicial
+  useEffect(() => {
+    if (!controles) return;
+    const e = encuadre(tamano.width, tamano.height, "inclinada");
+    controles.target.copy(e.objetivo);
+    camara.position.copy(e.posicion);
+    controles.update();
+    invalidar();
+  }, [controles, camara, invalidar]);
+
+  // Órdenes de cámara (presets)
+  useEffect(() => {
+    if (!orden || !controles) return;
+    const e = encuadre(tamanoRef.current.width, tamanoRef.current.height, orden.vista);
+    destinoRef.current = { objetivo: e.objetivo, posicion: e.posicion };
+    setEnVuelo(true);
+    invalidar();
+  }, [p.orden, invalidar]);
+
+  // Vuelo a señal seleccionada
+  useEffect(() => {
+    const f = focoRef.current;
+    if (!p.seleccionId || !f || !controles) return;
+    const objetivo = new THREE.Vector3(f[0], f[1], f[2]);
+    const delta = objetivo.clone().sub(controles.target);
+    destinoRef.current = { objetivo, posicion: camara.position.clone().add(delta) };
+    setEnVuelo(true);
+    invalidar();
+  }, [p.seleccionId, controles, camara, invalidar]);
+
+  // Cancelar vuelo si el usuario toma el control
+  useEffect(() => {
+    if (!controles) return;
+    const cancelar = () => { destinoRef.current = null; setEnVuelo(false); };
+    controles.addEventListener("start", cancelar);
+    return () => controles.removeEventListener("start", cancelar);
+  }, [controles]);
+
+  // Bucle centralizado: animación de cámara + pulsos
+  useFrame((_, dt) => {
+    const controles = controlesRef.current;
+    const camara = camaraRef.current;
+    const invalidar = invalidarRef.current;
+    const destino = destinoRef.current;
+    if (!controles || !camara || !destino) {
+      if (enVuelo) setEnVuelo(false);
+      return;
+    }
+    const k = p.reducido ? 1 : 1 - Math.exp(-6 * Math.min(dt, 0.1));
+    controles.target.lerp(destino.objetivo, k);
+    camara.position.lerp(destino.posicion, k);
+    controles.update();
+    const llegado = controles.target.distanceTo(destino.objetivo) < 0.02 && camara.position.distanceTo(destino.posicion) < 0.05;
+    if (llegado) {
+      destinoRef.current = null;
+      setEnVuelo(false);
+    } else {
+      invalidar();
+    }
+  });
 
   useEffect(() => {
     document.body.style.cursor = p.apuntadaId ? "pointer" : "";
@@ -245,69 +328,71 @@ export default function Escena3D(p: EscenaProps) {
   }, [p.apuntadaId]);
 
   return (
-    <Canvas
-      role="img"
-      aria-label={p.descripcion}
-      camera={{ position: [0, 13.2, 18.2], fov: FOV_V, near: 0.1, far: 220 }}
-      dpr={p.ligero ? [1, 1.25] : [1, 1.5]}
-      frameloop={animado ? "always" : "demand"}
-      gl={{ antialias: !p.ligero, alpha: true, powerPreference: "low-power" }}
-      onPointerMissed={() => p.onSeleccionar(null)}
-      onCreated={({ gl }) => {
-        gl.domElement.addEventListener("webglcontextlost", (e) => {
-          e.preventDefault();
-          p.onPerdido?.();
-        });
-      }}
-    >
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[6, 12, 8]} intensity={1.6} />
-      <Suelo />
-      <SectoresSuelo sectores={p.sectores} />
-      <AnillosAlcance anillos={p.anillos} />
-      {p.hayGps && <MarcaNorte />}
-      <Centro3D
-        centro={p.centro}
-        seleccionado={p.seleccionId === "yo"}
-        apuntado={p.apuntadaId === "yo"}
-        onSeleccionar={() => p.onSeleccionar("yo")}
-        onApuntar={(sobre) => p.onApuntar(sobre ? "yo" : null)}
-      />
-      {p.antenas.map((a) => <AntenaPropiaMarca key={a.kind} antena={a} />)}
-      {p.marcadores.map((m) => (
-        <Marcador3D
-          key={m.id}
-          m={m}
-          seleccionada={m.id === p.seleccionId}
-          apuntada={m.id === p.apuntadaId}
-          conEtiqueta={conEtiqueta.has(m.id)}
-          reducido={p.reducido}
-          onSeleccionar={p.onSeleccionar}
-          onApuntar={p.onApuntar}
+    <div ref={contenedorRef} style={{ width: "100%", height: "100%" }}>
+      <Canvas
+        role="img"
+        aria-label={p.descripcion}
+        camera={{ position: [0, 13.2, 18.2], fov: FOV_V, near: 0.1, far: 220 }}
+        dpr={p.ligero ? [1, 1.25] : [1, 1.5]}
+        frameloop={animado ? "always" : "demand"}
+        gl={{ antialias: !p.ligero, alpha: true, powerPreference: "low-power" }}
+        onPointerMissed={() => p.onSeleccionar(null)}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener("webglcontextlost", (e) => {
+            e.preventDefault();
+            p.onPerdido?.();
+          });
+        }}
+      >
+        <ambientLight intensity={0.9} />
+        <directionalLight position={[6, 12, 8]} intensity={1.6} />
+        <Suelo />
+        <SectoresSuelo sectores={p.sectores} />
+        <AnillosAlcance anillos={p.anillos} />
+        {p.hayGps && <MarcaNorte />}
+        <Centro3D
+          centro={p.centro}
+          seleccionado={p.seleccionId === "yo"}
+          apuntado={p.apuntadaId === "yo"}
+          onSeleccionar={() => p.onSeleccionar("yo")}
+          onApuntar={(sobre) => p.onApuntar(sobre ? "yo" : null)}
         />
-      ))}
-      {p.medios.map((m) => (
-        <Medio3D
-          key={m.id}
-          m={m}
-          seleccionado={m.id === p.seleccionId}
-          apuntado={m.id === p.apuntadaId}
-          onSeleccionar={p.onSeleccionar}
-          onApuntar={p.onApuntar}
+        {p.antenas.map((a) => <AntenaPropiaMarca key={a.kind} antena={a} />)}
+        {p.marcadores.map((m) => (
+          <Marcador3D
+            key={m.id}
+            m={m}
+            seleccionada={m.id === p.seleccionId}
+            apuntada={m.id === p.apuntadaId}
+            conEtiqueta={conEtiqueta.has(m.id)}
+            reducido={p.reducido}
+            onSeleccionar={p.onSeleccionar}
+            onApuntar={p.onApuntar}
+          />
+        ))}
+        {p.medios.map((m) => (
+          <Medio3D
+            key={m.id}
+            m={m}
+            seleccionado={m.id === p.seleccionId}
+            apuntado={m.id === p.apuntadaId}
+            onSeleccionar={p.onSeleccionar}
+            onApuntar={p.onApuntar}
+          />
+        ))}
+        <GestorEtiquetas marcadores={p.marcadores} candidatas={p.conEtiqueta} prioritarias={prioritarias} onVisibles={setConEtiqueta} />
+        <Camara orden={p.orden} seleccionId={p.seleccionId} foco={foco} reducido={p.reducido} enVuelo={enVuelo} setEnVuelo={setEnVuelo} />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.09}
+          minDistance={4}
+          maxDistance={42}
+          maxPolarAngle={Math.PI / 2 - 0.03}
+          autoRotate={p.girar && !p.reducido}
+          autoRotateSpeed={0.7}
         />
-      ))}
-      <GestorEtiquetas marcadores={p.marcadores} candidatas={p.conEtiqueta} prioritarias={prioritarias} onVisibles={setConEtiqueta} />
-      <Camara orden={p.orden} seleccionId={p.seleccionId} foco={foco} reducido={p.reducido} />
-      <OrbitControls
-        makeDefault
-        enableDamping
-        dampingFactor={0.09}
-        minDistance={4}
-        maxDistance={42}
-        maxPolarAngle={Math.PI / 2 - 0.03}
-        autoRotate={p.girar && !p.reducido}
-        autoRotateSpeed={0.7}
-      />
-    </Canvas>
+      </Canvas>
+    </div>
   );
 }
