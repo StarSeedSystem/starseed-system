@@ -5,9 +5,18 @@
  *
  * Los módulos de llamadas se cargan a demanda (`import()`): este archivo cuelga del montaje global y
  * no debe arrastrar el motor al grafo común (metagenesis.md, «el layout raíz no carga motores pesados»).
+ *
+ * BAP1127I · `prueba-control` contesta `{estado:"aceptada", id}` al instante (`mandarOrden` espera 15 s,
+ * `canal.ts:27`) y hace la prueba en segundo plano; el fin se avisa por registro, no con una respuesta larga.
+ * Hacen falta DOS sesiones aceptadas con el permiso encendido en cada dueño: Mac→origen y origen→destino
+ * (`sesion.ts` pasos 2, 4 y 13: permiso, aparato aceptado por clave y sesión viva con latidos). El origen
+ * abre la suya hacia el destino por el mismo camino que la pantalla «Controlar» (`crearPantallaDestino`),
+ * sin encender permisos ni pedir aceptación a distancia.
  */
 
 import type { Args } from "./niveles";
+import { validarArgsPruebaControl, finalizarPrueba, type ArgsPruebaControl, type InformePruebaControl } from "./prueba-control";
+import { fuentePedidaValida, type FuentePedida } from "./fuente-pantalla";
 
 /** Evento que la banda (montada en el layout, con el enrutador de Next) atiende para abrir una ruta. */
 export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
@@ -15,6 +24,91 @@ export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
 const ORDENES_PANTALLA = new Set(["pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla-cuadro", "leer-aparato", "gesto", "tecla", "volumen", "brillo", "texto"]);
 function esOrdenDePantalla(nombre: string): boolean {
     return ORDENES_PANTALLA.has(nombre);
+}
+
+// ── BAP1127I · prueba-control (puro salvo el camino inyectado) ────────────────────────────────
+
+export type MotivoPruebaControl = "ok" | "espera-permiso" | "ocupado" | "duracion" | "argumentos" | `fallo:${string}`;
+type VeredictoPrueba = { motivo: "duracion" | "argumentos" | "espera-permiso" | "ocupado" } | { args: ArgsPruebaControl };
+
+export interface CaminoControlPrueba {
+    permisoEncendido: boolean;
+    llamadaEnCurso: boolean;
+    id(): string;
+    abrir(destino: string, fuente: FuentePedida): Promise<{ ok: boolean; cuadros: number; latenciaMs: number; motivo?: string }>;
+    esperar(ms: number): Promise<void>;
+    cerrar(): Promise<void>;
+    anotar(linea: string): void;
+    enSegundoPlano(tarea: () => Promise<void>): void;
+}
+
+/** Decide SIN abrir nada. El validador de PRU1126A manda; después permiso y llamada, en ese orden. */
+export function veredictoPruebaControl(args: Args, camino: CaminoControlPrueba): VeredictoPrueba {
+    const base = {
+        destino: typeof args.destino === "string" ? args.destino : "",
+        fuente: typeof args.fuente === "string" ? args.fuente : "",
+        nivel: typeof args.nivel === "string" ? args.nivel : undefined,
+    };
+    const duracionMs = typeof args.duracionMs === "number" ? args.duracionMs : Number.NaN;
+    const validas = validarArgsPruebaControl({ ...base, duracionMs });
+    if (!validas) {
+        const sinDuracion = validarArgsPruebaControl({ ...base, duracionMs: 30_000 });
+        return { motivo: sinDuracion ? "duracion" : "argumentos" };
+    }
+    if (!camino.permisoEncendido) return { motivo: "espera-permiso" };
+    if (camino.llamadaEnCurso) return { motivo: "ocupado" };
+    return { args: validas };
+}
+
+/** Las tres líneas del registro: solo 8 hex de destino, nunca huella completa ni IP. */
+export function lineasPruebaControl(id: string, destino: string, durS: number, motivo: MotivoPruebaControl, informe?: InformePruebaControl) {
+    const d8 = destino.slice(0, 8);
+    const dur = Math.max(0, Math.floor(durS));
+    const estado = motivo === "ok" ? "ok" : motivo.startsWith("fallo:") ? "fallo" : "sin-dato";
+    const datos = informe ? ` cuadros=${informe.cuadros} latencia=${informe.latenciaMs} informe=${informe.duracionMs}` : "";
+    return {
+        inicio: `prueba-control inicio id=${id} destino=${d8} dur=${dur} resultado=${motivo}`,
+        fin: `prueba-control fin id=${id} destino=${d8} dur=${dur} resultado=${motivo}`,
+        avisoFin: `prueba-fin id=${id} resultado=${estado} motivo=${motivo} destino=${d8} dur=${dur}${datos}`,
+    };
+}
+
+/** Contesta al instante; el rechazo sale como `Error` con motivo corto (lo que `sesion.ts` reenvía). */
+export async function ejecutarPruebaControlCon(args: Args, camino: CaminoControlPrueba): Promise<{ estado: "aceptada"; id: string }> {
+    const id = camino.id();
+    const destino = typeof args.destino === "string" ? args.destino : "";
+    const durS = typeof args.duracionMs === "number" && Number.isFinite(args.duracionMs) ? args.duracionMs / 1000 : 0;
+    const v = veredictoPruebaControl(args, camino);
+    if ("motivo" in v) {
+        const lineas = lineasPruebaControl(id, destino, durS, v.motivo);
+        camino.anotar(lineas.inicio);
+        camino.anotar(lineas.fin);
+        camino.anotar(lineas.avisoFin);
+        throw new Error(v.motivo);
+    }
+    camino.anotar(lineasPruebaControl(id, v.args.destino, durS, "ok").inicio);
+    camino.enSegundoPlano(async () => {
+        let fin: MotivoPruebaControl = "ok";
+        let informe: InformePruebaControl | null = null;
+        try {
+            const r = await camino.abrir(v.args.destino, fuentePedidaValida(v.args.fuente));
+            if (!r.ok) {
+                fin = `fallo:${r.motivo ?? "sin-sesion"}`;
+            } else {
+                await camino.esperar(v.args.duracionMs);
+                informe = finalizarPrueba({ cuadros: r.cuadros, latenciaMs: r.latenciaMs, retardoMs: 0 });
+                if (!informe.ok) fin = `fallo:${informe.motivo}`;
+            }
+        } catch (e) {
+            fin = `fallo:${e instanceof Error ? e.message.slice(0, 40) : "excepcion"}`;
+        } finally {
+            await camino.cerrar().catch(() => undefined);
+            const lineas = lineasPruebaControl(id, v.args.destino, durS, fin, informe ?? undefined);
+            camino.anotar(lineas.fin);
+            camino.anotar(lineas.avisoFin);
+        }
+    });
+    return { estado: "aceptada", id };
 }
 
 /** ¿Hay una simulación de corte IP en curso? (solo para el estado y el registro; nunca cuenta como real) */
@@ -115,6 +209,30 @@ export async function ejecutarEnApp(
             const { anotarLlamada } = await import("@/lib/llamadas/voz-datos/diagnostico");
             anotarLlamada("banco", null, `simulacion ${corta ? "corte-ip" : "vuelve-ip"} medio_real=no`);
             return { simulacion: true, corteIp: corta };
+        }
+        case "prueba-control": {
+            const [{ leerPermisoLocal, nonceNuevo }, e] = await Promise.all([import("./canal"), llamadas()]);
+            let pantalla: import("./pantalla-destino").PantallaDestino | null = null;
+            const anotar = (linea: string): void => {
+                void import("@/lib/llamadas/voz-datos/diagnostico").then((m) => m.anotarLlamada("banco", null, linea)).catch(() => undefined);
+            };
+            const camino: CaminoControlPrueba = {
+                permisoEncendido: leerPermisoLocal().encendido,
+                llamadaEnCurso: !!e.activa,
+                id: () => nonceNuevo().slice(0, 16),
+                anotar,
+                abrir: async (destino, fuente) => {
+                    const { crearPantallaDestino } = await import("./pantalla-destino");
+                    pantalla = crearPantallaDestino(destino, { fuente });
+                    await pantalla.iniciar();
+                    const s = pantalla.instantanea();
+                    return { ok: s.estado === "conectando" || s.estado === "en-vivo" || s.estado === "pausa-local", cuadros: s.calidad?.cuadrosEnVentana ?? 0, latenciaMs: s.calidad?.rttMs ?? 0, motivo: s.motivo };
+                },
+                esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
+                cerrar: async () => { await pantalla?.cerrar("prueba-control-fin", true); },
+                enSegundoPlano: (tarea) => { void tarea(); },
+            };
+            return ejecutarPruebaControlCon(args, camino);
         }
         default:
             throw new Error("accion-desconocida");

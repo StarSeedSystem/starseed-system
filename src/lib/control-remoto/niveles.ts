@@ -11,6 +11,7 @@
 import { RE_NEG, MAX_PARTES, leerParte } from "./senal-partes";
 import { validarPideCuadro } from "./cuadro-malla";
 import { validarComandoTerminal } from "./terminal";
+import { validarArgsPruebaControl } from "./prueba-control";
 
 export type Nivel = "ver" | "controlar" | "modificar" | "administrar";
 export type NivelTerminal = "usuario" | "administrador";
@@ -196,6 +197,19 @@ function validarTexto(a: Args): Args | null {
     return { texto: a.texto };
 }
 
+/** BAP1127I · la orden de prueba usa el validador puro de PRU1126A, sin duplicar reglas. */
+function validarPruebaControl(a: Args): Args | null {
+    if (!soloClaves(a, ["destino", "duracionMs", "fuente", "nivel"])) return null;
+    const valida = validarArgsPruebaControl({
+        destino: typeof a.destino === "string" ? a.destino : "",
+        duracionMs: typeof a.duracionMs === "number" ? a.duracionMs : Number.NaN,
+        fuente: typeof a.fuente === "string" ? a.fuente : "",
+        nivel: typeof a.nivel === "string" ? a.nivel : undefined,
+    });
+    if (!valida) return null;
+    return { destino: valida.destino, duracionMs: valida.duracionMs, fuente: valida.fuente, ...(valida.nivel ? { nivel: valida.nivel } : {}) };
+}
+
 export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     "abrir-sesion": { nivel: "ver", sinSesion: true, validar: conColorOpcional, que: "abre una sesión; el destino dice su nivel y sus capacidades" },
     "cerrar-sesion": { nivel: "ver", validar: sinArgs, que: "cierra la sesión" },
@@ -258,6 +272,12 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
     brillo: { nivel: "controlar", entrada: true, validar: (a) => (soloClaves(a, ["nivel"]) && unidad(a.nivel) ? { nivel: redondear(a.nivel) } : null), que: "pone el brillo del aparato (0 a 1)" },
     texto: { nivel: "controlar", entrada: true, validar: validarTexto, que: "escribe un texto (hasta 512 caracteres) en el campo con foco" },
     "simular-vuelve-ip": { nivel: "controlar", simulacion: true, validar: sinArgs, que: "SIMULACIÓN: deshace «simular-corte-ip»" },
+    // BAP1127I · contrato §5.4: se acepta al instante y el resultado llega por el registro.
+    "prueba-control": {
+        nivel: "controlar",
+        validar: validarPruebaControl,
+        que: "prueba de control hacia otra neurona durante 10-120 s: contesta «aceptada» al instante y anota el fin en el registro",
+    },
     // TRM1125A · terminal entre neuronas
     "terminal-abrir": {
         nivel: "modificar",
