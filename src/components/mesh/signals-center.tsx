@@ -71,7 +71,7 @@ import { hablar } from "@/lib/aurora/voz-unica";
 import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
 import { describirCapacidad, qrATarjeta } from "@/lib/nfc/respaldo";
 import { SeccionCercania } from "@/components/nfc/hoja-cerca";
-import { RegistroYVinculos } from "@/components/nfc/cercania-puertas";
+import { AjustesOfertas, RegistroYVinculos } from "@/components/nfc/cercania-puertas";
 import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
 import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 import { PanelReticula } from "@/components/malla/panel-reticula";
@@ -666,6 +666,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         via="qr"
         relacion="cuenta_nueva"
       />
+      <AjustesOfertas />
       <RegistroYVinculos />
 
       {recibidoNfc && (

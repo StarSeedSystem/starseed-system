@@ -14,6 +14,12 @@ import {
 import { ETIQUETA_ACCION, ETIQUETA_RELACION, ETIQUETA_VIA, lineaRegistro, type RegistroEncuentro } from "@/lib/nfc/encuentros";
 import { enlaceBoton } from "@/lib/notificaciones/encuentro-nfc";
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { OfertasAudiencia, type PropsOfertasAudiencia } from "@/components/neurona/ofertas-audiencia";
+import { aPreferencias, ofertasPorDefecto } from "@/lib/nfc/ofertas-audiencia";
+import { preferenciasPorDefecto } from "@/lib/nfc/preferencias";
+import { cargarPreferencias, guardarPreferencias } from "@/lib/nfc/preferencias-guardado";
+
+type OfertasAud = PropsOfertasAudiencia["ofertas"];
 
 const EVENTO = "starseed:nfc-cercania";
 const ETIQUETA_MODO: Record<ModoCercania, string> = { recibir: "Recibir", emitir: "Emitir", ambos: "Ambos" };
@@ -90,6 +96,25 @@ export function MosaicoCercania() {
       )}
     </section>
   );
+}
+
+const CLAVE_OFERTAS = "starseed.nfc.ofertas.v1";
+
+/** Ajustes · «Lo que ofrece esta neurona» (§15): cada cambio se traduce a las preferencias que `decidir` consulta. */
+export function AjustesOfertas() {
+  const [ofertas, setOfertas] = useState<OfertasAud>(ofertasPorDefecto);
+  useEffect(() => {
+    try {
+      const raw = safeGet(CLAVE_OFERTAS);
+      if (raw) setOfertas({ ...ofertasPorDefecto(), ...JSON.parse(raw) });
+    } catch { /* guardado dañado: se queda lo seguro */ }
+  }, []);
+  const cambiar = (o: OfertasAud) => {
+    setOfertas(o);
+    safeSet(CLAVE_OFERTAS, JSON.stringify(o));
+    guardarPreferencias(aPreferencias(cargarPreferencias() ?? preferenciasPorDefecto(), o));
+  };
+  return <OfertasAudiencia ofertas={ofertas} onCambiar={cambiar} />;
 }
 
 /** Puerta 2 · Centro de notificaciones: encuentros con ofertas sin hacer y sus botones. */
