@@ -19,3 +19,10 @@ export {
   fuerzaSobre,
 } from './octree';
 export { calcularPeticion } from './disposicion.worker';
+export {
+  useDisposicion,
+  calcularDisposicion,
+  tipoDisposicionValido,
+  type EstadoDisposicionHook,
+  type TipoDisposicion,
+} from './use-disposicion';
