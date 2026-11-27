@@ -21,7 +21,11 @@ except Exception:  # noqa: BLE001 — puede que no haya contexto de A1
 
 
 def unidad_systemd(usuario: str = "starseed", ruta_servicio: str = RUTA_A1) -> str:
-    """Devuelve el texto de la unidad systemd para el servidor Laya en 127.0.0.1 con MemoryMax=3G."""
+    """Devuelve el texto de la unidad systemd para el servidor Laya en 127.0.0.1 con MemoryMax=5G.
+
+    (DIR1127E, medido en el A1 el 27-11) Con 3G el proceso se quedaba en el tope del cgroup al 90 % de CPU y dejaba
+    de aceptar conexiones; con 5G usa ~1,9 GB y decide en ~0,7 s. El servidor lee STARSEED_LAYA_PUERTO (no PORT) y
+    node vive en /usr/local/bin en el A1."""
     return f"""[Unit]
 Description=StarSeed · Servidor Laya Local SystemOne
 After=network-online.target
@@ -31,12 +35,12 @@ Wants=network-online.target
 Type=simple
 User={usuario}
 WorkingDirectory={os.path.dirname(ruta_servicio)}
-Environment=PORT=4470
+Environment=STARSEED_LAYA_PUERTO=4470
 Environment=LAYA_CACHE=/home/{usuario}/.starseed/laya-cache
-ExecStart=/usr/bin/node {ruta_servicio}
+ExecStart=/usr/local/bin/node {ruta_servicio}
 Restart=on-failure
 RestartSec=10
-MemoryMax=3G
+MemoryMax=5G
 StandardOutput=append:/var/log/starseed/laya.log
 StandardError=append:/var/log/starseed/laya.log
 

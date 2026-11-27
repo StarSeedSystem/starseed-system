@@ -90,6 +90,29 @@ async function asegurarLaya() {
   return layaInstancia;
 }
 
+/** (DIR1127E) Reenvía el POST /v1/systemone a la Laya de otro nodo; 503 si no contesta en `plazoMs`. */
+export function reenviarARemoto(req, res, remoto, plazoMs = 8000, fetchImpl = globalThis.fetch) {
+  let cuerpo = "";
+  req.on("data", (c) => { cuerpo += c; });
+  return req.on("end", async () => {
+    const corte = new AbortController();
+    const reloj = setTimeout(() => corte.abort(), plazoMs);
+    try {
+      const r = await fetchImpl(`${remoto}/v1/systemone`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: cuerpo || "{}", signal: corte.signal,
+      });
+      const texto = await r.text();
+      res.writeHead(r.status, { "Content-Type": "application/json", "X-Laya-Medio": "remoto" });
+      return res.end(texto);
+    } catch {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ motivo: "sin RAM para Laya y la Laya remota no contestó" }));
+    } finally {
+      clearTimeout(reloj);
+    }
+  });
+}
+
 export function crearManejador() {
   return async (req, res) => {
     const url = req.url || "/";
@@ -105,6 +128,13 @@ export function crearManejador() {
 
     if (metodo === "POST" && url === "/v1/systemone") {
       const check = verificarCarga(obtenerRamLibreMb(), conversacionEnCurso(), esPrioritaria);
+      // (DIR1127E, 27-11) Sin RAM aquí (la Mac casi nunca tiene 2,5 GB libres), la decisión la toma la Laya de
+      // otro nodo de MetaGenesis (`STARSEED_LAYA_REMOTO`, p. ej. el A1 por el túnel de servicios): así Jev, el
+      // enjambre y Astraura, que llaman a :4470, usan Laya de verdad sin cambiar nada más.
+      const remoto = (process.env.STARSEED_LAYA_REMOTO || "").trim().replace(/\/+$/, "");
+      if (!check.ok && remoto && check.motivo === "sin RAM para Laya") {
+        return reenviarARemoto(req, res, remoto);
+      }
       if (!check.ok) {
         res.writeHead(503, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ motivo: check.motivo }));

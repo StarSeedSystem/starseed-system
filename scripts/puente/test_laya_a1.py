@@ -18,9 +18,9 @@ class UnidadSystemd(unittest.TestCase):
         self.assertIn("[Service]", texto)
         self.assertIn("[Install]", texto)
         self.assertIn("Restart=on-failure", texto)
-        self.assertIn("MemoryMax=3G", texto)
-        self.assertIn("ExecStart=/usr/bin/node", texto)
-        self.assertIn("Environment=PORT=4470", texto)
+        self.assertIn("MemoryMax=5G", texto)
+        self.assertIn("ExecStart=/usr/local/bin/node", texto)
+        self.assertIn("Environment=STARSEED_LAYA_PUERTO=4470", texto)
         self.assertIn("Environment=LAYA_CACHE=", texto)
         self.assertNotIn("127.0.0.1", texto)  # IP sin enmascarar no debe aparecer
 
@@ -66,13 +66,13 @@ def _meminfo(kb):
 class RutaYRam(unittest.TestCase):
     def test_ruta_por_defecto_estable(self):
         texto = M.unidad_systemd()
-        self.assertIn("ExecStart=/usr/bin/node /home/starseed/laya/servidor-laya.mjs", texto)
+        self.assertIn("ExecStart=/usr/local/bin/node /home/starseed/laya/servidor-laya.mjs", texto)
         self.assertIn("WorkingDirectory=/home/starseed/laya\n", texto)
         self.assertNotIn("starseed-wt", texto)
 
     def test_unidad_mantiene_limite_y_reinicio(self):
         texto = M.unidad_systemd()
-        self.assertIn("MemoryMax=3G", texto)
+        self.assertIn("MemoryMax=5G", texto)
         self.assertIn("Restart=on-failure", texto)
 
     def test_precheck_ram_umbral(self):
