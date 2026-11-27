@@ -25,8 +25,6 @@ interface MiniaturaFondoProps {
   size?: { w: number; h: number };
   /** Modo de vista previa calculado por `modoVistaPrevia` */
   modo: ModoVistaPrevia;
-  /** Si está activa (cursor encima o foco) */
-  activa?: boolean;
   /** className adicional */
   className?: string;
   /** Etiqueta aria para accesibilidad */
@@ -98,9 +96,10 @@ function MiniaturaShader({ capa, vistaPrevia, modo, className }: {
   return <canvas ref={canvasRef} aria-hidden data-modo={modo} className={cn("pointer-events-none block h-full w-full", className)} style={estilo} />;
 }
 
-export function MiniaturaFondo({ set, efectoId, size = { w: 80, h: 60 }, modo, activa = false, className, ariaLabel }: MiniaturaFondoProps) {
+export function MiniaturaFondo({ set, efectoId, size = { w: 80, h: 60 }, modo, className, ariaLabel }: MiniaturaFondoProps) {
   const [capa, setCapa] = useState<BackgroundLayer | null>(null);
   const [vistaPrevia, setVistaPrevia] = useState<string | undefined>();
+  const [hoverFocus, setHoverFocus] = useState(false);
 
   useEffect(() => {
     let s: SetFondo | undefined;
@@ -110,7 +109,7 @@ export function MiniaturaFondo({ set, efectoId, size = { w: 80, h: 60 }, modo, a
       s = planFondo({ id: `miniatura-${efectoId}`, nombre: EFECTOS_FONDO[efectoId].nombre, autor: "StarSeed", creado: new Date().toISOString(), valores: { efecto: efectoId, capas: 1 } });
     }
     if (s) {
-      const shaderLayer = s.capas.find((c) => c.kind === "shader");
+      const shaderLayer = s.capas.find((c: BackgroundLayer) => c.kind === "shader");
       if (shaderLayer) {
         setCapa({ ...shaderLayer, opacity: 1, blend: "normal" });
         setVistaPrevia(s.vistaPrevia);
@@ -118,7 +117,7 @@ export function MiniaturaFondo({ set, efectoId, size = { w: 80, h: 60 }, modo, a
     }
   }, [set, efectoId]);
 
-  const modoEfectivo: ModoVistaPrevia = activa && modo === "animada" ? "animada" : modo;
+  const modoEfectivo: ModoVistaPrevia = hoverFocus && modo === "animada" ? "animada" : modo;
 
   return (
     <div
@@ -126,6 +125,10 @@ export function MiniaturaFondo({ set, efectoId, size = { w: 80, h: 60 }, modo, a
       aria-label={ariaLabel ?? (set?.nombre ?? efectoId ?? "Vista previa del fondo")}
       className={cn("relative overflow-hidden rounded-md border border-white/10 bg-black/20", className)}
       style={{ width: size.w, height: size.h, flexShrink: 0 }}
+      onMouseEnter={() => setHoverFocus(true)}
+      onMouseLeave={() => setHoverFocus(false)}
+      onFocus={() => setHoverFocus(true)}
+      onBlur={() => setHoverFocus(false)}
     >
       {capa ? (
         <MiniaturaShader capa={capa} vistaPrevia={vistaPrevia} modo={modoEfectivo} />

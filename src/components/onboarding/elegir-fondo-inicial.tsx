@@ -3,7 +3,7 @@
 /** PASO «ELIGE TU FONDO» (Ola 1018F · FSH1018J · architecture/fondos-shaders.md §3): el fondo actual
  * va primero y sigue debajo; sets oficiales y catálogo se combinan para perfil y apps, se guardan en
  * «Fondos» (`fondos-biblioteca`), viajan como `ConfigFondo` y «Ahora no» aplaza siete días. */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Check, Loader2, Smartphone, User, Palette, Upload, Library, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +17,7 @@ import { FORMATO_SET, type SetFondo } from "@/lib/appearance/sets-fondo";
 import { EFECTOS_FONDO, planFondo, type EfectoFondoId } from "@/lib/protomolecula/atomos/fondo-shader";
 import { SETS_FONDO } from "@/lib/protomolecula/peticion/fondo";
 import { MiniaturaFondo } from "@/components/onboarding/miniatura-fondo";
+import { PersonalizarFondoDialog } from "@/components/onboarding/personalizar-fondo-dialog";
 import type { ModoVistaPrevia } from "@/lib/onboarding/fondo-inicial";
 
 export interface OpcionFondoInicial { id: string; nombre: string; descripcion?: string; set?: SetFondo }
@@ -57,6 +58,7 @@ export function ElegirFondoInicial({
   const [aviso, setAviso] = useState<string | null>(null);
   const [mostrandoGrande, setMostrandoGrande] = useState<string | null>(null);
   const [modoGrande, setModoGrande] = useState<ModoVistaPrevia>("quieta");
+  const [personalizando, setPersonalizando] = useState<OpcionFondoInicial | null>(null);
   const destino = useMyLibraryDestinations().destinations[0] ?? null;
   const opciones = opcionesFondoCompletas([fondoActual], oficiales, catalogo, propios);
   const actual = opcionElegida(opciones, elegido);
@@ -81,12 +83,20 @@ export function ElegirFondoInicial({
     elegir(nuevo.id);
   };
 
-  const personalizar = async (opcion: OpcionFondoInicial): Promise<void> => {
-    const editado = await onPersonalizar?.(opcion);
-    if (!editado) return;
-    setPropios((p) => incorporarFondo(p, editado));
-    elegir(editado.id);
-  };
+  const abrirPersonalizar = useCallback((opcion: OpcionFondoInicial) => {
+    setPersonalizando(opcion);
+  }, []);
+
+  const cerrarPersonalizar = useCallback(() => {
+    setPersonalizando(null);
+  }, []);
+
+  const guardarPersonalizado = useCallback((opcion: OpcionFondoInicial) => {
+    setPropios((p) => incorporarFondo(p, opcion));
+    elegir(opcion.id);
+    setPersonalizando(null);
+    onPersonalizar?.(opcion);
+  }, [onPersonalizar]);
 
   const alternarAlcance = (a: AmbitoFondo): void => setAlcances((s) => (s.includes(a) ? s.filter((x) => x !== a) : [...s, a]));
 
@@ -130,7 +140,6 @@ export function ElegirFondoInicial({
             size={{ w: 0, h: 0 }}
             className="absolute inset-0"
             modo={mostrandoGrande === actual.id ? modoGrande : modo}
-            activa={mostrandoGrande === actual.id}
             ariaLabel={`Vista previa grande de ${actual.nombre}`}
           />
           <div className="absolute inset-0 flex items-end p-4 pointer-events-none bg-gradient-to-t from-black/60 to-transparent">
@@ -172,8 +181,7 @@ export function ElegirFondoInicial({
                         set={o.set}
                         size={{ w: 0, h: 0 }}
                         className="absolute inset-0"
-                        modo={activo && modo === "animada" ? "animada" : modo}
-                        activa={activo}
+                        modo={modo}
                         ariaLabel={o.nombre}
                       />
                       {activo && (
@@ -188,7 +196,7 @@ export function ElegirFondoInicial({
                         {onPersonalizar && o.id !== "actual" && (
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); personalizar(o); }}
+                            onClick={(e) => { e.stopPropagation(); abrirPersonalizar(o); }}
                             className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white/5 p-1 text-white/60 hover:bg-white/10 hover:text-white focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/60"
                             aria-label={`Personalizar ${o.nombre}`}
                           >
@@ -264,6 +272,15 @@ export function ElegirFondoInicial({
           Guardar y seguir
         </button>
       </div>
+
+      {personalizando && (
+        <PersonalizarFondoDialog
+          opcion={personalizando}
+          open={true}
+          onClose={cerrarPersonalizar}
+          onGuardar={guardarPersonalizado}
+        />
+      )}
     </section>
   );
 }
