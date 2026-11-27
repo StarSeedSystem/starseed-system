@@ -24,8 +24,9 @@ import type { AnilloAlcance } from "@/lib/senales/tipos-vivo";
 import type { CentroNeurona } from "@/lib/senales/centro";
 import { AnillosAlcance, AntenaPropiaMarca, MarcaNorte, SectoresSuelo, Suelo } from "./suelo-3d";
 import { Centro3D } from "./centro-3d";
-import { Marcador3D } from "./marcador-3d";
+import { Marcador3D, Pulsos } from "./marcador-3d";
 import { Medio3D } from "./medio-3d";
+import { relojCuadrosCompartido } from "@/lib/perf/reloj-cuadros-compartido";
 import { FACTOR_ETIQUETA } from "./etiqueta-3d";
 
 export type VistaCamara = "inclinada" | "cenital";
@@ -71,11 +72,12 @@ interface ControlesOrbita {
 }
 
 /** Vuelos de cámara: a un preset (cenital/inclinada) o a la señal elegida. */
-function Camara({ orden, seleccionId, foco, reducido }: {
+function Camara({ orden, seleccionId, foco, reducido, onVuelo }: {
   orden: OrdenCamara | null;
   seleccionId: string | null;
   foco: [number, number, number] | null;
   reducido: boolean;
+  onVuelo: (vuelo: boolean) => void;
 }) {
   const controles = useThree((s) => s.controls) as unknown as ControlesOrbita | null;
   const camara = useThree((s) => s.camera);
@@ -103,8 +105,9 @@ function Camara({ orden, seleccionId, foco, reducido }: {
     if (!orden) return;
     const e = encuadre(tamanoRef.current.width, tamanoRef.current.height, orden.vista);
     destino.current = { objetivo: e.objetivo, posicion: e.posicion };
+    onVuelo(true);
     invalidar();
-  }, [orden, invalidar]);
+  }, [orden, invalidar, onVuelo]);
 
   useEffect(() => {
     const f = focoRef.current;
@@ -112,16 +115,17 @@ function Camara({ orden, seleccionId, foco, reducido }: {
     const objetivo = new THREE.Vector3(f[0], f[1], f[2]);
     const delta = objetivo.clone().sub(controles.target);
     destino.current = { objetivo, posicion: camara.position.clone().add(delta) };
+    onVuelo(true);
     invalidar();
-  }, [seleccionId, controles, camara, invalidar]);
+  }, [seleccionId, controles, camara, invalidar, onVuelo]);
 
   // Si la persona toma el control, el vuelo se cancela al instante.
   useEffect(() => {
     if (!controles) return;
-    const cancelar = () => { destino.current = null; };
+    const cancelar = () => { destino.current = null; onVuelo(false); };
     controles.addEventListener("start", cancelar);
     return () => controles.removeEventListener("start", cancelar);
-  }, [controles]);
+  }, [controles, onVuelo]);
 
   useFrame((_, dt) => {
     const d = destino.current;
@@ -131,10 +135,30 @@ function Camara({ orden, seleccionId, foco, reducido }: {
     camara.position.lerp(d.posicion, k);
     controles.update();
     const llegado = controles.target.distanceTo(d.objetivo) < 0.02 && camara.position.distanceTo(d.posicion) < 0.05;
-    if (llegado) destino.current = null;
-    else invalidar();
+    if (llegado) {
+      destino.current = null;
+      onVuelo(false);
+    }
   });
   return null;
+}
+
+/**
+ * ¿El lienzo está dentro de la vista? Con el mapa fuera de pantalla (scroll, otra pestaña de la
+ * ficha) no se pide ni un cuadro. Sin IntersectionObserver se asume que sí.
+ */
+function useEnVista<T extends Element>(): [(el: T | null) => void, boolean] {
+  const [el, setEl] = useState<T | null>(null);
+  const [enVista, setEnVista] = useState(true);
+  useEffect(() => {
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entradas) => {
+      for (const e of entradas) setEnVista(e.isIntersecting);
+    }, { threshold: 0.01 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el]);
+  return [setEl, enVista];
 }
 
 /** ¿La pestaña se ve? Oculta, el lienzo no pinta (ahorra batería, sobre todo en tablet y móvil). */
@@ -169,7 +193,7 @@ function GestorEtiquetas({ marcadores, candidatas, prioritarias, onVisibles }: {
   const tamano = useThree((s) => s.size);
   const controles = useThree((s) => s.controls) as unknown as ControlesOrbita | null;
   const ultimo = useRef("");
-  const pendiente = useRef(0);
+  const pendiente = useRef<(() => void) | null>(null);
 
   const calcular = useCallback(() => {
     const escala = (m: MarcadorEscena) => {
@@ -215,15 +239,29 @@ function GestorEtiquetas({ marcadores, candidatas, prioritarias, onVisibles }: {
     if (!controles) return;
     const alMover = () => {
       if (pendiente.current) return;
-      pendiente.current = requestAnimationFrame(() => { pendiente.current = 0; calcular(); });
+      pendiente.current = relojCuadrosCompartido.unaVez(() => {
+        pendiente.current = null;
+        calcular();
+      });
     };
     controles.addEventListener("change", alMover);
     return () => {
       controles.removeEventListener("change", alMover);
-      if (pendiente.current) cancelAnimationFrame(pendiente.current);
-      pendiente.current = 0;
+      pendiente.current?.();
+      pendiente.current = null;
     };
   }, [controles, calcular]);
+  return null;
+}
+
+/** El bucle de la escena cuelga del reloj compartido: un cuadro por refresco, con el tope del modo. */
+function BucleEscena({ activo }: { activo: boolean }) {
+  const invalidar = useThree((s) => s.invalidate);
+  useEffect(() => {
+    invalidar();
+    if (!activo) return;
+    return relojCuadrosCompartido.suscribir(() => invalidar());
+  }, [activo, invalidar]);
   return null;
 }
 
@@ -234,8 +272,12 @@ export default function Escena3D(p: EscenaProps) {
     ? [sel.x, sel.y * 0.6, sel.z]
     : selMedio ? [selMedio.x, selMedio.y * 0.6, selMedio.z] : p.seleccionId === "yo" ? [0, 0, 0] : null;
   const visible = usePestanaVisible();
-  // Solo se pinta sin parar si algo se mueve de verdad Y la pestaña se ve.
-  const animado = visible && !p.reducido && (p.girar || p.marcadores.some((m) => m.reciente && !m.tenue));
+  const [contenedor, enVista] = useEnVista<HTMLDivElement>();
+  const [volando, setVolando] = useState(false);
+  const alVolar = useCallback((vuelo: boolean) => setVolando(vuelo), []);
+  // Solo se pinta sin parar si algo se mueve de verdad, la pestaña se ve y el lienzo está en vista.
+  const animado = visible && enVista && !p.reducido
+    && (p.girar || volando || p.marcadores.some((m) => m.reciente && !m.tenue));
   const [conEtiqueta, setConEtiqueta] = useState<ReadonlySet<string>>(() => new Set(p.seleccionId ? [p.seleccionId] : []));
   const prioritarias = useMemo(() => [p.seleccionId, p.apuntadaId], [p.seleccionId, p.apuntadaId]);
 
@@ -245,12 +287,13 @@ export default function Escena3D(p: EscenaProps) {
   }, [p.apuntadaId]);
 
   return (
+    <div ref={contenedor} className="h-full w-full">
     <Canvas
       role="img"
       aria-label={p.descripcion}
       camera={{ position: [0, 13.2, 18.2], fov: FOV_V, near: 0.1, far: 220 }}
       dpr={p.ligero ? [1, 1.25] : [1, 1.5]}
-      frameloop={animado ? "always" : "demand"}
+      frameloop="demand"
       gl={{ antialias: !p.ligero, alpha: true, powerPreference: "low-power" }}
       onPointerMissed={() => p.onSeleccionar(null)}
       onCreated={({ gl }) => {
@@ -260,6 +303,7 @@ export default function Escena3D(p: EscenaProps) {
         });
       }}
     >
+      <BucleEscena activo={animado} />
       <ambientLight intensity={0.9} />
       <directionalLight position={[6, 12, 8]} intensity={1.6} />
       <Suelo />
@@ -281,11 +325,11 @@ export default function Escena3D(p: EscenaProps) {
           seleccionada={m.id === p.seleccionId}
           apuntada={m.id === p.apuntadaId}
           conEtiqueta={conEtiqueta.has(m.id)}
-          reducido={p.reducido}
           onSeleccionar={p.onSeleccionar}
           onApuntar={p.onApuntar}
         />
       ))}
+      <Pulsos marcadores={p.marcadores} seleccionId={p.seleccionId} apuntadaId={p.apuntadaId} reducido={p.reducido} />
       {p.medios.map((m) => (
         <Medio3D
           key={m.id}
@@ -297,7 +341,7 @@ export default function Escena3D(p: EscenaProps) {
         />
       ))}
       <GestorEtiquetas marcadores={p.marcadores} candidatas={p.conEtiqueta} prioritarias={prioritarias} onVisibles={setConEtiqueta} />
-      <Camara orden={p.orden} seleccionId={p.seleccionId} foco={foco} reducido={p.reducido} />
+      <Camara orden={p.orden} seleccionId={p.seleccionId} foco={foco} reducido={p.reducido} onVuelo={alVolar} />
       <OrbitControls
         makeDefault
         enableDamping
@@ -309,5 +353,6 @@ export default function Escena3D(p: EscenaProps) {
         autoRotateSpeed={0.7}
       />
     </Canvas>
+    </div>
   );
 }

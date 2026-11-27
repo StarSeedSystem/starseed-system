@@ -8,6 +8,7 @@
 import type { LeafletNS } from "@/lib/map/leaflet-loader";
 import type { Campo } from "@/lib/senales/geo/cobertura";
 import { radioEnPixeles } from "@/lib/senales/geo/alcances";
+import { relojCuadrosCompartido } from "@/lib/perf/reloj-cuadros-compartido";
 
 function rgba(hex: string, a: number): string {
   const h = hex.replace("#", "");
@@ -79,10 +80,10 @@ export function crearCapaAlcance(L: LeafletNS, map: any, id: string, zIndex: num
   canvas.style.position = "absolute";
   canvas.style.pointerEvents = "none";
   let campos: readonly Campo[] = [];
-  let raf = 0;
+  let soltar: (() => void) | null = null;
 
   const dibujar = () => {
-    raf = 0;
+    soltar = null;
     try {
       const size = map.getSize();
       const dpr = window.devicePixelRatio || 1;
@@ -104,7 +105,11 @@ export function crearCapaAlcance(L: LeafletNS, map: any, id: string, zIndex: num
       }
     } catch { /* el mapa se está destruyendo */ }
   };
-  const pedir = () => { if (!raf) raf = requestAnimationFrame(dibujar); };
+  // Un solo reloj para toda la página: los eventos del mapa se agrupan en un cuadro.
+  const pedir = () => {
+    if (soltar) return;
+    soltar = relojCuadrosCompartido.unaVez(dibujar);
+  };
   map.on("move zoom moveend zoomend resize viewreset", pedir);
   pedir();
 
@@ -113,7 +118,8 @@ export function crearCapaAlcance(L: LeafletNS, map: any, id: string, zIndex: num
     opacidad: (o) => { canvas.style.opacity = String(o); },
     quitar: () => {
       map.off("move zoom moveend zoomend resize viewreset", pedir);
-      if (raf) cancelAnimationFrame(raf);
+      soltar?.();
+      soltar = null;
       try { canvas.remove(); pane.remove(); } catch { /* */ }
     },
   };

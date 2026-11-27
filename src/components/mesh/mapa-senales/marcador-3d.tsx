@@ -30,21 +30,50 @@ import { AnilloPunteado } from "./suelo-3d";
 const PLANO: [number, number, number] = [-Math.PI / 2, 0, 0];
 const COLOR_SIMULADA = "#fbbf24";
 
-/** Onda que nace del marcador y se desvanece: solo para lo oído «ahora mismo». */
-function Pulso({ radio, color }: { radio: number; color: string }) {
-  const malla = useRef<THREE.Mesh>(null);
+/**
+ * Todas las ondas de las señales recientes en UN solo `useFrame`, no una por marcador.
+ * Cada cuadro mueve todas las mallas a la vez; el aspecto es el mismo de antes.
+ */
+export function Pulsos({ marcadores, seleccionId, apuntadaId, reducido }: {
+  marcadores: readonly MarcadorEscena[];
+  seleccionId: string | null;
+  apuntadaId: string | null;
+  reducido: boolean;
+}) {
+  const mallas = useRef(new Map<string, THREE.Mesh>());
   useFrame(({ clock }) => {
-    const m = malla.current;
-    if (!m) return;
     const t = (clock.elapsedTime % 2.4) / 2.4;
-    m.scale.setScalar(1 + t * 2.4);
-    (m.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t);
+    for (const malla of mallas.current.values()) {
+      const base = typeof malla.userData.escala === "number" ? malla.userData.escala : 1;
+      malla.scale.setScalar(base * (1 + t * 2.4));
+      (malla.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t);
+    }
   });
   return (
-    <mesh ref={malla} rotation={PLANO}>
-      <ringGeometry args={[radio * 1.4, radio * 1.55, 40]} />
-      <meshBasicMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
-    </mesh>
+    <>
+      {marcadores.map((m) => {
+        if (reducido || !m.reciente || m.tenue) return null;
+        const escala = m.id === seleccionId ? 1.35 : m.id === apuntadaId ? 1.2 : 1;
+        return (
+          <mesh
+            key={m.id}
+            ref={(el) => {
+              if (!el) {
+                mallas.current.delete(m.id);
+                return;
+              }
+              el.userData.escala = escala;
+              mallas.current.set(m.id, el);
+            }}
+            position={[m.x, m.y + m.radio + 0.05, m.z]}
+            rotation={PLANO}
+          >
+            <ringGeometry args={[m.radio * 1.4, m.radio * 1.55, 40]} />
+            <meshBasicMaterial color={m.simulada ? COLOR_SIMULADA : m.colorContorno} transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
+          </mesh>
+        );
+      })}
+    </>
   );
 }
 
@@ -53,12 +82,11 @@ interface Props {
   seleccionada: boolean;
   apuntada: boolean;
   conEtiqueta: boolean;
-  reducido: boolean;
   onSeleccionar: (id: string) => void;
   onApuntar: (id: string | null) => void;
 }
 
-export function Marcador3D({ m, seleccionada, apuntada, conEtiqueta, reducido, onSeleccionar, onApuntar }: Props) {
+export function Marcador3D({ m, seleccionada, apuntada, conEtiqueta, onSeleccionar, onApuntar }: Props) {
   const s = m.senal;
   const escala = seleccionada ? 1.35 : apuntada ? 1.2 : 1;
   const r = m.radio;
@@ -143,7 +171,6 @@ export function Marcador3D({ m, seleccionada, apuntada, conEtiqueta, reducido, o
               <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
             </mesh>
           )}
-          {m.reciente && !reducido && !m.tenue && <Pulso radio={r} color={colorAro} />}
           {/* Zona de pulsación cómoda (invisible): también para el dedo en móvil */}
           <mesh
             onClick={(e) => { e.stopPropagation(); onSeleccionar(m.id); }}
