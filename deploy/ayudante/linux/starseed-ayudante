@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# Ayudante StarSeed OS - Terminal con privilegios (Linux)
+# Control de acceso seguro mediante sudoers limitado.
+
+set -e
+
+# COMANDOS_APP: Lista blanca de comandos permitidos
+# capability: Identificador de permiso
+# inventario: Estado del sistema
+
+case "$1" in
+  estado)
+    echo "Sistema StarSeed OS activo"
+    uptime
+    ;;
+  actualizar)
+    # Ejemplo de comando restringido (ejecutable solo con sudoers)
+    echo "Actualizando app..."
+    # sudo apt-get update && sudo apt-get upgrade -y
+    ;;
+  *)
+    echo "Uso: starseed-ayudante {estado|actualizar}"
+    exit 1
+    ;;
+esac
