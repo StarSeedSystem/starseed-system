@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calcularPeticion,
+  type MensajeEntrada,
+  type MensajeSalida,
+  type PeticionDisposicion,
+} from '../disposicion.worker';
+import {
   crearEstadoFuerza,
   disposicionEspiralTemporal,
   disposicionFuerza,
@@ -128,5 +134,64 @@ describe('disposicion planos por capa', () => {
     const a = disposicionPlanosPorCapa(['x', 'y', 'x']);
     const b = disposicionPlanosPorCapa(['x', 'y', 'x']);
     expect(Array.from(a)).toEqual(Array.from(b));
+  });
+});
+
+describe('worker y fallback (lógica pura)', () => {
+  it('calcularPeticion maneja los cuatro modos y devuelve Float32Array', () => {
+    const fuerza = calcularPeticion({
+      modo: 'fuerza',
+      n: 4,
+      aristas: [{ de: 0, a: 1, intensidad: 1 }],
+      opciones: { iteraciones: 2 },
+    });
+    expect(fuerza).toBeInstanceOf(Float32Array);
+    expect(fuerza.length).toBe(12);
+
+    const radial = calcularPeticion({ modo: 'radial', padres: [-1, 0] });
+    expect(radial.length).toBe(6);
+
+    const espiral = calcularPeticion({ modo: 'espiral', tiempos: [0, 1] });
+    expect(espiral.length).toBe(6);
+
+    const planos = calcularPeticion({ modo: 'planos', capas: ['a', 'b'] });
+    expect(planos.length).toBe(6);
+  });
+
+  it('calcularPeticion es determinista entre llamadas', () => {
+    const peticion: PeticionDisposicion = {
+      modo: 'fuerza',
+      n: 6,
+      aristas: [{ de: 0, a: 1, intensidad: 1 }],
+      opciones: { semilla: 4, iteraciones: 5 },
+    };
+    expect(Array.from(calcularPeticion(peticion))).toEqual(
+      Array.from(calcularPeticion(peticion)),
+    );
+  });
+
+  it('estructura de mensajes de entrada y salida es correcta', () => {
+    const entrada: MensajeEntrada = {
+      tipo: 'calcular',
+      id: 1,
+      peticion: { modo: 'radial', padres: [-1, 0] },
+    };
+    expect(entrada.tipo).toBe('calcular');
+    expect(typeof entrada.id).toBe('number');
+
+    const salidaOk: MensajeSalida = {
+      tipo: 'resultado',
+      id: 1,
+      posiciones: new Float32Array([0, 0, 0]),
+      ms: 10,
+    };
+    expect(salidaOk.tipo).toBe('resultado');
+
+    const salidaError: MensajeSalida = {
+      tipo: 'error',
+      id: 1,
+      mensaje: 'fallo',
+    };
+    expect(salidaError.tipo).toBe('error');
   });
 });
