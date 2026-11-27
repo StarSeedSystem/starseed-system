@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "id": "BAP1127Y",
+   "ola": "bap-1127",
+   "prioridad": 94,
+   "capacidad": "alta",
+   "titulo": "Archivo de espejo por aparato con rotación propia (comando nativo)",
+   "archivos": [
+    "native/src-tauri/src/registro_espejo_logica.rs",
+    "native/src-tauri/src/registro_espejo.rs",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "BAP1127Y · Corrección C.12. Hoy lo que llega de otros aparatos se anexa a enlaces.log con ble_registro_anexar (native/src-tauri/src/ble.rs:1763-1775), que rota a 1 MiB (ble.rs:600): con 3 aparatos espejando se pierde la evidencia. (1) registro_espejo_logica.rs (solo-std, con #[cfg(test)]): sanear_nombre(aparato) → [a-z0-9-] ≤32; acotar_lineas(lineas) → ≤200 líneas de ≤400 caracteres; debe_rotar(bytes_actuales, nuevos, tope=2 MiB); nombres_rotacion(base) → base, base.1, base.2 (3 archivos). (2) registro_espejo.rs: comando Tauri registro_espejo_anexar(aparato: String, lineas: Vec<String>) que escribe en la MISMA carpeta de datos donde vive enlaces.log (mira cómo la calcula ble.rs) el archivo espejo-<aparato>.log, anteponiendo la hora ISO de recepción a cada línea, y rota con debe_rotar. (3) lib.rs: registra el comando igual que está registrado ble_registro_anexar (y en capabilities solo si ble_registro_anexar lo necesita; si hiciera falta un 4.º archivo, anótalo en el commit). Aceptación: rustc --edition 2021 --test native/src-tauri/src/registro_espejo_logica.rs pasa (≥6 casos). REGLAS COMUNES: ≤3 archivos y ≤120 líneas nuevas por archivo; vuelve a anclar cada cita con grep en tu HEAD; pruebas SOLO dirigidas y ligeras (npx vitest run <archivo>, python3 -m pytest <archivo>, rustc --edition 2021 --test <x>_logica.rs -o /tmp/<x> && /tmp/<x>); NUNCA cargo build/test del crate, next build ni servidores en la Mac; sin --no-verify; nunca claves, IPs ni rutas de usuario en registros o código; contrato: architecture/automejora-pruebas-malla.md (la sección C de correcciones MANDA).",
+   "modelo": "claude/sonnet"
+  },
+  {
+   "id": "CAP1127C",
+   "ola": "capacidad-laya-1127",
+   "prioridad": 92,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "titulo": "Agentes potentes (Antigravity) arrancan solos dentro de su cupo gratis, con interruptor y tope diario",
+   "archivos": [
+    "scripts/puente/buscar_capacidad.py",
+    "scripts/puente/test_agentes_potentes_auto_1127.py"
+   ],
+   "depende": [],
+   "prompt": "CAP1127C · Medido el 27-11: ~/.starseed/capacidad-sugerencias.json tenía 94 sugerencias de agentes potentes (rust_nativo → claude-opus-5-5-high por Antigravity, ui_typescript → gemini-4-neon-high…) con la regla «nada se lanza sin aprobación», y ninguna se lanzó; Antigravity usa la cuenta de Google de Maggasukha (sin clave API, sin pago). Maggasukha (27-11) pide que los directores usen las capacidades al máximo de forma autónoma. QUÉ HACER en scripts/puente/buscar_capacidad.py (lee cómo genera las sugerencias y cómo se lanzaría una; busca 'sugerencias' y 'Antigravity'): auto_lanzar(sugerencias, cupos, ajustes, ahora) PURA que elige como mucho N por día (ajuste, por defecto 4) con prioridad ≥ 90, solo si el cupo de ese modelo hoy es > 0, nunca de pago (coste_estimado debe decir 'sin clave API' o equivalente gratis), nunca sobre archivos protegidos de producción (si existe la lista de protegidos úsala), y siempre en el modo que ya proponga la sugerencia ('plan' si dice plan); interruptor en ~/.starseed/produccion/agentes-potentes.json {auto: true|false} APAGADO por defecto (Maggasukha, 26-11: estas sugerencias se aprueban caso por caso; con auto=false, auto_lanzar solo prepara la lista ordenada para «Te toca a ti» y no lanza nada; él lo enciende si quiere); cada lanzamiento se registra en ~/.starseed/agentes-potentes-lanzados.jsonl. Engancha el lanzamiento real usando la MISMA función que ya usaría una aprobación manual (no inventes otra vía). Tests pytest (≥6): tope diario, cupo 0, prioridad baja, interruptor apagado, coste de pago rechazado. REGLAS: ≤120 líneas nuevas por archivo; prueba `python3 -m pytest scripts/puente/test_agentes_potentes_auto_1127.py -q`; sin --no-verify; nunca --dangerously-skip-permissions en Antigravity."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "BAP1127Y",
+   "CAP1127C"
+  ]
+ }
+}
