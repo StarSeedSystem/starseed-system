@@ -176,7 +176,7 @@ describe("listarAlmacenes", () => {
     vi.stubGlobal("window", { __TAURI__: { core: {} } });
     const r = await listarAlmacenes();
     expect(r.ok).toBe(false);
-    expect(r.motivo).toContain("Solo en la app nativa");
+    if (!r.ok) expect(r.motivo).toContain("Solo en la app nativa");
   });
 
   it("devuelve resultado exitoso si invoke responde bien", async () => {
@@ -212,13 +212,13 @@ describe("listarAlmacenes", () => {
     mockInvoke.mockRejectedValue(new Error("Comando no permitido"));
     const r = await listarAlmacenes();
     expect(r.ok).toBe(false);
-    expect(r.motivo).toContain("Comando no permitido");
+    if (!r.ok) expect(r.motivo).toContain("Comando no permitido");
   });
 
   it("devuelve error si la respuesta no es válida", async () => {
     mockInvoke.mockResolvedValue({ almacenes: "no-array" });
     const r = await listarAlmacenes();
     expect(r.ok).toBe(false);
-    expect(r.motivo).toContain("no válida");
+    if (!r.ok) expect(r.motivo).toContain("no válida");
   });
 });
