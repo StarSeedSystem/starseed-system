@@ -152,3 +152,49 @@ export interface HuellaAparatoEstado {
   id_guardado: string | null;
   creado: string | null;
 }
+
+/** ALC1125B: Tipo de almacén (espejo de almacenes_logica::TipoAlmacen). */
+export type TipoAlmacen =
+  | "interno"
+  | "extraible"
+  | "red"
+  | "nube"
+  | "neurona"
+  | "desconocido";
+
+/** ALC1125B: Sistema de archivos detectado (espejo de almacenes_logica::SistemaArchivos). */
+export type SistemaArchivos =
+  | "ext4"
+  | "btrfs"
+  | "xfs"
+  | "exfat"
+  | "fat32"
+  | "ntfs"
+  | "apfs"
+  | "hfs_plus"
+  | "smb"
+  | "nfs"
+  | { desconocido: string };
+
+/** ALC1125B: Información completa de un almacén (espejo de almacenes_logica::Almacen). */
+export interface Almacen {
+  etiqueta: string;
+  uuid: string;
+  serie: string;
+  sistema_archivos: SistemaArchivos;
+  extraible: boolean;
+  total_bytes: number;
+  libre_bytes: number;
+  punto_montaje: string;
+  es_disco_sistema: boolean;
+  tipo: TipoAlmacen;
+  plataforma: string;
+  motivo: string | null;
+}
+
+/** ALC1125B: Resultado de `almacenes_listar` (espejo de almacenes::AlmacenesListarResultado). */
+export interface AlmacenesListarResultado {
+  almacenes: Almacen[];
+  plataforma: string;
+  motivo: string | null;
+}
