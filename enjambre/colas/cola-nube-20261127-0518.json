@@ -1,0 +1,37 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "segundos": 449,
+   "t": "2026-11-11 03:54:20",
+   "modelos_fallidos": [
+    "nvidia/minimaxai/minimax-m3.1-flash",
+    "xkiro/mistralai/devstral-medium",
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nvidia/nemotron-3-super-120b-a12b",
+    "apinex/free/gemini-3.8-flash"
+   ],
+   "jev_experiencia": "8e759947a71a",
+   "intentos_auto": 6,
+   "reintentos_medio": 0,
+   "corregido": "2026-11-11 03:29:24",
+   "rama": "ola/IMG-diaria-auto-refresh-del-catalogo-de-mode",
+   "sha": "ad6e45f37e42f9324778de285f53b5fbb706db2a",
+   "modelo_siguiente": null,
+   "revisado_por": "revisor-bloqueadas",
+   "id": "IMG-diaria-auto-refresh-del-catalogo-de-modeb",
+   "ola": "",
+   "titulo": "",
+   "archivos": [],
+   "depende": [],
+   "prompt": "## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\nno toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-auto-refresh-del-catalogo-de-mode conservada)\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-224552.json": [
+   "IMG-diaria-auto-refresh-del-catalogo-de-modeb"
+  ]
+ }
+}
