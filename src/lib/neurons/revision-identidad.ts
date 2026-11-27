@@ -46,13 +46,13 @@ export interface RevisionIdentidad {
 
 /** Clave de almacenamiento para «ya se mostró esta revisión» (una vez por versión × neurona). */
 export function claveRevisionVista(version: string | null | undefined, idNeurona: string): string {
-  const v = (version ?? "desconocida").replace(/[^a-z0-9_-]/gi, "_");
+  const v = (version ?? "desconocida").replace(/[^a-z0-9._-]/gi, "_");
   return `starseed.neuron.revision-identidad.vista.${v}.${idNeurona}`;
 }
 
 /** Clave de almacenamiento para «se pospuso la revisión» (una vez por versión × neurona). */
 export function claveRevisionPospuesto(version: string | null | undefined, idNeurona: string): string {
-  const v = (version ?? "desconocida").replace(/[^a-z0-9_-]/gi, "_");
+  const v = (version ?? "desconocida").replace(/[^a-z0-9._-]/gi, "_");
   return `starseed.neuron.revision-identidad.pospuesto.${v}.${idNeurona}`;
 }
 

@@ -30,8 +30,10 @@ import { aparatoDeEsteMedio } from "@/lib/neurons/aparato-este-medio";
 import {
   claveRevisionPospuesto,
   claveRevisionVista,
+  revisarIdentidadCompartida,
   type RevisionIdentidad,
 } from "@/lib/neurons/revision-identidad";
+import { OS_VERSION } from "@/lib/version/os-release";
 
 type Camino = "" | "unir" | "nueva";
 
@@ -84,15 +86,31 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [caminoCompartida, setCaminoCompartida] = useState<"" | "crear">("");
+  const [revisionCalculada, setRevisionCalculada] = useState<RevisionIdentidad | null>(null);
   const [nombreNuevaCompartida, setNombreNuevaCompartida] = useState(revision?.nombrePropuesto ?? "");
+  const [cerrada, setCerrada] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
       const filas = await listNeurons({ fresco: true });
       const yo = resolverAliasEsteMedio() || thisDeviceId();
       setLista(neuronasParaElegir(filas, yo));
+      // Revisión de identidad (NEU1126E): ¿la usan dos o más aparatos vivos con huella distinta?
+      const fila = filas.find((f) => f.id === yo);
+      setRevisionCalculada(
+        fila
+          ? revisarIdentidadCompartida({
+              idNeurona: fila.id,
+              nombreNeurona: fila.name,
+              capabilities: fila.capabilities,
+              yoId: thisDeviceId(),
+              ahora: Date.now(),
+            })
+          : null,
+      );
     } catch {
       setLista([]);
+      setRevisionCalculada(null);
     }
   }, []);
 
@@ -115,18 +133,21 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   const otras = lista.filter((n) => !n.esActual);
 
   /* ── Ventana «comparte neurona» (NEU1126E) ── */
-  const yaVista = revision ? fueVista(revision, version) : false;
-  const mostrarCompartida = Boolean(revision) && !yaVista;
+  const rev = revision ?? revisionCalculada;
+  const ver = version ?? OS_VERSION;
+  const yaVista = rev ? fueVista(rev, ver) || fueVista(rev, ver, true) : false;
+  const mostrarCompartida = Boolean(rev) && !yaVista && !cerrada;
 
   async function crearPropia() {
-    const nombre = (nombreNuevaCompartida.trim() || revision?.nombrePropuesto ?? "").trim();
+    const nombre = (nombreNuevaCompartida.trim() || rev?.nombrePropuesto || "").trim();
     setOcupado(true);
     setMensaje("");
     const r = await cambiarNeuronaDeEsteAparato(null, nombre);
     setOcupado(false);
     setCaminoCompartida("");
     if (r.ok) {
-      marcarVista(revision, version);
+      if (rev) marcarVista(rev, ver);
+      setCerrada(true);
       setMensaje(`Este aparato tiene ahora su propia neurona «${nombre}».`);
     } else {
       setMensaje("No se pudo crear la neurona propia. No se tocó nada.");
@@ -134,20 +155,23 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   }
 
   function seguirMisma() {
-    if (!revision) return;
-    marcarVista(revision, version);
-    setMensaje(`Se queda en la misma neurona «${revision.nombreNeurona}».`);
+    if (!rev) return;
+    marcarVista(rev, ver);
+    setCerrada(true);
+    setMensaje(`Se queda en la misma neurona «${rev.nombreNeurona}» (fusionadas).`);
   }
 
   function posponerCompartida() {
-    if (!revision) return;
-    marcarPospuesto(revision, version);
+    if (!rev) return;
+    marcarPospuesto(rev, ver);
+    setCerrada(true);
     setMensaje("Aviso pospuesto: sigue visible en Ajustes › Neuronas. Puedes volver cuando quieras.");
   }
 
-  function fueVista(r: RevisionIdentidad, v?: string): boolean {
+  function fueVista(r: RevisionIdentidad, v?: string, pospuesto = false): boolean {
     try {
-      return typeof window !== "undefined" && !!window.localStorage.getItem(claveRevisionVista(v, r.idNeurona));
+      const clave = pospuesto ? claveRevisionPospuesto(v, r.idNeurona) : claveRevisionVista(v, r.idNeurona);
+      return typeof window !== "undefined" && !!window.localStorage.getItem(clave);
     } catch {
       return false;
     }
@@ -184,6 +208,46 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
         : "No se pudo cambiar la neurona de este aparato. No se tocó nada.",
     );
     void cargar();
+  }
+
+  if (mostrarCompartida && rev) {
+    return (
+      <Card className="bg-background/40 backdrop-blur-sm border-[#39FF14]/20" aria-labelledby="titulo-aparato-comparte">
+        <CardHeader className="pb-3">
+          <CardTitle id="titulo-aparato-comparte" className="text-base">
+            Este aparato comparte la neurona «{rev.nombreNeurona}» con «{rev.otrosNombres.join("», «")}»
+          </CardTitle>
+          <CardDescription>
+            Recomendado: una neurona por aparato.
+            {rev.yoSeUnioDespues
+              ? " Este aparato se unió después: se propone que cree la suya y el otro conserve la neurona."
+              : " Este aparato estaba primero: se propone que conserve la neurona; el otro crea la suya."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={nombreNuevaCompartida || rev.nombrePropuesto}
+              maxLength={60}
+              onChange={(e) => setNombreNuevaCompartida(e.target.value)}
+              aria-label="Nombre de la neurona propia"
+              className="h-8 max-w-xs"
+            />
+            <Button size="sm" className="cursor-pointer gap-1.5" disabled={ocupado} onClick={() => void crearPropia()}>
+              <Plus className="h-4 w-4" aria-hidden /> Crear una neurona propia
+              {rev.yoSeUnioDespues && <Badge className="ml-1" variant="secondary">Recomendado</Badge>}
+            </Button>
+            <Button size="sm" variant="outline" className="cursor-pointer" disabled={ocupado} onClick={seguirMisma}>
+              Seguir en la misma neurona (fusionadas)
+            </Button>
+            <Button size="sm" variant="ghost" className="cursor-pointer text-muted-foreground" disabled={ocupado} onClick={posponerCompartida}>
+              Más tarde
+            </Button>
+            {ocupado && <Loader2 className="h-4 w-4 animate-spin" aria-label="Cambiando…" />}
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
