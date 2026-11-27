@@ -166,6 +166,42 @@ interface BroadcastPayload {
     meta?: Record<string, number>;
 }
 
+// ── Broadcast sin REST (NUB1126A-d1-d3) ─────────────────────────────────────
+// `channel.send` sobre un canal que aún no se ha unido cae a `POST /realtime/v1/api/broadcast`
+// (6.124 peticiones REST el 26-11). Aquí solo se envía por el websocket ya abierto: lo que llega
+// antes se guarda en una cola corta y sale al unirse; los cambios de ajustes se agrupan y no se
+// repite lo que ya se mandó con el mismo valor.
+export const BROADCAST_AGRUPA_MS = 1500;
+export const BROADCAST_COLA_MAX = 20;
+
+/** Quita de `changes` lo que ya se envió con el mismo valor (compara serializado). */
+export function cambiosNuevosParaBroadcast(
+    changes: Record<string, unknown>,
+    ultimos: ReadonlyMap<string, string>,
+): Record<string, unknown> {
+    const nuevos: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(changes)) {
+        let s: string;
+        try { s = JSON.stringify(v) ?? "undefined"; } catch { s = `#${Date.now()}`; }
+        if (ultimos.get(k) !== s) nuevos[k] = v;
+    }
+    return nuevos;
+}
+
+/** Junta dos parches seguidos: gana el más nuevo por clave y se conserva la marca LWW mayor. */
+export function fusionarPayloadsBroadcast(previo: BroadcastPayload | null, nuevo: BroadcastPayload): BroadcastPayload {
+    if (!previo) return nuevo;
+    const meta: Record<string, number> = { ...(previo.meta ?? {}) };
+    for (const [k, t] of Object.entries(nuevo.meta ?? {})) meta[k] = Math.max(meta[k] ?? 0, t);
+    return { deviceId: nuevo.deviceId, changes: { ...previo.changes, ...nuevo.changes }, at: nuevo.at, meta };
+}
+
+/** Añade a la cola acotada: si se llena, se descarta lo más viejo. */
+export function encolarAcotado<T>(cola: readonly T[], item: T, max = BROADCAST_COLA_MAX): T[] {
+    const sig = [...cola, item];
+    return sig.length > max ? sig.slice(sig.length - max) : sig;
+}
+
 // ── Mapeo clave → evento(s) concretos que cada store ya escucha ─────────────
 // (storage NO se dispara en el propio documento; hay que replicar el evento
 // custom que cada store usa para refrescar su UI en la MISMA pestaña).
@@ -850,9 +886,15 @@ async function pushChanges(userId: string, keys: string[]): Promise<void> {
         // Broadcast inmediato para latencia mínima (no esperar el eco de postgres_changes).
         // Es el canal de CUENTA `acct:<uid>` — el mismo que multiplexa live-signal.ts.
         try {
-            const channel = getOrCreateBroadcastChannel(userId);
-            const payload: BroadcastPayload = { deviceId: deviceId(), changes, at: Date.now(), meta: changeMeta };
-            await channel?.send({ type: "broadcast", event: "changes", payload });
+            const nuevos = cambiosNuevosParaBroadcast(changes, ultimosBroadcast);
+            if (Object.keys(nuevos).length > 0) {
+                for (const [k, v] of Object.entries(nuevos)) {
+                    try { ultimosBroadcast.set(k, JSON.stringify(v) ?? "undefined"); } catch { ultimosBroadcast.delete(k); }
+                }
+                const meta: Record<string, number> = {};
+                for (const k of Object.keys(nuevos)) if (changeMeta[k] != null) meta[k] = changeMeta[k];
+                programarBroadcastCambios(userId, { deviceId: deviceId(), changes: nuevos, at: Date.now(), meta });
+            }
         } catch { /* best-effort */ }
 
         // Señal en vivo estándar (live-signal) para quien prefiera suscribirse con
@@ -1062,6 +1104,39 @@ function applyRemoteChanges(
 // ── Canal broadcast `acct:<uid>` ─────────────────────────────────────────────
 let broadcastChannel: RealtimeChannel | null = null;
 let broadcastUserId: string | null = null;
+const ultimosBroadcast = new Map<string, string>();
+let colaBroadcast: Array<{ event: string; payload: unknown }> = [];
+let cambiosPendientes: BroadcastPayload | null = null;
+let temporizadorBroadcast: ReturnType<typeof setTimeout> | null = null;
+
+/** Envía solo por el websocket ya unido; si aún no lo está, lo guarda y sale al unirse. */
+function emitirPorSocket(channel: RealtimeChannel, event: string, payload: unknown): void {
+    if (channel.state === "joined") {
+        void channel.send({ type: "broadcast", event, payload }).catch(() => { /* best-effort */ });
+        return;
+    }
+    colaBroadcast = encolarAcotado(colaBroadcast, { event, payload });
+}
+
+function vaciarColaBroadcast(channel: RealtimeChannel): void {
+    const pendientes = colaBroadcast;
+    colaBroadcast = [];
+    for (const e of pendientes) emitirPorSocket(channel, e.event, e.payload);
+}
+
+/** Agrupa los parches de ajustes de {@link BROADCAST_AGRUPA_MS}: un solo mensaje por ventana. */
+function programarBroadcastCambios(userId: string, payload: BroadcastPayload): void {
+    cambiosPendientes = fusionarPayloadsBroadcast(cambiosPendientes, payload);
+    if (temporizadorBroadcast) return;
+    temporizadorBroadcast = setTimeout(() => {
+        temporizadorBroadcast = null;
+        const p = cambiosPendientes;
+        cambiosPendientes = null;
+        if (!p) return;
+        const channel = getOrCreateBroadcastChannel(userId);
+        if (channel) emitirPorSocket(channel, "changes", p);
+    }, BROADCAST_AGRUPA_MS);
+}
 
 function getOrCreateBroadcastChannel(userId: string): RealtimeChannel | null {
     if (broadcastChannel && broadcastUserId === userId) return broadcastChannel;
@@ -1083,8 +1158,9 @@ function getOrCreateBroadcastChannel(userId: string): RealtimeChannel | null {
         for (const event of accountBroadcastListeners.keys()) {
             ensureAccountEventWiring(broadcastChannel, event);
         }
-        broadcastChannel.subscribe();
-        return broadcastChannel;
+        const canal = broadcastChannel;
+        canal.subscribe((estado) => { if (estado === "SUBSCRIBED") vaciarColaBroadcast(canal); });
+        return canal;
     } catch {
         return null;
     }
@@ -1149,7 +1225,7 @@ export async function sendAccountBroadcast(event: string, payload: unknown): Pro
         if (!userId) return;
         const channel = getOrCreateBroadcastChannel(userId);
         if (channel) ensureAccountEventWiring(channel, event);
-        await channel?.send({ type: "broadcast", event, payload });
+        if (channel) emitirPorSocket(channel, event, payload);
     } catch {
         /* best-effort */
     }
@@ -1352,6 +1428,11 @@ function teardownChannels(): void {
     postgresChannel = null;
     broadcastChannel = null;
     broadcastUserId = null;
+    if (temporizadorBroadcast) clearTimeout(temporizadorBroadcast);
+    temporizadorBroadcast = null;
+    cambiosPendientes = null;
+    colaBroadcast = [];
+    ultimosBroadcast.clear();
 }
 
 /** Detiene el motor (no desmonta el parche de setItem: es inocuo sin sesión/desactivado). */
