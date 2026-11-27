@@ -11,9 +11,10 @@
 //   · Pizarras          (?area=pizarras) → espacio de trabajo ilimitado
 //   · Zona de Publicación (?area=publicar&dest=…) → publicar por contexto
 //
-// + fila de accesos para CREAR ENTIDADES (grupo, página, partido, E.F.,
-//   asamblea, comunidad, evento) reutilizando los flujos existentes
-//   (?createEntity=… → GlobalEntityCreator del layout (app)).
+// + fila de accesos para CREAR ENTIDADES (proyecto, grupo, página, partido,
+//   E.F., asamblea, comunidad, evento) reutilizando los flujos existentes
+//   (?createEntity=… → GlobalEntityCreator del layout (app)). La fila lee sus
+//   etiquetas, iconos y destinos del registro canónico src/lib/entity-kinds.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from "react";
@@ -33,13 +34,6 @@ import {
     Hammer,
     Presentation,
     Send,
-    Users2,
-    FileText,
-    Flag,
-    Landmark,
-    Vote,
-    Sprout,
-    CalendarDays,
     LayoutDashboard,
     Layers,
     Eye,
@@ -47,6 +41,7 @@ import {
     Pencil,
     type LucideIcon,
 } from "lucide-react";
+import { entityCreationOptions } from "@/lib/entity-kinds";
 
 // ── Áreas ────────────────────────────────────────────────────────────────────
 
@@ -189,25 +184,11 @@ function EditorPanel() {
 }
 
 // ── Fila de creación de entidades ────────────────────────────────────────────
+// Etiquetas, iconos y destinos NO se duplican aquí: se leen del registro
+// canónico `ENTITY_KINDS` + `ENTITY_CREATE_TARGETS` (src/lib/entity-kinds.ts).
+// Así el Centro de Creación referencia la entidad única de tipos del OS.
 
-interface EntityLink {
-    label: string;
-    icon: LucideIcon;
-    /** Query ?createEntity= (flujo real EntityEditorDialog) o ruta destino. */
-    createEntity?: "page" | "group" | "event";
-    href?: string;
-    hint: string;
-}
-
-const ENTITY_LINKS: EntityLink[] = [
-    { label: "Grupo", icon: Users2, createEntity: "group", hint: "Círculo, colectivo o asamblea" },
-    { label: "Página", icon: FileText, createEntity: "page", hint: "Pública o privada" },
-    { label: "Partido político", icon: Flag, href: "/network/politics", hint: "Coaliciones en el ecosistema político" },
-    { label: "E.F.", icon: Landmark, createEntity: "page", hint: "Entidad Federativa (crear como página)" },
-    { label: "Asamblea", icon: Vote, createEntity: "group", hint: "Grupo con categoría asamblea" },
-    { label: "Comunidad", icon: Sprout, createEntity: "page", hint: "Página con categoría comunidad" },
-    { label: "Evento", icon: CalendarDays, createEntity: "event", hint: "Encuentro físico o del Multiverso" },
-];
+const ENTITY_LINKS = entityCreationOptions();
 
 function EntityCreationRow({ area }: { area: AreaId }) {
     return (
@@ -223,7 +204,7 @@ function EntityCreationRow({ area }: { area: AreaId }) {
                         : (e.href ?? "/hub");
                     return (
                         <Link
-                            key={e.label}
+                            key={e.key}
                             href={href}
                             title={e.hint}
                             className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.05] px-3 py-1.5 text-xs font-medium text-emerald-300/90 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all duration-150 cursor-pointer"

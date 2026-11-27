@@ -1,0 +1,84 @@
+// src/lib/__tests__/entity-kinds.test.ts
+// -----------------------------------------------------------------------------
+// Registro canónico de tipos de entidad (ENTIDAD ÚNICA de tipos del OS):
+// `normalizeEntityKind` tolera los vocabularios de rutas, widgets y os_*; el
+// Centro de Creación referencia `entityCreationOptions()` en vez de duplicar
+// etiquetas, iconos y rutas.
+//
+// Funciones puras: sin red, sin disco, sin Supabase.
+// -----------------------------------------------------------------------------
+
+import { describe, it, expect } from "vitest";
+import {
+    ENTITY_KINDS,
+    ENTITY_CREATE_ORDER,
+    ENTITY_CREATE_TARGETS,
+    entityCreationOptions,
+    entityKindMeta,
+    normalizeEntityKind,
+} from "@/lib/entity-kinds";
+
+describe("normalizeEntityKind · vocabularios tolerantes", () => {
+    it("reconoce las claves canónicas tal cual", () => {
+        expect(normalizeEntityKind("personal")).toBe("personal");
+        expect(normalizeEntityKind("comunidad")).toBe("comunidad");
+        expect(normalizeEntityKind("partido")).toBe("partido");
+        expect(normalizeEntityKind("proyecto")).toBe("proyecto");
+    });
+
+    it("acepta los sinónimos históricos de las rutas y los widgets", () => {
+        expect(normalizeEntityKind("perfil")).toBe("personal");
+        expect(normalizeEntityKind("sangha")).toBe("comunidad");
+        expect(normalizeEntityKind("Partido Político")).toBe("partido");
+        expect(normalizeEntityKind("Círculo")).toBe("grupo");
+        expect(normalizeEntityKind("consejo")).toBe("asamblea");
+        expect(normalizeEntityKind("festival")).toBe("evento");
+        expect(normalizeEntityKind("Entidad Federativa")).toBe("ef");
+    });
+
+    it("cae a «pagina» con vacío o desconocido, sin lanzar", () => {
+        expect(normalizeEntityKind(null)).toBe("pagina");
+        expect(normalizeEntityKind(undefined)).toBe("pagina");
+        expect(normalizeEntityKind("   ")).toBe("pagina");
+        expect(normalizeEntityKind("cualquier-cosa")).toBe("pagina");
+    });
+});
+
+describe("entityKindMeta · metadato visual", () => {
+    it("devuelve el metadato del registro canónico", () => {
+        expect(entityKindMeta("partido")).toBe(ENTITY_KINDS.partido);
+        expect(entityKindMeta("E.F.")).toBe(ENTITY_KINDS.ef);
+        expect(entityKindMeta("desconocido")).toBe(ENTITY_KINDS.pagina);
+    });
+
+    it("cada tipo declara icono, acento y sistema", () => {
+        for (const meta of Object.values(ENTITY_KINDS)) {
+            expect(meta.icon).toBeTruthy();
+            expect(meta.accent).toMatch(/^#[0-9a-f]{6}$/i);
+            expect(["politico", "cultural", "educativo", "social"]).toContain(meta.system);
+        }
+    });
+});
+
+describe("entityCreationOptions · Centro de Creación sin duplicar", () => {
+    it("cubre todo tipo del registro con un destino de creación", () => {
+        for (const key of Object.keys(ENTITY_KINDS) as Array<keyof typeof ENTITY_KINDS>) {
+            expect(ENTITY_CREATE_TARGETS[key]).toBeTruthy();
+            expect(ENTITY_CREATE_TARGETS[key].hint.length).toBeGreaterThan(0);
+        }
+    });
+
+    it("respeta el orden estable y no repite tipos", () => {
+        const claves = entityCreationOptions().map((o) => o.key);
+        expect(claves).toEqual(ENTITY_CREATE_ORDER);
+        expect(new Set(claves).size).toBe(claves.length);
+    });
+
+    it("cada opción mezcla metadato e icono del registro con su destino", () => {
+        const proyecto = entityCreationOptions().find((o) => o.key === "proyecto");
+        expect(proyecto?.label).toBe(ENTITY_KINDS.proyecto.label);
+        expect(proyecto?.icon).toBe(ENTITY_KINDS.proyecto.icon);
+        expect(proyecto?.createEntity).toBe("group");
+        expect(proyecto?.hint).toBe(ENTITY_CREATE_TARGETS.proyecto.hint);
+    });
+});

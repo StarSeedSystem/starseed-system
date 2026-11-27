@@ -62,6 +62,54 @@ export interface EntityKindMeta {
     toolkitTab: string;
 }
 
+/**
+ * Cómo se crea cada tipo desde el Centro de Creación (/crear). Es la única
+ * fuente de los destinos: la fila de entidades NO duplica etiquetas, iconos ni
+ * rutas, solo referencia este registro y `ENTITY_KINDS`.
+ */
+export interface EntityCreateTarget {
+    /** Flujo real `?createEntity=` del EntityEditorDialog. */
+    createEntity?: "page" | "group" | "event";
+    /** Ruta destino cuando el tipo se gestiona en su propio ecosistema. */
+    href?: string;
+    /** Pista corta para el enlace de creación. */
+    hint: string;
+}
+
+export const ENTITY_CREATE_TARGETS: Record<EntityKind, EntityCreateTarget> = {
+    personal: { href: "/profile", hint: "Perfil público de una cuenta soberana" },
+    comunidad: { createEntity: "page", hint: "Página con categoría comunidad" },
+    ef: { createEntity: "page", hint: "Entidad Federativa (crear como página)" },
+    partido: { href: "/network/politics", hint: "Coaliciones en el ecosistema político" },
+    asamblea: { createEntity: "group", hint: "Grupo con categoría asamblea" },
+    grupo: { createEntity: "group", hint: "Círculo, colectivo o asamblea" },
+    evento: { createEntity: "event", hint: "Encuentro físico o del Multiverso" },
+    pagina: { createEntity: "page", hint: "Pública o privada" },
+    proyecto: { createEntity: "group", hint: "Proyecto con objetivos y tareas" },
+};
+
+/** Orden estable de los tipos que se pueden crear desde el Centro de Creación. */
+export const ENTITY_CREATE_ORDER: EntityKind[] = [
+    "proyecto",
+    "grupo",
+    "pagina",
+    "partido",
+    "ef",
+    "asamblea",
+    "comunidad",
+    "evento",
+];
+
+export type EntityCreationOption = EntityKindMeta & EntityCreateTarget;
+
+/** Tipos creables con su metadato visual y destino, en orden estable. */
+export function entityCreationOptions(): EntityCreationOption[] {
+    return ENTITY_CREATE_ORDER.map((key) => ({
+        ...ENTITY_KINDS[key],
+        ...ENTITY_CREATE_TARGETS[key],
+    }));
+}
+
 export const ENTITY_KINDS: Record<EntityKind, EntityKindMeta> = {
     personal: {
         key: "personal",
