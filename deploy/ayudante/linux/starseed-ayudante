@@ -1,0 +1,32 @@
+#!/bin/bash
+# starseed-ayudante - Ayudante privilegiado para StarSeed OS (Linux)
+
+set -e
+
+# Configuración básica
+COMANDOS_APP="almacen servicios actualizar registros reiniciar"
+COMANDOS_ADMIN="administrador-completo"
+
+function mostrar_ayuda() {
+    echo "Uso: starseed-ayudante <comando> [args]"
+    echo "Comandos: $COMANDOS_APP $COMANDOS_ADMIN"
+}
+
+if [ "$#" -eq 0 ]; then
+    mostrar_ayuda
+    exit 1
+fi
+
+comando=$1
+shift
+
+case "$comando" in
+    ayuda)
+        mostrar_ayuda
+        ;;
+    *)
+        echo "Comando no reconocido: $comando"
+        mostrar_ayuda
+        exit 1
+        ;;
+esac
