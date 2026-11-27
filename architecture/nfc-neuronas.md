@@ -47,3 +47,35 @@ Tarjetas firmadas y de vida corta (30 s); comprobación de que la firma correspo
 
 ## 8. Tareas (ola `nfc-1126`)
 NFC1126A lógica pura (tarjeta, preferencias, decisión de opciones) · NFC1126B Android nativo (lector + HCE) · NFC1126C ajustes «NFC y cercanía» · NFC1126D hoja «Cerca de ti», Señales y notificaciones · NFC1126E traspaso al mejor transporte para archivos/folders/cerebros/capacidades · NFC1126F nodos NFC, eventos y etiquetas desde la Protomolécula · NFC1126G escritorio (PC/SC), iOS y respaldo BLE/QR · NFC1126H pruebas de MetaGenesis.
+
+# Ampliación (Maggasukha, 26-11 noche)
+
+## 9. Dónde se configura y se usa
+Todo lo de este contrato es accesible y configurable desde: el **centro de control del lado derecho** (`layout/trinity/control-center.tsx`: un mosaico «NFC y cercanía» con encender/apagar, modo de la neurona y acceso a sus ajustes), el **Centro de notificaciones** (`layout/notification-center.tsx`: los encuentros, tarjetas y ofertas con sus botones), **Señales** (`mesh/signals-center.tsx`: registro, vínculos activos, revocar) y el **hub social** (`network/culture/social-hub.tsx`: personas conocidas por cercanía, tarjetas recibidas, grupos creados al acercarse). Un mismo estado, cuatro puertas.
+
+## 10. Aparatos personales (audífonos, bocinas, wearables)
+- **Tocar para emparejar:** muchos audífonos y bocinas llevan una etiqueta NFC con un registro NDEF de emparejamiento Bluetooth (OOB, `application/vnd.bluetooth.ep.oob` o `.le.oob`). La neurona lo lee y empareja/conecta sin buscar en listas. Preferencias por aparato: conectar solo, preguntar, a qué perfil de audio, volumen inicial, y si es **personal** (solo mis neuronas), **compartido** (mis neuronas y contactos) o **público** (acceso automático en un lugar).
+- **Wearables:** mismas reglas; lo que exponen (pulso, pasos, botones) se ofrece como capacidad con permiso explícito.
+- **Audífonos que se acercan a una neurona que suena:** se conectan a lo que suena en esa neurona (BT al aparato que reproduce, o el audio viaja por la malla a la neurona del dueño de los audífonos). Si la neurona es de otra cuenta, el dueño ve una solicitud y decide (una vez, siempre para esa neurona, nunca); si reproduce algo privado, solo se ofrece cuando él lo marca como compartible.
+
+## 11. Sala de sonido compartida
+Varias neuronas se unen por NFC (o desde Señales) a **un mismo sistema de sonido** (una bocina, una neurona con altavoces o un grupo de ellas):
+- **Cola común:** cualquier neurona añade audio de cualquier archivo, sonido o app suya; la cola y lo que suena se ven en todas en tiempo real (sincronía por la malla con reloj común).
+- **Quién controla:** una sola neurona, las elegidas, o todas a la vez; con **mezcla** (varias fuentes encima, cada una con su nivel, ecualizador y limitador) o **turnos**.
+- **Apps externas como Spotify:** se integra lo que la app permite con la cuenta de cada persona: elegir el aparato con Spotify Connect, la cola y el control con su API (control de reproducción solo con Premium), y «Jam» cuando exista. El audio de Spotify no se retransmite por la malla (licencias); los archivos y producciones propias sí.
+- **Mostrar lo que suena:** público, solo contactos, solo la sala, o nada; compartible por el vínculo NFC.
+
+## 12. Nodos de audio por lugar
+Un nodo (o etiqueta) puede ofrecer audio: audioguías de museos, descripciones de zonas geográficas, nodos informativos o de capacidades. Preferencias del visitante: reproducir solo al acercarse, preguntar, o no; idioma (traductor universal); volumen; guardar en la Biblioteca. Funciona sin conexión si el audio está en el propio nodo o ya descargado.
+
+## 13. Tarjetas y ofertas digitales (no publicitarias)
+Al vincularse, una neurona puede enviar a las notificaciones de la otra una **tarjeta** diseñada libremente (desde la Protomolécula o el lienzo): presentación o amistad (se guarda en contactos), evento, página, grupo, partido, perfil, cuenta, cerebro, repositorio, archivo, app, programa o enlace de formato libre. No se permiten tarjetas comerciales o publicitarias no pedidas: Astraura las marca y el receptor puede bloquear su envío. Cada tarjeta lleva firma del emisor y caducidad opcional.
+
+## 14. Seguridad de lo recibido: Astraura ciber multicapa
+Todo lo que llega por un vínculo (tarjeta, enlace, archivo, app, cerebro, permiso) pasa por el agente ciber de Astraura antes de abrirse: firma y reputación del emisor, análisis del enlace y del archivo con el escáner que ya existe (`src/lib/security/scanner.ts`), permisos que pide, y una explicación corta. Resultado: **seguro** (se abre), **sugerencia** (qué conviene), **aviso** (pide confirmar) o **alerta** (bloqueado, con el motivo). Aprende de las decisiones de la persona.
+
+## 15. Lo que ofrece cada neurona
+Cada neurona tiene un **perfil de ofertas por audiencia**: qué ofrece y qué automatiza para (a) mis neuronas y nodos, (b) contactos, (c) cualquier cuenta de StarSeed, (d) otras señales y aparatos no StarSeed. Por cada audiencia: perfil visible, tarjetas, capacidades, almacenamiento, señales, internet, sala de sonido, acciones automáticas y nivel de escaneo. Se adapta a cualquier señal (NFC, BLE, Wi‑Fi, LoRa, cable…) con el mismo modelo.
+
+## 16. Tareas de la ampliación
+NFC1126I accesos (centro de control, notificaciones, Señales, hub social) · NFC1126J aparatos personales (tocar para emparejar, audífonos a lo que suena) · NFC1126K sala de sonido: motor (cola común, sincronía, control y mezcla) · NFC1126L sala de sonido: interfaz · NFC1126M Spotify y apps externas · NFC1126N nodos de audio por lugar · NFC1126O tarjetas y ofertas digitales · NFC1126P escaneo de Astraura ciber · NFC1126Q perfil de ofertas por audiencia.
