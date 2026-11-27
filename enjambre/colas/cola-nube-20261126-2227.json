@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261126",
+ "tareas": [
+  {
+   "id": "ALM1125H2s",
+   "ola": "almacen-1125",
+   "titulo": "traer_nube trae también las ramas nube/mg-* de la Maggabox · lo que faltó: scripts/puente/test_traer_nube_maggabox_1125.py",
+   "archivos": [
+    "scripts/puente/test_traer_nube_maggabox_1125.py"
+   ],
+   "depende": [],
+   "prioridad": 95,
+   "prompt": "SEGUIMIENTO de ALM1125H2, que ya está integrada (sha 1ed3eb95e3c5). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: scripts/puente/test_traer_nube_maggabox_1125.py.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: traer_nube trae también las ramas nube/mg-* de la Maggabox\n\n--- encargo original, como contexto ---\nComprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; NUNCA `git push` ni `scripts/puente/publicar.py` (publicar es de la autopublicación); nunca borrar. Ninguna prueba toca la red ni archivos reales de la Mac; git de verdad SOLO en un repo de prueba en un temporal (modelo: `scripts/puente/test_ff_seguro.py`, con GIT_CONFIG_GLOBAL=/dev/null). Funciones de decisión PURAS con pruebas; solo las pruebas de lo tocado (python3 -m pytest <archivo> -q). Es solo Python: no lances tsc ni vitest.\n\nContrato: `architecture/almacenamiento-distribuido.md` (lee la sección «Maggabox como medio de trabajo», es la receta exacta) y `memory/orquestacion-economica.md` §24. Alex lo ha pedido muchas veces: la Maggabox (405 GB libres) debe usarse sola cuando la Mac va justa.\n\nPunto 2 de la receta: en `dueno_de_sueltos` añade el patrón `^nube/mg-\\d{8}-\\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$` junto al de `nube/a1-…`. Prueba que una rama `nube/mg-20261126-010203-CTL1124Dc` se reconoce con su tarea y que las de a1 siguen igual.",
+   "depende_de": [],
+   "origen": "seguimiento de alcance parcial",
+   "modelo": "claude/sonnet"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1126-210645.json": [
+   "ALM1125H2s"
+  ]
+ }
+}
