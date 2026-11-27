@@ -70,6 +70,8 @@ import { hablar } from "@/lib/aurora/voz-unica";
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
 import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
 import { describirCapacidad, qrATarjeta } from "@/lib/nfc/respaldo";
+import { SeccionCercania } from "@/components/nfc/hoja-cerca";
+import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
 import { evaluarRecibido, type ResultadoEscaneo } from "@/lib/security/vinculos-escaner";
 import { PanelReticula } from "@/components/malla/panel-reticula";
 import { PanelMapaViasVivo } from "@/components/malla/panel-mapa-vias";
@@ -116,6 +118,12 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   const [recibidoNfc, setRecibidoNfc] = useState<{ resultado: ResultadoEscaneo; url?: string } | null>(null);
   // NFC1126G: sin Web NFC se ofrece el respaldo universal (BLE muy cerca o QR con la misma tarjeta).
   const [respaldoNfc, setRespaldoNfc] = useState<{ vias: string; qr: string; leida?: string } | null>(null);
+  const [tarjetaCerca, setTarjetaCerca] = useState<TarjetaNeurona | null>(null);
+  // Tarjeta propia mínima: solo aporta el id y los transportes comunes para decidir qué se puede ofrecer.
+  const propiaCerca = useMemo<TarjetaNeurona>(() => ({
+    version: 1, neuronaId: thisDeviceId(), clavePublica: "", cuenta: { modo: "nada" }, claveEfimera: "",
+    nonce: "", emitidaEn: 0, ofertas: [], firma: "", transportes: tarjetaCerca?.transportes ?? [],
+  }), [tarjetaCerca]);
   const meshRef = useRef(mesh);
   meshRef.current = mesh;
 
@@ -640,6 +648,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
             onChange={(e) => {
               const r = qrATarjeta(e.target.value);
               setRespaldoNfc({ ...respaldoNfc, qr: e.target.value, leida: r.ok ? r.tarjeta.neuronaId : e.target.value ? r.motivo : undefined });
+              if (r.ok) setTarjetaCerca(r.tarjeta);
             }}
             placeholder="Pega aquí el texto del QR (ssn1:…)"
             className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1"
@@ -648,6 +657,14 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           <button type="button" className="cursor-pointer text-white/60 underline" onClick={() => setRespaldoNfc(null)}>Cerrar</button>
         </div>
       )}
+
+      {/* NFC1126D — «Cercanía»: hoja «Cerca de ti» y registro de encuentros (vía NFC/BLE/QR, sin conexión). */}
+      <SeccionCercania
+        propia={propiaCerca}
+        ajena={tarjetaCerca}
+        via="qr"
+        relacion="cuenta_nueva"
+      />
 
       {recibidoNfc && (
         <VeredictoSeguridad
