@@ -47,6 +47,8 @@ describe("skill agent-reach · reparación CAP1119 (TDD de la objeción)", () =>
     expect(guia).toContain("NEED_LOGIN_BLOQUEADO");
     expect(guia).toContain("Reddit");
     expect(guia).toContain("Twitter");
+    expect(guia).toContain("Reparación CAP1119");
+    expect(guia).toContain("2026-11-24 23:21:02");
   });
 });
 
