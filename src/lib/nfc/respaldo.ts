@@ -3,6 +3,7 @@
 // y pasa la MISMA tarjeta firmada por QR o por la confirmación de BLE muy cerca.
 
 import { codificar, decodificar, type ResultadoDecodificar, type TarjetaNeurona } from "./tarjeta";
+import { validarConfig, type ConfigNodo, TIPO_MIME_NODO } from "./nodo-oferta";
 
 export type CapacidadNfc = "lector" | "emulador" | "lector_usb" | "web" | "ninguno";
 export type ViaAcercar = "nfc" | "ble" | "qr";
@@ -87,4 +88,26 @@ export function qrATarjeta(texto: string): ResultadoDecodificar {
   if (!limpio.startsWith(PREFIJO_QR)) return { ok: false, motivo: "no es un QR de neurona" };
   const bytes = deBase64Url(limpio.slice(PREFIJO_QR.length));
   return bytes ? decodificar(bytes) : { ok: false, motivo: "QR ilegible" };
+}
+
+export type ResultadoDecodificarNodo =
+  | { ok: true; config: ConfigNodo }
+  | { ok: false; motivo: string };
+
+/** Decodifica un QR/etiqueta de nodo NFC (MIME application/vnd.starseed.nodo). */
+export function qrANodo(texto: string): ResultadoDecodificarNodo {
+  const limpio = texto.trim();
+  if (!limpio.startsWith(PREFIJO_QR)) return { ok: false, motivo: "no es un QR de nodo" };
+  const bytes = deBase64Url(limpio.slice(PREFIJO_QR.length));
+  if (!bytes) return { ok: false, motivo: "QR ilegible" };
+  try {
+    const dec = new TextDecoder("utf-8", { fatal: true });
+    const json = dec.decode(bytes);
+    const parsed = JSON.parse(json);
+    if (parsed.tipoMime !== TIPO_MIME_NODO) return { ok: false, motivo: "tipo MIME ajeno" };
+    const r = validarConfig(JSON.parse(parsed.carga));
+    return r.ok ? { ok: true, config: r.config } : { ok: false, motivo: r.errores.join("; ") };
+  } catch {
+    return { ok: false, motivo: "contenido ilegible" };
+  }
 }

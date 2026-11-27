@@ -23,16 +23,23 @@ import { notifyFromApp } from "@/lib/notifications/app-notify";
 import { notificacionDeEncuentro } from "@/lib/notificaciones/encuentro-nfc";
 import { safeGet, safeSet } from "@/lib/safe-storage";
 import { anadirConocida, anadirVinculo, CLAVE_ENCUENTROS, CLAVE_ESTADO_CERCANIA, leerEstado } from "@/lib/nfc/estado-cercania";
+import type { ConfigNodo } from "@/lib/nfc/nodo-oferta";
+import { Audioguia } from "./audioguia";
+import type { ConfigAudioNodo } from "@/lib/nfc/nodo-audio";
 
 interface Props {
   decision: DecisionEncuentro;
   via: ViaAcercar;
   onBoton: (boton: BotonEncuentro) => void;
   onCerrar: () => void;
+  /** Configuración del nodo NFC (para ofertas de audio). */
+  nodoConfig?: ConfigNodo | null;
+  /** Callback cuando se abre una oferta de audio. */
+  onAbrirOfertaAudio?: (config: ConfigNodo) => void;
 }
 
 /** Hoja «Cerca de ti»: las opciones salen de `decidir` según las preferencias de ESTE aparato. */
-export function HojaCerca({ decision, via, onBoton, onCerrar }: Props) {
+export function HojaCerca({ decision, via, onBoton, onCerrar, nodoConfig, onAbrirOfertaAudio }: Props) {
   if (!decision.mostrar) return null;
   const botones = botonesDe(decision);
   const auto = resumenAutomaticas(decision);
@@ -40,6 +47,15 @@ export function HojaCerca({ decision, via, onBoton, onCerrar }: Props) {
     decision.perfil.tipo === "completo" ? decision.perfil.cuenta.valor
     : decision.perfil.tipo === "pendiente" ? "Neurona que pide permiso para mostrarse"
     : "Neurona cercana";
+
+  const handleBoton = (b: BotonEncuentro) => {
+    if (b.id === "abrir_oferta_nodo" && nodoConfig && onAbrirOfertaAudio) {
+      onAbrirOfertaAudio(nodoConfig);
+      return;
+    }
+    onBoton(b);
+  };
+
   return (
     <section
       role="dialog"
@@ -68,7 +84,7 @@ export function HojaCerca({ decision, via, onBoton, onCerrar }: Props) {
             key={b.id}
             type="button"
             data-testid={`boton-${b.id}`}
-            onClick={() => onBoton(b)}
+            onClick={() => handleBoton(b)}
             className={
               "cursor-pointer rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-200 " +
               (b.tipo === "fija"
@@ -104,12 +120,15 @@ interface SeccionProps {
   via: ViaAcercar;
   relacion: Relacion;
   onAccion?: (accion: Accion, neuronaId: string) => void;
+  /** Configuración del nodo NFC (para ofertas de audio). */
+  nodoConfig?: ConfigNodo | null;
 }
 
 /** Sección «Cercanía» de Señales: la hoja del encuentro vivo y el registro de encuentros, sin conexión. */
-export function SeccionCercania({ propia, ajena, via, relacion, onAccion }: SeccionProps) {
+export function SeccionCercania({ propia, ajena, via, relacion, onAccion, nodoConfig }: SeccionProps) {
   const [registro, setRegistro] = useState<RegistroEncuentro[]>(leerRegistro);
   const [actual, setActual] = useState<{ d: DecisionEncuentro; id: string; neuronaId: string } | null>(null);
+  const [audioOferta, setAudioOferta] = useState<ConfigNodo | null>(null);
 
   useEffect(() => {
     if (!ajena) return;
@@ -150,9 +169,37 @@ export function SeccionCercania({ propia, ajena, via, relacion, onAccion }: Secc
     });
   };
 
+  const abrirOfertaAudio = (config: ConfigNodo) => {
+    setAudioOferta(config);
+  };
+
+  const cerrarAudioOferta = () => {
+    setAudioOferta(null);
+  };
+
   return (
     <div data-testid="seccion-cercania" className="space-y-2">
-      {actual && <HojaCerca decision={actual.d} via={via} onBoton={alBoton} onCerrar={() => setActual(null)} />}
+      {actual && (
+        <HojaCerca
+          decision={actual.d}
+          via={via}
+          onBoton={alBoton}
+          onCerrar={() => setActual(null)}
+          nodoConfig={nodoConfig}
+          onAbrirOfertaAudio={abrirOfertaAudio}
+        />
+      )}
+      {audioOferta && (
+        <div className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-white">Oferta de audio del nodo</h3>
+            <button type="button" onClick={cerrarAudioOferta} className="cursor-pointer rounded-full p-1 text-white/60 transition-colors hover:bg-white/10">
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+          <Audioguia config={audioOferta as unknown as ConfigAudioNodo} />
+        </div>
+      )}
       <ul className="space-y-1 text-[11px] text-white/55" aria-label="Registro de cercanía">
         {registro.length === 0 && <li>Sin encuentros todavía.</li>}
         {registro.slice(0, 20).map((r) => <li key={r.id}>{lineaRegistro(r)}</li>)}

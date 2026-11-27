@@ -3,7 +3,10 @@
 
 import type { Accion } from "./preferencias";
 
-export const TIPOS_OFERTA = ["informacion", "app", "publicacion", "pagina", "enlace", "archivo", "folder", "capa"] as const;
+export const TIPOS_OFERTA = [
+  "informacion", "app", "publicacion", "pagina", "enlace", "archivo", "folder", "capa",
+  "audioguia", "descripcion_zona", "nodo_informativo",
+] as const;
 export type TipoOferta = (typeof TIPOS_OFERTA)[number];
 
 export const ACCIONES_LUGAR = [

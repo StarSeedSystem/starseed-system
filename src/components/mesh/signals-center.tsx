@@ -69,7 +69,8 @@ import { hablar } from "@/lib/aurora/voz-unica";
 
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
 import { VeredictoSeguridad } from "@/components/nfc/veredicto-seguridad";
-import { describirCapacidad, qrATarjeta } from "@/lib/nfc/respaldo";
+import { describirCapacidad, qrATarjeta, qrANodo, type ResultadoDecodificarNodo } from "@/lib/nfc/respaldo";
+import { TIPO_MIME_NODO, type ConfigNodo } from "@/lib/nfc/nodo-oferta";
 import { SeccionCercania } from "@/components/nfc/hoja-cerca";
 import { AjustesOfertas, RegistroYVinculos } from "@/components/nfc/cercania-puertas";
 import type { TarjetaNeurona } from "@/lib/nfc/tarjeta";
@@ -120,6 +121,8 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   // NFC1126G: sin Web NFC se ofrece el respaldo universal (BLE muy cerca o QR con la misma tarjeta).
   const [respaldoNfc, setRespaldoNfc] = useState<{ vias: string; qr: string; leida?: string } | null>(null);
   const [tarjetaCerca, setTarjetaCerca] = useState<TarjetaNeurona | null>(null);
+  // Configuración de nodo NFC leída (para ofertas de audio, etc.)
+  const [nodoConfig, setNodoConfig] = useState<ConfigNodo | null>(null);
   // Tarjeta propia mínima: solo aporta el id y los transportes comunes para decidir qué se puede ofrecer.
   const propiaCerca = useMemo<TarjetaNeurona>(() => ({
     version: 1, neuronaId: thisDeviceId(), clavePublica: "", cuenta: { modo: "nada" }, claveEfimera: "",
@@ -312,7 +315,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           );
         });
       } else if (sig.kind === "nfc") {
-        type RegistroNdef = { recordType: string; data?: DataView };
+        type RegistroNdef = { recordType: string; data?: DataView; mediaType?: string };
         type LecturaNdef = { message: { records: RegistroNdef[] } };
         type LectorNdef = { scan: () => Promise<void>; onreading: ((e: LecturaNdef) => void) | null };
         const R = (window as unknown as { NDEFReader?: new () => LectorNdef }).NDEFReader;
@@ -320,11 +323,38 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           const lector = new R();
           lector.onreading = (e) => {
             const dec = new TextDecoder();
+            for (const record of e.message.records) {
+              if (record.mediaType === TIPO_MIME_NODO && record.data) {
+                const texto = dec.decode(record.data);
+                const r = qrANodo(texto);
+                if (r.ok) {
+                  setNodoConfig(r.config);
+                  setTarjetaCerca(null);
+                  return;
+                }
+              }
+              if ((record.recordType === "url" || record.recordType === "text") && record.data) {
+                const texto = dec.decode(record.data);
+                if (texto.startsWith("ssn1:")) {
+                  const rNodo = qrANodo(texto);
+                  if (rNodo.ok) {
+                    setNodoConfig(rNodo.config);
+                    setTarjetaCerca(null);
+                    return;
+                  }
+                  const rTarjeta = qrATarjeta(texto);
+                  if (rTarjeta.ok) {
+                    setTarjetaCerca(rTarjeta.tarjeta);
+                    setNodoConfig(null);
+                    return;
+                  }
+                }
+              }
+            }
             const textos = e.message.records
               .filter((r) => (r.recordType === "url" || r.recordType === "text") && r.data)
               .map((r) => dec.decode(r.data));
             const url = textos.find((t) => /^[a-z][a-z0-9+.-]*:/i.test(t));
-            // Una etiqueta pasiva no trae firma que comprobar: se evalúa sin reputación (queda «sin historial»).
             const resultado = evaluarRecibido({
               tipo: url ? "enlace" : "tarjeta",
               emisor: { firmaValida: true },
@@ -647,15 +677,23 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           <input
             value={respaldoNfc.qr}
             onChange={(e) => {
-              const r = qrATarjeta(e.target.value);
-              setRespaldoNfc({ ...respaldoNfc, qr: e.target.value, leida: r.ok ? r.tarjeta.neuronaId : e.target.value ? r.motivo : undefined });
+              const valor = e.target.value;
+              const rNodo = qrANodo(valor);
+              if (rNodo.ok) {
+                setNodoConfig(rNodo.config);
+                setTarjetaCerca(null);
+                setRespaldoNfc({ ...respaldoNfc, qr: valor, leida: `Nodo: ${rNodo.config.nombre}` });
+                return;
+              }
+              const r = qrATarjeta(valor);
+              setRespaldoNfc({ ...respaldoNfc, qr: valor, leida: r.ok ? r.tarjeta.neuronaId : valor ? r.motivo : undefined });
               if (r.ok) setTarjetaCerca(r.tarjeta);
             }}
             placeholder="Pega aquí el texto del QR (ssn1:…)"
             className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1"
           />
           {respaldoNfc.leida && <p>Tarjeta: {respaldoNfc.leida}</p>}
-          <button type="button" className="cursor-pointer text-white/60 underline" onClick={() => setRespaldoNfc(null)}>Cerrar</button>
+          <button type="button" className="cursor-pointer text-white/60 underline" onClick={() => { setRespaldoNfc(null); setNodoConfig(null); setTarjetaCerca(null); }}>Cerrar</button>
         </div>
       )}
 
@@ -665,6 +703,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
         ajena={tarjetaCerca}
         via="qr"
         relacion="cuenta_nueva"
+        nodoConfig={nodoConfig}
       />
       <AjustesOfertas />
       <RegistroYVinculos />

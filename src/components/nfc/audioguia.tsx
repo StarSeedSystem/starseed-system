@@ -245,10 +245,10 @@ export function Audioguia({
           <div className="flex items-center gap-2 text-xs text-white/60">
             <span className="w-12 shrink-0">{formatearTiempo(progreso)}</span>
             <Slider
-              value={progreso}
+              value={[progreso]}
               max={duracion || 1}
               step={1}
-              onValueChange={setProgreso}
+              onValueChange={([v]) => setProgreso(v)}
               className="flex-1 h-1.5"
               aria-label="Progreso de la pista"
             />
@@ -347,11 +347,11 @@ export function Audioguia({
             Volumen: {Math.round(resueltas.volumen * 100)}%
           </legend>
           <Slider
-            value={prefs.volumen}
+            value={[prefs.volumen]}
             min={0}
             max={1}
             step={0.05}
-            onValueChange={cambiarVolumen}
+            onValueChange={([v]) => cambiarVolumen(v)}
             className="h-2"
             aria-label="Volumen de reproducción"
           />

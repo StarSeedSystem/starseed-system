@@ -11,6 +11,7 @@ import {
 const NOMBRE_OFERTA: Record<TipoOferta, string> = {
   informacion: "Información", app: "App", publicacion: "Publicación", pagina: "Página de StarSeed OS",
   enlace: "Enlace funcional", archivo: "Archivo", folder: "Folder", capa: "Capa de conciencia",
+  audioguia: "Audioguía", descripcion_zona: "Descripción de zona", nodo_informativo: "Nodo informativo",
 };
 const NOMBRE_ACCION: Record<AccionLugar, string> = {
   registro_evento: "Registro de entrada a evento", casa: "Casa", espacio_publico: "Espacio público",
