@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sonda de Cloudroom para el catálogo de medios del enjambre."""
 from __future__ import annotations
-import json, os, shutil, subprocess
+import json, os, shutil, subprocess, sys, time
 
 def cli_path(env=None, which=shutil.which):
     env = env or os.environ
@@ -23,7 +23,8 @@ def interpretar(local, nube, hilos=None, errores=()):
     if not isinstance(local, dict):
         return medio("no_disponible", "respuesta inválida de room-cli status", capacidad)
     if nube is None:
-        return medio("requiere_alex", motivo or "no se pudo consultar la cuenta Cloudroom", capacidad, "abre Cloudroom e inicia sesión")
+        return medio("requiere_alex", motivo or "Cloudroom no contestó ni después de que la dirección abriera la app",
+                     capacidad, "si la app pide sesión, inicia sesión en ella (la dirección ya la abrió)")
     if not isinstance(nube, dict):
         return medio("no_disponible", "respuesta inválida de room-cli cloud status", capacidad)
     login = nube.get("authenticated", nube.get("logged_in", nube.get("signed_in")))
@@ -38,7 +39,24 @@ def medio(estado, detalle, capacidad, siguiente=""):
     return {"id":"cloudroom", "nombre":"Cloudroom", "estado":estado, "detalle":detalle,
             "capacidad":capacidad, "siguiente_paso":siguiente}
 
-def sondear(run=subprocess.run, env=None):
+APP_CLOUDROOM = "/Applications/Cloudroom.app"
+
+
+def abrir_app(run=subprocess.run):
+    """(DIR1126K, 26-11) Si `room-cli` no contesta es casi siempre porque la app está cerrada: la
+    sesión de Cloudroom ya estaba iniciada (Maggasukha, 26-11: «si estaba ya iniciado sesión»), y la
+    sonda decía «abre Cloudroom e inicia sesión». Ahora la dirección la abre ella misma en segundo
+    plano (`open -g`, sin quitarle el foco) y vuelve a preguntar; nunca se le pide a él."""
+    if sys.platform != "darwin" or not os.path.isdir(APP_CLOUDROOM):
+        return False
+    try:
+        run(["open", "-g", "-a", "Cloudroom"], capture_output=True, text=True, timeout=20)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def sondear(run=subprocess.run, env=None, abrir=None, esperar=time.sleep):
     ruta = cli_path(env)
     if not ruta:
         return interpretar(None, None, errores=("app sin instalar",))
@@ -51,6 +69,14 @@ def sondear(run=subprocess.run, env=None):
         except (OSError, subprocess.TimeoutExpired, ValueError) as e:
             return None, type(e).__name__
     local, e1 = pedir(["status"]); nube, e2 = pedir(["cloud", "status"])
+    # Solo con la orden real (o si se pide expresamente): las pruebas con un `run` falso no abren nada.
+    abrir = abrir or (abrir_app if run is subprocess.run else (lambda _run: False))
+    if (nube is None or local is None) and abrir(run):
+        for _ in range(6):  # hasta ~30 s a que la app arranque
+            esperar(5)
+            local, e1 = pedir(["status"]); nube, e2 = pedir(["cloud", "status"])
+            if nube is not None and local is not None:
+                break
     hilos, _ = pedir(["thread", "count"])
     return interpretar(local, nube, hilos, (e1, e2))
 

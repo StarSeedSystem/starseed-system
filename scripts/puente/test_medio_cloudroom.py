@@ -85,3 +85,27 @@ class SondaCloudroom(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_dir1126k_abre_la_app_y_vuelve_a_preguntar():
+    """Si room-cli no contesta (app cerrada), la sonda abre Cloudroom y repregunta: no pide sesión."""
+    import types
+    import medio_cloudroom as M
+    llamadas = {"abierta": False}
+
+    def run(args, **kw):
+        if args[:1] == ["open"]:
+            llamadas["abierta"] = True
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        if not llamadas["abierta"]:
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="no server")
+        if args[1:3] == ["cloud", "status"]:
+            return types.SimpleNamespace(returncode=0, stdout='{"ready": true, "account": {"id": "x"}}', stderr="")
+        if args[1:3] == ["thread", "count"]:
+            return types.SimpleNamespace(returncode=0, stdout='{"count": 0}', stderr="")
+        return types.SimpleNamespace(returncode=0, stdout="{}", stderr="")
+
+    r = M.sondear(run=run, env={"CLOUDROOM_CLI": __file__},
+                  abrir=lambda run: run(["open", "-g", "-a", "Cloudroom"]) is not None, esperar=lambda s: None)
+    assert llamadas["abierta"]
+    assert r["estado"] == "usable", r
