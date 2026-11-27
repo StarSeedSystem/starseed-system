@@ -17,8 +17,8 @@ describe("reparto - distribución democrática de fragmentos", () => {
     personaId: `persona-${Math.random().toString(36).slice(2)}`,
     redId: `red-${Math.random().toString(36).slice(2)}`,
     dispositivoId: `dispositivo-${Math.random().toString(36).slice(2)}`,
-    capacidadBytes: 100_000_000_000n, // 100 GB
-    libreBytes: 50_000_000_000n, // 50 GB libre
+    capacidadBytes: BigInt(100_000_000_000), // 100 GB
+    libreBytes: BigInt(50_000_000_000), // 50 GB libre
     salud: "excelente",
     version: 1,
     ...overrides,
@@ -26,7 +26,7 @@ describe("reparto - distribución democrática de fragmentos", () => {
 
   const crearOferta = (overrides: Partial<OfertaAlmacen> = {}): OfertaAlmacen => ({
     nodoId: `nodo-${Math.random().toString(36).slice(2)}`,
-    bytesOfrecidos: 10_000_000_000n, // 10 GB
+    bytesOfrecidos: BigInt(10_000_000_000), // 10 GB
     duracionMs: 30 * 24 * 60 * 60 * 1000, // 30 días
     prioridad: 1,
     ...overrides,
@@ -76,7 +76,7 @@ describe("reparto - distribución democrática de fragmentos", () => {
   describe("seleccionarNodos", () => {
     it("selecciona n nodos de los disponibles", () => {
       const nodos = Array.from({ length: 10 }, (_, i) => crearNodo({ id: `n${i}` }));
-      const ofertas = nodos.map((n) => crearOferta({ nodoId: n.id, bytesOfrecidos: 10_000_000_000n }));
+      const ofertas = nodos.map((n) => crearOferta({ nodoId: n.id, bytesOfrecidos: BigInt(10_000_000_000) }));
       const seleccionados = seleccionarNodos(nodos, ofertas, 5, 3);
       expect(seleccionados.length).toBe(5);
     });
@@ -99,11 +99,11 @@ describe("reparto - distribución democrática de fragmentos", () => {
 
     it("prefiere nodos con más capacidad libre", () => {
       const nodos = [
-        crearNodo({ id: "n1", libreBytes: 1_000_000_000n }),
-        crearNodo({ id: "n2", libreBytes: 10_000_000_000n }),
-        crearNodo({ id: "n3", libreBytes: 50_000_000_000n }),
-        crearNodo({ id: "n4", libreBytes: 100_000_000_000n }),
-        crearNodo({ id: "n5", libreBytes: 200_000_000_000n }),
+        crearNodo({ id: "n1", libreBytes: BigInt(1_000_000_000) }),
+        crearNodo({ id: "n2", libreBytes: BigInt(10_000_000_000) }),
+        crearNodo({ id: "n3", libreBytes: BigInt(50_000_000_000) }),
+        crearNodo({ id: "n4", libreBytes: BigInt(100_000_000_000) }),
+        crearNodo({ id: "n5", libreBytes: BigInt(200_000_000_000) }),
       ];
       const ofertas = nodos.map((n) => crearOferta({ nodoId: n.id }));
       const seleccionados = seleccionarNodos(nodos, ofertas, 3, 2);
@@ -163,30 +163,30 @@ describe("reparto - distribución democrática de fragmentos", () => {
   describe("verificarReciprocidad", () => {
     it("aprueba si el nodo ofrece al menos lo que consume", () => {
       const nodo = crearNodo({ id: "n1", personaId: "p1" });
-      const ofertasPropias = [crearOferta({ nodoId: "n1", bytesOfrecidos: 20_000_000_000n })];
-      const consumo = 10_000_000_000n;
+      const ofertasPropias = [crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(20_000_000_000) })];
+      const consumo = BigInt(10_000_000_000);
       expect(verificarReciprocidad(nodo, ofertasPropias, consumo)).toBe(true);
     });
 
     it("rechaza si el nodo consume más de lo que ofrece", () => {
       const nodo = crearNodo({ id: "n1", personaId: "p1" });
-      const ofertasPropias = [crearOferta({ nodoId: "n1", bytesOfrecidos: 5_000_000_000n })];
-      const consumo = 10_000_000_000n;
+      const ofertasPropias = [crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(5_000_000_000) })];
+      const consumo = BigInt(10_000_000_000);
       expect(verificarReciprocidad(nodo, ofertasPropias, consumo)).toBe(false);
     });
 
     it("aprueba si no hay ofertas propias pero consumo es 0", () => {
       const nodo = crearNodo({ id: "n1", personaId: "p1" });
-      expect(verificarReciprocidad(nodo, [], 0)).toBe(true);
+      expect(verificarReciprocidad(nodo, [], BigInt(0))).toBe(true);
     });
 
     it("suma múltiples ofertas del mismo nodo", () => {
       const nodo = crearNodo({ id: "n1", personaId: "p1" });
       const ofertasPropias = [
-        crearOferta({ nodoId: "n1", bytesOfrecidos: 5_000_000_000n }),
-        crearOferta({ nodoId: "n1", bytesOfrecidos: 6_000_000_000n }),
+        crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(5_000_000_000) }),
+        crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(6_000_000_000) }),
       ];
-      const consumo = 10_000_000_000n;
+      const consumo = BigInt(10_000_000_000);
       expect(verificarReciprocidad(nodo, ofertasPropias, consumo)).toBe(true);
     });
   });
@@ -194,42 +194,42 @@ describe("reparto - distribución democrática de fragmentos", () => {
   describe("calcularCuota", () => {
     it("calcula cuota base por reciprocidad", () => {
       const ofertas = [
-        crearOferta({ nodoId: "n1", bytesOfrecidos: 100_000_000_000n }),
-        crearOferta({ nodoId: "n2", bytesOfrecidos: 50_000_000_000n }),
-        crearOferta({ nodoId: "n3", bytesOfrecidos: 10_000_000_000n }),
+        crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(100_000_000_000) }),
+        crearOferta({ nodoId: "n2", bytesOfrecidos: BigInt(50_000_000_000) }),
+        crearOferta({ nodoId: "n3", bytesOfrecidos: BigInt(10_000_000_000) }),
       ];
-      const cuotas = calcularCuota(ofertas, 100_000_000_000n); // total demanda 100GB
+      const cuotas = calcularCuota(ofertas, BigInt(100_000_000_000)); // total demanda 100GB
       expect(cuotas.get("n1")).toBeGreaterThan(cuotas.get("n2")!);
       expect(cuotas.get("n2")).toBeGreaterThan(cuotas.get("n3")!);
     });
 
     it("respeta límite máximo de cuota por nodo", () => {
       const ofertas = [
-        crearOferta({ nodoId: "n1", bytesOfrecidos: 1_000_000_000_000n }), // 1TB
-        crearOferta({ nodoId: "n2", bytesOfrecidos: 10_000_000_000n }),
+        crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(1_000_000_000_000) }), // 1TB
+        crearOferta({ nodoId: "n2", bytesOfrecidos: BigInt(10_000_000_000) }),
       ];
-      const cuotas = calcularCuota(ofertas, 100_000_000_000n, { maxPorNodo: 50_000_000_000n });
-      expect(cuotas.get("n1")).toBeLessThanOrEqual(50_000_000_000n);
-      expect(cuotas.get("n2")).toBeLessThanOrEqual(50_000_000_000n);
+      const cuotas = calcularCuota(ofertas, BigInt(100_000_000_000), { maxPorNodo: BigInt(50_000_000_000) });
+      expect(cuotas.get("n1")).toBeLessThanOrEqual(BigInt(50_000_000_000));
+      expect(cuotas.get("n2")).toBeLessThanOrEqual(BigInt(50_000_000_000));
       // La suma debe ser <= demandaTotal (puede ser menor si maxPorNodo lo impide)
-      const suma = (cuotas.get("n1") ?? 0n) + (cuotas.get("n2") ?? 0n);
-      expect(suma).toBeLessThanOrEqual(100_000_000_000n);
+      const suma = (cuotas.get("n1") ?? BigInt(0)) + (cuotas.get("n2") ?? BigInt(0));
+      expect(suma).toBeLessThanOrEqual(BigInt(100_000_000_000));
     });
 
     it("distribuye proporcionalmente a la oferta", () => {
       const ofertas = [
-        crearOferta({ nodoId: "n1", bytesOfrecidos: 20_000_000_000n }),
-        crearOferta({ nodoId: "n2", bytesOfrecidos: 20_000_000_000n }),
+        crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(20_000_000_000) }),
+        crearOferta({ nodoId: "n2", bytesOfrecidos: BigInt(20_000_000_000) }),
       ];
-      const cuotas = calcularCuota(ofertas, 40_000_000_000n);
-      expect(cuotas.get("n1")).toBe(20_000_000_000n);
-      expect(cuotas.get("n2")).toBe(20_000_000_000n);
+      const cuotas = calcularCuota(ofertas, BigInt(40_000_000_000));
+      expect(cuotas.get("n1")).toBe(BigInt(20_000_000_000));
+      expect(cuotas.get("n2")).toBe(BigInt(20_000_000_000));
     });
 
     it("maneja demanda cero", () => {
-      const ofertas = [crearOferta({ nodoId: "n1", bytesOfrecidos: 10_000_000_000n })];
-      const cuotas = calcularCuota(ofertas, 0n);
-      expect(cuotas.get("n1")).toBe(0n);
+      const ofertas = [crearOferta({ nodoId: "n1", bytesOfrecidos: BigInt(10_000_000_000) })];
+      const cuotas = calcularCuota(ofertas, BigInt(0));
+      expect(cuotas.get("n1")).toBe(BigInt(0));
     });
   });
 
