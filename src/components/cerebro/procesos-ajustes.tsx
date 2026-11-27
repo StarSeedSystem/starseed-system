@@ -4,8 +4,7 @@ import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { usarPreferenciasProcesos, limitesDeCerebro, guardarLimites } from "@/lib/cerebros/procesos-preferencias";
 import type { TipoProceso } from "@/lib/cerebros/procesos";
-import { PanelAjustesPilar } from "./panel-ajustes-pilar";
-import { SeccionAjustesPilar } from "./panel-ajustes-pilar";
+import PanelAjustesPilar, { PanelAjustesPilarProps, SeccionAjustesPilar } from "./panel-ajustes-pilar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -106,7 +105,7 @@ return (
         pilar="procesos"
         pilarEtiqueta="Procesos activos"
         seccionInicial={seccion as SeccionAjustesPilar | null}
-        renderContenido={(seccion) => {
+        renderContenido={(seccion: SeccionAjustesPilar) => {
           switch (seccion) {
             case "general": {
               return (
@@ -223,8 +222,8 @@ return (
               return null;
           }
         }}
-        onVolverRecomendado={(seccion) => {}}
-        onSeccionChange={(seccion) => {}}
+        onVolverRecomendado={(seccion: SeccionAjustesPilar) => {}}
+        onSeccionChange={(seccion: SeccionAjustesPilar) => {}}
       />
     </div>
   );

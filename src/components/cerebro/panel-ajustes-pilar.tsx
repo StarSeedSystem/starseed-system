@@ -116,12 +116,12 @@ export interface PanelAjustesPilarProps {
     seccionInicial?: SeccionAjustesPilar | null;
     /** Contenido del pilar para la sección activa. */
     renderContenido?: (seccion: SeccionAjustesPilar) => ReactNode;
-    /** «Volver a lo recomendado»: solo la sección indicada, nunca todas. */
+    /** "Volver a lo recomendado": solo la sección indicada, nunca todas. */
     onVolverRecomendado?: (seccion: SeccionAjustesPilar) => void;
     onSeccionChange?: (seccion: SeccionAjustesPilar) => void;
 }
 
-export default function PanelAjustesPilar({
+function PanelAjustesPilar({
     open,
     onOpenChange,
     pilar,
@@ -288,3 +288,7 @@ export default function PanelAjustesPilar({
         </Sheet>
     );
 }
+
+export { PanelAjustesPilar };
+
+export default PanelAjustesPilar;
