@@ -259,7 +259,7 @@ export function FaltasIndicador({ estado, onPedir, plataforma }: { estado: Estad
             {conocidas.map((c) => (
                 <div key={c} className="flex flex-wrap items-center gap-2" data-testid={`falta-${c}`}>
                     <span className="min-w-0 flex-1">• {textoFalta(c, plat).falta}</span>
-                    <button onClick={() => onPedir(c)} className="min-h-9 cursor-pointer rounded-md bg-amber-500/80 px-2 py-1 font-medium text-black hover:bg-amber-400">
+                    <button onClick={() => onPedir(c)} className="min-h-9 cursor-pointer rounded-md bg-amber-500/80 px-2 py-1 font-medium text-black hover:bg-amber-400 whitespace-normal">
                         {textoFalta(c, plat).boton}
                     </button>
                 </div>
@@ -300,14 +300,14 @@ export function PantallaYEntradaEsteAparato({ caps, aceptados, pantallaEnUso, en
             <p className="font-medium text-sky-200">Ver y tocar este aparato desde otra neurona</p>
             {faltas.map((f) => (
                 <div key={f} className="flex flex-wrap items-center gap-2" data-testid={`falta-ajuste-${f}`}>
-                    <span className="min-w-[14rem] flex-1">
+                    <span className="min-w-0 flex-1">
                         • {PALABRAS_FALTA[f]}
                         {/* (FAC1116) Qué pantalla se abre y qué pulsar allí, en las palabras de Android. */}
                         <span className="block text-white/55" data-testid={`pasos-${f}`}>{textoEnlace(ENLACES_CONTROL[f as keyof typeof ENLACES_CONTROL])}</span>
                     </span>
                     {/* CTL1118L: lo que falta en un Linux (sesión X11) no se arregla en un panel de Ajustes: sin botón. */}
                     {BOTON_FALTA[f] && (
-                        <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400">
+                        <button onClick={() => onAjuste(f)} className="min-h-9 cursor-pointer rounded-md bg-sky-500/80 px-2 py-1 font-medium text-black hover:bg-sky-400 whitespace-normal">
                             {BOTON_FALTA[f]}
                         </button>
                     )}
@@ -321,11 +321,11 @@ export function PantallaYEntradaEsteAparato({ caps, aceptados, pantallaEnUso, en
                     role="switch"
                     aria-checked={caps.pantalla.sinPreguntar}
                     onClick={() => onAjuste("consentimiento-pantalla")}
-                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 font-medium transition-colors ${caps.pantalla.sinPreguntar ? "border-sky-400 bg-sky-400/20 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
+                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 font-medium transition-colors whitespace-normal ${caps.pantalla.sinPreguntar ? "border-sky-400 bg-sky-400/20 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
                 >
                     Ver la pantalla sin preguntar en cada sesión: {caps.pantalla.sinPreguntar ? "sí" : "no"}
                 </button>
-                <span className="min-w-[14rem] flex-1 text-white/55">Se cambia en un diálogo de este aparato: solo tú puedes decir «Sí».</span>
+                <span className="min-w-0 flex-1 text-white/55">Se cambia en un diálogo de este aparato: solo tú puedes decir «Sí».</span>
             </div>
             <p data-testid="uso-pantalla-entrada" className={pantallaEnUso || entradaEnUso ? "text-[#ff6b81]" : "text-white/55"}>
                 Ahora mismo: {pantallaEnUso ? "otra neurona está viendo la pantalla" : "nadie ve la pantalla"} · {entradaEnUso ? "otra neurona puede tocarla" : "nadie la toca"}.
@@ -876,7 +876,7 @@ export function ControlEntreNeuronasPanel() {
                     role="switch"
                     aria-checked={permiso.encendido}
                     onClick={() => void cambiar((p) => ({ ...p, encendido: !p.encendido }))}
-                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${permiso.encendido ? "border-[#DC143C] bg-[#DC143C]/30 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
+                    className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors whitespace-normal ${permiso.encendido ? "border-[#DC143C] bg-[#DC143C]/30 text-white" : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"}`}
                 >
                     {permiso.encendido ? "Encendido en este aparato" : "Apagado en este aparato"}
                 </button>
@@ -908,7 +908,7 @@ export function ControlEntreNeuronasPanel() {
                                             type="button"
                                             data-testid={`terminar-sesion-entrante-${s.token}`}
                                             onClick={() => void terminarSesionEntrante(s.token)}
-                                            className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030]"
+                                            className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030] whitespace-normal"
                                         >
                                             Terminar sesión
                                         </button>
@@ -920,7 +920,7 @@ export function ControlEntreNeuronasPanel() {
                                     <button
                                         type="button"
                                         onClick={() => void terminarSesionEntrante()}
-                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C]"
+                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C] whitespace-normal"
                                     >
                                         Terminar todas (entrantes)
                                     </button>
@@ -928,7 +928,7 @@ export function ControlEntreNeuronasPanel() {
                                 <button
                                     type="button"
                                     onClick={() => void quitarPermisoEntrante()}
-                                    className="min-h-8 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 hover:bg-white/20"
+                                    className="min-h-8 cursor-pointer rounded-md border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 hover:bg-white/20 whitespace-normal"
                                 >
                                     Quitar permiso
                                 </button>
@@ -948,7 +948,7 @@ export function ControlEntreNeuronasPanel() {
                                         <button
                                             type="button"
                                             onClick={() => abrirVentanaControl(item.neurona, item.nombre)}
-                                            className="min-h-8 cursor-pointer rounded-md bg-white/10 px-2.5 py-1 text-[11px] text-white/90 hover:bg-white/20"
+                                            className="min-h-8 cursor-pointer rounded-md bg-white/10 px-2.5 py-1 text-[11px] text-white/90 hover:bg-white/20 whitespace-normal"
                                         >
                                             Abrir ventana
                                         </button>
@@ -957,7 +957,7 @@ export function ControlEntreNeuronasPanel() {
                                         type="button"
                                         data-testid={`terminar-sesion-saliente-${item.neurona}`}
                                         onClick={() => terminarSaliente(item.neurona)}
-                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030]"
+                                        className="min-h-8 cursor-pointer rounded-md bg-[#DC143C] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#b01030] whitespace-normal"
                                     >
                                         Terminar control
                                     </button>
@@ -967,7 +967,7 @@ export function ControlEntreNeuronasPanel() {
                                 <button
                                     type="button"
                                     onClick={terminarTodasSalientes}
-                                    className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C]"
+                                    className="min-h-8 cursor-pointer rounded-md bg-[#DC143C]/85 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#DC143C] whitespace-normal"
                                 >
                                     Terminar todos los controles
                                 </button>
@@ -988,7 +988,7 @@ export function ControlEntreNeuronasPanel() {
             {!permiso.encendido && (permiso.controladores.length > 0 || permiso.pendientes.length > 0) && (
                 <div role="status" data-testid="control-apagado-aviso" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2 text-[12px] text-amber-100">
                     <span className="min-w-0 flex-1">{TEXTO_CONTROL_APAGADO}</span>
-                    <button onClick={() => void cambiar((p) => ({ ...p, encendido: true }))} className="min-h-9 cursor-pointer rounded-md bg-amber-400/80 px-2 py-1 font-medium text-black transition-colors hover:bg-amber-400">
+                    <button onClick={() => void cambiar((p) => ({ ...p, encendido: true }))} className="min-h-9 cursor-pointer rounded-md bg-amber-400/80 px-2 py-1 font-medium text-black transition-colors hover:bg-amber-400 whitespace-normal">
                         Encender el control
                     </button>
                 </div>
@@ -1024,10 +1024,10 @@ export function ControlEntreNeuronasPanel() {
                 return (
                     <div key={x.huella} className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/30 p-2 text-[12px] text-white/80">
                         <PuntoColor color={colorDe(x.neurona, x.color)} />
-                        <span className="min-w-[14rem] flex-1">
+                        <span className="min-w-0 flex-1">
                             {quienOpera.otroPide(x.nombre, alcance)} Código {codigos[x.huella] ?? "…"} (compáralo con el que enseña ese aparato)
                         </span>
-                        <label className="flex items-center gap-2 text-[12px] text-white/70">
+                        <label className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
                             Límite de tiempo
                             <select
                                 aria-label={`Límite de tiempo para ${x.nombre}`}
@@ -1058,11 +1058,11 @@ export function ControlEntreNeuronasPanel() {
                         )}
                         <button
                             onClick={() => void aceptar(x.huella, !permiso.encendido, elegida, horas[x.huella] ?? "", topeMin, !ajena)}
-                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600"
+                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 hover:bg-emerald-600 whitespace-normal"
                         >
                             {permiso.encendido ? "Aceptar" : "Aceptar y encender el control"}
                         </button>
-                        <button onClick={() => void quitar(x.huella)} className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                        <button onClick={() => void quitar(x.huella)} className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20 whitespace-normal">
                             Rechazar
                         </button>
                     </div>
@@ -1083,13 +1083,13 @@ export function ControlEntreNeuronasPanel() {
                                     type="button"
                                     data-testid={`fila-terminar-sesion-${x.huella.slice(0, 8)}`}
                                     onClick={() => void terminarSesionEntrante(activaCtl.token)}
-                                    className="cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 font-medium text-white hover:bg-[#b01030]"
+                                    className="cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 font-medium text-white hover:bg-[#b01030] whitespace-normal"
                                 >
                                     Terminar sesión
                                 </button>
                             </>
                         )}
-                        <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20">
+                        <button onClick={() => void quitar(x.huella)} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 hover:bg-white/20 whitespace-normal">
                             Quitar
                         </button>
                     </div>
@@ -1104,13 +1104,13 @@ export function ControlEntreNeuronasPanel() {
                         {/* UNI1115M: la ventana de control de esa neurona, flotante (sigue al cambiar de sección) o en una pestaña propia */}
                         <button
                             onClick={() => abrirVentanaControl(objetivoId, nombreDe(objetivoId))}
-                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600"
+                            className="min-h-9 cursor-pointer rounded-md bg-emerald-600/70 px-2 py-1 text-[12px] hover:bg-emerald-600 whitespace-normal"
                         >
                             Abrir ventana de control
                         </button>
                         <button
                             onClick={() => abrirPaginaControl(objetivoId, nombreDe(objetivoId))}
-                            className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20"
+                            className="min-h-9 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20 whitespace-normal"
                         >
                             Abrir en una pestaña
                         </button>
@@ -1119,7 +1119,7 @@ export function ControlEntreNeuronasPanel() {
                                 type="button"
                                 data-testid="panel-terminar-control-saliente"
                                 onClick={() => terminarSaliente(objetivoId)}
-                                className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 text-[12px] font-medium text-white hover:bg-[#b01030]"
+                                className="min-h-9 cursor-pointer rounded-md bg-[#DC143C] px-2 py-1 text-[12px] font-medium text-white hover:bg-[#b01030] whitespace-normal"
                             >
                                 Terminar control
                             </button>
@@ -1139,17 +1139,17 @@ export function ControlEntreNeuronasPanel() {
                             return (
                                 <div key={x.id} className="flex flex-col gap-2">
                                     <p className="text-[11px] font-medium text-white/80">{x.nombre}</p>
-                                    {x.aparatos.map((a) => (
-                                        <button
-                                            key={a.id}
-                                            role="option"
-                                            aria-selected={aparatoSeleccionado?.huella === a.id}
-                                            onClick={() => setAparatoSeleccionado({ huella: a.id, nombre: a.nombre, so: a.so, visto: a.visto })}
-                                            className={`min-h-9 cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition-colors ${aparatoSeleccionado?.huella === a.id ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
-                                        >
-                                            <PuntoColor color={colorPublicoDeNeurona(a.id)} /> <span className="font-medium">{a.nombre || a.so || "sin nombre"}</span> · {a.so || "sin SO"}{a.visto ? ` · visto: ${hhmm(a.visto)}` : ""}
-                                        </button>
-                                    ))}
+{x.aparatos.map((a) => (
+                                            <button
+                                                key={a.id}
+                                                role="option"
+                                                aria-selected={aparatoSeleccionado?.huella === a.id}
+                                                onClick={() => setAparatoSeleccionado({ huella: a.id, nombre: a.nombre, so: a.so, visto: a.visto })}
+                                                className={`min-h-9 cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition-colors whitespace-normal ${aparatoSeleccionado?.huella === a.id ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                                            >
+                                                <PuntoColor color={colorPublicoDeNeurona(a.id)} /> <span className="font-medium">{a.nombre || a.so || "sin nombre"}</span> · {a.so || "sin SO"}{a.visto ? ` · visto: ${hhmm(a.visto)}` : ""}
+                                            </button>
+                                        ))}
                                 </div>
                             );
                         }
@@ -1159,7 +1159,7 @@ export function ControlEntreNeuronasPanel() {
                                 role="option"
                                 aria-selected={destino.trim().toLowerCase() === x.id.toLowerCase()}
                                 onClick={() => void elegir(x.id)}
-                                className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
+                                className={`min-h-9 cursor-pointer rounded-lg border px-3 py-1.5 text-left text-[12px] transition-colors whitespace-normal ${destino.trim().toLowerCase() === x.id.toLowerCase() ? "border-[#FFBF00] bg-[#FFBF00]/15 text-white" : "border-white/15 bg-white/5 text-white/75 hover:bg-white/10"}`}
                             >
                                 <PuntoColor color={colorPublicoDeNeurona(x.id)} /> <span className="font-medium">{x.nombre}</span> · {x.plataforma} · <span className={x.online ? "text-emerald-300" : "text-white/40"}>{x.online ? "conectada" : "sin conexión"}</span>
                             </button>
@@ -1189,15 +1189,15 @@ export function ControlEntreNeuronasPanel() {
                     placeholder="o escribe el id de la otra neurona"
                     className="min-w-0 flex-1 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[12px] text-white"
                 />
-                <button onClick={() => void ofrecer()} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20">
+                <button onClick={() => void ofrecer()} className="cursor-pointer rounded-md bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20 whitespace-normal">
                     Pedir controlarla desde aquí
                 </button>
                 {banco ? (
-                    <button onClick={() => void apagar()} className="cursor-pointer rounded-md bg-[#FFBF00] px-2 py-1 text-[12px] text-black">
+                    <button onClick={() => void apagar()} className="cursor-pointer rounded-md bg-[#FFBF00] px-2 py-1 text-[12px] text-black whitespace-normal">
                         Apagar el modo de pruebas de llamadas
                     </button>
                 ) : (
-                    <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10">
+                    <button onClick={() => void armar()} className="cursor-pointer rounded-md border border-[#FFBF00]/50 px-2 py-1 text-[12px] text-[#FFBF00] hover:bg-[#FFBF00]/10 whitespace-normal">
                         Modo de pruebas de llamadas hacia esa neurona (4 h, 40 llamadas)
                     </button>
                 )}
