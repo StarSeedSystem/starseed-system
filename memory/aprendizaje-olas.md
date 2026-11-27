@@ -7710,3 +7710,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 07:13 · mg-oracle-1127-0028
+
+**Lo que se pidió.** la ventana de configuración de neuronas emergente, la que reconoce si es un dispositivo nuevo o uno con una neurona ya establecida y ofrece fusionar o que sea una nueva neurona: ESO YA LO HABÍAMOS DESARROLLADO Y SE SUPONE QUE YA ERA FUNCIONAL; cuando entre la próxima actualización de prueba debe aparecer esa ventana para dejarlo bien
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (NEU1126E-d2, CAP1126D-d2, CRE1125B, CRE1125A, RES1126A-d2, SES1126A-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `NEU1126E-d2` — no escribió nada
+- `CAP1126D-d2` — no escribió nada
+- `CRE1125B` — no escribió nada
+- `CRE1125A` — no escribió nada
+- `RES1126A-d2` — no escribió nada
+- `SES1126A-d2` — no escribió nada
