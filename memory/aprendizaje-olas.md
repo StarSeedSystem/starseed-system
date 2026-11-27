@@ -7710,3 +7710,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-27 16:32 · mg-oracle-1127-1001
+
+**Lo que se pidió.** desde cualquier neurona debería poder pedirle a Astraura o desde la Protomolécula cambiar todo lo de las demás neuronas
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (REM1126B, CAP-skill-coop-qa-usob, CAP-mcp-brave-search-conectar-d2b, CAP-skill-coop-sync-testing-usob). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `REM1126B` — no escribió nada
+- `CAP-skill-coop-qa-usob` — no escribió nada
+- `CAP-mcp-brave-search-conectar-d2b` — no escribió nada
+- `CAP-skill-coop-sync-testing-usob` — no escribió nada
