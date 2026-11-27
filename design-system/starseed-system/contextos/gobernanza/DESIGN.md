@@ -1,6 +1,6 @@
 # Design System — Contexto Gobernanza (StarSeed OS)
 
-> **Formato:** numerado (9 secciones) · **ADN de origen:** `memory/diseno/adn/gobernanza/dna.json` (registro v2026-11-20) · **Generado con:** skill `awesome-design-md` (Modo B) · **Patrones de referencia:** Linear.app (lista densa jerárquica), Supabase (dashboard técnico), Notion (superficies cálidas).
+> **Formato:** numerado (9 secciones) · **ADN de origen:** `memory/diseno/adn/gobernanza/dna.json` (registro v2026-11-20) · **Generado con:** skill `awesome-design-md` (Modo B) · **Patrones de referencia:** Linear.app (lista densa jerárquica), Supabase (dashboard técnico), Notion (superficies cálidas). **No tomar** su paleta, ni su logotipo, ni su tipografía propietaria — solo se estudian patrones, se mapean al ADN Trinity.
 
 ---
 

@@ -14,10 +14,12 @@ La skill `awesome-design-md` (en `.agent/skills/awesome-design-md/`) da acceso a
 
 ## 2. Cuándo usarla
 
+**Formatos de salida soportados:** Formato numerado (9 secciones) y Formato alfa (YAML + cuerpo).
+
 | Situación | Qué hace el agente |
 |---|---|
 | Diseñar una pantalla nueva (panel, formulario, héroe, navegación) | Modo A: lee 1–3 referencias de la categoría relevante, extrae patrones, los mapea a tokens del ADN. |
-| Redactar el `DESIGN.md` de un contexto (página, entidad, grupo, evento) | Modo B: toma el `dna.json` del contexto y genera el `DESIGN.md` en formato numerado (9 secciones) o alfa (YAML + cuerpo). |
+| Redactar el `DESIGN.md` de un contexto (página, entidad, grupo, evento) | Modo B: toma el `dna.json` del contexto y genera el `DESIGN.md` en Formato numerado (9 secciones) o Formato alfa (YAML + cuerpo). |
 | El director de diseño pide «mira cómo lo hace X» | Modo A: descarga solo ese `DESIGN.md`, escribe lectura breve (≤120 palabras) con patrón, traducción y qué no tomar. |
 
 ## 3. Flujo de trabajo en el enjambre

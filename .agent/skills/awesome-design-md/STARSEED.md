@@ -19,7 +19,7 @@ No sirve para dar identidad. La identidad es el ADN (`memory/diseno/adn/<context
 
 - Cada análisis describe la identidad de una empresa: colores exactos, fuentes (varias propietarias), tono de voz y
   componentes distintivos. Copiar eso en una pieza pública puede ser imitación de imagen comercial.
-- Regla de StarSeed: **se estudia el patrón, se descarta la identidad.** Una lectura nunca incluye hexadecimales ni
+- Regla de StarSeed: **se estudia el patrón, se descarta la identidad. patrones, no marcas.** Una lectura nunca incluye hexadecimales ni
   nombres de fuente de la marca en lo que se entrega a un diseñador.
 - Dentro del OS, ningún `DESIGN.md` ajeno entra en el repo, en la Biblioteca ni en una pieza de usuario. Solo la
   lectura (en nuestras palabras) y el índice.
