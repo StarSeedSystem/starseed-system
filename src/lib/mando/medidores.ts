@@ -1511,6 +1511,8 @@ export interface DiscoNodo {
     montado?: boolean;
     errores?: number;
     smart?: string;
+    /** (ALC1125J) Cuándo se conectó o desconectó ese disco, si el recolector lo sabe. */
+    desde?: string;
 }
 
 export interface DatosMedidores {
@@ -2480,6 +2482,34 @@ function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
 /** (MED1126A) Por debajo de esto un disco está en estado crítico y no recibe datos. */
 const LIBRE_CRITICO_GB = 5;
 
+/** (ALC1125J) El nombre con que el contrato manda enseñar el almacén USB de la Maggabox. */
+export const NOMBRE_ALMACEN_USB = "Maggabox · almacén USB (btrfs)";
+
+/**
+ * (ALC1125J) Lo que el recolector dice del almacén USB en una entrada de `almacen`:
+ * «Maggabox · almacén USB (btrfs) · libre 150 GB · desde 2026-11-20» o
+ * «… · desconectado desde 2026-11-18». PURA: solo lee texto, nunca inventa cifras.
+ */
+export interface AlmacenUsb {
+    conectado: boolean;
+    libreGb?: number;
+    desde?: string;
+}
+
+/** (ALC1125J) Lee la entrada del almacén USB de `almacen`; `undefined` si ese nodo no la trae. PURA. */
+export function leerAlmacenUsb(almacen: readonly string[]): AlmacenUsb | undefined {
+    const entrada = almacen.find((a) => typeof a === "string" && a.includes(NOMBRE_ALMACEN_USB));
+    if (!entrada) return undefined;
+    const libre = /libre\s+([\d.]+)\s*GB/i.exec(entrada);
+    const desde = /desde\s+([^\s·]+)/i.exec(entrada);
+    const numero = libre ? Number(libre[1]) : Number.NaN;
+    return {
+        conectado: !/desconectado/i.test(entrada),
+        ...(Number.isFinite(numero) && numero >= 0 ? { libreGb: numero } : {}),
+        ...(desde && desde[1] !== "desconocido" ? { desde: desde[1] } : {}),
+    };
+}
+
 /** «crítico» < 5 GB, «bajo» < 15 GB, «libre» el resto. PURA. */
 function estadoPorLibre(libre: number): string {
     return libre < LIBRE_CRITICO_GB ? "crítico" : libre < 15 ? "bajo" : "libre";
@@ -2497,39 +2527,67 @@ function leerDiscosNodo(crudo: unknown): DiscoNodo[] {
         const estado = d.estado === "ok" || d.estado === "aviso" || d.estado === "error" ? d.estado : "aviso";
         const total = discoMedido(d.totalGb);
         const errores = discoMedido(d.errores);
+        // (ALC1125J) El recolector llama `ruta` al punto de montaje; se acepta también `punto`.
+        const punto = typeof d.punto === "string" && d.punto ? d.punto : typeof d.ruta === "string" && d.ruta ? d.ruta : "";
         salida.push({
             rol,
             libreGb: discoMedido(d.libreGb) ?? Number.NaN,
             estado,
-            ...(typeof d.punto === "string" && d.punto ? { punto: d.punto } : {}),
+            ...(punto ? { punto } : {}),
             ...(total !== null ? { totalGb: total } : {}),
             ...(typeof d.montado === "boolean" ? { montado: d.montado } : {}),
             ...(errores !== null ? { errores } : {}),
             ...(typeof d.smart === "string" && d.smart ? { smart: d.smart } : {}),
+            ...(typeof d.desde === "string" && d.desde ? { desde: d.desde } : {}),
         });
     }
     return salida;
 }
 
 /** (MED1126A) Destino solo si el disco está bien Y le queda más del umbral crítico. PURA. */
-function discoUsable(d: DiscoNodo): boolean {
-    return d.estado === "ok" && d.montado !== false && Number.isFinite(d.libreGb) && d.libreGb >= LIBRE_CRITICO_GB;
+function discoUsable(d: DiscoNodo, desconectado = false): boolean {
+    return !desconectado && d.estado === "ok" && d.montado !== false && Number.isFinite(d.libreGb) && d.libreGb >= LIBRE_CRITICO_GB;
 }
 
-/** (MED1126A) Una fila por disco: «Maggabox · interno (principal)» y «… · disco externo (secundario)». PURA. */
+/** (ALC1125J) El secundario de la Maggabox es el almacén USB, aunque el recolector no lo nombre. PURA. */
+function esAlmacenUsbDeMaggabox(n: NodoAlmacenamiento, d: DiscoNodo, usb?: AlmacenUsb): boolean {
+    if (d.rol !== "secundario" || n.nombre !== "Maggabox") return false;
+    if (usb) return true;
+    // El recolector deja las rutas de `~/StarSeed-almacen` en `almacen`: es la misma Maggabox.
+    return n.almacen.some((a) => a.includes("StarSeed-almacen") || a.includes("almacén USB"));
+}
+
+/**
+ * (MED1126A · ALC1125J) Una fila por disco. El secundario de la Maggabox se llama
+ * «Maggabox · almacén USB (btrfs)»; si no está montado dice «desconectado desde …» y
+ * NUNCA enseña los 0 GB que el recolector pone cuando no puede medir. PURA.
+ */
 function filasDeDiscos(n: NodoAlmacenamiento): FilaMedidor[] {
+    const usb = leerAlmacenUsb(n.almacen);
     return (n.discos ?? []).map((d) => {
-        const titulo = d.rol === "principal" ? `${n.nombre} · interno (principal)` : `${n.nombre} · disco externo (secundario)`;
-        const medido = Number.isFinite(d.libreGb);
+        const esUsb = esAlmacenUsbDeMaggabox(n, d, usb);
+        const titulo =
+            d.rol === "principal"
+                ? `${n.nombre} · interno (principal)`
+                : esUsb
+                  ? NOMBRE_ALMACEN_USB
+                  : `${n.nombre} · disco externo (secundario)`;
+        const desconectado = d.montado === false || (esUsb && usb?.conectado === false);
+        const desde = d.desde ?? (esUsb ? usb?.desde : undefined);
+        // Un 0 del recolector sin `montado: true` no es un disco lleno: es «no se pudo medir».
+        const medido =
+            Number.isFinite(d.libreGb) &&
+            !desconectado &&
+            (d.rol !== "secundario" || d.libreGb > 0 || d.montado === true);
         const estado = d.estado !== "ok" ? d.estado : medido ? estadoPorLibre(d.libreGb) : "sin dato";
         const de = d.totalGb !== undefined ? ` de ${d.totalGb} GB` : "";
         const cifra = medido ? `${d.libreGb} GB${de} libres` : "libres sin medir";
         const problemas = [
-            d.montado === false ? "sin montar" : "",
+            desconectado ? `desconectado${desde ? ` desde ${desde}` : ""} (sin montar)` : "",
             d.errores ? `${d.errores} errores` : "",
             d.smart && d.smart.toUpperCase() !== "PASSED" ? `SMART ${d.smart}` : "",
         ].filter(Boolean);
-        const usable = discoUsable(d);
+        const usable = discoUsable(d, desconectado);
         const papel = d.rol === "principal" ? "principal" : "secundario: respaldos y datos no fundamentales";
         return {
             id: `${n.id}:${d.rol}`,
@@ -2549,9 +2607,44 @@ function filasDeDiscos(n: NodoAlmacenamiento): FilaMedidor[] {
     });
 }
 
-/** (MAG1120) Una fila por nodo; con `discos`, una por disco. PURA. */
+/** (ALC1125J) La fila del almacén USB cuando el recolector no manda `discos` pero sí su entrada. PURA. */
+function filaDeAlmacenUsb(n: NodoAlmacenamiento, usb: AlmacenUsb): FilaMedidor {
+    const medido = usb.conectado && usb.libreGb !== undefined;
+    const estado = !usb.conectado ? "aviso" : medido ? estadoPorLibre(usb.libreGb ?? 0) : "sin dato";
+    const cifra = medido ? `${usb.libreGb} GB libres` : "libres sin medir";
+    const situacion = usb.conectado
+        ? usb.desde
+            ? `conectado desde ${usb.desde}`
+            : ""
+        : `desconectado${usb.desde ? ` desde ${usb.desde}` : ""} (sin montar)`;
+    const papel = "secundario: respaldos y datos no fundamentales";
+    const usable = medido && (usb.libreGb ?? 0) >= LIBRE_CRITICO_GB;
+    return {
+        id: `${n.id}:usb`,
+        titulo: NOMBRE_ALMACEN_USB,
+        estado,
+        porque: [cifra, papel, situacion, usable ? "" : "no se usa como destino"].filter(Boolean).join(" · "),
+        detalle: {
+            ...(medido ? { discoLibres: usb.libreGb } : {}),
+            origen: n.medio,
+            almacen: ["/srv/starseed-almacen"],
+            rol: papel,
+        },
+        usableComoDestino: usable,
+        acciones: [],
+    };
+}
+
+/** (MAG1120 · ALC1125J) Una fila por nodo; con `discos`, una por disco, más el USB si no vino en ellos. PURA. */
 export function filasDeAlmacenamiento(nodos: readonly NodoAlmacenamiento[]): FilaMedidor[] {
-    return nodos.flatMap((n) => (n.discos?.length ? filasDeDiscos(n) : [filaDeNodo(n)]));
+    return nodos.flatMap((n) => {
+        const usb = leerAlmacenUsb(n.almacen);
+        const discos = n.discos ?? [];
+        const filas = discos.length ? filasDeDiscos(n) : [filaDeNodo(n)];
+        const tieneExterno = discos.some((d) => d.rol === "secundario");
+        if (usb && !tieneExterno) filas.push(filaDeAlmacenUsb(n, usb));
+        return filas;
+    });
 }
 
 /** (MAG1120) La fila de un nodo sin lista de discos. Sin libres ni uso medido: «sin dato». PURA. */
