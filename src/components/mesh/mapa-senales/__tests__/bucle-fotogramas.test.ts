@@ -76,7 +76,7 @@ describe("bucle de fotogramas: un solo reloj por cuadro y se detiene cuando no h
     const L = { DomUtil: { create: () => canvasFalso(), setPosition: vi.fn() } } as any;
 
     const capa = crearCapaAlcance(L, map, "test", 100);
-    capa.poner([{ lat: 40, lon: -3, metros: 1000, color: "#3b82f6" }]);
+    capa.poner([{ marcaId: "test-1", lat: 40, lon: -3, metros: 1000, color: "#3b82f6" }]);
 
     // Inicial: una llamada por el pedir() inicial
     expect(rafCalls.length).toBe(1);

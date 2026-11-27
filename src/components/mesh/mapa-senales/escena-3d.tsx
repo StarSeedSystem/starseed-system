@@ -273,8 +273,8 @@ export default function Escena3D(p: EscenaProps) {
 
   // Órdenes de cámara (presets)
   useEffect(() => {
-    if (!orden || !controles) return;
-    const e = encuadre(tamanoRef.current.width, tamanoRef.current.height, orden.vista);
+    if (!p.orden || !controles) return;
+    const e = encuadre(tamanoRef.current.width, tamanoRef.current.height, p.orden.vista);
     destinoRef.current = { objetivo: e.objetivo, posicion: e.posicion };
     setEnVuelo(true);
     invalidar();
