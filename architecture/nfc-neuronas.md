@@ -77,5 +77,12 @@ Todo lo que llega por un vínculo (tarjeta, enlace, archivo, app, cerebro, permi
 ## 15. Lo que ofrece cada neurona
 Cada neurona tiene un **perfil de ofertas por audiencia**: qué ofrece y qué automatiza para (a) mis neuronas y nodos, (b) contactos, (c) cualquier cuenta de StarSeed, (d) otras señales y aparatos no StarSeed. Por cada audiencia: perfil visible, tarjetas, capacidades, almacenamiento, señales, internet, sala de sonido, acciones automáticas y nivel de escaneo. Se adapta a cualquier señal (NFC, BLE, Wi‑Fi, LoRa, cable…) con el mismo modelo.
 
+## 17. Pruebas de MetaGenesis y ronda en aparatos (NFC1126H)
+`python3 scripts/puente/prueba_nfc.py` (pruebas: `scripts/puente/test_prueba_nfc.py`):
+- **Solo, sin aparatos:** corre `vitest run src/lib/nfc` (tarjetas firmadas y vigencia de 30 s, relaciones y preferencias, decisión de opciones, encuentros, traspaso al mejor transporte, nodos y etiquetas, respaldo BLE/QR). Sin el resumen de vitest no cuenta como aprobado.
+- **Aparatos:** `adb devices -l` y `pm list features` por cada uno autorizado; solo `android.hardware.nfc` cuenta como chip (`.hce` solo habla de emulación). Sin adb o sin aparatos, lo dice y sigue.
+- **Informe:** una sola salida para el canal Principal con lo probado, los aparatos con NFC y el guion de la ronda; sale con código 1 si algo falla.
+- **Ronda en aparatos (lo único que pide acercar dos teléfonos, Maggaboard y Maggadroid si tienen NFC):** misma cuenta y otra cuenta; alternar lector y HCE; archivo grande con toque (va por BLE/Wi‑Fi, nunca por NFC); etiqueta NDEF de la Protomolécula; emparejar audífonos por etiqueta; ignorar y recordar; respaldo por QR en un aparato sin chip.
+
 ## 16. Tareas de la ampliación
 NFC1126I accesos (centro de control, notificaciones, Señales, hub social) · NFC1126J aparatos personales (tocar para emparejar, audífonos a lo que suena) · NFC1126K sala de sonido: motor (cola común, sincronía, control y mezcla) · NFC1126L sala de sonido: interfaz · NFC1126M Spotify y apps externas · NFC1126N nodos de audio por lugar · NFC1126O tarjetas y ofertas digitales · NFC1126P escaneo de Astraura ciber · NFC1126Q perfil de ofertas por audiencia.
