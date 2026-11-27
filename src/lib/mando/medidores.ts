@@ -180,7 +180,16 @@ export interface FilaMedidor {
     /** En castellano y en una frase: por qué esta fila está donde está. */
     porque?: string;
     /** (MAG1120) Solo en «Almacenamiento»: GB libres del nodo, de qué medio se midió y sus rutas. */
-    detalle?: { discoLibres?: number; origen?: string; almacen?: string[]; discoTotalGb?: number; usoGb?: number; rol?: string };
+    detalle?: {
+        discoLibres?: number;
+        origen?: string;
+        almacen?: string[];
+        discoTotalGb?: number;
+        usoGb?: number;
+        rol?: string;
+        /** (ALC1125J) El almacén USB de la Maggabox puede estar desmontado: no se inventa un 0 GB. */
+        conectado?: boolean;
+    };
     /** (MED1126A) Solo en filas de disco: true si ese disco puede recibir datos (bien y con espacio). */
     usableComoDestino?: boolean;
     desde?: string;
@@ -1495,6 +1504,9 @@ export interface NodoAlmacenamiento {
     discoTotalGb?: number;
     rol?: string;
     usoGb?: number;
+    /** (ALC1125J) Solo en el almacén USB de la Maggabox: si está montado y desde cuándo se midió. */
+    conectado?: boolean;
+    desde?: string;
     /** (MED1126A) Discos del nodo (Maggabox: interno principal y externo secundario). */
     discos?: DiscoNodo[];
 }
@@ -2402,7 +2414,13 @@ function filasDeImaginacion(propuestas: PropuestaImaginacion[]): FilaMedidor[] {
 }
 
 /** El detalle completo de un medidor: filas, porqués y acciones. */
-const RANGO_ALMACENAMIENTO: Record<string, number> = { mac: 0, maggabox: 1, a1: 2, drive: 3 };
+const RANGO_ALMACENAMIENTO: Record<string, number> = {
+    mac: 0,
+    maggabox: 1,
+    "maggabox · almacén usb (btrfs)": 1.5,
+    a1: 2,
+    drive: 3,
+};
 
 /** Un GB medido: 0 es un dato (disco lleno), no «sin dato». PURA. */
 function discoMedido(valor: unknown): number | null {
@@ -2449,17 +2467,34 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
         const total = discoMedido(n.discoTotalGb);
         const rol = typeof n.rol === "string" && n.rol.trim() ? n.rol.trim() : undefined;
         const discos = leerDiscosNodo(n.discos);
+        // (ALC1125J) El almacén USB llega como una línea de `almacen`. Se separa como medio propio
+        // para que no se confunda con el disco interno; si el nodo ya trae el secundario en `discos`,
+        // esa fila manda y no se duplica.
+        const usb = leerAlmacenUsb(almacen);
+        const tieneExterno = discos.some((d) => d.rol === "secundario");
+        const propio = usb && !tieneExterno ? almacen.filter((a) => !a.includes(NOMBRE_ALMACEN_USB)) : almacen;
         salida.push({
             id: id.trim(),
             nombre: nombreDeNodoAlmacenamiento(id, medio),
             medio,
             discoLibreGb: disco ?? Number.NaN,
-            almacen,
+            almacen: propio,
             ...(total !== null ? { discoTotalGb: total } : {}),
             ...(rol ? { rol } : {}),
             ...(uso !== null ? { usoGb: uso } : {}),
             ...(discos.length ? { discos } : {}),
         });
+        if (usb && !tieneExterno) {
+            salida.push({
+                id: `${id.trim()}-almacen-usb`,
+                nombre: NOMBRE_ALMACEN_USB,
+                medio: "btrfs",
+                discoLibreGb: usb.conectado && usb.libreGb !== undefined ? usb.libreGb : Number.NaN,
+                almacen: ["/srv/starseed-almacen"],
+                conectado: usb.conectado,
+                ...(usb.desde ? { desde: usb.desde } : {}),
+            });
+        }
     }
     const rango = (n: NodoAlmacenamiento) => RANGO_ALMACENAMIENTO[n.nombre.toLowerCase()] ?? 9;
     return salida.sort((a, b) => rango(a) - rango(b) || a.id.localeCompare(b.id));
@@ -2467,6 +2502,7 @@ export function leerNodosAlmacenamiento(crudo: unknown): NodoAlmacenamiento[] {
 
 /** DIR1125O: «10.6 GB de 228 GB», o en el Drive «StarSeed usa 1.2 GB de 2048 GB». PURA. */
 export function textoDiscoAlmacenamiento(n: NodoAlmacenamiento): string {
+    if (n.conectado === false) return `desconectado${n.desde ? ` desde ${n.desde}` : ""}`;
     const de = n.discoTotalGb !== undefined ? ` de ${n.discoTotalGb} GB` : "";
     if (Number.isFinite(n.discoLibreGb)) return `${n.discoLibreGb} GB${de}`;
     return n.usoGb !== undefined ? `StarSeed usa ${n.usoGb} GB${de}` : "sin dato";
@@ -2474,6 +2510,7 @@ export function textoDiscoAlmacenamiento(n: NodoAlmacenamiento): string {
 
 /** DIR1125O: el porqué de la fila: cuánto queda, de cuánto y para qué es ese medio. Sin datos nuevos, el texto de siempre. PURA. */
 function porqueDeAlmacenamiento(n: NodoAlmacenamiento): string {
+    if (n.conectado === false) return `${textoDiscoAlmacenamiento(n)} (sin montar)`;
     if (n.discoTotalGb === undefined && n.usoGb === undefined && !n.rol) return `disco libre en ${n.nombre} (${n.medio})`;
     const cifra = Number.isFinite(n.discoLibreGb) ? `${textoDiscoAlmacenamiento(n)} libres` : textoDiscoAlmacenamiento(n);
     return n.rol ? `${cifra} · ${n.rol}` : `${cifra} en ${n.nombre}`;
@@ -2500,13 +2537,13 @@ export interface AlmacenUsb {
 export function leerAlmacenUsb(almacen: readonly string[]): AlmacenUsb | undefined {
     const entrada = almacen.find((a) => typeof a === "string" && a.includes(NOMBRE_ALMACEN_USB));
     if (!entrada) return undefined;
-    const libre = /libre\s+([\d.]+)\s*GB/i.exec(entrada);
-    const desde = /desde\s+([^\s·]+)/i.exec(entrada);
-    const numero = libre ? Number(libre[1]) : Number.NaN;
+    const libre = /libre\s+([\d.,]+)\s*GB/i.exec(entrada);
+    const desde = /desde\s+([^·]+)/i.exec(entrada);
+    const numero = libre ? Number(libre[1].replace(",", ".")) : Number.NaN;
     return {
         conectado: !/desconectado/i.test(entrada),
         ...(Number.isFinite(numero) && numero >= 0 ? { libreGb: numero } : {}),
-        ...(desde && desde[1] !== "desconocido" ? { desde: desde[1] } : {}),
+        ...(desde && desde[1].trim() !== "desconocido" ? { desde: desde[1].trim() } : {}),
     };
 }
 
@@ -2652,7 +2689,15 @@ function filaDeNodo(n: NodoAlmacenamiento): FilaMedidor {
     return {
         id: n.id,
         titulo: n.nombre,
-        estado: Number.isFinite(n.discoLibreGb) ? estadoPorLibre(n.discoLibreGb) : n.usoGb !== undefined ? "libre" : "sin dato",
+        estado:
+            n.conectado === false
+                ? "desconectado"
+                : Number.isFinite(n.discoLibreGb)
+                  ? estadoPorLibre(n.discoLibreGb)
+                  : n.usoGb !== undefined
+                    ? "libre"
+                    : "sin dato",
+        desde: n.desde,
         porque: porqueDeAlmacenamiento(n),
         detalle: {
             ...(Number.isFinite(n.discoLibreGb) ? { discoLibres: n.discoLibreGb } : {}),
@@ -2661,6 +2706,7 @@ function filaDeNodo(n: NodoAlmacenamiento): FilaMedidor {
             ...(n.discoTotalGb !== undefined ? { discoTotalGb: n.discoTotalGb } : {}),
             ...(n.usoGb !== undefined ? { usoGb: n.usoGb } : {}),
             ...(n.rol ? { rol: n.rol } : {}),
+            ...(n.conectado !== undefined ? { conectado: n.conectado } : {}),
         },
         acciones: [],
     };
