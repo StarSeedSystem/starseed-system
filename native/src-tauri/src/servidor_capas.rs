@@ -78,6 +78,8 @@ struct Webs {
     corre: r::WebId,
     publicada: Option<r::WebId>,
     nueva: Option<r::WebId>,
+    /// (BAP1127A) La publicada para la que el canal ya respondió «al día» (el frenazo de las apps globales).
+    al_dia_para: Option<r::WebId>,
 }
 
 struct Interno {
@@ -287,6 +289,16 @@ fn mirar_publicada(ahora: u64) -> bool {
             .ok_or_else(|| "respuesta sin build reconocible".to_string())
     });
     let corre = leer(&interno().webs).corre;
+    // (BAP1127A) En apps de prueba la referencia «publicada» es su puntero de prueba (su commit), no Vercel.
+    let es_prueba = es_app_de_prueba();
+    let leida = if es_prueba {
+        bajar_puntero(c::CANAL_PRUEBA).and_then(|p| {
+            let id = r::WebId::de_campos(None, p.commit.as_deref());
+            if id.conocida() { Ok(id) } else { Err("puntero de prueba sin commit".to_string()) }
+        })
+    } else {
+        leida
+    };
     match leida {
         Ok(p) => {
             if let Ok(mut w) = interno().webs.lock() {
@@ -309,7 +321,14 @@ fn mirar_publicada(ahora: u64) -> bool {
             registrar_una_vez(&r::linea_sin_capa(&w.corre, p));
         }
     }
-    r::buscar_ya(&rel, ahora, leer(&interno().ultima_busqueda))
+    r::buscar_ya_en_anillo(
+        &rel,
+        ahora,
+        leer(&interno().ultima_busqueda),
+        es_prueba,
+        w.al_dia_para.as_ref(),
+        w.publicada.as_ref(),
+    )
 }
 
 /// (AND1114L) Qué plataforma pregunta: en escritorio, su servidor local; en Android, el de la APK.
@@ -397,6 +416,19 @@ fn url_canal() -> String {
         }
     }
     c::CANAL.to_string()
+}
+
+/// (BAP1127A) ¿Esta app es de prueba? Lo dice su versión (`-prueba.`), con la misma marca que el canal de la app.
+fn es_app_de_prueba() -> bool {
+    leer(&interno().ctx)
+        .map(|x| x.version_app.trim().contains(crate::canal_actualizacion_logica::MARCA_PRUEBA))
+        .unwrap_or(false)
+}
+
+/// Baja y lee un puntero del canal (global o de prueba).
+fn bajar_puntero(url: &str) -> Result<c::Canal, String> {
+    let texto_canal = bajar_bytes(url, c::TOPE_CANAL)?;
+    canal_de_json(&serde_json::from_slice(&texto_canal).map_err(|e| format!("canal ilegible: {e}"))?)
 }
 
 // ───────────────────────────── JSON ─────────────────────────────
@@ -1172,10 +1204,25 @@ fn buscar() -> Result<(), String> {
     let ctx = leer(&interno().ctx).ok_or("sin contexto")?;
     let clave = leer(&interno().clave).ok_or("sin clave pública del updater")?;
     con_publico(|p| p.fase = Some("buscando".into()));
-    let texto_canal = bajar_bytes(&url_canal(), c::TOPE_CANAL)?;
-    let canal = canal_de_json(
-        &serde_json::from_slice(&texto_canal).map_err(|e| format!("canal ilegible: {e}"))?,
-    )?;
+    let es_prueba = es_app_de_prueba();
+    let global = bajar_puntero(&url_canal());
+    // (BAP1127A) Una app de prueba mira también su puntero; si falla, no es error de búsqueda: sigue el global.
+    let prueba = if es_prueba {
+        match bajar_puntero(c::CANAL_PRUEBA) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                registrar(&format!("puntero de prueba no disponible: {e}"));
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let (canal, anillo) = match c::elegir_puntero(global.clone().ok(), prueba) {
+        Some(x) => x,
+        None => return Err(global.err().unwrap_or_else(|| "sin puntero".into())),
+    };
+    registrar(&format!("puntero={anillo} build={}", canal.build_id));
     let estado = leer_estado(&dir);
     let mas_reciente = [estado.activa.as_deref(), estado.pendiente.as_deref()]
         .into_iter()
@@ -1185,6 +1232,11 @@ fn buscar() -> Result<(), String> {
         .fold(ctx.instalador_creado_ms, u64::max);
     if let c::Decision::AlDia(por_que) = c::decidir(&canal, &estado, &ctx, mas_reciente) {
         registrar(&format!("al día: {por_que}"));
+        // (BAP1127A) Si el canal anuncia el commit que ya está publicado, no hace falta volver a mirar cada 5 min.
+        let del_canal = r::WebId::de_campos(None, canal.commit.as_deref());
+        if let Ok(mut w) = interno().webs.lock() {
+            w.al_dia_para = w.publicada.clone().filter(|p| del_canal.conocida() && r::misma(p, &del_canal));
+        }
         con_publico(|p| p.fase = Some("al-dia".into()));
         limpiar(&dir);
         return Ok(());
@@ -1347,7 +1399,7 @@ pub fn iniciar_vigia(app: &AppHandle) {
                     c::REINTENTO_MS
                 } else {
                     match buscar() {
-                        Ok(()) => c::CADA_MS,
+                        Ok(()) => c::cada_ms(es_app_de_prueba()),
                         Err(e) => {
                             registrar(&format!("no se pudo actualizar la capa: {e}"));
                             // (ACT1114H) Si la publicada no se puede aplicar, queda dicho una vez con su motivo.

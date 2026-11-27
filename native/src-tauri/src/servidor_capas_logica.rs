@@ -43,6 +43,12 @@ pub const SUFIJO_EXTRAYENDO: &str = ".extrayendo";
 /// `latest.json` del updater) donde el CI deja `latest-servidor.json` y los archivos de cada capa.
 pub const CANAL: &str = "https://github.com/StarSeedSystem/starseed-system/releases/download/servidor-local/latest-servidor.json";
 
+/// (BAP1127A) Puntero del anillo de prueba: mismo Release, otro archivo. Solo lo miran las apps de prueba
+/// (`-prueba.` en su versión); la firma, el manifiesto y el SHA se comprueban igual que con `CANAL`.
+pub const CANAL_PRUEBA: &str = "https://github.com/StarSeedSystem/starseed-system/releases/download/servidor-local/latest-servidor-prueba.json";
+/// Las apps de prueba miran su puntero cada 2 min (las globales, cada `CADA_MS`).
+pub const CADA_MS_PRUEBA: u64 = 120_000;
+
 /// Versión del formato del puntero y del manifiesto.
 pub const FORMATO: u32 = 1;
 /// Protocolos del envoltorio (`starseed-arranque.cjs` · `PROTOCOLO`) que esta app sabe lanzar:
@@ -742,6 +748,27 @@ impl<R: Read> LectorTar<R> {
 
 // ───────────────────────────────── Pruebas ─────────────────────────────────
 
+/// Cada cuánto se mira el canal: 2 min en apps de prueba, 6 h en las demás. `es_prueba` lo calcula quien llama
+/// (con `canal_actualizacion_logica::MARCA_PRUEBA`) para que este módulo siga siendo solo-std.
+pub fn cada_ms(es_prueba: bool) -> u64 {
+    if es_prueba {
+        CADA_MS_PRUEBA
+    } else {
+        CADA_MS
+    }
+}
+
+/// De los dos punteros (global y de prueba) elige el de `creado_ms` mayor, el mismo campo que compara
+/// `decidir`. Empate: gana el global. Devuelve el puntero y su etiqueta («global» | «prueba»).
+pub fn elegir_puntero(global: Option<Canal>, prueba: Option<Canal>) -> Option<(Canal, &'static str)> {
+    match (global, prueba) {
+        (Some(g), Some(p)) if p.creado_ms > g.creado_ms => Some((p, "prueba")),
+        (Some(g), _) => Some((g, "global")),
+        (None, Some(p)) => Some((p, "prueba")),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
@@ -1181,5 +1208,39 @@ mod pruebas {
         assert!(leer_pax(b"99 path=ab\n").is_err());
         assert!(leer_pax(b"x path=ab\n").is_err());
         assert!(leer_pax(b"10 pathab\n").is_err());
+    }
+}
+
+#[cfg(test)]
+mod anillo_prueba {
+    use super::*;
+
+    fn canal(ms: u64, b: &str) -> Canal {
+        Canal { creado_ms: ms, build_id: b.into(), ..Default::default() }
+    }
+
+    fn quien(r: Option<(Canal, &'static str)>) -> Option<(String, &'static str)> {
+        r.map(|(c, e)| (c.build_id, e))
+    }
+
+    #[test]
+    fn solo_uno_de_los_dos() {
+        assert_eq!(quien(elegir_puntero(Some(canal(5, "g")), None)), Some(("g".into(), "global")));
+        assert_eq!(quien(elegir_puntero(None, Some(canal(5, "p")))), Some(("p".into(), "prueba")));
+    }
+
+    #[test]
+    fn gana_el_mas_nuevo_y_el_empate_es_global() {
+        assert_eq!(quien(elegir_puntero(Some(canal(5, "g")), Some(canal(9, "p")))), Some(("p".into(), "prueba")));
+        assert_eq!(quien(elegir_puntero(Some(canal(9, "g")), Some(canal(5, "p")))), Some(("g".into(), "global")));
+        assert_eq!(quien(elegir_puntero(Some(canal(7, "g")), Some(canal(7, "p")))), Some(("g".into(), "global")));
+        assert!(elegir_puntero(None, None).is_none());
+    }
+
+    #[test]
+    fn ritmo_por_anillo() {
+        assert_eq!(cada_ms(true), CADA_MS_PRUEBA);
+        assert_eq!(cada_ms(false), CADA_MS);
+        assert!(CANAL_PRUEBA.ends_with("latest-servidor-prueba.json"));
     }
 }

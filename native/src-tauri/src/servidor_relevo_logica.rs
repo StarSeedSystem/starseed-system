@@ -141,6 +141,33 @@ pub fn buscar_ya(r: &Relevo, ahora_ms: u64, ultima_busqueda_ms: u64) -> bool {
     *r == Relevo::SinCapa && ahora_ms.saturating_sub(ultima_busqueda_ms) >= BUSCAR_CAPA_MIN_MS
 }
 
+/// (BAP1127A) La referencia «publicada» del relevo. En apps de prueba es el puntero de prueba (su `commit`);
+/// en las globales, lo que se ve en Vercel. Sin dato del puntero de prueba no se afirma nada (None).
+pub fn referencia_publicada(es_prueba: bool, vercel: Option<&WebId>, prueba: Option<&WebId>) -> Option<WebId> {
+    if es_prueba { prueba.cloned() } else { vercel.cloned() }
+}
+
+/// (BAP1127A) Como `buscar_ya`, pero en las apps globales no se vuelve a buscar cada 5 min si el canal ya
+/// respondió «al día» para ESA misma publicada (`al_dia_para`). Si la publicada cambia, vuelve a mirar.
+/// En apps de prueba manda `buscar_ya` tal cual (su puntero se mira cada 2 min).
+pub fn buscar_ya_en_anillo(
+    r: &Relevo,
+    ahora_ms: u64,
+    ultima_busqueda_ms: u64,
+    es_prueba: bool,
+    al_dia_para: Option<&WebId>,
+    publicada: Option<&WebId>,
+) -> bool {
+    if !es_prueba {
+        if let (Some(a), Some(p)) = (al_dia_para, publicada) {
+            if a.conocida() && misma(a, p) {
+                return false;
+            }
+        }
+    }
+    buscar_ya(r, ahora_ms, ultima_busqueda_ms)
+}
+
 // ─────────────────────────── Líneas del registro ───────────────────────────
 
 /// Se pide el relevo (ya hay capa lista, la web dijo que es momento seguro).
@@ -219,6 +246,35 @@ mod pruebas {
         assert_eq!(de_version_json(r#"{"build":"a b!"}"#), None);
         assert_eq!(de_version_json(r#"{"build":"abc12","sha":null}"#).unwrap().etiqueta(), "abc12");
         assert_eq!(WebId::default().etiqueta(), "desconocida");
+    }
+
+    #[test]
+    fn referencia_segun_anillo() {
+        let v = w("aaa1", "1111111111");
+        let p = WebId::de_campos(None, Some("2222222222"));
+        assert_eq!(referencia_publicada(true, Some(&v), Some(&p)), Some(p.clone()));
+        assert_eq!(referencia_publicada(true, Some(&v), None), None);
+        assert_eq!(referencia_publicada(false, Some(&v), Some(&p)), Some(v.clone()));
+        assert_eq!(referencia_publicada(false, None, Some(&p)), None);
+    }
+
+    #[test]
+    fn global_no_vuelve_a_buscar_si_ya_estaba_al_dia() {
+        let pub1 = w("aaa1", "1111111111");
+        let mismo_commit = w("bbb2", "1111111111");
+        let otra = w("ccc3", "2222222222");
+        let lejos = BUSCAR_CAPA_MIN_MS * 2;
+        // Sin memoria de «al día»: como buscar_ya.
+        assert!(buscar_ya_en_anillo(&Relevo::SinCapa, lejos, 0, false, None, Some(&pub1)));
+        // Al día para esa misma publicada: no se busca.
+        assert!(!buscar_ya_en_anillo(&Relevo::SinCapa, lejos, 0, false, Some(&mismo_commit), Some(&pub1)));
+        // La publicada cambió: se vuelve a buscar.
+        assert!(buscar_ya_en_anillo(&Relevo::SinCapa, lejos, 0, false, Some(&mismo_commit), Some(&otra)));
+        // Apps de prueba: manda buscar_ya, la memoria no frena.
+        assert!(buscar_ya_en_anillo(&Relevo::SinCapa, lejos, 0, true, Some(&pub1), Some(&pub1)));
+        // El mínimo entre búsquedas se respeta en ambos.
+        assert!(!buscar_ya_en_anillo(&Relevo::SinCapa, 1000, 0, true, None, Some(&pub1)));
+        assert!(!buscar_ya_en_anillo(&Relevo::AlDia, lejos, 0, true, None, None));
     }
 
     #[test]
