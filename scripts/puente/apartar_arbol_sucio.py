@@ -297,27 +297,61 @@ def _es_untracked(ruta: str) -> bool:
         return True
 
 
-def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
-    """Crea una tarea en la cola viva para reaplicar el cambio con pruebas."""
+def _escribir_json_atomico(ruta: str, datos) -> None:
+    """Escribe JSON con archivo temporal y os.replace (nunca deja la cola a medias)."""
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    os.replace(tmp, ruta)
+
+
+def _anadir_tarea_a_cola(ruta: str, tarea: Dict) -> bool:
+    """Añade `tarea` a la cola JSON sin repetir id (atómico). True si queda en la cola."""
     try:
-        # Buscar la cola viva más reciente
-        olas = os.path.join(ROOT, "starseed_memory_root", "olas")
-        colas = []
-        for f in os.listdir(olas):
-            if f.startswith("cola-") and f.endswith(".json"):
-                ruta = os.path.join(olas, f)
-                mtime = os.path.getmtime(ruta)
-                colas.append((mtime, ruta))
-        if not colas:
-            return False
-        colas.sort(reverse=True)
-        cola_viva = colas[0][1]
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                previas = json.load(f)
+        except (OSError, ValueError):
+            previas = []
+        es_dict = isinstance(previas, dict)
+        lista = (previas.get("tareas") or []) if es_dict else (previas if isinstance(previas, list) else [])
+        lista = [t for t in lista if isinstance(t, dict)]
+        if any(t.get("id") == tarea["id"] for t in lista):
+            return True
+        lista.append(tarea)
+        _escribir_json_atomico(ruta, dict(previas, tareas=lista) if es_dict else lista)
+        return True
+    except Exception:
+        return False
 
-        # Leer cola actual
-        with open(cola_viva, encoding="utf-8") as f:
-            cola = json.load(f)
 
-        # Crear nueva tarea
+def _cola_viva_auto(olas: str) -> Optional[str]:
+    """La tanda viva más reciente (`cola-auto-*`), o None si no hay orquestador en marcha."""
+    try:
+        colas = [
+            (os.path.getmtime(os.path.join(olas, f)), os.path.join(olas, f))
+            for f in os.listdir(olas)
+            if f.startswith("cola-auto-") and f.endswith(".json")
+        ]
+    except OSError:
+        return None
+    if not colas:
+        return None
+    colas.sort(reverse=True)
+    return colas[0][1]
+
+
+def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
+    """Escribe la tarea de reaplicar en una cola FUENTE propia y avisa a la tanda viva.
+
+    (QUA1125A) Antes solo iba a la cola viva (`cola-auto-*`): si el orquestador se
+    reiniciaba antes de tomarla, se perdía. Ahora vive en
+    `olas/cola-cuarentena-AAAAMMDD.json` (escritura atómica, sin duplicar ids) y, si
+    hay tanda viva, se añade también allí.
+    """
+    try:
         tarea_id = f"REAPLICAR-{time.strftime('%Y%m%d-%H%M%S')}"
         nueva_tarea = {
             "id": tarea_id,
@@ -335,14 +369,15 @@ def _crear_tarea_reaplicar(manifiesto: Dict, carpeta: str) -> bool:
             "tipo": "codigo",
             "prioridad": 50,
         }
-        cola.append(nueva_tarea)
-
-        # Escribir de vuelta atómicamente
-        tmp = f"{cola_viva}.tmp-{os.getpid()}"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(cola, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, cola_viva)
-        return True
+        olas = os.path.join(ROOT, "starseed_memory_root", "olas")
+        # 1. Cola fuente: sobrevive a cualquier reinicio del orquestador.
+        fuente = os.path.join(olas, "cola-cuarentena-%s.json" % time.strftime("%Y%m%d"))
+        en_fuente = _anadir_tarea_a_cola(fuente, nueva_tarea)
+        # 2. Tanda viva: que arranque ya si hay orquestador en marcha.
+        viva = _cola_viva_auto(olas)
+        if viva:
+            _anadir_tarea_a_cola(viva, nueva_tarea)
+        return en_fuente
     except Exception:
         return False
 

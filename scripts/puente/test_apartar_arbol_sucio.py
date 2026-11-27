@@ -11,6 +11,7 @@ lista de archivos y crea una tarea para volver a aplicar el cambio con pruebas.
 """
 import contextlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -181,14 +182,70 @@ class ApartarArbolSucioTest(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(carpeta, "app.ts")))
         self.assertFalse(os.path.exists(os.path.join(carpeta, "memory", "aprendizaje-olas.md")))
 
+    def colas_fuente(self):
+        """Rutas de las colas fuente de cuarentena escritas en este repo temporal."""
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        if not os.path.isdir(olas):
+            return []
+        return [os.path.join(olas, n) for n in sorted(os.listdir(olas))
+                if n.startswith("cola-cuarentena-") and n.endswith(".json")]
+
     def test_crea_tarea_reaplicar(self):
-        """Crea una tarea en la cola viva para reaplicar el cambio con pruebas."""
+        """Crea la tarea en una cola FUENTE propia (sobrevive al reinicio del orquestador)."""
         self.escribe("app.ts", "const a = 2\n")
         with patch.object(time, "time", return_value=time.time() + 1000):
-            modulo.apartar_si_lleva_tiempo()
-        # Verificar que se escribió una tarea en la cola viva (archivo de control o cola)
-        # La implementación decidirá dónde: cola de tareas pendiente o control-*.json
-        # Por ahora verificamos que existe algún mecanismo
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        fuentes = self.colas_fuente()
+        self.assertEqual(len(fuentes), 1)
+        with open(fuentes[0], encoding="utf-8") as f:
+            tareas = json.load(f)
+        self.assertEqual(len(tareas), 1)
+        self.assertTrue(tareas[0]["id"].startswith("REAPLICAR-"))
+        self.assertIn("app.ts", tareas[0]["archivos"])
+
+    def test_sin_tanda_viva_igual_escribe_cola_fuente(self):
+        """Sin `cola-auto-*` (orquestador reiniciado) la tarea no se pierde: queda en la fuente."""
+        self.escribe("app.ts", "const a = 2\n")
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        self.assertEqual(len(self.colas_fuente()), 1)
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        vivas = [n for n in os.listdir(olas) if n.startswith("cola-auto-")]
+        self.assertEqual(vivas, [])
+
+    def test_avisa_a_la_tanda_viva_si_existe(self):
+        """Además de la fuente, la tarea se añade a la tanda viva (`cola-auto-*`) si existe."""
+        self.escribe("app.ts", "const a = 2\n")
+        olas = os.path.join(self.raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas, exist_ok=True)
+        viva = os.path.join(olas, "cola-auto-1008-160157.json")
+        with open(viva, "w", encoding="utf-8") as f:
+            json.dump([{"id": "OTRA", "ola": "X"}], f)
+        with patch.object(time, "time", return_value=time.time() + 1000):
+            self.assertTrue(modulo.apartar_si_lleva_tiempo())
+        self.assertEqual(len(self.colas_fuente()), 1)
+        with open(viva, encoding="utf-8") as f:
+            tareas = json.load(f)
+        reaplicar = [t for t in tareas if t["id"].startswith("REAPLICAR-")]
+        self.assertEqual(len(reaplicar), 1)
+        self.assertEqual(len(tareas), 2)
+
+    def test_cola_fuente_no_duplica_ids(self):
+        """Escribir dos veces la misma tarea en la cola fuente deja un solo id."""
+        manifiesto = {"archivos": [{"ruta": "app.ts"}]}
+
+        def strftime_fijo(fmt, *args):
+            return "20261125-213001" if fmt == "%Y%m%d-%H%M%S" else "20261125"
+
+        with patch.object(modulo.time, "strftime", side_effect=strftime_fijo):
+            self.assertTrue(modulo._crear_tarea_reaplicar(manifiesto, "/tmp/cuarentena"))
+            self.assertTrue(modulo._crear_tarea_reaplicar(manifiesto, "/tmp/cuarentena"))
+        fuentes = self.colas_fuente()
+        self.assertEqual(len(fuentes), 1)
+        with open(fuentes[0], encoding="utf-8") as f:
+            tareas = json.load(f)
+        self.assertEqual(len(tareas), 1)
+        self.assertEqual(tareas[0]["id"], "REAPLICAR-20261125-213001")
 
     def test_nunca_borra_sin_copia_verificada(self):
         """Nunca borra archivos sin haber verificado la copia en cuarentena."""
