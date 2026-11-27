@@ -10,7 +10,7 @@ use crate::ayudante_macos_logica as al;
 use crate::acceso_equipo_logica as ael;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write}; // DIR1127H: Read para read_to_string (rompía la .67 en macOS)
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -223,7 +223,7 @@ async fn registrar_ayudante_nativo() -> Result<(), String> {
     let output = Command::new("launchctl")
         .args(["bootstrap", "system", tmp.to_str().unwrap()])
         .output()
-        .await
+        
         .map_err(|e| format!("launchctl: {e}"))?;
 
     if !output.status.success() {
@@ -238,7 +238,7 @@ async fn desregistrar_ayudante_nativo() -> Result<(), String> {
     let output = Command::new("launchctl")
         .args(["bootout", "system", "com.starseed.ayudante"])
         .output()
-        .await
+        
         .map_err(|e| format!("launchctl: {e}"))?;
 
     if !output.status.success() {
@@ -326,7 +326,7 @@ pub async fn ayudante_ejecutar(
 
     if !decision.permite {
         soltar_ejecucion();
-        anotar_registro(&app, "rechazada", &origen, &format!("[{:?}] {}", params.orden, decision.motivo.unwrap_or_default()));
+        anotar_registro(&app, "rechazada", &origen, &format!("[{:?}] {}", params.orden, decision.motivo.clone().unwrap_or_default()));
         return Err(decision.motivo.unwrap_or_else(|| "orden no permitida".into()));
     }
 
@@ -365,7 +365,7 @@ pub async fn ayudante_ejecutar(
 // ─── Implementación de cada orden ───
 
 async fn ejecutar_almacenes_estado() -> EjecutarResultado {
-    let output = Command::new("diskutil").arg("list").output().await;
+    let output = Command::new("diskutil").arg("list").output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -380,7 +380,7 @@ async fn ejecutar_almacenes_estado() -> EjecutarResultado {
 async fn ejecutar_almacen_salud(args: &HashMap<String, String>) -> EjecutarResultado {
     let serie = match args.get("serie") { Some(s) => s, None => return error("falta serie") };
     // Buscar el disco por serie
-    let output = Command::new("diskutil").args(["info", "-plist", serie]).output().await;
+    let output = Command::new("diskutil").args(["info", "-plist", serie]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -397,7 +397,7 @@ async fn ejecutar_almacen_formatear(args: &HashMap<String, String>) -> EjecutarR
     let output = Command::new("diskutil")
         .args(["eraseDisk", &formato, &nombre, &serie])
         .output()
-        .await;
+        ;
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -411,7 +411,7 @@ async fn ejecutar_almacen_formatear(args: &HashMap<String, String>) -> EjecutarR
 
 async fn ejecutar_almacen_montar(args: &HashMap<String, String>) -> EjecutarResultado {
     let serie = match al::validar_montar(args) { Ok(s) => s, Err(e) => return error(&e) };
-    let output = Command::new("diskutil").args(["mount", &serie]).output().await;
+    let output = Command::new("diskutil").args(["mount", &serie]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -425,7 +425,7 @@ async fn ejecutar_almacen_montar(args: &HashMap<String, String>) -> EjecutarResu
 
 async fn ejecutar_almacen_desmontar(args: &HashMap<String, String>) -> EjecutarResultado {
     let serie = match al::validar_montar(args) { Ok(s) => s, Err(e) => return error(&e) };
-    let output = Command::new("diskutil").args(["unmount", &serie]).output().await;
+    let output = Command::new("diskutil").args(["unmount", &serie]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -439,7 +439,7 @@ async fn ejecutar_almacen_desmontar(args: &HashMap<String, String>) -> EjecutarR
 
 async fn ejecutar_almacen_verificar(args: &HashMap<String, String>) -> EjecutarResultado {
     let serie = match args.get("serie") { Some(s) => s, None => return error("falta serie") };
-    let output = Command::new("diskutil").args(["verifyDisk", serie]).output().await;
+    let output = Command::new("diskutil").args(["verifyDisk", serie]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -452,7 +452,7 @@ async fn ejecutar_almacen_verificar(args: &HashMap<String, String>) -> EjecutarR
 }
 
 async fn ejecutar_servicios_estado() -> EjecutarResultado {
-    let output = Command::new("launchctl").args(["list", "com.starseed.*"]).output().await;
+    let output = Command::new("launchctl").args(["list", "com.starseed.*"]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -467,7 +467,7 @@ async fn ejecutar_servicios_estado() -> EjecutarResultado {
 async fn ejecutar_servicio_iniciar(args: &HashMap<String, String>) -> EjecutarResultado {
     let nombre = match args.get("servicio") { Some(s) => s, None => return error("falta servicio") };
     if !nombre.starts_with("com.starseed.") { return error("solo servicios com.starseed.*"); }
-    let output = Command::new("launchctl").args(["bootstrap", "system", format!("/Library/LaunchDaemons/{}.plist", nombre)]).output().await;
+    let output = Command::new("launchctl").args(["bootstrap", "system", format!("/Library/LaunchDaemons/{}.plist", nombre).as_str()]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -482,7 +482,7 @@ async fn ejecutar_servicio_iniciar(args: &HashMap<String, String>) -> EjecutarRe
 async fn ejecutar_servicio_parar(args: &HashMap<String, String>) -> EjecutarResultado {
     let nombre = match args.get("servicio") { Some(s) => s, None => return error("falta servicio") };
     if !nombre.starts_with("com.starseed.") { return error("solo servicios com.starseed.*"); }
-    let output = Command::new("launchctl").args(["bootout", "system", nombre]).output().await;
+    let output = Command::new("launchctl").args(["bootout", "system", nombre]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
@@ -517,7 +517,7 @@ async fn ejecutar_logs_leer(args: &HashMap<String, String>) -> EjecutarResultado
     let mut cmd = Command::new("log");
     cmd.args(["show", "--style", "compact", "--last", &format!("{}m", (lineas / 10).max(1))]);
     if let Some(f) = filtro { cmd.args(["--predicate", &f]); }
-    let output = cmd.output().await;
+    let output = cmd.output();
     match output {
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout).to_string();
@@ -539,10 +539,10 @@ async fn ejecutar_reiniciar_app(app: &AppHandle) -> EjecutarResultado {
     // Usamos el comando de Tauri `app.restart()` pero desde el proceso privilegiado
     // podríamos usar `launchctl` para reiniciar el bundle.
     let bundle_id = "app.starseed.os";
-    let output = Command::new("launchctl").args(["bootout", "gui/$(id -u)", bundle_id]).output().await;
+    let output = Command::new("launchctl").args(["bootout", "gui/$(id -u)", bundle_id]).output();
     let _ = output;
     std::thread::sleep(std::time::Duration::from_millis(500));
-    let output = Command::new("open").args(["-b", bundle_id]).output().await;
+    let output = Command::new("open").args(["-b", bundle_id]).output();
     match output {
         Ok(o) => EjecutarResultado {
             exito: o.status.success(),
