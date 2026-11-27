@@ -69,6 +69,10 @@ mod ubicacion;
 mod ubicacion_logica;
 #[cfg(target_os = "macos")]
 mod ubicacion_macos;
+// (NFC1126B) NFC de las neuronas: lector y tarjeta (HCE) en Android; en las demás plataformas responde «ninguno».
+mod nfc;
+#[allow(dead_code)]
+mod nfc_logica;
 mod puerta_proxy_logica;
 // (PER1108A) Permisos del primer arranque (Android) y pantalla completa de la ventana (escritorio).
 mod permisos_inicio;
@@ -259,6 +263,9 @@ mod puerta_proxy_parche;
 // (UBI1114K) Lo usa build.rs (permisos de ubicación, proveedor y UbicacionStarSeed.kt en el proyecto Android); aquí solo sus pruebas.
 #[cfg(test)]
 mod ubicacion_parche;
+// (NFC1126B) Lo usa build.rs (permiso NFC, servicio HCE con el AID de StarSeed y los Kotlin); aquí solo sus pruebas.
+#[cfg(test)]
+mod nfc_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -1038,6 +1045,11 @@ macro_rules! registrar_comandos {
                 ubicacion::ubicacion_vigilar,
                 ubicacion::ubicacion_parar,
                 ubicacion::ubicacion_ultima,
+                // (NFC1126B) NFC de las neuronas: capacidad, turnarse lector/tarjeta, parar y escribir una etiqueta.
+                nfc::nfc_capacidad,
+                nfc::nfc_iniciar,
+                nfc::nfc_parar,
+                nfc::nfc_escribir_etiqueta,
                 // CTL1119E: clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
                 clave_aparato_nativa::clave_aparato_crear,
                 clave_aparato_nativa::clave_aparato_firmar,

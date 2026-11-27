@@ -26,6 +26,11 @@ mod puerta_proxy_parche;
 // (UBI1114K) La ubicación del aparato en Android: permisos, proveedor y UbicacionStarSeed.kt.
 #[path = "src/ubicacion_parche.rs"]
 mod ubicacion_parche;
+// (NFC1126B) El NFC de las neuronas en Android: permiso, servicio HCE con el AID de StarSeed y NfcStarSeed.kt.
+#[path = "src/nfc_logica.rs"]
+mod nfc_logica;
+#[path = "src/nfc_parche.rs"]
+mod nfc_parche;
 // ORD1114T: el indicador nativo del control entre neuronas en Android (permisos, servicio y Kotlin).
 #[path = "src/control_neuronas_parche.rs"]
 mod control_neuronas_parche;
@@ -193,6 +198,11 @@ const COMANDOS_APP: &[&str] = &[
     "ubicacion_vigilar",
     "ubicacion_parar",
     "ubicacion_ultima",
+    // (NFC1126B) NFC de las neuronas: capacidad, turnarse lector/tarjeta, parar y escribir una etiqueta.
+    "nfc_capacidad",
+    "nfc_iniciar",
+    "nfc_parar",
+    "nfc_escribir_etiqueta",
     // (CTL1119E · SUP1121A) Clave nativa del aparato (ECDSA P-256) para Linux/Windows sin WebCrypto.
     "clave_aparato_crear",
     "clave_aparato_firmar",
@@ -242,6 +252,7 @@ fn main() {
     llamadas_nativas_android(); // (LLA1108D)
     proxy_puerta_android(); // (PTA1108B)
     ubicacion_android(); // (UBI1114K) ANTES que el Bluetooth: su bloque declara la ubicación fina sin tope de versión.
+    nfc_android(); // NFC1126B
     control_neuronas_android(); // ORD1114T
     control_entrada_android(); // AND1115K
     // (BLE1108A) Siempre el último: su bloque del manifiesto va detrás de los otros (mismo orden, mismo archivo).
@@ -565,6 +576,38 @@ fn ubicacion_android() {
         }
         // Falla en alto: un APK que dice llevar ubicación nativa y no la lleva sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar la ubicación en Android: {e}. Para compilar sin ella: STARSEED_SIN_UBICACION_ANDROID=1"),
+    }
+}
+
+/// (NFC1126B) Permiso NFC, servicio HCE con el AID de StarSeed y los Kotlin en el proyecto Android. Solo StarSeed OS.
+fn nfc_android() {
+    for f in ["src/nfc_parche.rs", "src/nfc_logica.rs", "android/NfcStarSeed.kt", "android/HceStarSeed.kt"] {
+        println!("cargo:rerun-if-changed={f}");
+    }
+    println!("cargo:rerun-if-env-changed=STARSEED_SIN_NFC_ANDROID");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED").or_else(|_| std::env::var("WRY_ANDROID_PACKAGE")).unwrap_or_default();
+    let apagado = nfc_parche::apagado(std::env::var("STARSEED_SIN_NFC_ANDROID").ok().as_deref());
+    if apagado || !nfc_parche::aplica(&paquete) {
+        if apagado {
+            println!("cargo:warning=[starseed] STARSEED_SIN_NFC_ANDROID: el APK sale SIN NFC nativo.");
+        }
+        return;
+    }
+    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+        println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: el APK sale SIN NFC nativo.");
+        return;
+    };
+    match nfc_parche::aplicar(&proyecto) {
+        Ok(cambiados) => {
+            for c in cambiados {
+                println!("cargo:warning=[starseed] NFC: escrito {}", c.display());
+            }
+        }
+        // Falla en alto: un APK que dice llevar NFC y no lo lleva sería una ilusión.
+        Err(e) => panic!("[starseed] No se pudo inyectar el NFC en Android: {e}. Para compilar sin él: STARSEED_SIN_NFC_ANDROID=1"),
     }
 }
 
