@@ -62,12 +62,36 @@ def _epoch(entrada):
         return None
 
 
-def retiene_la_mac(tarea, entrada, ahora=None, espera_s=ESPERA_MAC_S):
+#: (DIR1127C, 27-11) ¿Puede la Mac EMPEZAR tareas ahora? Lo fija quien reparte (`repartir-a-nube.py`) con
+#: `mac_puede_empezar()` antes de elegir. Por defecto True (las pruebas y los demás llamadores no cambian).
+MAC_LIBRE = True
+
+
+def mac_puede_empezar(disco=None, gobernador=None):
+    """PURA: False si el guardia de disco retiene los arranques o el gobernador deja la Mac sin trabajadores.
+
+    Medido el 27-11 a la 01:12: disco 5,6 GB (< 6, `retiene_arranques`), presión de memoria y 1 de 3
+    trabajando, con 20 tareas «urgentes» guardadas para la Mac durante hora y media mientras la nube de
+    GitHub estaba ociosa. Lo urgente debe ir donde se pueda hacer YA."""
+    try:
+        if isinstance(disco, dict) and disco.get("retiene_arranques"):
+            return False
+        if isinstance(gobernador, dict) and int(gobernador.get("trabajadores", 1) or 0) <= 0:
+            return False
+    except (TypeError, ValueError):
+        return True
+    return True
+
+
+def retiene_la_mac(tarea, entrada, ahora=None, espera_s=ESPERA_MAC_S, mac_libre=None):
     """PURA: ¿esta tarea prioritaria se queda en la Mac y NO se cede a la nube?
 
     Se queda si tiene prioridad, la Mac aún no la empezó (`pendiente` o sin entrada) y no lleva más de
     `espera_s` esperando (según `t` de su entrada; sin `t` se supone que acaba de llegar). Una que ya
-    falló o quedó sin cambios (`fallo`, `sin_cambios`…) sí puede ir: la Mac no la repite sola."""
+    falló o quedó sin cambios (`fallo`, `sin_cambios`…) sí puede ir: la Mac no la repite sola.
+    (DIR1127C) Si la Mac no puede empezar nada ahora (`mac_libre` False, o `MAC_LIBRE` False), no retiene."""
+    if not (MAC_LIBRE if mac_libre is None else mac_libre):
+        return False
     if not es_prioritaria(tarea):
         return False
     estado = entrada.get("estado") if isinstance(entrada, dict) else None

@@ -178,6 +178,20 @@ def main():
                     help="mostrar por qué cada tarea se queda o se va a la nube (AUT1121C)")
     args = ap.parse_args()
 
+    # (DIR1127C, 27-11) Lo urgente solo se guarda para la Mac si la Mac puede EMPEZAR algo ahora.
+    import urgencia_tarea
+
+    def _leer(nombre):
+        try:
+            with open(os.path.expanduser("~/.starseed/" + nombre), encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    urgencia_tarea.MAC_LIBRE = urgencia_tarea.mac_puede_empezar(_leer("disco-enjambre.json"), _leer("gobernador.json"))
+    if not urgencia_tarea.MAC_LIBRE:
+        print("[reparto] la Mac no puede empezar tareas ahora (disco o memoria): lo urgente también puede ir a la nube")
+
     # (2026-10-04) Con la nube en pausa nadie reparte: ni el director de la nube ni el vigía.
     # «0 tareas» es justo lo que el vigía mira para no desplegar.
     from repartir_nube import nube_pausada
