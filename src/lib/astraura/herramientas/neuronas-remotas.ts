@@ -46,7 +46,7 @@ export type MotivoRechazo = "neurona-desconocida" | "neurona-ambigua" | "permiso
 
 export type ResultadoPropuesta =
     | { ok: true; nivel: NivelConfirmacion; orden: OrdenRemota; vista: VistaPrevia }
-    | { ok: false; motivo: MotivoRechazo; ayuda: string };
+    | { ok: false; nivel?: NivelConfirmacion; motivo: MotivoRechazo; ayuda: string };
 
 /** Neuronas marcadas «sin preguntar» para ajustes corrientes, por id. */
 export type SinPreguntarPorNeurona = Readonly<Record<string, boolean>>;
