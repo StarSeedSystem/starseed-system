@@ -46,6 +46,7 @@ import { AcompanantePersonalidad } from "@/components/avatares/acompanante-perso
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
 import { MontajeIdioma } from "@/components/traduccion/montaje-idioma";
+import VentanaNeuronaGlobal from "./layout-client-neurona";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -127,6 +128,9 @@ export default function AppGlobals() {
       {/* Ola 1019V: clic derecho global de variaciones + anfitrión de la ventana «Variaciones públicas». */}
       <ClicDerechoGlobal />
       <VariacionesHost />
+      {/* NEU1126E (parte 2): la ventana de neurona («comparte neurona» / «aparato nuevo») en toda la
+          app; antes solo existía dentro de Ajustes › Neuronas y por eso nunca salía. */}
+      <VentanaNeuronaGlobal />
     </SoloFueraDeConsola>
   );
 }
