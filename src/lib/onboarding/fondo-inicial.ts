@@ -74,3 +74,50 @@ export function catalogoFondoAlDia(vista: VersionCatalogo, actual: number): bool
   if (vista === null || !Number.isFinite(vista)) return false;
   return actual <= vista;
 }
+
+/* ── «Elige tu fondo» (FON1126A): selección única, vista previa y catálogo propio ── */
+
+/** Lo mínimo que necesita la lógica de una opción de fondo (la ficha completa vive en el componente). */
+export interface OpcionBase { id: string; nombre: string }
+
+/** Selección como radio: tocar otro fondo desmarca el anterior; tocar el mismo lo mantiene. */
+export function elegirFondoUnico(_anterior: string | null, id: string): string {
+  return id;
+}
+
+/** Une «Fondo actual», sets oficiales, catálogo y fondos propios sin repetir ids (gana el primero). */
+export function opcionesFondoCompletas<T extends OpcionBase>(...grupos: ReadonlyArray<readonly T[]>): T[] {
+  const vistos = new Set<string>();
+  return grupos.flat().filter((o) => {
+    if (vistos.has(o.id)) return false;
+    vistos.add(o.id);
+    return true;
+  });
+}
+
+/** La opción elegida (vista previa grande); si el id ya no existe, la primera. */
+export function opcionElegida<T extends OpcionBase>(opciones: readonly T[], id: string | null): T | null {
+  return opciones.find((o) => o.id === id) ?? opciones[0] ?? null;
+}
+
+/** Añade un fondo al catálogo del perfil; si el id ya existe lo reemplaza (personalizar = volver con el resultado). */
+export function incorporarFondo<T extends OpcionBase>(catalogo: readonly T[], nuevo: T): T[] {
+  return catalogo.some((o) => o.id === nuevo.id) ? catalogo.map((o) => (o.id === nuevo.id ? nuevo : o)) : [...catalogo, nuevo];
+}
+
+export type OrigenAnadirFondo = "libreria" | "archivos";
+
+/** Las dos tarjetas que cierran siempre la rejilla. */
+export const TARJETAS_ANADIR_FONDO: ReadonlyArray<{ origen: OrigenAnadirFondo; titulo: string; ayuda: string }> = [
+  { origen: "libreria", titulo: "Añadir desde la Librería", ayuda: "Fondos y sets publicados" },
+  { origen: "archivos", titulo: "Desde mis archivos", ayuda: "Imagen, vídeo o set de tu Biblioteca o del aparato" },
+];
+
+export type ModoVistaPrevia = "animada" | "quieta" | "imagen";
+
+/** Cómo se pinta una miniatura: sin WebGPU, imagen fija; con movimiento reducido o rendimiento bajo, quieta; si no, anima solo con cursor o foco. */
+export function modoVistaPrevia(e: { webgpu: boolean; movimientoReducido: boolean; rendimientoBajo: boolean; activa: boolean }): ModoVistaPrevia {
+  if (!e.webgpu) return "imagen";
+  if (e.movimientoReducido || e.rendimientoBajo) return "quieta";
+  return e.activa ? "animada" : "quieta";
+}
