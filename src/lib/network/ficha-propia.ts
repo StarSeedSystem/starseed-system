@@ -17,6 +17,7 @@ import {
 } from "@/lib/network/capacidades-nodo";
 import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import { versionesDeEsteMedio } from "@/lib/actualizaciones/versiones-locales";
 
 /** Lo mínimo que hace falta para medir la ficha de este dispositivo. */
 export type DispositivoFicha = { id: string; platform: string; capas?: string[]; tokS?: Record<string, number> | null };
@@ -61,6 +62,18 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
   // Nunca lanza: `vozMedida` devuelve undefined sin medidas válidas y recientes.
   const voz = vozMedida(leerMedidas(), { neurona: neuronDeviceIdActual(), ahora: Date.now() });
 
+  // Versiones locales (interfaz, servidor, etc.)
+  const versiones = await versionesDeEsteMedio();
+
+  // Rol de prueba desde localStorage (try/catch, por defecto sin rol)
+  let rol: "aparato-de-prueba" | "director" | undefined;
+  try {
+    const v = localStorage.getItem("starseed.pruebas.rol.v1");
+    if (v === "aparato-de-prueba" || v === "director") rol = v;
+  } catch {
+    /* sin localStorage: sin rol */
+  }
+
   // SANITIZAR capas: solo strings no vacios, max 32, únicos, <= 80 caracteres cada uno
   const capasLimpias = device.capas
     ? device.capas
@@ -92,6 +105,9 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
     ...(voz ? { voz } : {}),
+    ...(versiones.servidor?.capaBuild ? { capaBuild: versiones.servidor.capaBuild } : {}),
+    ...(versiones.interfaz ? { appVersion: versiones.interfaz } : {}),
+    ...(rol ? { rol } : {}),
   });
 }
 

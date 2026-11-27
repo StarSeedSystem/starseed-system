@@ -49,6 +49,14 @@ export interface CapacidadesNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** Build de la capa que sirve el servidor local (web_corre). */
+  capaBuild?: string;
+  /** Versión de la app (interfaz). */
+  appVersion?: string;
+  /** Rol del aparato para pruebas: "aparato-de-prueba" | "director". */
+  rol?: "aparato-de-prueba" | "director";
+  /** Slots libres para inferencia local. */
+  slotsLibres?: number;
 }
 
 /* ---- Voz medida (VZF1015Q · architecture/voz-fusionada-astraura.md §5) ---- */
@@ -196,6 +204,14 @@ export interface DatosFichaNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** Build de la capa que sirve el servidor local (web_corre). */
+  capaBuild?: string;
+  /** Versión de la app (interfaz). */
+  appVersion?: string;
+  /** Rol del aparato para pruebas: "aparato-de-prueba" | "director". */
+  rol?: "aparato-de-prueba" | "director";
+  /** Slots libres para inferencia local. */
+  slotsLibres?: number;
 }
 
 /**
@@ -230,6 +246,10 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(voz ? { voz } : {}),
     ...(d.discoLibreGb !== undefined ? { discoLibreGb: d.discoLibreGb } : {}),
     ...(d.almacen !== undefined ? { almacen: d.almacen } : {}),
+    ...(d.capaBuild !== undefined ? { capaBuild: d.capaBuild } : {}),
+    ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
+    ...(d.rol !== undefined ? { rol: d.rol } : {}),
+    ...(d.slotsLibres !== undefined ? { slotsLibres: d.slotsLibres } : {}),
   };
 }
 
