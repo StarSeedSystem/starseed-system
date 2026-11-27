@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,18 @@ MANDO = os.path.join(RAIZ, "starseed_memory_root", "mando")
 DOT = os.path.expanduser("~/.starseed")
 LIBRO = os.path.join(DOT, "flujo-libro.jsonl")
 ESTADO_LIBRO = os.path.join(DOT, "flujo-estado.json")
+BUSCAR_CAPACIDAD = os.path.join(DOT, "buscar-capacidad.json")
+RENOVACIONES_ESTADO = os.path.join(DOT, "renovaciones-directores.json")
+RENOVACIONES_LOG = os.path.join(DOT, "renovaciones-directores.log")
+
+# ── Renovaciones que «Buscar capacidad» pide y los directores hacen solos ───
+#: Lista blanca EXACTA: nada de texto libre. Cada comando va como argv, sin shell.
+RENOVACIONES_PERMITIDAS = (
+    ("python3", "scripts/puente/explabs_promos.py", "actualizar"),
+    ("python3", "scripts/puente/renovador-pasarelas.py"),
+)
+RENOVACIONES_ESPERA_S = 60 * 60
+RENOVACIONES_TOPE_S = 300
 
 # ── Causas cerradas (diagnosticar solo devuelve una de estas) ────────────────
 CAUSA_DISCO = "disco"
@@ -663,6 +676,105 @@ def aplicar_buscar_capacidad(ahora, correr):
     return datos
 
 
+def comando_de_linea(linea):
+    """PURA: argv que sigue a «ejecutar:» en una línea de buscar-capacidad, o None.
+
+    Nunca interpreta el texto: solo lo trocea en argumentos (`shlex`), sin shell.
+    """
+    texto = str(linea or "")
+    pos = texto.find("ejecutar:")
+    if pos < 0:
+        return None
+    resto = texto[pos + len("ejecutar:"):].strip().strip("`").strip()
+    if not resto:
+        return None
+    try:
+        argv = shlex.split(resto)
+    except ValueError:
+        return None
+    return argv or None
+
+
+def _guardar_renovaciones(estado):
+    directorio = os.path.dirname(RENOVACIONES_ESTADO)
+    if directorio:
+        os.makedirs(directorio, exist_ok=True)
+    tmp = RENOVACIONES_ESTADO + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(estado, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, RENOVACIONES_ESTADO)
+
+
+def _registrar_renovacion(ahora, clave, codigo, salida):
+    """Una línea con el resultado, para que quede rastro de lo que hizo solo."""
+    try:
+        os.makedirs(os.path.dirname(RENOVACIONES_LOG) or ".", exist_ok=True)
+        with open(RENOVACIONES_LOG, "a", encoding="utf-8") as f:
+            f.write("%s · %s · código=%s · %s\n" % (
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ahora)),
+                clave, codigo, (salida or "")[-200:]))
+    except OSError:
+        pass
+
+
+def aplicar_renovaciones(ahora, correr):
+    """Ejecuta lo que «Buscar capacidad» marca como «te necesita · ejecutar».
+
+    Lee las líneas de `~/.starseed/buscar-capacidad.json`, saca el argv tras
+    «ejecutar:» y corre SOLO la lista blanca exacta, como lista de argumentos y sin
+    shell. Cada comando como mucho una vez por hora (marca en
+    `renovaciones-directores.json`) y con tope de 300 s. Cualquier otro comando se
+    ignora; nunca se ejecuta texto libre. Devuelve qué se ejecutó, omitió e ignoró.
+    """
+    ahora = _ahora(ahora)
+    foto = _leer_json(BUSCAR_CAPACIDAD, {})
+    lineas = foto.get("lineas") if isinstance(foto, dict) else None
+    if not isinstance(lineas, list):
+        lineas = []
+    estado = _leer_json(RENOVACIONES_ESTADO, {})
+    if not isinstance(estado, dict):
+        estado = {}
+    ejecutadas, omitidas, ignoradas = [], [], []
+    vistos = set()
+    for linea in lineas:
+        argv = comando_de_linea(linea)
+        if argv is None:
+            continue
+        clave = " ".join(argv)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        if tuple(argv) not in RENOVACIONES_PERMITIDAS:
+            ignoradas.append(clave)
+            continue
+        previo = estado.get(clave)
+        ultima = 0.0
+        if isinstance(previo, dict) and isinstance(previo.get("ultima"), (int, float)):
+            ultima = float(previo["ultima"])
+        if ultima and ahora - ultima < RENOVACIONES_ESPERA_S:
+            omitidas.append(clave)
+            continue
+        salida, codigo = "", None
+        try:
+            r = correr(list(argv), segundos=RENOVACIONES_TOPE_S)
+            codigo = getattr(r, "returncode", None)
+            salida = "%s%s" % (getattr(r, "stdout", "") or "",
+                               getattr(r, "stderr", "") or "")
+        except (OSError, subprocess.TimeoutExpired) as e:
+            codigo = None
+            salida = "%s: %s" % (type(e).__name__, e)
+        salida = (salida or "").strip()
+        estado[clave] = {"ultima": ahora, "codigo": codigo, "salida": salida[-200:]}
+        ejecutadas.append({"comando": clave, "codigo": codigo, "salida": salida[-200:]})
+        _registrar_renovacion(ahora, clave, codigo, salida)
+    if ejecutadas:
+        try:
+            _guardar_renovaciones(estado)
+        except OSError:
+            pass
+    return {"ejecutadas": ejecutadas, "omitidas": omitidas, "ignoradas": ignoradas}
+
+
 def aplicar_nube_ceder(foto, ahora, correr):
     """Lanza la nube con --ceder (la Mac cede lo que no alcanza pronto)."""
     runs = max(1, min(2, foto.get("elegibles", 0) // 2 + 1))
@@ -818,6 +930,16 @@ def turno(aplicar=False, ahora=None, correr=None, decir=None, leer=None):
     correr = correr or _correr_real
     decir = decir or _decir_real
 
+    # 0 · Renovaciones que «Buscar capacidad» marca como «te necesita · ejecutar»:
+    # los directores las hacen solos (lista blanca exacta, una vez por hora cada una).
+    renovaciones = {"ejecutadas": [], "omitidas": [], "ignoradas": []}
+    if aplicar:
+        try:
+            renovaciones = aplicar_renovaciones(ahora, correr)
+        except Exception:  # noqa: BLE001 — una renovación rota no frena el turno
+            renovaciones = {"ejecutadas": [], "omitidas": [], "ignoradas": [],
+                            "error": True}
+
     estado = _estado_libro()
     pendiente = estado.get("pendiente") if isinstance(estado, dict) else None
 
@@ -842,6 +964,7 @@ def turno(aplicar=False, ahora=None, correr=None, decir=None, leer=None):
         return {
             "causa": pendiente["causa"], "remedio": pendiente["remedio"],
             "resultado": resultado, "comprobado": True,
+            "renovaciones": renovaciones,
         }
 
     # 2 · Leer la foto y diagnosticar.
@@ -852,7 +975,7 @@ def turno(aplicar=False, ahora=None, correr=None, decir=None, leer=None):
     if causa is None or remedio == REMEDIO_NINGUNO:
         return {
             "causa": causa, "remedio": remedio, "resultado": "no_aplicable",
-            "motivo": motivo, "foto": foto,
+            "motivo": motivo, "foto": foto, "renovaciones": renovaciones,
         }
 
     # 3 · Espera de Alex: solo se avisa, no se aplica remedio automático.
@@ -861,7 +984,7 @@ def turno(aplicar=False, ahora=None, correr=None, decir=None, leer=None):
             decir("director-flujo: %s" % motivo, quien="director-flujo", tipo="aviso")
         return {
             "causa": causa, "remedio": remedio, "resultado": "espera_alex",
-            "motivo": motivo, "foto": foto,
+            "motivo": motivo, "foto": foto, "renovaciones": renovaciones,
         }
 
     # 4 · Aplicar el mejor remedio para esta causa (ordenado por lo que funcionó).
@@ -894,6 +1017,7 @@ def turno(aplicar=False, ahora=None, correr=None, decir=None, leer=None):
     return {
         "causa": causa, "remedio": remedio, "resultado": resultado_inmediato,
         "motivo": motivo, "detalle": detalle, "comprobado": False, "foto": foto,
+        "renovaciones": renovaciones,
     }
 
 
