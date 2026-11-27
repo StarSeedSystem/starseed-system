@@ -7,3 +7,6 @@
 export * from "./modelo";
 export * from "./manifiesto";
 export * from "./ubicaciones";
+export * from "./sugerencias";
+// Resolver ambigüedad: esFundamental se exporta desde ubicaciones
+export { esFundamental } from "./ubicaciones";
