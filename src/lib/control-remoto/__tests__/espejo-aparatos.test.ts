@@ -1,5 +1,5 @@
 /**
- * CTL1126F-d2 · espejo-aparatos: modo espejo para múltiples aparatos de una neurona
+ * CTL1126F-d3 · espejo-aparatos: modo espejo para múltiples aparatos de una neurona
  * Pruebas con dos aparatos falsos: selección, pestañas y espejo.
  */
 import { describe, expect, it, beforeEach } from "vitest";
@@ -14,11 +14,9 @@ import {
     ejecutarEnEspejo,
     type AparatoEspejo,
     type EstadoEspejo,
-    type ResultadoEjecucion,
-    type ResultadoConEstado,
 } from "../espejo-aparatos";
 
-describe("CTL1126F-d2 · espejo-aparatos", () => {
+describe("CTL1126F-d3 · espejo-aparatos", () => {
     let estado: EstadoEspejo;
 
     beforeEach(() => {
@@ -26,6 +24,10 @@ describe("CTL1126F-d2 · espejo-aparatos", () => {
     });
 
     describe("tipoEspejo", () => {
+        it("publica la versión del contrato de espejo", () => {
+            expect(tipoEspejo).toBe("espejo-aparatos.v1");
+        });
+
         it("define el tipo de aparato para el espejo", () => {
             const aparato: AparatoEspejo = {
                 id: "aparato-1",
@@ -73,6 +75,16 @@ describe("CTL1126F-d2 · espejo-aparatos", () => {
             expect(s.aparatos).toHaveLength(1);
             expect(s.aparatos[0].nombre).toBe("Teléfono");
         });
+
+        it("entra sin marca de control aunque venga marcado", () => {
+            const s = agregarAparato(estado, {
+                id: "aparato-1",
+                nombre: "Teléfono",
+                tienePermiso: true,
+                estaControlado: true,
+            });
+            expect(s.aparatos[0].estaControlado).toBe(false);
+        });
     });
 
     describe("quitarAparato", () => {
@@ -110,7 +122,7 @@ describe("CTL1126F-d2 · espejo-aparatos", () => {
             expect(s.aparatoSeleccionado).toBe("aparato-2");
         });
 
-        it("desselecciona si se pasa null", () => {
+        it("deselecciona si se pasa null", () => {
             let s = agregarAparato(estado, { id: "aparato-1", nombre: "Teléfono", tienePermiso: true, estaControlado: false });
             s = seleccionarAparato(s, "aparato-1");
             s = seleccionarAparato(s, null);
@@ -252,6 +264,68 @@ describe("CTL1126F-d2 · espejo-aparatos", () => {
 
             expect(nuevoEstado.aparatos.find((a) => a.id === "aparato-1")?.estaControlado).toBe(true);
             expect(nuevoEstado.aparatos.find((a) => a.id === "aparato-2")?.estaControlado).toBe(true);
+        });
+
+        it("avisa «te están controlando» al aparato antes de ejecutar", async () => {
+            let s = agregarAparato(estado, { id: "aparato-1", nombre: "Teléfono", tienePermiso: true, estaControlado: false });
+            s = agregarAparato(s, { id: "aparato-2", nombre: "Tableta", tienePermiso: true, estaControlado: false });
+            s = activarEspejo(s);
+
+            const vistos: boolean[] = [];
+            await ejecutarEnEspejo(s, { accion: "toque", args: {} }, async (aparato) => {
+                vistos.push(aparato.estaControlado);
+                return { aparatoId: aparato.id, ok: true };
+            });
+
+            expect(vistos).toEqual([true, true]);
+        });
+
+        it("no marca como controlado al aparato sin permiso", async () => {
+            let s = agregarAparato(estado, { id: "aparato-1", nombre: "Teléfono", tienePermiso: true, estaControlado: false });
+            s = agregarAparato(s, { id: "aparato-2", nombre: "Tableta", tienePermiso: false, estaControlado: false });
+            s = activarEspejo(s);
+
+            const { estado: nuevoEstado } = await ejecutarEnEspejo(s, { accion: "toque", args: {} }, async (aparato) => {
+                return { aparatoId: aparato.id, ok: true };
+            });
+
+            expect(nuevoEstado.aparatos.find((a) => a.id === "aparato-1")?.estaControlado).toBe(true);
+            expect(nuevoEstado.aparatos.find((a) => a.id === "aparato-2")?.estaControlado).toBe(false);
+        });
+
+        it("manda la misma orden a todos los aparatos del espejo", async () => {
+            let s = agregarAparato(estado, { id: "aparato-1", nombre: "Teléfono", tienePermiso: true, estaControlado: false });
+            s = agregarAparato(s, { id: "aparato-2", nombre: "Tableta", tienePermiso: true, estaControlado: false });
+            s = activarEspejo(s);
+
+            const recibidas: Array<{ aparato: string; accion: string; args: Record<string, unknown> }> = [];
+            await ejecutarEnEspejo(s, { accion: "deslizar", args: { desde: 10, hasta: 90 } }, async (aparato, ord) => {
+                recibidas.push({ aparato: aparato.id, accion: ord.accion, args: ord.args });
+                return { aparatoId: aparato.id, ok: true };
+            });
+
+            expect(recibidas).toHaveLength(2);
+            expect(recibidas[0].accion).toBe("deslizar");
+            expect(recibidas[1].accion).toBe("deslizar");
+            expect(recibidas[0].args).toEqual({ desde: 10, hasta: 90 });
+            expect(recibidas[1].args).toEqual({ desde: 10, hasta: 90 });
+        });
+
+        it("si un aparato falla, la orden sigue en los demás", async () => {
+            let s = agregarAparato(estado, { id: "aparato-1", nombre: "Teléfono", tienePermiso: true, estaControlado: false });
+            s = agregarAparato(s, { id: "aparato-2", nombre: "Tableta", tienePermiso: true, estaControlado: false });
+            s = activarEspejo(s);
+
+            const { resultados } = await ejecutarEnEspejo(s, { accion: "toque", args: {} }, async (aparato) => {
+                if (aparato.id === "aparato-2") {
+                    return { aparatoId: aparato.id, ok: false, motivo: "sin-respuesta" };
+                }
+                return { aparatoId: aparato.id, ok: true };
+            });
+
+            expect(resultados).toHaveLength(2);
+            expect(resultados.find((r) => r.aparatoId === "aparato-1")?.ok).toBe(true);
+            expect(resultados.find((r) => r.aparatoId === "aparato-2")?.motivo).toBe("sin-respuesta");
         });
     });
 });
