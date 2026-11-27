@@ -45,6 +45,10 @@ RecetaFn = Callable[[], dict[str, Any]]
 AhoraFn = Callable[[], datetime]
 EnviarFn = Callable[[str], dict[str, Any]]
 LogFn = Callable[[str, str, dict[str, Any], float], None]
+IniciarFn = Callable[[str, str], dict[str, Any]]  # (sesion, motivo) -> {"ok": bool, ...}
+
+# SES1126A: lo único que hace Maggasukha es iniciar sesión; el aviso por sesión, 1 cada 6 h.
+AVISO_INICIO_HORAS = 6
 
 # ─────────────────────────────── Resolución de binarios ───────────────────────────────
 
@@ -574,7 +578,10 @@ class SanadorSesiones:
         ahora_fn: AhoraFn | None = None,
         enviar_fn: EnviarFn | None = None,
         log_fn: LogFn | None = None,
+        iniciar_fn: IniciarFn | None = None,
     ):
+        self.iniciar_fn = iniciar_fn
+        self._ultimo_inicio: dict[str, str] = {}  # sesion -> ISO del último guion lanzado
         self._sesiones: dict[str, dict[str, Any]] = {}
         self.log_file = log_file or LOG_DEF
         self.estado_file = estado_file or ESTADO_DEF
@@ -590,6 +597,8 @@ class SanadorSesiones:
         estado = _leer_json(self.estado_file, {})
         if "ultimo_escalado" in estado:
             self._ultimo_escalado = estado["ultimo_escalado"]
+        if isinstance(estado.get("ultimo_inicio"), dict):
+            self._ultimo_inicio = estado["ultimo_inicio"]
 
     def registrar(self, nombre: str, comprobacion: ComprobacionFn, recetas: list[RecetaFn]):
         """Registra una sesión con su comprobación y recetas."""
@@ -695,11 +704,54 @@ class SanadorSesiones:
             with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(_sanear_dict(entrada), ensure_ascii=False) + "\n")
 
+    def _iniciar_sesion_directores(self, sesion: str, motivo: str, enviar_fn: EnviarFn | None) -> dict[str, Any] | None:
+        """SES1126A: los directores inician la sesión (guion + Terminal/Telegram + vigía).
+
+        Devuelve None si no hay quien lo haga (se cae al aviso de siempre); si hay,
+        el resultado, con «escalado»: «inicio_lanzado» o «inicio_ya_avisado» (6 h).
+        Sin iniciar_fn inyectada solo usa abrir_inicio_sesion.iniciar(sesion, motivo)
+        en producción, es decir, sin enviar_fn inyectada: una prueba nunca abre una Terminal real.
+        """
+        fn = self.iniciar_fn
+        if fn is None:
+            if enviar_fn or self.enviar_fn:
+                return None
+            try:
+                sys.path.insert(0, str(Path(__file__).parent))
+                import abrir_inicio_sesion
+                fn = abrir_inicio_sesion.iniciar
+            except Exception:
+                return None
+        ahora = self.ahora_fn()
+        previo = self._ultimo_inicio.get(sesion)
+        if previo:
+            try:
+                if ahora - datetime.fromisoformat(previo) < timedelta(hours=AVISO_INICIO_HORAS):
+                    return {
+                        "ok": False,
+                        "motivo": f"inicio de sesión de {sesion} ya avisado hace menos de {AVISO_INICIO_HORAS} h",
+                        "escalado": "inicio_ya_avisado",
+                    }
+            except ValueError:
+                pass
+        try:
+            resp = fn(sesion, motivo)
+        except Exception:
+            return None
+        if not resp.get("ok"):
+            return None
+        self._ultimo_inicio[sesion] = ahora.isoformat()
+        self._guardar_ultimo_escalado()
+        return {"ok": True, "detalle": resp.get("detalle", "inicio de sesión lanzado"), "escalado": "inicio_lanzado"}
+
     def _escalado(self, sesion: str, motivo: str, recetas_intentadas: list[str], enviar_fn: EnviarFn | None = None) -> dict[str, Any]:
-        """Envía escalado (máx 1 por sesión y día).
-        
+        """Los directores abren el inicio de sesión; si no pueden, envía el aviso (máx 1 por sesión y día).
+
         Si no hay enviar_fn, usa entorno.enviar_telegram con credenciales de ~/.starseed/env.
         """
+        lanzado = self._iniciar_sesion_directores(sesion, motivo, enviar_fn)
+        if lanzado is not None:
+            return lanzado
         fn = enviar_fn or self.enviar_fn
         hoy = self.ahora_fn().strftime("%Y-%m-%d")
         if self._ultimo_escalado.get(sesion) == hoy:
@@ -736,6 +788,7 @@ class SanadorSesiones:
     def _guardar_ultimo_escalado(self):
         estado = _leer_json(self.estado_file, {})
         estado["ultimo_escalado"] = self._ultimo_escalado
+        estado["ultimo_inicio"] = self._ultimo_inicio
         _escribir_atomico(self.estado_file, estado)
 
     def actualizar_estado_agregado(self):
@@ -778,6 +831,7 @@ class SanadorSesiones:
             "sin_comprobar": sin_comprobar,
             "detalle": detalle,
             "ultimo_escalado": self._ultimo_escalado,
+            "ultimo_inicio": self._ultimo_inicio,
         }
         _escribir_atomico(self.estado_file, estado)
         return estado
@@ -828,6 +882,10 @@ class SanadorSesiones:
                             salida.write(f"  → ✓ {nombre} reparada: {r.get('detalle', '')}\n")
                         elif r.get("es_red"):
                             salida.write(f"  → ⚠ {nombre}: red, se espera\n")
+                        elif r.get("escalado") == "inicio_lanzado":
+                            salida.write(f"  → ✗ {nombre} no reparada, inicio de sesión lanzado ({r.get('detalle', '')})\n")
+                        elif r.get("escalado") == "inicio_ya_avisado":
+                            salida.write(f"  → ✗ {nombre} no reparada, inicio de sesión ya avisado (cada 6 h)\n")
                         elif r.get("escalado") == "enviado":
                             salida.write(f"  → ✗ {nombre} no reparada, escalado enviado\n")
                         elif r.get("escalado") == "ya_enviado":
