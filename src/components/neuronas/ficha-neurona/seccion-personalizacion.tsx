@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { NEURON_PREFS_KEY, setNeuronSettings, type Neuron, type NeuronSettings } from "@/lib/neurons/neurons";
 import {
-  entradaDeNeurona, guardadasDe, previoDe, proponerPerfil, sinPisar, type CambiosPerfil, type ClavePerfil,
+  CLAVES_PERFIL, cambiosSeguros, entradaDeNeurona, guardadasDe, previoDe, proponerPerfil, sinPisar, tipoDeAparato,
+  type CambiosPerfil, type ClavePerfil,
 } from "@/lib/neurons/perfiles-neurona";
 
 const CLAVE_ESTADO = "starseed.neurona.perfil.v1";
@@ -54,12 +55,14 @@ export function SeccionPersonalizacion({ neurona, alCambiar }: Props) {
   const [registro, setRegistro] = useState<Registro | undefined>(() => leerRegistro(neurona.id));
   const [ajustando, setAjustando] = useState(false);
   const [elegidos, setElegidos] = useState<Partial<Record<ClavePerfil, boolean>>>({});
-  const propuesta = proponerPerfil(entradaDeNeurona(neurona));
+  const entrada = entradaDeNeurona(neurona);
+  const propuesta = proponerPerfil(entrada);
   const guardadas = guardadasDe(typeof localStorage === "undefined" ? null : localStorage.getItem(NEURON_PREFS_KEY), neurona.id);
   const libres = sinPisar(propuesta.cambios, guardadas);
-  const claves = Object.keys(libres) as ClavePerfil[];
+  const claves = CLAVES_PERFIL.filter((k) => libres[k] !== undefined);
 
-  const aplicar = (cambios: CambiosPerfil) => {
+  const aplicar = (pedidos: CambiosPerfil) => {
+    const cambios = cambiosSeguros({ ...pedidos });
     try { setNeuronSettings(neurona.id, cambios as Partial<NeuronSettings>); } catch { /* defensivo */ }
     const r: Registro = { estado: "aplicado", previo: previoDe(cambios, guardadas) };
     guardarRegistro(neurona.id, r); setRegistro(r); setAjustando(false); alCambiar?.();
@@ -97,6 +100,7 @@ export function SeccionPersonalizacion({ neurona, alCambiar }: Props) {
   return (
     <div className="space-y-3" data-testid="seccion-personalizacion">
       <div>
+        <p className="text-[11px] text-muted-foreground" data-testid="tipo-aparato">Aparato detectado: {tipoDeAparato(entrada)}</p>
         <p className="break-words text-sm font-medium">Propuesta: {propuesta.titulo}</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">{propuesta.porque.map((p) => <li key={p} className="break-words">{p}</li>)}</ul>
       </div>
