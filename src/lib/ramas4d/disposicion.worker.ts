@@ -78,6 +78,11 @@ function responder(evento: MessageEvent<MensajeEntrada>): void {
   }
 }
 
-if (typeof alcance.addEventListener === 'function' && typeof alcance.postMessage === 'function') {
-  alcance.addEventListener('message', responder);
+function esContextoDeWorker(): boolean {
+  const etiqueta = Object.prototype.toString.call(globalThis);
+  return etiqueta === '[object DedicatedWorkerGlobalScope]' || etiqueta === '[object SharedWorkerGlobalScope]';
+}
+
+if (esContextoDeWorker()) {
+  alcance.addEventListener?.('message', responder);
 }
