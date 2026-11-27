@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "canal-diseno-1126",
+   "prioridad": 97,
+   "capacidad": "alta",
+   "modelo": "claude/sonnet",
+   "id": "DIS1126A-d1",
+   "titulo": "Canal de diseño (@StarSeed_Design_bot): entiende el «Sí» y las condiciones, deja de mandar ruido y llama a Maggasukha por su nombre (parte 1 de 3)",
+   "archivos": [
+    "scripts/puente/peticiones_telegram.py"
+   ],
+   "depende": [],
+   "prompt": "Medido por la dirección el 26-11 en el registro del bot en el A1 (`~/.starseed/peticiones/audiovisual-sync.jsonl` y `mensajes_recibidos.log` del usuario starseed): (1) a las 03:32 el bot preguntó «¿Quieres que despleguemos completo y paso a paso el primer caso…?» y Maggasukha contestó «Si»; el bot lo trató como petición nueva y lanzó un informe de NotebookLM. Arreglo: guardar la última pregunta o propuesta abierta de cada chat con su acción concreta (`conversacion_canal.py`), y que las respuestas cortas (sí, no, ok, dale, adelante, hazlo, un número de opción) ejecuten ESA acción; si no hay pregunta abierta, preguntar qué quiere decir. (2) A las 01:07 «Envíame antes la idea, propósito, visión, misión, herramientas, storyboards, guiones profesionales multiformato, bocetos… para cada caso» se guardó como «preferencia» y se contestó con un texto genérico. Es una CONDICIÓN de aprobación: se guarda como condición de las aprobaciones pendientes (propuestas de Higgsfield, mensajes de alcance) y se cumple enviando un dossier por caso. (3) A las 01:11 «Desarrolla todo y envíame todo descriptivamente por este canal para desarrollarlo juntos» lanzó otro informe de NotebookLM: es modo de desarrollo conjunto: un mensaje por caso, numerado, esperando su respuesta antes del siguiente, y lo que decida queda registrado. (4) Ruido: «Mac de vuelta: 1 orden(es) de la cola ejecutada(s); 0 pendiente(s)» llega al canal de diseño cada 20–30 min (más de 80 veces hoy): fuera de este canal (solo registro). «El modo de encargo por frentes aún no está listo» se repite en cada mensaje porque comprueba los permisos de `cuentas/alex.json` (solo lectura) y no los de `cuentas/alex-docs.json` (drive.file, que ya existe en la Mac y en el A1): usar alex-docs para escribir y quitar el aviso. (5) Lo llama «Alex»: se llama Maggasukha en todo mensaje (regla permanente). (6) Formato para Telegram: nada de `###` ni markdown crudo; HTML de Telegram o texto con viñetas, y firma «— Audiovisual y diseño · <modelo>». (7) Cada mensaje entrante y saliente del bot en el A1 se refleja en el canal audiovisual de la Mac (`mando/director/audiovisual.jsonl` y la pestaña de MetaGenesis) — hoy la Mac no ve ninguno. Pruebas: «Si» tras una pregunta, condición guardada como condición, modo conjunto, sin ruido, nombre, formato y reflejo.\n\n## PARTE 1 DE 3 (la dirección dividió DIS1126A: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/peticiones_telegram.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DIS1126A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ]
+}
