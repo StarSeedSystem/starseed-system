@@ -27,8 +27,20 @@ import {
 } from "@/lib/neurons/neurons";
 import { neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 import { aparatoDeEsteMedio } from "@/lib/neurons/aparato-este-medio";
+import {
+  claveRevisionPospuesto,
+  claveRevisionVista,
+  type RevisionIdentidad,
+} from "@/lib/neurons/revision-identidad";
 
 type Camino = "" | "unir" | "nueva";
+
+export interface AparatoNuevoDialogoProps {
+  /** Revisión de identidad compartida (NEU1126E): cuando se pasa, se muestra la ventana «comparte neurona». */
+  revision?: RevisionIdentidad;
+  /** Versión de la app para la comprobación «una vez por versión». */
+  version?: string;
+}
 
 /** Nombres legibles de los sistemas conocidos (solo para texto de UI). */
 export const NOMBRE_SO: Record<string, string> = {
@@ -62,7 +74,7 @@ export function nombrePropuesto(nombreAparato: string | null | undefined): strin
   return t || "Neurona nueva";
 }
 
-export function AparatoNuevoDialogo() {
+export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoProps = {}) {
   const [lista, setLista] = useState<NeuronaParaElegir[]>([]);
   const [modelo, setModelo] = useState<string | null>(null);
   const [sistema, setSistema] = useState<string | null>(null);
@@ -71,6 +83,8 @@ export function AparatoNuevoDialogo() {
   const [nombreNueva, setNombreNueva] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [caminoCompartida, setCaminoCompartida] = useState<"" | "crear">("");
+  const [nombreNuevaCompartida, setNombreNuevaCompartida] = useState(revision?.nombrePropuesto ?? "");
 
   const cargar = useCallback(async () => {
     try {
@@ -99,6 +113,61 @@ export function AparatoNuevoDialogo() {
   }, [cargar]);
 
   const otras = lista.filter((n) => !n.esActual);
+
+  /* ── Ventana «comparte neurona» (NEU1126E) ── */
+  const yaVista = revision ? fueVista(revision, version) : false;
+  const mostrarCompartida = Boolean(revision) && !yaVista;
+
+  async function crearPropia() {
+    const nombre = (nombreNuevaCompartida.trim() || revision?.nombrePropuesto ?? "").trim();
+    setOcupado(true);
+    setMensaje("");
+    const r = await cambiarNeuronaDeEsteAparato(null, nombre);
+    setOcupado(false);
+    setCaminoCompartida("");
+    if (r.ok) {
+      marcarVista(revision, version);
+      setMensaje(`Este aparato tiene ahora su propia neurona «${nombre}».`);
+    } else {
+      setMensaje("No se pudo crear la neurona propia. No se tocó nada.");
+    }
+  }
+
+  function seguirMisma() {
+    if (!revision) return;
+    marcarVista(revision, version);
+    setMensaje(`Se queda en la misma neurona «${revision.nombreNeurona}».`);
+  }
+
+  function posponerCompartida() {
+    if (!revision) return;
+    marcarPospuesto(revision, version);
+    setMensaje("Aviso pospuesto: sigue visible en Ajustes › Neuronas. Puedes volver cuando quieras.");
+  }
+
+  function fueVista(r: RevisionIdentidad, v?: string): boolean {
+    try {
+      return typeof window !== "undefined" && !!window.localStorage.getItem(claveRevisionVista(v, r.idNeurona));
+    } catch {
+      return false;
+    }
+  }
+
+  function marcarVista(r: RevisionIdentidad, v?: string): void {
+    try {
+      if (typeof window !== "undefined") window.localStorage.setItem(claveRevisionVista(v, r.idNeurona), String(Date.now()));
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+
+  function marcarPospuesto(r: RevisionIdentidad, v?: string): void {
+    try {
+      if (typeof window !== "undefined") window.localStorage.setItem(claveRevisionPospuesto(v, r.idNeurona), String(Date.now()));
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
 
   async function mover(destino: string | null, nombreNuevaNeurona?: string) {
     setOcupado(true);
