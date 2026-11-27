@@ -80,7 +80,7 @@ export const ENTITY_CREATE_TARGETS: Record<EntityKind, EntityCreateTarget> = {
     personal: { href: "/profile", hint: "Perfil público de una cuenta soberana" },
     comunidad: { createEntity: "page", hint: "Página con categoría comunidad" },
     ef: { createEntity: "page", hint: "Entidad Federativa (crear como página)" },
-    partido: { href: "/network/politics", hint: "Coaliciones en el ecosistema político" },
+    partido: { createEntity: "page", href: "/network/politics", hint: "Coaliciones en el ecosistema político" },
     asamblea: { createEntity: "group", hint: "Grupo con categoría asamblea" },
     grupo: { createEntity: "group", hint: "Círculo, colectivo o asamblea" },
     evento: { createEntity: "event", hint: "Encuentro físico o del Multiverso" },
