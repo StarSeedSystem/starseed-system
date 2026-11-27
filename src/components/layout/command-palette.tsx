@@ -13,9 +13,9 @@
  * interna real; las apps solo-externas como Nexus/Café, o sin ruta como
  * Música/Radio «soon», se excluyen porque no hay un `path` al que hacer
  * `router.push`). Se de-duplica por `path` exacto — si dos catálogos apuntan
- * al mismo path gana el preset del dock. Con el estado actual del repo esto
- * agrega 39 destinos del dock + 5 nuevos de APP_CATALOG (audiomorphic,
- * omnifrecuencias, network, clima→/atmosphere, immersive) = 44 destinos.
+ * al mismo path gana el preset del dock. Encima de esos dos catálogos se añaden
+ * los destinos propios de SEN1126A (Cuenta, Cuenta › Neuronas, los 7 pilares de
+ * Cerebros con `?tab=` y Control remoto) con sus sinónimos buscables.
  * DOCK_PRESETS se usa COMPLETO (no solo `enabled:true`): un botón apagado en
  * el dock del usuario sigue siendo una página real y navegable — ese es
  * justamente el valor de una paleta de comandos (llegar a lo que no está
@@ -58,10 +58,12 @@ import {
   ArrowUp,
   Binary,
   Brain,
+  CircleUser,
   Command as CommandIcon,
   CornerDownLeft,
   Cpu,
   Mic,
+  MonitorSmartphone,
   Radio,
   Search,
   SearchX,
@@ -78,6 +80,7 @@ import {
   type DockColor,
 } from "@/components/layout/dock-config";
 import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
+import { PILARES, type Pilar } from "@/components/cerebro/pilares";
 import { openAuroraSetup } from "@/lib/aurora/setup-config";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
@@ -95,6 +98,8 @@ interface PaletteEntry {
   icon: IconComponent;
   color: DockColor;
   activate: () => void;
+  /** Sinónimos buscables que no se ven en la fila (p. ej. «dispositivos»). */
+  keywords?: string;
   /** Cabecera de sección visual (se asigna al construir `rows`, no aquí). */
   group?: string;
 }
@@ -105,11 +110,71 @@ interface PaletteDestination {
   path: string;
   icon: IconComponent;
   color: DockColor;
+  /** Sinónimos buscables que no se ven en la fila (p. ej. «dispositivos»). */
+  keywords?: string;
 }
 
 /* ═══════════════════ Destinos: fusión + de-dupe por path ═══════════════════ */
 
-function buildDestinations(): PaletteDestination[] {
+/** Acento de la paleta por pilar (los pilares usan acentos propios más amplios). */
+const PILAR_COLOR: Record<Pilar, DockColor> = {
+  memoria: "cyan",
+  habilidades: "purple",
+  contexto: "amber",
+  neuronas: "emerald",
+  egos: "crimson",
+  conectores: "cyan",
+  procesos: "amber",
+};
+
+/**
+ * Destinos que el dock/catálogo todavía no exponen (SEN1126A), con los
+ * sinónimos que usa la gente al buscarlos. Si otra parte de la cadena registra
+ * el mismo `path`, no se duplica: sus `keywords` se funden en la entrada que ya
+ * existe, así la búsqueda no pierde «aparatos», «dispositivos» ni «pantalla».
+ */
+function extraDestinations(): PaletteDestination[] {
+  return [
+    {
+      id: "extra:cuenta",
+      label: "Cuenta",
+      path: "/cuenta",
+      icon: CircleUser,
+      color: "neutral",
+      keywords: "cuenta account perfil profile identidad sesion usuario inicio ajustes",
+    },
+    {
+      id: "extra:cuenta-neuronas",
+      label: "Cuenta › Neuronas",
+      path: "/cuenta?section=seguridad",
+      icon: Cpu,
+      color: "emerald",
+      keywords:
+        "cuenta neurona neuronas aparato aparatos dispositivo dispositivos device devices equipo equipos esta neurona mis aparatos seguridad",
+    },
+    ...PILARES.map(
+      (pilar): PaletteDestination => ({
+        id: `extra:cerebro-${pilar.id}`,
+        label: `Cerebros › ${pilar.etiqueta}`,
+        path: `/cerebro?tab=${pilar.id}`,
+        icon: pilar.icono,
+        color: PILAR_COLOR[pilar.id],
+        keywords: `${pilar.id} ${pilar.etiqueta} ${pilar.descripcion} cerebro cerebros pilar pilares`,
+      }),
+    ),
+    {
+      id: "extra:control-remoto",
+      label: "Control remoto",
+      path: "/control-remoto",
+      icon: MonitorSmartphone,
+      color: "cyan",
+      keywords:
+        "control remoto terminal pantalla screen remote escritorio remoto otra neurona monitor teclado raton",
+    },
+  ];
+}
+
+export function buildDestinations(): PaletteDestination[] {
   const seenPaths = new Set<string>();
   const out: PaletteDestination[] = [];
 
@@ -145,7 +210,27 @@ function buildDestinations(): PaletteDestination[] {
     });
   }
 
+  // 3) Destinos fuera del dock/catálogo + fusión de sinónimos por path exacto.
+  const byPath = new Map(out.map((destino) => [destino.path, destino] as const));
+  for (const extra of extraDestinations()) {
+    const existente = byPath.get(extra.path);
+    if (existente) {
+      existente.keywords = [existente.keywords, extra.keywords].filter(Boolean).join(" ");
+      continue;
+    }
+    seenPaths.add(extra.path);
+    out.push(extra);
+    byPath.set(extra.path, extra);
+  }
+
   return out;
+}
+
+export function rankDestinations(destinations: PaletteDestination[], query: string): PaletteDestination[] {
+  return rankEntries(
+    destinations.map((destino) => ({ ...destino, hint: destino.path })),
+    query,
+  );
 }
 
 /* ═══════════════ Matcher fuzzy/substring mínimo (sin dependencias) ═══════════════ */
@@ -184,13 +269,22 @@ function fuzzyScore(text: string, query: string): number | null {
   return score;
 }
 
-/** Filtra + ordena entradas por mejor puntuación (label o hint) contra `query`. */
-function rankEntries(entries: PaletteEntry[], query: string): PaletteEntry[] {
-  const scored: { entry: PaletteEntry; score: number }[] = [];
+/** Lo que la búsqueda puede mirar de una entrada (la fila visible y sus sinónimos). */
+interface SearchableEntry {
+  label: string;
+  hint?: string;
+  keywords?: string;
+}
+
+/** Filtra + ordena por mejor puntuación entre label, hint y sinónimos. */
+function rankEntries<T extends SearchableEntry>(entries: T[], query: string): T[] {
+  const scored: { entry: T; score: number }[] = [];
   for (const entry of entries) {
-    const s1 = fuzzyScore(entry.label, query);
-    const s2 = fuzzyScore(entry.hint, query);
-    const best = s1 === null ? s2 : s2 === null ? s1 : Math.max(s1, s2);
+    const best = [entry.label, entry.hint, entry.keywords]
+      .filter((texto): texto is string => typeof texto === "string")
+      .map((texto) => fuzzyScore(texto, query))
+      .filter((score): score is number => score !== null)
+      .reduce<number | null>((mayor, score) => (mayor === null || score > mayor ? score : mayor), null);
     if (best !== null) scored.push({ entry, score: best });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -374,6 +468,7 @@ export function CommandPalette() {
         hint: d.path,
         icon: d.icon,
         color: d.color,
+        keywords: d.keywords,
         activate: () => {
           pushRecent(d.id);
           router.push(d.path);
