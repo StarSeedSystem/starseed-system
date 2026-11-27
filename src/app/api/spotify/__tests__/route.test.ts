@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/security/rate-limit", () => ({
@@ -15,8 +16,8 @@ vi.mock("@/utils/supabase/server", () => ({
   })),
 }));
 
-function fakeRequest(body: Record<string, unknown>, method = "POST"): Request {
-  return new Request("http://localhost/api/spotify", {
+function fakeRequest(body: Record<string, unknown>, method = "POST"): NextRequest {
+  return new NextRequest("http://localhost/api/spotify", {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -41,7 +42,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
   describe("POST - canjear código", () => {
     it("devuelve error si faltan parámetros", async () => {
       const { POST } = await import("../route");
-      const r = await POST(new Request("http://localhost:9002/api/spotify", {
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
         method: "POST",
         body: JSON.stringify({ code: "test-code" }),
         headers: { "Content-Type": "application/json" },
@@ -56,7 +57,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       delete process.env.SPOTIFY_CLIENT_ID;
       delete process.env.SPOTIFY_CLIENT_SECRET;
 
-      const r = await POST(new Request("http://localhost:9002/api/spotify", {
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
         method: "POST",
         body: JSON.stringify({ code: "test-code", verifier: "verifier", redirectUri: "http://localhost:9002/auth/callback" }),
         headers: { "Content-Type": "application/json" },
@@ -79,7 +80,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       );
 
       const { POST } = await import("../route");
-      const r = await POST(new Request("http://localhost:9002/api/spotify", {
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
         method: "POST",
         body: JSON.stringify({ code: "test-code", verifier: "verifier", redirectUri: "http://localhost:9002/auth/callback" }),
         headers: { "Content-Type": "application/json" },
@@ -112,7 +113,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       );
 
       const { POST } = await import("../route");
-      const r = await POST(new Request("http://localhost:9002/api/spotify", {
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
         method: "POST",
         body: JSON.stringify({ code: "bad-code", verifier: "verifier", redirectUri: "http://localhost:9002/auth/callback" }),
         headers: { "Content-Type": "application/json" },
@@ -127,7 +128,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
   describe("GET - estado de usuario y verificación de premium", () => {
     it("devuelve error si no hay access_token", async () => {
       const { GET } = await import("../route");
-      const r = await GET(new Request("http://localhost:9002/api/spotify"));
+      const r = await GET(new NextRequest("http://localhost:9002/api/spotify"));
       const j = (await r.json()) as { error?: string };
       expect(r.status).toBe(400);
       expect(j.error).toBe("access_token requerido");
@@ -140,7 +141,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       );
 
       const { GET } = await import("../route");
-      const r = await GET(new Request("http://localhost:9002/api/spotify?access_token=invalid-token"));
+      const r = await GET(new NextRequest("http://localhost:9002/api/spotify?access_token=invalid-token"));
       const j = (await r.json()) as { error?: string };
       expect(r.status).toBe(401);
       expect(j.error).toBe("Token inválido o expirado");
@@ -160,7 +161,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       );
 
       const { GET } = await import("../route");
-      const r = await GET(new Request("http://localhost:9002/api/spotify?access_token=test-token"));
+      const r = await GET(new NextRequest("http://localhost:9002/api/spotify?access_token=test-token"));
       const j = (await r.json()) as {
         ok?: boolean;
         usuario?: {
@@ -196,7 +197,7 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
       );
 
       const { GET } = await import("../route");
-      const r = await GET(new Request("http://localhost:9002/api/spotify?access_token=test-token"));
+      const r = await GET(new NextRequest("http://localhost:9002/api/spotify?access_token=test-token"));
       const j = (await r.json()) as {
         ok?: boolean;
         usuario?: { premium: boolean };
@@ -206,18 +207,61 @@ describe("/api/spotify · OAuth y estado de cuenta", () => {
     });
   });
 
-  describe("POST - revocar token", () => {
-    it("confirma la revocación", async () => {
+  describe("POST - dispositivos y control de reproducción (Premium requerido)", () => {
+    it("devuelve error 401 si falta token de acceso", async () => {
       const { POST } = await import("../route");
-      const r = await POST(new Request("http://localhost:9002/api/spotify", {
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
         method: "POST",
-        body: JSON.stringify({ accion: "revocar-token" }),
+        body: JSON.stringify({ accion: "dispositivos" }),
         headers: { "Content-Type": "application/json" },
       }));
-      const j = (await r.json()) as { ok?: boolean; message?: string };
+      expect(r.status).toBe(401);
+    });
+
+    it("lista dispositivos con éxito", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({
+            devices: [{ id: "dev-1", name: "Bocina Sala", type: "Speaker", is_active: true }]
+          }), { status: 200, headers: { "Content-Type": "application/json" } })
+        ) as typeof fetch
+      );
+
+      const { POST } = await import("../route");
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
+        method: "POST",
+        body: JSON.stringify({ accion: "dispositivos" }),
+        headers: { "Content-Type": "application/json", "x-spotify-token": "valid-token" },
+      }));
+
+      const j = (await r.json()) as { devices?: unknown[] };
       expect(r.status).toBe(200);
-      expect(j.ok).toBe(true);
-      expect(j.message).toBe("Conexión revocada");
+      expect(j.devices).toHaveLength(1);
+    });
+
+    it("rechaza control de reproducción si el usuario es Free (403)", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation(async (url: string) => {
+          if (url.includes("/me")) {
+            return new Response(JSON.stringify({ product: "free" }), { status: 200, headers: { "Content-Type": "application/json" } });
+          }
+          return new Response(null, { status: 200 });
+        }) as typeof fetch
+      );
+
+      const { POST } = await import("../route");
+      const r = await POST(new NextRequest("http://localhost:9002/api/spotify", {
+        method: "POST",
+        body: JSON.stringify({ accion: "play", uris: ["spotify:track:123"] }),
+        headers: { "Content-Type": "application/json", "x-spotify-token": "free-token" },
+      }));
+
+      const j = (await r.json()) as { error?: string; premiumRequerido?: boolean };
+      expect(r.status).toBe(403);
+      expect(j.premiumRequerido).toBe(false);
+      expect(j.error).toContain("Spotify Premium");
     });
   });
 });
