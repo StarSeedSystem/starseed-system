@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pruebas adaptador Claude por terminal.
+"""Pruebas adaptador Claude por terminal (CLA1126A).
 
 unittest con la salida real de §2.1 y casos límite.
 """
@@ -9,6 +9,7 @@ import sys
 import subprocess
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +28,9 @@ Approximate, based on local sessions on this machine — does not include other 
 Last 24h · 51 requests · 7 sessions
   92% of your usage was at >150k context
 """
+
+NOT_LOGGED_IN = """Not logged in · Please run /login to authenticate."""
+
 
 class TestInterpretar(unittest.TestCase):
     def test_tres_ventanas_plan_suscripcion(self):
@@ -113,8 +117,12 @@ Current week (Fable): 10% used · resets Nov 14 at 4am (America/Mexico_City)
         r2 = M.interpretar(texto.replace("65% used · resets Nov 14 at 3:59am (America/Mexico_City)", "65% used"), ahora)
         self.assertEqual(r2["extras"].get("lineas_sin_entender"), 1)
 
+
 class TestLeer(unittest.TestCase):
-    def test_entorno_sin_clave_api(self):
+    def setUp(self):
+        M.reset_ultimo_timestamp_para_tests()
+
+    def test_entorno_sin_clave_api_y_con_token(self):
         llamadas = {}
         def fake_ejecutar(cmd, stdin, capture_output, text, timeout, cwd, env):
             llamadas.update({"cmd": cmd, "stdin": stdin, "timeout": timeout, "cwd": cwd, "env": env})
@@ -122,7 +130,9 @@ class TestLeer(unittest.TestCase):
             return R()
         entorno = {"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "XXX", "HOME": "/tmp"}
         home = "/tmp"
-        r = M.leer(ahora=datetime(2026,10,6,18,5,tzinfo=ZoneInfo("America/Mexico_City")), ejecutar=fake_ejecutar, entorno=entorno, home=home)
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "leer_entorno_claude_token", return_value="mi-token-largo"):
+            r = M.leer(ahora=datetime(2026,10,6,18,5,tzinfo=ZoneInfo("America/Mexico_City")), ejecutar=fake_ejecutar, entorno=entorno, home=home)
         self.assertTrue(r["ok"])
         self.assertEqual(llamadas["cmd"], ["claude", "-p", "/usage"])
         self.assertIs(llamadas["stdin"], M.subprocess.DEVNULL)
@@ -130,6 +140,7 @@ class TestLeer(unittest.TestCase):
         self.assertTrue(llamadas["cwd"].endswith("medidores-entrada"))
         self.assertNotIn("ANTHROPIC_API_KEY", llamadas["env"])
         self.assertTrue(llamadas["env"]["PATH"].startswith(os.path.join(home, ".local", "bin")))
+        self.assertEqual(llamadas["env"]["CLAUDE_CODE_OAUTH_TOKEN"], "mi-token-largo")
 
     def test_leer_exito_con_suscripcion(self):
         ahora = datetime(2026,10,6,18,5)
@@ -138,7 +149,9 @@ class TestLeer(unittest.TestCase):
                 stdout = REAL
                 returncode = 0
             return Proc()
-        medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
         self.assertEqual(medidor["id"], "claude")
         self.assertEqual(medidor["proveedor"], "anthropic")
         self.assertEqual(medidor["nombre"], "Claude · plan")
@@ -156,20 +169,62 @@ class TestLeer(unittest.TestCase):
                 stdout = "using your subscription\n"
                 returncode = 0
             return Proc()
-        medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            medidor = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={})
         self.assertEqual(medidor["leido"], "2026-12-30T10:30:00")
+
+    def test_intervalo_minimo_no_cumplido(self):
+        ahora = datetime.now(timezone.utc)
+        with mock.patch.object(M, "_debe_ejecutarse", return_value=False):
+            r = M.leer(ahora=ahora, ejecutar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debe llamarse")), entorno={})
+        self.assertFalse(r["ok"])
+        self.assertIn("intervalo mínimo", r["error"])
+
+    def test_cerrojo_ocupado(self):
+        ahora = datetime.now(timezone.utc)
+        with mock.patch.object(M, "_debe_ejecutarse", return_value=True), \
+             mock.patch.object(M, "esta_ocupado", return_value=True):
+            r = M.leer(ahora=ahora, ejecutar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debe llamarse")), entorno={})
+        self.assertFalse(r["ok"])
+        self.assertIn("cerrojo ocupado", r["error"])
+
+    def test_not_logged_in_envia_aviso(self):
+        ahora = datetime.now(timezone.utc)
+        avisos = []
+        def fake_decir(texto, quien, tipo, tarea):
+            avisos.append({"texto": texto, "quien": quien, "tipo": tipo, "tarea": tarea})
+        def ejecutar_mock(orden, *, stdin, capture_output, text, timeout, cwd, env):
+            class Proc:
+                stdout = NOT_LOGGED_IN
+                returncode = 0
+            return Proc()
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            r = M.leer(ahora=ahora, ejecutar=ejecutar_mock, entorno={}, canal_decir=fake_decir, tarea_id="tarea-123")
+        self.assertFalse(r["ok"])
+        self.assertIn("no está logueado", r["error"])
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("Not logged in", avisos[0]["texto"])
+        self.assertEqual(avisos[0]["quien"], "claude-cerrojo")
+        self.assertEqual(avisos[0]["tipo"], "aviso")
+        self.assertEqual(avisos[0]["tarea"], "tarea-123")
 
     def test_timeout(self):
         def fake_timeout(*a, **kw):
             raise subprocess.TimeoutExpired(cmd="claude", timeout=60)
-        r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_timeout, home="/tmp")
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_timeout, home="/tmp")
         self.assertFalse(r["ok"])
         self.assertIn("timeout", r["error"].lower())
 
     def test_file_not_found(self):
         def fake_fn(*a, **kw):
             raise FileNotFoundError()
-        r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_fn, home="/tmp")
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_fn, home="/tmp")
         self.assertFalse(r["ok"])
         self.assertIn("no encontrado", r["error"])
 
@@ -177,9 +232,19 @@ class TestLeer(unittest.TestCase):
         def fake_err(*a, **kw):
             class R: returncode = 1; stdout = ""
             return R()
-        r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_err, home="/tmp")
+        with mock.patch.object(M, "esta_ocupado", return_value=False), \
+             mock.patch.object(M, "_debe_ejecutarse", return_value=True):
+            r = M.leer(ahora=datetime.now(timezone.utc), ejecutar=fake_err, home="/tmp")
         self.assertFalse(r["ok"])
         self.assertIn("error", r["error"].lower())
+
+
+class TestFuncionesPuras(unittest.TestCase):
+    def test_debe_ejecutarse_puro(self):
+        self.assertTrue(M._debe_ejecutarse_puro(0, 2000, 1800))
+        self.assertFalse(M._debe_ejecutarse_puro(1000, 2000, 1800))
+        self.assertTrue(M._debe_ejecutarse_puro(1000, 3000, 1800))
+
 
 if __name__ == "__main__":
     unittest.main()

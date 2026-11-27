@@ -19,6 +19,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
+# CLA1126A: cerrojo y token para uso automático de claude
+try:
+    from claude_cerrojo import (
+        cerrojo_claude_auto,
+        preparar_env_claude,
+        detectar_no_logueado,
+        avisar_no_logueado,
+    )
+except ImportError:
+    # Fallback si no está disponible (ej. en tests sin el módulo)
+    def cerrojo_claude_auto(*a, **k):
+        from contextlib import nullcontext
+        return nullcontext()
+    def preparar_env_claude(env, ruta_env=None):
+        return env
+    def detectar_no_logueado(salida):
+        return False
+    def avisar_no_logueado(*a, **k):
+        pass
+
 # GEM1119C: integración con flota Antigravity
 try:
     from antigravity_flota import (
@@ -880,15 +900,59 @@ def leer_agy(salida, rc=0) -> dict:
 #: soltar el cerrojo de su estado mientras dura la llamada bloqueante (nadie espera detrás de un proveedor).
 SOLTAR_DURANTE_LLAMADA = None
 
+#: CLA1126A · control de aviso único "Not logged in" por proceso.
+_AVISO_NO_LOGUEADO_ENVIADO = False
 
-def correr(orden, entrada=None, segundos=300, env=None, cwd=None):
+
+def _es_claude_automatico(orden) -> bool:
+    """True si la orden es un uso AUTOMÁTICO de `claude` (no interactivo)."""
+    if not orden or not isinstance(orden, (list, tuple)):
+        return False
+    return orden[0] == "claude" and "-p" in orden
+
+
+def _reset_aviso_no_logueado() -> None:
+    """Reinicia el estado del aviso (para tests)."""
+    global _AVISO_NO_LOGUEADO_ENVIADO
+    _AVISO_NO_LOGUEADO_ENVIADO = False
+
+
+def _marcar_aviso_no_logueado_enviado() -> None:
+    global _AVISO_NO_LOGUEADO_ENVIADO
+    _AVISO_NO_LOGUEADO_ENVIADO = True
+
+
+def _aviso_no_logueado_ya_enviado() -> bool:
+    return _AVISO_NO_LOGUEADO_ENVIADO
+
+
+def correr(orden, entrada=None, segundos=300, env=None, cwd=None, canal_decir=None, tarea_id=None):
     """Ejecuta la orden en su propio grupo de procesos.
 
     Devuelve (rc, salida); al agotar el tiempo mata el grupo completo.
+
+    Para uso AUTOMÁTICO de `claude` (con `-p`):
+    - Adquiere el cerrojo flock (solo uno a la vez)
+    - Usa CLAUDE_CODE_OAUTH_TOKEN de ~/.starseed/env si existe
+    - Si sale "Not logged in", envía UN solo aviso al canal Principal (vía canal_decir)
     """
     gancho = SOLTAR_DURANTE_LLAMADA
-    with (gancho() if gancho else contextlib.nullcontext()):
-        return _correr(orden, entrada, segundos, env, cwd)
+
+    if _es_claude_automatico(orden):
+        # Uso automático de claude: cerrojo + token + aviso único
+        env_preparado = preparar_env_claude(env or os.environ)
+        with cerrojo_claude_auto():
+            with (gancho() if gancho else contextlib.nullcontext()):
+                rc, salida = _correr(orden, entrada, segundos, env_preparado, cwd)
+            if detectar_no_logueado(salida) and not _aviso_no_logueado_ya_enviado():
+                if canal_decir:
+                    avisar_no_logueado(canal_decir, tarea_id)
+                _marcar_aviso_no_logueado_enviado()
+            return rc, salida
+    else:
+        # Otros comandos: comportamiento original
+        with (gancho() if gancho else contextlib.nullcontext()):
+            return _correr(orden, entrada, segundos, env, cwd)
 
 
 def _correr(orden, entrada, segundos, env, cwd):
