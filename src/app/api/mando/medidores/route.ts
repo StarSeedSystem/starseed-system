@@ -507,6 +507,21 @@ async function leerAlmacenamientoNodos(): Promise<DatosMedidores["almacenamiento
 }
 
 /**
+ * (MED1126A) La pastilla «Nodos y almacenamiento» del pulso pide esta clave sola. Se lee el
+ * archivo como mucho una vez cada 60 s (no en cada render ni en cada sondeo) y sin esperar a la
+ * reunión entera de los medidores, que con la Mac cargada tarda segundos.
+ */
+const ALMACENAMIENTO_CADA_MS = 60_000;
+let cacheAlmacenamiento: { t: number; datos: DatosMedidores["almacenamiento"] } | null = null;
+async function almacenamientoCacheado(): Promise<DatosMedidores["almacenamiento"]> {
+    const ahora = Date.now();
+    if (cacheAlmacenamiento && ahora - cacheAlmacenamiento.t < ALMACENAMIENTO_CADA_MS) return cacheAlmacenamiento.datos;
+    const datos = await conTope(leerAlmacenamientoNodos(), 2_000, cacheAlmacenamiento?.datos ?? null);
+    cacheAlmacenamiento = { t: ahora, datos };
+    return datos;
+}
+
+/**
  * Los agentes que trabajan en la NUBE, para que el medidor los cuente.
  *
  * (2026-09-22, Alex: «aún no veo que suba el número de agentes con las capacidades de los
@@ -841,7 +856,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         midiendo("tokens", leerTokens().catch(() => null)),
         midiendo("olasNube", leerOlasDeLaNube().catch(() => [])),
         midiendo("disco", conTope(medirDisco().then(discoParaMedidor), 3_000, undefined)),
-        midiendo("almacenamiento", conTope(leerAlmacenamientoNodos(), 2_000, null)),
+        midiendo("almacenamiento", almacenamientoCacheado()),
         midiendo("memoria", conTope(medirMemoriaMedidor(), 3_000, undefined)),
         leerAutopublicacion().catch(() => null),
         midiendo("enMarcha", leerEnMarcha(null)),
@@ -1107,7 +1122,14 @@ const semillaMedidores = readFile(CACHE_MEDIDORES, "utf8")
     })
     .catch(() => {});
 
-const CLAVES_RAPIDAS = new Set<ClaveMedidor>(["imaginacion", "credito-claude", "creditos", "versiones", "pruebas"]);
+const CLAVES_RAPIDAS = new Set<ClaveMedidor>([
+    "imaginacion",
+    "credito-claude",
+    "creditos",
+    "versiones",
+    "pruebas",
+    "almacenamiento", // MED1126A: solo lee capacidades-nodos.json (caché de 60 s)
+]);
 
 async function aplicarPuertaADatos(
     datosBase: Partial<DatosMedidores>,
@@ -1166,12 +1188,13 @@ export async function GET(peticion: Request): Promise<Response> {
         if (necesitaReunion) {
             await Promise.race([semillaMedidores, new Promise((r) => setTimeout(r, 800))]);
         }
-        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno] = await Promise.all([
+        const [imaginacion, limitesClaude, creditosPago, lanzamientosEstado, turno, almacenamiento] = await Promise.all([
             claves.includes("imaginacion") ? leerImaginacion(ambito) : Promise.resolve(null),
             claves.includes("credito-claude") ? leerLimitesClaude().catch(() => null) : Promise.resolve(null),
             claves.includes("creditos") ? leerCreditosPago().catch(() => null) : Promise.resolve(null),
             claves.includes("versiones") ? leerLanzamientosEstado().catch(() => null) : Promise.resolve(null),
             necesitaReunion ? reunion.obtener() : Promise.resolve(null),
+            claves.includes("almacenamiento") ? almacenamientoCacheado() : Promise.resolve(null),
         ]);
         const base = turno?.datos ?? {};
         const datosDe = turno && turno.t > 0 ? new Date(turno.t).toISOString() : null;
@@ -1193,6 +1216,7 @@ export async function GET(peticion: Request): Promise<Response> {
             else if (c === "creditos") detalles[c] = detalleDeMedidor(c, { creditosPago });
             else if (c === "versiones") detalles[c] = detalleDeMedidor(c, { lanzamientosEstado });
             else if (c === "pruebas") detalles[c] = detalleDeMedidor(c, {});
+            else if (c === "almacenamiento") detalles[c] = detalleDeMedidor(c, { almacenamiento });
             else detalles[c] = detalleDeMedidor(c, datos);
         }
         return Response.json(
@@ -1249,6 +1273,14 @@ export async function GET(peticion: Request): Promise<Response> {
     if (clave === "pruebas") {
         return Response.json(
             { detalle: detalleDeMedidor(clave, {}), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    // MED1126A: la pastilla «Nodos y almacenamiento» del pulso abre este medidor sin la reunión.
+    if (clave === "almacenamiento") {
+        const almacenamiento = await almacenamientoCacheado();
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { almacenamiento }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
