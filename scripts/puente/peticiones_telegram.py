@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Bot Telegram para peticiones de Alex: getUpdates, cola durable, worker, refresh NotebookLM."""
+"""Bot Telegram para peticiones de Maggasukha: getUpdates, cola durable, worker, refresh NotebookLM."""
 import datetime
 import json
 import os
@@ -395,7 +395,42 @@ def tg(metodo: str, datos: dict[str, Any] | None = None, timeout: int = 70) -> d
     return _respuesta_http(lambda: urllib.request.urlopen(url, cuerpo, timeout=timeout))
 
 
+FIRMA_CANAL = "— Audiovisual y diseño"
+
+
+def formatear_para_telegram(texto: str) -> str:
+    """PURA: texto legible en Telegram, sin `###` ni markdown crudo y con viñetas."""
+    t = str(texto or "").replace("\r\n", "\n").replace("\r", "\n")
+    lineas = []
+    for linea in t.split("\n"):
+        m = re.match(r"^\s{0,3}#{1,6}\s+(.*)$", linea)
+        if m:
+            titulo = m.group(1).strip()
+            lineas.append("▸ " + titulo if titulo else "")
+            continue
+        m = re.match(r"^\s*[-*+]\s+(.*)$", linea)
+        if m:
+            lineas.append("• " + m.group(1).strip())
+            continue
+        lineas.append(linea)
+    t = "\n".join(lineas)
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+    t = re.sub(r"__(.+?)__", r"\1", t)
+    t = re.sub(r"`([^`\n]+)`", r"\1", t)
+    return t.strip()
+
+
+def firmar(texto: str, modelo: str = "") -> str:
+    """PURA: añade la firma del canal Audiovisual y diseño una sola vez."""
+    t = formatear_para_telegram(texto)
+    if FIRMA_CANAL in t:
+        return t
+    firma = FIRMA_CANAL + (" · " + modelo.strip() if modelo.strip() else "")
+    return (t + "\n\n" + firma).strip()
+
+
 def decir(texto: str) -> None:
+    texto = formatear_para_telegram(texto)
     for i in range(0, max(len(texto), 1), 3900):
         r = tg("sendMessage", {"chat_id": CHAT, "text": texto[i:i + 3900], "disable_web_page_preview": "true"})
         if not r.get("ok"):
@@ -436,7 +471,7 @@ def subir(ruta: str, nombre: str) -> str:
 
 
 INSTRUCCION = (
-    "Eres el despachador de MetaGenesis (StarSeed). Alex escribe peticiones por Telegram. Devuelve SOLO un "
+    "Eres el despachador de MetaGenesis (StarSeed). Maggasukha escribe peticiones por Telegram. Devuelve SOLO un "
     "objeto JSON, sin texto alrededor, con esta forma: {\"tipo\": \"encargo\" | \"alcance\" | \"descartar\" | "
     "\"notebooklm\" | \"respuesta\", \"fuente\": \"ultima_sintesis\" | \"drive\" | \"cuaderno\" | \"youtube\", "
     "\"drive_id\": \"\", \"urls\": {\"youtube\": [], \"drive\": [], \"web\": []}, "
@@ -523,34 +558,63 @@ def actualizar(pid: int, **cambios: Any) -> None:
         escribir_json(COLA, cola)
 
 
+def _permiso_escritura_drive() -> tuple[bool, str]:
+    """Comprueba el permiso de escritura de la cuenta de documentos `alex-docs` (drive.file).
+
+    No usa `alex.json`, que es de solo lectura: ese era el motivo del aviso repetido
+    («el modo de encargo aún no está listo») en cada mensaje del canal (DIS1126A).
+    """
+    try:
+        tok = token_google("alex-docs")
+        url = ("https://www.googleapis.com/oauth2/v3/tokeninfo?access_token="
+               + urllib.parse.quote(tok))
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            info = json.loads(resp.read().decode("utf-8"))
+        scopes = str(info.get("scope") or "").split()
+        escritura = {"https://www.googleapis.com/auth/drive",
+                     "https://www.googleapis.com/auth/drive.file"}
+        if escritura.intersection(scopes):
+            return True, "alex-docs con permiso de escritura (drive.file)"
+        return False, "alex-docs sin drive.file: " + ", ".join(scopes)
+    except Exception as e:
+        return False, "no pude verificar alex-docs: " + str(e)
+
+
+def _drive_con_cuenta_documentos():
+    """Cliente de Drive que escribe con `alex-docs`, no con la cuenta de solo lectura."""
+    import peticiones_clientes as _pc
+
+    class _ClienteDriveDocumentos(_pc.ClienteDrive):
+        def _token(self) -> str:
+            if self._token_cache is None:
+                self._token_cache = token_google("alex-docs")
+            return self._token_cache
+
+    return _ClienteDriveDocumentos()
+
+
 def _clientes_de_encargo() -> Any:
     """Clientes reales que el productor necesita para un encargo: NotebookLM (create, ask, generate,
     download…) y Drive (carpeta, doc, archivo). DIR1121B: PET1121A los construye en peticiones_clientes.py;
     mientras no existan devuelve None y el encargo se atiende como petición normal. Nunca devuelve las
     funciones sueltas de peticiones_notebooklm (era el fallo «'function' object has no attribute 'doc'»).
 
-    Además, verifica que el token de Google tenga permiso de escritura en Drive. Si solo tiene lectura,
-    devuelve None y queda una acción clara para Alex en acciones-de-alex.
+    Escribe con `alex-docs` (drive.file), que sí tiene permiso; si esa cuenta no está, devuelve None
+    y queda una acción clara para Maggasukha en acciones-de-alex.
     """
     try:
         import peticiones_clientes as _pc
-        nb_c, drive_c = _pc.ClienteNotebookLM(), _pc.ClienteDrive()
+        nb_c, drive_c = _pc.ClienteNotebookLM(), _drive_con_cuenta_documentos()
     except Exception:
         return None
     if not all(callable(getattr(drive_c, m, None)) for m in ("carpeta", "doc", "archivo")):
         return None
     if not all(callable(getattr(nb_c, m, None)) for m in ("create", "ask", "generate", "download")):
         return None
-    # Verificar permiso de escritura en Drive antes de habilitar el modo encargo
-    try:
-        ok, detalle = _pc.verificar_permiso_drive_escritura()
-        if not ok:
-            log("Drive sin permiso de escritura:", detalle)
-            # Registrar acción para Alex (sin imprimir token ni clave)
-            _registrar_accion_alex_drive_escritura(detalle)
-            return None
-    except Exception as e:
-        log("Error verificando permiso Drive:", e)
+    ok, detalle = _permiso_escritura_drive()
+    if not ok:
+        log("Drive sin permiso de escritura (alex-docs):", detalle)
+        _registrar_accion_alex_drive_escritura(detalle)
         return None
     return nb_c, drive_c
 
@@ -1510,8 +1574,9 @@ def drenar_ordenes_mac(enviar_fn=None) -> int:
     with bloqueo:
         escribir_json(ORDENES_MAC, quedan)
     if hechas:
-        decir("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
-              % (hechas, len(quedan)))
+        # Solo registro: este aviso llegaba al canal de diseño cada 20–30 min (DIS1126A).
+        log("Mac de vuelta: %d orden(es) de la cola ejecutada(s); %d pendiente(s)."
+            % (hechas, len(quedan)))
     return hechas
 
 
