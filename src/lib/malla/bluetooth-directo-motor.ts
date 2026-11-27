@@ -290,6 +290,24 @@ export function filtrarSaludosConWifiDirecto(
 }
 
 /**
+ * (BLE1124A) Quita los saludos hacia enlaces en descanso tras una caída (2 s, 5 s, 15 s) o ya dados por mudos:
+ * insistir contra una dirección caducada solo llena el registro de «sin acuse» y no acerca el ligado. Si la
+ * consulta falla, se saluda igual: un error de lectura nunca deja un enlace sin ligar. Puro.
+ */
+export function filtrarSaludosEnDescanso(
+  destinos: ReadonlyArray<{ enlace: string; para: string }>,
+  enDescanso: (enlace: string) => boolean,
+): Array<{ enlace: string; para: string }> {
+  return destinos.filter((d) => {
+    try {
+      return enDescanso(d.enlace) !== true;
+    } catch {
+      return true;
+    }
+  });
+}
+
+/**
  * (AUD1117 · F4) Un enlace que lleva 60 s enviando latidos y no ha recibido ni un byte se marca MUDO: sigue
  * abierto (nada se cierra por la fuerza), pero deja de contar como alcanzable hasta que llegue un byte.
  */
@@ -1195,6 +1213,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
       for (const ms of ESCALA_HOLA_BLE_MS) {
         await deps.dormir(ms);
         if (!abierto(enlace) || ligaduraDeEnlace(ligaduras, enlace, deps.ahora())) return;
+        // (BLE1124A) No se insiste contra un enlace en descanso ni contra uno mudo: la dirección que lo abrió
+        // ya no sirve y el siguiente anuncio (con la dirección nueva) lo traerá de vuelta.
+        if (caido(enlace) || estaMudo(enlace)) continue;
         delete ultimoHola[enlace];
         registro.anotar("reintento", estado?.enlaces.find((x) => x.id === enlace)?.neurona ?? null, `el enlace sigue sin ligar tras ${Math.round(ms / 1000)} s: se vuelve a saludar`, enlace);
         await saludarPendientes().catch(nada);
@@ -1222,7 +1243,9 @@ export function crearRedBle(deps: DepsBle): RedBle {
       }),
       (neurona) => deps.enlaceWifiDirecto?.(neurona) === true,
     );
-    await Promise.all(destinos.map((d) => saludar(d.enlace, d.para, false)));
+    // (BLE1124A) Respetar el descanso: ni se saluda por un enlace caído (2 s/5 s/15 s) ni por uno mudo.
+    const insistibles = filtrarSaludosEnDescanso(destinos, (enlace) => caido(enlace) || estaMudo(enlace));
+    await Promise.all(insistibles.map((d) => saludar(d.enlace, d.para, false)));
   }
 
   async function refrescar(): Promise<void> {
