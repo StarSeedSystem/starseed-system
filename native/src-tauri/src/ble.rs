@@ -568,7 +568,8 @@ fn con_estado<T>(f: impl FnOnce(&mut Estado) -> T) -> T {
     f(&mut g)
 }
 
-fn ahora_ms() -> u64 {
+/// Epoch actual en milisegundos (UTC).
+pub fn ahora_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
@@ -734,7 +735,8 @@ fn leer_cuenta() -> Cuenta {
     }
 }
 
-fn dir_datos() -> Option<PathBuf> {
+/// Carpeta de datos de la app (donde vive `enlaces.log`).
+pub fn dir_datos() -> Option<PathBuf> {
     #[cfg(target_os = "android")]
     {
         if let Some(d) = crate::android::dir_datos() {
