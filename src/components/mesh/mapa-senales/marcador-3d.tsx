@@ -30,7 +30,6 @@ import { AnilloPunteado } from "./suelo-3d";
 const PLANO: [number, number, number] = [-Math.PI / 2, 0, 0];
 const COLOR_SIMULADA = "#fbbf24";
 
-/** Onda que nace del marcador y se desvanece: solo para lo oído «ahora mismo». */
 function Pulso({ radio, color }: { radio: number; color: string }) {
   const malla = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
