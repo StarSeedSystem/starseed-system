@@ -171,6 +171,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native/src-tauri
+      # BAP1127W: Pruebas de lógica Rust solo-std (rustc --test).
+      # Reutiliza la toolchain y la caché del job. continue-on-error: true
+      # mientras se estabiliza; se volverá bloqueante tras una pasada verde.
+      # - name: Probar lógica Rust solo-std
+      #   run: bash scripts/ci/probar-logica-rust.sh
+      #   continue-on-error: true
       # Proyecto Tauri OFICIAL desde 2026-09-24: native/src-tauri (identifier
       # app.starseed.os). El root src-tauri/ quedó retirado (ver
       # .github/workflows/desktop-release.yml) y ya no se comprueba aquí.
