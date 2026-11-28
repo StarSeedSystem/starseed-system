@@ -7710,3 +7710,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 05:52 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Lo que ya existe
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (CAP-skill-coop-sync-testing-usob, ALM1118A-d2b, CAP-mcp-brave-search-conectar-d2b). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAP-skill-coop-sync-testing-usob` — no escribió nada
+- `ALM1118A-d2b` — no escribió nada
+- `CAP-mcp-brave-search-conectar-d2b` — no escribió nada
