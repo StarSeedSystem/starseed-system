@@ -107,3 +107,26 @@ describe("entityCreationOptions · Centro de Creación sin duplicar", () => {
         expect(proyecto?.hint).toBe(ENTITY_CREATE_TARGETS.proyecto.hint);
     });
 });
+
+describe("destinos de creación · evento y partido", () => {
+    it("el evento usa el flujo de evento, nunca «page»", () => {
+        expect(ENTITY_CREATE_TARGETS.evento.createEntity).toBe("event");
+    });
+
+    it("cada tipo declara al menos un destino de creación válido", () => {
+        for (const target of Object.values(ENTITY_CREATE_TARGETS)) {
+            const flujoValido =
+                target.createEntity === "page" ||
+                target.createEntity === "group" ||
+                target.createEntity === "event";
+            const rutaValida = typeof target.href === "string" && target.href.startsWith("/");
+            expect(flujoValido || rutaValida).toBe(true);
+        }
+    });
+
+    it("el partido político conserva un destino válido y su pista", () => {
+        const partido = ENTITY_CREATE_TARGETS.partido;
+        expect(partido.createEntity ?? partido.href).toBeTruthy();
+        expect(partido.hint.length).toBeGreaterThan(0);
+    });
+});

@@ -67,14 +67,23 @@ export interface EntityKindMeta {
  * fuente de los destinos: la fila de entidades NO duplica etiquetas, iconos ni
  * rutas, solo referencia este registro y `ENTITY_KINDS`.
  */
-export interface EntityCreateTarget {
-    /** Flujo real `?createEntity=` del EntityEditorDialog. */
-    createEntity?: "page" | "group" | "event";
-    /** Ruta destino cuando el tipo se gestiona en su propio ecosistema. */
-    href?: string;
-    /** Pista corta para el enlace de creación. */
-    hint: string;
-}
+export type EntityCreateTarget =
+    | {
+          /** Flujo real `?createEntity=` del EntityEditorDialog. */
+          createEntity: "page" | "group" | "event";
+          /** Ruta alternativa (opcional) además del flujo de creación. */
+          href?: string;
+          /** Pista corta para el enlace de creación. */
+          hint: string;
+      }
+    | {
+          /** Sin flujo de diálogo: el tipo se crea en su propio ecosistema. */
+          createEntity?: undefined;
+          /** Ruta destino propia y obligatoria (p. ej. partidos). */
+          href: string;
+          /** Pista corta para el enlace de creación. */
+          hint: string;
+      };
 
 export const ENTITY_CREATE_TARGETS: Record<EntityKind, EntityCreateTarget> = {
     personal: { href: "/profile", hint: "Perfil público de una cuenta soberana" },
