@@ -4,6 +4,12 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+import {
+  anuncioOfertaAlmacen,
+  sanearOfertaAlmacen,
+  type OfertaAlmacen,
+  type OfertaAlmacenAnuncio,
+} from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -49,6 +55,8 @@ export interface CapacidadesNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** (ALC1125F) Oferta de almacenamiento como señal de capa; ausente = no ofrece. */
+  almacenOferta?: OfertaAlmacenAnuncio;
   /** Build de la capa que sirve el servidor local (web_corre). */
   capaBuild?: string;
   /** Versión de la app (interfaz). */
@@ -204,6 +212,8 @@ export interface DatosFichaNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** (ALC1125F) Oferta de almacenamiento; se sanea y se anuncia resumida. Apagada por defecto. */
+  almacenOferta?: OfertaAlmacen | null;
   /** Build de la capa que sirve el servidor local (web_corre). */
   capaBuild?: string;
   /** Versión de la app (interfaz). */
@@ -224,6 +234,9 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
   const voz = normalizarVoz(d.voz);
+  const almacenOferta = d.almacenOferta
+    ? anuncioOfertaAlmacen(sanearOfertaAlmacen(d.almacenOferta))
+    : undefined;
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -246,6 +259,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(voz ? { voz } : {}),
     ...(d.discoLibreGb !== undefined ? { discoLibreGb: d.discoLibreGb } : {}),
     ...(d.almacen !== undefined ? { almacen: d.almacen } : {}),
+    ...(almacenOferta ? { almacenOferta } : {}),
     ...(d.capaBuild !== undefined ? { capaBuild: d.capaBuild } : {}),
     ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
     ...(d.rol !== undefined ? { rol: d.rol } : {}),
