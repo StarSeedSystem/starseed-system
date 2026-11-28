@@ -16,6 +16,7 @@ import {
     entityCreationOptions,
     entityKindMeta,
     normalizeEntityKind,
+    type EntityKind,
 } from "@/lib/entity-kinds";
 
 describe("normalizeEntityKind · vocabularios tolerantes", () => {
@@ -34,6 +35,30 @@ describe("normalizeEntityKind · vocabularios tolerantes", () => {
         expect(normalizeEntityKind("consejo")).toBe("asamblea");
         expect(normalizeEntityKind("festival")).toBe("evento");
         expect(normalizeEntityKind("Entidad Federativa")).toBe("ef");
+    });
+
+    it("reconoce los tipos reales del Centro de Creación y del Lienzo", () => {
+        const reales: Array<[string, EntityKind]> = [
+            ["grupo", "grupo"],
+            ["pagina", "pagina"],
+            ["evento", "evento"],
+            ["partido", "partido"],
+            ["ef", "ef"],
+            ["asamblea", "asamblea"],
+            ["comunidad", "comunidad"],
+            ["entidad", "ef"],
+            ["proyecto", "proyecto"],
+        ];
+        for (const [entrada, canonica] of reales) {
+            expect(normalizeEntityKind(entrada)).toBe(canonica);
+            expect(ENTITY_KINDS[canonica].key).toBe(canonica);
+        }
+    });
+
+    it("«entidad» (kind vivo de os_pages) resuelve a la E.F. canónica", () => {
+        expect(normalizeEntityKind("entidad")).toBe("ef");
+        expect(normalizeEntityKind("Entidad")).toBe("ef");
+        expect(entityKindMeta("entidad")).toBe(ENTITY_KINDS.ef);
     });
 
     it("cae a «pagina» con vacío o desconocido, sin lanzar", () => {
