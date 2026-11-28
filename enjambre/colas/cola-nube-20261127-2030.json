@@ -1,0 +1,82 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "nfc-1126",
+   "prioridad": 84,
+   "capacidad": "media",
+   "id": "NFC1126L-d1",
+   "titulo": "NFC (12): sala de sonido compartida — interfaz (cola, quién controla, niveles por fuente) en Señales, el centro de control y el reproductor (parte 1 de 3)",
+   "archivos": [
+    "src/components/sala-sonido/sala-sonido.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/nfc-neuronas.md §11. Interfaz de la sala: quién está, cola común (añadir desde archivos, Biblioteca o la app), lo que suena, quién controla (una, elegidas, todas), mezclador con nivel, ecualizador y limitador por fuente, y visibilidad. Accesible desde la hoja «Cerca de ti», Señales y el centro de control. Diseño del OS, accesible y sin salirse en pantallas chicas.\n\n## PARTE 1 DE 3 (la dirección dividió NFC1126L: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/sala-sonido/sala-sonido.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NFC1126L",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "NFC1126K",
+    "NFC1126I"
+   ]
+  },
+  {
+   "id": "TRM1125Hs",
+   "prioridad": 78,
+   "capacidad": "alta",
+   "titulo": "Ayudante en los paquetes de Linux: postinst del .deb/.rpm y activación con pkexec en la AppImage · lo que faltó: native/src-tauri/recursos/ayudante-linux-activar.sh",
+   "archivos": [
+    "native/src-tauri/recursos/ayudante-linux-activar.sh"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de TRM1125H, que ya está integrada (sha 6a40c5b2de65). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: native/src-tauri/recursos/ayudante-linux-activar.sh.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Ayudante en los paquetes de Linux: postinst del .deb/.rpm y activación con pkexec en la AppImage\n\n--- encargo original, como contexto ---\nContrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. El .deb y el .rpm instalan el ayudante de TRM1125C y su regla de sudoers limitada (visudo -c) en postinst y lo quitan en prerm; la AppImage lo ofrece la primera vez con pkexec (la persona autoriza en su sistema). Instalarlo no enciende ningún permiso. Pruebas: bash -n y que tauri.conf.json sigue siendo válido.",
+   "ola": "terminal-neuronas-1125",
+   "origen": "seguimiento de alcance parcial",
+   "dependencias_ya_en_main": [
+    "TRM1125C-d2",
+    "TRM1125J-d3"
+   ]
+  },
+  {
+   "id": "ALC1125F",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Almacenes: la capacidad de almacenamiento como señal de capa (privada, grupo, comunidad, pública)",
+   "archivos": [
+    "src/lib/almacenes/oferta.ts",
+    "src/lib/network/capacidades-nodo.ts",
+    "src/lib/almacenes/__tests__/oferta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 5 (última parte): la oferta de almacenamiento se anuncia como las demás capacidades de la neurona (reutiliza capacidades-nodo.ts y el patrón de internet compartido y capacidad por malla): cuánto, a quién (privada, grupo, comunidad, pública), cuándo y con qué tope; apagada por defecto. Pruebas.",
+   "prioridad": 72,
+   "dependencias_ya_en_main": [
+    "ALC1125A",
+    "ALC1125E-d2"
+   ]
+  },
+  {
+   "id": "CRE1125B",
+   "titulo": "Corregir tipos de entidad en entity-kinds.ts",
+   "archivos": [
+    "src/lib/entity-kinds.ts"
+   ],
+   "depende": [],
+   "prompt": "Verifica que EntityKind (src/lib/entity-kinds.ts) incluye todos los tipos que usan de verdad src/components/creation/creation-center.tsx y src/components/creation/lienzo-composer.tsx (grupo, pagina, evento, partido, ef, asamblea, comunidad, entidad, proyecto…), sin inventar tipos nuevos. Si la tarea de cuarentena REAPLICAR-20261125-213001 ya lo dejó bien, no cambies nada. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70,
+   "dependencias_ya_en_main": [
+    "REAPLICAR-20261125-213001"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-083744.json": [
+   "NFC1126L-d1",
+   "ALC1125F",
+   "CRE1125B",
+   "TRM1125Hs"
+  ]
+ }
+}
