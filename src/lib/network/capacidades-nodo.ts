@@ -1,14 +1,21 @@
 /**
  * capacidades-nodo.ts — Capacidades de cada nodo en la red mesh.
  * Anuncio, deliberación con BitNet, reflejo con Needle y resumen de red.
+ * Incluye oferta de almacenamiento como señal de capa (§5 ALC1125F):
+ * cuánto, a quién (privada, grupo, comunidad, pública), cuándo y con qué tope.
+ * Apagada por defecto.
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+import type { AmbitoOferta, OfertaAlmacenamiento, ResumenOferta } from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
 /** Ámbitos que un nodo puede servir (§7 del contrato de capas). */
 export type AmbitoFicha = "propio" | "cuenta" | "publico";
+
+/** Ámbitos de oferta de almacenamiento (§5 ALC1125F): privada (cuenta), grupo, comunidad, pública. */
+export type AmbitoOfertaAlmacen = "privada" | "grupo" | "comunidad" | "publica";
 
 /** Privacidad de la tarea que pregunta por candidatos (§5). */
 export type PrivacidadConsulta = "privada" | "ambito" | "publica";
@@ -57,6 +64,12 @@ export interface CapacidadesNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Ofertas de almacenamiento activas de este nodo (§5 ALC1125F). Apagadas por defecto. */
+  ofertasAlmacenamiento?: ResumenOferta[];
+  /** Total de bytes ofrecidos en almacenamiento (suma de ofertas activas). */
+  almacenOfrecidoBytes?: bigint;
+  /** Total de bytes libres en ofertas de almacenamiento. */
+  almacenLibreBytes?: bigint;
 }
 
 /* ---- Voz medida (VZF1015Q · architecture/voz-fusionada-astraura.md §5) ---- */
@@ -212,6 +225,12 @@ export interface DatosFichaNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Ofertas de almacenamiento completas para calcular resumen (§5 ALC1125F). */
+  ofertasAlmacenamiento?: OfertaAlmacenamiento[];
+  /** Total de bytes ofrecidos en almacenamiento (calculado si no se pasa). */
+  almacenOfrecidoBytes?: bigint;
+  /** Total de bytes libres en ofertas de almacenamiento (calculado si no se pasa). */
+  almacenLibreBytes?: bigint;
 }
 
 /**
@@ -224,6 +243,23 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
   const voz = normalizarVoz(d.voz);
+
+  // Calcular resumen de ofertas de almacenamiento (§5 ALC1125F)
+  const ofertas = d.ofertasAlmacenamiento ?? [];
+  const ofertasActivas = ofertas.filter((o) => o.activa);
+  const almacenOfrecidoBytes = d.almacenOfrecidoBytes ?? ofertasActivas.reduce((sum, o) => sum + o.bytesOfrecidos, BigInt(0));
+  const almacenLibreBytes = d.almacenLibreBytes ?? ofertasActivas.reduce((sum, o) => sum + (o.bytesOfrecidos - o.bytesComprometidos), BigInt(0));
+  const resumenOfertas: ResumenOferta[] = ofertasActivas.map((o) => ({
+    id: o.id,
+    nodoId: o.nodoId,
+    almacenId: o.almacenId,
+    ambito: o.ambito,
+    bytesOfrecidos: o.bytesOfrecidos,
+    bytesLibres: o.bytesOfrecidos - o.bytesComprometidos,
+    activa: o.activa,
+    prioridad: o.prioridad,
+  }));
+
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -250,6 +286,9 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
     ...(d.rol !== undefined ? { rol: d.rol } : {}),
     ...(d.slotsLibres !== undefined ? { slotsLibres: d.slotsLibres } : {}),
+    ...(resumenOfertas.length > 0 ? { ofertasAlmacenamiento: resumenOfertas } : {}),
+    ...(almacenOfrecidoBytes > BigInt(0) ? { almacenOfrecidoBytes } : {}),
+    ...(almacenLibreBytes > BigInt(0) ? { almacenLibreBytes } : {}),
   };
 }
 
@@ -457,4 +496,77 @@ export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
     conJev: conJev.length,
     adaptadorMasNuevo: conAdaptador.length > 0 ? conAdaptador[0].needle!.adaptador! : null,
   };
+}
+
+/* ---- Ofertas de almacenamiento (§5 ALC1125F) ---- */
+
+/**
+ * Filtra nodos que tienen ofertas de almacenamiento activas para un ámbito dado.
+ * Reutiliza el patrón de `filtrarPorPrivacidad` para internet compartido y capacidad por malla.
+ */
+export function filtrarPorOfertaAlmacenamiento(
+  nodos: CapacidadesNodo[],
+  ambito: AmbitoOfertaAlmacen,
+  bytesMinimos: bigint = BigInt(0)
+): CapacidadesNodo[] {
+  return nodos.filter((n) => {
+    const ofertas = n.ofertasAlmacenamiento ?? [];
+    return ofertas.some((o) => o.ambito === ambito && o.activa && o.bytesLibres >= bytesMinimos);
+  });
+}
+
+/**
+ * Obtiene las ofertas de almacenamiento de un nodo para un ámbito específico.
+ */
+export function ofertasDeNodo(
+  nodo: CapacidadesNodo,
+  ambito?: AmbitoOfertaAlmacen
+): ResumenOferta[] {
+  const ofertas = nodo.ofertasAlmacenamiento ?? [];
+  if (!ambito) return ofertas;
+  return ofertas.filter((o) => o.ambito === ambito && o.activa);
+}
+
+/**
+ * Calcula el total de bytes libres en ofertas de almacenamiento de un conjunto de nodos.
+ */
+export function totalAlmacenLibre(nodos: CapacidadesNodo[], ambito?: AmbitoOfertaAlmacen): bigint {
+  let total = BigInt(0);
+  for (const n of nodos) {
+    const ofertas = ofertasDeNodo(n, ambito);
+    for (const o of ofertas) total += o.bytesLibres;
+  }
+  return total;
+}
+
+/**
+ * Selecciona el mejor nodo para almacenar datos según ofertas, prioridad y bytes libres.
+ * Devuelve el nodo y la oferta seleccionada, o null si no hay capacidad.
+ */
+export function elegirNodoParaAlmacenamiento(
+  nodos: CapacidadesNodo[],
+  bytesNecesarios: bigint,
+  ambito: AmbitoOfertaAlmacen
+): { nodo: CapacidadesNodo; oferta: ResumenOferta } | null {
+  const candidatos = filtrarPorOfertaAlmacenamiento(nodos, ambito, bytesNecesarios);
+  if (candidatos.length === 0) return null;
+
+  let mejor: { nodo: CapacidadesNodo; oferta: ResumenOferta; score: number } | null = null;
+
+  for (const nodo of candidatos) {
+    const ofertas = ofertasDeNodo(nodo, ambito);
+    for (const oferta of ofertas) {
+      // Score: prioridad * 1000 + bytesLibres (normalizado a GB) - penalización por uso
+      const prioridadScore = oferta.prioridad * 1000;
+      const libreGb = Number(oferta.bytesLibres) / 1e9;
+      const usoRatio = Number(oferta.bytesOfrecidos - oferta.bytesLibres) / Number(oferta.bytesOfrecidos);
+      const score = prioridadScore + libreGb * 10 - usoRatio * 100;
+
+      if (!mejor || score > mejor.score) {
+        mejor = { nodo, oferta, score };
+      }
+    }
+  }
+
+  return mejor ? { nodo: mejor.nodo, oferta: mejor.oferta } : null;
 }
