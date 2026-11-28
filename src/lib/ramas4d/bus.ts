@@ -102,7 +102,7 @@ export function crearBusRamas4D(config: BusConfig) {
   function suscribirAFuentes() {
     for (const fuente of fuentes) {
       const desuscribir = fuente.suscribir((evento) => {
-        notificarGrafo({ ...evento, fuenteId: fuente.id, t: Date.now() });
+        notificarGrafo({ ...evento, fuenteId: fuente.id, t: Date.now() } as FuenteEvento);
         void actualizarDesdeFuentes();
       });
       suscripcionesFuentes.push(desuscribir);
