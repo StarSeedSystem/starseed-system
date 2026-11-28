@@ -1,4 +1,5 @@
 export * from './modelo';
+export * from './agrupar';
 export * from './capas';
 export * from './alcance';
 export * from './fuentes/tipos';
