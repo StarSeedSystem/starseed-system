@@ -93,7 +93,7 @@ export function medioANodo(medio: MedioEntrada): Nodo {
     tipo: "proceso",
     titulo: medio.etiqueta,
     formato: "app",
-    ref: `/neuronas/${encodeURIComponent(medio.neuronaId)}/medios/${encodeURIComponent(medio.m) ?? encodeURIComponent(medio.id)}`,
+    ref: `/neuronas/${encodeURIComponent(medio.neuronaId)}/medios/${encodeURIComponent(medio.id)}`,
     alcance: medio.propio ? "privado" : "contactos",
     dueno: medio.propio ? "local" : medio.neuronaId,
     capas: ["senales", "malla", "medios"],
