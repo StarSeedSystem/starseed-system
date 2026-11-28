@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { PanelAstrauraActualizaciones } from "../panel-astraura-actualizaciones";
+import {
+  PanelAstrauraActualizaciones,
+  etiquetaAccion,
+  esAvisoDecide,
+} from "../panel-astraura-actualizaciones";
 
 describe("PanelAstrauraActualizaciones", () => {
   afterEach(() => {
@@ -37,5 +41,18 @@ describe("PanelAstrauraActualizaciones", () => {
     render(<PanelAstrauraActualizaciones estados={{ logAprendizaje: log }} />);
     expect(screen.getAllByText("Último ciclo nocturno")[0]).toBeInTheDocument();
     expect(screen.getByText("publicado")).toBeInTheDocument();
+  });
+
+  it("muestra Maggasukha en el aviso y acepta el texto viejo guardado", () => {
+    render(
+      <PanelAstrauraActualizaciones estados={{ needle: { siguiente_mayor: { needle4: true } } }} />
+    );
+    expect(screen.getAllByText("aviso: decide Maggasukha").length).toBeGreaterThan(0);
+    expect(screen.queryByText("aviso: decide Alex")).toBeNull();
+    expect(esAvisoDecide("aviso: decide Alex")).toBe(true);
+    expect(esAvisoDecide("aviso: decide Maggasukha")).toBe(true);
+    expect(esAvisoDecide("se actualiza solo")).toBe(false);
+    expect(etiquetaAccion("aviso: decide Alex")).toBe("aviso: decide Maggasukha");
+    expect(etiquetaAccion("al día")).toBe("al día");
   });
 });

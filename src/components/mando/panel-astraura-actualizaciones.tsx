@@ -14,6 +14,19 @@ const COMANDOS: Record<SistemaActualizacion, string> = {
   "Repo Astraura": "bash update_astraura.sh",
 };
 
+/**
+ * Etiqueta visible de la acción. El dato guardado todavía puede traer el nombre viejo
+ * («aviso: decide Alex»), así que aquí se muestra el nombre actual, Maggasukha.
+ */
+export function etiquetaAccion(accion: string): string {
+  return accion === "aviso: decide Alex" ? "aviso: decide Maggasukha" : accion;
+}
+
+/** El texto viejo y el nuevo cuentan como el mismo aviso: hay datos guardados con «Alex». */
+export function esAvisoDecide(accion: string): boolean {
+  return accion === "aviso: decide Alex" || accion === "aviso: decide Maggasukha";
+}
+
 export interface PanelAstrauraActualizacionesProps { estados?: EntradaEstados; }
 
 export function PanelAstrauraActualizaciones({ estados = {} }: PanelAstrauraActualizacionesProps) {
@@ -90,10 +103,10 @@ export function PanelAstrauraActualizaciones({ estados = {} }: PanelAstrauraActu
                   <td className="py-2.5">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] border ${
                       f.accion === "se actualiza solo" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" :
-                      f.accion === "aviso: decide Alex" ? "border-amber-400/30 bg-amber-500/10 text-amber-300" :
+                      esAvisoDecide(f.accion) ? "border-amber-400/30 bg-amber-500/10 text-amber-300" :
                       "border-white/10 bg-white/5 text-white/50"
                     }`}>
-                      {f.accion}
+                      {etiquetaAccion(f.accion)}
                     </span>
                   </td>
                   <td className="py-2.5 text-right">

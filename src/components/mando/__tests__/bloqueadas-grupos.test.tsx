@@ -59,7 +59,14 @@ describe("BloqueadasGrupos", () => {
         expect(screen.queryByTestId("bloqueadas-atascadas")).toBeNull();
     });
 
-    it("el botón manda la decisión de Alex", async () => {
+    it("nombra a Maggasukha, no a Alex, en la decisión", () => {
+        render(<BloqueadasGrupos detalle={detalle} />);
+        const bloque = screen.getByTestId("bloqueadas-alex");
+        expect(bloque).toHaveTextContent("Necesitan a Maggasukha · una decisión");
+        expect(bloque).not.toHaveTextContent("Necesitan a Alex");
+    });
+
+    it("el botón manda la decisión de Maggasukha", async () => {
         const cuerpos: unknown[] = [];
         vi.stubGlobal(
             "fetch",
