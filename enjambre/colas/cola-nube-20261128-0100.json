@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "id": "MV1125K",
+   "ola": "multiverso-1125",
+   "titulo": "Educación: ramificaciones 3D/4D útiles de verdad (rutas, prerrequisitos, progreso y ramas de cualquier formato)",
+   "archivos": [
+    "src/lib/ramas4d/plantillas/educacion.ts",
+    "src/components/education/ramas-educacion.tsx",
+    "src/components/education/topic-graph.tsx",
+    "src/lib/ramas4d/__tests__/plantilla-educacion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Alex: «en la sección de educación del hub social hay muchos formatos pero ninguno es realmente útil para las ramificaciones 3D». Plantilla Educación del contrato: rutas de aprendizaje como ramas, prerrequisitos como aristas dirigidas, progreso propio y del grupo (brillo y anillos), ramas de cualquier formato (lección, vídeo, ejercicio, proyecto, sesión en vivo, evaluación, enlace), siguiente paso recomendado y huecos de la ruta. ramas-educacion.tsx usa visor-ramas con esta plantilla; en topic-graph.tsx la vista 3D pasa a ser la nueva y la anterior queda como «Vista clásica» en el selector (no se borra topic-graph-3d.tsx). Pruebas de la plantilla.",
+   "prioridad": 80,
+   "capacidad": "alta",
+   "rol": "diseno",
+   "revisor_quitadas": [
+    "MV1125H"
+   ],
+   "dependencias_ya_en_main": [
+    "MV1125R1"
+   ]
+  },
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "medio": "nube",
+   "t_reasignada": 1795470337.643998,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 430,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-agent-reach-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:15"
+   },
+   "id": "CAP-skill-agent-reach-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 02:26:39\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "CAP-skill-agent-reach-usob",
+   "MV1125K"
+  ]
+ }
+}
