@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "ola": "nombre-maggasukha-1125",
+   "prioridad": 74,
+   "id": "NOM1125A-d1",
+   "titulo": "Maggasukha en vez de «Alex» en la interfaz de Genesis, MetaGenesis y Astraura (parte 1 de 5)",
+   "archivos": [
+    "src/components/mando/bloqueadas-grupos.tsx",
+    "src/components/mando/panel-astraura-actualizaciones.tsx",
+    "src/components/mando/panel-te-toca.tsx"
+   ],
+   "depende": [],
+   "prompt": "Petición de Maggasukha (25-11, la ha repetido muchas veces): su nombre es Maggasukha y debe usarse en vez de «Alex» en todos los medios y canales de MetaGenesis. Regla permanente en metagenesis.md (DIR1125AH). Cambia «Alex» por «Maggasukha» SOLO en textos que lee una persona o un modelo (mensajes, avisos, etiquetas, botones, títulos, prompts, motivos). NO cambies: identificadores (rol \"alex\", claves como requiere_alex o reservar_alex, rutas /Users/alex, nombres de archivo como acciones-de-alex.py), comentarios ni docstrings históricos, ni el nombre completo de autor en créditos de paquetes. Si un texto se compara o se busca con una expresión en otro sitio (p. ej. «la decide Alex», «aviso: decide Alex», «es de Alex», «Acciones de Alex»), cambia el que lo produce y los que lo leen a la vez, y haz que los lectores acepten también el texto viejo (hay datos guardados con él). Actualiza las pruebas que comprueban esos textos (sin debilitarlas). Toca solo los archivos listados; si un lector está fuera de la lista, deja el texto viejo en ese caso y dilo en la nota. En la interfaz: etiquetas como «Requiere Alex», «Necesitan a Alex», «Alex (tú)», «Lo envía Alex», «Mac de Alex», «la decide Alex», el remitente por defecto «Alex · StarSeed OS» y las citas de las pistas (hint='Alex: \"…\"'). Si un valor como «aviso: decide Alex» lo produce un script de scripts/puente, acepta los dos textos al comparar. Pruebas con vitest de lo que cambie.\n\n## PARTE 1 DE 5 (la dirección dividió NOM1125A: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/mando/bloqueadas-grupos.tsx, src/components/mando/panel-astraura-actualizaciones.tsx, src/components/mando/panel-te-toca.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NOM1125A",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-083744.json": [
+   "NOM1125A-d1"
+  ]
+ }
+}
