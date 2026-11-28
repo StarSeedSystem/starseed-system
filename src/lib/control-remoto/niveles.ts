@@ -12,6 +12,7 @@ import { RE_NEG, MAX_PARTES, leerParte } from "./senal-partes";
 import { validarPideCuadro } from "./cuadro-malla";
 import { validarComandoTerminal } from "./terminal";
 import { validarArgsPruebaControl } from "./prueba-control";
+import { validarArgsAndroid, catalogoAndroid } from "@/lib/ayudante/android";
 
 export type Nivel = "ver" | "controlar" | "modificar" | "administrar";
 export type NivelTerminal = "usuario" | "administrador";
@@ -316,6 +317,18 @@ export const ACCIONES: Readonly<Record<string, DefAccion>> = {
                 : null,
         que: "lee el registro de comandos de terminal ejecutados",
     },
+    // TRM1125I · Android sin root: órdenes tipadas que el sistema permite a una app
+    "almacen-estado": { nivel: "ver", validar: (a) => validarArgsAndroid("almacen-estado", a), que: "estado de los almacenes accesibles (SAF)" },
+    "almacen-salud": { nivel: "ver", validar: (a) => validarArgsAndroid("almacen-salud", a), que: "salud de un volumen (por ID de documento SAF)" },
+    "almacen-acceder": { nivel: "modificar", validar: (a) => validarArgsAndroid("almacen-acceder", a), que: "solicita acceso a un directorio/volumen vía SAF (pide consentimiento)" },
+    "ajustes-abrir": { nivel: "ver", validar: (a) => validarArgsAndroid("ajustes-abrir", a), que: "abre la pantalla de ajustes del sistema indicada (no cambia nada, solo navega)" },
+    "pantalla-proyectar": { nivel: "ver", validar: (a) => validarArgsAndroid("pantalla-proyectar", a), que: "inicia proyección de pantalla (MediaProjection) — pide consentimiento cada sesión" },
+    "accesibilidad-estado": { nivel: "ver", validar: (a) => validarArgsAndroid("accesibilidad-estado", a), que: "informa si el servicio de accesibilidad de StarSeed está habilitado" },
+    "superposicion-estado": { nivel: "ver", validar: (a) => validarArgsAndroid("superposicion-estado", a), que: "informa si el permiso de superposición (draw over apps) está concedido" },
+    "bateria-estado": { nivel: "ver", validar: (a) => validarArgsAndroid("bateria-estado", a), que: "estado de la batería (nivel, carga, temperatura)" },
+    "red-estado": { nivel: "ver", validar: (a) => validarArgsAndroid("red-estado", a), que: "estado de la red (Wi‑Fi, móvil, VPN, IP)" },
+    "notificaciones-leer": { nivel: "ver", validar: (a) => validarArgsAndroid("notificaciones-leer", a), que: "lee notificaciones visibles (requiere NotificationListenerService habilitado)" },
+    "ajustes-rapidos-toggle": { nivel: "controlar", validar: (a) => validarArgsAndroid("ajustes-rapidos-toggle", a), que: "conmuta un tile de ajustes rápidos (wifi, bluetooth, avion, etc.) — no abre Ajustes" },
 };
 
 export function definicion(nombre: unknown): DefAccion | null {

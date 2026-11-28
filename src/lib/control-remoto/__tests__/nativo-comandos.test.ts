@@ -8,7 +8,7 @@ import { COMANDOS_NATIVOS } from "../nativo-comandos";
 
 const raiz = join(__dirname, "..", "..", "..", "..");
 const leer = (r: string) => readFileSync(join(raiz, r), "utf8");
-const RUST = ["native/src-tauri/src/control_entrada.rs", "native/src-tauri/src/control_pantalla.rs"].map(leer).join("\n");
+const RUST = ["native/src-tauri/src/control_entrada.rs", "native/src-tauri/src/control_pantalla.rs", "native/src-tauri/src/control_android.rs"].map(leer).join("\n");
 const WEB = ["src/lib/control-remoto/pantalla-origen.ts", "src/lib/control-remoto/pantalla-destino.ts", "src/lib/control-remoto/nativo.ts"].map((f) => leer(f)).join("\n");
 
 function argsDeRust(nombre: string): { args: string[]; snake: boolean } {

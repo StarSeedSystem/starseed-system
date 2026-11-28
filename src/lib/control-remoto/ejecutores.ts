@@ -17,6 +17,26 @@
 import type { Args } from "./niveles";
 import { validarArgsPruebaControl, finalizarPrueba, type ArgsPruebaControl, type InformePruebaControl } from "./prueba-control";
 import { fuentePedidaValida, type FuentePedida } from "./fuente-pantalla";
+import { catalogoAndroid } from "@/lib/ayudante/android";
+
+interface RespuestaNativa {
+    ok?: boolean;
+    motivo?: string;
+    [clave: string]: unknown;
+}
+
+function invocador(): ((cmd: string, args?: Record<string, unknown>) => Promise<RespuestaNativa | null>) | null {
+    const t = (globalThis as { __TAURI__?: { core?: { invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__;
+    return typeof t?.core?.invoke === "function" ? t.core.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<RespuestaNativa | null> : null;
+}
+
+function esObjeto(x: unknown): x is Record<string, unknown> {
+    return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+function esRespuestaNativa(x: unknown): x is RespuestaNativa {
+    return esObjeto(x);
+}
 
 /** Evento que la banda (montada en el layout, con el enrutador de Next) atiende para abrir una ruta. */
 export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
@@ -24,6 +44,11 @@ export const EVENTO_ABRIR_RUTA = "starseed:control-abrir-ruta";
 const ORDENES_PANTALLA = new Set(["pantalla-iniciar", "pantalla-parar", "pantalla-senal", "pantalla-cuadro", "leer-aparato", "gesto", "tecla", "volumen", "brillo", "texto"]);
 function esOrdenDePantalla(nombre: string): boolean {
     return ORDENES_PANTALLA.has(nombre);
+}
+
+const COMANDOS_ANDROID = new Set(catalogoAndroid().map((c) => c.nombre));
+function esComandoAndroid(nombre: string): boolean {
+    return COMANDOS_ANDROID.has(nombre);
 }
 
 // ── BAP1127I · prueba-control (puro salvo el camino inyectado) ────────────────────────────────
@@ -248,6 +273,84 @@ export async function ejecutarEnApp(
             const r = await cancelarTerminal(puenteNativo().llamar);
             if (!r.ok) throw new Error(r.motivo);
             return { cerrada: true };
+        }
+        // TRM1125I · Android sin root: comandos nativos Tauri/Kotlin
+        case "almacen-estado": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_almacen_estado").catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "almacen-salud": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_almacen_salud", { disco: String(args.disco) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "almacen-acceder": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_almacen_acceder", { uri: String(args.uri) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "ajustes-abrir": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_ajustes_abrir", { pantalla: String(args.pantalla) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "pantalla-proyectar": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_pantalla_proyectar", { calidad: Number(args.calidad), lado_max: Number(args.ladoMax) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "accesibilidad-estado": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_accesibilidad_estado").catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "superposicion-estado": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_superposicion_estado").catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "bateria-estado": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_bateria_estado").catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "red-estado": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_red_estado").catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "notificaciones-leer": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_notificaciones_leer", { limite: Number(args.limite) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
+        }
+        case "ajustes-rapidos-toggle": {
+            const inv = invocador();
+            if (!inv) throw new Error("sin-soporte");
+            const r = await inv("android_ajustes_rapidos_toggle", { tile: String(args.tile), activar: Boolean(args.activar) }).catch(() => null);
+            if (!r || !esRespuestaNativa(r) || r.ok === false) throw new Error(typeof r?.motivo === "string" ? r.motivo : "sin-soporte");
+            return r;
         }
         default:
             throw new Error("accion-desconocida");

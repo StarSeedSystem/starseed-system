@@ -218,6 +218,8 @@ mod control_neuronas_android; // ORD1114T
 mod control_entrada_logica; // AND1115K
 mod control_entrada; // AND1115K
 mod control_pantalla; // AND1115K
+// TRM1125I: comandos nativos de Android para el control remoto (Kotlin/JNI).
+mod control_android; // TRM1125I
 #[cfg(target_os = "macos")]
 mod control_neuronas_macos; // ORD1114T
 mod control_entrada_macos_logica; // CTL1117M (pura: se prueba en todas las plataformas)
@@ -1035,6 +1037,18 @@ macro_rules! registrar_comandos {
                 control_pantalla::control_pantalla_iniciar,
                 control_pantalla::control_pantalla_cuadro,
                 control_pantalla::control_pantalla_parar,
+                // TRM1125I: comandos nativos de Android para el control remoto.
+                control_android::android_almacen_estado,
+                control_android::android_almacen_salud,
+                control_android::android_almacen_acceder,
+                control_android::android_ajustes_abrir,
+                control_android::android_pantalla_proyectar,
+                control_android::android_accesibilidad_estado,
+                control_android::android_superposicion_estado,
+                control_android::android_bateria_estado,
+                control_android::android_red_estado,
+                control_android::android_notificaciones_leer,
+                control_android::android_ajustes_rapidos_toggle,
                 banco_latido::banco_latido_activar, // PENA1
                 // (PTA1108B) Proxy de la puerta de internet: webview (macOS 14+, Android) y descargas de Rust.
                 puerta_proxy::puerta_proxy_local,

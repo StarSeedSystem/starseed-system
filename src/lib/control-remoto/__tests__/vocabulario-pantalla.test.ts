@@ -23,11 +23,11 @@ describe("niveles de las órdenes nuevas", () => {
         expect(capacidadesDeNivel("ver")).toContain("pantalla-iniciar");
         expect(capacidadesDeNivel("controlar")).toEqual(expect.arrayContaining(["gesto", "tecla", "volumen", "brillo", "texto"]));
     });
-    it("no hay orden de nivel «administrar»; «modificar» solo para terminal (TRM1125A)", () => {
+    it("no hay orden de nivel «administrar»; «modificar» solo para terminal (TRM1125A) y Android (TRM1125I)", () => {
         for (const d of Object.values(ACCIONES)) {
             expect(d.nivel).not.toBe("administrar");
             if (d.nivel === "modificar") {
-                expect(["terminal-abrir", "terminal-cerrar", "terminal-ejecutar"]).toContain(
+                expect(["terminal-abrir", "terminal-cerrar", "terminal-ejecutar", "almacen-acceder"]).toContain(
                     Object.keys(ACCIONES).find((k) => ACCIONES[k] === d)
                 );
             }

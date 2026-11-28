@@ -16,4 +16,16 @@ export const COMANDOS_NATIVOS: Readonly<Record<string, readonly string[]>> = {
     control_entrada_aceptar: ["spki", "cuenta", "nombre"],
     control_entrada_aceptados: [],
     control_entrada_quitar: ["huella"],
+    // TRM1125I · Android sin root: comandos nativos Tauri/Kotlin
+    android_almacen_estado: [],
+    android_almacen_salud: ["disco"],
+    android_almacen_acceder: ["uri"],
+    android_ajustes_abrir: ["pantalla"],
+    android_pantalla_proyectar: ["calidad", "lado_max"],
+    android_accesibilidad_estado: [],
+    android_superposicion_estado: [],
+    android_bateria_estado: [],
+    android_red_estado: [],
+    android_notificaciones_leer: ["limite"],
+    android_ajustes_rapidos_toggle: ["tile", "activar"],
 };

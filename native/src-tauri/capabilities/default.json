@@ -194,6 +194,17 @@
     "allow-huella-aparato-generar",
     "allow-huella-aparato-actual",
     "allow-huella-aparato-verificar",
-    "allow-almacenes-listar"
+    "allow-almacenes-listar",
+    "allow-android-almacen-estado",
+    "allow-android-almacen-salud",
+    "allow-android-almacen-acceder",
+    "allow-android-ajustes-abrir",
+    "allow-android-pantalla-proyectar",
+    "allow-android-accesibilidad-estado",
+    "allow-android-superposicion-estado",
+    "allow-android-bateria-estado",
+    "allow-android-red-estado",
+    "allow-android-notificaciones-leer",
+    "allow-android-ajustes-rapidos-toggle"
   ]
 }
