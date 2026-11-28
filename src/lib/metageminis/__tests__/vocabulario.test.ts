@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { CANALES, ESTADOS_BORRADOR, ESTADOS_PIEZA, FORMATO_RE, IDS_RAMA, MEDIOS_AGENTE, TIPOS_PIEZA } from "../tipos";
+import { CANALES, ESTADOS_BORRADOR, ESTADOS_PIEZA, ETIQUETA_MEDIO_AGENTE, FORMATO_RE, IDS_RAMA, MEDIOS_AGENTE, TIPOS_PIEZA } from "../tipos";
 import { puedeTransitarBorrador, puedeTransitarPieza } from "../cola";
 import { TABLAS } from "../datos";
 
@@ -44,6 +44,10 @@ describe("los tipos reflejan la migración", () => {
   });
   it("medios de los agentes", () => {
     expect([...MEDIOS_AGENTE].sort()).toEqual(valoresCheck("metageminis_agentes", "medio").sort());
+  });
+  it("la etiqueta visible del medio mac nombra a Maggasukha", () => {
+    expect(ETIQUETA_MEDIO_AGENTE.mac).toBe("Mac de Maggasukha");
+    expect(MEDIOS_AGENTE).toContain("mac");
   });
   it("las tablas que lee el panel existen en la migración", () => {
     for (const { tabla } of Object.values(TABLAS)) expect(SQL, tabla).toContain(`CREATE TABLE IF NOT EXISTS public.${tabla} (`);

@@ -45,7 +45,7 @@ export const ETIQUETA_MEDIO_AGENTE: Record<MedioAgente, string> = {
   enjambre: "Enjambre gratuito",
   nube: "Nube",
   oracle_a1: "Oracle A1",
-  mac: "Mac de Alex",
+  mac: "Mac de Maggasukha",
 };
 
 export type EstadoAgente = "activo" | "parado" | "error";

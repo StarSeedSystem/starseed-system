@@ -76,7 +76,7 @@ export function frescura(t: string | number | Date | null | undefined, ahora = n
 
 export function avisoVersionMayor(renovacion?: EstadoRenovacion | null): string | null {
     if (renovacion?.siguiente_mayor?.needle4) {
-        return "Hay una versión mayor nueva: la decide Alex";
+        return "Hay una versión mayor nueva: la decide Maggasukha";
     }
     return null;
 }

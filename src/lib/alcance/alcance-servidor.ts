@@ -25,7 +25,7 @@ export interface ResultadoAlcance { ok: boolean; error?: string; motivos?: strin
 
 const tuEnv = (nombre: string) => ((process.env as Record<string, string | undefined>)[nombre] || "").trim();
 /** Firma honesta del remitente (R7): el nombre va en el correo, la identidad es real. */
-export const REMITENTE_DEFECTO = "Alex · StarSeed OS";
+export const REMITENTE_DEFECTO = "Maggasukha · StarSeed OS";
 export const remitenteNombre = () => tuEnv("STARSEED_REMITENTE_NOMBRE") || REMITENTE_DEFECTO;
 /** Pie honesto del mensaje: identidad real y forma de no recibir más (R7). PURA. */
 export function pieDe(remitente: string) {
