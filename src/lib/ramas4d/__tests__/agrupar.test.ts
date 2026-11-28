@@ -219,3 +219,108 @@ describe('rendimiento con grafos grandes', () => {
     expect(duracion).toBeLessThan(100);
   });
 });
+
+describe('agrupar por entidad y comunidad con capas', () => {
+  it('agrupa el contenido de una entidad con la entidad por su capa', () => {
+    const grafo = crearGrafoDePrueba([
+      crearNodoBase({ id: 'e1', tipo: 'entidad', titulo: 'Aurora' }),
+      crearNodoBase({ id: 'n1', tipo: 'archivo', capas: ['entidad-Aurora'] }),
+      crearNodoBase({ id: 'n2', tipo: 'memoria', capas: ['entidad-Aurora'] }),
+    ]);
+    const grupos = agruparPorFaceta(grafo, 'entidad');
+    expect(grupos.get('Aurora')?.length).toBe(3);
+    expect(grupos.get('Aurora')).toEqual(expect.arrayContaining(['e1', 'n1', 'n2']));
+  });
+
+  it('usa la capa comunidad- como clave de comunidad', () => {
+    const grafo = crearGrafoDePrueba([
+      crearNodoBase({ id: 'n1', alcance: 'comunidad', dueno: 'u1', capas: ['comunidad-luna'] }),
+      crearNodoBase({ id: 'n2', alcance: 'comunidad', dueno: 'u1', capas: ['comunidad-luna'] }),
+      crearNodoBase({ id: 'n3', alcance: 'comunidad', dueno: 'u2', capas: ['comunidad-sol'] }),
+    ]);
+    const grupos = agruparPorFaceta(grafo, 'comunidad');
+    expect(grupos.get('luna')?.length).toBe(2);
+    expect(grupos.get('sol')?.length).toBe(1);
+  });
+
+  it('incluye en comunidad los nodos con capa comunidad- aunque su alcance no sea comunidad', () => {
+    const grafo = crearGrafoDePrueba([
+      crearNodoBase({ id: 'n1', alcance: 'grupo', capas: ['comunidad-luna'] }),
+    ]);
+    const grupos = agruparPorFaceta(grafo, 'comunidad');
+    expect(grupos.get('luna')).toEqual(['n1']);
+  });
+
+  it('agrupa 20000 nodos por entidad sin perder el tope de cuerpos', () => {
+    const nodos = Array.from({ length: 20000 }, (_, i) =>
+      crearNodoBase({ id: `n${i}`, capas: [`entidad-e${i % 40}`] })
+    );
+    const grafo = crearGrafoDePrueba(nodos);
+    const grupos = agruparPorFaceta(grafo, 'entidad');
+    expect(grupos.size).toBe(40);
+    const resultado = nivelDeDetalle(0, grupos, TOPE_CUERPOS_VISIBLES);
+    expect(resultado.abiertos.size + resultado.colapsados.size).toBeLessThanOrEqual(
+      TOPE_CUERPOS_VISIBLES
+    );
+  });
+});
+
+describe('nivelDeDetalle progresivo', () => {
+  it('a media distancia abre los grupos más pesados y colapsa los ligeros', () => {
+    const grupos = new Map([
+      ['pesado', ['a', 'b', 'c', 'd']],
+      ['ligero', ['e']],
+    ]);
+    const pesos = new Map([
+      ['a', 10],
+      ['b', 10],
+      ['c', 10],
+      ['d', 10],
+      ['e', 1],
+    ]);
+    const resultado = nivelDeDetalle(50, grupos, 10, pesos);
+    expect(resultado.abiertos.has('pesado')).toBe(true);
+    expect(resultado.colapsados.has('ligero')).toBe(true);
+    expect(resultado.colapsados.get('ligero')?.tamano).toBe(1);
+  });
+
+  it('el tamaño del cuerpo colapsado es la suma de pesos de sus miembros', () => {
+    const grupos = new Map([
+      ['g1', ['a', 'b']],
+      ['g2', ['c', 'd']],
+    ]);
+    const pesos = new Map([
+      ['a', 4],
+      ['b', 6],
+      ['c', 1],
+      ['d', 1],
+    ]);
+    const resultado = nivelDeDetalle(50, grupos, 10, pesos);
+    expect(resultado.abiertos.has('g1')).toBe(true);
+    expect(resultado.colapsados.get('g2')?.tamano).toBe(2);
+  });
+
+  it('con tope 0 no muestra ningún cuerpo', () => {
+    const grupos = new Map([['g1', ['a']]]);
+    const resultado = nivelDeDetalle(0, grupos, 0);
+    expect(resultado.abiertos.size).toBe(0);
+    expect(resultado.colapsados.size).toBe(0);
+  });
+
+  it('respeta un umbral de distancia propio', () => {
+    const grupos = new Map([['g1', ['a']]]);
+    const resultado = nivelDeDetalle(30, grupos, 10, undefined, 30);
+    expect(resultado.colapsados.has('g1')).toBe(true);
+  });
+
+  it('desempata por clave para ser determinista', () => {
+    const grupos = new Map([
+      ['zeta', ['a']],
+      ['alfa', ['b']],
+    ]);
+    const uno = nivelDeDetalle(50, grupos, 10);
+    const dos = nivelDeDetalle(50, grupos, 10);
+    expect(Array.from(uno.abiertos.keys())).toEqual(['alfa']);
+    expect(Array.from(uno.abiertos.keys())).toEqual(Array.from(dos.abiertos.keys()));
+  });
+});
