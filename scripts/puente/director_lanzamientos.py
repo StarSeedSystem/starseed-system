@@ -212,7 +212,7 @@ def _compilar(m, est, cfg, ahora):
         clase, motivo = L.clasificar_fallo(log)
         clases.append((j, clase, motivo, log))
     if any(c == "credencial" for _, c, _, _ in clases):
-        return _atascado(m, est, "una credencial falla (%s): te toca a ti, Alex"
+        return _atascado(m, est, "una credencial falla (%s): te toca a ti, Maggasukha"
                          % next(mo for _, c, mo, _ in clases if c == "credencial"), ahora)
     if all(c in ("reintentar", "sin-firma") for _, c, _, _ in clases) and est.get("reintentos", 0) < cfg.get(
             "reintentos_job", 2):
@@ -334,7 +334,7 @@ def _tomar_aprobacion(m, est, peticion, ahora):
             est = dict(est, aprobaciones=(list(est.get("aprobaciones") or []) + [rechazo])[-20:])
         return dict(est, aprobacion_ultima=rechazo)
     aprobacion["tomada"] = ahora
-    m.avisar("Alex aprobó la prueba %s: lanzo la %s desde %s por los pasos de siempre"
+    m.avisar("Maggasukha aprobó la prueba %s: lanzo la %s desde %s por los pasos de siempre"
              % (aprobacion["version"], aprobacion["oficial"], aprobacion["lanzar_sha"][:10]), tipo="informe")
     return _paso(est, "esperando-publicacion", aprobacion["detalle"], ahora, manual=True,
                  lista_sha=aprobacion["lanzar_sha"], version_aprobada=aprobacion["oficial"], aprobacion=aprobacion,

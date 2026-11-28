@@ -170,7 +170,7 @@ class TestDiagnosticar(_Aislado, unittest.TestCase):
         causa, remedio, motivo = DF.diagnosticar(f)
         self.assertEqual(causa, DF.CAUSA_ESPERA_ALEX)
         self.assertEqual(remedio, DF.REMEDIO_ALEX)
-        self.assertIn("decisión de Alex", motivo)
+        self.assertIn("decisión de Maggasukha", motivo)
 
     def test_espera_alex_con_listas_no_es_causa(self):
         f = self.foto(espera_alex=3, listas=["T1"])
@@ -182,6 +182,30 @@ class TestDiagnosticar(_Aislado, unittest.TestCase):
         causa, remedio, _m = DF.diagnosticar(f)
         self.assertEqual(causa, DF.CAUSA_COLA_VACIA)
         self.assertEqual(remedio, DF.REMEDIO_NINGUNO)
+
+
+class TestLeerFotoEspera(_Aislado, unittest.TestCase):
+    """La espera de decisión cuenta el texto viejo («Alex») y el nuevo («Maggasukha»)."""
+
+    def _foto_con_notas(self, *notas):
+        progreso = {("T%d" % i): {"estado": "en_curso", "nota": n} for i, n in enumerate(notas, 1)}
+        datos = {
+            "progreso": progreso, "colas": {}, "medios": {}, "gobernador": {},
+            "salud": {}, "nube_pausada": {}, "eventos": [], "latidos": {},
+        }
+
+        def leer(nombre):
+            return datos.get(nombre, {})
+
+        return DF.leer_foto(leer=leer)
+
+    def test_nota_con_texto_viejo_cuenta(self):
+        foto = self._foto_con_notas("esperando decisión de Alex")
+        self.assertEqual(foto["espera_alex"], 1)
+
+    def test_nota_con_texto_nuevo_cuenta(self):
+        foto = self._foto_con_notas("esperando decisión de Maggasukha")
+        self.assertEqual(foto["espera_alex"], 1)
 
 
 class TestOrdenarRemedios(_Aislado, unittest.TestCase):

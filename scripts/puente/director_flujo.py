@@ -225,7 +225,8 @@ def leer_foto(ahora=None, leer=None):
             tfin = _epocho(e.get("fin"))
             if tfin is not None and ahora - tfin <= VENTANA_COMMITS_S:
                 commits_recientes += 1
-        if est == "pendiente_aprobacion" or str(e.get("nota") or "").lower().find("alex") >= 0:
+        nota = str(e.get("nota") or "").lower()
+        if est == "pendiente_aprobacion" or "alex" in nota or "maggasukha" in nota:
             espera_alex += 1
     # Listas que solo aparecen en las colas vivas.
     if isinstance(colas, dict):
@@ -490,7 +491,7 @@ def diagnosticar(foto):
     # 8 · Espera de decisión de Alex: tareas listas pero bloqueadas por aprobación.
     if foto.get("espera_alex", 0) > 0 and not foto.get("listas"):
         return (CAUSA_ESPERA_ALEX, REMEDIO_ALEX,
-                "%d tarea(s) esperando decisión de Alex" % foto.get("espera_alex", 0))
+                "%d tarea(s) esperando decisión de Maggasukha" % foto.get("espera_alex", 0))
 
     # 9 · Cola vacía: no hay trabajo que arrancar; no es una causa que remediar.
     if foto.get("cola_vacia"):
@@ -628,7 +629,7 @@ def proponer_tarea_diaria():
         CAUSA_MODELOS_CAIDOS: "ampliar el catálogo de escritores gratuitos de repuesto",
         CAUSA_CI_ROJO: "asegurar que las puertas (tsc, vitest) pasen antes de publicar",
         CAUSA_ORQ_SIN_LATIDO: "reforzar el reinicio automático del orquestador",
-        CAUSA_ESPERA_ALEX: "resolver las esperas de decisión de Alex sin demora",
+        CAUSA_ESPERA_ALEX: "resolver las esperas de decisión de Maggasukha sin demora",
         CAUSA_COLA_VACIA: "generar más tareas listas para trabajar",
     }.get(causa, "investigar la causa %s" % causa)
     return {"causa": causa, "veces": n, "propuesta": motivos}
@@ -893,7 +894,7 @@ def aplicar_remedio(remedio, foto, ahora, correr, decir):
         datos = aplicar_arrancar_orquestador(ahora, correr)
         return ("funciona" if datos.get("ok") else "no_funciona", datos)
     if remedio == REMEDIO_ALEX:
-        aplicar_avisar_alex(foto.get("causa_no_arranco") or "necesita decisión de Alex", decir)
+        aplicar_avisar_alex(foto.get("causa_no_arranco") or "necesita decisión de Maggasukha", decir)
         return "no_funciona", {"aviso": True}  # Alex debe actuar; no se resuelve solo
     if remedio == REMEDIO_NINGUNO:
         return "no_aplicable", {}
