@@ -51,20 +51,20 @@ class Aplicar(unittest.TestCase):
         self.assertEqual(corr["X2b"]["por"], "X2c")
 
     def test_reservada_se_avisa_una_vez_con_el_nombre_de_maggasukha(self):
-        d = decision("M1", "reservar_alex", motivo="la decide Maggasukha: trae una migración")
+        d = decision("M1", "reservar_maggasukha", motivo="la decide Maggasukha: trae una migración")
         self.assertEqual(A.aplicar([d]), ["M1 espera a Maggasukha — la decide Maggasukha: trae una migración"])
         self.assertEqual(A.aplicar([d]), [])
         self.assertFalse(os.path.exists(os.path.join(A.OLAS, "control-cola-prueba.json")))
 
     def test_reserva_guardada_con_el_nombre_viejo_no_se_vuelve_a_avisar(self):
         A._escribir_json(A.ESTADO, {"reservadas_avisadas": {"M1": "la decide Alex: trae una migración"}})
-        d = decision("M1", "reservar_alex", motivo="la decide Maggasukha: trae una migración")
+        d = decision("M1", "reservar_maggasukha", motivo="la decide Maggasukha: trae una migración")
         self.assertEqual(A.aplicar([d]), [])
 
     def test_el_motivo_de_reserva_sale_a_nombre_de_maggasukha(self):
         d = L.decidir({"tid": "M2", "estado": "esperando_aprobacion", "minutos": 20,
                        "reserva": "trae una migración"})
-        self.assertEqual(d["accion"], "reservar_alex")
+        self.assertEqual(d["accion"], "reservar_maggasukha")
         self.assertEqual(d["motivo"], "la decide Maggasukha: trae una migración")
 
     def test_suelta_con_seguimiento_integra_y_encola_la_objecion(self):

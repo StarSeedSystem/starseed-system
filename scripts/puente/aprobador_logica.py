@@ -108,9 +108,9 @@ def cambios_de_dependencias(antes: Optional[Dict[str, Any]], despues: Optional[D
     return salida
 
 
-def reserva_para_alex(archivos: Iterable[str], deps: Optional[Dict[str, Any]] = None,
+def reserva_para_maggasukha(archivos: Iterable[str], deps: Optional[Dict[str, Any]] = None,
                       licencias: Optional[Dict[str, Any]] = None, secretos: int = 0) -> str:
-    """"" si la rama puede decidirse sola; si no, POR QUÉ es de Alex (una frase).
+    """"" si la rama puede decidirse sola; si no, POR QUÉ es de Maggasukha (una frase).
 
     `deps` sale de `cambios_de_dependencias`; `licencias` es {paquete: licencia} de los AÑADIDOS
     (del package-lock); `secretos` = hallazgos del escáner de `produccion_puertas`."""
@@ -198,7 +198,7 @@ def decidir(c: Dict[str, Any]) -> Dict[str, Any]:
         return _accion("esperar", "lleva menos de %d min en la puerta: primero actúan el revisor y el "
                                   "desatascador" % ESPERA_MIN)
     if c.get("reserva"):
-        return _accion("reservar_alex", "la decide Maggasukha: %s" % c["reserva"])
+        return _accion("reservar_maggasukha", "la decide Maggasukha: %s" % c["reserva"])
     if c.get("sucesora"):
         if viva:
             return _accion("liberar", "su sucesora %s ya lleva el encargo: suelto este trabajador "

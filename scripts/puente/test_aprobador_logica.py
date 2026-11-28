@@ -38,15 +38,15 @@ class TestCadena(unittest.TestCase):
 
 
 class TestReserva(unittest.TestCase):
-    def test_migraciones_claves_y_nativas_son_de_alex(self):
-        self.assertIn("migración", L.reserva_para_alex(["supabase/migrations/20261010_x.sql"]))
-        self.assertIn("claves", L.reserva_para_alex([".env.local"]))
-        self.assertEqual(L.reserva_para_alex([".env.example"]), "")
-        self.assertIn("apps nativas", L.reserva_para_alex(["native/src-tauri/tauri.conf.json"]))
-        self.assertIn("apps nativas", L.reserva_para_alex([".github/workflows/nativas-release.yml"]))
-        self.assertIn("nativa", L.reserva_para_alex(["native/src-tauri/Cargo.toml"]))
-        self.assertIn("posible", L.reserva_para_alex(["src/a.ts"], secretos=1))
-        self.assertEqual(L.reserva_para_alex(["src/lib/x.ts", ".github/workflows/ci.yml"]), "")
+    def test_migraciones_claves_y_nativas_son_de_maggasukha(self):
+        self.assertIn("migración", L.reserva_para_maggasukha(["supabase/migrations/20261010_x.sql"]))
+        self.assertIn("claves", L.reserva_para_maggasukha([".env.local"]))
+        self.assertEqual(L.reserva_para_maggasukha([".env.example"]), "")
+        self.assertIn("apps nativas", L.reserva_para_maggasukha(["native/src-tauri/tauri.conf.json"]))
+        self.assertIn("apps nativas", L.reserva_para_maggasukha([".github/workflows/nativas-release.yml"]))
+        self.assertIn("nativa", L.reserva_para_maggasukha(["native/src-tauri/Cargo.toml"]))
+        self.assertIn("posible", L.reserva_para_maggasukha(["src/a.ts"], secretos=1))
+        self.assertEqual(L.reserva_para_maggasukha(["src/lib/x.ts", ".github/workflows/ci.yml"]), "")
 
     def test_xr1010a_paquetes_libres_solo_en_package_se_aprueba_solo(self):
         antes = {"dependencies": {"next": "15.5.4"}}
@@ -55,20 +55,20 @@ class TestReserva(unittest.TestCase):
         self.assertEqual(deps["anadidas"], ["@react-three/xr", "three-mesh-ui"])
         archivos = ["package.json", "package-lock.json", "src/components/xr/shell/__tests__/dependencias.test.ts"]
         libres = {"@react-three/xr": "MIT", "three-mesh-ui": "(MIT OR Apache-2.0)"}
-        self.assertEqual(L.reserva_para_alex(archivos, deps, libres), "")
-        # …pero una licencia no libre o desconocida va a Alex.
-        self.assertIn("licencia", L.reserva_para_alex(archivos, deps, {"@react-three/xr": "MIT"}))
-        self.assertIn("licencia", L.reserva_para_alex(archivos, deps, dict(libres, **{"three-mesh-ui": "BUSL-1.1"})))
+        self.assertEqual(L.reserva_para_maggasukha(archivos, deps, libres), "")
+        # …pero una licencia no libre o desconocida va a Maggasukha.
+        self.assertIn("licencia", L.reserva_para_maggasukha(archivos, deps, {"@react-three/xr": "MIT"}))
+        self.assertIn("licencia", L.reserva_para_maggasukha(archivos, deps, dict(libres, **{"three-mesh-ui": "BUSL-1.1"})))
         # …y añadir paquetes junto con código también.
-        self.assertIn("código", L.reserva_para_alex(archivos + ["src/components/xr/shell/xr.tsx"], deps, libres))
+        self.assertIn("código", L.reserva_para_maggasukha(archivos + ["src/components/xr/shell/xr.tsx"], deps, libres))
 
-    def test_cambiar_o_quitar_dependencias_de_produccion_es_de_alex(self):
+    def test_cambiar_o_quitar_dependencias_de_produccion_es_de_maggasukha(self):
         deps = L.cambios_de_dependencias({"dependencies": {"next": "15.5.4", "zod": "3"}},
                                          {"dependencies": {"next": "16.3.8"}})
         self.assertEqual(deps["cambiadas"], ["next"])
         self.assertEqual(deps["quitadas"], ["zod"])
-        self.assertIn("producción", L.reserva_para_alex(["package.json", "package-lock.json"], deps, {}))
-        self.assertIn("package-lock", L.reserva_para_alex(["package-lock.json"], {}, {}))
+        self.assertIn("producción", L.reserva_para_maggasukha(["package.json", "package-lock.json"], deps, {}))
+        self.assertIn("package-lock", L.reserva_para_maggasukha(["package-lock.json"], {}, {}))
 
     def test_licencias(self):
         for libre in ("MIT", "Apache-2.0", "(MIT OR GPL-3.0)", "BSD-3-Clause", "ISC", "0BSD"):
@@ -103,7 +103,7 @@ class TestDecidir(unittest.TestCase):
 
     def test_reservada_nunca_se_aprueba_sola(self):
         d = L.decidir(caso(reserva="trae una migración de base de datos", jev=JEV_SI))
-        self.assertEqual(d["accion"], "reservar_alex")
+        self.assertEqual(d["accion"], "reservar_maggasukha")
         self.assertIn("migración", d["motivo"])
 
     def test_sucesora_viva_suelta_el_trabajador(self):

@@ -35,7 +35,7 @@ class UtilidadTest(unittest.TestCase):
     def test_publicar_comprar_cuentas_claves_o_alex_son_pregunta(self):
         for titulo in (
             "Publicar el paquete", "Comprar un dominio", "Crear cuentas nuevas",
-            "Cambiar la clave de API", "Que Alex decida el diseño",
+            "Cambiar la clave de API", "Que Maggasukha decida el diseño",
         ):
             valor, motivo = D.utilidad(propuesta(titulo=titulo), existe)
             self.assertEqual(valor, 0.0, titulo)
@@ -462,9 +462,9 @@ class FamiliaYVariantesTest(unittest.TestCase):
         self.assertEqual(D.arreglo_de_estado({"estado": "descartada", "motivo": "duplicada de x7"}), {})
         con_destino = {"id": "x", "estado": "descartada",
                        "motivo": "ninguno de los archivos citados existe hoy → pregunta",
-                       "motivo_destino": "sin verbo de acción: lo decide Alex"}
+                       "motivo_destino": "sin verbo de acción: lo decide Maggasukha"}
         self.assertEqual(D.arreglo_de_estado(con_destino),
-                         {"motivo": "sin verbo de acción: lo decide Alex"})
+                         {"motivo": "sin verbo de acción: lo decide Maggasukha"})
         self.assertEqual(con_destino["estado"], "descartada")  # el estado no se cambia, solo el motivo
 
     def test_tope_de_20_variantes_y_nada_se_borra(self):

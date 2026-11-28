@@ -231,7 +231,7 @@ def contextos(ahora=None, progreso=None, tareas=None):
         rama = datos_de_rama(tid, e)
         if not rama.get("existe"):
             continue
-        reserva = L.reserva_para_alex(rama["archivos"], rama["deps"], rama["licencias"], rama["secretos"])
+        reserva = L.reserva_para_maggasukha(rama["archivos"], rama["deps"], rama["licencias"], rama["secretos"])
         salida.append({
             "tid": tid, "estado": e.get("estado"), "minutos": D._minutos(e.get("t"), ahora),
             "revisor": e.get("revisor"), "faltan": e.get("faltan") or [],
@@ -432,7 +432,7 @@ def aplicar(decs):
             if tid in ordenadas:
                 continue
             ordenadas[tid] = time.time()
-        if accion == "reservar_alex":
+        if accion == "reservar_maggasukha":
             if not _mismo_motivo(avisadas.get(tid), d["motivo"]):
                 avisadas[tid] = d["motivo"]
                 frases.append("%s espera a Maggasukha — %s" % (tid, d["motivo"]))
