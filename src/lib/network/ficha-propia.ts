@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * ficha-propia — ficha de capacidades MEDIDA de esta neurona y su publicación
  * compartida (AUD1117). Extraída de `device-network-panel.tsx` para que el
@@ -18,6 +20,8 @@ import {
 import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import { versionesDeEsteMedio } from "@/lib/actualizaciones/versiones-locales";
+import { listBackends } from "@/lib/storage/backends";
+import { crearOfertaAlmacenamiento, TipoAlmacen, esTipoAlmacenValido } from "@/lib/almacenes";
 
 /** Lo mínimo que hace falta para medir la ficha de este dispositivo. */
 export type DispositivoFicha = { id: string; platform: string; capas?: string[]; tokS?: Record<string, number> | null };
@@ -65,6 +69,36 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
   // Versiones locales (interfaz, servidor, etc.)
   const versiones = await versionesDeEsteMedio();
 
+  // Ofertas de almacenamiento desde backends locales (§5 ALC1125F): cuánto, a quién
+  // (privada, grupo, comunidad, pública), cuándo y con qué tope; apagada por defecto.
+  let ofertasAlmacenamiento: import("@/lib/almacenes").OfertaAlmacenamiento[] = [];
+  try {
+    const backends = await listBackends();
+    ofertasAlmacenamiento = backends
+      .filter((b) => b.kind === "local" && b.enabled !== false)
+      .map((b) => {
+        const cfg = (b.config as Record<string, unknown>) ?? {};
+        const almacenId = typeof cfg.almacenIdVolumen === "string" ? cfg.almacenIdVolumen.trim() : "";
+        const capacityMb = typeof cfg.capacityMb === "number" && Number.isFinite(cfg.capacityMb) ? cfg.capacityMb : 0;
+        const tipoAlmacenRaw = typeof cfg.almacenTipo === "string" ? cfg.almacenTipo.trim() : "";
+        const tipoAlmacen = esTipoAlmacenValido(tipoAlmacenRaw) ? tipoAlmacenRaw : TipoAlmacen.DISCO_INTERNO;
+        if (!almacenId || capacityMb <= 0) return null;
+        return crearOfertaAlmacenamiento({
+          nodoId: device.id,
+          almacenId,
+          tipoAlmacen,
+          ambito: "privada",
+          bytesOfrecidos: BigInt(capacityMb) * BigInt(1024 * 1024),
+          activa: false,
+          prioridad: typeof b.priority === "number" ? b.priority : 0,
+          meta: { backendId: b.id, backendName: b.name },
+        });
+      })
+      .filter((o): o is NonNullable<typeof o> => o !== null);
+  } catch {
+    /* sin backends o sin sesión: se anuncia sin ofertas */
+  }
+
   // Rol de prueba desde localStorage (try/catch, por defecto sin rol)
   let rol: "aparato-de-prueba" | "director" | undefined;
   try {
@@ -104,6 +138,7 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
     bateriaPct,
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
+    ofertasAlmacenamiento,
     ...(voz ? { voz } : {}),
     ...(versiones.servidor?.capaBuild ? { capaBuild: versiones.servidor.capaBuild } : {}),
     ...(versiones.interfaz ? { appVersion: versiones.interfaz } : {}),
