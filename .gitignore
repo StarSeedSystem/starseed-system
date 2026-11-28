@@ -61,7 +61,12 @@ __pycache__/
 .tmp/
 
 # Agent / session artifacts
-.agent/
+.agent/*
+!.agent/skills/
+.agent/skills/*
+!.agent/skills/coop-sync-testing/
+.agent/skills/coop-sync-testing/*
+!.agent/skills/coop-sync-testing/README.md
 
 # macOS artifacts
 Icon
