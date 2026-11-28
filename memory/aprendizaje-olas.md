@@ -7710,3 +7710,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 11:04 · mg-oracle-1128-0357
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CRE1125A` — no escribió nada
