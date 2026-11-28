@@ -1,47 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { TIPO_TARJETA_OFERTA, type TipoTarjetaOferta } from "@/lib/nfc/tarjetas-oferta";
-
-const PLANTILLAS_POR_TIPO: Record<TipoTarjetaOferta, Record<string, unknown>> = {
-  presentacion: { texto: "", enlaces: [] },
-  amistad: { texto: "", enlaces: [] },
-  evento: { titulo: "", lugar: "", fecha: "", descripcion: "" },
-  pagina: { url: "", titulo: "" },
-  grupo: { nombre: "", descripcion: "", slug: "" },
-  partido: { nombre: "", descripcion: "", slug: "" },
-  perfil: { userId: "", username: "", avatarUrl: "" },
-  cuenta: { id: "", nombre: "", tipo: "" },
-  cerebro: { id: "", nombre: "", descripcion: "" },
-  repositorio: { url: "", nombre: "", descripcion: "" },
-  archivo: { url: "", nombre: "", tipo: "", tamaño: 0 },
-  app: { id: "", nombre: "", descripcion: "", icono: "" },
-  programa: { id: "", nombre: "", descripcion: "", version: "" },
-  enlace_libre: { url: "", titulo: "", descripcion: "" },
-};
-
-export function plantillaParaTipo(tipo: TipoTarjetaOferta): Record<string, unknown> {
-  return PLANTILLAS_POR_TIPO[tipo] ?? {};
-}
-
-export function validarTitulo(titulo: string): string | null {
-  if (!titulo.trim()) return "El título es obligatorio.";
-  if (titulo.length > 100) return "El título no puede superar 100 caracteres.";
-  return null;
-}
-
-export function validarContenido(contenido: unknown): string | null {
-  if (!contenido || typeof contenido !== "object" || Array.isArray(contenido)) {
-    return "El contenido debe ser un objeto.";
-  }
-  return null;
-}
-
-export function validarCaducidad(caducidad: string): string | null {
-  if (!caducidad) return null;
-  const fecha = new Date(caducidad);
-  if (isNaN(fecha.getTime())) return "Fecha de caducidad no válida.";
-  if (fecha.getTime() <= Date.now()) return "La caducidad debe ser posterior a la emisión.";
-  return null;
-}
+import {
+  PLANTILLAS_POR_TIPO,
+  plantillaParaTipo,
+  validarTitulo,
+  validarContenido,
+  validarCaducidad,
+} from "@/components/nfc/editor-tarjeta";
 
 describe("NFC1126O-d1-d3b · plantillas por tipo", () => {
   it("define una plantilla para cada tipo del contrato", () => {
