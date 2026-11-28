@@ -7710,3 +7710,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 06:08 · mg-oracle-1127-2353
+
+**Lo que se pidió.** Personalización ilimitada
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (MV1125J, CAP-cloudroom-config, LNX1118WB, NOM1125D-d1, NOM1125C-d1, CAP-skill-coop-qa-usob). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MV1125J` — no escribió nada
+- `CAP-cloudroom-config` — no escribió nada
+- `LNX1118WB` — no escribió nada
+- `NOM1125D-d1` — no escribió nada
+- `NOM1125C-d1` — no escribió nada
+- `CAP-skill-coop-qa-usob` — no escribió nada
