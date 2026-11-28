@@ -28,7 +28,7 @@ const tuEnv = (nombre: string) => ((process.env as Record<string, string | undef
 export const REMITENTE_DEFECTO = "Maggasukha · StarSeed OS";
 export const remitenteNombre = () => tuEnv("STARSEED_REMITENTE_NOMBRE") || REMITENTE_DEFECTO;
 /** Pie honesto del mensaje: identidad real y forma de no recibir más (R7). PURA. */
-export function pieDe(remitente: string) {
+export function pieDe(remitente: string = REMITENTE_DEFECTO) {
   return { identidad: remitente, baja: "Responde a este correo pidiendo no recibir más mensajes y no volverás a recibir ninguno." };
 }
 const esObj = (v: unknown): v is Crudo => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -201,13 +201,14 @@ export async function contextoAlcance(id: string, lugar: LugarAlcance = {}): Pro
   const registro = (await leerRegistro(rutas.registro)).filter((f) => f.destinoId === hash);
   const suprimidos = await leerSuprimidos(rutas.supresion);
   const aprobado = estado.aprobadaPorHumano && estado.huellaAprobada && p?.estado === "aprobada";
+  const remitente = remitenteNombre() || REMITENTE_DEFECTO;
   const propuesta: PropuestaAlcance = {
     id: p ? p.id : id,
     medio: destino.medio,
     asunto: p ? p.titulo : "",
     cuerpo: p ? p.cuerpo : "",
     enlaces: urls,
-    pie: pieDe(remitenteNombre()),
+    pie: pieDe(remitente),
     estado: aprobado ? "aprobada" : "esperando-aprobacion",
     aprobadaPorHumano: estado.aprobadaPorHumano,
     huellaAprobada: estado.huellaAprobada,
@@ -226,7 +227,7 @@ export async function contextoAlcance(id: string, lugar: LugarAlcance = {}): Pro
     asunto: p ? p.titulo : "",
     cuerpo: p ? p.cuerpo : "",
     medio: destino.medio,
-    remitente: remitenteNombre(),
+    remitente,
     destinatario: correo || destino.canalPublicado,
     destinoUrl: destino.canalPublicado.startsWith("https://") ? destino.canalPublicado : "",
     estadoPropuesta: p ? p.estado : "",

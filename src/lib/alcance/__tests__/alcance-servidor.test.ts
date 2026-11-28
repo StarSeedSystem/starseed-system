@@ -2,7 +2,7 @@
 // al del almacén Python (huella), resolver el destino objetivo+ficha, la vista
 // por defecto, el mailto (que lo envía la persona, R3) y el estado pegado a la
 // propuesta, sin red; los hashes se calculan con WebCrypto.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   correoDe, enlacesDeTexto, hashPlano, mailtoDe, normalizarAlcance, plano, pieDe, remitenteNombre, REMITENTE_DEFECTO,
@@ -50,12 +50,18 @@ describe("correo, mailto y pie honesto (R3·R7)", () => {
     expect(h).toBe("mailto:prensa%40yosoy.org?subject=Hola+de+StarSeed&body=Nos+reson%C3%B3%E2%80%A6%0ASolo+vida.");
   });
   it("el pie lleva identidad real y forma de no recibir más", () => {
-    const p = pieDe(REMITENTE_DEFECTO);
-    expect(p.identidad).toBe("Maggasukha · StarSeed OS");
+    const p = pieDe();
+    expect(REMITENTE_DEFECTO).toBe("Maggasukha · StarSeed OS");
+    expect(p.identidad).toBe(REMITENTE_DEFECTO);
     expect(p.baja.toLowerCase()).toContain("no recibir más");
   });
   it("remitenteNombre SIN entorno apaga al nombre por defecto del OS", () => {
-    expect(remitenteNombre()).not.toBe("");
+    vi.stubEnv("STARSEED_REMITENTE_NOMBRE", "");
+    try {
+      expect(remitenteNombre()).toBe(REMITENTE_DEFECTO);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
