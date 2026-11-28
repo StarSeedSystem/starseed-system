@@ -73,16 +73,25 @@ import { LearningPathPanel } from "@/components/education/learning-path";
 import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import type { Graph3DNode, Graph3DEdge } from "@/components/education/topic-graph-3d";
 
-const TopicGraph3D = dynamic(() => import("./topic-graph-3d"), {
+const RamasEducacion = dynamic(() => import("./ramas-educacion").then((m) => m.RamasEducacion), {
     ssr: false,
     loading: () => (
         <div className="flex h-full min-h-[50vh] w-full items-center justify-center text-white/60">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Preparando la Red 3D…
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Preparando las ramas 4D…
         </div>
     ),
 });
 
-type ViewMode = "lista" | "mapa2d" | "red3d";
+const TopicGraph3D = dynamic(() => import("./topic-graph-3d"), {
+    ssr: false,
+    loading: () => (
+        <div className="flex h-full min-h-[50vh] w-full items-center justify-center text-white/60">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Preparando la Vista clásica…
+        </div>
+    ),
+});
+
+type ViewMode = "lista" | "mapa2d" | "red3d" | "red3d-clasica";
 
 function kindForParent(parentId: string | null, byId: Map<string, EduNode>): EduNodeKind {
     if (!parentId) return "category";
@@ -757,10 +766,11 @@ export function TopicGraph() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+                <div className="flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
                     <ViewBtn active={view === "lista"} onClick={() => setView("lista")} icon={<List className="h-3.5 w-3.5" />} label="Lista" />
                     <ViewBtn active={view === "mapa2d"} onClick={() => setView("mapa2d")} icon={<Workflow className="h-3.5 w-3.5" />} label="Mapa 2D" />
-                    <ViewBtn active={view === "red3d"} onClick={() => setView("red3d")} icon={<NetworkIcon className="h-3.5 w-3.5" />} label="Red 3D" />
+                    <ViewBtn active={view === "red3d"} onClick={() => setView("red3d")} icon={<NetworkIcon className="h-3.5 w-3.5" />} label="Ramas 4D" />
+                    <ViewBtn active={view === "red3d-clasica"} onClick={() => setView("red3d-clasica")} icon={<FolderTree className="h-3.5 w-3.5" />} label="Vista clásica" />
                 </div>
 
                 <Button size="sm" variant="outline" onClick={() => openAdd(null)} title="Añadir categoría propia">
@@ -872,9 +882,15 @@ export function TopicGraph() {
                                 <Map2DView tree={tree} byId={byId} activityById={activityById} selectedId={selectedId} onSelect={selectNode} />
                             </ViewErrorBoundary>
                         </div>
+                    ) : view === "red3d" ? (
+                        <div className="min-h-[60vh] h-[70vh]">
+                            <ViewErrorBoundary label="las Ramas 4D">
+                                <RamasEducacion tree={tree} selectedId={selectedId} onSelect={selectNode} />
+                            </ViewErrorBoundary>
+                        </div>
                     ) : (
                         <div className="min-h-[60vh] h-[70vh]">
-                            <ViewErrorBoundary label="la Red 3D">
+                            <ViewErrorBoundary label="la Vista clásica">
                                 <TopicGraph3D nodes={graph3DNodes} edges={edges} selectedId={selectedId} onSelect={selectNode} />
                             </ViewErrorBoundary>
                         </div>
@@ -955,8 +971,10 @@ function ViewBtn({
         <button
             onClick={onClick}
             className={cn(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition",
-                active ? "bg-amber-500/20 text-amber-200" : "text-white/55 hover:text-white/80",
+                "flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition",
+                active
+                    ? "bg-[hsl(var(--trinity-amber-hsl)/0.2)] text-[hsl(var(--trinity-amber-hsl))]"
+                    : "text-white/55 hover:text-white/80",
             )}
         >
             {icon}
