@@ -102,4 +102,31 @@ describe("BotonMedios · comprobación de medios de cómputo", () => {
             expect(screen.getByText(/No se pudo conectar con el servidor: Conexión rechazada/i)).toBeInTheDocument();
         });
     });
+
+    it("muestra 'Requiere Maggasukha' para medios en estado requiere_alex", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () =>
+                new Response(
+                    JSON.stringify({
+                        generado: "2026-09-20T14:00:00.000Z",
+                        medios: [
+                            { id: "vps", nombre: "VPS de prueba", estado: "requiere_alex", capacidad: "4 vCPU", detalle: "Falta SSH", siguiente_paso: "preparar.sh" },
+                        ],
+                        resumen: { listos: 0, usables: 0, porHacer: 1, agentesAhora: 0 },
+                    }),
+                    { status: 200 },
+                ),
+            ),
+        );
+
+        render(<BotonMedios />);
+        fireEvent.click(screen.getByRole("button", { name: /comprobar medios/i }));
+        await screen.findByRole("dialog");
+
+        fireEvent.click(screen.getByRole("button", { name: /abrir lista/i }));
+        await screen.findByText("Requiere Maggasukha");
+
+        expect(screen.getByText("Requiere Maggasukha")).toBeInTheDocument();
+    });
 });

@@ -8,7 +8,7 @@ import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 const TONES: Record<EstadoMedio, { bg: string; label: string }> = {
     listo: { bg: "border-emerald-500/40 bg-emerald-500/20 text-emerald-300", label: "Listo" },
     usable: { bg: "border-cyan-500/40 bg-cyan-500/20 text-cyan-300", label: "Usable" },
-    requiere_alex: { bg: "border-amber-500/40 bg-amber-500/20 text-amber-300", label: "Requiere Alex" },
+    requiere_alex: { bg: "border-amber-500/40 bg-amber-500/20 text-amber-300", label: "Requiere Maggasukha" },
     no_disponible: { bg: "border-zinc-500/40 bg-zinc-500/20 text-zinc-400", label: "No disponible" },
 };
 

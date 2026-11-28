@@ -18,7 +18,7 @@ export interface SelectorColorSeleccionProps {
 }
 
 const DEMO_PARTICIPANTES = [
-    { id: "maggasukha", nombre: "Alex (tú)" },
+    { id: "maggasukha", nombre: "Maggasukha (tú)" },
     { id: "hermes", nombre: "Hermes" },
     { id: "oracle-a1", nombre: "Oracle A1" },
     { id: "transmision", nombre: "Transmisión en vivo" },

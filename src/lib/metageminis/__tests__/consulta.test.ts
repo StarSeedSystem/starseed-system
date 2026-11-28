@@ -42,6 +42,10 @@ function ficha(extra: Partial<SitioDirectorio>): SitioDirectorio {
 }
 
 describe("reglas derivadas", () => {
+  it("etiqueta 'solo-humano' usa Maggasukha", () => {
+    expect(ETIQUETA_AGENTES["solo-humano"]).toBe("Lo envía Maggasukha");
+  });
+
   it("un sitio hecho para agentes o con API oficial admite al agente; el resto, no", () => {
     expect(puedeEnviarElAgente(ficha({ agentes: "diseñado-para-agentes" }))).toBe(true);
     expect(puedeEnviarElAgente(ficha({ agentes: "api-oficial-con-aviso" }))).toBe(true);

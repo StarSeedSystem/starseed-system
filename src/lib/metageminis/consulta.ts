@@ -24,7 +24,7 @@ export const ETIQUETA_AGENTES: Record<ReglaAgentes, string> = {
   "api-oficial-con-aviso": "API oficial, avisando que es IA",
   "por-comunidad": "Según cada comunidad",
   "solo-lectura": "Solo lectura",
-  "solo-humano": "Lo envía Alex",
+  "solo-humano": "Lo envía Maggasukha",
   prohibido: "Prohibido a agentes",
   "sin-verificar": "Reglas sin leer",
 };
