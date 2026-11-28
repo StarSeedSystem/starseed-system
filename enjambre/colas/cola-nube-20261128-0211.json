@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "ola": "nfc-1126",
+   "prioridad": 84,
+   "capacidad": "media",
+   "revisor": {
+    "origen": "NFC1126O-d1",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "id": "NFC1126O-d1-d2",
+   "titulo": "NFC (15): tarjetas y ofertas digitales no publicitarias — diseño libre, envío al vincularse y recepción en notificaciones (parte 1 de 2) (parte 2 de 3)",
+   "archivos": [
+    "src/components/nfc/tarjeta-oferta.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/nfc-neuronas.md §13. Tipos: presentación o amistad (guardar en contactos), evento, página, grupo, partido, perfil, cuenta, cerebro, repositorio, archivo, app, programa, enlace libre. Editor de tarjeta (plantillas + diseño libre, enlazado a la Protomolécula/lienzo), firma del emisor, caducidad opcional, envío al vincularse según preferencias, recepción en notificaciones con su acción principal. Nada comercial o publicitario no pedido: se marca y el receptor puede bloquear a ese emisor. Pruebas.\n\n## PARTE 1 DE 2 (la dirección dividió NFC1126O: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/nfc/tarjetas-oferta.ts, src/components/nfc/tarjeta-oferta.tsx, src/components/nfc/editor-tarjeta.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## PARTE 2 DE 3 (la dirección dividió NFC1126O-d1: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/nfc/tarjeta-oferta.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "dependencias_ya_en_main": [
+    "NFC1126O-d1-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "NFC1126O-d1-d2"
+  ]
+ }
+}
