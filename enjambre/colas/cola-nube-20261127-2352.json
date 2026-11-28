@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261127",
+ "tareas": [
+  {
+   "id": "ALC1125F",
+   "ola": "almacenes-cerebros-1125",
+   "titulo": "Almacenes: la capacidad de almacenamiento como señal de capa (privada, grupo, comunidad, pública)",
+   "archivos": [
+    "src/lib/almacenes/oferta.ts",
+    "src/lib/network/capacidades-nodo.ts",
+    "src/lib/almacenes/__tests__/oferta.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/almacenes-cerebros.md (petición de Maggasukha del 25-11) y síguelo; amplía lo que ya existe en src/lib/storage y src/lib/brains, no lo reescribas. Reglas: toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm nuevas; en Rust solo crates que ya están en Cargo.toml; textos de interfaz en español con los tokens del tema; privacidad y guardas del contrato innegociables (cifrado en la neurona del dueño, nunca el disco del sistema, nada se borra sin confirmación local, los conflictos nunca pisan). Sección 5 (última parte): la oferta de almacenamiento se anuncia como las demás capacidades de la neurona (reutiliza capacidades-nodo.ts y el patrón de internet compartido y capacidad por malla): cuánto, a quién (privada, grupo, comunidad, pública), cuándo y con qué tope; apagada por defecto. Pruebas.",
+   "prioridad": 72,
+   "dependencias_ya_en_main": [
+    "ALC1125A",
+    "ALC1125E-d2"
+   ]
+  },
+  {
+   "ola": "CAP1119",
+   "titulo": "Integrar skill agent-reach en flujo de trabajo",
+   "archivos": [
+    ".agent/skills/agent-reach/README.md"
+   ],
+   "depende": [],
+   "medio": "nube",
+   "t_reasignada": 1795470337.643998,
+   "t": "2026-11-24 16:29:19",
+   "segundos": 430,
+   "modelos_fallidos": [
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+   ],
+   "rama": "ola/CAP-skill-agent-reach-uso",
+   "sha": null,
+   "intentos_auto": 3,
+   "por": "supervision-1107",
+   "antes": {
+    "estado": "pendiente",
+    "t": "2026-11-23 16:21:15"
+   },
+   "id": "CAP-skill-agent-reach-usob",
+   "prompt": "Documentar y crear ejemplo de uso de la skill agent-reach para que el enjambre la use.\n\n## REPARACIÓN\nCorrige cada punto de esta objeción literal y añade una prueba para cada uno:\n{\"t\": \"2026-11-23 02:26:39\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-23 16:21:16\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"reabierta por el director: devuelta de la nube: su run terminó · la nube dijo «rechazada»\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n{\"t\": \"2026-11-24 23:21:02\", \"quien\": \"enjambre\", \"tipo\": \"aviso\", \"tarea\": \"CAP-skill-agent-reach-uso\", \"texto\": \"otra ola ya la cerró (rechazada según progreso.json) → no la repito\", \"categoria\": \"escritura\", \"donde\": \"mac\"}\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "ALC1125F",
+   "CAP-skill-agent-reach-usob"
+  ]
+ }
+}
