@@ -105,6 +105,7 @@ class TestDecidir(unittest.TestCase):
         d = L.decidir(caso(reserva="trae una migración de base de datos", jev=JEV_SI))
         self.assertEqual(d["accion"], "reservar_alex")
         self.assertIn("migración", d["motivo"])
+        self.assertTrue(d["motivo"].startswith("la decide Maggasukha:"), d["motivo"])
 
     def test_sucesora_viva_suelta_el_trabajador(self):
         self.assertEqual(L.decidir(caso(revisor="bloqueante", sucesora="X1d"))["accion"], "liberar")
