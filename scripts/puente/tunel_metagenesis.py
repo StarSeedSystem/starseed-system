@@ -134,12 +134,28 @@ def ruta_permitida(objetivo):
     return re.match(r"^/api/mando(/|$)", ruta) is not None
 
 
+def es_origen_nativo(origen):
+    """PURA. True si el `Origin` corresponde a la app nativa de StarSeed OS o al Genesis local."""
+    origen = (origen or "").strip().rstrip("/")
+    if not origen:
+        return False
+    return bool(
+        re.match(r"^http://(127\.0\.0\.1|localhost):(4761[0-9]|9002)$", origen, re.IGNORECASE)
+        or re.match(r"^(tauri://localhost|https?://tauri\.localhost)$", origen, re.IGNORECASE)
+    )
+
+
 def cabeceras_cors(origen, permitidos=None, preflight=False, pedidas=""):
     """PURA. Cabeceras CORS [(nombre, valor)] para un `Origin` permitido; [] si no lo es (y el
     navegador corta la respuesta). Nunca `Allow-Credentials`: la sesión viaja en el token, jamás
     en cookies, así que ninguna otra web puede usar la sesión de nadie por aquí."""
     origen = (origen or "").strip().rstrip("/")
-    if not origen or origen not in (ORIGENES if permitidos is None else permitidos):
+    if not origen:
+        return []
+    if permitidos is None:
+        if origen not in ORIGENES and not es_origen_nativo(origen):
+            return []
+    elif origen not in permitidos:
         return []
     salida = [("Access-Control-Allow-Origin", origen), ("Vary", "Origin")]
     if preflight:

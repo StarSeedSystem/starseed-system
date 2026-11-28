@@ -55,6 +55,15 @@ class Piezas(unittest.TestCase):
         self.assertEqual(pre["Access-Control-Allow-Headers"], "authorization, content-type")
         self.assertIn("OPTIONS", pre["Access-Control-Allow-Methods"])
         self.assertNotIn("Access-Control-Allow-Credentials", pre)
+        for nativo in (
+            "http://127.0.0.1:47610",
+            "http://localhost:47619",
+            "tauri://localhost",
+            "https://tauri.localhost",
+            "http://localhost:9002",
+        ):
+            self.assertEqual(dict(T.cabeceras_cors(nativo))["Access-Control-Allow-Origin"], nativo, nativo)
+        self.assertEqual(T.cabeceras_cors("http://127.0.0.1:3000"), [])
 
     def test_vigilancia(self):
         self.assertEqual(T.decidir_vigilancia(False, False, True, 3), ("relanzar", 0))

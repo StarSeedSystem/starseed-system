@@ -24,6 +24,17 @@ function esRuta(pathname: string): boolean {
     return /^\/api\/mando(\/|$)/.test(pathname);
 }
 
+/** True si el origen pertenece al contenedor nativo (Tauri o servidor local 47610..47619 / 9002). */
+export function esOrigenAppNativa(origen: string): boolean {
+    const o = origen.trim().replace(/\/+$/, "").toLowerCase();
+    return (
+        /^http:\/\/(127\.0\.0\.1|localhost):4761[0-9]$/.test(o) ||
+        /^http:\/\/127\.0\.0\.1:9002$/.test(o) ||
+        /^tauri:\/\/localhost$/.test(o) ||
+        /^https?:\/\/tauri\.localhost$/.test(o)
+    );
+}
+
 /** Orígenes admitidos: los del OS y los extra válidos (https, o http solo para localhost). */
 export function origenesPermitidos(extra: string | undefined = process.env.METAGENESIS_ORIGENES_EXTRA): string[] {
     const lista: string[] = [...ORIGENES_OS];
@@ -47,7 +58,7 @@ function origenCruzadoAdmitido(req: Request, lista: string[]): string | null {
         return null;
     }
     if (origen === propio) return null;
-    return lista.includes(origen.toLowerCase()) ? origen : null;
+    return lista.includes(origen.toLowerCase()) || esOrigenAppNativa(origen) ? origen : null;
 }
 
 function rutaDe(req: Request): string {

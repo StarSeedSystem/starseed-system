@@ -23,8 +23,23 @@ import { PUERTOS_SERVIDOR_LOCAL } from "@/lib/nativa/sin-conexion";
 /** Hosts de bucle local: la página está abierta en la propia Mac. */
 const BUCLE = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
+/** Motores locales de MetaGenesis cuando se abre desde la app nativa en la misma Mac. */
+export const CANDIDATOS_MOTOR_LOCAL = ["http://127.0.0.1:9002", "http://localhost:9002"] as const;
+
 /** Un latido más viejo que esto ya no dice que la Mac esté viva (la Mac late cada 60 s). */
 export const LATIDO_VIEJO_MS = 3 * 60_000;
+
+/**
+ * ¿La página está corriendo dentro del contenedor nativo local (Tauri o servidor 47610…47619)?
+ * Puramente para probar también el motor local de la misma máquina además del túnel remoto.
+ */
+export function esAppNativaLocal(hostname: string, puerto?: string | number | null): boolean {
+    const h = (hostname || "").trim().toLowerCase();
+    if (h === "tauri.localhost") return true;
+    if (!BUCLE.has(h)) return false;
+    const p = Number(puerto);
+    return Number.isInteger(p) && (PUERTOS_SERVIDOR_LOCAL as readonly number[]).includes(p);
+}
 
 /**
  * ¿La página está abierta en la propia máquina del motor (bucle local)?
@@ -56,7 +71,10 @@ export function hostsExtraDeEntorno(valor: string | undefined): string[] {
  * Admite: el propio origen de la página (la sirve la Mac) o https de `*.trycloudflare.com`
  * (un solo nivel) o de `hostsExtra`; sin ruta, sin consulta, sin usuario y sin puerto.
  */
-export function motorUrlValida(url: unknown, opciones: { hostsExtra?: string[]; origenPagina?: string } = {}): string | null {
+export function motorUrlValida(
+    url: unknown,
+    opciones: { hostsExtra?: string[]; origenPagina?: string; permitirLocal?: boolean } = {},
+): string | null {
     if (typeof url !== "string" || !url.trim()) return null;
     let u: URL;
     try {
@@ -65,6 +83,17 @@ export function motorUrlValida(url: unknown, opciones: { hostsExtra?: string[]; 
         return null;
     }
     if (opciones.origenPagina && u.origin === opciones.origenPagina && (u.pathname === "/" || u.pathname === "")) {
+        return u.origin;
+    }
+    if (
+        opciones.permitirLocal &&
+        (u.origin === "http://127.0.0.1:9002" || u.origin === "http://localhost:9002") &&
+        (u.pathname === "/" || u.pathname === "") &&
+        !u.username &&
+        !u.password &&
+        !u.search &&
+        !u.hash
+    ) {
         return u.origin;
     }
     if (u.protocol !== "https:" || u.username || u.password || u.port) return null;

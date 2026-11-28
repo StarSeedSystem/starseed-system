@@ -73,11 +73,14 @@ export function MetaGenesisRemoto({ children }: { children: ReactNode }) {
         const token = tokenRef.current;
         setOcupado(true);
         try {
+            const hostsExtra = hostsExtraDeEntorno(process.env.NEXT_PUBLIC_METAGENESIS_MOTOR_HOSTS);
+            const motoresAlternativos = hostsExtra.map((h) => ({ base: `https://${h}`, maquina: h }));
             const fase = await comprobarConexion({
                 hostname: window.location.hostname,
                 puerto: window.location.port,
                 origenPagina: window.location.origin,
-                hostsExtra: hostsExtraDeEntorno(process.env.NEXT_PUBLIC_METAGENESIS_MOTOR_HOSTS),
+                hostsExtra,
+                motoresAlternativos,
                 token,
                 acceso: async () => {
                     const a = accesoRef.current;
@@ -230,12 +233,24 @@ export function MetaGenesisRemoto({ children }: { children: ReactNode }) {
                         {estado.motivo}
                         {estado.maquina ? ` Máquina: ${estado.maquina}.` : ""} {textoReintento(fallosRef.current)}
                     </p>
+                    <p className="text-xs leading-relaxed text-emerald-100/85">
+                        MetaGenesis sigue operando arriba desde esta neurona, las neuronas activas de la malla, Oracle A1 y los entornos
+                        autónomos (con o sin la Mac encendida). Esta tarjeta solo aplica a la consola directa de la Mac.
+                    </p>
                     {botonComprobar}
                 </Tarjeta>
             );
         case "conectado":
         case "perdido": {
             const c = estado.fase === "conectado" ? estado : estado.anterior;
+            const textoDesde =
+                c.desde === "tunel"
+                    ? "por túnel cifrado"
+                    : c.desde === "motor-local"
+                      ? "por motor local en esta máquina"
+                      : c.desde === "entorno-alterno"
+                        ? "por entorno de desarrollo alterno"
+                        : "esta página la sirve la propia Mac";
             return (
                 <>
                     {estado.fase === "conectado" ? (
@@ -247,8 +262,7 @@ export function MetaGenesisRemoto({ children }: { children: ReactNode }) {
                             <PlugZap className="h-4 w-4 shrink-0" aria-hidden />
                             <span className="font-medium">Conectado a MetaGenesis en la Mac{c.maquina ? ` (${c.maquina})` : ""}</span>
                             <span className="text-xs text-emerald-100/70">
-                                {c.desde === "tunel" ? "por túnel cifrado" : "esta página la sirve la propia Mac"} · respuesta comprobada{" "}
-                                {textoHace(ahora - c.comprobadoEn)}
+                                {textoDesde} · respuesta comprobada {textoHace(ahora - c.comprobadoEn)}
                             </span>
                         </div>
                     ) : (

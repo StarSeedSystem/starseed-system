@@ -14,6 +14,8 @@
 
 import {
     abiertoEnLaMac,
+    CANDIDATOS_MOTOR_LOCAL,
+    esAppNativaLocal,
     leerFilaMotor,
     motorUrlValida,
     type LecturaMotor,
@@ -27,7 +29,7 @@ export type FaseConexion =
     | {
           fase: "conectado";
           base: string;
-          desde: "tunel" | "esta-pagina";
+          desde: "tunel" | "esta-pagina" | "motor-local" | "entorno-alterno";
           maquina: string | null;
           /** Momento (ms) de la última sonda que contestó: la prueba de vida que se enseña. */
           comprobadoEn: number;
@@ -43,6 +45,8 @@ export interface DepsConexion {
     puerto?: string;
     origenPagina: string;
     hostsExtra: string[];
+    /** Motores externos / Oracle / entornos alternos configurados para intentar si falla la Mac. */
+    motoresAlternativos?: readonly { base: string; maquina?: string | null }[];
     token: (forzar?: boolean) => Promise<string | null>;
     acceso: () => Promise<{ miembro: boolean } | null>;
     leerMotor: () => Promise<LecturaMotor>;
@@ -65,19 +69,69 @@ export async function comprobarConexion(d: DepsConexion): Promise<FaseConexion> 
         return { fase: "conectado", base: d.origenPagina, desde: "esta-pagina", maquina: null, comprobadoEn: d.ahora() };
     }
 
+    // Si es la app nativa en su servidor local (127.0.0.1:47610..47619 o tauri.localhost),
+    // sondeamos directamente el motor local de la misma máquina (:9002) antes del túnel.
+    let rechazoLocal: number | undefined;
+    if (esAppNativaLocal(d.hostname, d.puerto)) {
+        for (const cand of CANDIDATOS_MOTOR_LOCAL) {
+            if (cand === d.origenPagina) continue;
+            const sLocal = await d.sondear(cand, token);
+            if (sLocal.ok) {
+                return {
+                    fase: "conectado",
+                    base: cand,
+                    desde: "motor-local",
+                    maquina: "esta máquina (local :9002)",
+                    comprobadoEn: d.ahora(),
+                };
+            }
+            if (sLocal.tipo === "rechazado" && rechazoLocal === undefined) rechazoLocal = sLocal.estado;
+        }
+    }
+
     const lectura = await d.leerMotor();
-    if (!lectura.ok) return lectura.sinTabla ? { fase: "sin-tabla", motivo: lectura.motivo } : { fase: "error", motivo: lectura.motivo };
-    const fila = lectura.fila;
+    if (!lectura.ok && !d.motoresAlternativos?.length) {
+        if (rechazoLocal !== undefined) return { fase: "rechazado", estado: rechazoLocal };
+        return lectura.sinTabla ? { fase: "sin-tabla", motivo: lectura.motivo } : { fase: "error", motivo: lectura.motivo };
+    }
+
+    const fila = lectura.ok ? lectura.fila : null;
     const resumen = leerFilaMotor(fila, d.ahora(), d.hostsExtra);
     const base = fila?.encendido ? motorUrlValida(fila.url, { hostsExtra: d.hostsExtra }) : null;
     const maquina = fila?.maquina?.trim() || null;
+
+    if (base) {
+        const sonda = await d.sondear(base, token);
+        if (sonda.ok) {
+            return { fase: "conectado", base, desde: "tunel", maquina, comprobadoEn: d.ahora() };
+        }
+        if (sonda.tipo === "rechazado") return { fase: "rechazado", estado: sonda.estado };
+    }
+
+    if (d.motoresAlternativos?.length) {
+        for (const m of d.motoresAlternativos) {
+            const valida = motorUrlValida(m.base, { hostsExtra: d.hostsExtra, origenPagina: d.origenPagina, permitirLocal: true });
+            if (!valida || valida === base || valida === d.origenPagina) continue;
+            const sAlt = await d.sondear(valida, token);
+            if (sAlt.ok) {
+                return {
+                    fase: "conectado",
+                    base: valida,
+                    desde: "entorno-alterno",
+                    maquina: m.maquina ?? null,
+                    comprobadoEn: d.ahora(),
+                };
+            }
+            if (sAlt.tipo === "rechazado") return { fase: "rechazado", estado: sAlt.estado };
+        }
+    }
+
+    if (rechazoLocal !== undefined) return { fase: "rechazado", estado: rechazoLocal };
+    if (!lectura.ok) {
+        return lectura.sinTabla ? { fase: "sin-tabla", motivo: lectura.motivo } : { fase: "error", motivo: lectura.motivo };
+    }
     if (!base) return { fase: "mac-apagada", latidoHaceMs: resumen.latidoHaceMs, motivo: resumen.motivo, maquina };
 
-    const sonda = await d.sondear(base, token);
-    if (sonda.ok) {
-        return { fase: "conectado", base, desde: "tunel", maquina, comprobadoEn: d.ahora() };
-    }
-    if (sonda.tipo === "rechazado") return { fase: "rechazado", estado: sonda.estado };
     return {
         fase: "mac-apagada",
         latidoHaceMs: resumen.latidoHaceMs,

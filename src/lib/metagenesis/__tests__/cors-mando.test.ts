@@ -26,8 +26,24 @@ describe("pregunta previa (OPTIONS)", () => {
         expect(r.headers.get("vary")).toMatch(/Origin/);
     });
 
-    it("localhost:9002 también es del OS", () => {
+    it("localhost:9002 y orígenes de la app nativa también son del OS", () => {
         expect(preflightCorsMando(pregunta("http://localhost:9002"))!.status).toBe(204);
+        for (const nativo of [
+            "http://127.0.0.1:47610",
+            "http://localhost:47619",
+            "tauri://localhost",
+            "https://tauri.localhost",
+            "http://127.0.0.1:9002",
+        ]) {
+            const pre = preflightCorsMando(pregunta(nativo))!;
+            expect(pre.status).toBe(204);
+            expect(pre.headers.get("access-control-allow-origin")).toBe(nativo);
+            const res = aplicarCorsMando(
+                new Request(`${MOTOR}/api/mando/estado`, { headers: { Origin: nativo, Authorization: "Bearer x" } }),
+                new Response("{}"),
+            );
+            expect(res.headers.get("access-control-allow-origin")).toBe(nativo);
+        }
     });
 
     it("cualquier otro origen → 403 sin cabeceras CORS", () => {

@@ -91,4 +91,49 @@ describe("comprobarConexion", () => {
         expect(await comprobarConexion(deps({ sondas: { [MOTOR]: { ok: false, tipo: "rechazado", estado: 403 } } }))).toEqual({ fase: "rechazado", estado: 403 });
         expect((await comprobarConexion(deps({ leerMotor: async () => ({ ok: false, sinTabla: true, motivo: "falta" }) }))).fase).toBe("sin-tabla");
     });
+
+    it("app nativa en la Mac (127.0.0.1:47610) conecta al motor local :9002 aun con el túnel apagado", async () => {
+        const leerMotor = vi.fn(async () => ({ ok: true as const, fila: fila({ encendido: false, url: null }) }));
+        const r = await comprobarConexion(
+            deps({
+                hostname: "127.0.0.1",
+                puerto: "47610",
+                origenPagina: "http://127.0.0.1:47610",
+                sondas: { "http://127.0.0.1:9002": { ok: true } },
+                leerMotor,
+            }),
+        );
+        expect(r).toMatchObject({ fase: "conectado", base: "http://127.0.0.1:9002", desde: "motor-local" });
+        expect(leerMotor).not.toHaveBeenCalled();
+    });
+
+    it("app nativa en otro dispositivo (sin :9002 local) cae al túnel de la Mac", async () => {
+        const r = await comprobarConexion(
+            deps({
+                hostname: "127.0.0.1",
+                puerto: "47610",
+                origenPagina: "http://127.0.0.1:47610",
+                sondas: {
+                    "http://127.0.0.1:47610": { ok: false, tipo: "no-es-motor", estado: 404 },
+                    "http://127.0.0.1:9002": { ok: false, tipo: "sin-respuesta" },
+                    "http://localhost:9002": { ok: false, tipo: "sin-respuesta" },
+                    [MOTOR]: { ok: true },
+                },
+            }),
+        );
+        expect(r).toMatchObject({ fase: "conectado", base: MOTOR, desde: "tunel" });
+    });
+
+    it("sin túnel de la Mac, conecta a un motor alterno (Oracle/externo) declarado", async () => {
+        const ALT = "https://oracle-a1.starseed.example";
+        const r = await comprobarConexion(
+            deps({
+                hostsExtra: ["oracle-a1.starseed.example"],
+                motoresAlternativos: [{ base: ALT, maquina: "Oracle A1" }],
+                leerMotor: async () => ({ ok: true, fila: fila({ encendido: false, url: null }) }),
+                sondas: { [PAGINA]: { ok: false, tipo: "no-es-motor", estado: 404 }, [ALT]: { ok: true } },
+            }),
+        );
+        expect(r).toMatchObject({ fase: "conectado", base: ALT, desde: "entorno-alterno", maquina: "Oracle A1" });
+    });
 });

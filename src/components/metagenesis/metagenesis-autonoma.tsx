@@ -42,6 +42,8 @@ import {
 import type { Boton } from "@/lib/metagenesis/colmena";
 import { avisoDeOrdenANodo, botonesDeNodo, lineaDeNodo, ordenDeBoton, porQueNoSePuedeMandar, type ClaveBoton } from "@/lib/metagenesis/colmena-tarjeta";
 import { textoHace } from "@/lib/metagenesis/remoto";
+import { construirMediosDesarrollo } from "@/lib/metagenesis/medios-desarrollo";
+import type { Neuron } from "@/lib/neurons/neurons";
 import { onTableChange } from "@/lib/realtime/realtime";
 
 const CADA_MS = 90_000;
@@ -176,6 +178,12 @@ export function MetaGenesisAutonoma() {
     const [confirmando, setConfirmando] = useState<string | null>(null);
     const [aviso, setAviso] = useState<{ tono: "verde" | "rosa"; texto: string } | null>(null);
     const [ahora, setAhora] = useState(() => Date.now());
+    const [neuronas, setNeuronas] = useState<Neuron[]>([]);
+    const [infoActual, setInfoActual] = useState<{ nombre: string; idUnico: string; plataforma: string }>({
+        nombre: "",
+        idUnico: "",
+        plataforma: "",
+    });
     const enVuelo = useRef(false);
 
     const leer = useCallback(async () => {
@@ -224,6 +232,27 @@ export function MetaGenesisAutonoma() {
             quitar();
         };
     }, [acceso, leer]);
+
+    useEffect(() => {
+        if (acceso !== "si") return;
+        let vivo = true;
+        void import("@/lib/neurons/neurons")
+            .then(async (m) => {
+                if (!vivo) return;
+                const nombre = typeof m.nombreEsteAparato === "function" ? m.nombreEsteAparato() : "";
+                const idUnico = typeof m.idUnicoEsteAparato === "function" ? m.idUnicoEsteAparato() : "";
+                const plataforma = typeof navigator !== "undefined" ? navigator.platform || "" : "";
+                setInfoActual({ nombre, idUnico, plataforma });
+                if (typeof m.listNeurons === "function") {
+                    const lista = await Promise.resolve(m.listNeurons()).catch(() => []);
+                    if (vivo && Array.isArray(lista)) setNeuronas(lista);
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            vivo = false;
+        };
+    }, [acceso]);
 
     const mandar = useCallback(
         async (o: { accion: AccionOrden; para: string; args?: ArgsOrden; confirmar: boolean; aviso: string }) => {
@@ -287,6 +316,16 @@ export function MetaGenesisAutonoma() {
     const estado = lectura?.ok ? lectura.estado : null;
     const autonomia = estado?.autonomia !== false;
     const medidores = estado ? Object.entries(estado.medidores).filter(([, v]) => v) : [];
+    const mediosDesarrollo = construirMediosDesarrollo({
+        origenPagina: typeof window !== "undefined" ? window.location.origin : "",
+        hostname: typeof window !== "undefined" ? window.location.hostname : "",
+        puerto: typeof window !== "undefined" ? window.location.port : "",
+        nombreActual: infoActual.nombre,
+        idUnicoActual: infoActual.idUnico,
+        plataformaActual: infoActual.plataforma,
+        neuronas,
+        estadoAutonomo: estado,
+    });
 
     return (
         <section
@@ -426,6 +465,42 @@ export function MetaGenesisAutonoma() {
                     </p>
                 </>
             ) : null}
+
+            <div className="mt-4 border-t border-white/10 pt-3" data-testid="mg-medios-desarrollo">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/55">
+                    Medios y entornos activos (con o sin la Mac)
+                </p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {mediosDesarrollo.map((m) => (
+                        <li
+                            key={m.id}
+                            className={`rounded-xl border px-2.5 py-2 text-xs ${
+                                m.activo ? "border-emerald-400/20 bg-emerald-500/[0.05]" : "border-white/10 bg-black/20 opacity-75"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="flex min-w-0 items-center gap-1.5 font-medium text-white/90">
+                                    {m.color ? (
+                                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: m.color }} aria-hidden />
+                                    ) : null}
+                                    <span className="break-words">{m.nombre}</span>
+                                </span>
+                                <Chip tono={m.lider ? "ambar" : m.activo ? "verde" : "neutro"}>
+                                    {m.lider ? "dirige" : m.activo ? "activo" : "inactivo"}
+                                </Chip>
+                            </div>
+                            <p className="mt-1 text-[11px] text-white/60">{m.detalle}</p>
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                                {m.etiquetas.map((et) => (
+                                    <span key={et} className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-white/65">
+                                        {et}
+                                    </span>
+                                ))}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
         </section>
     );
 }
