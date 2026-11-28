@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "id": "MV1125I",
+   "ola": "multiverso-1125",
+   "titulo": "Ramas 4D: añadir ramas de cualquier formato, vincular arrastrando y transmutar",
+   "archivos": [
+    "src/lib/ramas4d/edicion.ts",
+    "src/lib/ramas4d/transmutar.ts",
+    "src/components/ramas4d/editor-rama.tsx",
+    "src/lib/ramas4d/__tests__/edicion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). edicion.ts: añadir rama hija de cualquier formato (archivo, enlace, nota, publicación, app, lección…), vincular dos nodos con tipo de arista, mover, solo en lo propio o con permiso de edición del grupo; deshacer. transmutar.ts usa src/lib/conversion (formatos.ts, cliente.ts) para pedir otra forma del mismo contenido y colgarla como rama hermana con arista transmuta; si el formato no se puede convertir, lo dice y no inventa. editor-rama.tsx: diálogo para elegir formato y origen. Pruebas de permisos, deshacer y transmutación simulada.",
+   "prioridad": 72,
+   "revisor_quitadas": [
+    "MV1125H"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "MV1125I"
+  ]
+ }
+}
