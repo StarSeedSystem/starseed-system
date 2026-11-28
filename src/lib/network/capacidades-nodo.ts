@@ -4,6 +4,7 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+import { normalizarOfertaAlmacen, type OfertaCapacidadAlmacen } from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -49,6 +50,8 @@ export interface CapacidadesNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** (ALC1125F) Oferta de capacidad de almacenamiento activa; ausente = apagada. */
+  ofertaAlmacen?: OfertaCapacidadAlmacen;
   /** Build de la capa que sirve el servidor local (web_corre). */
   capaBuild?: string;
   /** Versión de la app (interfaz). */
@@ -180,6 +183,8 @@ export interface ResumenRed {
   conNeedle: number;
   conBitnet: number;
   conJev: number;
+  /** (ALC1125F) Nodos con una oferta de almacenamiento activa. */
+  conAlmacen: number;
   adaptadorMasNuevo: string | null;
 }
 
@@ -204,6 +209,8 @@ export interface DatosFichaNodo {
   discoLibreGb?: number | null;
   /** Rutas de carpetas de almacenamiento en el nodo; vacío/ausente = sin medir. */
   almacen?: string[];
+  /** (ALC1125F) Oferta de capacidad de almacenamiento activa; ausente = apagada. */
+  ofertaAlmacen?: OfertaCapacidadAlmacen;
   /** Build de la capa que sirve el servidor local (web_corre). */
   capaBuild?: string;
   /** Versión de la app (interfaz). */
@@ -224,6 +231,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
   const voz = normalizarVoz(d.voz);
+  const ofertaAlmacen = normalizarOfertaAlmacen(d.ofertaAlmacen);
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -246,6 +254,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(voz ? { voz } : {}),
     ...(d.discoLibreGb !== undefined ? { discoLibreGb: d.discoLibreGb } : {}),
     ...(d.almacen !== undefined ? { almacen: d.almacen } : {}),
+    ...(ofertaAlmacen ? { ofertaAlmacen } : {}),
     ...(d.capaBuild !== undefined ? { capaBuild: d.capaBuild } : {}),
     ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
     ...(d.rol !== undefined ? { rol: d.rol } : {}),
@@ -258,6 +267,11 @@ export const FICHA_COMPACTA_MAX_BYTES = 200;
 
 function bytesDe(s: string): number {
   return new TextEncoder().encode(s).length;
+}
+
+/** Código corto del público de una oferta de almacén: p=privada, g=grupo, m=comunidad, u=pública. */
+function codigoAmbitoOferta(ambito: string): string {
+  return ambito === "grupo" ? "g" : ambito === "comunidad" ? "m" : ambito === "publica" ? "u" : "p";
 }
 
 /**
@@ -279,6 +293,9 @@ export function fichaCompacta(f: CapacidadesNodo): string {
     f.bateriaPct == null ? "b-" : `b${Math.round(f.bateriaPct)}`,
     f.enSegundoPlano ? "g1" : "g0",
     `a${ambitos}`,
+    ...(f.ofertaAlmacen?.activa
+      ? [`o${codigoAmbitoOferta(f.ofertaAlmacen.ambito)}${Math.max(0, Math.round(f.ofertaAlmacen.bytesOfrecidos / 1e9))}`]
+      : []),
   ].join("|");
   const capas = [...(f.capas ?? [])];
   let salida = base;
@@ -440,6 +457,7 @@ export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
   const conNeedle = nodos.filter((n) => n.needle !== null);
   const conBitnet = nodos.filter((n) => n.bitnet !== null);
   const conJev = nodos.filter((n) => n.jev);
+  const conAlmacen = nodos.filter((n) => n.ofertaAlmacen?.activa === true);
 
   const conAdaptador = conNeedle.filter(
     (n) => typeof n.needle?.adaptador === "string" && n.needle.adaptador.trim() !== ""
@@ -455,6 +473,7 @@ export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
     conNeedle: conNeedle.length,
     conBitnet: conBitnet.length,
     conJev: conJev.length,
+    conAlmacen: conAlmacen.length,
     adaptadorMasNuevo: conAdaptador.length > 0 ? conAdaptador[0].needle!.adaptador! : null,
   };
 }
