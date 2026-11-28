@@ -7710,3 +7710,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 03:03 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Cerca de ti
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (NFC1126L-d1, ALC1125F, CRE1125B). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `NFC1126L-d1` — no escribió nada
+- `ALC1125F` — no escribió nada
+- `CRE1125B` — no escribió nada
