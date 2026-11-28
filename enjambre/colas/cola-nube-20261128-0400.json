@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "id": "TRM1125Hs",
+   "prioridad": 78,
+   "capacidad": "alta",
+   "titulo": "Ayudante en los paquetes de Linux: postinst del .deb/.rpm y activación con pkexec en la AppImage · lo que faltó: native/src-tauri/recursos/ayudante-linux-activar.sh",
+   "archivos": [
+    "native/src-tauri/recursos/ayudante-linux-activar.sh"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de TRM1125H, que ya está integrada (sha 6a40c5b2de65). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: native/src-tauri/recursos/ayudante-linux-activar.sh.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Ayudante en los paquetes de Linux: postinst del .deb/.rpm y activación con pkexec en la AppImage\n\n--- encargo original, como contexto ---\nContrato: lee architecture/terminal-entre-neuronas.md y architecture/control-remoto-entre-neuronas.md (sus reglas siguen en pie: permiso apagado por defecto y encendido en el propio aparato, aviso visible, «Terminar» y «Quitar permiso», órdenes selladas con anti-repetición y topes, nada entra con el aparato bloqueado, las contraseñas nunca viajan). Toca SOLO los archivos listados; pruebas junto al código; tsc sin errores; sin dependencias npm ni crates nuevos; comandos nativos nuevos en COMANDOS_APP, capability e inventario. El .deb y el .rpm instalan el ayudante de TRM1125C y su regla de sudoers limitada (visudo -c) en postinst y lo quitan en prerm; la AppImage lo ofrece la primera vez con pkexec (la persona autoriza en su sistema). Instalarlo no enciende ningún permiso. Pruebas: bash -n y que tauri.conf.json sigue siendo válido.",
+   "ola": "terminal-neuronas-1125",
+   "origen": "seguimiento de alcance parcial",
+   "dependencias_ya_en_main": [
+    "TRM1125C-d2",
+    "TRM1125J-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "TRM1125Hs"
+  ]
+ }
+}
