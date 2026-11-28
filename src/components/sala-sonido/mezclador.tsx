@@ -145,7 +145,10 @@ function FuenteCanal({
       <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
         <div className="flex items-center gap-3 min-w-0">
           <div className="shrink-0 p-2 rounded-xl bg-primary/10">
-            <ICONOS_TIPO_FUENTE[fuente.tipo] className="h-5 w-5 text-primary" aria-hidden="true" />
+            {(() => {
+              const Icono = ICONOS_TIPO_FUENTE[fuente.tipo];
+              return <Icono className="h-5 w-5 text-primary" aria-hidden="true" />;
+            })()}
           </div>
           <div className="min-w-0">
             <p className="font-medium truncate">{fuente.nombre}</p>
