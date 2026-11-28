@@ -559,7 +559,7 @@ def _principal(argv=None):
     s = sub.add_parser("leer", help="leer el chat")
     s.add_argument("-n", type=int, default=20, metavar="N")
     s.add_argument("--desde", default=None)
-    s = sub.add_parser("decir", help="Alex dice algo")
+    s = sub.add_parser("decir", help="Maggasukha dice algo")
     s.add_argument("texto")
     s.add_argument("--de", default="alex")
     s.add_argument("--a", default=None)
