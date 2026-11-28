@@ -7710,3 +7710,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 07:30 · mg-oracle-1128-0116
+
+**Lo que se pidió.** [capas] no se pudo leer la web publicada (curl terminó con exit status: 1 (curl: /tmp/.mount_StarSe…/usr/lib/libcrypt…
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (LNX1118WB, ALM1118A-d2b). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LNX1118WB` — no escribió nada
+- `ALM1118A-d2b` — no escribió nada
