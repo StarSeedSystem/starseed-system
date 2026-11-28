@@ -4,6 +4,7 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+import { normalizarOferta, type OfertaCapacidadAlmacen } from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -57,6 +58,8 @@ export interface CapacidadesNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Oferta de almacenamiento como señal de capa (§5); apagada por defecto. */
+  ofertaAlmacen?: OfertaCapacidadAlmacen | null;
 }
 
 /* ---- Voz medida (VZF1015Q · architecture/voz-fusionada-astraura.md §5) ---- */
@@ -212,6 +215,8 @@ export interface DatosFichaNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Oferta de almacenamiento como señal de capa (§5); apagada por defecto. */
+  ofertaAlmacen?: OfertaCapacidadAlmacen | null;
 }
 
 /**
@@ -224,6 +229,10 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
   const voz = normalizarVoz(d.voz);
+  const ofertaAlmacen =
+    d.ofertaAlmacen === undefined || d.ofertaAlmacen === null
+      ? undefined
+      : normalizarOferta(d.ofertaAlmacen) ?? undefined;
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -250,6 +259,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
     ...(d.rol !== undefined ? { rol: d.rol } : {}),
     ...(d.slotsLibres !== undefined ? { slotsLibres: d.slotsLibres } : {}),
+    ...(ofertaAlmacen ? { ofertaAlmacen } : {}),
   };
 }
 
