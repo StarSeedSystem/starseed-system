@@ -4,6 +4,11 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
+import {
+  fichaOfertaCompacta,
+  normalizarOfertaAlmacen,
+  type OfertaAlmacenSenal,
+} from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -57,6 +62,8 @@ export interface CapacidadesNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Oferta de almacenamiento como señal de capa (apagada por defecto). */
+  ofertaAlmacen?: OfertaAlmacenSenal;
 }
 
 /* ---- Voz medida (VZF1015Q · architecture/voz-fusionada-astraura.md §5) ---- */
@@ -212,6 +219,8 @@ export interface DatosFichaNodo {
   rol?: "aparato-de-prueba" | "director";
   /** Slots libres para inferencia local. */
   slotsLibres?: number;
+  /** Oferta de almacenamiento anunciada como señal de capa (apagada por defecto). */
+  ofertaAlmacen?: OfertaAlmacenSenal;
 }
 
 /**
@@ -224,6 +233,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
   const versionNeedle = capaNeedle?.split("@")[1]?.split("#")[0];
   const tokBitnet = d.tokS?.["bitnet"];
   const voz = normalizarVoz(d.voz);
+  const ofertaAlmacen = normalizarOfertaAlmacen(d.ofertaAlmacen);
   return {
     nodoId: d.nodoId,
     medio: d.medio,
@@ -250,6 +260,7 @@ export function crearFichaNodo(d: DatosFichaNodo): CapacidadesNodo {
     ...(d.appVersion !== undefined ? { appVersion: d.appVersion } : {}),
     ...(d.rol !== undefined ? { rol: d.rol } : {}),
     ...(d.slotsLibres !== undefined ? { slotsLibres: d.slotsLibres } : {}),
+    ...(ofertaAlmacen ? { ofertaAlmacen } : {}),
   };
 }
 
@@ -262,7 +273,8 @@ function bytesDe(s: string): number {
 
 /**
  * Serializa la ficha a una línea compacta ASCII ≤ 200 bytes para LoRa/Meshtastic.
- * Formato: `v1|id8|med|n<verNeedle>|t<tokBitnet>|r<ramMb>|b<bat>|g<0/1>|a<ambitos>|capas…`
+ * Formato: `v1|id8|med|n<verNeedle>|t<tokBitnet>|r<ramMb>|b<bat>|g<0/1>|a<ambitos>|o<destino><GB>|capas…`
+ * `o-` = sin oferta de almacenamiento (apagada por defecto).
  * Si no cabe, recorta la lista de capas por la cola (la base siempre cabe).
  */
 export function fichaCompacta(f: CapacidadesNodo): string {
@@ -279,6 +291,7 @@ export function fichaCompacta(f: CapacidadesNodo): string {
     f.bateriaPct == null ? "b-" : `b${Math.round(f.bateriaPct)}`,
     f.enSegundoPlano ? "g1" : "g0",
     `a${ambitos}`,
+    f.ofertaAlmacen ? fichaOfertaCompacta(f.ofertaAlmacen) || "o-" : "o-",
   ].join("|");
   const capas = [...(f.capas ?? [])];
   let salida = base;
