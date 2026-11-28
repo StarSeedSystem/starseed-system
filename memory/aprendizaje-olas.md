@@ -7710,3 +7710,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ALC1125E-d1` — otra cosa
 - `TRM1125C-d1` — otra cosa
 - `NOM1125A-d1` — otra cosa
+
+## 2026-11-28 04:42 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Mac 13 GB de 228,3 · Maggabox 397 GB de 453 · A1 9,1 · Drive 0 de 2048
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (MED1126A-d1-d1, NFC1126O-d1-d2, TRM1125Hs). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MED1126A-d1-d1` — no escribió nada
+- `NFC1126O-d1-d2` — no escribió nada
+- `TRM1125Hs` — no escribió nada
