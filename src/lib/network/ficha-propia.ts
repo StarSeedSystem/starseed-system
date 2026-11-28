@@ -18,9 +18,24 @@ import {
 import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import { versionesDeEsteMedio } from "@/lib/actualizaciones/versiones-locales";
+import {
+  AMBITOS_OFERTA,
+  CUANDOS_OFERTA,
+  crearOfertaAlmacen,
+  type OfertaCapacidadAlmacen,
+} from "@/lib/almacenes/oferta";
+import { uidActual, uidEnCache } from "@/lib/consumo/usuario";
+import { settingsFor } from "@/lib/neurons/neurons";
 
 /** Lo mínimo que hace falta para medir la ficha de este dispositivo. */
-export type DispositivoFicha = { id: string; platform: string; capas?: string[]; tokS?: Record<string, number> | null };
+export type DispositivoFicha = {
+  id: string;
+  platform: string;
+  capas?: string[];
+  tokS?: Record<string, number> | null;
+  /** Configuración explícita de la oferta; sin ella manda `offerStorage` de esta neurona. */
+  ofertaAlmacen?: Partial<OfertaCapacidadAlmacen>;
+};
 
 export interface TransporteFichaPropia {
   publicarMalla: (ficha: CapacidadesNodo) => void;
@@ -43,6 +58,52 @@ export function medioDesdePlataforma(platform: string): MedioNodo {
   if (p.includes("nube") || p.includes("cloud")) return "nube";
   if (p.includes("win") || p.includes("chrome") || p.includes("browser")) return "navegador";
   return "mac";
+}
+
+/** Bytes que el navegador declara disponibles para este origen; 0 si no hay medida. */
+async function bytesLibresMedidos(): Promise<number> {
+  try {
+    if (typeof navigator === "undefined") return 0;
+    const est = await navigator.storage?.estimate?.();
+    const cuota = typeof est?.quota === "number" ? est.quota : 0;
+    const uso = typeof est?.usage === "number" ? est.usage : 0;
+    return Math.max(0, Math.floor(cuota - uso));
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Oferta de almacenamiento de ESTA neurona: apagada salvo que `offerStorage`
+ * esté activo (o el llamador pase una configuración explícita). El dueño sale
+ * de la sesión, nunca de un dato de la ficha; sin dueño no se anuncia.
+ */
+export async function ofertaAlmacenPropia(
+  device: DispositivoFicha,
+  bytesLibres: number,
+): Promise<OfertaCapacidadAlmacen | undefined> {
+  try {
+    const pedida = device.ofertaAlmacen;
+    const neuronaId = neuronDeviceIdActual() || device.id;
+    const activa = pedida?.activa ?? settingsFor(neuronaId).offerStorage === true;
+    if (!activa) return undefined;
+    const cuentaId = uidEnCache() ?? (await uidActual()) ?? "";
+    if (!cuentaId) return undefined;
+    const ambito = AMBITOS_OFERTA.find((a) => a === pedida?.ambito) ?? "privada";
+    const cuando = CUANDOS_OFERTA.find((c) => c === pedida?.cuando) ?? "siempre";
+    const oferta = crearOfertaAlmacen({
+      ...pedida,
+      activa: true,
+      cuentaId,
+      ambito,
+      cuando,
+      bytesOfrecidos: pedida?.bytesOfrecidos ?? bytesLibres,
+      topeBytes: pedida?.topeBytes ?? bytesLibres,
+    });
+    return oferta.activa ? oferta : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -96,6 +157,8 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
     tokSLimpio = Object.keys(tokSLimpio).length > 0 ? tokSLimpio : null;
   }
 
+  const ofertaAlmacen = await ofertaAlmacenPropia(device, await bytesLibresMedidos());
+
   return crearFichaNodo({
     nodoId: device.id,
     medio: medioDesdePlataforma(device.platform),
@@ -105,6 +168,7 @@ export async function medirFichaPropia(device: DispositivoFicha): Promise<Capaci
     enSegundoPlano: typeof document !== "undefined" ? document.hidden : false,
     ambitos: ["propio", "cuenta"],
     ...(voz ? { voz } : {}),
+    ...(ofertaAlmacen ? { ofertaAlmacen } : {}),
     ...(versiones.servidor?.capaBuild ? { capaBuild: versiones.servidor.capaBuild } : {}),
     ...(versiones.interfaz ? { appVersion: versiones.interfaz } : {}),
     ...(rol ? { rol } : {}),

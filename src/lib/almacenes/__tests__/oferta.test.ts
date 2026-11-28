@@ -9,6 +9,7 @@ import {
   type OfertaCapacidadAlmacen,
 } from "../oferta";
 import { crearFichaNodo, fichaCompacta, resumenRed } from "@/lib/network/capacidades-nodo";
+import { capacidadesNodoToOfertaNeurona } from "@/lib/recursos/adaptadores";
 
 const AHORA = 1_000_000;
 const base = { cuentaId: "cuenta-1", activa: true, bytesOfrecidos: 50_000_000_000 };
@@ -114,5 +115,39 @@ describe("oferta · se anuncia como las demás capacidades", () => {
     const linea = fichaCompacta(crearFichaNodo({ nodoId: "nodo-mac", medio: "mac", ofertaAlmacen: of({ ambito: "grupo", grupoId: "g1" }) }));
     expect(linea).toContain("|og");
     expect(new TextEncoder().encode(linea).length).toBeLessThanOrEqual(200);
+  });
+
+  it("no anuncia ni cuenta una oferta fuera de su ventana", () => {
+    const vencida = crearFichaNodo({
+      nodoId: "nodo-vencido",
+      medio: "linux",
+      ofertaAlmacen: of({ cuando: "ventana", desdeMs: 100, hastaMs: 200 }),
+    });
+    expect(fichaCompacta(vencida, 201)).not.toContain("|o");
+    expect(resumenRed([vencida], 201).conAlmacen).toBe(0);
+    expect(capacidadesNodoToOfertaNeurona(vencida, 201).almacen.prestaMb).toBe(0);
+    expect(fichaCompacta(vencida, 150)).toContain("|op50");
+    expect(resumenRed([vencida], 150).conAlmacen).toBe(1);
+  });
+
+  it("traduce la oferta a la bolsa de recursos con su público y sus bytes", () => {
+    const ficha = crearFichaNodo({
+      nodoId: "nodo-grupo",
+      medio: "mac",
+      almacen: ["/datos"],
+      ofertaAlmacen: of({
+        ambito: "grupo",
+        grupoId: "g1",
+        bytesOfrecidos: 2_000_000_000,
+        topeBytes: 2_000_000_000,
+      }),
+    });
+    const oferta = capacidadesNodoToOfertaNeurona(ficha, AHORA);
+    expect(oferta.cuentaId).toBe("cuenta-1");
+    expect(oferta.almacen.prestaMb).toBe(1907);
+    expect(oferta.almacen.volumenes).toEqual(["/datos"]);
+    expect([oferta.presta.cuenta, oferta.presta.publico, oferta.presta.grupos])
+      .toEqual([true, false, ["g1"]]);
+    expect(oferta.presta.topes.discoMb).toBe(1907);
   });
 });

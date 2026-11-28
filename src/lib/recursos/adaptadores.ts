@@ -1,13 +1,24 @@
 import type { CapacidadesNodo } from "../network/capacidades-nodo";
 import type { Candidato } from "../protomolecula/planificador-computo";
 import type { LinkedServer } from "../brains/servers";
+import { disponibleBytes, normalizarOfertaAlmacen, ofertaVigente } from "@/lib/almacenes/oferta";
 import type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
 export type { OfertaNeurona, Peticion, PlanResultado } from "./oferta";
 
-export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeurona {
+const MB = 1024 * 1024;
+
+export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo, ahoraMs: number = Date.now()): OfertaNeurona {
+  const oferta = normalizarOfertaAlmacen(nodo.ofertaAlmacen);
+  const vigente = oferta ? ofertaVigente(oferta, ahoraMs) : false;
+  const disponibleMb = oferta && vigente ? Math.floor(disponibleBytes(oferta) / MB) : 0;
+  const grupos = oferta?.ambito === "grupo" && oferta.grupoId
+    ? [oferta.grupoId]
+    : oferta?.ambito === "comunidad" && oferta.comunidadId
+      ? [oferta.comunidadId]
+      : [];
   return {
     nodoId: nodo.nodoId,
-    cuentaId: "",
+    cuentaId: oferta?.cuentaId ?? "",
     medio: nodo.medio,
     computo: {
       nucleos: 1,
@@ -16,7 +27,7 @@ export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeu
       vramMb: undefined,
       motores: [],
     },
-    almacen: { prestaMb: 0, volumenes: [] },
+    almacen: { prestaMb: disponibleMb, volumenes: nodo.almacen ?? [] },
     apps: [],
     enlaces: { subidaKbps: undefined, bajadaKbps: undefined, latenciaMs: undefined },
     energia: {
@@ -25,10 +36,10 @@ export function capacidadesNodoToOfertaNeurona(nodo: CapacidadesNodo): OfertaNeu
       enUso: false,
     },
     presta: {
-      cuenta: false,
-      grupos: [],
-      publico: false,
-      topes: { cpuPct: 0, ramMb: 0, discoMb: 0, horas: undefined, soloCargando: false },
+      cuenta: disponibleMb > 0,
+      grupos,
+      publico: disponibleMb > 0 && oferta?.ambito === "publica",
+      topes: { cpuPct: 0, ramMb: 0, discoMb: disponibleMb, horas: undefined, soloCargando: false },
     },
     t: nodo.t,
   };

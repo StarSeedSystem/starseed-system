@@ -4,7 +4,13 @@
  */
 
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz"; // solo el tipo: este módulo sigue puro
-import { normalizarOfertaAlmacen, type OfertaCapacidadAlmacen } from "@/lib/almacenes/oferta";
+import {
+  disponibleBytes,
+  normalizarOfertaAlmacen,
+  ofertaVigente,
+  puedeServirOferta,
+  type OfertaCapacidadAlmacen,
+} from "@/lib/almacenes/oferta";
 
 export type MedioNodo = "navegador" | "mac" | "linux" | "android" | "ios" | "nube";
 
@@ -279,10 +285,12 @@ function codigoAmbitoOferta(ambito: string): string {
  * Formato: `v1|id8|med|n<verNeedle>|t<tokBitnet>|r<ramMb>|b<bat>|g<0/1>|a<ambitos>|capas…`
  * Si no cabe, recorta la lista de capas por la cola (la base siempre cabe).
  */
-export function fichaCompacta(f: CapacidadesNodo): string {
+export function fichaCompacta(f: CapacidadesNodo, ahoraMs: number = Date.now()): string {
   const ambitos = (f.ambitos ?? [])
     .map((a) => (a === "propio" ? "p" : a === "cuenta" ? "c" : "u"))
     .join("");
+  const oferta = f.ofertaAlmacen;
+  const ofertaBytes = oferta && ofertaVigente(oferta, ahoraMs) ? disponibleBytes(oferta) : 0;
   const base = [
     "v1",
     f.nodoId.slice(0, 8),
@@ -293,8 +301,8 @@ export function fichaCompacta(f: CapacidadesNodo): string {
     f.bateriaPct == null ? "b-" : `b${Math.round(f.bateriaPct)}`,
     f.enSegundoPlano ? "g1" : "g0",
     `a${ambitos}`,
-    ...(f.ofertaAlmacen?.activa
-      ? [`o${codigoAmbitoOferta(f.ofertaAlmacen.ambito)}${Math.max(0, Math.round(f.ofertaAlmacen.bytesOfrecidos / 1e9))}`]
+    ...(oferta && ofertaBytes > 0
+      ? [`o${codigoAmbitoOferta(oferta.ambito)}${Math.max(0, Math.round(ofertaBytes / 1e9))}`]
       : []),
   ].join("|");
   const capas = [...(f.capas ?? [])];
@@ -453,11 +461,14 @@ export {
   type TransporteInferencia,
 } from "./inferencia-local";
 
-export function resumenRed(nodos: CapacidadesNodo[]): ResumenRed {
+export function resumenRed(nodos: CapacidadesNodo[], ahoraMs: number = Date.now()): ResumenRed {
   const conNeedle = nodos.filter((n) => n.needle !== null);
   const conBitnet = nodos.filter((n) => n.bitnet !== null);
   const conJev = nodos.filter((n) => n.jev);
-  const conAlmacen = nodos.filter((n) => n.ofertaAlmacen?.activa === true);
+  const conAlmacen = nodos.filter((n) => {
+    const oferta = n.ofertaAlmacen;
+    return !!oferta && puedeServirOferta(oferta, { cuentaId: oferta.cuentaId }, { ahoraMs });
+  });
 
   const conAdaptador = conNeedle.filter(
     (n) => typeof n.needle?.adaptador === "string" && n.needle.adaptador.trim() !== ""
