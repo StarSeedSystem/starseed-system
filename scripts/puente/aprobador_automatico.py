@@ -74,6 +74,16 @@ def _escribir_json(ruta, datos):
     os.replace(tmp, ruta)
 
 
+def _mismo_motivo(guardado, motivo):
+    """True si el motivo avisado antes es el de ahora, aunque se guardara con el nombre viejo."""
+    actual = str(motivo or "")
+    anterior = str(guardado or "")
+    if anterior == actual:
+        return True
+    return actual.startswith("la decide Maggasukha:") and (
+        anterior == actual.replace("la decide Maggasukha:", "la decide Alex:", 1))
+
+
 def _ultimos_eventos(tid, tipos, n=400_000):
     """Los eventos de `tid` (de los últimos ~400 KB de eventos.jsonl), del más nuevo al más viejo."""
     ruta = os.path.join(OLAS, "eventos.jsonl")
@@ -423,9 +433,9 @@ def aplicar(decs):
                 continue
             ordenadas[tid] = time.time()
         if accion == "reservar_alex":
-            if avisadas.get(tid) != d["motivo"]:
+            if not _mismo_motivo(avisadas.get(tid), d["motivo"]):
                 avisadas[tid] = d["motivo"]
-                frases.append("%s espera a Alex — %s" % (tid, d["motivo"]))
+                frases.append("%s espera a Maggasukha — %s" % (tid, d["motivo"]))
             continue
         if accion == "liberar":
             # Como `desatascar.retirar_redundantes`: la orden suelta el trabajador y la corrección

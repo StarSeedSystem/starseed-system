@@ -198,7 +198,7 @@ def decidir(c: Dict[str, Any]) -> Dict[str, Any]:
         return _accion("esperar", "lleva menos de %d min en la puerta: primero actúan el revisor y el "
                                   "desatascador" % ESPERA_MIN)
     if c.get("reserva"):
-        return _accion("reservar_alex", "la decide Alex: %s" % c["reserva"])
+        return _accion("reservar_alex", "la decide Maggasukha: %s" % c["reserva"])
     if c.get("sucesora"):
         if viva:
             return _accion("liberar", "su sucesora %s ya lleva el encargo: suelto este trabajador "
