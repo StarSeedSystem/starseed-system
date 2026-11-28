@@ -58,6 +58,45 @@ describe('grafoEnInstante', () => {
     grafoEnInstante(grafoInicial, eventos, 2000);
     expect(grafoInicial.nodos.size).toBe(0);
   });
+
+  it('ignora eventos de arista (es_arista: true)', () => {
+    const grafoInicial: Grafo4D = { nodos: new Map(), aristas: [], ramas: new Map() };
+    const eventos: Evento[] = [
+      { t: 1000, tipo: 'crear', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+      { t: 2000, tipo: 'contiene', objetivo_id: 'n1', es_arista: true, alcance: 'privado' },
+    ];
+    const resultado = grafoEnInstante(grafoInicial, eventos, 3000);
+    expect(resultado.nodos.size).toBe(1);
+    expect(resultado.aristas).toEqual([]);
+  });
+
+  it('aplica el último evento de actividad para un nodo', () => {
+    const grafoInicial: Grafo4D = { nodos: new Map(), aristas: [], ramas: new Map() };
+    const eventos: Evento[] = [
+      { t: 1000, tipo: 'crear', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+      { t: 2000, tipo: 'actividad', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+      { t: 1500, tipo: 'actividad', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+    ];
+    const resultado = grafoEnInstante(grafoInicial, eventos, 3000);
+    const nodo = resultado.nodos.get('n1');
+    expect(nodo).toBeDefined();
+    expect(nodo!.t_actividad).toBe(2000);
+  });
+
+  it('preserva aristas y ramas del grafo inicial', () => {
+    const aristaInicial = { de: 'n1', a: 'n2', tipo: 'contiene' as const, t: 500, intensidad: 1.0 };
+    const grafoInicial: Grafo4D = {
+      nodos: new Map(),
+      aristas: [aristaInicial],
+      ramas: new Map([['raiz', ['n1']]]),
+    };
+    const eventos: Evento[] = [
+      { t: 1000, tipo: 'crear', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+    ];
+    const resultado = grafoEnInstante(grafoInicial, eventos, 2000);
+    expect(resultado.aristas).toEqual([aristaInicial]);
+    expect(resultado.ramas.get('raiz')).toEqual(['n1']);
+  });
 });
 
 describe('VentanaTiempo', () => {
@@ -88,6 +127,24 @@ describe('VentanaTiempo', () => {
     const ventana = crearVentana(1000, 2000);
     expect(ventana.duracion()).toBe(1000);
   });
+
+  it('permite ventana de duración cero (t0 === t1)', () => {
+    const ventana = crearVentana(1000, 1000);
+    expect(ventana.duracion()).toBe(0);
+    expect(ventana.contiene(1000)).toBe(true);
+    expect(ventana.contiene(999)).toBe(false);
+    expect(ventana.contiene(1001)).toBe(false);
+  });
+
+  it('métodos no mutan la ventana', () => {
+    const ventana = crearVentana(1000, 2000);
+    const t0Original = ventana.t0;
+    const t1Original = ventana.t1;
+    ventana.contiene(1500);
+    ventana.duracion();
+    expect(ventana.t0).toBe(t0Original);
+    expect(ventana.t1).toBe(t1Original);
+  });
 });
 
 describe('filtrarPorVentana', () => {
@@ -110,6 +167,34 @@ describe('filtrarPorVentana', () => {
     const ventana = crearVentana(1000, 2000);
     const filtrados = filtrarPorVentana(eventos, ventana);
     expect(filtrados).toEqual([]);
+  });
+
+  it('filtra tanto eventos de nodo como de arista', () => {
+    const eventos: Evento[] = [
+      { t: 500, tipo: 'crear', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+      { t: 1500, tipo: 'contiene', objetivo_id: 'n1', es_arista: true, alcance: 'privado' },
+      { t: 2500, tipo: 'actividad', objetivo_id: 'n2', es_arista: false, alcance: 'privado' },
+    ];
+    const ventana = crearVentana(1000, 2000);
+    const filtrados = filtrarPorVentana(eventos, ventana);
+    expect(filtrados.length).toBe(1);
+    expect(filtrados[0].es_arista).toBe(true);
+  });
+
+  it('devuelve array vacío para array de eventos vacío', () => {
+    const eventos: Evento[] = [];
+    const ventana = crearVentana(1000, 2000);
+    const filtrados = filtrarPorVentana(eventos, ventana);
+    expect(filtrados).toEqual([]);
+  });
+
+  it('no modifica el array original de eventos', () => {
+    const eventos: Evento[] = [
+      { t: 1500, tipo: 'a', objetivo_id: 'n1', es_arista: false, alcance: 'privado' },
+    ];
+    const ventana = crearVentana(1000, 2000);
+    filtrarPorVentana(eventos, ventana);
+    expect(eventos.length).toBe(1);
   });
 });
 
@@ -180,6 +265,56 @@ describe('Reproductor (máquina de estados)', () => {
     expect(rep2.enVivo).toBe(false);
     expect(rep2.tiempoActual).toBe(0);
   });
+
+  it('PLAY en estado reproduciendo no cambia el estado', () => {
+    const rep = crearReproductor({ estado: 'reproduciendo' });
+    const rep2 = reducirReproductor(rep, { tipo: 'PLAY' });
+    expect(rep2.estado).toBe('reproduciendo');
+    expect(rep2).not.toBe(rep);
+  });
+
+  it('PAUSE en estado pausado no cambia el estado', () => {
+    const rep = crearReproductor({ estado: 'pausado' });
+    const rep2 = reducirReproductor(rep, { tipo: 'PAUSE' });
+    expect(rep2.estado).toBe('pausado');
+    expect(rep2).not.toBe(rep);
+  });
+
+  it('SET_VELOCIDAD al mismo valor retorna nueva instancia', () => {
+    const rep = crearReproductor({ velocidad: 2 });
+    const rep2 = reducirReproductor(rep, { tipo: 'SET_VELOCIDAD', velocidad: 2 });
+    expect(rep2.velocidad).toBe(2);
+    expect(rep2).not.toBe(rep);
+  });
+
+  it('secuencia de acciones múltiples', () => {
+    let rep = crearReproductor();
+    rep = reducirReproductor(rep, { tipo: 'PLAY' });
+    rep = reducirReproductor(rep, { tipo: 'SET_VELOCIDAD', velocidad: 2 });
+    rep = reducirReproductor(rep, { tipo: 'SET_TIEMPO', tiempo: 1000 });
+    rep = reducirReproductor(rep, { tipo: 'TOGGLE_EN_VIVO' });
+    expect(rep.estado).toBe('reproduciendo');
+    expect(rep.velocidad).toBe(2);
+    expect(rep.tiempoActual).toBe(1000);
+    expect(rep.enVivo).toBe(true);
+  });
+
+  it('no muta el reproductor original', () => {
+    const rep = crearReproductor({ estado: 'reproduciendo', velocidad: 4 });
+    const repOriginalEstado = rep.estado;
+    const repOriginalVelocidad = rep.velocidad;
+    reducirReproductor(rep, { tipo: 'PAUSE' });
+    reducirReproductor(rep, { tipo: 'SET_VELOCIDAD', velocidad: 1 });
+    expect(rep.estado).toBe(repOriginalEstado);
+    expect(rep.velocidad).toBe(repOriginalVelocidad);
+  });
+
+  it('SET_TIEMPO en estado reproduciendo actualiza tiempo', () => {
+    const rep = crearReproductor({ estado: 'reproduciendo', tiempoActual: 100 });
+    const rep2 = reducirReproductor(rep, { tipo: 'SET_TIEMPO', tiempo: 5000 });
+    expect(rep2.tiempoActual).toBe(5000);
+    expect(rep2.estado).toBe('reproduciendo');
+  });
 });
 
 describe('enfriarNodos (enfriamiento de recuerdos)', () => {
@@ -227,5 +362,82 @@ describe('enfriarNodos (enfriamiento de recuerdos)', () => {
     ]);
     const resultado = enfriarNodos(nodos, ahora);
     expect(resultado.get('n1')!.peso).toBeLessThan(1.0);
+  });
+
+  it('no enfría nodo exactamente en el umbral de inactividad', () => {
+    const ahora = Date.now();
+    const umbral = 1000 * 60 * 60 * 24;
+    const enUmbral = ahora - umbral;
+    const nodos = new Map<string, Nodo>([
+      ['n1', { id: 'n1', titulo: 'En umbral', tipo: 'archivo', formato: 'texto', ref: '/1', alcance: 'privado', dueno: 'u1', capas: [], t_creado: enUmbral, t_actividad: enUmbral, peso: 1.0, etiquetas: [] }],
+    ]);
+    const config = crearBrilloConfig({ umbralInactividadMs: umbral, factorEnfriamiento: 0.5 });
+    const resultado = enfriarNodos(nodos, ahora, config);
+    expect(resultado.get('n1')!.peso).toBe(1.0);
+  });
+
+  it('enfría múltiples nodos con diferentes periodos de inactividad', () => {
+    const ahora = Date.now();
+    const hacePoco = ahora - 1000;
+    const haceDia = ahora - 1000 * 60 * 60 * 24;
+    const haceSemana = ahora - 1000 * 60 * 60 * 24 * 7;
+    const nodos = new Map<string, Nodo>([
+      ['reciente', { id: 'reciente', titulo: 'Reciente', tipo: 'archivo', formato: 'texto', ref: '/1', alcance: 'privado', dueno: 'u1', capas: [], t_creado: hacePoco, t_actividad: hacePoco, peso: 1.0, etiquetas: [] }],
+      ['dia', { id: 'dia', titulo: 'Un día', tipo: 'archivo', formato: 'texto', ref: '/2', alcance: 'privado', dueno: 'u1', capas: [], t_creado: haceDia, t_actividad: haceDia, peso: 1.0, etiquetas: [] }],
+      ['semana', { id: 'semana', titulo: 'Una semana', tipo: 'archivo', formato: 'texto', ref: '/3', alcance: 'privado', dueno: 'u1', capas: [], t_creado: haceSemana, t_actividad: haceSemana, peso: 1.0, etiquetas: [] }],
+    ]);
+    const config = crearBrilloConfig({ umbralInactividadMs: 1000 * 60 * 60 * 12, factorEnfriamiento: 0.5 });
+    const resultado = enfriarNodos(nodos, ahora, config);
+    expect(resultado.get('reciente')!.peso).toBe(1.0);
+    expect(resultado.get('dia')!.peso).toBeLessThan(1.0);
+    expect(resultado.get('semana')!.peso).toBeLessThan(resultado.get('dia')!.peso!);
+  });
+
+  it('factorEnfriamiento 1.0 no reduce el brillo', () => {
+    const ahora = Date.now();
+    const haceMucho = ahora - 1000 * 60 * 60 * 24 * 7;
+    const nodos = new Map<string, Nodo>([
+      ['n1', { id: 'n1', titulo: 'Inactivo', tipo: 'archivo', formato: 'texto', ref: '/1', alcance: 'privado', dueno: 'u1', capas: [], t_creado: haceMucho, t_actividad: haceMucho, peso: 1.0, etiquetas: [] }],
+    ]);
+    const config = crearBrilloConfig({ umbralInactividadMs: 1000, factorEnfriamiento: 1.0 });
+    const resultado = enfriarNodos(nodos, ahora, config);
+    expect(resultado.get('n1')!.peso).toBe(1.0);
+  });
+
+  it('factorEnfriamiento 0.0 lleva al mínimo inmediato', () => {
+    const ahora = Date.now();
+    const haceMucho = ahora - 1000 * 60 * 60 * 24 * 7;
+    const nodos = new Map<string, Nodo>([
+      ['n1', { id: 'n1', titulo: 'Inactivo', tipo: 'archivo', formato: 'texto', ref: '/1', alcance: 'privado', dueno: 'u1', capas: [], t_creado: haceMucho, t_actividad: haceMucho, peso: 1.0, etiquetas: [] }],
+    ]);
+    const config = crearBrilloConfig({ umbralInactividadMs: 1000, factorEnfriamiento: 0.0, brilloMinimo: 0.1 });
+    const resultado = enfriarNodos(nodos, ahora, config);
+    expect(resultado.get('n1')!.peso).toBe(0.1);
+  });
+
+  it('nodo con actividad reciente no se enfría aunque sea antiguo', () => {
+    const ahora = Date.now();
+    const haceAño = ahora - 1000 * 60 * 60 * 24 * 365;
+    const haceMinuto = ahora - 1000 * 60;
+    const nodos = new Map<string, Nodo>([
+      ['n1', { id: 'n1', titulo: 'Antiguo pero activo', tipo: 'archivo', formato: 'texto', ref: '/1', alcance: 'privado', dueno: 'u1', capas: [], t_creado: haceAño, t_actividad: haceMinuto, peso: 1.0, etiquetas: [] }],
+    ]);
+    const config = crearBrilloConfig({ umbralInactividadMs: 1000 * 60 * 60, factorEnfriamiento: 0.5 });
+    const resultado = enfriarNodos(nodos, ahora, config);
+    expect(resultado.get('n1')!.peso).toBe(1.0);
+  });
+
+  it('crearBrilloConfig usa valores por defecto correctos', () => {
+    const config = crearBrilloConfig({});
+    expect(config.umbralInactividadMs).toBe(1000 * 60 * 60 * 24);
+    expect(config.factorEnfriamiento).toBe(0.95);
+    expect(config.brilloMinimo).toBe(0.05);
+  });
+
+  it('crearBrilloConfig permite sobrescribir valores individuales', () => {
+    const config = crearBrilloConfig({ factorEnfriamiento: 0.8 });
+    expect(config.umbralInactividadMs).toBe(1000 * 60 * 60 * 24);
+    expect(config.factorEnfriamiento).toBe(0.8);
+    expect(config.brilloMinimo).toBe(0.05);
   });
 });
