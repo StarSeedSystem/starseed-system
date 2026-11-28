@@ -3,8 +3,8 @@
 
 Reglas:
 1. Un aviso de director idéntico al anterior no se vuelve a publicar (se cuenta: «×N, último a las HH:MM»)
-2. El presidente responde UNA vez por mensaje de Alex (cerrojo por id de mensaje entre motores)
-3. La pestaña Conversación enseña solo Alex y presidente
+2. El presidente responde UNA vez por mensaje de Maggasukha (cerrojo por id de mensaje entre motores)
+3. La pestaña Conversación enseña solo Maggasukha y presidente
 """
 
 import json
@@ -102,7 +102,7 @@ class PruebasAgrupacionDirectores(unittest.TestCase):
         self.assertNotEqual(m1["id"], m2["id"])
 
     def test_publicar_alex_no_se_agrupa(self):
-        """Mensajes de Alex nunca se agrupan, aunque sean idénticos."""
+        """Mensajes de Maggasukha nunca se agrupan, aunque sean idénticos."""
         m1 = dc.publicar(
             "¿Estado?",
             de="alex",
@@ -126,7 +126,7 @@ class PruebasAgrupacionDirectores(unittest.TestCase):
 
 
 class PruebasCerrojoPresidente(unittest.TestCase):
-    """El presidente responde UNA vez por mensaje de Alex (cerrojo por id)."""
+    """El presidente responde UNA vez por mensaje de Maggasukha (cerrojo por id)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -162,7 +162,7 @@ class PruebasCerrojoPresidente(unittest.TestCase):
         return [r for r in dc.leer(limite=500, raiz=self.raiz) if r.get("tipo") == "respuesta" and r.get("canal") == P.CANAL]
 
     def test_presidente_responde_una_sola_vez_por_mensaje_alex(self):
-        """Llamar a atender dos veces con el mismo mensaje de Alex produce una sola respuesta."""
+        """Llamar a atender dos veces con el mismo mensaje de Maggasukha produce una sola respuesta."""
         falso = mock.Mock(side_effect=[
             (0, json.dumps({"result": "Respuesta 1", "session_id": "s1", "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.0})),
             (0, json.dumps({"result": "Respuesta 2", "session_id": "s2", "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.0})),
@@ -176,18 +176,18 @@ class PruebasCerrojoPresidente(unittest.TestCase):
         self.assertEqual(len(self.respuestas()), 1)  # Solo UNA respuesta en el chat
 
     def test_presidente_responde_a_cada_mensaje_nuevo_de_alex(self):
-        """Cada mensaje NUEVO de Alex genera su propia respuesta."""
+        """Cada mensaje NUEVO de Maggasukha genera su propia respuesta."""
         falso = mock.Mock(side_effect=[
             (0, json.dumps({"result": "Resp 1", "session_id": "s1", "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.0})),
             (0, json.dumps({"result": "Resp 2", "session_id": "s2", "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.0})),
         ])
 
-        # Primer mensaje de Alex
+        # Primer mensaje de Maggasukha
         r1 = self.atender(falso)
         self.assertEqual(r1, "respondido")
         self.assertEqual(len(self.respuestas()), 1)
 
-        # Segundo mensaje NUEVO de Alex
+        # Segundo mensaje NUEVO de Maggasukha
         alex2 = dc.publicar(
             "Otra pregunta",
             de="alex",
@@ -207,11 +207,11 @@ class PruebasCerrojoPresidente(unittest.TestCase):
             tope_opus=40,
         )
         self.assertEqual(r2, "respondido")
-        self.assertEqual(len(self.respuestas()), 2)  # DOS respuestas, una por cada mensaje de Alex
+        self.assertEqual(len(self.respuestas()), 2)  # DOS respuestas, una por cada mensaje de Maggasukha
 
 
 class PruebasPestanaConversacion(unittest.TestCase):
-    """La pestaña Conversación enseña solo Alex y presidente."""
+    """La pestaña Conversación enseña solo Maggasukha y presidente."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -222,9 +222,9 @@ class PruebasPestanaConversacion(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_es_direccion_solo_alex_y_presidente(self):
-        """es_direccion filtra: solo mensajes de Alex y respuestas del presidente son 'dirección'."""
+        """es_direccion filtra: solo mensajes de Maggasukha y respuestas del presidente son 'dirección'."""
         por_id = {}
-        # Mensaje de Alex
+        # Mensaje de Maggasukha
         alex_msg = {"id": "a1", "rol": "alex", "tipo": "mensaje", "de": "alex"}
         por_id["a1"] = alex_msg
         # Respuesta del presidente (síntesis)
@@ -241,7 +241,7 @@ class PruebasPestanaConversacion(unittest.TestCase):
         self.assertFalse(P.es_direccion(dir_msg2, por_id))
 
     def test_hilo_direccion_incluye_alex_y_presidente_excluye_rutina(self):
-        """hilo_direccion incluye mensajes de Alex y respuestas del presidente, excluye directores de rutina."""
+        """hilo_direccion incluye mensajes de Maggasukha y respuestas del presidente, excluye directores de rutina."""
         regs = [
             {"id": "d1", "t": "2026-11-24T10:00:00+00:00", "de": "director-autocuracion", "rol": "director", "tipo": "informe", "texto": "Autocuración OK"},
             {"id": "d2", "t": "2026-11-24T10:01:00+00:00", "de": "director-capacidad", "rol": "director", "tipo": "informe", "texto": "Capacidad: nada"},
@@ -249,10 +249,10 @@ class PruebasPestanaConversacion(unittest.TestCase):
             {"id": "p1", "t": "2026-11-24T10:03:00+00:00", "de": "director-presidente", "rol": "director", "tipo": "respuesta", "texto": "Todo bien", "canal": "director-presidente", "sintesis": True, "respondeA": "a1"},
             {"id": "a2", "t": "2026-11-24T10:04:00+00:00", "de": "alex", "rol": "alex", "tipo": "mensaje", "texto": "¿Y ahora?"},
         ]
-        # Excluir el último mensaje de Alex (a2) como si fuera el que se está contestando
+        # Excluir el último mensaje de Maggasukha (a2) como si fuera el que se está contestando
         hilo = P.hilo_direccion(regs, excluir_id="a2")
         ids = [r["id"] for r in hilo]
-        self.assertIn("a1", ids)  # Alex anterior incluido
+        self.assertIn("a1", ids)  # Maggasukha anterior incluido
         self.assertIn("p1", ids)  # Presidente incluido
         self.assertNotIn("a2", ids)  # a2 excluido correctamente (es el que se contesta)
         self.assertNotIn("d1", ids)  # No director-autocuracion
