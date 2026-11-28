@@ -18,6 +18,14 @@ import { OfertasAudiencia, type PropsOfertasAudiencia } from "@/components/neuro
 import { aPreferencias, ofertasPorDefecto } from "@/lib/nfc/ofertas-audiencia";
 import { preferenciasPorDefecto } from "@/lib/nfc/preferencias";
 import { cargarPreferencias, guardarPreferencias } from "@/lib/nfc/preferencias-guardado";
+import {
+  NOMBRE_ACCION_TARJETA, NOMBRE_TIPO_TARJETA, TarjetaOferta, etiquetaAccionTarjeta,
+  etiquetaTipoTarjeta, textoFirma, textoVigencia,
+} from "@/components/nfc/tarjeta-oferta";
+import {
+  accionPrincipalPorTipo, tipoTarjetaOfertaValido,
+  type TarjetaOferta as DatosTarjetaOferta, type TipoTarjetaOferta,
+} from "@/lib/nfc/tarjetas-oferta";
 
 type OfertasAud = PropsOfertasAudiencia["ofertas"];
 
@@ -117,26 +125,56 @@ export function AjustesOfertas() {
   return <OfertasAudiencia ofertas={ofertas} onCambiar={cambiar} />;
 }
 
-/** Puerta 2 · Centro de notificaciones: encuentros con ofertas sin hacer y sus botones. */
+/** La tarjeta recibida por cercanía, con la forma del contrato §13 para pintarla en notificaciones. */
+function tarjetaOfertaDesdeCercania(recibida: EstadoCercania["tarjetas"][number]): DatosTarjetaOferta {
+  const tipo: TipoTarjetaOferta = tipoTarjetaOfertaValido(recibida.tipo) ? recibida.tipo : "enlace_libre";
+  return { version: 1, tipo, emisor: recibida.neuronaId, titulo: recibida.titulo, contenido: {}, emitidaEn: recibida.en, marcaComercial: false };
+}
+
+/** Puerta 2 · Centro de notificaciones: encuentros con ofertas sin hacer, sus botones y las tarjetas recibidas. */
 export function EncuentrosEnNotificaciones() {
   const { estado, registro } = useCercania();
   const pendientes = estado.activo ? encuentrosPendientes(registro).slice(0, 5) : [];
-  if (pendientes.length === 0) return null;
+  const tarjetas = estado.activo ? estado.tarjetas.slice(0, 3) : [];
+  if (pendientes.length === 0 && tarjetas.length === 0) return null;
+  const ahora = Date.now();
   return (
-    <ul data-testid="notificaciones-cercania" aria-label="Encuentros cercanos" className="space-y-2 border-b border-border/40 p-2">
-      {pendientes.map((r) => (
-        <li key={r.id} className="min-w-0 space-y-1 text-xs">
-          <p className="truncate font-medium">Cerca de ti · {ETIQUETA_RELACION[r.relacion]} · vía {ETIQUETA_VIA[r.via]}</p>
-          <div className="flex flex-wrap gap-1">
-            {r.ofrecidas.filter((a) => !r.hechas.includes(a)).slice(0, 4).map((a) => (
-              <Link key={a} href={enlaceBoton(r.id, a)} className="cursor-pointer rounded-full border border-sky-400/40 bg-sky-400/10 px-2 py-0.5 transition-colors duration-200 hover:bg-sky-400/20">
-                {ETIQUETA_ACCION[a]}
-              </Link>
-            ))}
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2 border-b border-border/40 p-2">
+      {tarjetas.length > 0 && (
+        <ul data-testid="notificaciones-tarjetas" aria-label="Tarjetas recibidas" className="space-y-2">
+          {tarjetas.map((recibida) => {
+            const tarjeta = tarjetaOfertaDesdeCercania(recibida);
+            const accion = accionPrincipalPorTipo(tarjeta.tipo);
+            return (
+              <li
+                key={recibida.id}
+                className="min-w-0"
+                title={NOMBRE_ACCION_TARJETA[accion]}
+                aria-label={`${NOMBRE_TIPO_TARJETA[tarjeta.tipo]} · ${etiquetaTipoTarjeta(tarjeta.tipo)} · ${textoVigencia(tarjeta, ahora)} · ${textoFirma(tarjeta)} · ${etiquetaAccionTarjeta(tarjeta.tipo)}`}
+              >
+                <TarjetaOferta tarjeta={tarjeta} ahora={ahora} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {pendientes.length > 0 && (
+        <ul data-testid="notificaciones-cercania" aria-label="Encuentros cercanos" className="space-y-2">
+          {pendientes.map((r) => (
+            <li key={r.id} className="min-w-0 space-y-1 text-xs">
+              <p className="truncate font-medium">Cerca de ti · {ETIQUETA_RELACION[r.relacion]} · vía {ETIQUETA_VIA[r.via]}</p>
+              <div className="flex flex-wrap gap-1">
+                {r.ofrecidas.filter((a) => !r.hechas.includes(a)).slice(0, 4).map((a) => (
+                  <Link key={a} href={enlaceBoton(r.id, a)} className="cursor-pointer rounded-full border border-sky-400/40 bg-sky-400/10 px-2 py-0.5 transition-colors duration-200 hover:bg-sky-400/20">
+                    {ETIQUETA_ACCION[a]}
+                  </Link>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
