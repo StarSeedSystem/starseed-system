@@ -60,7 +60,21 @@ import {
   medidasSaludRecomendadas,
   acomodarAlmacen,
   tipoAlmacenComo,
+  // Cerebro portátil (ALC1125I): un cerebro entero o una parte en un medio
+  // extraíble, con la estructura portable y cifrada del contrato. Se exporta al
+  // almacén y se abre/importa en otra neurona (solo lectura si no hay llave).
+  exportarCerebroPortatil,
+  importarCerebroPortatil,
+  abrirCerebroPortatil,
+  parsearPaquete,
+  serializarPaquete,
+  resumenPaquete,
+  type PaqueteCerebroPortatil,
+  type DestinoParcial,
 } from "@/lib/almacenes";
+// Llave de cifrado del cerebro portátil (AES-256, WebCrypto). Se genera y se
+// guarda cifrada por el dueño (entity_state, RLS); nunca viaja en el paquete.
+import { generarClave, type ClaveCifrado } from "@/lib/almacenes/fragmentos";
 // Mapa de ubicaciones (parte 1 de ALC1125C): primitivas puras de copias, estado en
 // línea, regla de dos copias y resumen. Aquí se componen a nivel de UN cerebro.
 import {
@@ -611,6 +625,146 @@ export function informeUbicacionesCerebro(
 }
 
 /* ------------------------------------------------------------------ */
+/* Cerebro portátil (ALC1125I) — exportar/importar un cerebro o parte  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Llave AES-256 del cerebro portátil. Se guarda cifrada por el dueño en
+ * `entity_state` (RLS: solo la cuenta dueña la lee), de modo que al conectar
+ * el medio en OTRA neurona de la misma cuenta se recupera y el cerebro se abre
+ * en lectura-escritura. Sin sesión (o sin la llave) se devuelve `null` y el
+ * cerebro se abre en modo solo lectura. La llave NUNCA se escribe en el paquete.
+ */
+const PORTATIL_KEY_PREFIX = "brain-portatil:";
+
+interface ClavePortatilGuardada {
+  clave: string; // base64 de 32 bytes
+}
+
+function aBase64(datos: Uint8Array): string {
+  let binario = "";
+  for (const b of datos) binario += String.fromCharCode(b);
+  return btoa(binario);
+}
+
+function deBase64(texto: string): ClaveCifrado {
+  const binario = atob(texto);
+  const salida = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) salida[i] = binario.charCodeAt(i);
+  return salida;
+}
+
+async function clavePortatilCerebro(brainId: string): Promise<ClaveCifrado | null> {
+  try {
+    const ref = await currentUserRef();
+    if (!ref) return null;
+    const key = `${PORTATIL_KEY_PREFIX}${brainId}`;
+    const existing = await getEntityState<ClavePortatilGuardada>(ref, key);
+    const guardada = existing?.value?.clave;
+    if (typeof guardada === "string" && guardada.length > 0) {
+      const bytes = deBase64(guardada);
+      if (bytes.length === 32) return bytes;
+    }
+    const nueva = generarClave();
+    await setEntityState(ref, key, { clave: aBase64(nueva) } satisfies ClavePortatilGuardada);
+    return nueva;
+  } catch {
+    return null;
+  }
+}
+
+export interface ResultadoExportPortatil {
+  ok: boolean;
+  paquete?: PaqueteCerebroPortatil;
+  resumen?: ReturnType<typeof resumenPaquete>;
+  /** Texto portable listo para escribir en el medio (no se registra en claro). */
+  json?: string;
+  error?: string;
+}
+
+/**
+ * Exporta un cerebro completo o una parte a un paquete portable cifrado para el
+ * almacén indicado. El contenido sale cifrado en la neurona del dueño; la llave
+ * se queda en su almacén de secretos y no viaja en el paquete.
+ */
+export async function exportarCerebroPortatilParaAlmacen(
+  brain: Brain,
+  almacen: AlmacenMemoryDestination,
+): Promise<ResultadoExportPortatil> {
+  const modalidad = almacen.modalidad;
+  if (modalidad !== "cerebro-completo" && modalidad !== "parte") {
+    return { ok: false, error: "La modalidad del almacén no es «cerebro completo» ni «parte»." };
+  }
+  const clave = await clavePortatilCerebro(brain.id);
+  if (!clave) {
+    return { ok: false, error: "Sin sesión del dueño: no se puede cifrar el cerebro portátil." };
+  }
+  const files = await listMemoryFiles(brain.id);
+  const contenido = JSON.stringify({
+    starseedCerebroPortatil: 1,
+    cerebroId: brain.id,
+    nombre: brain.name,
+    archivos: files.map((f) => ({ nombre: f.name, contenido: f.content })),
+  });
+  const partes: string[] = modalidad === "parte" ? Object.keys(almacen.partes ?? {}) : [];
+  const r = await exportarCerebroPortatil({
+    cerebroId: brain.id,
+    nombre: brain.name,
+    modalidad,
+    partes,
+    contenido,
+    clave,
+  });
+  if (!r.ok || !r.paquete) {
+    return { ok: false, error: r.error ?? "No se pudo exportar el cerebro portátil." };
+  }
+  return { ok: true, paquete: r.paquete, resumen: resumenPaquete(r.paquete), json: serializarPaquete(r.paquete) };
+}
+
+export interface ResultadoImportPortatil {
+  ok: boolean;
+  modo: "lectura-escritura" | "solo-lectura";
+  contenido?: string;
+  conflicto?: { ruta: string; guardarComo: string };
+  motivo?: string;
+  error?: string;
+}
+
+/**
+ * Abre e importa un paquete portable en otra neurona. Con la llave del dueño
+ * queda en lectura-escritura; sin llave (o con otra), en solo lectura y sin
+ * exponer el contenido. Si el destino ya tiene otra versión, no pisa: propone
+ * una variación y avisa (los conflictos nunca pisan).
+ */
+export async function importarCerebroPortatilDesdeAlmacen(
+  brain: Brain,
+  paqueteJson: string,
+  clave?: ClaveCifrado,
+): Promise<ResultadoImportPortatil> {
+  const parseo = parsearPaquete(paqueteJson);
+  if (!parseo.ok || !parseo.paquete) {
+    return { ok: false, modo: "solo-lectura", error: parseo.error ?? "Paquete inválido." };
+  }
+  const paquete = parseo.paquete;
+  const abierto = await abrirCerebroPortatil(paquete, clave);
+  if (abierto.modo === "solo-lectura" || abierto.contenido === undefined) {
+    return { ok: true, modo: "solo-lectura", motivo: abierto.motivo ?? "Sin llave: el cerebro se abre en modo solo lectura." };
+  }
+
+  const actual = await listMemoryFiles(brain.id);
+  const destino: DestinoParcial = {
+    ruta: `cerebro:${brain.id}`,
+    contenido: JSON.stringify(actual.map((f) => ({ nombre: f.name, contenido: f.content }))),
+  };
+  const r = await importarCerebroPortatil(paquete, clave, destino);
+  if (!r.ok) return { ok: false, modo: r.modo, error: r.error };
+  if (r.conflicto) {
+    return { ok: true, modo: r.modo, conflicto: r.conflicto, motivo: r.motivo };
+  }
+  return { ok: true, modo: r.modo, contenido: r.contenido ?? abierto.contenido, motivo: r.motivo };
+}
+
+/* ------------------------------------------------------------------ */
 /* Orquestador de sincronización (best-effort, nunca lanza)             */
 /* ------------------------------------------------------------------ */
 
@@ -939,6 +1093,26 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
               ok: true,
               detail: `Almacén «${almacen.label || backend.name}»${modalidadStr} disponible${cerebrosStr}. La neurona sincronizará al montar el medio.`,
             });
+
+            // Modalidad «cerebro completo» / «parte»: se prepara el paquete
+            // portable y cifrado del contrato para dejarlo en el medio. La llave
+            // se queda en el almacén de secretos del dueño; el paquete solo
+            // lleva el contenido cifrado (nunca la llave).
+            if (almacen.modalidad === "cerebro-completo" || almacen.modalidad === "parte") {
+              try {
+                const portatil = await exportarCerebroPortatilParaAlmacen(brain, almacen);
+                const r = portatil.resumen;
+                steps.push({
+                  kind: "almacen",
+                  ok: portatil.ok,
+                  detail: portatil.ok && r
+                    ? `Cerebro portátil «${r.nombre}» (${r.modalidad}) cifrado=${r.cifrado ? "sí" : "no"} listo para «${almacen.label || backend.name}».`
+                    : `No se pudo preparar el cerebro portátil: ${portatil.error ?? "error desconocido"}.`,
+                });
+              } catch (e) {
+                steps.push({ kind: "almacen", ok: false, detail: `Error preparando el cerebro portátil: ${e instanceof Error ? e.message : String(e)}` });
+              }
+            }
           }
         } catch (e) {
           steps.push({ kind: "almacen", ok: false, detail: `Error comprobando almacén: ${e instanceof Error ? e.message : String(e)}` });
