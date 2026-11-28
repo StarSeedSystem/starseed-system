@@ -5,6 +5,10 @@ export * from './fuentes/tipos';
 export { fuenteCerebros, crearFuenteCerebros } from './fuentes/cerebros';
 export { fuenteConocimiento, crearFuenteConocimiento } from './fuentes/conocimiento';
 export { fuenteEducacion, crearFuenteEducacion } from './fuentes/educacion';
+export { fuenteSenales, crearFuenteSenales, senalANodo, neuronaANodo, medioANodo, enlaceAArista } from './fuentes/senales';
+export { fuenteIa, crearFuenteIa, botANodo, recursoANodo } from './fuentes/ia';
+export { fuenteCreacion, crearFuenteCreacion, moleculaANodo, canvasANodo, bloqueANodo } from './fuentes/creacion';
+export { fuenteMetagenesis, crearFuenteMetagenesis, olaANodo, tareaANodo, aristaTareaOla, agenteANodo } from './fuentes/metagenesis';
 export {
   crearBusRamas4D,
   obtenerBusGlobal,
