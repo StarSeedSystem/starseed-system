@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "ola": "nombre-maggasukha-1125",
+   "prioridad": 72,
+   "id": "NOM1125C-d2",
+   "titulo": "Maggasukha en vez de «Alex» en los textos de la dirección (2/6) (parte 2 de 6)",
+   "archivos": [
+    "scripts/puente/test_aprobador_logica.py",
+    "scripts/puente/archivar_worktrees.py",
+    "scripts/puente/autodesarrollo_decidir.py"
+   ],
+   "depende": [],
+   "prompt": "Petición de Maggasukha (25-11, la ha repetido muchas veces): su nombre es Maggasukha y debe usarse en vez de «Alex» en todos los medios y canales de MetaGenesis. Regla permanente en metagenesis.md (DIR1125AH). Cambia «Alex» por «Maggasukha» SOLO en textos que lee una persona o un modelo (mensajes, avisos, etiquetas, botones, títulos, prompts, motivos). NO cambies: identificadores (rol \"alex\", claves como requiere_alex o reservar_alex, rutas /Users/alex, nombres de archivo como acciones-de-alex.py), comentarios ni docstrings históricos, ni el nombre completo de autor en créditos de paquetes. Si un texto se compara o se busca con una expresión en otro sitio (p. ej. «la decide Alex», «aviso: decide Alex», «es de Alex», «Acciones de Alex»), cambia el que lo produce y los que lo leen a la vez, y haz que los lectores acepten también el texto viejo (hay datos guardados con él). Actualiza las pruebas que comprueban esos textos (sin debilitarlas). Toca solo los archivos listados; si un lector está fuera de la lista, deja el texto viejo en ese caso y dilo en la nota.\n\n## PARTE 2 DE 6 (la dirección dividió NOM1125C: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/test_aprobador_logica.py, scripts/puente/archivar_worktrees.py, scripts/puente/autodesarrollo_decidir.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NOM1125C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "NOM1125C-d1"
+   ]
+  },
+  {
+   "ola": "nombre-maggasukha-1125",
+   "prioridad": 72,
+   "id": "NOM1125D-d2",
+   "titulo": "Maggasukha en vez de «Alex» en los textos de la dirección (3/6) (parte 2 de 6)",
+   "archivos": [
+    "scripts/puente/director_flujo.py",
+    "scripts/puente/test_director_flujo.py",
+    "scripts/puente/director_lanzamientos.py"
+   ],
+   "depende": [],
+   "prompt": "Petición de Maggasukha (25-11, la ha repetido muchas veces): su nombre es Maggasukha y debe usarse en vez de «Alex» en todos los medios y canales de MetaGenesis. Regla permanente en metagenesis.md (DIR1125AH). Cambia «Alex» por «Maggasukha» SOLO en textos que lee una persona o un modelo (mensajes, avisos, etiquetas, botones, títulos, prompts, motivos). NO cambies: identificadores (rol \"alex\", claves como requiere_alex o reservar_alex, rutas /Users/alex, nombres de archivo como acciones-de-alex.py), comentarios ni docstrings históricos, ni el nombre completo de autor en créditos de paquetes. Si un texto se compara o se busca con una expresión en otro sitio (p. ej. «la decide Alex», «aviso: decide Alex», «es de Alex», «Acciones de Alex»), cambia el que lo produce y los que lo leen a la vez, y haz que los lectores acepten también el texto viejo (hay datos guardados con él). Actualiza las pruebas que comprueban esos textos (sin debilitarlas). Toca solo los archivos listados; si un lector está fuera de la lista, deja el texto viejo en ese caso y dilo en la nota.\n\n## PARTE 2 DE 6 (la dirección dividió NOM1125D: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/puente/director_flujo.py, scripts/puente/test_director_flujo.py, scripts/puente/director_lanzamientos.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "NOM1125D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "NOM1125D-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "NOM1125D-d2",
+   "NOM1125C-d2"
+  ]
+ }
+}
