@@ -14,6 +14,16 @@ const COMANDOS: Record<SistemaActualizacion, string> = {
   "Repo Astraura": "bash update_astraura.sh",
 };
 
+/** El valor viejo («aviso: decide Alex») sigue guardado: al comparar se aceptan los dos. */
+function esAvisoDecision(accion: string): boolean {
+  return accion === "aviso: decide Alex" || accion === "aviso: decide Maggasukha";
+}
+
+/** Lo que ve la persona: el nombre nuevo, también cuando el dato guardado trae el viejo. */
+function textoAccion(accion: string): string {
+  return accion === "aviso: decide Alex" ? "aviso: decide Maggasukha" : accion;
+}
+
 export interface PanelAstrauraActualizacionesProps { estados?: EntradaEstados; }
 
 export function PanelAstrauraActualizaciones({ estados = {} }: PanelAstrauraActualizacionesProps) {
@@ -90,10 +100,10 @@ export function PanelAstrauraActualizaciones({ estados = {} }: PanelAstrauraActu
                   <td className="py-2.5">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] border ${
                       f.accion === "se actualiza solo" ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" :
-                      f.accion === "aviso: decide Alex" ? "border-amber-400/30 bg-amber-500/10 text-amber-300" :
+                      esAvisoDecision(f.accion) ? "border-amber-400/30 bg-amber-500/10 text-amber-300" :
                       "border-white/10 bg-white/5 text-white/50"
                     }`}>
-                      {f.accion}
+                      {textoAccion(f.accion)}
                     </span>
                   </td>
                   <td className="py-2.5 text-right">

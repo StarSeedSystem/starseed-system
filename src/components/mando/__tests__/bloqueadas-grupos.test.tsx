@@ -55,6 +55,8 @@ describe("BloqueadasGrupos", () => {
         expect(screen.getByTestId("bloqueadas-sin-resolver")).toHaveTextContent("F1");
         expect(screen.getByTestId("bloqueadas-transformadas")).toHaveTextContent("reintentada sin gastar intento");
         expect(screen.getByTestId("bloqueadas-alex")).toHaveTextContent("¿La rehago o la descarto?");
+        expect(screen.getByTestId("bloqueadas-alex")).toHaveTextContent("Necesitan a Maggasukha · una decisión");
+        expect(screen.getByTestId("bloqueadas-alex")).not.toHaveTextContent("Necesitan a Alex");
         expect(screen.getByTestId("revisor-frescura")).toHaveTextContent("04:58");
         expect(screen.queryByTestId("bloqueadas-atascadas")).toBeNull();
     });

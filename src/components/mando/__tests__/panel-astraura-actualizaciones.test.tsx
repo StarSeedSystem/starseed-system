@@ -32,6 +32,16 @@ describe("PanelAstrauraActualizaciones", () => {
     expect(screen.getByText("• Adaptador colectivo rechazado por el set dorado")).toBeInTheDocument();
   });
 
+  it("dice «Maggasukha» en el aviso de decisión y acepta el texto viejo al pintarlo", () => {
+    render(
+      <PanelAstrauraActualizaciones
+        estados={{ needle: { siguiente_mayor: { needle4: true } } }}
+      />
+    );
+    expect(screen.getByText("aviso: decide Maggasukha")).toBeInTheDocument();
+    expect(screen.queryByText("aviso: decide Alex")).toBeNull();
+  });
+
   it("muestra el estado del último ciclo nocturno", () => {
     const log = "2026-09-20 04:10:00 Adaptador publicado con éxito";
     render(<PanelAstrauraActualizaciones estados={{ logAprendizaje: log }} />);
