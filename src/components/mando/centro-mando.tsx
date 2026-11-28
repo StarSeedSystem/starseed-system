@@ -334,8 +334,8 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     memoria: ["maquina", 0],
     disco: ["maquina", 1],
     almacenamiento: ["maquina", 2],
-    "BitNet 1.58": ["maquina", 2],
-    "Google Drive": ["maquina", 3],
+    "BitNet 1.58": ["maquina", 3],
+    "Google Drive": ["maquina", 4],
 };
 
 /**
