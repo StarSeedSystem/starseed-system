@@ -214,6 +214,92 @@ describe("fragmentos - reconstrucción con Reed-Solomon", () => {
   });
 });
 
+describe("fragmentos - reconstrucción simple (sin Reed-Solomon)", () => {
+  const testData = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]);
+  const clave = crypto.getRandomValues(new Uint8Array(32));
+  const n = 5;
+  const fragmentSize = Math.ceil(testData.length / n);
+
+  it("reconstruye correctamente usando reconstruirDeFragmentos con fragmentación simple", async () => {
+    // Crear fragmentos simples (slicing directo, sin RS)
+    const fragmentos: Fragmento[] = [];
+    for (let i = 0; i < n; i++) {
+      const fragmento = await crearFragmento(testData, i, n, clave, fragmentSize);
+      fragmentos.push(fragmento);
+    }
+
+    // Seleccionar todos los fragmentos (k = n para fragmentación simple)
+    const indices = [0, 1, 2, 3, 4];
+    const reconstruido = await reconstruirDeFragmentos(fragmentos, indices, clave, testData.length, n);
+    expect(reconstruido).toEqual(testData);
+  });
+
+  it("reconstruye con cualquier subconjunto de k fragmentos en orden", async () => {
+    const fragmentos: Fragmento[] = [];
+    for (let i = 0; i < n; i++) {
+      const fragmento = await crearFragmento(testData, i, n, clave, fragmentSize);
+      fragmentos.push(fragmento);
+    }
+
+    // Para fragmentación simple, necesitamos TODOS los fragmentos en orden (k = n)
+    // porque es concatenación simple, no Reed-Solomon
+    const indices = [0, 1, 2, 3, 4];
+    const reconstruido = await reconstruirDeFragmentos(fragmentos, indices, clave, testData.length, n);
+    expect(reconstruido).toEqual(testData);
+  });
+
+  it("falla si faltan fragmentos en fragmentación simple", async () => {
+    const fragmentos: Fragmento[] = [];
+    for (let i = 0; i < n; i++) {
+      const fragmento = await crearFragmento(testData, i, n, clave, fragmentSize);
+      fragmentos.push(fragmento);
+    }
+
+    // Solo 3 de 5 fragmentos - falla porque k=n para concatenación simple
+    const seleccionados = [fragmentos[0], fragmentos[2], fragmentos[4]];
+    const indices = [0, 2, 4];
+    await expect(reconstruirDeFragmentos(seleccionados, indices, clave, testData.length, n)).rejects.toThrow(
+      `Se necesitan al menos ${n} fragmentos`
+    );
+  });
+
+  it("detecta fragmento manipulado en reconstrucción simple", async () => {
+    const fragmentos: Fragmento[] = [];
+    for (let i = 0; i < n; i++) {
+      const fragmento = await crearFragmento(testData, i, n, clave, fragmentSize);
+      fragmentos.push(fragmento);
+    }
+
+    // Manipular un fragmento
+    const manipulado = { ...fragmentos[2], datos: new Uint8Array(fragmentos[2].datos) };
+    manipulado.datos[0] ^= 0xFF;
+
+    const seleccionados = [fragmentos[0], fragmentos[1], manipulado, fragmentos[3], fragmentos[4]];
+    const indices = [0, 1, 2, 3, 4];
+
+    await expect(reconstruirDeFragmentos(seleccionados, indices, clave, testData.length, n)).rejects.toThrow(
+      "Fragmento 2 inválido o manipulado"
+    );
+  });
+
+  it("reconstruye datos de tamaño no múltiplo exacto", async () => {
+    const datosImpares = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+    const nTest = 3;
+    const fragmentSizeTest = Math.ceil(datosImpares.length / nTest);
+    const claveTest = crypto.getRandomValues(new Uint8Array(32));
+
+    const fragmentos: Fragmento[] = [];
+    for (let i = 0; i < nTest; i++) {
+      const fragmento = await crearFragmento(datosImpares, i, nTest, claveTest, fragmentSizeTest);
+      fragmentos.push(fragmento);
+    }
+
+    const indices = [0, 1, 2];
+    const reconstruido = await reconstruirDeFragmentos(fragmentos, indices, claveTest, datosImpares.length, nTest);
+    expect(reconstruido).toEqual(datosImpares);
+  });
+});
+
 describe("fragmentos - ClaveCifrado", () => {
   it("genera clave aleatoria de 32 bytes", () => {
     const clave = generarClave();
