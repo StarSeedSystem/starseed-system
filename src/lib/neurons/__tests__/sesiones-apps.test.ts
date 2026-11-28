@@ -54,7 +54,7 @@ describe("sesiones de otras apps (Audiomorphic) reconocidas por aparato", () => 
           lora: { estado: "sin-radio", nodos: 0 },
           bluetooth: { disponible: true },
           serie: { disponible: false, puertos: 0 },
-          reticulum: { motivo: "sin daemon" },
+          reticulum: { disponible: false, motivo: "sin daemon" },
         },
         ap: { id: "sync-linux", alias: "box-01", nombre: "Caja Estudio", col: "#0091ff", sync: "activa" },
         apps: [{ id: "audiomorphic", nombre: "Audiomorphic", origen: "Estación visual", desde: ahora - 45_000 }],

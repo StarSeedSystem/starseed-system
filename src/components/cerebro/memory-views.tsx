@@ -152,7 +152,7 @@ export default function MemoryViews({
         <VistaCerebroOrganos
           organos={leerOrganosGuardados()}
           neuronas={[]}
-          cerebros={brainId ? [{ id: brainId, name: brainName || "Este cerebro", scope: "account", description: "", config: {} }] : []}
+          cerebros={brainId ? [{ id: brainId, name: brainName || "Este cerebro", scope: "account", description: "" }] : []}
           formatoInicial="4d"
         />
       )}

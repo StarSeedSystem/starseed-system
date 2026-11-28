@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { initialBudget } from "@/ai/astraura/mesh/constants";
 import { collectDetectedSignals, type DetectedSignal } from "@/ai/astraura/mesh/signals";
 import type { MeshState } from "@/ai/astraura/mesh/types";
 import {
@@ -10,12 +11,17 @@ import {
 const meshVacio: MeshState = {
   status: "disconnected",
   transport: null,
-  self: null,
+  self: undefined,
   nodes: [],
-  messages: [],
+  edges: [],
+  wifiHealth: { score: 0, detail: "sin medir", at: 0 },
+  meshHealth: { score: 0, detail: "sin radio", at: 0 },
+  decisions: [],
+  queue: { pending: 0, byClass: { P0: 0, P1: 0, P2: 0, P3: 0 } },
+  budget: initialBudget(),
   region: "US",
-  preset: "LONG_FAST",
   remoteTopologies: [],
+  updatedAt: 0,
 };
 
 describe("señales multiantena y aparatos hermanos no colapsados", () => {

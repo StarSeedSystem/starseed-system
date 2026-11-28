@@ -26,6 +26,8 @@ export type VisibilidadOrgano = "privado" | "comunidad" | "publico";
 
 export type FormatoVisualOrgano = "2d" | "3d" | "4d";
 
+export type CerebroResumen = Pick<Brain, "id" | "name" | "scope"> & { description?: string };
+
 export type ValorCualidadOrgano = boolean | string | number;
 
 export interface OrganoCerebro {
@@ -224,7 +226,7 @@ export interface GrafoCerebroOrganos {
 export interface EntradaGrafoOrganos {
   organos: readonly OrganoCerebro[];
   neuronas: readonly Neuron[];
-  cerebros: readonly Brain[];
+  cerebros: readonly CerebroResumen[];
   capasVisibles?: readonly string[];
   soloPublicos?: boolean;
   agentesNombres?: readonly string[];
@@ -297,7 +299,12 @@ export function construirGrafoOrganos(e: EntradaGrafoOrganos): GrafoCerebroOrgan
       const col = aps[0] ? colorAparatoDe(aps[0]) : "#38bdf8";
       const ang = (i / totalN) * Math.PI * 2 + 0.7;
       const r = org ? 0.72 : 0.82;
-      const vis: VisibilidadOrgano = n.settings?.offerPublicInternet || org?.visibilidad === "publico" ? "publico" : "privado";
+      const vis: VisibilidadOrgano =
+        org?.visibilidad === "publico"
+          ? "publico"
+          : org?.visibilidad === "comunidad"
+            ? "comunidad"
+            : "privado";
       const nNodeId = `neu:${n.id}`;
       pushNodo({
         id: nNodeId,

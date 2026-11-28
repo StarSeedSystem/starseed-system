@@ -14,17 +14,17 @@ import { cn } from "@/lib/utils";
 import {
   CAPAS_ORGANO_DISPONIBLES,
   construirGrafoOrganos,
+  type CerebroResumen,
   type FormatoVisualOrgano,
   type NodoCerebroVisual,
   type OrganoCerebro,
 } from "@/lib/cerebros/organos";
-import type { Brain } from "@/lib/brains/brains";
 import type { Neuron } from "@/lib/neurons/neurons";
 
 export interface VistaCerebroOrganosProps {
   organos: readonly OrganoCerebro[];
   neuronas: readonly Neuron[];
-  cerebros: readonly Brain[];
+  cerebros: readonly CerebroResumen[];
   agentesNombres?: readonly string[];
   procesosNombres?: readonly string[];
   formatoInicial?: FormatoVisualOrgano;

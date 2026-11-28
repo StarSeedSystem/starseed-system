@@ -5,10 +5,10 @@ import {
   construirGrafoOrganos,
   crearOrgano,
   eliminarOrgano,
+  type CerebroResumen,
 } from "../organos";
 import { PILARES } from "@/components/cerebro/pilares";
 import type { Neuron } from "@/lib/neurons/neurons";
-import type { Brain } from "@/lib/brains/brains";
 
 describe("órganos configurables 2D/3D/4D y pilar principal Neuronas", () => {
   it("coloca Neuronas como primer pilar principal de Cerebros", () => {
@@ -46,9 +46,9 @@ describe("órganos configurables 2D/3D/4D y pilar principal Neuronas", () => {
         isThisDevice: true,
       },
     ];
-    const cerebros: Brain[] = [
-      { id: "br-1", name: "Cerebro Maestro", scope: "account", description: "", config: {} },
-      { id: "br-pub", name: "Cerebro Público", scope: "community", description: "", config: {} },
+    const cerebros: CerebroResumen[] = [
+      { id: "br-1", name: "Cerebro Maestro", scope: "account", description: "" },
+      { id: "br-pub", name: "Cerebro Público", scope: "community", description: "" },
     ];
 
     const grafoCompleto = construirGrafoOrganos({
