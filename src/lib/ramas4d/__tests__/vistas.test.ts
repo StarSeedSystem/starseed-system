@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { SYNCED_KEYS } from '@/lib/settings-sync';
 import { validarVariacionPublica } from '../../variaciones/fuentes';
 import {
   CLAVE_VISTAS,
   VISTA_DEFECTO,
   configuracionPublica,
+  guardarVista,
+  leerAlmacen,
   migrarAlmacen,
   normalizarConfig,
   permisoValido,
@@ -14,6 +17,25 @@ import {
 describe('vistas de Ramas 4D', () => {
   it('usa la clave sincronizada del OS', () => {
     expect(CLAVE_VISTAS).toBe('starseed.ramas4d.vistas.v1');
+    expect(SYNCED_KEYS).toContain(CLAVE_VISTAS);
+  });
+
+  it('guarda la vista en el almacén sincronizado y la vuelve a leer migrada', () => {
+    const datos: Record<string, string> = {};
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (clave: string) => datos[clave] ?? null,
+        setItem: (clave: string, valor: string) => { datos[clave] = valor; },
+      },
+    });
+    try {
+      guardarVista({ ambito: 'grupo', idAmbito: 'sangha', config: VISTA_DEFECTO });
+      expect(JSON.parse(datos[CLAVE_VISTAS]).vistas['grupo:sangha'].config).toEqual(VISTA_DEFECTO);
+      datos[CLAVE_VISTAS] = JSON.stringify({ v: 1, vistas: { 'persona:maggasukha': { plantilla: 'cerebros' } } });
+      expect(leerAlmacen().vistas['persona:maggasukha'].config.plantilla).toBe('cerebros');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('devuelve la vista de fábrica ante un valor ausente', () => {

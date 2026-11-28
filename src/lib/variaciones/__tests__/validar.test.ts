@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validarVariacion, TAMANO_MAXIMO_BYTES, SANDBOX_CODIGO } from "../validar";
+import { adaptadorDe } from "../familias";
+import { VISTA_DEFECTO } from "@/lib/ramas4d/vistas";
 
 describe("validarVariacion", () => {
   it("acepta un payload JSON plano pequeño con URLs https", () => {
@@ -105,5 +107,21 @@ describe("validarVariacion", () => {
     const resultado = validarVariacion("y".repeat(TAMANO_MAXIMO_BYTES + 8), { codigo: true });
     expect(resultado.ok).toBe(false);
     expect(resultado.requiereAislamiento).toBe(true);
+  });
+});
+
+describe("variaciones de vistas de Ramas 4D", () => {
+  it("registra la familia y valida la configuración sin referencias privadas", async () => {
+    await import("../adaptadores");
+    const adaptador = adaptadorDe("vista:ramas4d");
+    expect(adaptador).not.toBeNull();
+    const valida = adaptador?.validar({ ...VISTA_DEFECTO, ref: "/privado", contenido: "secreto" });
+    expect(valida?.ok).toBe(true);
+    if (valida?.ok) {
+      expect(valida.payload).not.toHaveProperty("ref");
+      expect(valida.payload).not.toHaveProperty("contenido");
+    }
+    const rechaza = adaptador?.validar({ ...VISTA_DEFECTO, perspectiva: "desconocida" });
+    expect(rechaza?.ok).toBe(false);
   });
 });

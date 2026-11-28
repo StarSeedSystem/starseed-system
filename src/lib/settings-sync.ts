@@ -41,6 +41,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // NORMALIZA con su propio módulo: valor de cuenta roto → la de fábrica, nunca basura.
 import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
+// (Ola multiverso-1125 · MV1125J) Las vistas de Ramas 4D viajan con la cuenta como
+// cualquier otro ajuste del OS. La migración de versiones va AQUÍ, al bajar: lo que
+// llega de otro dispositivo se sanea antes de tocar el almacenamiento local.
+import { CLAVE_VISTAS, migrarAlmacen, serializarAlmacen } from "@/lib/ramas4d/vistas";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -221,6 +225,7 @@ export const SYNCED_KEYS = [
     "starseed.agentes-red.bloqueo.v1", // (Ola 1025U · U3) qué bots de IA ve esta persona: bots bloqueados, modo general, por entidad y por publicación
     "starseed.traduccion.v1", // (TRD1020D · Ola 1020U) idioma de lectura y autotraducción por contexto de cada perfil (src/lib/traduccion/preferencias.ts)
     "starseed.memorias.capsulas.v1", // (MVD1027H0 · H0) qué sujetos tienen cápsula Memvid encendida (src/lib/memorias/capsulas-ajustes.ts)
+    CLAVE_VISTAS, // (MV1125J) vistas de Ramas 4D por persona y por grupo: solo configuración, sin referencias privadas
 ] as const;
 
 /**
@@ -665,6 +670,9 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 if (key === DOCK_STORAGE_KEY) merged = normalizeDockSyncValue(merged).value;
                 // Mausbot (Ola MBT1027): el valor de la cuenta se sana con su módulo antes de tocar localStorage.
                 if (key === CLAVE_MAUSBOT) merged = normalizarConfigMausbot(merged);
+                // Ramas 4D (MV1125J): la vista que llega de otro dispositivo se migra y se
+                // vuelve a serializar con su propio módulo; nunca se escribe una v1 en local.
+                if (key === CLAVE_VISTAS) merged = serializarAlmacen(migrarAlmacen(merged));
                 const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);

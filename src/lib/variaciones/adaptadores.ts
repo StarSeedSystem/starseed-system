@@ -6,7 +6,13 @@ import { registrarFamilia } from './familias';
 import type { AdaptadorFamilia } from './familias';
 import { validarVariacion } from './validar';
 import { registrarAdaptadoresProtomolecula } from './adaptadores/protomolecula';
+import { validarVariacionPublica } from './fuentes';
 import { almacenNavegador, type AlmacenLocal } from '@/lib/protomolecula/almacen-moleculas';
+import {
+  ESTILOS_ETIQUETA, PERMISOS_COMPARTIR, PERSPECTIVAS, VISTA_DEFECTO,
+  configuracionPublica, guardarVista, leerAlmacen, normalizarConfig,
+  variacionDesdeVista, type VistaConfig,
+} from '@/lib/ramas4d/vistas';
 
 // Crea un adaptador para una familia dada
 function crearAdaptador(familia: string): AdaptadorFamilia<string | number> {
@@ -80,3 +86,40 @@ registrarAdaptadoresProtomolecula({
   ahora: () => Date.now(),
   nuevoId: idDeVariacion,
 });
+
+// Ramas 4D (MV1125J): la vista publica SOLO su configuración. La clave canónica que
+// produce `variacionDesdeVista` es `vista:ramas4d` y su familia declarada es `ramas4d`;
+// el registro atiende las dos formas para que la publicación encuentre el adaptador.
+const CLAVE_VISTA_RAMAS4D = 'vista:ramas4d';
+const VISTA_PROPIA = 'persona:yo';
+
+function validarVistaRamas4D(payload: unknown): { ok: true; payload: VistaConfig } | { ok: false; motivos: string[] } {
+  const base = validarVariacion(payload);
+  if (!base.ok) return { ok: false, motivos: base.motivos };
+  const config = normalizarConfig(payload);
+  const motivos: string[] = [];
+  if (!(PERSPECTIVAS as readonly string[]).includes(config.perspectiva)) motivos.push(`Perspectiva desconocida: ${config.perspectiva}`);
+  if (!(ESTILOS_ETIQUETA as readonly string[]).includes(config.etiquetas.estilo)) motivos.push(`Diseño de etiqueta desconocido: ${config.etiquetas.estilo}`);
+  if (!validarVariacionPublica(variacionDesdeVista(config, 'Vista de Ramas 4D', 'sistema'))) motivos.push('La configuración no se puede exportar como variación pública');
+  return motivos.length ? { ok: false, motivos } : { ok: true, payload: configuracionPublica(config) };
+}
+
+const adaptadorVistaRamas4D: AdaptadorFamilia<VistaConfig> = {
+  familia: 'ramas4d',
+  nombre: 'Vista de Ramas 4D',
+  capturar: (clave) => {
+    if (clave !== CLAVE_VISTA_RAMAS4D && !clave.startsWith(`${CLAVE_VISTA_RAMAS4D}#`)) return null;
+    const permiso = clave.split('#')[1];
+    if (permiso && !(PERMISOS_COMPARTIR as readonly string[]).includes(permiso)) return null;
+    const config = leerAlmacen().vistas[VISTA_PROPIA]?.config ?? VISTA_DEFECTO;
+    const validada = validarVistaRamas4D(config);
+    return validada.ok ? validada.payload : null;
+  },
+  validar: validarVistaRamas4D,
+  aplicar: (_clave, payload) => {
+    const anterior = leerAlmacen().vistas[VISTA_PROPIA]?.config ?? VISTA_DEFECTO;
+    guardarVista({ ambito: 'persona', idAmbito: 'yo', config: configuracionPublica(payload) });
+    return { deshacer: () => { guardarVista({ ambito: 'persona', idAmbito: 'yo', config: anterior }); } };
+  },
+};
+for (const familia of ['vista', 'ramas4d']) registrarFamilia({ ...adaptadorVistaRamas4D, familia });
