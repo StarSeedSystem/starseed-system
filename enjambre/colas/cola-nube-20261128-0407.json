@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "id": "MV1125ZA",
+   "ola": "multiverso-1125",
+   "prioridad": 78,
+   "titulo": "Organización estructurada por facetas: temas, categorías, etiquetas, tipos y formatos",
+   "archivos": [
+    "src/lib/ramas4d/facetas.ts",
+    "src/components/ramas4d/controles/facetas.tsx",
+    "src/components/ramas4d/visor-ramas.tsx",
+    "src/lib/ramas4d/__tests__/facetas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee primero architecture/multiverso-5d.md (petición de Alex del 25-11) y síguelo. Reglas de la ola: sin dependencias npm nuevas (three, @react-three/fiber, @react-three/drei, @react-three/uikit y @react-three/xr ya están); toca SOLO los archivos listados; pruebas con vitest junto al código; tsc sin errores; textos de interfaz en español con el mismo tono del OS; colores y tipografía con los tokens del tema (variables CSS) como el resto de StarSeed, nunca colores sueltos; todo lo 3D se importa con next/dynamic({ ssr: false }); privacidad del contrato innegociable (lo privado ajeno no aparece, el grafo lleva referencias y nunca contenido privado, no se crean registros nuevos ni tablas). Petición de Alex (25-11, 21:17): «organización estructurada por temas, categorías, etiquetas, tipos, formatos, etc.». Sigue «Organización estructurada (taxonomía y facetas)» del contrato. facetas.ts: índice de facetas del grafo (con facetasDe del modelo), filtrar por varias facetas a la vez, agrupar por faceta (usa agrupar.ts) y anclas de disposición por faceta (un tema por región, una categoría por anillo, un formato por forma); taxonomías propias de cada persona y grupo sin límite (crear, renombrar, fusionar temas, categorías y etiquetas). controles/facetas.tsx: panel de facetas con recuentos, búsqueda y selección múltiple; conéctalo en visor-ramas.tsx sin quitar nada. Pruebas.",
+   "revisor_quitadas": [
+    "MV1125H"
+   ],
+   "dependencias_ya_en_main": [
+    "MV1125B",
+    "MV1125D-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "MV1125ZA"
+  ]
+ }
+}
