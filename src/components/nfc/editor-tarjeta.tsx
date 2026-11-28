@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { TarjetaNeurona, ModoCuenta, TipoTransporte } from "@/lib/nfc/tarjeta";
-import type { VerificadorFirma } from "@/lib/nfc/tarjeta";
+import type { VerificadorFirma } from "@/lib/nfc/tarjeta"; import type { ChangeEvent } from "react";
 
 const MODOS: readonly string[] = ["hash", "alias", "nada"];
 const TIPOS_TRANSPORTE: readonly string[] = ["ble", "wifi-direct", "lan", "malla"];
