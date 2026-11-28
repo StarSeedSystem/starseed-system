@@ -5,7 +5,11 @@ import {
     filasDeAlmacenamiento,
     leerNodosAlmacenamiento,
     nombreDeNodoAlmacenamiento,
+    type DiscoNodo,
+    type NodoAlmacenamiento,
 } from "@/lib/mando/medidores";
+
+import { pastillaDeAlmacenamiento } from "@/components/mando/centro-mando";
 
 describe("leerNodosAlmacenamiento", () => {
     it("lee los tres nodos con disco y ordena Mac, Maggabox, A1", () => {
@@ -110,5 +114,111 @@ describe("filasDeAlmacenamiento", () => {
             { id: "c", nombre: "C", medio: "nube", discoLibreGb: 30, almacen: [] },
         ]);
         expect(filas.map((f) => f.estado)).toEqual(["crítico", "bajo", "libre"]);
+    });
+
+    it("crea filas separadas para disco interno principal y externo secundario de Maggabox", () => {
+        const discos: DiscoNodo[] = [
+            { rol: "principal", libreGb: 397, totalGb: 453, estado: "ok", montado: true, punto: "/" },
+            { rol: "secundario", libreGb: 418, totalGb: 500, estado: "ok", montado: true, punto: "/srv/starseed-almacen" },
+        ];
+        const nodos: NodoAlmacenamiento[] = [
+            {
+                id: "maggabox",
+                nombre: "Maggabox",
+                medio: "linux",
+                discoLibreGb: 397,
+                almacen: [],
+                discos,
+            },
+        ];
+        const filas = filasDeAlmacenamiento(nodos);
+        expect(filas.length).toBe(2);
+        expect(filas[0].titulo).toBe("Maggabox · interno (principal)");
+        expect(filas[0].detalle?.discoLibres).toBe(397);
+        expect(filas[0].detalle?.rol).toBe("principal");
+        expect(filas[1].titulo).toBe("Maggabox · disco externo (secundario)");
+        expect(filas[1].detalle?.discoLibres).toBe(418);
+        expect(filas[1].detalle?.rol).toBe("secundario: respaldos y datos no fundamentales");
+    });
+
+    it("marca el disco externo en aviso cuando no está montado y en rojo con errores", () => {
+        const discosAviso: DiscoNodo[] = [
+            { rol: "principal", libreGb: 397, totalGb: 453, estado: "ok", montado: true },
+            { rol: "secundario", libreGb: 0, totalGb: 500, estado: "aviso", montado: false },
+        ];
+        const nodosAviso: NodoAlmacenamiento[] = [
+            {
+                id: "maggabox",
+                nombre: "Maggabox",
+                medio: "linux",
+                discoLibreGb: 397,
+                almacen: [],
+                discos: discosAviso,
+            },
+        ];
+        const filasAviso = filasDeAlmacenamiento(nodosAviso);
+        expect(filasAviso[1].estado).toBe("aviso");
+        expect(filasAviso[1].porque).toContain("sin montar");
+        expect(filasAviso[1].usableComoDestino).toBe(false);
+
+        const discosError: DiscoNodo[] = [
+            { rol: "principal", libreGb: 397, totalGb: 453, estado: "ok", montado: true },
+            { rol: "secundario", libreGb: 100, totalGb: 500, estado: "error", montado: true, errores: 5 },
+        ];
+        const nodosError: NodoAlmacenamiento[] = [
+            {
+                id: "maggabox",
+                nombre: "Maggabox",
+                medio: "linux",
+                discoLibreGb: 397,
+                almacen: [],
+                discos: discosError,
+            },
+        ];
+        const filasError = filasDeAlmacenamiento(nodosError);
+        expect(filasError[1].estado).toBe("error");
+        expect(filasError[1].porque).toContain("5 errores");
+        expect(filasError[1].usableComoDestino).toBe(false);
+    });
+});
+
+describe("pastillaDeAlmacenamiento", () => {
+    it("devuelve null sin filas", () => {
+        const pastilla = pastillaDeAlmacenamiento([]);
+        expect(pastilla).toBeNull();
+    });
+
+    it("muestra Maggabox principal como valor y los demás nodos en el detalle", () => {
+        const filas = [
+            { titulo: "Mac", detalle: { discoLibres: 13 }, estado: "libre" },
+            { titulo: "Maggabox", detalle: { discoLibres: 397 }, estado: "libre" },
+            { titulo: "A1", detalle: { discoLibres: 9 }, estado: "libre" },
+            { titulo: "Drive", detalle: { discoLibres: 0 }, estado: "libre" },
+        ] as any;
+        const pastilla = pastillaDeAlmacenamiento(filas);
+        expect(pastilla).not.toBeNull();
+        expect(pastilla!.valor).toBe("Maggabox 397 GB libres");
+        expect(pastilla!.detalle).toContain("Mac 13 GB");
+        expect(pastilla!.detalle).toContain("A1 9 GB");
+        expect(pastilla!.detalle).toContain("Drive 0 GB");
+        expect(pastilla!.tono).toBe("ok");
+    });
+
+    it("usa tono crítico si algún nodo está crítico", () => {
+        const filas = [
+            { titulo: "Mac", detalle: { discoLibres: 2 }, estado: "crítico" },
+            { titulo: "Maggabox", detalle: { discoLibres: 397 }, estado: "libre" },
+        ] as any;
+        const pastilla = pastillaDeAlmacenamiento(filas);
+        expect(pastilla!.tono).toBe("peligro");
+    });
+
+    it("usa tono aviso si algún nodo está bajo", () => {
+        const filas = [
+            { titulo: "Mac", detalle: { discoLibres: 10 }, estado: "bajo" },
+            { titulo: "Maggabox", detalle: { discoLibres: 397 }, estado: "libre" },
+        ] as any;
+        const pastilla = pastillaDeAlmacenamiento(filas);
+        expect(pastilla!.tono).toBe("aviso");
     });
 });
