@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Pruebas de director_chat con carpetas temporales."""
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -173,6 +175,18 @@ class PruebasNoEnsucianElChatReal(unittest.TestCase):
                 mock.patch.object(dc.sys, "argv", ["/Users/alex/.local/bin/servicio.py"]):
             dc.sys.modules.pop("pytest", None)
             self.assertFalse(dc.en_pruebas())
+
+
+class PruebasTextosPersona(unittest.TestCase):
+    """(NOM1125D) Los textos que lee una persona llaman Maggasukha a la persona, no «Alex»."""
+
+    def test_ayuda_de_decir_dice_maggasukha(self):
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida), self.assertRaises(SystemExit):
+            dc._principal(["--help"])
+        texto = salida.getvalue()
+        self.assertIn("Maggasukha dice algo", texto)
+        self.assertNotIn("Alex dice algo", texto)
 
 
 class PruebasElCanalComunNoSeEnsucia(unittest.TestCase):
