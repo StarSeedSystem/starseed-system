@@ -32,10 +32,13 @@ import {
   resolverAliasEsteMedio,
   thisDeviceId,
 } from "@/lib/neurons/neurons";
-import { neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
+import { PALETA_COLOR_PUBLICO, colorPorDefecto, normalizarColor } from "@/lib/neurons/color-publico";
+import { colorAparatoDe, estadoSyncAparato, idUnicoPorDefecto, neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 import { aparatoDeEsteMedio } from "@/lib/neurons/aparato-este-medio";
 
 const CLAVE_HUELLA_REVISION = "starseed.neuron.huella-revision.v1";
+const CLAVE_ID_UNICO_APARATO = "starseed.aparato.id-unico.v1";
+const CLAVE_COLOR_APARATO = "starseed.aparato.color.v1";
 
 type Paso = "" | "elegir" | "nueva";
 type CaminoNuevo = "" | "unir" | "nueva";
@@ -75,6 +78,8 @@ function nombrePropuesto(nombreAparato: string | null | undefined): string {
 export function AparatoEnNeurona() {
   const [lista, setLista] = useState<NeuronaParaElegir[]>([]);
   const [nombre, setNombre] = useState("");
+  const [idUnico, setIdUnico] = useState("");
+  const [colorAparato, setColorAparato] = useState("");
   const [paso, setPaso] = useState<Paso>("");
   const [elegida, setElegida] = useState<string | null>(null);
   const [nombreNueva, setNombreNueva] = useState("");
@@ -101,6 +106,16 @@ export function AparatoEnNeurona() {
 
   useEffect(() => {
     setNombre(nombreEsteAparato());
+    let leerIdUnico = "";
+    let leerColor = colorPorDefecto(thisDeviceId() || "aparato");
+    try {
+      leerIdUnico = window.localStorage.getItem(CLAVE_ID_UNICO_APARATO) ?? "";
+      leerColor = normalizarColor(window.localStorage.getItem(CLAVE_COLOR_APARATO)) || leerColor;
+    } catch {
+      // Sin acceso a localStorage
+    }
+    setIdUnico(leerIdUnico);
+    setColorAparato(leerColor);
     void cargar();
 
     // NEU1125B-d2: detectar si hay un aparato nuevo (huella distinta)
@@ -273,23 +288,68 @@ export function AparatoEnNeurona() {
         )}
 
         <form
-          className="flex flex-wrap items-center gap-2"
+          className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3"
           onSubmit={(e) => {
             e.preventDefault();
+            try {
+              const idLimpio = idUnico.trim().slice(0, 40);
+              if (idLimpio) window.localStorage.setItem(CLAVE_ID_UNICO_APARATO, idLimpio);
+              else window.localStorage.removeItem(CLAVE_ID_UNICO_APARATO);
+              const colorNorm = normalizarColor(colorAparato);
+              if (colorNorm) window.localStorage.setItem(CLAVE_COLOR_APARATO, colorNorm);
+            } catch {
+              // Sin acceso a localStorage
+            }
             void renombrarEsteAparato(nombre).then(() => cargar());
           }}
         >
-          <label htmlFor="nombre-aparato" className="text-xs text-muted-foreground">Nombre de este aparato</label>
-          <Input id="nombre-aparato" value={nombre} maxLength={60} onChange={(e) => setNombre(e.target.value)} placeholder="Por ejemplo: Móvil de Alex" className="h-8 max-w-xs" />
-          <Button type="submit" size="sm" variant="outline" className="cursor-pointer">Guardar nombre</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="size-3 shrink-0 rounded-full ring-1 ring-white/40" style={{ backgroundColor: colorAparato || colorPorDefecto(thisDeviceId() || "aparato") }} aria-hidden />
+            <label htmlFor="nombre-aparato" className="text-xs text-muted-foreground">Nombre de este aparato</label>
+            <Input id="nombre-aparato" value={nombre} maxLength={60} onChange={(e) => setNombre(e.target.value)} placeholder="Por ejemplo: Móvil de bolsillo" className="h-8 max-w-xs" />
+            <label htmlFor="id-unico-aparato-panel" className="text-xs text-muted-foreground">ID único</label>
+            <Input id="id-unico-aparato-panel" value={idUnico} maxLength={40} onChange={(e) => setIdUnico(e.target.value)} placeholder="ej. maggapixel-01" className="h-8 max-w-[11rem] font-mono text-xs" />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Color diferenciador de este aparato">
+              {PALETA_COLOR_PUBLICO.slice(0, 8).map((c) => (
+                <button
+                  key={c.color}
+                  type="button"
+                  title={c.nombre}
+                  onClick={() => setColorAparato(c.color)}
+                  aria-pressed={colorAparato === c.color}
+                  className={`h-4 w-4 cursor-pointer rounded-full border ${colorAparato === c.color ? "border-white ring-2 ring-white/50" : "border-white/25"}`}
+                  style={{ backgroundColor: c.color }}
+                />
+              ))}
+            </div>
+            <Button type="submit" size="sm" variant="outline" className="cursor-pointer">Guardar nombre</Button>
+          </div>
         </form>
 
         <p className="text-sm">
-          Neurona de este aparato: <strong>{actual?.nombre ?? "…"}</strong>
+          Neurona de este aparato (apellido): <strong>{actual?.nombre ?? "…"}</strong>
           {actual && actual.aparatos.length > 1 && (
             <Badge variant="outline" className="ml-2">{actual.aparatos.length} aparatos: lo normal es uno</Badge>
           )}
         </p>
+
+        {actual && actual.aparatos.length > 0 && (
+          <ul className="space-y-1" aria-label="Aparatos en esta neurona">
+            {actual.aparatos.map((a) => {
+              const sync = estadoSyncAparato(a);
+              return (
+                <li key={a.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorAparatoDe(a) }} aria-hidden />
+                  <span className="font-medium text-foreground">{a.nombre}</span>
+                  <span className="rounded border border-white/15 px-1 font-mono text-[10px]">@{a.idUnico || idUnicoPorDefecto(a)}</span>
+                  <Badge variant="outline" className="ml-auto text-[10px]">{sync.etiqueta}</Badge>
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Button

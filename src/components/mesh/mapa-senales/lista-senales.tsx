@@ -22,6 +22,12 @@ import type { CentroNeurona } from "@/lib/senales/centro";
 import { iconoDeSenal, NOMBRE_ICONO } from "@/lib/senales/iconos";
 import type { MedioMapa, VivoMapa } from "@/lib/senales/tipos-vivo";
 import { avatarDeSenal, cuentaDe } from "@/lib/senales/cuentas";
+import {
+  agruparYOrdenarSenales,
+  extraerAntenasIndependientes,
+  META_CATEGORIA,
+  type CategoriaSenal,
+} from "@/lib/senales/categorizacion-antenas";
 import { FotoPerfil } from "./foto-perfil";
 import { GlifoIcono } from "./icono-2d";
 import type { SenalEspectro } from "@/lib/senales/espectro/tipos";
@@ -96,10 +102,16 @@ export interface ListaSenalesProps {
 
 export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro = null, avatarPropio = null, seleccionId, apuntadaId, onSeleccionar, onApuntar, className, hayFiltros = true, senalesEspectro, filtroEspectro, onCambiarFiltroEspectro, compacto }: ListaSenalesProps) {
   const [todas, setTodas] = useState(false);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaSenal | "todas">("todas");
+  const gruposCategorias = useMemo(() => agruparYOrdenarSenales(senales), [senales]);
+  const senalesDeCategoria = useMemo(() => {
+    if (categoriaFiltro === "todas") return senales;
+    return gruposCategorias.find((g) => g.categoria === categoriaFiltro)?.items ?? [];
+  }, [senales, gruposCategorias, categoriaFiltro]);
   // La seleccionada siempre es visible aunque caiga fuera de las primeras filas.
-  const idxSel = senales.findIndex((s) => s.id === seleccionId || vivo?.medios.some((m) => m.id === seleccionId && m.padreId === s.id));
+  const idxSel = senalesDeCategoria.findIndex((s) => s.id === seleccionId || vivo?.medios.some((m) => m.id === seleccionId && m.padreId === s.id));
   const mostrarTodas = todas || idxSel >= FILAS_INICIALES;
-  const visibles = mostrarTodas ? senales : senales.slice(0, FILAS_INICIALES);
+  const visibles = mostrarTodas ? senalesDeCategoria : senalesDeCategoria.slice(0, FILAS_INICIALES);
   const mediosYo = vivo?.medios.filter((m) => m.padreId === "yo") ?? [];
 
   const filtroPanel = useMemo(() => {
@@ -188,7 +200,7 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
 
   if (senales.length === 0) {
     return (
-      <div className={className}>
+      <div className={cn("w-full min-w-0 max-w-full overflow-x-clip", className)}>
         {filtroPanel}
         <ul className="mb-1.5 space-y-1" aria-label="Tú">{filaYo}</ul>
         <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-[11px] leading-snug text-white/45">
@@ -201,20 +213,53 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
   }
 
   return (
-    <div className={className}>
+    <div className={cn("w-full min-w-0 max-w-full overflow-x-clip", className)}>
       {filtroPanel}
+      {gruposCategorias.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap items-center gap-1" role="group" aria-label="Categorías de señales">
+          <button
+            type="button"
+            onClick={() => setCategoriaFiltro("todas")}
+            aria-pressed={categoriaFiltro === "todas"}
+            className={cn(
+              "cursor-pointer rounded-md border px-1.5 py-0.5 text-[9px] font-medium transition-colors",
+              categoriaFiltro === "todas" ? "border-sky-400/45 bg-sky-500/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/85",
+            )}
+          >
+            Todas ({senales.length})
+          </button>
+          {gruposCategorias.map((g) => (
+            <button
+              key={g.categoria}
+              type="button"
+              onClick={() => setCategoriaFiltro(g.categoria)}
+              aria-pressed={categoriaFiltro === g.categoria}
+              title={META_CATEGORIA[g.categoria].descripcion}
+              className={cn(
+                "cursor-pointer rounded-md border px-1.5 py-0.5 text-[9px] font-medium transition-colors",
+                categoriaFiltro === g.categoria ? "border-sky-400/45 bg-sky-500/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/85",
+              )}
+            >
+              {g.etiqueta} ({g.items.length})
+            </button>
+          ))}
+        </div>
+      )}
       <ul className="space-y-1" aria-label="Señales detectadas">
         {filaYo}
         {visibles.map((s) => {
           const sel = s.id === seleccionId;
           const q = s.quality;
-          const aparato = esAparato(s);
-          const estado = vivo?.estados.get(s.id) ?? null;
+          const aparato = esAparato(s) || s.id.startsWith("aparato:");
+          const estado = vivo?.estados.get(s.id) ?? (s.starseed?.aparatoHermano ? (s.starseed.online ? "en-linea" : "desconectada") : null);
           const enlace = aparato ? vivo?.enlaces.get(s.id) ?? null : null;
           const medios = vivo?.medios.filter((m) => m.padreId === s.id) ?? [];
           const cuenta = cuentaDe(s);
+          const antenas = extraerAntenasIndependientes(s);
+          const apPrincipal = s.starseed?.aparatos?.[0];
+          const colorAparato = apPrincipal?.color || s.color;
           return (
-            <li key={s.id}>
+            <li key={s.id} className="min-w-0 max-w-full">
               <button
                 type="button"
                 aria-pressed={sel}
@@ -224,7 +269,7 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
                 onFocus={() => onApuntar(s.id)}
                 onBlur={() => onApuntar(null)}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors duration-200",
+                  "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors duration-200",
                   sel
                     ? "border-sky-400/45 bg-sky-500/[0.12]"
                     : s.id === apuntadaId
@@ -234,15 +279,21 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
                 )}
               >
                 <span title={NOMBRE_ICONO[iconoDeSenal(s)]} className="inline-flex shrink-0">
-                  <GlifoIcono id={iconoDeSenal(s)} color={s.color} size={14} />
+                  <GlifoIcono id={iconoDeSenal(s)} color={colorAparato} size={14} />
                 </span>
                 {(() => {
                   const foto = avatarDeSenal(s, avatarPropio);
-                  return foto ? <FotoPerfil url={foto} iniciales="" size={18} color={s.color} /> : null;
+                  return foto ? <FotoPerfil url={foto} iniciales="" size={18} color={colorAparato} /> : null;
                 })()}
                 <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-[11px] font-semibold text-white/90">{s.label}</span>
+                  <span className="flex min-w-0 flex-wrap items-center gap-1">
+                    <span className="max-w-full truncate text-[11px] font-semibold text-white/90">{s.label}</span>
+                    {apPrincipal?.idUnico && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded border border-white/15 bg-black/35 px-1 py-px font-mono text-[8px] text-white/80">
+                        <span className="size-1.5 rounded-full" style={{ backgroundColor: colorAparato }} aria-hidden />
+                        @{apPrincipal.idUnico}
+                      </span>
+                    )}
                     {cuenta !== "ninguna" && (
                       <span className="shrink-0 rounded-full border border-violet-400/30 bg-violet-500/15 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-violet-200">
                         {cuenta === "propia" ? "tu cuenta" : "otra cuenta"}
@@ -255,7 +306,7 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
                     )}
                   </span>
                   {aparato && estado ? (
-                    <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-white/50">
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-white/50">
                       <span className="size-1.5 shrink-0 rounded-full" style={{ background: COLOR_ESTADO[estado] }} aria-hidden />
                       <span className="shrink-0">{TEXTO_ESTADO[estado]}</span>
                       {enlace && !(estado === "desconectada" && enlace.clase === "sin-enlace") && (
@@ -266,12 +317,29 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
                       )}
                     </span>
                   ) : (
-                    <span className="mt-0.5 flex items-center gap-1.5 text-[9px] text-white/45">
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[9px] text-white/45">
                       <span className="truncate">{s.antennaLabel.split(" (")[0]}</span>
                       <span className={cn("shrink-0 rounded-full border px-1.5 py-px text-[8px] font-black uppercase tracking-wider", CLASE_MODO[s.placement.mode])}>
                         {ETIQUETA_MODO_POSICION[s.placement.mode]}
                       </span>
                       <span className="shrink-0 tabular-nums">{textoDistancia(s.placement.distanceM)}</span>
+                    </span>
+                  )}
+                  {antenas.length > 0 && (
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      {antenas.slice(0, 3).map((a) => (
+                        <span
+                          key={a.tipo}
+                          className={cn(
+                            "rounded border px-1 py-px text-[8px]",
+                            a.acceso === "publico"
+                              ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
+                              : "border-sky-400/25 bg-sky-500/10 text-sky-200",
+                          )}
+                        >
+                          {a.etiqueta} · {a.capa}
+                        </span>
+                      ))}
                     </span>
                   )}
                 </span>
@@ -291,13 +359,13 @@ export function ListaSenales({ senales, vivo = null, etiquetaYo = null, centro =
           );
         })}
       </ul>
-      {senales.length > FILAS_INICIALES && !mostrarTodas && (
+      {senalesDeCategoria.length > FILAS_INICIALES && !mostrarTodas && (
         <button
           type="button"
           onClick={() => setTodas(true)}
           className="mt-1.5 inline-flex w-full cursor-pointer items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] py-1 text-[10px] font-medium text-white/60 transition-colors duration-200 hover:border-white/25 hover:text-white/90"
         >
-          <ChevronDown className="h-3 w-3" /> Ver las {senales.length - FILAS_INICIALES} restantes
+          <ChevronDown className="h-3 w-3" /> Ver las {senalesDeCategoria.length - FILAS_INICIALES} restantes
         </button>
       )}
     </div>

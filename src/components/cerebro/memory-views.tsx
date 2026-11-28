@@ -19,12 +19,14 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { Loader2, List, Network, Boxes, Server, FileText, Brain } from "lucide-react";
+import { Loader2, List, Network, Boxes, Server, FileText, Brain, Orbit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MemoriaPanel from "@/components/cerebro/memoria-panel";
 import { MemoryHub } from "@/components/exocortex/memory-hub";
 import MemoryGraph from "@/components/brains/memory-graph";
 import MemorySourcesPanel from "@/components/cerebro/memory-sources-panel";
+import { VistaCerebroOrganos } from "@/components/cerebro/vista-cerebro-organos";
+import { leerOrganosGuardados } from "@/lib/cerebros/organos";
 
 const MemoryMesh3D = dynamic(
   () => import("@/components/exocortex/memory-mesh-3d").then((m) => m.MemoryMesh3D),
@@ -38,13 +40,14 @@ const MemoryMesh3D = dynamic(
   },
 );
 
-export type MemoryViewId = "lista" | "2d" | "3d" | "fuentes";
+export type MemoryViewId = "lista" | "2d" | "3d" | "4d" | "fuentes";
 export type MemoryListSub = "archivos" | "hub";
 
 const VIEWS: { id: MemoryViewId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "lista", label: "Lista", icon: List },
   { id: "2d", label: "2D", icon: Network },
   { id: "3d", label: "3D", icon: Boxes },
+  { id: "4d", label: "4D vivo", icon: Orbit },
   { id: "fuentes", label: "Fuentes", icon: Server },
 ];
 
@@ -82,18 +85,19 @@ export default function MemoryViews({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 max-w-full space-y-3">
       {/* Toggle principal de vistas */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
           {VIEWS.map((v) => {
             const Icon = v.icon;
             return (
               <button
                 key={v.id}
+                type="button"
                 onClick={() => goView(v.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition",
+                  "flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition",
                   view === v.id ? "bg-cyan-500/20 text-cyan-200" : "text-white/55 hover:text-white/80",
                 )}
               >
@@ -126,6 +130,7 @@ export default function MemoryViews({
           {view === "lista" && sub === "hub" && "Memorias del cerebro (tabla memories) con badges y sync."}
           {view === "2d" && "Grafo de relaciones (wikilinks + tipos). Clic en un nodo para editarlo."}
           {view === "3d" && "Malla 3D del cerebro. Clic en un archivo para abrir su editor."}
+          {view === "4d" && "Vista 4D viva: evolución temporal de órganos, neuronas y agentes del cerebro."}
           {view === "fuentes" && "Fuentes de memoria: OS, Obsidian, servidor externo y memory_root."}
         </span>
       </div>
@@ -142,6 +147,14 @@ export default function MemoryViews({
         <div className="min-h-[62vh] h-[62vh] rounded-2xl overflow-hidden border border-white/10">
           <MemoryMesh3D brainMode brainId={brainId} onSelectMemory={openFileFromNode} className="h-full w-full" />
         </div>
+      )}
+      {view === "4d" && (
+        <VistaCerebroOrganos
+          organos={leerOrganosGuardados()}
+          neuronas={[]}
+          cerebros={brainId ? [{ id: brainId, name: brainName || "Este cerebro", scope: "account", description: "", config: {} }] : []}
+          formatoInicial="4d"
+        />
       )}
       {view === "fuentes" && <MemorySourcesPanel brainId={brainId} brainName={brainName} />}
     </div>

@@ -42,7 +42,7 @@ const SIN_PUNTERO = { pointerEvents: "none" } as const;
 function CartelCentro({ centro, color }: { centro: CentroNeurona; color: string }) {
   return (
     <Html position={[0, 1.9, 0]} center distanceFactor={FACTOR_ETIQUETA} zIndexRange={ZINDEX_ETIQUETAS} pointerEvents="none" wrapperClass="pointer-events-none" style={SIN_PUNTERO}>
-      <div className="pointer-events-none flex select-none items-center gap-2 whitespace-nowrap rounded-xl border bg-black/85 px-2 py-1.5 text-left" style={{ borderColor: `${color}88` }} data-testid="cartel-centro">
+      <div className="pointer-events-none flex max-w-[240px] select-none items-center gap-2 rounded-xl border bg-black/85 px-2 py-1.5 text-left" style={{ borderColor: `${color}88` }} data-testid="cartel-centro">
         <FotoPerfil url={centro.avatar.modo === "foto" ? centro.avatar.url : null} iniciales={centro.iniciales} size={38} color={color} />
         <span className="min-w-0">
           <span className="block max-w-[190px] truncate text-[11px] font-bold leading-tight text-white">{centro.nombreNeurona}</span>

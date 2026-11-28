@@ -46,6 +46,8 @@ import { senalesVistasPorOtras } from "@/lib/network/radar-por-malla";
 import { useRadarRemoto } from "@/lib/network/radar-remoto-store";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, thisDeviceId, type Neuron } from "@/lib/neurons/neurons";
+import { aparatosDe, colorAparatoDe, estadoSyncAparato, idUnicoPorDefecto } from "@/lib/neurons/aparatos-de-neurona";
+import { neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
 import { neuronaVigente } from "@/lib/neurons/fusion-alias";
 import { resolverFarosPropios } from "@/lib/senales/faros-propios";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
@@ -130,6 +132,16 @@ function publicCapabilities(n: Neuron): string[] {
 }
 
 function toView(n: Neuron): AccountNeuronView {
+  const aps = aparatosDe(n.capabilities).map((a) => ({
+    id: a.id,
+    nombre: a.nombre,
+    idUnico: a.idUnico || idUnicoPorDefecto(a),
+    color: colorAparatoDe(a),
+    syncEstado: estadoSyncAparato(a, { presente: !!n.online }).estado,
+    medio: a.medio,
+    plataforma: a.so,
+    visto: a.visto,
+  }));
   return {
     id: n.id,
     name: n.name,
@@ -141,6 +153,7 @@ function toView(n: Neuron): AccountNeuronView {
     syncDeviceId: n.capabilities?.syncDeviceId,
     capabilities: publicCapabilities(n),
     isThisDevice: !!n.isThisDevice,
+    ...(aps.length ? { aparatos: aps } : {}),
   };
 }
 
@@ -333,13 +346,22 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         ordenarSenalesPorCalidad(
           fusionarRadar(
             [
-              ...collectDetectedSignals({ mesh, beacons: farosVistos, neurons, ble: freshBle, serialPorts, now }),
+              ...collectDetectedSignals({
+                mesh,
+                beacons: farosVistos,
+                neurons,
+                currentSyncId: neuronDeviceSyncId(),
+                ble: freshBle,
+                serialPorts,
+                now,
+              }),
               ...senalesRadioLocal(radioLocal, now),
               // (RDV14) Lo que oyen las otras neuronas de la cuenta, tal cual lo
               // compartió cada una: toda señal declara quién la oye de verdad.
               ...senalesVistasPorOtras(radarRemoto, now),
-              // (MSH1107A) Las que ya están pintadas como neurona de la cuenta no se repiten.
-              ...senalesRedLocal(redLocal.vecinos, redLocal.vinculos, now, new Set(neurons.map((n) => n.id))),
+              // (MSH1107A · multiantena) Se conservan las señales de cada antena independiente en LAN
+              // (p. ej. Wi-Fi local sin internet / UDP) además del registro de cuenta.
+              ...senalesRedLocal(redLocal.vecinos, redLocal.vinculos, now, new Set()),
               // (BLE1108A) Bluetooth directo: cada vecino oído es una señal con su RSSI medido.
               ...senalesBluetoothDirecto(bluetooth, now, new Map(neurons.map((n) => [n.id, n.name] as [string, string]))),
             ],

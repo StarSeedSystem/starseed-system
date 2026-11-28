@@ -171,7 +171,7 @@ export function ContenidoMapa({ vista, prefs, onPrefs, reducido, compacto, onOpe
   const cerrar = () => setSeleccionId(null);
 
   return (
-    <div className="space-y-2.5" onKeyDown={(e) => { if (e.key === "Escape") cerrar(); }}>
+    <div className="w-full min-w-0 max-w-full overflow-x-clip space-y-2.5" onKeyDown={(e) => { if (e.key === "Escape") cerrar(); }}>
       <BarraResumen
         resumen={resumen}
         vivo={todosVivo}
@@ -240,10 +240,10 @@ export function ContenidoMapa({ vista, prefs, onPrefs, reducido, compacto, onOpe
         />
       )}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid min-w-0 gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* Lienzo (en compacto, la nota de altura va debajo para no tapar marcas) */}
-        <div className="min-w-0">
-        <div className={cn("relative overflow-hidden rounded-2xl border border-white/10 bg-black/40", compacto ? "h-[320px]" : "h-[380px] sm:h-[480px]")}>
+        <div className="min-w-0 w-full max-w-full overflow-hidden">
+        <div className={cn("relative w-full max-w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40", compacto ? "h-[320px]" : "h-[380px] sm:h-[480px]")}>
           {vista === "3d" ? (
             <LimiteEscena onError={onFallo}>
               <Escena3D
@@ -316,7 +316,7 @@ export function ContenidoMapa({ vista, prefs, onPrefs, reducido, compacto, onOpe
         </div>
 
         {/* Lista ⇄ ficha */}
-        <aside ref={lateral} className="min-h-0 space-y-2 lg:h-[480px] lg:overflow-y-auto lg:pr-1" aria-label="Señales y ficha">
+        <aside ref={lateral} className="min-w-0 min-h-0 w-full max-w-full space-y-2 lg:h-[480px] lg:overflow-y-auto lg:pr-1" aria-label="Señales y ficha">
           {editando && (
             <AjustesNeurona
               centro={centro}

@@ -205,7 +205,7 @@ export function RacionBanco({ banco, onCambiar, textos, extra }: Props) {
             <legend className="text-[11px] font-medium text-white/70">
               Ventana {indice + 1}
             </legend>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label htmlFor={`desde-${indice}`} className="block text-[10px] text-white/50">
                   {extra.desde}

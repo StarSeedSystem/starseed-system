@@ -119,11 +119,11 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
   const mediosSinFuente = sinFuente.length;
 
   return (
-    <div className={cn("rounded-2xl border border-white/10 bg-black/30 p-3", className)}>
+    <div className={cn("w-full min-w-0 max-w-full overflow-x-clip rounded-2xl border border-white/10 bg-black/30 p-2.5 sm:p-3", className)}>
       <div className="mb-2.5 flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 text-[13px] font-semibold text-white/90">
-            <Radar className="h-4 w-4 text-sky-300" /> Mapa 3D de señales reales
+            <Radar className="h-4 w-4 shrink-0 text-sky-300" /> <span className="min-w-0 break-words">Mapa 3D de señales reales</span>
           </h3>
           {!compacto && (
             <p className="mt-0.5 max-w-2xl text-[10px] leading-snug text-white/45">
@@ -132,7 +132,7 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex max-w-full flex-wrap items-center gap-1.5">
           {soloPlano ? null : (
             <SelectorVista
               vista={en3d || (quiere3d && webgl === null) ? "3d" : "plano"}
@@ -148,12 +148,12 @@ export function MapaSenales({ className, onOpenMesh, compacto: compactoForzado, 
             aria-pressed={vistaEspectro}
             onClick={() => setVistaEspectro((v) => !v)}
             className={cn(
-              "inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors duration-200",
+              "inline-flex max-w-full shrink-0 cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors duration-200",
               vistaEspectro ? "border-sky-400/40 bg-sky-500/15 text-sky-100" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/90"
             )}
             title="Espectro de frecuencias con filtros y ficha"
           >
-            <Signal className="h-3 w-3" /> Espectro
+            <Signal className="h-3 w-3 shrink-0" /> Espectro
           </button>
         </div>
       </div>

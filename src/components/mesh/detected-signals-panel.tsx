@@ -31,6 +31,10 @@ import {
 import { useDetectedSignals } from "./use-detected-signals";
 import { SignalDetailCard } from "./signal-detail";
 import { ListaVinculos } from "@/components/network/panel-vinculo";
+import {
+  agruparYOrdenarSenales,
+  extraerAntenasIndependientes,
+} from "@/lib/senales/categorizacion-antenas";
 
 const ANTENNA_ICON: Record<AntennaKind, LucideIcon> = {
   lora: RadioTower,
@@ -70,9 +74,11 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
   const { signals, ble, loadingNeurons, unavailable, refresh } = useDetectedSignals();
   const [open, setOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<AntennaKind | "todas">("todas");
+  const [modoVista, setModoVista] = useState<"categoria" | "antena">("categoria");
   const [busy, setBusy] = useState<string | null>(null);
 
   const summary = useMemo(() => summarizeByAntenna(signals), [signals]);
+  const gruposCategorias = useMemo(() => agruparYOrdenarSenales(signals), [signals]);
   const totals = useMemo(
     () => ({
       total: signals.length,
@@ -173,7 +179,7 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
   const visible = filter === "todas" ? ANTENNA_ORDER : [filter];
 
   return (
-    <div className={cn("rounded-2xl border border-white/10 bg-black/30 p-3", className)}>
+    <div className={cn("w-full min-w-0 max-w-full overflow-x-clip rounded-2xl border border-white/10 bg-black/30 p-3", className)}>
       {/* Cabecera + totales reales */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
@@ -232,8 +238,18 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
         </p>
       )}
 
-      {/* Filtros por familia de antena (con su recuento real) */}
+      {/* Filtros por familia de antena + vista por categoría multicapa */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setModoVista((m) => (m === "categoria" ? "antena" : "categoria"))}
+          className={cn(
+            "cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors duration-200",
+            modoVista === "categoria" ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/[0.03] text-white/60 hover:text-white/90",
+          )}
+        >
+          {modoVista === "categoria" ? "Vista: Por categoría y capa" : "Vista: Por antena"}
+        </button>
         <button
           type="button"
           onClick={() => setFilter("todas")}
@@ -264,8 +280,86 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
         })}
       </div>
 
+      {/* Categorías multicapa y antenas independientes por aparato/nodo */}
+      {modoVista === "categoria" && gruposCategorias.length > 0 && (
+        <div className="mt-2 space-y-2" data-testid="senales-por-categoria">
+          {gruposCategorias.map((grupo) => {
+            const filtrados = filter === "todas" ? grupo.items : grupo.items.filter((x) => x.antenna === filter);
+            if (filtrados.length === 0) return null;
+            return (
+              <section key={grupo.categoria} className="rounded-xl border border-white/10 bg-white/[0.025] p-2.5 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <p className="text-[11px] font-semibold text-white/90">{grupo.etiqueta}</p>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white/60">
+                    {filtrados.length}
+                  </span>
+                </div>
+                <p className="text-[9px] text-white/45">{grupo.descripcion}</p>
+                <div className="space-y-1.5">
+                  {filtrados.map((s) => {
+                    const isOpen = open === s.id;
+                    const antenas = extraerAntenasIndependientes(s);
+                    const ap = s.starseed?.aparatos?.[0];
+                    return (
+                      <div key={s.id} className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setOpen(isOpen ? null : s.id)}
+                          aria-expanded={isOpen}
+                          className={cn(
+                            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors duration-200",
+                            isOpen ? "border-sky-400/35 bg-sky-500/[0.08]" : "border-white/5 bg-black/25 hover:border-white/20",
+                          )}
+                        >
+                          <span className="size-2.5 shrink-0 rounded-full" style={{ background: ap?.color || s.color }} aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className="truncate text-[11px] font-semibold text-white/90">{s.label}</span>
+                              {ap?.idUnico && (
+                                <span className="rounded border border-white/15 bg-black/40 px-1 py-px font-mono text-[8px] text-white/75">
+                                  @{ap.idUnico}
+                                </span>
+                              )}
+                              {s.starseed && (
+                                <span className="shrink-0 rounded-full border border-violet-400/30 bg-violet-500/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-violet-200">
+                                  {s.starseed.ownAccount ? "tu cuenta" : s.starseed.publico || s.starseed.offersPublic ? "pública" : "StarSeed"}
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[9px] text-white/45">{s.signalType}</span>
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {antenas.map((a) => (
+                                <span
+                                  key={a.tipo}
+                                  className={cn(
+                                    "rounded border px-1.5 py-px text-[8px]",
+                                    a.acceso === "publico"
+                                      ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
+                                      : "border-sky-400/25 bg-sky-500/10 text-sky-200",
+                                  )}
+                                >
+                                  {a.etiqueta} ({a.estado}) · capa {a.capa}
+                                </span>
+                              ))}
+                            </span>
+                          </span>
+                          <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-white/40 transition-transform duration-200", isOpen && "rotate-180")} />
+                        </button>
+                        {isOpen && (
+                          <SignalDetailCard className="mt-1" signal={s} onClose={() => setOpen(null)} onOpenMesh={onOpenMesh} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
       {/* Grupos por antena */}
-      <div className="mt-2 space-y-2">
+      {modoVista === "antena" && <div className="mt-2 space-y-2">
         {visible.map((antenna) => {
           const items = signals.filter((s) => s.antenna === antenna);
           const Icon = ANTENNA_ICON[antenna];
@@ -373,7 +467,7 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
             </section>
           );
         })}
-      </div>
+      </div>}
 
       {/* (VIN1107A) Neuronas vinculadas y activas: mejor vía y latencia de cada una. */}
       {!compact && <ListaVinculos className="mt-2" />}

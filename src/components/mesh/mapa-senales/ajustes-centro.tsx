@@ -18,7 +18,27 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { DEFAULT_MESH_PRIVACY, getMeshPrivacy, MESH_PRIVACY_EVENT, setMeshPrivacy, type MeshPrivacySettings, type PublicRadarMode } from "@/ai/astraura/mesh/privacy";
 import { CONNECTIVITY_EVENT, getConnectivitySettings } from "@/ai/astraura/mesh/connectivity";
-import { setNeuronName, thisDeviceId, listNeurons, nombreEsteAparato, renombrarEsteAparato, type Neuron, type SetNeuronNameResult } from "@/lib/neurons/neurons";
+import {
+  setNeuronName,
+  thisDeviceId,
+  listNeurons,
+  nombreEsteAparato,
+  renombrarEsteAparato,
+  idUnicoEsteAparato,
+  colorEsteAparato,
+  actualizarPerfilEsteAparato,
+  cambiarNeuronaDeEsteAparato,
+  type Neuron,
+  type SetNeuronNameResult,
+} from "@/lib/neurons/neurons";
+import { PALETA_COLOR_PUBLICO, normalizarColor } from "@/lib/neurons/color-publico";
+import {
+  aparatosDe,
+  colorAparatoDe,
+  estadoSyncAparato,
+  idUnicoPorDefecto,
+  type AparatoDeNeurona,
+} from "@/lib/neurons/aparatos-de-neurona";
 import type { CentroNeurona } from "@/lib/senales/centro";
 import { describirRadarPublico } from "@/lib/senales/radar-publico";
 import { FotoPerfil } from "./foto-perfil";
@@ -33,7 +53,6 @@ import { aPreferenciasCompartida, guardarPreferenciasRed, leerPreferenciasRed, t
 import { sugerirComparticion } from "@/lib/malla/auto-compartir";
 import type { PuertaInternet } from "@/lib/malla/cristal/puertas-internet";
 import { estadoPuerta, suscribirPuerta, type PuertaVista } from "@/lib/malla/puerta/servicio";
-import { aparatosDe, type AparatoDeNeurona } from "@/lib/neurons/aparatos-de-neurona";
 
 // MAP1116 · el panel de red compartida pesa: se carga solo al abrir los ajustes del mapa.
 const PanelRedCompartida = dynamic(
@@ -213,8 +232,13 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
   const [aparatos, setAparatos] = useState<AparatoDeNeurona[]>([]);
   const [cargandoAparatos, setCargandoAparatos] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [nombreAparato, setNombreAparato] = useState("");
+  const [nombreAparato, setNombreAparato] = useState(() => nombreEsteAparato());
+  const [idUnicoAparato, setIdUnicoAparato] = useState(() => idUnicoEsteAparato());
+  const [colorAparato, setColorAparato] = useState(() => colorEsteAparato());
   const [guardandoAparato, setGuardandoAparato] = useState(false);
+  const [creandoNeurona, setCreandoNeurona] = useState(false);
+  const [nombreNuevaNeurona, setNombreNuevaNeurona] = useState("");
+  const [guardandoNueva, setGuardandoNueva] = useState(false);
   interface ConexionInfo {
     type?: string;
     saveData?: boolean;
@@ -294,21 +318,56 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
 
   const guardarAparato = async () => {
     const limpioAparato = nombreAparato.trim().slice(0, 60);
-    const actual = nombreEsteAparato().trim();
-    if (limpioAparato === actual || guardandoAparato) return;
+    const limpioIdUnico = idUnicoAparato.trim().slice(0, 40);
+    const colorNorm = normalizarColor(colorAparato) ?? colorAparato;
+    if (guardandoAparato) return;
     setGuardandoAparato(true);
     try {
-      const ok = await renombrarEsteAparato(limpioAparato);
+      const ok = await actualizarPerfilEsteAparato({
+        nombre: limpioAparato,
+        idUnico: limpioIdUnico,
+        color: colorNorm,
+      });
       if (ok) {
-        setNombreAparato("");
-        toast.success("Nombre del aparato guardado");
+        toast.success("Identidad de este aparato guardada y sincronizada");
       } else {
-        toast.error("No se pudo guardar el nombre del aparato");
+        toast.info("Guardado en este aparato (pendiente de sincronizar con la neurona)");
+      }
+      const id = neuronaId || thisDeviceId();
+      if (id) {
+        const neuronas = await listNeurons({ fresco: true });
+        const neurona = neuronas.find((n) => n.id === id);
+        if (neurona) setAparatos(aparatosDe(neurona.capabilities));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "No se pudo guardar el nombre del aparato");
+      toast.error(e instanceof Error ? e.message : "No se pudo guardar la identidad del aparato");
     } finally {
       setGuardandoAparato(false);
+    }
+  };
+
+  const crearNeuronaNueva = async () => {
+    const propuesto = (nombreNuevaNeurona || nombreAparato || centro.nombreNeurona || "Neurona nueva").trim().slice(0, 60);
+    if (!propuesto || guardandoNueva) return;
+    setGuardandoNueva(true);
+    try {
+      const r = await cambiarNeuronaDeEsteAparato(null, propuesto);
+      if (r.ok) {
+        onNombre(propuesto);
+        setNombre(propuesto);
+        setCreandoNeurona(false);
+        setNombreNuevaNeurona("");
+        const neuronas = await listNeurons({ fresco: true });
+        const neurona = neuronas.find((n) => n.id === r.nueva);
+        setAparatos(neurona ? aparatosDe(neurona.capabilities) : []);
+        toast.success(`Este aparato ya tiene su neurona propia «${propuesto}»`);
+      } else {
+        toast.error("No se pudo crear una neurona nueva para este aparato");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo crear la neurona nueva");
+    } finally {
+      setGuardandoNueva(false);
     }
   };
 
@@ -322,26 +381,51 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
       ) : (
         <>
           {variosAparatos && (
-            <div className="rounded-xl border border-amber-400/35 bg-amber-500/10 p-2.5">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-amber-200">
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                Esta neurona la comparten {aparatos.length} aparatos: {aparatos.map((a) => a.nombre).join(", ")}.
+            <div className="rounded-xl border border-amber-400/35 bg-amber-500/10 p-2.5 space-y-2">
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-200">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Esta neurona la comparten {aparatos.length} aparatos: {aparatos.map((a) => `${a.nombre} (@${a.idUnico || idUnicoPorDefecto(a)})`).join(", ")}.
               </p>
-              <p className="mb-2 text-[9px] leading-snug text-amber-200/90">Lo recomendado es una neurona por aparato.</p>
+              <p className="text-[9px] leading-snug text-amber-200/90">
+                La neurona actúa como apellido común y cada aparato conserva su ID único y su color. Lo recomendado es crear una neurona propia para este aparato.
+              </p>
               <button
                 type="button"
-                onClick={() => { /* TODO: abrir aparato-en-neurona.tsx */ }}
+                onClick={() => {
+                  setNombreNuevaNeurona((prev) => prev || nombreAparato || "Neurona nueva");
+                  setCreandoNeurona((v) => !v);
+                }}
                 className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/15 px-2.5 py-1.5 text-[10px] font-semibold text-amber-100 transition-colors duration-200 hover:bg-amber-500/25"
               >
-                <PlusCircle className="h-3.5 w-3.5" aria-hidden /> Crear una neurona nueva para este aparato
+                <PlusCircle className="h-3.5 w-3.5 shrink-0" aria-hidden /> Crear una neurona nueva para este aparato
               </button>
+              {creandoNeurona && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <input
+                    value={nombreNuevaNeurona}
+                    maxLength={60}
+                    onChange={(e) => setNombreNuevaNeurona(e.target.value)}
+                    placeholder="Nombre de la neurona nueva"
+                    aria-label="Nombre de la neurona nueva"
+                    className="min-w-0 flex-1 rounded-lg border border-amber-300/35 bg-black/40 px-2 py-1 text-[11px] text-white outline-none placeholder:text-white/35 focus:border-amber-300"
+                  />
+                  <button
+                    type="button"
+                    disabled={guardandoNueva}
+                    onClick={() => void crearNeuronaNueva()}
+                    className="shrink-0 cursor-pointer rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+                  >
+                    {guardandoNueva ? "Creando…" : "Confirmar neurona propia"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           <div>
             <label htmlFor="nombre-neurona" className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
               <UserRound className="h-3.5 w-3.5 text-sky-300" aria-hidden />
-              {variosAparatos ? "Nombre de la neurona" : "Nombre de la neurona"}
+              Nombre de la neurona (apellido compartido)
             </label>
             <div className="flex gap-1.5">
               <input
@@ -350,7 +434,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
                 maxLength={40}
                 onChange={(e) => setNombre(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); guardar(); } }}
-                placeholder="p. ej. Mac de casa"
+                placeholder="p. ej. Familia StarSeed"
                 className="min-w-0 flex-1 rounded-lg border border-white/12 bg-black/40 px-2 py-1.5 text-[11px] text-white outline-none transition-colors duration-200 placeholder:text-white/30 focus:border-sky-400/60"
               />
               <button
@@ -364,38 +448,97 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
             </div>
             <p className="mt-1 text-[9px] leading-snug text-white/40">
               {variosAparatos
-                ? "Este nombre identifica a la neurona completa (la comparten varios aparatos)."
-                : "El nombre es de este aparato y viaja con tu cuenta. La foto sale de tu perfil activo, no se edita aquí."}
+                ? "Funciona como apellido de la cuenta para todos los aparatos vinculados a esta neurona."
+                : "Identifica la neurona como unidad en tu cuenta. La foto sale de tu perfil activo."}
             </p>
           </div>
 
-          {variosAparatos && (
-            <div>
-              <label htmlFor="nombre-aparato" className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
-                <Smartphone className="h-3.5 w-3.5 text-emerald-300" aria-hidden /> Nombre de este aparato
-              </label>
-              <div className="flex gap-1.5">
+          <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
+                <span className="size-2.5 rounded-full ring-1 ring-white/40" style={{ backgroundColor: colorAparato }} aria-hidden />
+                <Smartphone className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
+                Identidad de este aparato
+              </span>
+              <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-200">
+                Sincronización activa
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <div>
+                <label htmlFor="nombre-aparato" className="mb-0.5 block text-[9px] text-white/55">Nombre del aparato</label>
                 <input
                   id="nombre-aparato"
-                  value={nombreAparato || nombreEsteAparato()}
+                  value={nombreAparato}
                   maxLength={60}
                   onChange={(e) => setNombreAparato(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); guardarAparato(); } }}
-                  placeholder="p. ej. Mi teléfono"
-                  className="min-w-0 flex-1 rounded-lg border border-white/12 bg-black/40 px-2 py-1.5 text-[11px] text-white outline-none transition-colors duration-200 placeholder:text-white/30 focus:border-emerald-400/60"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void guardarAparato(); } }}
+                  placeholder="p. ej. Teléfono de bolsillo"
+                  className="w-full min-w-0 rounded-lg border border-white/12 bg-black/40 px-2 py-1 text-[11px] text-white outline-none transition-colors duration-200 placeholder:text-white/30 focus:border-emerald-400/60"
                 />
-                <button
-                  type="button"
-                  onClick={guardarAparato}
-                  disabled={guardandoAparato || (nombreAparato.trim() === nombreEsteAparato().trim())}
-                  className="shrink-0 cursor-pointer rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-100 transition-colors duration-200 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {guardandoAparato ? "Guardando…" : "Guardar"}
-                </button>
               </div>
-              <p className="mt-1 text-[9px] leading-snug text-white/40">Este nombre solo identifica a este aparato dentro de la neurona compartida.</p>
+              <div>
+                <label htmlFor="id-unico-aparato" className="mb-0.5 block text-[9px] text-white/55">ID único del aparato</label>
+                <input
+                  id="id-unico-aparato"
+                  value={idUnicoAparato}
+                  maxLength={40}
+                  onChange={(e) => setIdUnicoAparato(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void guardarAparato(); } }}
+                  placeholder="p. ej. android-01"
+                  className="w-full min-w-0 rounded-lg border border-white/12 bg-black/40 px-2 py-1 font-mono text-[11px] text-white outline-none transition-colors duration-200 placeholder:text-white/30 focus:border-emerald-400/60"
+                />
+              </div>
             </div>
-          )}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Color diferenciador del aparato">
+                {PALETA_COLOR_PUBLICO.slice(0, 8).map((c) => (
+                  <button
+                    key={c.color}
+                    type="button"
+                    title={c.nombre}
+                    onClick={() => setColorAparato(c.color)}
+                    aria-pressed={colorAparato === c.color}
+                    className={cn(
+                      "h-4 w-4 cursor-pointer rounded-full border transition-transform",
+                      colorAparato === c.color ? "scale-110 border-white ring-2 ring-white/40" : "border-white/25",
+                    )}
+                    style={{ backgroundColor: c.color }}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void guardarAparato()}
+                disabled={guardandoAparato}
+                className="shrink-0 cursor-pointer rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold text-emerald-100 transition-colors duration-200 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {guardandoAparato ? "Guardando…" : "Guardar aparato"}
+              </button>
+            </div>
+            {aparatos.length > 0 && (
+              <ul className="space-y-1 border-t border-white/10 pt-1.5" aria-label="Aparatos vinculados a esta neurona">
+                {aparatos.map((a) => {
+                  const col = colorAparatoDe(a);
+                  const idU = a.idUnico || idUnicoPorDefecto(a);
+                  const sync = estadoSyncAparato(a);
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-center gap-1.5 text-[10px] text-white/75">
+                      <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: col }} aria-hidden />
+                      <span className="font-medium text-white/90">{a.nombre}</span>
+                      <span className="rounded bg-black/40 px-1 py-px font-mono text-[9px] text-white/65">@{idU}</span>
+                      <span className={cn(
+                        "ml-auto rounded-full px-1.5 py-px text-[8px] font-semibold",
+                        sync.estado === "activa" ? "bg-emerald-500/15 text-emerald-300" : sync.estado === "pendiente" ? "bg-amber-500/15 text-amber-200" : "bg-white/10 text-white/50",
+                      )}>
+                        {sync.etiqueta}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </>
       )}
 
@@ -403,7 +546,7 @@ export function AjustesNeurona({ centro, neuronaId, verPublicos, onVerPublicos, 
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-white/85">
           <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" aria-hidden /> Privacidad del radar público
         </p>
-        <div role="radiogroup" aria-label="Cómo apareces en el radar público" className="mb-1.5 grid grid-cols-3 gap-1">
+        <div role="radiogroup" aria-label="Cómo apareces en el radar público" className="mb-1.5 grid grid-cols-1 sm:grid-cols-3 gap-1">
           {MODOS.map((m) => (
             <button
               key={m.id}

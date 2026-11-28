@@ -183,7 +183,7 @@ export default function ProcesosPanel({ brainId }: ProcesosPanelProps) {
     const grupos = agruparPorTipo(visibles);
 
     return (
-        <div className="space-y-4">
+        <div className="w-full min-w-0 max-w-full space-y-4 rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-white/50">
                     Última lectura: {lectura ? new Date(lectura.cuando).toLocaleTimeString("es-ES") : "sin lectura aún"}

@@ -25,6 +25,7 @@ import { X } from "lucide-react";
 import { AparatoNuevoDialogo } from "@/components/settings/neurons/aparato-nuevo-dialogo";
 import { CLAVE_HUELLA_REVISION } from "@/lib/neurons/adopcion-neurona";
 import { NEURON_EVENT, listNeurons, resolverAliasEsteMedio, thisDeviceId } from "@/lib/neurons/neurons";
+import { neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
 import {
   claveRevisionPospuesto,
   claveRevisionVista,
@@ -95,12 +96,13 @@ export default function VentanaNeuronaGlobal() {
       const filas = await listNeurons({ fresco: true });
       const yo = resolverAliasEsteMedio() || thisDeviceId();
       const fila = filas.find((f) => f.id === yo);
+      const syncId = neuronDeviceSyncId();
       rev = fila
         ? revisarIdentidadCompartida({
             idNeurona: fila.id,
             nombreNeurona: fila.name,
             capabilities: fila.capabilities,
-            yoId: thisDeviceId(),
+            yoId: syncId || thisDeviceId(),
             ahora: Date.now(),
           })
         : null;

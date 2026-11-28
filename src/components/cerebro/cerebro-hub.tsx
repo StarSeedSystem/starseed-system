@@ -96,7 +96,7 @@ export default function CerebroHub() {
   );
 
   const [activeBrainId, setActiveBrainId] = useState<string | null>(null);
-  const [pillar, setPillar] = useState<Pilar>("memoria");
+  const [pillar, setPillar] = useState<Pilar>("neuronas");
   // CB1013A · pestañas Privados/Públicos (null = aún sin decidir: se decide al cargar).
   const [pestana, setPestana] = useState<PestanaCerebros | null>(null);
   const [nuevoPublico, setNuevoPublico] = useState(false);
@@ -225,7 +225,7 @@ export default function CerebroHub() {
       setAjustesPilarOpen(true);
     }
     const mv = p.get("mview");
-    if (mv && (["lista", "2d", "3d", "fuentes"] as string[]).includes(mv)) setMemView(mv as MemoryViewId);
+    if (mv && (["lista", "2d", "3d", "4d", "fuentes"] as string[]).includes(mv)) setMemView(mv as MemoryViewId);
     const ms = p.get("msub");
     if (ms && (["archivos", "hub"] as string[]).includes(ms)) setMemSub(ms as MemoryListSub);
     const b = p.get("brain");
@@ -294,9 +294,9 @@ export default function CerebroHub() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="w-full min-w-0 max-w-full overflow-x-clip space-y-5">
       {/* ── Selector de cerebro ─────────────────────────────── */}
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="rounded-2xl border border-cyan-400/15 bg-gradient-to-br from-cyan-500/[0.05] via-black/30 to-violet-500/[0.04] p-3.5 sm:p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 flex-wrap">
           <BrainIcon className="w-5 h-5 text-cyan-300" />
           <h2 className="text-lg font-semibold text-cyan-50">Cerebro</h2>
@@ -560,7 +560,13 @@ export default function CerebroHub() {
       {/* ── Panel del pilar activo ──────────────────────────── */}
       {/* Neuronas y Procesos activos son de la CUENTA: no requieren cerebro. */}
       <div className="pt-1">
-        {pillar === "neuronas" && <NeuronasPanel brainId={activeBrain?.id ?? null} brainName={activeBrain?.name} />}
+        {pillar === "neuronas" && (
+          <NeuronasPanel
+            brainId={activeBrain?.id ?? null}
+            brainName={activeBrain?.name}
+            cerebros={todosCerebros}
+          />
+        )}
         {pillar === "procesos" && <ProcesosPanel brainId={activeBrain?.id ?? null} brainName={activeBrain?.name} />}
         {pillar !== "neuronas" && pillar !== "procesos" && !activeBrain && !loading && (
           <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-white/55">

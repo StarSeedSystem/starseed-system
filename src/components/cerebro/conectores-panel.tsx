@@ -106,7 +106,7 @@ export default function ConectoresPanel({ brainId, brainName }: ConectoresPanelP
   };
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-4 rounded-2xl border border-white/10 bg-black/20 p-3 sm:p-4">
       {Object.entries(grupos).map(([tipo, fuentesDelTipo]) => {
         if (fuentesDelTipo.length === 0) return null;
         const Icon = iconMap[tipo as TipoConector];

@@ -25,7 +25,9 @@ import {
   resolverAliasEsteMedio,
   thisDeviceId,
 } from "@/lib/neurons/neurons";
-import { neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
+import { neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
+import { PALETA_COLOR_PUBLICO, colorPorDefecto, normalizarColor } from "@/lib/neurons/color-publico";
+import { idUnicoPorDefecto, neuronasParaElegir, type NeuronaParaElegir } from "@/lib/neurons/aparatos-de-neurona";
 import { aparatoDeEsteMedio } from "@/lib/neurons/aparato-este-medio";
 import {
   claveRevisionPospuesto,
@@ -88,6 +90,8 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   const [caminoCompartida, setCaminoCompartida] = useState<"" | "crear">("");
   const [revisionCalculada, setRevisionCalculada] = useState<RevisionIdentidad | null>(null);
   const [nombreNuevaCompartida, setNombreNuevaCompartida] = useState(revision?.nombrePropuesto ?? "");
+  const [idUnicoLocal, setIdUnicoLocal] = useState("");
+  const [colorLocal, setColorLocal] = useState("");
   const [cerrada, setCerrada] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -95,6 +99,13 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
       const filas = await listNeurons({ fresco: true });
       const yo = resolverAliasEsteMedio() || thisDeviceId();
       setLista(neuronasParaElegir(filas, yo));
+      const syncId = neuronDeviceSyncId() || thisDeviceId();
+      if (!idUnicoLocal && syncId) {
+        setIdUnicoLocal(idUnicoPorDefecto({ id: syncId, nombre: nombreEsteAparato() || "aparato" }));
+      }
+      if (!colorLocal && syncId) {
+        setColorLocal(colorPorDefecto(syncId));
+      }
       // Revisión de identidad (NEU1126E): ¿la usan dos o más aparatos vivos con huella distinta?
       const fila = filas.find((f) => f.id === yo);
       setRevisionCalculada(
@@ -103,7 +114,7 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
               idNeurona: fila.id,
               nombreNeurona: fila.name,
               capabilities: fila.capabilities,
-              yoId: thisDeviceId(),
+              yoId: syncId,
               ahora: Date.now(),
             })
           : null,
@@ -112,7 +123,7 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
       setLista([]);
       setRevisionCalculada(null);
     }
-  }, []);
+  }, [idUnicoLocal, colorLocal]);
 
   useEffect(() => {
     setNombreNueva(nombrePropuesto(nombreEsteAparato()));
@@ -138,10 +149,20 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   const yaVista = rev ? fueVista(rev, ver) || fueVista(rev, ver, true) : false;
   const mostrarCompartida = Boolean(rev) && !yaVista && !cerrada;
 
+  const persistirPerfilLocal = () => {
+    try {
+      const id = idUnicoLocal.trim().slice(0, 40);
+      if (id) window.localStorage.setItem("starseed.aparato.id-unico.v1", id);
+      const c = normalizarColor(colorLocal);
+      if (c) window.localStorage.setItem("starseed.aparato.color.v1", c);
+    } catch { /* sin almacenamiento */ }
+  };
+
   async function crearPropia() {
     const nombre = (nombreNuevaCompartida.trim() || rev?.nombrePropuesto || "").trim();
     setOcupado(true);
     setMensaje("");
+    persistirPerfilLocal();
     const r = await cambiarNeuronaDeEsteAparato(null, nombre);
     setOcupado(false);
     setCaminoCompartida("");
@@ -196,6 +217,7 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
   async function mover(destino: string | null, nombreNuevaNeurona?: string) {
     setOcupado(true);
     setMensaje("");
+    persistirPerfilLocal();
     const r = await cambiarNeuronaDeEsteAparato(destino, nombreNuevaNeurona);
     setOcupado(false);
     setCamino("");
@@ -225,25 +247,51 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={nombreNuevaCompartida || rev.nombrePropuesto}
-              maxLength={60}
-              onChange={(e) => setNombreNuevaCompartida(e.target.value)}
-              aria-label="Nombre de la neurona propia"
-              className="h-8 max-w-xs"
-            />
-            <Button size="sm" className="cursor-pointer gap-1.5" disabled={ocupado} onClick={() => void crearPropia()}>
-              <Plus className="h-4 w-4" aria-hidden /> Crear una neurona propia
-              {rev.yoSeUnioDespues && <Badge className="ml-1" variant="secondary">Recomendado</Badge>}
-            </Button>
-            <Button size="sm" variant="outline" className="cursor-pointer" disabled={ocupado} onClick={seguirMisma}>
-              Seguir en la misma neurona (fusionadas)
-            </Button>
-            <Button size="sm" variant="ghost" className="cursor-pointer text-muted-foreground" disabled={ocupado} onClick={posponerCompartida}>
-              Más tarde
-            </Button>
-            {ocupado && <Loader2 className="h-4 w-4 animate-spin" aria-label="Cambiando…" />}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={nombreNuevaCompartida || rev.nombrePropuesto}
+                maxLength={60}
+                onChange={(e) => setNombreNuevaCompartida(e.target.value)}
+                aria-label="Nombre de la neurona propia"
+                placeholder="Apellido de la neurona"
+                className="h-8 max-w-xs"
+              />
+              <Input
+                value={idUnicoLocal}
+                maxLength={40}
+                onChange={(e) => setIdUnicoLocal(e.target.value)}
+                aria-label="ID único de este aparato"
+                placeholder="ID único del aparato"
+                className="h-8 max-w-[12rem]"
+              />
+              <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Color de este aparato">
+                {PALETA_COLOR_PUBLICO.slice(0, 8).map((c) => (
+                  <button
+                    key={c.color}
+                    type="button"
+                    title={c.nombre}
+                    onClick={() => setColorLocal(c.color)}
+                    aria-pressed={colorLocal === c.color}
+                    className={`h-5 w-5 cursor-pointer rounded-full border transition-transform ${colorLocal === c.color ? "scale-110 border-white ring-2 ring-white/50" : "border-white/25"}`}
+                    style={{ backgroundColor: c.color }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" className="cursor-pointer gap-1.5" disabled={ocupado} onClick={() => void crearPropia()}>
+                <Plus className="h-4 w-4" aria-hidden /> Crear una neurona propia
+                {rev.yoSeUnioDespues && <Badge className="ml-1" variant="secondary">Recomendado</Badge>}
+              </Button>
+              <Button size="sm" variant="outline" className="cursor-pointer" disabled={ocupado} onClick={seguirMisma}>
+                Seguir en la misma neurona (fusionadas)
+              </Button>
+              <Button size="sm" variant="ghost" className="cursor-pointer text-muted-foreground" disabled={ocupado} onClick={posponerCompartida}>
+                Más tarde
+              </Button>
+              {ocupado && <Loader2 className="h-4 w-4 animate-spin" aria-label="Cambiando…" />}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -302,6 +350,27 @@ export function AparatoNuevoDialogo({ revision, version }: AparatoNuevoDialogoPr
               aria-label="Nombre de la neurona nueva"
               className="h-8 max-w-xs"
             />
+            <Input
+              value={idUnicoLocal}
+              maxLength={40}
+              onChange={(e) => setIdUnicoLocal(e.target.value)}
+              placeholder="ID único del aparato"
+              aria-label="ID único del aparato nuevo"
+              className="h-8 max-w-[11rem]"
+            />
+            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Color del aparato nuevo">
+              {PALETA_COLOR_PUBLICO.slice(0, 6).map((c) => (
+                <button
+                  key={c.color}
+                  type="button"
+                  title={c.nombre}
+                  onClick={() => setColorLocal(c.color)}
+                  aria-pressed={colorLocal === c.color}
+                  className={`h-5 w-5 cursor-pointer rounded-full border ${colorLocal === c.color ? "border-white ring-2 ring-white/50" : "border-white/25"}`}
+                  style={{ backgroundColor: c.color }}
+                />
+              ))}
+            </div>
             <Button type="submit" size="sm" className="cursor-pointer" disabled={ocupado || !nombreNueva.trim()}>
               Crear y usar en este aparato
             </Button>

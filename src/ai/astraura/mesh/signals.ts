@@ -376,6 +376,19 @@ export interface StarseedIdentity {
   avatarUrl?: string;
   /** Tipo de aparato que el emisor decidió compartir (mobile, tablet, laptop, desktop, server, other). */
   tipoAparato?: string;
+  /** Lista de aparatos vinculados a esta neurona con su ID único, color y estado de sync. */
+  aparatos?: Array<{
+    id: string;
+    nombre: string;
+    idUnico?: string;
+    color?: string;
+    syncEstado?: "activa" | "pendiente" | "sin-enlace";
+    medio?: string;
+    plataforma?: string;
+    visto?: number;
+  }>;
+  /** true cuando esta señal representa un aparato hermano dentro de tu misma neurona. */
+  aparatoHermano?: boolean;
 }
 
 /** Una señal DETECTADA, con todo lo que se sabe de ella de verdad. */
@@ -807,6 +820,17 @@ export interface AccountNeuronView {
   /** Etiquetas de capacidad ya derivadas (públicas). */
   capabilities: string[];
   isThisDevice: boolean;
+  /** Aparatos individuales vinculados a esta neurona (nombre, id único, color, sync). */
+  aparatos?: Array<{
+    id: string;
+    nombre: string;
+    idUnico?: string;
+    color?: string;
+    syncEstado?: "activa" | "pendiente" | "sin-enlace";
+    medio?: string;
+    plataforma?: string;
+    visto?: number;
+  }>;
 }
 
 export interface DetectedSignalsInput {
@@ -815,6 +839,8 @@ export interface DetectedSignalsInput {
   beacons?: BeaconView[];
   /** Neuronas de la cuenta (`listNeurons` ya mapeado a vista pública). */
   neurons?: AccountNeuronView[];
+  /** ID de sync del aparato actual (`starseed.device.id`), para no ocultar aparatos hermanos compartiendo neurona. */
+  currentSyncId?: string;
   /** Dispositivos BLE oídos en el escaneo con gesto. */
   ble?: BleDetection[];
   /** Puertos serie ya autorizados. */
@@ -997,7 +1023,58 @@ function beaconSignals(input: DetectedSignalsInput, now: number): DetectedSignal
 function accountSignals(input: DetectedSignalsInput, now: number): DetectedSignal[] {
   const out: DetectedSignal[] = [];
   for (const n of input.neurons ?? []) {
-    if (n.isThisDevice) continue; // ESTA neurona es el centro del radar, no una señal
+    if (n.isThisDevice) {
+      // Si la neurona actual es compartida por otro(s) aparato(s) distintos al nuestro, mostrarlos
+      // explícitamente como señales independientes para que nunca se colapse a 1 señal cuando hay 2+.
+      for (const ap of n.aparatos ?? []) {
+        if (!ap.id || (input.currentSyncId && ap.id === input.currentSyncId)) continue;
+        const fresco = ap.visto ? Math.max(0, now - ap.visto) < 12 * 60_000 : false;
+        const quality = ap.visto ? qualityFromAge(Math.max(0, now - ap.visto), 60 * 60_000) : 0.6;
+        out.push({
+          id: `aparato:${n.id}:${ap.id}`,
+          antenna: "account",
+          antennaLabel: ANTENNA_LABEL.account,
+          signalType: "Aparato vinculado · misma neurona",
+          label: `${ap.nombre}${ap.idUnico ? ` (@${ap.idUnico})` : ""}`,
+          detail: `Otro aparato que comparte tu neurona «${n.name}». Puedes sincronizarlo o separarlo en su propia neurona.`,
+          quality,
+          qualityDetail: ap.visto ? `Último latido del aparato ${ageLabel(ap.visto, now)}.` : "Aparato registrado en la ficha de la neurona.",
+          metrics: [
+            { label: "Neurona (apellido)", value: n.name },
+            ...(ap.idUnico ? [{ label: "ID único", value: `@${ap.idUnico}` }] : []),
+            ...(ap.plataforma ? [{ label: "Plataforma", value: ap.plataforma }] : []),
+            ...(ap.medio ? [{ label: "Medio", value: ap.medio }] : []),
+            { label: "Estado sync", value: fresco ? "sincronización activa" : "pendiente" },
+          ],
+          compatible: true,
+          compatDetail: "Comparte la misma neurona de tu cuenta: sincronización y acceso cruzado disponibles.",
+          starseed: {
+            via: "neuron-registry",
+            sourceId: n.id,
+            neuronId: n.id,
+            name: ap.nombre,
+            ownAccount: true,
+            platform: ap.plataforma ?? n.platform,
+            deviceKind: n.kind,
+            online: fresco,
+            lastSeenMs: ap.visto ?? null,
+            capabilities: [...n.capabilities, ...(ap.medio ? [ap.medio] : [])],
+            syncDeviceId: ap.id,
+            aparatos: [ap],
+            aparatoHermano: true,
+          },
+          placement: placeBySector("account", `aparato:${n.id}:${ap.id}`, quality),
+          lastHeard: ap.visto ?? n.lastSeenMs,
+          actions: [
+            { id: "open-neurons", label: "Abrir panel de neuronas", enabled: true },
+            { id: "sync-now", label: "Sincronizar ahora", enabled: true },
+          ],
+          simulated: false,
+          color: ap.color || ANTENNA_COLOR.account,
+        });
+      }
+      continue; // ESTA neurona actual es el centro del radar
+    }
     const age = n.lastSeenMs ? Math.max(0, now - n.lastSeenMs) : null;
     // Registro de cuenta: sin RF. La "calidad" es la presencia (ventana 3 min).
     const quality = n.online ? 1 : age != null ? qualityFromAge(age, 24 * 60 * 60_000) * 0.5 : 0;
@@ -1009,6 +1086,12 @@ function accountSignals(input: DetectedSignalsInput, now: number): DetectedSigna
     if (n.platform) metrics.push({ label: "Plataforma", value: n.platform });
     if (n.browser) metrics.push({ label: "Navegador", value: n.browser });
     if (n.syncDeviceId) metrics.push({ label: "ID de sync", value: n.syncDeviceId });
+    if (n.aparatos?.length) {
+      metrics.push({
+        label: "Aparatos",
+        value: n.aparatos.map((a) => (a.idUnico ? `${a.nombre} (@${a.idUnico})` : a.nombre)).join(", "),
+      });
+    }
     out.push({
       id: `neuron:${n.id}`,
       antenna: "account",
@@ -1027,6 +1110,7 @@ function accountSignals(input: DetectedSignalsInput, now: number): DetectedSigna
         via: "neuron-registry", sourceId: n.id, name: n.name, ownAccount: true,
         platform: n.platform, deviceKind: n.kind, online: n.online, lastSeenMs: n.lastSeenMs,
         capabilities: n.capabilities, syncDeviceId: n.syncDeviceId,
+        ...(n.aparatos?.length ? { aparatos: n.aparatos } : {}),
       },
       placement: placeBySector("account", `neuron:${n.id}`, quality),
       lastHeard: n.lastSeenMs,
@@ -1039,7 +1123,7 @@ function accountSignals(input: DetectedSignalsInput, now: number): DetectedSigna
           hint: "Le aparece al instante una ventana para aceptar: por la red local (app nativa, sin internet), un enlace directo, la malla de tu cuenta o el relé." },
       ],
       simulated: false,
-      color: ANTENNA_COLOR.account,
+      color: n.aparatos?.[0]?.color || ANTENNA_COLOR.account,
     });
   }
   // Instantáneas federadas cuyo radio NO aparece en la malla local: son mallas

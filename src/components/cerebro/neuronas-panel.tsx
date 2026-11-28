@@ -38,6 +38,17 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
+import { SesionesOtrasApps } from "@/components/neurons/sesiones-otras-apps";
+import { VistaCerebroOrganos } from "@/components/cerebro/vista-cerebro-organos";
+import { OrganosPanel } from "@/components/cerebro/organos-panel";
+import NeuronasLista from "@/components/cerebro/neuronas-lista";
+import {
+   EVENTO_ORGANOS_CEREBRO,
+   guardarOrganos,
+   leerOrganosGuardados,
+   type OrganoCerebro,
+} from "@/lib/cerebros/organos";
+import type { Brain as BrainModel } from "@/lib/brains/brains";
 import { ListaVinculos, PanelVinculo } from "@/components/network/panel-vinculo";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
@@ -190,17 +201,34 @@ function normalizeCasaUrl(raw: string): string {
 export default function NeuronasPanel({
   brainId,
   brainName,
+  cerebros = [],
 }: {
   brainId?: string | null;
   brainName?: string;
+  cerebros?: BrainModel[];
 }) {
   const [neurons, setNeurons] = useState<Neuron[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subVista, setSubVista] = useState<"todas" | "organos" | "aparatos" | "apps" | "modelos">("todas");
+  const [organos, setOrganos] = useState<OrganoCerebro[]>([]);
+  const [fichaElegidaId, setFichaElegidaId] = useState<string | null>(null);
   // (2026-10-09) Presencia en vivo GLOBAL (todos los medios de la cuenta, desde que abren el OS),
   // en vez del canal que solo existía mientras este panel estaba abierto.
   const presencia = usePresenciaNeuronas();
   const liveIds = new Set(presencia.medios.map((m) => m.n));
   const presenceOk = presencia.conectado;
+
+  useEffect(() => {
+    setOrganos(leerOrganosGuardados());
+    const h = () => setOrganos(leerOrganosGuardados());
+    window.addEventListener(EVENTO_ORGANOS_CEREBRO, h);
+    return () => window.removeEventListener(EVENTO_ORGANOS_CEREBRO, h);
+  }, []);
+
+  const actualizarOrganos = useCallback((next: OrganoCerebro[]) => {
+    setOrganos(next);
+    guardarOrganos(next);
+  }, []);
 
   const refresh = useCallback(async (fresco = false) => {
     try {
@@ -240,11 +268,74 @@ export default function NeuronasPanel({
   }, [refresh]);
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-4">
+      {/* Navegación rápida del ecosistema de neuronas y órganos */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/10 bg-black/25 p-2" role="group" aria-label="Vistas de Neuronas">
+        {(
+          [
+            ["todas", "Vista completa"],
+            ["organos", "Órganos 2D/3D/4D"],
+            ["aparatos", "Neuronas y aparatos"],
+            ["apps", "Otras apps (Audiomorphic…)"],
+            ["modelos", "Modelos e IA local"],
+          ] as const
+        ).map(([id, etiqueta]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={subVista === id}
+            onClick={() => setSubVista(id)}
+            className={cn(
+              "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors",
+              subVista === id
+                ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-100"
+                : "border-white/10 bg-black/20 text-white/65 hover:border-white/25 hover:text-white",
+            )}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {/* Visualizador vivo 2D / 3D / 4D de cerebros, órganos, neuronas y agentes */}
+      {(subVista === "todas" || subVista === "organos") && (
+        <VistaCerebroOrganos
+          organos={organos}
+          neuronas={neurons}
+          cerebros={cerebros}
+          onElegirNeurona={(id) => {
+            setFichaElegidaId(id);
+            setSubVista("aparatos");
+          }}
+        />
+      )}
+
+      {/* Organización y configuración de Órganos + nodos privados/públicos */}
+      {(subVista === "todas" || subVista === "organos") && (
+        <OrganosPanel
+          organos={organos}
+          onChange={actualizarOrganos}
+          neuronas={neurons}
+          cerebros={cerebros}
+        />
+      )}
+
       {/* Capacidades de hardware + modelos recomendados de esta neurona (Adenda 109). */}
-      <NeuronModelsPanel embedded />
+      {(subVista === "todas" || subVista === "modelos") && <NeuronModelsPanel embedded />}
+
+      {/* Sesiones activas de otras apps (Audiomorphic, Omnifrecuencias…) por aparato */}
+      {(subVista === "todas" || subVista === "apps") && (
+        <SesionesOtrasApps
+          neuronas={neurons}
+          onAbrirNeurona={(id) => {
+            setFichaElegidaId(id);
+            setSubVista("aparatos");
+          }}
+        />
+      )}
 
       {/* ── Cabecera ─────────────────────────────────────────── */}
+      {(subVista === "todas" || subVista === "aparatos") && (
       <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/[0.07] via-black/20 to-cyan-500/[0.05] p-4">
         <div className="flex items-start gap-2 flex-wrap">
           <Network className="w-5 h-5 text-emerald-300 mt-0.5" />
@@ -278,9 +369,39 @@ export default function NeuronasPanel({
           </div>
         </div>
       </div>
+      )}
+
+      {/* ── Explorador unificado (búsqueda, orden, duplicadas y olvidadas) ── */}
+      {(subVista === "todas" || subVista === "aparatos") && neurons.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <NeuronasLista
+            neuronas={neurons}
+            onAbrirFicha={(id) => {
+              setFichaElegidaId(id);
+              toast.message(`Enfocando neurona «${neurons.find((x) => x.id === id)?.name ?? id}»`);
+            }}
+            onApagarPermisos={(ids) => {
+              for (const id of ids) {
+                (["compute", "storage", "sync", "agent", "senses", "wake"] as const).forEach((k) => setPermission(id, k, false));
+              }
+              toast.success(`Permisos apagados en ${ids.length} neurona(s).`);
+              void refresh(true);
+            }}
+            onArchivar={(ids) => {
+              void Promise.all(ids.map((id) => removeNeuron(id))).then(() => {
+                toast.success(`${ids.length} neurona(s) archivadas de la lista.`);
+                void refresh(true);
+              });
+            }}
+            onFusionar={(ids) => {
+              toast.info(`Usa «Fusionar en una» debajo para unificar ${ids.length} neuronas.`);
+            }}
+          />
+        </div>
+      )}
 
       {/* ── Aparatos en vivo: estado, medios, señales y fusión de repetidas (2026-10-09) ── */}
-      {neurons.length > 0 && (
+      {(subVista === "todas" || subVista === "aparatos") && neurons.length > 0 && (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <AparatosEnVivo
             neuronas={neurons}
@@ -294,12 +415,14 @@ export default function NeuronasPanel({
       )}
 
       {/* ── Vinculadas y activas: mejor vía y latencia de cada una (VIN1107A) ── */}
+      {(subVista === "todas" || subVista === "aparatos") && (
       <ListaVinculos
         nota="Las de tu cuenta salen también abajo, en cada tarjeta. Las de otras cuentas vinculadas (públicas o no) solo salen aquí."
       />
+      )}
 
       {/* ── Tarjetas ─────────────────────────────────────────── */}
-      {loading && neurons.length === 0 ? (
+      {(subVista === "todas" || subVista === "aparatos") && (loading && neurons.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-black/20 p-5 flex items-center gap-2 text-xs text-white/50">
           <Loader2 className="w-4 h-4 animate-spin" /> Detectando este dispositivo (capacidades, IA local, batería)…
         </div>
@@ -311,7 +434,10 @@ export default function NeuronasPanel({
           </p>
         </div>
       ) : (
-        neurons.map((n) => (
+        (fichaElegidaId ? [
+          ...neurons.filter((n) => n.id === fichaElegidaId),
+          ...neurons.filter((n) => n.id !== fichaElegidaId),
+        ] : neurons).map((n) => (
           <NeuronCard
             key={n.id}
             neuron={n}
@@ -321,7 +447,7 @@ export default function NeuronasPanel({
             onChanged={refresh}
           />
         ))
-      )}
+      ))}
     </div>
   );
 }

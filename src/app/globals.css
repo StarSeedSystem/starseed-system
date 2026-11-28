@@ -1847,10 +1847,17 @@ body[data-mode="primary"] .liquid-button-reflection {
 /* ============================================================
    SYSTEM-WIDE: Overflow Protection
    ============================================================ */
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 main,
 [role="main"],
 .page-content {
-  overflow-x: hidden;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 /* Prevent text from overflowing containers */

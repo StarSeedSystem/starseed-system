@@ -252,10 +252,10 @@ export function TrinityEdgeAccess() {
             ["--pc" as string]: color,
             ["--rest-opacity" as string]: String(cfg.handleOpacity),
         };
-        if (side === "top") return { ...common, top: "max(6px, env(safe-area-inset-top,0px))", left: "50%", transform: "translateX(-50%)", width: len, height: thick };
-        if (side === "bottom") return { ...common, bottom: "max(6px, env(safe-area-inset-bottom,0px))", left: "50%", transform: "translateX(-50%)", width: len, height: thick };
-        if (side === "left") return { ...common, left: "max(6px, env(safe-area-inset-left,0px))", top: "50%", transform: "translateY(-50%)", height: len, width: thick };
-        return { ...common, right: "max(6px, env(safe-area-inset-right,0px))", top: "50%", transform: "translateY(-50%)", height: len, width: thick };
+        if (side === "top") return { ...common, top: "max(6px, env(safe-area-inset-top,0px))", left: 0, right: 0, marginInline: "auto", width: len, maxWidth: "calc(100vw - 24px)", height: thick };
+        if (side === "bottom") return { ...common, bottom: "max(6px, env(safe-area-inset-bottom,0px))", left: 0, right: 0, marginInline: "auto", width: len, maxWidth: "calc(100vw - 24px)", height: thick };
+        if (side === "left") return { ...common, left: "max(6px, env(safe-area-inset-left,0px))", top: 0, bottom: 0, marginBlock: "auto", height: len, maxHeight: "calc(100vh - 24px)", width: thick };
+        return { ...common, right: "max(6px, env(safe-area-inset-right,0px))", top: 0, bottom: 0, marginBlock: "auto", height: len, maxHeight: "calc(100vh - 24px)", width: thick };
     };
 
     return (

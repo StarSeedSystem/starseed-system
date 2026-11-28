@@ -42,6 +42,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { Neuron } from "@/lib/neurons/neurons";
+import {
+  aparatosDe as aparatosDeNeurona,
+  colorAparatoDe,
+  estadoSyncAparato,
+  idUnicoPorDefecto,
+} from "@/lib/neurons/aparatos-de-neurona";
 import { agruparPorAparato, esFichaVacia, normalizarGpu, type GrupoAparato } from "@/lib/neurons/huella";
 import type { RegistroMedio, TipoMedio } from "@/lib/neurons/medio";
 import { usePresenciaNeuronas, presentesPorNeurona, type PresenciaMedio } from "@/lib/neurons/presencia";
@@ -407,6 +413,22 @@ export function AparatosEnVivo({ neuronas, onCambio, ahora }: AparatosEnVivoProp
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="truncate text-sm font-semibold text-white">{a.principal.name}</span>
+                    {aparatosDeNeurona(a.principal.capabilities).slice(0, 3).map((ap) => {
+                      const sync = estadoSyncAparato(ap, { ahora: t0, presente: abiertos.length > 0 });
+                      return (
+                        <span
+                          key={ap.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/30 px-1.5 py-px text-[10px] text-white/80"
+                          title={`${ap.nombre} · ${sync.etiqueta}`}
+                        >
+                          <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorAparatoDe(ap) }} aria-hidden />
+                          <span className="font-mono">@{ap.idUnico || idUnicoPorDefecto(ap)}</span>
+                          <span className={sync.estado === "activa" ? "text-emerald-300" : sync.estado === "pendiente" ? "text-amber-200" : "text-white/50"}>
+                            · {sync.estado === "activa" ? "sync activa" : sync.estado === "pendiente" ? "sync pendiente" : "sin enlace"}
+                          </span>
+                        </span>
+                      );
+                    })}
                     {a.neuronas.some((n) => n.isThisDevice) && (
                       <Badge variant="outline" className="text-[9px] border-cyan-400/30 text-cyan-200">
                         Este aparato

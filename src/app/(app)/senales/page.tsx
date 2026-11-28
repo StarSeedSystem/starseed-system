@@ -25,8 +25,8 @@ export default function SenalesPage() {
   }, []);
 
   return (
-    <main className="min-h-screen px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-4xl">
+    <main className="min-h-screen w-full max-w-full overflow-x-clip px-3 py-6 sm:px-4 sm:py-8 md:px-8">
+      <div className="mx-auto w-full min-w-0 max-w-4xl">
         <SignalsCenter embedded={false} compact={false} />
       </div>
     </main>

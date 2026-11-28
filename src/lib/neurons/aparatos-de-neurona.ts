@@ -14,9 +14,23 @@
  * Puro: sin red, sin DOM, sin almacenamiento. Nunca lanza.
  */
 
+import { colorDe, normalizarColor } from "./color-publico";
+
+export type EstadoSyncAparato = "activa" | "pendiente" | "sin-enlace";
+
 export interface EntradaAparato {
   /** Nombre que la persona le puso a este aparato (apartado del nombre de la neurona). */
   n?: string;
+  /** ID único personalizable del aparato (se muestra como nombre propio junto al apellido de la neurona). */
+  idUnico?: string;
+  /** Color diferenciador del aparato (`#rrggbb`). */
+  color?: string;
+  /** Huella de hardware de este aparato para distinguir dispositivos del mismo SO. */
+  huella?: string;
+  /** Estado de sincronización con su neurona. */
+  syncEstado?: EstadoSyncAparato;
+  /** Número de cambios pendientes en cola local. */
+  syncPendientes?: number;
   medio?: string;
   so?: string;
   equipo?: string;
@@ -31,6 +45,11 @@ export type MapaAparatos = Record<string, EntradaAparato>;
 export interface AparatoDeNeurona {
   id: string;
   nombre: string;
+  idUnico?: string;
+  color?: string;
+  huella?: string;
+  syncEstado?: EstadoSyncAparato;
+  syncPendientes?: number;
   medio?: string;
   so?: string;
   equipo?: string;
@@ -58,6 +77,18 @@ export function leerMapaAparatos(capabilities: unknown): MapaAparatos {
       const e: EntradaAparato = { ts };
       const n = texto(o.n);
       if (n) e.n = n;
+      const idUnico = texto(o.idUnico, 40);
+      if (idUnico) e.idUnico = idUnico;
+      const color = normalizarColor(o.color);
+      if (color) e.color = color;
+      const huella = texto(o.huella, 80);
+      if (huella) e.huella = huella;
+      if (o.syncEstado === "activa" || o.syncEstado === "pendiente" || o.syncEstado === "sin-enlace") {
+        e.syncEstado = o.syncEstado;
+      }
+      if (typeof o.syncPendientes === "number" && Number.isFinite(o.syncPendientes) && o.syncPendientes >= 0) {
+        e.syncPendientes = Math.round(o.syncPendientes);
+      }
       for (const k of ["medio", "so", "equipo"] as const) {
         const t = texto(o[k], 80);
         if (t) e[k] = t;
@@ -97,7 +128,19 @@ export function aparatosDe(capabilities: unknown): AparatoDeNeurona[] {
   const mapa = leerMapaAparatos(capabilities);
   return Object.entries(mapa)
     .filter(([, e]) => estaVinculado(e))
-    .map(([id, e]) => ({ id, nombre: e.n || nombreAparatoPorDefecto(e), medio: e.medio, so: e.so, equipo: e.equipo, visto: e.ts }))
+    .map(([id, e]) => ({
+      id,
+      nombre: e.n || nombreAparatoPorDefecto(e),
+      ...(e.idUnico ? { idUnico: e.idUnico } : {}),
+      ...(e.color ? { color: e.color } : {}),
+      ...(e.huella ? { huella: e.huella } : {}),
+      ...(e.syncEstado ? { syncEstado: e.syncEstado } : {}),
+      ...(typeof e.syncPendientes === "number" ? { syncPendientes: e.syncPendientes } : {}),
+      medio: e.medio,
+      so: e.so,
+      equipo: e.equipo,
+      visto: e.ts,
+    }))
     .sort((x, y) => y.visto - x.visto);
 }
 
@@ -107,15 +150,77 @@ export function lapida(previa: EntradaAparato | undefined, ahora: number): Entra
 }
 
 /** Entrada viva de un aparato. */
-export function entradaViva(d: { nombre?: string; medio?: string; so?: string; equipo?: string }, ahora: number): EntradaAparato {
+export function entradaViva(
+  d: {
+    nombre?: string;
+    idUnico?: string;
+    color?: string;
+    huella?: string;
+    syncEstado?: EstadoSyncAparato;
+    syncPendientes?: number;
+    medio?: string;
+    so?: string;
+    equipo?: string;
+  },
+  ahora: number,
+): EntradaAparato {
   const e: EntradaAparato = { ts: ahora };
   const n = texto(d.nombre);
   if (n) e.n = n;
+  const idUnico = texto(d.idUnico, 40);
+  if (idUnico) e.idUnico = idUnico;
+  const color = normalizarColor(d.color);
+  if (color) e.color = color;
+  const huella = texto(d.huella, 80);
+  if (huella) e.huella = huella;
+  if (d.syncEstado) e.syncEstado = d.syncEstado;
+  if (typeof d.syncPendientes === "number" && Number.isFinite(d.syncPendientes) && d.syncPendientes >= 0) {
+    e.syncPendientes = Math.round(d.syncPendientes);
+  }
   for (const k of ["medio", "so", "equipo"] as const) {
     const t = texto(d[k], 80);
     if (t) e[k] = t;
   }
   return e;
+}
+
+/** Color efectivo de un aparato (el personalizado o un color determinista de su ID). Pura. */
+export function colorAparatoDe(aparato: Pick<AparatoDeNeurona, "id" | "color">): string {
+  return colorDe(aparato.id, aparato.color);
+}
+
+/** Sugerencia de ID único legible para un aparato a partir de su nombre/equipo y su UUID de sync. Pura. */
+export function idUnicoPorDefecto(aparato: Pick<AparatoDeNeurona, "id" | "nombre" | "equipo" | "so">): string {
+  const base = (aparato.equipo || aparato.nombre || aparato.so || "aparato")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 18) || "aparato";
+  const sufijo = aparato.id.replace(/[^a-z0-9]/gi, "").slice(0, 4).toLowerCase() || "0001";
+  return `${base}-${sufijo}`;
+}
+
+/** Estado de sincronización de un aparato respecto a su neurona. Pura. */
+export function estadoSyncAparato(
+  aparato: Pick<AparatoDeNeurona, "visto" | "syncEstado" | "syncPendientes">,
+  opciones?: { ahora?: number; presente?: boolean; pendientes?: number },
+): { estado: EstadoSyncAparato; etiqueta: string; pendientes: number } {
+  const ahora = opciones?.ahora ?? Date.now();
+  const pendientes = opciones?.pendientes ?? aparato.syncPendientes ?? 0;
+  if (pendientes > 0 || aparato.syncEstado === "pendiente") {
+    return {
+      estado: "pendiente",
+      etiqueta: pendientes > 0 ? `Sincronización pendiente (${pendientes})` : "Sincronización pendiente",
+      pendientes,
+    };
+  }
+  const fresco = opciones?.presente === true || (aparato.visto > 0 && ahora - aparato.visto < 12 * 60_000);
+  if (fresco || aparato.syncEstado === "activa") {
+    return { estado: "activa", etiqueta: "Sincronización activa", pendientes: 0 };
+  }
+  return { estado: "sin-enlace", etiqueta: "Pendiente de sincronizar al conectar", pendientes: 0 };
 }
 
 export interface NeuronaParaElegir {

@@ -75,6 +75,21 @@ export interface PresenciaMedio {
     /** Ofrece internet compartido. */
     i?: boolean;
   };
+  /** Identidad diferenciadora de ESTE aparato (ID único, color y sync). */
+  ap?: {
+    id: string;
+    alias?: string;
+    nombre?: string;
+    col?: string;
+    sync?: "activa" | "pendiente" | "sin-enlace";
+  };
+  /** Sesiones de otras apps (Audiomorphic, Omnifrecuencias…) activas en este aparato. */
+  apps?: Array<{
+    id: string;
+    nombre: string;
+    origen?: string;
+    desde: number;
+  }>;
 }
 
 export interface EstadoPresencia {
@@ -192,6 +207,35 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(cfg.offerStorage === true ? { a: true } : {}),
       ...(cfg.offerPublicInternet === true ? { i: true } : {}),
     };
+    let ap: PresenciaMedio["ap"] | undefined;
+    try {
+      const mNeu = await import("@/lib/neurons/neurons");
+      const alias = typeof mNeu.idUnicoEsteAparato === "function" ? mNeu.idUnicoEsteAparato() : undefined;
+      const nombreAp = typeof mNeu.nombreEsteAparato === "function" ? mNeu.nombreEsteAparato() : undefined;
+      const colAp = typeof mNeu.colorEsteAparato === "function" ? mNeu.colorEsteAparato() : undefined;
+      if (sid || alias) {
+        ap = {
+          id: sid || n,
+          ...(alias ? { alias } : {}),
+          ...(nombreAp ? { nombre: nombreAp } : {}),
+          ...(colAp ? { col: colAp } : {}),
+          sync: "activa",
+        };
+      }
+    } catch { /* sin identidad aparato */ }
+    let apps: PresenciaMedio["apps"] | undefined;
+    try {
+      const sa = await import("@/lib/neurons/sesiones-apps");
+      const list = sa.detectarAppsLocalesActivas();
+      if (list.length) {
+        apps = list.map((x) => ({
+          id: x.appId,
+          nombre: x.nombre,
+          ...(x.origen ? { origen: x.origen } : {}),
+          desde: x.desde,
+        }));
+      }
+    } catch { /* sin sesiones apps */ }
     return {
       n,
       m: medio.id,
@@ -208,6 +252,8 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       ...(c ? { c } : {}),
       ...(col ? { col } : {}),
       ...(Object.keys(of).length ? { of } : {}),
+      ...(ap ? { ap } : {}),
+      ...(apps ? { apps } : {}),
     };
   } catch {
     return null;
@@ -219,7 +265,9 @@ async function enviar(forzar = false): Promise<void> {
   const a = await anuncio();
   if (!a || !canal) return;
   const ofStr = a.of ? `${a.of.c ? 1 : 0}|${a.of.a ? 1 : 0}|${a.of.i ? 1 : 0}` : "";
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${ofStr}`;
+  const appsStr = a.apps ? a.apps.map((x) => x.id).join(",") : "";
+  const apStr = a.ap ? `${a.ap.id}:${a.ap.alias ?? ""}:${a.ap.col ?? ""}` : "";
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}|${a.c ? a.c.join(",") : ""}|${a.col ?? ""}|${ofStr}|${apStr}|${appsStr}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {

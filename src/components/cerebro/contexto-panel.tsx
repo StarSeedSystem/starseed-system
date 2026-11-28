@@ -172,9 +172,9 @@ export default function ContextoPanel() {
   const activeCount = merged.filter((s) => master.enabled[s.id]).length;
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-4">
       {/* Cabecera */}
-      <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/[0.06] via-black/30 to-rose-500/[0.04] p-4">
         <div className="flex items-center gap-2 flex-wrap">
           <Sparkles className="w-5 h-5 text-amber-300" />
           <h3 className="text-base font-semibold text-amber-50">Sentidos de Aurora</h3>

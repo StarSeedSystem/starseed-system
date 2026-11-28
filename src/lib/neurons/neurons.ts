@@ -58,7 +58,8 @@ import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivas
 import { capacidadesParaRegistro, hierroDeCapacidades, type CapacidadesTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { adoptarNeurona, neuronDeviceSyncId } from "@/lib/network/identidad-dispositivo";
 // (NEU1108A) Identidad del aparato en la fila y adopción en silencio antes de crearla.
-import { entradaViva, fusionarAparatos, lapida, leerMapaAparatos, type MapaAparatos } from "@/lib/neurons/aparatos-de-neurona";
+import { colorPorDefecto, normalizarColor } from "@/lib/neurons/color-publico";
+import { entradaViva, fusionarAparatos, idUnicoPorDefecto, lapida, leerMapaAparatos, type MapaAparatos } from "@/lib/neurons/aparatos-de-neurona";
 import { combinarAparato, compararAparatos, esAparatoRico, leerAparato, type AparatoRegistro } from "@/lib/neurons/aparato-registro";
 import { aparatoDeEsteMedio, traerPistaNativa } from "@/lib/neurons/aparato-este-medio";
 import { decidirAdopcionArranque } from "@/lib/neurons/adopcion-arranque";
@@ -539,6 +540,8 @@ export async function setNeuronName(deviceId: string, name: string): Promise<Set
 /* ── (NEU1115G) Aparatos de la neurona: nombre propio y cambio de neurona ───────────────────────── */
 
 const CLAVE_NOMBRE_APARATO = "starseed.neuron.aparato-nombre.v1";
+const CLAVE_ID_UNICO_APARATO = "starseed.aparato.id-unico.v1";
+const CLAVE_COLOR_APARATO = "starseed.aparato.color.v1";
 
 /** El nombre que la persona le puso a ESTE aparato (vacío si no le puso ninguno). */
 export function nombreEsteAparato(): string {
@@ -549,7 +552,32 @@ export function nombreEsteAparato(): string {
   }
 }
 
-/** Escribe MI entrada (nombre, medio, sistema, equipo) en la fila de la neurona `idNeurona`. Nunca lanza. */
+/** ID único personalizable de ESTE aparato (aparte del nombre/apellido de su neurona). */
+export function idUnicoEsteAparato(): string {
+  try {
+    const guardado = (window.localStorage.getItem(CLAVE_ID_UNICO_APARATO) ?? "").trim().slice(0, 40);
+    if (guardado) return guardado;
+    const sync = neuronDeviceSyncId();
+    if (!sync) return "";
+    return idUnicoPorDefecto({ id: sync, nombre: nombreEsteAparato() || "aparato" });
+  } catch {
+    return "";
+  }
+}
+
+/** Color diferenciador (`#rrggbb`) de ESTE aparato (determinista por defecto si no se eligió otro). */
+export function colorEsteAparato(): string {
+  try {
+    const guardado = normalizarColor(window.localStorage.getItem(CLAVE_COLOR_APARATO));
+    if (guardado) return guardado;
+    const sync = neuronDeviceSyncId() || thisDeviceId();
+    return sync ? colorPorDefecto(sync) : "#38bdf8";
+  } catch {
+    return "#38bdf8";
+  }
+}
+
+/** Escribe MI entrada (nombre, ID único, color, huella, medio, sistema, equipo) en la fila de la neurona `idNeurona`. Nunca lanza. */
 async function escribirMiEntrada(idNeurona: string, modo: "viva" | "lapida"): Promise<boolean> {
   try {
     const sync = neuronDeviceSyncId();
@@ -562,7 +590,21 @@ async function escribirMiEntrada(idNeurona: string, modo: "viva" | "lapida"): Pr
     if (!fila) return false;
     const previo = leerMapaAparatos(fila.capabilities)[sync];
     const ap = neuronaLocal?.capabilities.aparato;
-    const entrada = modo === "lapida" ? lapida(previo, Date.now()) : entradaViva({ nombre: nombreEsteAparato() || undefined, medio: ap?.medio, so: ap?.so, equipo: ap?.equipo }, Date.now());
+    const entrada = modo === "lapida"
+      ? lapida(previo, Date.now())
+      : entradaViva(
+          {
+            nombre: nombreEsteAparato() || undefined,
+            idUnico: idUnicoEsteAparato() || undefined,
+            color: colorEsteAparato() || undefined,
+            huella: ap?.huella ?? undefined,
+            syncEstado: fichaPendiente ? "pendiente" : "activa",
+            medio: ap?.medio,
+            so: ap?.so ?? neuronaLocal?.capabilities.platform,
+            equipo: ap?.equipo,
+          },
+          Date.now(),
+        );
     const aparatos: MapaAparatos = fusionarAparatos(fila.capabilities?.aparatos, { [sync]: entrada });
     const res = await supabase.from("neuron_devices").update({ capabilities: { ...fila.capabilities, aparatos } }).eq("id", idNeurona);
     const fallo = falloDe(res as { error?: unknown; status?: number });
@@ -573,15 +615,39 @@ async function escribirMiEntrada(idNeurona: string, modo: "viva" | "lapida"): Pr
   }
 }
 
-/** Renombra ESTE aparato (no la neurona): se guarda aquí y en su entrada de la fila. */
-export async function renombrarEsteAparato(nombre: string): Promise<boolean> {
-  const limpio = nombre.replace(/\s+/g, " ").trim().slice(0, 60);
+/** Actualiza el perfil diferenciador de ESTE aparato (nombre, ID único personalizable y/o color). */
+export async function actualizarPerfilEsteAparato(perfil: {
+  nombre?: string;
+  idUnico?: string;
+  color?: string;
+}): Promise<boolean> {
   try {
-    if (limpio) window.localStorage.setItem(CLAVE_NOMBRE_APARATO, limpio);
-    else window.localStorage.removeItem(CLAVE_NOMBRE_APARATO);
+    if (typeof perfil.nombre === "string") {
+      const limpio = perfil.nombre.replace(/\s+/g, " ").trim().slice(0, 60);
+      if (limpio) window.localStorage.setItem(CLAVE_NOMBRE_APARATO, limpio);
+      else window.localStorage.removeItem(CLAVE_NOMBRE_APARATO);
+    }
+    if (typeof perfil.idUnico === "string") {
+      const idLimpio = perfil.idUnico.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      if (idLimpio) window.localStorage.setItem(CLAVE_ID_UNICO_APARATO, idLimpio);
+      else window.localStorage.removeItem(CLAVE_ID_UNICO_APARATO);
+    }
+    if (typeof perfil.color === "string") {
+      const c = normalizarColor(perfil.color);
+      if (c) window.localStorage.setItem(CLAVE_COLOR_APARATO, c);
+      else window.localStorage.removeItem(CLAVE_COLOR_APARATO);
+    }
   } catch { /* sin almacenamiento */ }
   neuronaLocal = null;
+  try {
+    window.dispatchEvent(new CustomEvent(NEURON_EVENT));
+  } catch { /* sin window */ }
   return escribirMiEntrada(resolverAliasEsteMedio() || thisDeviceId(), "viva");
+}
+
+/** Renombra ESTE aparato (no la neurona): se guarda aquí y en su entrada de la fila. */
+export async function renombrarEsteAparato(nombre: string): Promise<boolean> {
+  return actualizarPerfilEsteAparato({ nombre });
 }
 
 /**
@@ -863,13 +929,22 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
     const aparato = await aparatoDeEsteMedio(capabilities);
     if (aparato) capabilities.aparato = aparato;
   } catch { /* sin bloque del aparato */ }
-  // (NEU1115G) Mi entrada en la lista de aparatos de esta neurona: id propio estable + nombre editable.
+  // (NEU1115G) Mi entrada en la lista de aparatos de esta neurona: id propio estable, ID único, color, huella y estado de sync.
   try {
     const sync = neuronDeviceSyncId();
     if (sync) {
       capabilities.aparatos = {
         [sync]: entradaViva(
-          { nombre: nombreEsteAparato() || undefined, medio: capabilities.aparato?.medio, so: capabilities.aparato?.so ?? capabilities.platform, equipo: capabilities.aparato?.equipo },
+          {
+            nombre: nombreEsteAparato() || undefined,
+            idUnico: idUnicoEsteAparato() || undefined,
+            color: colorEsteAparato() || undefined,
+            huella: capabilities.aparato?.huella ?? undefined,
+            syncEstado: fichaPendiente ? "pendiente" : "activa",
+            medio: capabilities.aparato?.medio,
+            so: capabilities.aparato?.so ?? capabilities.platform,
+            equipo: capabilities.aparato?.equipo,
+          },
           Date.now(),
         ),
       };

@@ -5,7 +5,12 @@ import { join, extname, relative } from "node:path";
 const RAIZ = join(__dirname, "..", "..");
 // Solo las superficies ya adaptadas a pantallas chicas. Ampliar la lista
 // cuando se arregle otra carpeta; escanear todo src/ falla en cientos de sitios previos.
-const CARPETAS_ESCANEAR = ["src/components/control-remoto"];
+const CARPETAS_ESCANEAR = [
+    "src/components/control-remoto",
+    "src/components/mesh/mapa-senales",
+    "src/components/mesh/signals-center.tsx",
+    "src/app/(app)/senales",
+];
 
 const EXTENSIONES = new Set([".tsx", ".ts", ".jsx", ".js"]);
 
@@ -27,9 +32,13 @@ function leerArchivos(): Map<string, string> {
     for (const carpeta of CARPETAS_ESCANEAR) {
         const rutaAbs = join(RAIZ, carpeta);
         try {
-            for (const archivo of walk(rutaAbs)) {
-                const contenido = readFileSync(archivo, "utf8");
-                mapa.set(relative(RAIZ, archivo), contenido);
+            if (statSync(rutaAbs).isFile()) {
+                mapa.set(relative(RAIZ, rutaAbs), readFileSync(rutaAbs, "utf8"));
+            } else {
+                for (const archivo of walk(rutaAbs)) {
+                    const contenido = readFileSync(archivo, "utf8");
+                    mapa.set(relative(RAIZ, archivo), contenido);
+                }
             }
         } catch {
             // carpeta no existe

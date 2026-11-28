@@ -6,7 +6,13 @@
  * propia y unir a otra (reutiliza `AparatoEnNeurona`, sin duplicar su lógica).
  */
 
-import { aparatosDe, type AparatoDeNeurona } from "@/lib/neurons/aparatos-de-neurona";
+import {
+  aparatosDe,
+  colorAparatoDe,
+  estadoSyncAparato,
+  idUnicoPorDefecto,
+  type AparatoDeNeurona,
+} from "@/lib/neurons/aparatos-de-neurona";
 import type { Neuron } from "@/lib/neurons/neurons";
 import { AparatoEnNeurona } from "@/components/settings/neurons/aparato-en-neurona";
 
@@ -37,13 +43,33 @@ export function SeccionAparatos({ neurona }: Props) {
       {aparatos.length === 0 ? (
         <p className="text-xs text-muted-foreground">Esta neurona no tiene aparatos conocidos todavía.</p>
       ) : (
-        <ul className="space-y-1" aria-label={`Aparatos de ${neurona.name}`}>
-          {aparatos.map((a) => (
-            <li key={a.id} className="min-w-0 rounded-md border border-border/40 p-2 text-sm">
-              <strong className="break-words">{a.nombre}</strong>
-              <p className="break-words text-xs text-muted-foreground">{detalleAparato(a)}</p>
-            </li>
-          ))}
+        <ul className="space-y-1.5" aria-label={`Aparatos de ${neurona.name}`}>
+          {aparatos.map((a) => {
+            const color = colorAparatoDe(a);
+            const idUnico = a.idUnico || idUnicoPorDefecto(a);
+            const sync = estadoSyncAparato(a);
+            return (
+              <li key={a.id} className="min-w-0 rounded-md border border-border/40 p-2 text-sm">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="size-2.5 shrink-0 rounded-full ring-1 ring-white/30" style={{ backgroundColor: color }} aria-hidden />
+                  <strong className="break-words">{a.nombre}</strong>
+                  <span className="rounded border border-white/15 bg-black/30 px-1.5 py-px font-mono text-[10px] text-white/80">
+                    @{idUnico}
+                  </span>
+                  <span className={`ml-auto rounded-full px-1.5 py-px text-[9px] font-semibold ${
+                    sync.estado === "activa"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : sync.estado === "pendiente"
+                        ? "bg-amber-500/15 text-amber-200"
+                        : "bg-white/10 text-white/60"
+                  }`}>
+                    {sync.etiqueta}
+                  </span>
+                </div>
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">{detalleAparato(a)}</p>
+              </li>
+            );
+          })}
         </ul>
       )}
       {aparatos.length > 1 && (

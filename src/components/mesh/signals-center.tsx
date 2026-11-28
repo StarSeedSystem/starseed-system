@@ -374,7 +374,7 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
   };
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 max-w-full overflow-x-clip space-y-3">
       <MotorCristalMount />
       {/* Cabecera */}
       {embedded ? (

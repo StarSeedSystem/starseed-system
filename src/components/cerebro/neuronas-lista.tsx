@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { aparatosDe, colorAparatoDe, estadoSyncAparato, idUnicoPorDefecto } from "@/lib/neurons/aparatos-de-neurona";
 import type { Neuron } from "@/lib/neurons/neurons";
 
 export type FiltroNeuronas = "todas" | "en-linea" | "este-aparato" | "servidores" | "moviles" | "desconectadas";
@@ -227,6 +228,26 @@ export default function NeuronasLista({ neuronas, ahora, onAbrirFicha, onApagarP
                 <button type="button" className="min-w-0 flex-1 cursor-pointer text-left" onClick={() => onAbrirFicha(n.id)}>
                   <span className="block truncate font-semibold text-white">{n.name}</span>
                   <span className="block truncate text-xs text-white/60">{n.capabilities.platform} · {n.kind}{n.capabilities.browser ? ` · ${n.capabilities.browser}` : ""}</span>
+                  {(() => {
+                    const aps = aparatosDe(n.capabilities);
+                    if (aps.length === 0) return null;
+                    return (
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {aps.slice(0, 3).map((ap) => {
+                          const sync = estadoSyncAparato(ap, { ahora: ahora ?? Date.now(), presente: n.online });
+                          return (
+                            <span key={ap.id} className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/15 bg-black/30 px-1.5 py-px text-[10px] text-white/80">
+                              <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: colorAparatoDe(ap) }} aria-hidden />
+                              <span className="truncate font-mono">@{ap.idUnico || idUnicoPorDefecto(ap)}</span>
+                              <span className={sync.estado === "activa" ? "text-emerald-300" : sync.estado === "pendiente" ? "text-amber-200" : "text-white/50"}>
+                                {sync.estado === "activa" ? "✓" : "⏳"}
+                              </span>
+                            </span>
+                          );
+                        })}
+                      </span>
+                    );
+                  })()}
                 </button>
                 <Badge variant={n.online ? "default" : "outline"}>{n.isThisDevice ? "Este aparato" : n.online ? "En línea" : "Desconectada"}</Badge>
               </li>

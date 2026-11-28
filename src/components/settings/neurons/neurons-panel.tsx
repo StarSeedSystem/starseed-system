@@ -46,6 +46,7 @@ import { AparatoEnNeurona } from "@/components/settings/neurons/aparato-en-neuro
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
+import { SesionesOtrasApps } from "@/components/neurons/sesiones-otras-apps";
 import { AjusteEnlaceWifi } from "./ajuste-enlace-wifi";
 import { AjusteCompatibilidadNeuronas } from "./compatibilidad-neuronas"; // MTZ1109A
 import { AjustePuertaInternet } from "./ajuste-puerta-internet";
@@ -214,6 +215,7 @@ export function NeuronsPanel() {
           local (APP1107T6) vive ahora dentro de esta tarjeta. */}
       <EstaNeurona />
       <AparatoEnNeurona />
+      <SesionesOtrasApps neuronas={neurons} />
 
       {/* (WFD1108A) Medios: el enlace Wi-Fi directo entre neuronas (Automático / Preguntar / Nunca). Solo app nativa. */}
       <AjusteEnlaceWifi />

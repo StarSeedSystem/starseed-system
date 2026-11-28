@@ -25,6 +25,7 @@ export const VENTANA_APARATO_VIVO_MS = 12 * 60_000;
 export interface AparatoVivo {
   id: string;
   nombre: string;
+  idUnico?: string | null;
   huella: string | null;
   equipo: string | null;
   so: string | null;
@@ -65,7 +66,9 @@ function crudoDe(e: EntradaAparato): Record<string, unknown> {
 function claveDeAparatoVivo(v: AparatoVivo): string {
   if (v.huella) return `h:${v.huella}`;
   const equipo = normalizarEquipo(v.equipo);
-  return equipo ? `e:${equipo}|${v.so ?? ""}` : `s:${v.so ?? ""}`;
+  if (equipo) return `e:${equipo}|${v.so ?? ""}`;
+  if (v.idUnico) return `u:${v.idUnico}|${v.so ?? ""}`;
+  return `s:${v.so ?? ""}`;
 }
 
 function aparatosVivos(map: MapaAparatos, ahora: number): AparatoVivo[] {
@@ -78,6 +81,7 @@ function aparatosVivos(map: MapaAparatos, ahora: number): AparatoVivo[] {
     out.push({
       id,
       nombre: typeof e.n === "string" && e.n.trim() ? e.n.trim() : nombreAparatoPorDefecto(e),
+      idUnico: typeof e.idUnico === "string" ? e.idUnico : null,
       huella: typeof c.huella === "string" ? c.huella : null,
       equipo: typeof e.equipo === "string" ? e.equipo : null,
       so: typeof e.so === "string" ? e.so : null,

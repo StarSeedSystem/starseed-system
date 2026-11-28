@@ -32,18 +32,18 @@ export function Etiqueta3D({ position, titulo, subtitulo, color = "#ffffff", dis
     <Html position={position} center distanceFactor={distanceFactor} zIndexRange={ZINDEX_ETIQUETAS} pointerEvents="none" wrapperClass="pointer-events-none" style={SIN_PUNTERO}>
       {discreta ? (
         <span
-          className="pointer-events-none select-none whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider"
+          className="pointer-events-none select-none max-w-[160px] truncate text-[9px] font-semibold uppercase tracking-wider"
           style={{ color, textShadow: "0 0 4px #000, 0 0 2px #000" }}
         >
           {titulo}
         </span>
       ) : (
         <div
-          className="pointer-events-none select-none whitespace-nowrap rounded-lg border bg-black/80 px-2 py-1 text-center text-[10px] leading-tight text-white/90"
+          className="pointer-events-none select-none max-w-[200px] rounded-lg border bg-black/80 px-2 py-1 text-center text-[10px] leading-tight text-white/90"
           style={{ borderColor: `${color}77` }}
         >
-          <span className="block max-w-[190px] truncate font-medium">{titulo}</span>
-          {subtitulo ? <span className="block text-white/55">{subtitulo}</span> : null}
+          <span className="block max-w-[180px] truncate font-medium">{titulo}</span>
+          {subtitulo ? <span className="block max-w-[180px] truncate text-white/55">{subtitulo}</span> : null}
         </div>
       )}
     </Html>

@@ -29,10 +29,10 @@ export interface DefinicionPilar {
 }
 
 export const PILARES: DefinicionPilar[] = [
+    { id: "neuronas", etiqueta: "Neuronas", descripcion: "Tus aparatos como cerebro y servidor: órganos 2D/3D/4D, presencia y permisos.", icono: Cpu, acento: "emerald", pideCerebro: false },
     { id: "memoria", etiqueta: "Memorias", descripcion: "Archivos .md y sus fuentes: dónde se guardan y cómo se sincronizan.", icono: FileText, acento: "cyan", pideCerebro: true },
     { id: "habilidades", etiqueta: "Habilidades", descripcion: "El programa de soul.md: skills, plugins, claves, permisos y agentes.", icono: Wand2, acento: "violet", pideCerebro: true },
     { id: "contexto", etiqueta: "Contexto", descripcion: "Los sentidos: proveedor por sentido, fuentes externas y emociones.", icono: Sparkles, acento: "amber", pideCerebro: true },
-    { id: "neuronas", etiqueta: "Neuronas", descripcion: "Tus aparatos como cerebro y servidor: presencia en vivo y permisos.", icono: Cpu, acento: "emerald", pideCerebro: false },
     { id: "egos", etiqueta: "Personalidades", descripcion: "Identidades ego.md que piensan con este cerebro.", icono: Drama, acento: "fuchsia", pideCerebro: true },
     { id: "conectores", etiqueta: "Conectores", descripcion: "Servicios, integraciones, MCP, canales y cuentas externas de este cerebro.", icono: Plug, acento: "sky", pideCerebro: true },
     { id: "procesos", etiqueta: "Procesos activos", descripcion: "Agentes, sueños, descargas, apps en segundo plano y el uso real de cada servidor.", icono: Activity, acento: "rose", pideCerebro: false },
