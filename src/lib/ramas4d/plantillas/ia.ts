@@ -358,8 +358,8 @@ export function entidadesPorGrupo(entidades: readonly EntidadIA[]): Map<string, 
 export function entidadesPorEstado(entidades: readonly EntidadIA[]): Map<EstadoEntidad, EntidadIA[]> {
   const mapa = new Map<EstadoEntidad, EntidadIA[]>();
   for (const e of entidades) {
-    const estado = e.estado ?? 'desconocido';
-    if (!ESTADOS_ENTIDAD.includes(estado as EstadoEntidad)) continue;
+    const estado = e.estado;
+    if (!estado || !ESTADOS_ENTIDAD.includes(estado)) continue;
     const arr = mapa.get(estado) ?? [];
     arr.push(e);
     mapa.set(estado, arr);
