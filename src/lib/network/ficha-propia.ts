@@ -18,6 +18,14 @@ import {
 import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import { versionesDeEsteMedio } from "@/lib/actualizaciones/versiones-locales";
+import {
+  OFERTA_ALMACEN_POR_DEFECTO,
+  anuncioOfertaAlmacen,
+  capacidadAlmacenPrestable,
+  ofertaAlmacenVisiblePara,
+  sanearOfertaAlmacen,
+  type OfertaAlmacen,
+} from "@/lib/almacenes/oferta";
 
 /** Lo mínimo que hace falta para medir la ficha de este dispositivo. */
 export type DispositivoFicha = { id: string; platform: string; capas?: string[]; tokS?: Record<string, number> | null };
