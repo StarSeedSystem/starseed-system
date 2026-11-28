@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261128",
+ "tareas": [
+  {
+   "id": "CRE1125A",
+   "titulo": "Fix EntityLink tipos en creation-center.tsx",
+   "archivos": [
+    "src/components/creation/creation-center.tsx"
+   ],
+   "depende": [],
+   "prompt": "Arreglar los tipos de EntityLink que usan createEntity: corregir 'page' a 'evento' para entidades de evento, y asegurar que Partido político tenga createEntity válido. Revisar líneas 380-420 donde se definen las opciones de entidad. Módulo puro, ≤3 archivos, ≤120 líneas. Si la tarea de cuarentena REAPLICAR-20261125-213001 ya lo dejó bien, no cambies nada.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70,
+   "dependencias_ya_en_main": [
+    "REAPLICAR-20261125-213001"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1127-233833.json": [
+   "CRE1125A"
+  ]
+ }
+}
