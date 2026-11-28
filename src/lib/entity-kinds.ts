@@ -215,6 +215,10 @@ export const ENTITY_KINDS: Record<EntityKind, EntityKindMeta> = {
 /**
  * Normaliza cualquier etiqueta de tipo (pageType de profile, kind de os_*,
  * texto de widget, español libre) a una EntityKind canónica.
+ *
+ * `os_pages.kind === "entidad"` es el vocabulario vivo de las Entidades
+ * Federativas (el widget de la Red las enlaza a `/entidad/<slug>`): se resuelve
+ * al tipo canónico `ef` en vez de degradar a `pagina`, sin duplicar el tipo.
  */
 export function normalizeEntityKind(input: string | null | undefined): EntityKind {
     const k = (input ?? "").toString().trim().toLowerCase();
@@ -228,6 +232,8 @@ export function normalizeEntityKind(input: string | null | undefined): EntityKin
         usuario: "personal",
         "entidad federativa": "ef",
         "entidad-federativa": "ef",
+        entidad: "ef",
+        entidades: "ef",
         federativa: "ef",
         "e.f.": "ef",
         "e.f": "ef",
