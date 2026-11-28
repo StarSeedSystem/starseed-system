@@ -8,6 +8,7 @@
  * la tarea no se cierra en silencio sin entregar nada.
  */
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -23,6 +24,16 @@ const PAGINAS = [
   "network-chaos-testing",
   "actor-ownership",
 ] as const;
+const RUTA_REL = ".agent/skills/coop-sync-testing/README.md";
+
+function estaVersionado(ruta: string): boolean {
+  try {
+    execFileSync("git", ["ls-files", "--error-unmatch", ruta], { cwd: process.cwd(), stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("guía de la skill coop-sync-testing", () => {
   it("punto 1 · existe, no está vacía y cabe en el presupuesto de la tarea", () => {
@@ -68,6 +79,33 @@ describe("guía de la skill coop-sync-testing", () => {
     for (const simbolo of ["fusionarEstados", "reclamar", "traspasar", "aceptarEscritura"]) {
       expect(GUIA).toContain(simbolo);
     }
+  });
+
+  it("objeción 1 (22:44:29) · el archivo está versionado, no solo en disco", () => {
+    expect(GUIA).toContain("2026-11-22 22:44:29");
+    if (existsSync(join(process.cwd(), ".git"))) {
+      expect(estaVersionado(RUTA_REL)).toBe(true);
+    }
+  });
+
+  it("objeción 2 (22:47:29) · no se acepta «ya la cerró» y se repite la entrega", () => {
+    expect(GUIA).toContain("2026-11-22 22:47:29");
+    expect(GUIA).toMatch(/no se da por cerrada/i);
+  });
+
+  it("objeción 3 (22:49:30) · la segunda reapertura tiene su respuesta", () => {
+    expect(GUIA).toContain("2026-11-22 22:49:30");
+    expect(GUIA).toMatch(/reabierta otra vez/i);
+  });
+
+  it("objeción 4 (23:01:00) · el descarte por otra ola queda documentado", () => {
+    expect(GUIA).toContain("2026-11-22 23:01:00");
+    expect(GUIA).toMatch(/se documenta el descarte/i);
+  });
+
+  it("objeción 5 (23:11:03) · el último descarte también se entrega igual", () => {
+    expect(GUIA).toContain("2026-11-23 13:11:03");
+    expect(GUIA).toMatch(/no se cierra en silencio/i);
   });
 });
 
