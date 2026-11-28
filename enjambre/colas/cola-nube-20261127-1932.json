@@ -1,0 +1,34 @@
+{
+ "ola": "oracle-20261127",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "CRE1125A",
+   "titulo": "Fix EntityLink tipos en creation-center.tsx",
+   "archivos": [
+    "src/components/creation/creation-center.tsx"
+   ],
+   "depende": [],
+   "prompt": "Arreglar los tipos de EntityLink que usan createEntity: corregir 'page' a 'evento' para entidades de evento, y asegurar que Partido político tenga createEntity válido. Revisar líneas 380-420 donde se definen las opciones de entidad. Módulo puro, ≤3 archivos, ≤120 líneas. Si la tarea de cuarentena REAPLICAR-20261125-213001 ya lo dejó bien, no cambies nada.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70,
+   "dependencias_ya_en_main": [
+    "REAPLICAR-20261125-213001"
+   ]
+  },
+  {
+   "id": "CRE1125B",
+   "titulo": "Corregir tipos de entidad en entity-kinds.ts",
+   "archivos": [
+    "src/lib/entity-kinds.ts"
+   ],
+   "depende": [],
+   "prompt": "Verifica que EntityKind (src/lib/entity-kinds.ts) incluye todos los tipos que usan de verdad src/components/creation/creation-center.tsx y src/components/creation/lienzo-composer.tsx (grupo, pagina, evento, partido, ef, asamblea, comunidad, entidad, proyecto…), sin inventar tipos nuevos. Si la tarea de cuarentena REAPLICAR-20261125-213001 ya lo dejó bien, no cambies nada. Módulo puro, ≤3 archivos, ≤120 líneas.",
+   "ola": "lienzo-hermes-1125",
+   "prioridad": 70,
+   "dependencias_ya_en_main": [
+    "REAPLICAR-20261125-213001"
+   ]
+  }
+ ]
+}
