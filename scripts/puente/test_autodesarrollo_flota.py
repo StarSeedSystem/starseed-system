@@ -146,11 +146,11 @@ class NadaNuevaMasDeUnCiclo(unittest.TestCase):
                     "verificacion": "sin_verificar", "impacto": 3, "esfuerzo": 3,
                     "origen": {"id": "cr-1", "tipo": "creacion", "status": "pending_approval"},
                     "estado": "nueva",
-                    "motivo": "no accionable por el enjambre (credenciales): es de Alex → pregunta"}
+                    "motivo": "no accionable por el enjambre (credenciales): es de Maggasukha → pregunta"}
         previas = {atascada["id"]: atascada}
         reparto = self._lote(previas, aj, None)
         self.assertEqual(atascada["estado"], "pregunta")
-        self.assertEqual(atascada.get("motivo") or "", "no accionable por el enjambre (credenciales): es de Alex → pregunta")
+        self.assertEqual(atascada.get("motivo") or "", "no accionable por el enjambre (credenciales): es de Maggasukha → pregunta")
         self.assertEqual(reparto.get("pregunta"), 1)
         self.assertTrue("pregunta" in str(atascada.get("motivo_destino") or ""))
 

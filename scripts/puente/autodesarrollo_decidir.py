@@ -48,7 +48,7 @@ _DIRECCION_WEB = re.compile(r"(?:https?://)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)
 #: Credenciales escritas de cualquier forma (también dentro de un nombre de archivo: «r2_credentials.json»).
 SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]?key|private[_-]?key"
                       # «token» solo como credencial (Ola 1025S): «quitar ese token del sandbox» o «tokens del modelo»
-                      # no son de Alex; «token de acceso», «API token», «GITHUB_TOKEN» o «bearer» sí.
+                      # no son de Maggasukha; «token de acceso», «API token», «GITHUB_TOKEN» o «bearer» sí.
                       r"|\b(?:access|api|auth|bearer|refresh|personal|secret)[ _-]?tokens?\b|\b[a-z0-9]+_tokens?\b"
                       r"|\btokens?\s+(?:de|del)\s+(?:acceso|api|autenticacion|github|vercel|supabase|cuenta|sesion|usuario)\b"
                       r"|\bbearer\b")
@@ -76,7 +76,7 @@ def es_candidata_referencia(p):
     """True si es una «Candidata al catálogo de referencias» que solo toca el catálogo. PURA."""
     return bool(_CANDIDATA.match(_norm(p.get("titulo")))) and all(a == CATALOGO_REFERENCIAS for a in _archivos(p))
 def _texto_riesgo(p):
-    """El texto donde se buscan los temas de Alex y la infraestructura: sin las direcciones web en una candidata."""
+    """El texto donde se buscan los temas de Maggasukha y la infraestructura: sin las direcciones web en una candidata."""
     return _DIRECCION_WEB.sub(" ", _texto(p)) if es_candidata_referencia(p) else _texto(p)
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Maggasukha (publicar, gastar, cuentas, claves…); cadena vacía si no."""
@@ -390,7 +390,7 @@ def autorizacion_inventada(p):
     guardado antes de la marca). Nunca cuenta como aprobación. PURA."""
     return bool(p.get("autorizacion_inventada")) or (p.get("fuente") == "astraura" and bool(RECLAMO.search(_texto(p))))
 def bajo_riesgo(p, existe=None):
-    """(sí o no, motivo). De la imaginación o los agentes, de tipo investigación, diseño o contenido, sin nada de Alex
+    """(sí o no, motivo). De la imaginación o los agentes, de tipo investigación, diseño o contenido, sin nada de Maggasukha
     (publicar, gastos, cuentas, credenciales), sin borrados ni infraestructura, de importancia baja o media y, si es una
     tarea de código, con TODOS sus archivos citados existiendo hoy. PURA."""
     tipo, archivos = p.get("tipo") or "codigo", _archivos(p)
