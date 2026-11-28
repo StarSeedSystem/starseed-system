@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CargaStarSeed } from "@/components/carga/carga-starseed";
 import { APP_CATALOG } from "@/components/dashboard/apps/app-catalog";
@@ -33,8 +34,27 @@ export default function Home() {
   // bola con degradado: es la animación de carga 3D de la Protomolécula con el símbolo de StarSeed dentro de su
   // esfera. Pinta al instante (respaldo en SVG) y el 3D entra a demanda; la redirección de arriba no la espera.
   return (
-    <div className="grid min-h-dvh place-items-center">
-      <CargaStarSeed />
+    <div className="flex min-h-dvh flex-col items-center justify-between px-4 py-6">
+      <div className="my-auto">
+        <CargaStarSeed />
+      </div>
+      <footer className="max-w-xl text-center text-xs leading-relaxed text-white/60">
+        <p>
+          <strong>StarSeed OS</strong> · Sistema operativo social descentralizado. La app OAuth{" "}
+          <strong>StarSeed actividad</strong> funciona en modo de solo lectura para uso privado del titular.{" "}
+          <span className="text-white/45">
+            (Read-only private assistant integration under Google API Services User Data Policy.)
+          </span>
+        </p>
+        <nav aria-label="Información legal" className="mt-2 flex flex-wrap items-center justify-center gap-4">
+          <Link href="/privacidad" className="cursor-pointer underline underline-offset-4 hover:text-white/90">
+            Política de privacidad
+          </Link>
+          <Link href="/terminos" className="cursor-pointer underline underline-offset-4 hover:text-white/90">
+            Términos del servicio
+          </Link>
+        </nav>
+      </footer>
     </div>
   );
 }

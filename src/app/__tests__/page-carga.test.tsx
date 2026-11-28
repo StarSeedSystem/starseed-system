@@ -39,4 +39,11 @@ describe("página raíz · «Abriendo StarSeed…»", () => {
     expect(container.querySelector("span.size-20")).toBeNull();
     expect(container.querySelector("[style*='radial-gradient(circle at 35% 30%, #ffffffaa']")).toBeNull();
   });
+
+  it("expone enlaces públicos a /privacidad y /terminos y menciona StarSeed actividad para verificación Google", () => {
+    render(<Home />);
+    expect(screen.getByText(/StarSeed actividad/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Política de privacidad/i }).getAttribute("href")).toBe("/privacidad");
+    expect(screen.getByRole("link", { name: /Términos del servicio/i }).getAttribute("href")).toBe("/terminos");
+  });
 });

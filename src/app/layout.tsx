@@ -264,6 +264,9 @@ export const metadata: Metadata = {
     shortcut: "/favicon-48.png",
     apple: "/apple-icon.png",
   },
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export const viewport: Viewport = {
