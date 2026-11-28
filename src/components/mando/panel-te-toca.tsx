@@ -113,7 +113,7 @@ export function PanelTeToca({ acciones, alCerrar, alCambiar }: PanelTeTocaProps)
     return (
         <section
             role="region"
-            aria-label="Acciones que esperan a Alex"
+            aria-label="Acciones que esperan a Maggasukha"
             data-testid="panel-te-toca"
             className="mc-cristal mc-desplegar mt-2 w-full border-amber-400/25 p-4 text-left"
         >

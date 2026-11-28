@@ -147,7 +147,7 @@ export function BloqueadasGrupos({
             {r && r.preguntas.length ? (
                 <div data-testid="bloqueadas-alex">
                     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200/80">
-                        Necesitan a Alex · una decisión
+                        Necesitan a Maggasukha · una decisión
                     </h4>
                     <ul className="grid gap-1.5 md:grid-cols-2">
                         {r.preguntas.map((p) => (
