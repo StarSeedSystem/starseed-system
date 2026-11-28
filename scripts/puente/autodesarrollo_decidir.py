@@ -16,8 +16,9 @@ VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin d
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar",
           # (1103) Los verbos con que titulan los sueños profundos: sin ellos caían en «pregunta».
           "limitar", "acotar", "distinguir", "separar", "manejar", "tratar", "capturar", "sustituir", "reemplazar", "etiquetar", "reducir", "simplificar", "endurecer", "mover", "extraer", "dividir", "partir", "reutilizar", "centralizar", "parametrizar", "configurar", "consolidar", "deduplicar", "refactorizar", "registrar", "mostrar", "ensenar", "permitir", "impedir", "bloquear", "cachear", "reintentar", "asegurar", "garantizar", "detectar", "avisar", "cerrar", "abrir", "completar", "conectar", "desacoplar", "marcar", "ordenar", "filtrar")
-RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
-CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
+RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex",
+              "decision de maggasukha", "decide maggasukha", "que maggasukha decida", "preguntar a maggasukha", "avisar a maggasukha", "eleccion de maggasukha")
+CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+maggasukha|de\s+usuario|bancarias?|de\s+pago)\b")
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
 #: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
 #: (libre, registro, pago)» describe una web pública y no gasta nada; «la suscripción realtime» tampoco.
@@ -215,7 +216,7 @@ def destino(p, automatico, existe=None):
     if not automatico:
         return {"destino": "esperando-aprobacion", "aprobacion_diff": diff, "motivo": "automático apagado: todo espera tu visto bueno"}
     if not _es_codigo(p, existe):
-        return {"destino": "pregunta", "aprobacion_diff": False, "motivo": "no es código: lo decide Alex"}
+        return {"destino": "pregunta", "aprobacion_diff": False, "motivo": "no es código: lo decide Maggasukha"}
     if imp in ("baja", "media"):
         return {"destino": "autodesarrollo", "aprobacion_diff": False, "motivo": f"utilidad accionable e importancia {imp}"}
     motivo = f"importancia {imp}: siempre con tu visto bueno" + (" y diff antes de integrar" if diff else "")
