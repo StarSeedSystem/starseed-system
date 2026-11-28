@@ -33,7 +33,7 @@ describe("nucleo-astraura", () => {
 
     it("avisoVersionMayor detecta needle4 correctamente", () => {
         const renovacion = leerEstadoRenovacion(FIXTURE_JSON);
-        expect(avisoVersionMayor(renovacion)).toBe("Hay una versión mayor nueva: la decide Alex");
+        expect(avisoVersionMayor(renovacion)).toBe("Hay una versión mayor nueva: la decide Maggasukha");
 
         const sinNeedle4 = { siguiente_mayor: { needle4: false } };
         expect(avisoVersionMayor(sinNeedle4)).toBeNull();

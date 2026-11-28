@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  correoDe, enlacesDeTexto, hashPlano, mailtoDe, normalizarAlcance, plano, pieDe, remitenteNombre,
+  correoDe, enlacesDeTexto, hashPlano, mailtoDe, normalizarAlcance, plano, pieDe, remitenteNombre, REMITENTE_DEFECTO,
 } from "@/lib/alcance/alcance-servidor";
 import { resolverDestino, seguimientoDe } from "@/lib/alcance/alcance-tipos";
 
@@ -50,8 +50,8 @@ describe("correo, mailto y pie honesto (R3·R7)", () => {
     expect(h).toBe("mailto:prensa%40yosoy.org?subject=Hola+de+StarSeed&body=Nos+reson%C3%B3%E2%80%A6%0ASolo+vida.");
   });
   it("el pie lleva identidad real y forma de no recibir más", () => {
-    const p = pieDe("Alex · StarSeed OS");
-    expect(p.identidad).toContain("Alex");
+    const p = pieDe(REMITENTE_DEFECTO);
+    expect(p.identidad).toBe("Maggasukha · StarSeed OS");
     expect(p.baja.toLowerCase()).toContain("no recibir más");
   });
   it("remitenteNombre SIN entorno apaga al nombre por defecto del OS", () => {
