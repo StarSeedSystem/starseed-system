@@ -32,7 +32,7 @@ import {
   MoreHorizontal,
   Settings,
   ListMusic,
-  Fade,
+  Headphones,
   Maximize2,
   Minimize2,
 } from "lucide-react";
@@ -176,7 +176,7 @@ function FuenteCanal({
             aria-pressed={fuente.solo}
             className={fuente.solo ? "text-primary" : ""}
           >
-            <Fade className="h-4 w-4" />
+            <Headphones className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
