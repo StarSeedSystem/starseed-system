@@ -207,6 +207,11 @@ mod terminal_remota_logica; // TRM1125B
 mod ayudante_macos; // TRM1125C
 #[cfg(any(target_os = "macos", test))]
 mod ayudante_macos_logica; // TRM1125C
+// (TRM1125G) Ayudante privilegiado Windows: servicio Windows con UAC y órdenes tipadas.
+#[cfg(target_os = "windows")]
+mod ayudante_windows; // TRM1125G
+#[cfg(any(target_os = "windows", test))]
+mod ayudante_windows_logica; // TRM1125G
 // ORD1114Q: control entre mis neuronas, lado nativo (sesión, indicador, parada y registro encadenado).
 mod control_ajustes; // CTL1117H
 mod control_neuronas; // ORD1114Q
@@ -1087,6 +1092,14 @@ macro_rules! registrar_comandos {
         ayudante_macos::ayudante_estado, // TRM1125C (estado del ayudante)
         #[cfg(target_os = "macos")]
         ayudante_macos::ayudante_ejecutar, // TRM1125C (ejecutar orden tipada)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_instalar, // TRM1125G (instalar servicio Windows con UAC)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_desinstalar, // TRM1125G (desinstalar servicio Windows)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_estado, // TRM1125G (estado del ayudante)
+        #[cfg(target_os = "windows")]
+        ayudante_windows::ayudante_ejecutar, // TRM1125G (ejecutar orden tipada)
         acceso_equipo::acceso_equipo_estado, // SEG1111U
         acceso_equipo::acceso_equipo_pedir, // SEG1111U
         acceso_equipo::acceso_equipo_revocar, // SEG1111U

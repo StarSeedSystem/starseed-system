@@ -55,22 +55,23 @@
     },
     "windows": {
       "nsis": {
-        "installMode": "perMachine"
+        "installMode": "perMachine",
+        "installerHooks": "windows/hooks.nsh",
+        "headerImage": "icons/nsis-header.bmp",
+        "languages": ["Spanish", "English"],
+        "displayLanguageSelector": true
       }
     },
     "linux": {
       "deb": {
         "depends": ["gstreamer1.0-nice", "gstreamer1.0-plugins-bad", "jq", "policykit-1"],
-        "postinst": "linux/postinst",
-        "prerm": "linux/prerm"
+        "post-install-script": "linux/postinst",
+        "pre-remove-script": "linux/prerm"
       },
       "rpm": {
         "depends": ["gstreamer1.0-nice", "gstreamer1.0-plugins-bad", "jq", "polkit"],
-        "postinst": "linux/postinst",
-        "prerm": "linux/prerm"
-      },
-      "appimage": {
-        "resources": ["recursos/ayudante-linux-activar.sh"]
+        "post-install-script": "linux/postinst",
+        "pre-remove-script": "linux/prerm"
       }
     }
   },
