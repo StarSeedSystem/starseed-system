@@ -512,13 +512,35 @@ async function leerAlmacenamientoNodos(): Promise<DatosMedidores["almacenamiento
  * reunión entera de los medidores, que con la Mac cargada tarda segundos.
  */
 const ALMACENAMIENTO_CADA_MS = 60_000;
-let cacheAlmacenamiento: { t: number; datos: DatosMedidores["almacenamiento"] } | null = null;
+/** Si una lectura falla, se reintenta pronto: un volcado a medias del recolector no dura un minuto. */
+const ALMACENAMIENTO_REINTENTO_MS = 10_000;
+let cacheAlmacenamiento: { t: number; datos: NonNullable<DatosMedidores["almacenamiento"]> } | null = null;
+let ultimoFalloAlmacenamientoMs = 0;
+let lecturaAlmacenamientoEnCurso: Promise<DatosMedidores["almacenamiento"]> | null = null;
+
 async function almacenamientoCacheado(): Promise<DatosMedidores["almacenamiento"]> {
     const ahora = Date.now();
     if (cacheAlmacenamiento && ahora - cacheAlmacenamiento.t < ALMACENAMIENTO_CADA_MS) return cacheAlmacenamiento.datos;
-    const datos = await conTope(leerAlmacenamientoNodos(), 2_000, cacheAlmacenamiento?.datos ?? null);
-    cacheAlmacenamiento = { t: ahora, datos };
-    return datos;
+    // Una lectura fallida NO se guarda como «sin dato»: se conserva la última buena y se
+    // reintenta en 10 s, para que el medidor no parpadee a vacío mientras el recolector
+    // reescribe `capacidades-nodos.json`. Solo se pisa la caché con una lectura completa.
+    if (ultimoFalloAlmacenamientoMs && ahora - ultimoFalloAlmacenamientoMs < ALMACENAMIENTO_REINTENTO_MS) {
+        return cacheAlmacenamiento?.datos ?? null;
+    }
+    if (lecturaAlmacenamientoEnCurso) return lecturaAlmacenamientoEnCurso;
+    const lectura = conTope(leerAlmacenamientoNodos(), 2_000, null).then((datos) => {
+        if (datos && datos.nodos.length > 0) {
+            cacheAlmacenamiento = { t: Date.now(), datos };
+            ultimoFalloAlmacenamientoMs = 0;
+            return datos;
+        }
+        ultimoFalloAlmacenamientoMs = Date.now();
+        return cacheAlmacenamiento?.datos ?? null;
+    });
+    lecturaAlmacenamientoEnCurso = lectura.finally(() => {
+        lecturaAlmacenamientoEnCurso = null;
+    });
+    return lecturaAlmacenamientoEnCurso;
 }
 
 /**
