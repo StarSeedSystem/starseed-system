@@ -61,7 +61,14 @@ __pycache__/
 .tmp/
 
 # Agent / session artifacts
-.agent/
+.agent/*
+# CAP1119: el README de uso de agent-reach SÍ viaja en el repo. Sin esta excepción
+# `git add -A` del enjambre lo ignora, la tarea parece «sin cambios» y se rechaza.
+!.agent/skills/
+.agent/skills/*
+!.agent/skills/agent-reach/
+.agent/skills/agent-reach/*
+!.agent/skills/agent-reach/README.md
 
 # macOS artifacts
 Icon
