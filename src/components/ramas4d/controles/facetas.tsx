@@ -9,7 +9,23 @@
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { Grafo4D } from '@/lib/ramas4d/modelo';
-import { CLAVES_FACETA, indiceFacetas, type ClaveFaceta, type SeleccionFacetas } from '@/lib/ramas4d/facetas';
+import {
+  CLAVES_FACETA,
+  anadirValor,
+  fusionarValores,
+  indiceFacetas,
+  renombrarValor,
+  type ClaveFaceta,
+  type ClaveTaxonomia,
+  type SeleccionFacetas,
+  type Taxonomia,
+} from '@/lib/ramas4d/facetas';
+
+const CAMPOS_TAXONOMIA: readonly { clave: ClaveTaxonomia; rotulo: string }[] = [
+  { clave: 'temas', rotulo: 'Temas' },
+  { clave: 'categorias', rotulo: 'Categorías' },
+  { clave: 'etiquetas', rotulo: 'Etiquetas' },
+];
 
 const ROTULOS: Record<ClaveFaceta, string> = {
   tema: 'Temas', categoria: 'Categorías', etiqueta: 'Etiquetas', tipo: 'Tipos',
@@ -20,12 +36,36 @@ export interface ControlesFacetasProps {
   grafo: Grafo4D;
   seleccion: SeleccionFacetas;
   onCambiar: (seleccion: SeleccionFacetas) => void;
+  taxonomia: Taxonomia;
+  onTaxonomia: (taxonomia: Taxonomia) => void;
 }
 
-export function ControlesFacetas({ grafo, seleccion, onCambiar }: ControlesFacetasProps) {
+export function ControlesFacetas({ grafo, seleccion, onCambiar, taxonomia, onTaxonomia }: ControlesFacetasProps) {
   const [busqueda, setBusqueda] = useState('');
+  const [campo, setCampo] = useState<ClaveTaxonomia>('temas');
+  const [nuevo, setNuevo] = useState('');
+  const [origen, setOrigen] = useState('');
+  const [destino, setDestino] = useState('');
   const indice = useMemo(() => indiceFacetas(grafo), [grafo]);
   const consulta = busqueda.trim().toLowerCase();
+
+  const crear = () => {
+    if (!nuevo.trim()) return;
+    onTaxonomia(anadirValor(taxonomia, campo, nuevo));
+    setNuevo('');
+  };
+
+  const renombrar = () => {
+    if (!origen || !destino.trim()) return;
+    onTaxonomia(renombrarValor(taxonomia, campo, origen, destino));
+    setDestino('');
+  };
+
+  const fusionar = () => {
+    if (!origen || !destino.trim()) return;
+    onTaxonomia(fusionarValores(taxonomia, campo, origen, destino));
+    setDestino('');
+  };
 
   const alternar = (faceta: ClaveFaceta, valor: string) => {
     const actuales = seleccion[faceta] ?? [];
@@ -87,6 +127,63 @@ export function ControlesFacetas({ grafo, seleccion, onCambiar }: ControlesFacet
           );
         })}
       </div>
+      <details className="shrink-0 border-t border-border pt-2">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Tu taxonomía</summary>
+        <div className="mt-2 space-y-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="sr-only">Tipo de taxonomía</span>
+            <select
+              value={campo}
+              onChange={(evento) => { setCampo(evento.target.value as ClaveTaxonomia); setOrigen(''); }}
+              className="w-full cursor-pointer rounded-xl border border-border bg-background px-2 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {CAMPOS_TAXONOMIA.map(({ clave, rotulo }) => (
+                <option key={clave} value={clave}>{rotulo}</option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-1.5">
+            <input
+              value={nuevo}
+              onChange={(evento) => setNuevo(evento.target.value)}
+              aria-label="Nuevo valor de la taxonomía"
+              placeholder="Nuevo valor…"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button type="button" onClick={crear} disabled={!nuevo.trim()} className="cursor-pointer rounded-full border border-primary px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
+              Crear
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={origen}
+              onChange={(evento) => setOrigen(evento.target.value)}
+              aria-label="Valor existente"
+              className="min-w-0 flex-1 cursor-pointer rounded-xl border border-border bg-background px-2 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Elige un valor…</option>
+              {taxonomia[campo].map((valor) => (
+                <option key={valor} value={valor}>{valor}</option>
+              ))}
+            </select>
+            <input
+              value={destino}
+              onChange={(evento) => setDestino(evento.target.value)}
+              aria-label="Valor de destino"
+              placeholder="Destino…"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={renombrar} disabled={!origen || !destino.trim()} className="flex-1 cursor-pointer rounded-full border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
+              Renombrar
+            </button>
+            <button type="button" onClick={fusionar} disabled={!origen || !destino.trim()} className="flex-1 cursor-pointer rounded-full border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
+              Fusionar
+            </button>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }
